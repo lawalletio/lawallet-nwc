@@ -1,5 +1,5 @@
-import type { CardDesign } from "@/types/card-design"
-import { mockCardDesignData } from "@/mocks/card-design"
+import type { CardDesign } from '@/types/card-design'
+import { mockCardDesignData } from '@/mocks/card-design'
 
 export class CardDesignService {
   /**
@@ -13,7 +13,7 @@ export class CardDesignService {
    * Get a single card design by ID
    */
   static get(id: string): CardDesign | null {
-    const design = mockCardDesignData.find((design) => design.id === id)
+    const design = mockCardDesignData.find(design => design.id === id)
     return design || null
   }
 
@@ -21,7 +21,7 @@ export class CardDesignService {
    * Get card designs created after a specific date
    */
   static getCreatedAfter(date: Date): CardDesign[] {
-    return mockCardDesignData.filter((design) => design.createdAt > date)
+    return mockCardDesignData.filter(design => design.createdAt > date)
   }
 
   /**
@@ -29,7 +29,9 @@ export class CardDesignService {
    */
   static searchByDescription(query: string): CardDesign[] {
     const lowercaseQuery = query.toLowerCase()
-    return mockCardDesignData.filter((design) => design.description.toLowerCase().includes(lowercaseQuery))
+    return mockCardDesignData.filter(design =>
+      design.description.toLowerCase().includes(lowercaseQuery)
+    )
   }
 
   /**
@@ -38,7 +40,9 @@ export class CardDesignService {
   static getLatest(): CardDesign | null {
     if (mockCardDesignData.length === 0) return null
 
-    return mockCardDesignData.reduce((latest, current) => (current.createdAt > latest.createdAt ? current : latest))
+    return mockCardDesignData.reduce((latest, current) =>
+      current.createdAt > latest.createdAt ? current : latest
+    )
   }
 
   /**

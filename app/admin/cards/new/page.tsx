@@ -1,35 +1,41 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Search, ArrowLeft, Nfc, QrCode, Check } from "lucide-react"
-import Link from "next/link"
-import { CardDesignService } from "@/services/card-design-service"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Search, ArrowLeft, Nfc, QrCode, Check } from 'lucide-react'
+import Link from 'next/link'
+import { CardDesignService } from '@/services/card-design-service'
 
-type Step = "design" | "nfc" | "qr"
+type Step = 'design' | 'nfc' | 'qr'
 
 export default function NewCardPage() {
   const router = useRouter()
-  const [currentStep, setCurrentStep] = useState<Step>("design")
-  const [selectedDesign, setSelectedDesign] = useState("")
-  const [searchTerm, setSearchTerm] = useState("")
-  const [qrToken, setQrToken] = useState("")
+  const [currentStep, setCurrentStep] = useState<Step>('design')
+  const [selectedDesign, setSelectedDesign] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [qrToken, setQrToken] = useState('')
   const [showQRDialog, setShowQRDialog] = useState(false)
   const [isWritingCard, setIsWritingCard] = useState(false)
 
   const designs = CardDesignService.list()
 
-  const filteredDesigns = designs.filter((design) =>
-    design.description.toLowerCase().includes(searchTerm.toLowerCase()),
+  const filteredDesigns = designs.filter(design =>
+    design.description.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const handleDesignSelect = (designId: string) => {
     setSelectedDesign(designId)
-    setCurrentStep("nfc")
+    setCurrentStep('nfc')
   }
 
   const handleNFCTap = () => {
@@ -38,9 +44,9 @@ export default function NewCardPage() {
     setQrToken(token)
 
     // In a real implementation, this would create the card via API
-    console.log("Creating card with design:", selectedDesign)
+    console.log('Creating card with design:', selectedDesign)
 
-    setCurrentStep("qr")
+    setCurrentStep('qr')
     setShowQRDialog(true)
   }
 
@@ -48,13 +54,13 @@ export default function NewCardPage() {
     setIsWritingCard(true)
 
     // Mock loading for 2 seconds
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    await new Promise(resolve => setTimeout(resolve, 2000))
 
     setShowQRDialog(false)
     setIsWritingCard(false)
 
     // Navigate to cards list since we can't get the specific card ID
-    router.push("/admin/cards")
+    router.push('/admin/cards')
   }
 
   // Generate QR code pattern as SVG
@@ -70,19 +76,28 @@ export default function NewCardPage() {
   const qrPattern = generateQRPattern()
   const qrUrl = `https://yourdomain.com/pair?token=${qrToken}`
 
-  if (currentStep === "design") {
+  if (currentStep === 'design') {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild className="text-gray-600 hover:text-gray-900">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-gray-600 hover:text-gray-900"
+          >
             <Link href="/admin/cards">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Cards
             </Link>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Create New Card</h1>
-            <p className="text-gray-600">Choose a design for your new BoltCard</p>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+              Create New Card
+            </h1>
+            <p className="text-gray-600">
+              Choose a design for your new BoltCard
+            </p>
           </div>
         </div>
 
@@ -92,7 +107,7 @@ export default function NewCardPage() {
             <Input
               placeholder="Search designs..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={e => setSearchTerm(e.target.value)}
               className="pl-8 border-gray-200 focus:border-purple-500 focus:ring-purple-500 bg-white"
             />
           </div>
@@ -102,13 +117,17 @@ export default function NewCardPage() {
           <Card className="border-gray-100 shadow-sm bg-white">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Search className="h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold mb-2 text-gray-900">No designs found</h3>
-              <p className="text-gray-500 text-center">No designs match your search criteria.</p>
+              <h3 className="text-lg font-semibold mb-2 text-gray-900">
+                No designs found
+              </h3>
+              <p className="text-gray-500 text-center">
+                No designs match your search criteria.
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredDesigns.map((design) => (
+            {filteredDesigns.map(design => (
               <Card
                 key={design.id}
                 className="hover:shadow-lg transition-all duration-300 border-gray-100 bg-white cursor-pointer hover:scale-105"
@@ -117,17 +136,20 @@ export default function NewCardPage() {
                 <CardContent className="p-4">
                   <div className="aspect-[856/540] bg-gray-100 rounded-lg overflow-hidden mb-3">
                     <img
-                      src={design.imageUrl || "/placeholder.svg"}
+                      src={design.imageUrl || '/placeholder.svg'}
                       alt={design.description}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
+                      onError={e => {
                         const target = e.target as HTMLImageElement
-                        target.src = "/placeholder.svg?height=540&width=856&text=Design+Preview"
+                        target.src =
+                          '/placeholder.svg?height=540&width=856&text=Design+Preview'
                       }}
                     />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="font-semibold text-gray-900 text-sm">{design.description}</h3>
+                    <h3 className="font-semibold text-gray-900 text-sm">
+                      {design.description}
+                    </h3>
                     <p className="text-xs text-gray-500">ID: {design.id}</p>
                   </div>
                 </CardContent>
@@ -139,13 +161,17 @@ export default function NewCardPage() {
     )
   }
 
-  if (currentStep === "nfc") {
+  if (currentStep === 'nfc') {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Tap Your Card</h1>
-            <p className="text-gray-600">Place your NFC card on the reader to write the configuration</p>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+              Tap Your Card
+            </h1>
+            <p className="text-gray-600">
+              Place your NFC card on the reader to write the configuration
+            </p>
           </div>
         </div>
 
@@ -161,9 +187,12 @@ export default function NewCardPage() {
                 </div>
               </div>
 
-              <h3 className="text-xl font-semibold mb-2 text-gray-900">Ready to Write</h3>
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">
+                Ready to Write
+              </h3>
               <p className="text-gray-500 text-center mb-6">
-                Place your NTAG424 card on the NFC reader and tap the button below
+                Place your NTAG424 card on the NFC reader and tap the button
+                below
               </p>
 
               <Button
@@ -185,15 +214,24 @@ export default function NewCardPage() {
     <>
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild className="text-gray-600 hover:text-gray-900">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-gray-600 hover:text-gray-900"
+          >
             <Link href="/admin/cards">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Cards
             </Link>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Card Created!</h1>
-            <p className="text-gray-600">Your card has been successfully configured</p>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+              Card Created!
+            </h1>
+            <p className="text-gray-600">
+              Your card has been successfully configured
+            </p>
           </div>
         </div>
       </div>
@@ -217,18 +255,31 @@ export default function NewCardPage() {
                   {qrPattern.map((filled, index) => {
                     const x = index % 21
                     const y = Math.floor(index / 21)
-                    return <rect key={index} x={x} y={y} width="1" height="1" fill={filled ? "#000000" : "#ffffff"} />
+                    return (
+                      <rect
+                        key={index}
+                        x={x}
+                        y={y}
+                        width="1"
+                        height="1"
+                        fill={filled ? '#000000' : '#ffffff'}
+                      />
+                    )
                   })}
                 </svg>
               </div>
             </div>
 
             <div className="text-center space-y-4">
-              <p className="text-sm font-medium text-gray-900">Setup Code: {qrToken.toUpperCase()}</p>
+              <p className="text-sm font-medium text-gray-900">
+                Setup Code: {qrToken.toUpperCase()}
+              </p>
               <p className="text-xs text-gray-500 break-all">{qrUrl}</p>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                <h4 className="text-sm font-medium text-blue-900 mb-3">Setup Steps:</h4>
+                <h4 className="text-sm font-medium text-blue-900 mb-3">
+                  Setup Steps:
+                </h4>
                 <ol className="space-y-2 text-sm text-blue-800">
                   <li className="flex items-start gap-2">
                     <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
@@ -246,7 +297,9 @@ export default function NewCardPage() {
                     <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
                       3
                     </span>
-                    <span>Click "Card Written" in this dialog when complete</span>
+                    <span>
+                      Click "Card Written" in this dialog when complete
+                    </span>
                   </li>
                 </ol>
               </div>

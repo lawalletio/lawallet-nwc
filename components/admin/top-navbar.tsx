@@ -1,15 +1,15 @@
-"use client"
+'use client'
 
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { User, LogOut, Settings, ChevronDown, Menu } from "lucide-react"
-import { useAdmin } from "./admin-provider"
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
+import { User, LogOut, Settings, ChevronDown, Menu } from 'lucide-react'
+import { useAdmin } from './admin-provider'
 
 interface TopNavbarProps {
   sidebarOpen: boolean
@@ -25,27 +25,27 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
 
   const getMethodBadge = (method: string) => {
     switch (method) {
-      case "nip07":
-        return "Extension"
-      case "nsec":
-        return "Private Key"
-      case "bunker":
-        return "Bunker"
+      case 'nip07':
+        return 'Extension'
+      case 'nsec':
+        return 'Private Key'
+      case 'bunker':
+        return 'Bunker'
       default:
-        return "Unknown"
+        return 'Unknown'
     }
   }
 
   const getMethodColor = (method: string) => {
     switch (method) {
-      case "nip07":
-        return "bg-green-100 text-green-800"
-      case "nsec":
-        return "bg-blue-100 text-blue-800"
-      case "bunker":
-        return "bg-purple-100 text-purple-800"
+      case 'nip07':
+        return 'bg-green-100 text-green-800'
+      case 'nsec':
+        return 'bg-blue-100 text-blue-800'
+      case 'bunker':
+        return 'bg-purple-100 text-purple-800'
       default:
-        return "bg-gray-100 text-gray-800"
+        return 'bg-gray-100 text-gray-800'
     }
   }
 
@@ -65,7 +65,9 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
       <div className="flex items-center gap-3">
         <img src="/nwc-logo-black.png" alt="NWC Logo" className="h-8 w-auto" />
         <div className="min-w-0 flex-1 hidden sm:block">
-          <h2 className="text-base font-semibold text-foreground truncate">Admin Dashboard</h2>
+          <h2 className="text-base font-semibold text-foreground truncate">
+            Admin Dashboard
+          </h2>
           {auth && (
             <p className="text-xs text-muted-foreground truncate font-mono">
               {auth.pubkey.slice(0, 8)}...{auth.pubkey.slice(-8)}
@@ -79,7 +81,10 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
       {/* User dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="flex items-center gap-2 px-3 py-2 h-auto text-secondary-foreground">
+          <Button
+            variant="ghost"
+            className="flex items-center gap-2 px-3 py-2 h-auto text-secondary-foreground"
+          >
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
                 <User className="h-4 w-4 text-muted-foreground" />
@@ -90,9 +95,9 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
                 </div>
                 <div className="text-xs text-muted-foreground">
                   <span
-                    className={`inline-block px-2 py-0.5 rounded-full text-xs ${getMethodColor(auth?.method || "")}`}
+                    className={`inline-block px-2 py-0.5 rounded-full text-xs ${getMethodColor(auth?.method || '')}`}
                   >
-                    {getMethodBadge(auth?.method || "")}
+                    {getMethodBadge(auth?.method || '')}
                   </span>
                 </div>
               </div>
@@ -102,11 +107,17 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64 bg-popover border">
           <div className="px-3 py-2">
-            <div className="text-sm font-medium text-foreground">Logged in as</div>
-            <div className="text-xs text-muted-foreground font-mono break-all">{auth?.pubkey}</div>
+            <div className="text-sm font-medium text-foreground">
+              Logged in as
+            </div>
+            <div className="text-xs text-muted-foreground font-mono break-all">
+              {auth?.pubkey}
+            </div>
             <div className="mt-1">
-              <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${getMethodColor(auth?.method || "")}`}>
-                {getMethodBadge(auth?.method || "")}
+              <span
+                className={`inline-block px-2 py-0.5 rounded-full text-xs ${getMethodColor(auth?.method || '')}`}
+              >
+                {getMethodBadge(auth?.method || '')}
               </span>
             </div>
           </div>

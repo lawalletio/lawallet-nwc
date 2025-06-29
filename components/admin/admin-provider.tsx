@@ -1,11 +1,11 @@
-"use client"
+'use client'
 
-import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+import type React from 'react'
+import { createContext, useContext, useState, useEffect } from 'react'
 
 interface NostrAuth {
   pubkey: string
-  method: "nip07" | "nsec" | "bunker"
+  method: 'nip07' | 'nsec' | 'bunker'
   connected: boolean
 }
 
@@ -15,7 +15,7 @@ interface Card {
   design: string
   lightningAddress: string
   nwc: string | null
-  status: "unpaired" | "paired" | "active" | "revoked"
+  status: 'unpaired' | 'paired' | 'active' | 'revoked'
   createdAt: Date
   uid?: string
 }
@@ -42,12 +42,12 @@ interface AdminContextType {
   lightningAddresses: LightningAddress[]
   domain: string
   setAuth: (auth: NostrAuth | null) => void
-  addCard: (card: Omit<Card, "id" | "createdAt">) => void
+  addCard: (card: Omit<Card, 'id' | 'createdAt'>) => void
   updateCard: (id: string, updates: Partial<Card>) => void
   deleteCard: (id: string) => void
-  addDesign: (design: Omit<Design, "id">) => void
+  addDesign: (design: Omit<Design, 'id'>) => void
   deleteDesign: (id: string) => void
-  addLightningAddress: (address: Omit<LightningAddress, "id">) => void
+  addLightningAddress: (address: Omit<LightningAddress, 'id'>) => void
   deleteLightningAddress: (id: string) => void
   setDomain: (domain: string) => void
 }
@@ -59,19 +59,21 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [cards, setCards] = useState<Card[]>([])
   const [designs, setDesigns] = useState<Design[]>([
     {
-      id: "1",
-      name: "Default Purple",
-      description: "Purple gradient design",
-      imageUrl: "/placeholder.svg?height=540&width=856&text=Purple+Card",
-      isDefault: true,
-    },
+      id: '1',
+      name: 'Default Purple',
+      description: 'Purple gradient design',
+      imageUrl: '/placeholder.svg?height=540&width=856&text=Purple+Card',
+      isDefault: true
+    }
   ])
-  const [lightningAddresses, setLightningAddresses] = useState<LightningAddress[]>([])
-  const [domain, setDomain] = useState("")
+  const [lightningAddresses, setLightningAddresses] = useState<
+    LightningAddress[]
+  >([])
+  const [domain, setDomain] = useState('')
 
   // Load auth from localStorage on mount
   useEffect(() => {
-    const savedAuth = localStorage.getItem("admin-auth")
+    const savedAuth = localStorage.getItem('admin-auth')
     if (savedAuth) {
       setAuth(JSON.parse(savedAuth))
     }
@@ -80,51 +82,53 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   // Save auth to localStorage when it changes
   useEffect(() => {
     if (auth) {
-      localStorage.setItem("admin-auth", JSON.stringify(auth))
+      localStorage.setItem('admin-auth', JSON.stringify(auth))
     } else {
-      localStorage.removeItem("admin-auth")
+      localStorage.removeItem('admin-auth')
     }
   }, [auth])
 
-  const addCard = (card: Omit<Card, "id" | "createdAt">) => {
+  const addCard = (card: Omit<Card, 'id' | 'createdAt'>) => {
     const newCard: Card = {
       ...card,
       id: Math.random().toString(36).substr(2, 9),
-      createdAt: new Date(),
+      createdAt: new Date()
     }
-    setCards((prev) => [...prev, newCard])
+    setCards(prev => [...prev, newCard])
   }
 
   const updateCard = (id: string, updates: Partial<Card>) => {
-    setCards((prev) => prev.map((card) => (card.id === id ? { ...card, ...updates } : card)))
+    setCards(prev =>
+      prev.map(card => (card.id === id ? { ...card, ...updates } : card))
+    )
   }
 
   const deleteCard = (id: string) => {
-    setCards((prev) => prev.filter((card) => card.id !== id))
+    setCards(prev => prev.filter(card => card.id !== id))
   }
 
-  const addDesign = (design: Omit<Design, "id">) => {
+  const addDesign = (design: Omit<Design, 'id'>) => {
     const newDesign: Design = {
       ...design,
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).substr(2, 9)
     }
-    setDesigns((prev) => [...prev, newDesign])
+    setDesigns(prev => [...prev, newDesign])
   }
 
   const deleteDesign = (id: string) => {
-    setDesigns((prev) => prev.filter((design) => design.id !== id))
+    setDesigns(prev => prev.filter(design => design.id !== id))
   }
 
-  const addLightningAddress = (address: Omit<LightningAddress, "id">) => {
+  const addLightningAddress = (address: Omit<LightningAddress, 'id'>) => {
     const newAddress: LightningAddress = {
       ...address,
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).substr(2, 9)
     }
-    setLightningAddresses((prev) => [...prev, newAddress])
+    setLightningAddresses(prev => [...prev, newAddress])
   }
 
   const deleteLightningAddress = (id: string) => {
-    setLightningAddresses((prev) => prev.filter((addr) => addr.id !== id))
+    setLightningAddresses(prev => prev.filter(addr => addr.id !== id))
   }
 
   return (
@@ -143,7 +147,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         deleteDesign,
         addLightningAddress,
         deleteLightningAddress,
-        setDomain,
+        setDomain
       }}
     >
       {children}
@@ -154,7 +158,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 export function useAdmin() {
   const context = useContext(AdminContext)
   if (!context) {
-    throw new Error("useAdmin must be used within AdminProvider")
+    throw new Error('useAdmin must be used within AdminProvider')
   }
   return context
 }

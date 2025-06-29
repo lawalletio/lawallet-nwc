@@ -1,5 +1,5 @@
-import type { Card } from "@/types/card"
-import { mockCardData } from "@/mocks/card"
+import type { Card } from '@/types/card'
+import { mockCardData } from '@/mocks/card'
 
 export class CardService {
   /**
@@ -13,7 +13,7 @@ export class CardService {
    * Get a single card by ID
    */
   static get(id: string): Card | null {
-    const card = mockCardData.find((card) => card.id === id)
+    const card = mockCardData.find(card => card.id === id)
     return card || null
   }
 
@@ -22,63 +22,67 @@ export class CardService {
    */
   static searchByTitle(query: string): Card[] {
     const lowercaseQuery = query.toLowerCase()
-    return mockCardData.filter((card) => card.title.toLowerCase().includes(lowercaseQuery))
+    return mockCardData.filter(card =>
+      card.title.toLowerCase().includes(lowercaseQuery)
+    )
   }
 
   /**
    * Get cards by pubkey
    */
   static getByPubkey(pubkey: string): Card[] {
-    return mockCardData.filter((card) => card.pubkey === pubkey)
+    return mockCardData.filter(card => card.pubkey === pubkey)
   }
 
   /**
    * Get cards with NTAG424 chips (paired cards)
    */
   static getPairedCards(): Card[] {
-    return mockCardData.filter((card) => card.ntag424 !== undefined)
+    return mockCardData.filter(card => card.ntag424 !== undefined)
   }
 
   /**
    * Get cards without NTAG424 chips (unpaired cards)
    */
   static getUnpairedCards(): Card[] {
-    return mockCardData.filter((card) => card.ntag424 === undefined)
+    return mockCardData.filter(card => card.ntag424 === undefined)
   }
 
   /**
    * Get cards that have been used (have lastUsedAt)
    */
   static getUsedCards(): Card[] {
-    return mockCardData.filter((card) => card.lastUsedAt !== undefined)
+    return mockCardData.filter(card => card.lastUsedAt !== undefined)
   }
 
   /**
    * Get cards that have never been used
    */
   static getUnusedCards(): Card[] {
-    return mockCardData.filter((card) => card.lastUsedAt === undefined)
+    return mockCardData.filter(card => card.lastUsedAt === undefined)
   }
 
   /**
    * Get cards created after a specific date
    */
   static getCreatedAfter(date: Date): Card[] {
-    return mockCardData.filter((card) => card.createdAt > date)
+    return mockCardData.filter(card => card.createdAt > date)
   }
 
   /**
    * Get cards used after a specific date
    */
   static getUsedAfter(date: Date): Card[] {
-    return mockCardData.filter((card) => card.lastUsedAt && card.lastUsedAt > date)
+    return mockCardData.filter(
+      card => card.lastUsedAt && card.lastUsedAt > date
+    )
   }
 
   /**
    * Get cards by design ID
    */
   static getByDesignId(designId: string): Card[] {
-    return mockCardData.filter((card) => card.design.id === designId)
+    return mockCardData.filter(card => card.design.id === designId)
   }
 
   /**
@@ -101,7 +105,7 @@ export class CardService {
       paired: this.getPairedCards().length,
       unpaired: this.getUnpairedCards().length,
       used: this.getUsedCards().length,
-      unused: this.getUnusedCards().length,
+      unused: this.getUnusedCards().length
     }
   }
 }

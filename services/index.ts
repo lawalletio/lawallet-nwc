@@ -1,8 +1,8 @@
 // Export all services for easy importing
-import { Ntag424Service } from "./ntag424-service"
-import { CardDesignService } from "./card-design-service"
-import { CardService } from "./card-service"
-import { LightningAddressService } from "./lightning-address-service"
+import { Ntag424Service } from './ntag424-service'
+import { CardDesignService } from './card-design-service'
+import { CardService } from './card-service'
+import { LightningAddressService } from './lightning-address-service'
 
 // Combined service class for convenience
 export class MockDataService {
@@ -21,7 +21,7 @@ export class MockDataService {
       cardCount: CardService.count(),
       lightningAddressCount: LightningAddressService.count(),
       cardStatusCounts: CardService.getStatusCounts(),
-      nwcStatusCounts: LightningAddressService.getNWCStatusCounts(),
+      nwcStatusCounts: LightningAddressService.getNWCStatusCounts()
     }
   }
 
@@ -33,7 +33,7 @@ export class MockDataService {
       ntag424: Ntag424Service.list(),
       cardDesigns: CardDesignService.list(),
       cards: CardService.list(),
-      lightningAddresses: LightningAddressService.list(),
+      lightningAddresses: LightningAddressService.list()
     }
   }
 }

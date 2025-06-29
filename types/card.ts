@@ -1,5 +1,5 @@
-import type { CardDesign } from "./card-design"
-import type { Ntag424 } from "./ntag424"
+import type { CardDesign } from './card-design'
+import type { Ntag424 } from './ntag424'
 
 export type Card = {
   id: string

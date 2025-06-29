@@ -1,34 +1,42 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Zap, Key, Link, Lock } from "lucide-react"
-import { useAdmin } from "./admin-provider"
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Eye, EyeOff, Zap, Key, Link, Lock } from 'lucide-react'
+import { useAdmin } from './admin-provider'
 
 export function Login() {
   const { setAuth } = useAdmin()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [nsec, setNsec] = useState("")
+  const [error, setError] = useState('')
+  const [nsec, setNsec] = useState('')
   const [showNsec, setShowNsec] = useState(false)
-  const [bunkerUri, setBunkerUri] = useState("")
+  const [bunkerUri, setBunkerUri] = useState('')
 
   const handleNip07Login = async () => {
     setLoading(true)
-    setError("")
+    setError('')
 
     try {
       if (!window.nostr) {
-        throw new Error("No Nostr extension found. Please install Alby or nos2x.")
+        throw new Error(
+          'No Nostr extension found. Please install Alby or nos2x.'
+        )
       }
       const pubkey = await window.nostr.getPublicKey()
-      setAuth({ pubkey, method: "nip07", connected: true })
+      setAuth({ pubkey, method: 'nip07', connected: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect")
+      setError(err instanceof Error ? err.message : 'Failed to connect')
     } finally {
       setLoading(false)
     }
@@ -36,15 +44,15 @@ export function Login() {
 
   const handleNsecLogin = async () => {
     setLoading(true)
-    setError("")
+    setError('')
     try {
-      if (!nsec.startsWith("nsec1")) {
-        throw new Error("Invalid nsec format. Must start with nsec1")
+      if (!nsec.startsWith('nsec1')) {
+        throw new Error('Invalid nsec format. Must start with nsec1')
       }
-      const mockPubkey = "npub1" + Math.random().toString(36).substr(2, 59)
-      setAuth({ pubkey: mockPubkey, method: "nsec", connected: true })
+      const mockPubkey = 'npub1' + Math.random().toString(36).substr(2, 59)
+      setAuth({ pubkey: mockPubkey, method: 'nsec', connected: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to login with nsec")
+      setError(err instanceof Error ? err.message : 'Failed to login with nsec')
     } finally {
       setLoading(false)
     }
@@ -52,15 +60,17 @@ export function Login() {
 
   const handleBunkerLogin = async () => {
     setLoading(true)
-    setError("")
+    setError('')
     try {
-      if (!bunkerUri.startsWith("nsec://")) {
-        throw new Error("Invalid bunker URI format. Must start with nsec://")
+      if (!bunkerUri.startsWith('nsec://')) {
+        throw new Error('Invalid bunker URI format. Must start with nsec://')
       }
-      const mockPubkey = "npub1" + Math.random().toString(36).substr(2, 59)
-      setAuth({ pubkey: mockPubkey, method: "bunker", connected: true })
+      const mockPubkey = 'npub1' + Math.random().toString(36).substr(2, 59)
+      setAuth({ pubkey: mockPubkey, method: 'bunker', connected: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect to bunker")
+      setError(
+        err instanceof Error ? err.message : 'Failed to connect to bunker'
+      )
     } finally {
       setLoading(false)
     }
@@ -72,13 +82,19 @@ export function Login() {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="relative">
-              <img src="/nwc-logo-black.png" alt="NWC Logo" className="h-12 w-auto" />
+              <img
+                src="/nwc-logo-black.png"
+                alt="NWC Logo"
+                className="h-12 w-auto"
+              />
               <div className="absolute -bottom-1 -right-1 bg-foreground rounded-full p-1">
                 <Lock className="h-3 w-3 text-background" />
               </div>
             </div>
           </div>
-          <CardTitle className="text-2xl text-foreground">Admin Login</CardTitle>
+          <CardTitle className="text-2xl text-foreground">
+            Admin Login
+          </CardTitle>
           <CardDescription className="text-muted-foreground">
             Login with your Nostr identity to access the admin dashboard
           </CardDescription>
@@ -97,8 +113,12 @@ export function Login() {
                 <p className="text-sm text-muted-foreground">
                   Connect using your browser extension (Alby, nos2x, etc.)
                 </p>
-                <Button onClick={handleNip07Login} disabled={loading} className="w-full">
-                  {loading ? "Connecting..." : "Connect Extension"}
+                <Button
+                  onClick={handleNip07Login}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  {loading ? 'Connecting...' : 'Connect Extension'}
                 </Button>
               </div>
             </TabsContent>
@@ -107,14 +127,16 @@ export function Login() {
               <div className="space-y-4">
                 <div className="text-center">
                   <Key className="h-12 w-12 mx-auto text-primary mb-2" />
-                  <p className="text-sm text-muted-foreground">Paste your nsec private key</p>
+                  <p className="text-sm text-muted-foreground">
+                    Paste your nsec private key
+                  </p>
                 </div>
                 <div className="relative">
                   <Input
-                    type={showNsec ? "text" : "password"}
+                    type={showNsec ? 'text' : 'password'}
                     placeholder="nsec1..."
                     value={nsec}
-                    onChange={(e) => setNsec(e.target.value)}
+                    onChange={e => setNsec(e.target.value)}
                     className="pr-10"
                   />
                   <Button
@@ -124,7 +146,11 @@ export function Login() {
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-muted-foreground hover:text-foreground"
                     onClick={() => setShowNsec(!showNsec)}
                   >
-                    {showNsec ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showNsec ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
                 <Alert variant="default" className="bg-accent border-border">
@@ -132,8 +158,12 @@ export function Login() {
                     🔒 Your key never leaves your browser memory.
                   </AlertDescription>
                 </Alert>
-                <Button onClick={handleNsecLogin} disabled={loading || !nsec} className="w-full">
-                  {loading ? "Logging in..." : "Login with nsec"}
+                <Button
+                  onClick={handleNsecLogin}
+                  disabled={loading || !nsec}
+                  className="w-full"
+                >
+                  {loading ? 'Logging in...' : 'Login with nsec'}
                 </Button>
               </div>
             </TabsContent>
@@ -142,11 +172,21 @@ export function Login() {
               <div className="space-y-4">
                 <div className="text-center">
                   <Link className="h-12 w-12 mx-auto text-primary mb-2" />
-                  <p className="text-sm text-muted-foreground">Connect to remote signer</p>
+                  <p className="text-sm text-muted-foreground">
+                    Connect to remote signer
+                  </p>
                 </div>
-                <Input placeholder="nsec://..." value={bunkerUri} onChange={(e) => setBunkerUri(e.target.value)} />
-                <Button onClick={handleBunkerLogin} disabled={loading || !bunkerUri} className="w-full">
-                  {loading ? "Connecting..." : "Connect Bunker"}
+                <Input
+                  placeholder="nsec://..."
+                  value={bunkerUri}
+                  onChange={e => setBunkerUri(e.target.value)}
+                />
+                <Button
+                  onClick={handleBunkerLogin}
+                  disabled={loading || !bunkerUri}
+                  className="w-full"
+                >
+                  {loading ? 'Connecting...' : 'Connect Bunker'}
                 </Button>
               </div>
             </TabsContent>
