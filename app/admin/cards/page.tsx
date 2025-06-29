@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
+import { useIsMobile } from '@/components/ui/use-mobile'
 
 export default function CardsPage() {
   const router = useRouter()
@@ -39,6 +40,7 @@ export default function CardsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [cardToDelete, setCardToDelete] = useState<string | null>(null)
+  const isMobile = useIsMobile()
 
   if (!auth) return null
 
@@ -183,11 +185,13 @@ export default function CardsPage() {
                     Card
                   </th>
                   <th className="px-6 py-3 text-left font-medium text-muted-foreground">
-                    Username
+                    Pubkey
                   </th>
-                  <th className="px-6 py-3 text-left font-medium text-muted-foreground">
-                    Last Used
-                  </th>
+                  {!isMobile && (
+                    <th className="px-6 py-3 text-left font-medium text-muted-foreground">
+                      Last Used
+                    </th>
+                  )}
                   <th className="px-6 py-3 text-right font-medium text-muted-foreground">
                     Actions
                   </th>
@@ -204,12 +208,12 @@ export default function CardsPage() {
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-8 bg-gradient-to-br from-primary/80 to-primary/50 rounded flex items-center justify-center flex-shrink-0">
                           <span className="text-primary-foreground text-xs font-bold">
-                            {card.title?.charAt(0) || 'C'}
+                            {card.username?.charAt(0) || 'C'}
                           </span>
                         </div>
                         <div className="min-w-0">
                           <p className="font-medium text-foreground truncate">
-                            {card.title}
+                            {card.username || ''}
                           </p>
                           <div className="flex items-center gap-2 mt-1">
                             <Badge
@@ -220,9 +224,11 @@ export default function CardsPage() {
                             >
                               {card.ntag424 ? 'Paired' : 'Unpaired'}
                             </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {card.createdAt.toLocaleDateString()}
-                            </span>
+                            {!isMobile && (
+                              <span className="text-xs text-muted-foreground">
+                                {card.createdAt.toLocaleDateString()}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -236,15 +242,17 @@ export default function CardsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-foreground">
-                      {card.lastUsedAt ? (
-                        card.lastUsedAt.toLocaleDateString()
-                      ) : (
-                        <span className="text-muted-foreground italic">
-                          Never
-                        </span>
-                      )}
-                    </td>
+                    {!isMobile && (
+                      <td className="px-6 py-4 text-foreground">
+                        {card.lastUsedAt ? (
+                          card.lastUsedAt.toLocaleDateString()
+                        ) : (
+                          <span className="text-muted-foreground italic">
+                            Never
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

@@ -9,5 +9,6 @@ export type Card = {
   title?: string
   lastUsedAt?: Date
   pubkey?: string
+  username?: string
   otc?: string
 }

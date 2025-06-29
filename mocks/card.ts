@@ -11,6 +11,7 @@ export const mockCardData: Card[] = [
     ntag424: mockNtag424Data[0],
     lastUsedAt: new Date('2024-03-01T14:22:00Z'),
     pubkey: 'npub1xyz123abc456def789ghi012jkl345mno678pqr901stu234vwx567yz890',
+    username: 'pipo',
     otc: 'OTC789ABC123'
   },
   {
@@ -21,6 +22,7 @@ export const mockCardData: Card[] = [
     ntag424: mockNtag424Data[1],
     lastUsedAt: new Date('2024-02-28T09:15:00Z'),
     pubkey: 'npub1abc456def789ghi012jkl345mno678pqr901stu234vwx567yz890xyz123',
+    username: 'lolata',
     otc: 'OTC456DEF789'
   },
   {
@@ -30,6 +32,7 @@ export const mockCardData: Card[] = [
     createdAt: new Date('2024-02-01T09:15:00Z'),
     ntag424: mockNtag424Data[2],
     lastUsedAt: new Date('2024-02-25T18:30:00Z'),
+    username: 'chucho',
     pubkey: 'npub1def789ghi012jkl345mno678pqr901stu234vwx567yz890xyz123abc456'
   },
   {
@@ -49,13 +52,15 @@ export const mockCardData: Card[] = [
     ntag424: mockNtag424Data[4],
     lastUsedAt: new Date('2024-02-29T13:45:00Z'),
     pubkey: 'npub1jkl345mno678pqr901stu234vwx567yz890xyz123abc456def789ghi012',
+    username: 'mercato',
     otc: 'OTC890JKL234'
   },
   {
     id: 'card-006',
     title: 'Gift Card',
     design: mockCardDesignData[5],
-    createdAt: new Date('2024-02-18T08:30:00Z')
+    createdAt: new Date('2024-02-18T08:30:00Z'),
+    ntag424: mockNtag424Data[5]
     // No ntag424 - unpaired card
     // No lastUsedAt - never used
     // No pubkey - not linked to user
@@ -67,6 +72,8 @@ export const mockCardData: Card[] = [
     design: mockCardDesignData[6],
     createdAt: new Date('2024-02-20T13:10:00Z'),
     pubkey: 'npub1mno678pqr901stu234vwx567yz890xyz123abc456def789ghi012jkl345',
+    username: 'chucho',
+    ntag424: mockNtag424Data[5],
     // Has pubkey but no ntag424 - linked but not physically programmed
     // No lastUsedAt - never used
     otc: 'OTC567MNO890'
@@ -77,6 +84,7 @@ export const mockCardData: Card[] = [
     design: mockCardDesignData[7],
     createdAt: new Date('2024-02-22T17:40:00Z'),
     lastUsedAt: new Date('2024-02-23T10:20:00Z'),
+    ntag424: mockNtag424Data[4],
     // Has lastUsedAt but no ntag424 or pubkey - unusual edge case
     otc: 'OTC234PQR567'
   },
