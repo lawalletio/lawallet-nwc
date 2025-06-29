@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { useWallet } from "@/providers/wallet"
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props} />
+  <div ref={ref} className={cn("rounded-lg border text-card-foreground shadow-sm", className)} {...props} />
 ))
 Card.displayName = "Card"
 
