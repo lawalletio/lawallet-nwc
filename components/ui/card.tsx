@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { useWallet } from "@/providers/wallet"
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
   <div ref={ref} className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props} />
@@ -22,11 +23,23 @@ const CardTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
 CardTitle.displayName = "CardTitle"
 
 const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props}>
-      Lightning Address
-    </div>
-  ),
+  ({ className, ...props }, ref) => {
+    const { lightningAddress } = useWallet()
+
+    if (!lightningAddress) {
+      return <div ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />
+    }
+
+    const [username, domain] = lightningAddress.split("@")
+
+    return (
+      <div ref={ref} className={cn("text-lg font-medium", className)} {...props}>
+        <span className="text-white">{username}</span>
+        <span className="text-purple-400">@</span>
+        <span className="text-blue-400">{domain}</span>
+      </div>
+    )
+  },
 )
 CardDescription.displayName = "CardDescription"
 
