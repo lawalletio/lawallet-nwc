@@ -18,6 +18,8 @@ export function AdminWrapper({ children }: { children: React.ReactNode }) {
   }
 
   // If authenticated, show full admin interface with navbar on top
+
+  console.log('sidebarOpen', sidebarOpen)
   return (
     <div className="min-h-screen bg-gray-50">
       <TopNavbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />

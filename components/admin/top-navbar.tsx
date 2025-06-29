@@ -55,7 +55,7 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="lg:hidden bg-foreground text-background hover:bg-foreground/90"
+        className="lg:hidden bg-white text-gray-900 hover:bg-gray-100"
         onClick={() => setSidebarOpen(!sidebarOpen)}
       >
         <Menu className="h-4 w-4" />
