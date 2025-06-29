@@ -143,9 +143,6 @@ export default function ActivateCardPage() {
                 BoltCard
               </span>
             </h1>
-            <p className="text-xl text-gray-400 font-light max-w-md mx-auto leading-relaxed">
-              Transform your physical card into a Lightning-powered payment device
-            </p>
           </div>
 
           {/* Card Preview */}
