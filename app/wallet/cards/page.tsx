@@ -32,37 +32,44 @@ export default function WalletCardsPage() {
     setCards((prevCards) => prevCards.map((card) => (card.id === cardId ? { ...card, ntag424: !card.ntag424 } : card)))
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-[url('/placeholder.svg?height=1080&width=1920')] opacity-5"></div>
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+  // Generate random card images
+  const getCardImage = (index: number) => {
+    const patterns = [
+      "abstract-waves",
+      "geometric-pattern",
+      "digital-circuit",
+      "lightning-bolt",
+      "crypto-pattern",
+      "tech-grid",
+      "neon-lines",
+      "holographic",
+    ]
+    const pattern = patterns[index % patterns.length]
+    return `/placeholder.svg?height=192&width=320&text=${pattern}`
+  }
 
-      <div className="relative z-10 p-6">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="p-6">
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.back()}
-                className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center shadow-2xl shadow-purple-500/25">
-                  <CreditCard className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                    My Cards
-                  </h1>
-                  <p className="text-gray-400">Tap to activate or deactivate</p>
-                </div>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.back()}
+              className="bg-white/5 border-white/20 text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center">
+                <CreditCard className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">My Cards</h1>
+                <p className="text-gray-400">Tap to activate or deactivate</p>
               </div>
             </div>
           </div>
@@ -77,38 +84,34 @@ export default function WalletCardsPage() {
               <p className="text-gray-400">You don't have any cards assigned yet.</p>
             </div>
           ) : (
-            <div className="relative">
-              {/* Horizontal scrollable container */}
-              <div
-                className="flex gap-8 overflow-x-auto pb-8 px-4"
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-              >
-                <style jsx>{`
-                  div::-webkit-scrollbar {
-                    display: none;
-                  }
-                `}</style>
-                {cards.map((card, index) => (
+            <div className="flex gap-6 overflow-x-auto pb-8 px-4">
+              {cards.map((card, index) => (
+                <div key={card.id} className="flex-shrink-0 cursor-pointer" onClick={() => toggleCardStatus(card.id)}>
+                  {/* Card */}
                   <div
-                    key={card.id}
-                    className="flex-shrink-0 relative group cursor-pointer"
-                    onClick={() => toggleCardStatus(card.id)}
-                  >
-                    {/* Card */}
-                    <div
-                      className={`
-                      w-80 h-48 rounded-2xl p-6 shadow-2xl transition-all duration-500 transform
+                    className={`
+                      w-80 h-48 rounded-2xl relative overflow-hidden
                       ${
                         card.ntag424
-                          ? "bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 shadow-purple-500/30"
-                          : "bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 shadow-gray-900/50"
+                          ? "bg-gradient-to-br from-purple-600 to-blue-600"
+                          : "bg-gradient-to-br from-gray-700 to-gray-800"
                       }
-                      hover:scale-105 hover:shadow-3xl
-                      ${card.ntag424 ? "hover:shadow-purple-500/50" : "hover:shadow-gray-700/50"}
                     `}
-                    >
+                  >
+                    {/* Card Background Image */}
+                    <div
+                      className="absolute inset-0 opacity-20"
+                      style={{
+                        backgroundImage: `url('${getCardImage(index)}')`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
+                    />
+
+                    {/* Card Content */}
+                    <div className="relative z-10 p-6 h-full flex flex-col justify-between">
                       {/* Card Header */}
-                      <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div
                             className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -122,7 +125,6 @@ export default function WalletCardsPage() {
                             )}
                           </div>
                           <Badge
-                            variant={card.ntag424 ? "default" : "secondary"}
                             className={
                               card.ntag424
                                 ? "bg-green-500/30 text-green-200 border-green-400/50"
@@ -132,21 +134,22 @@ export default function WalletCardsPage() {
                             {card.ntag424 ? "Active" : "Inactive"}
                           </Badge>
                         </div>
-                        <div className="text-right">
-                          <div className="text-white/80 text-xs">BoltCard</div>
-                        </div>
+                        <div className="text-white/80 text-xs">BoltCard</div>
                       </div>
 
-                      {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-white/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                        <div className="text-white text-sm font-medium">
-                          {card.ntag424 ? "Tap to deactivate" : "Tap to activate"}
-                        </div>
+                      {/* Card Footer - Empty space for clean look */}
+                      <div></div>
+                    </div>
+
+                    {/* Click overlay */}
+                    <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="text-white text-sm font-medium">
+                        {card.ntag424 ? "Tap to deactivate" : "Tap to activate"}
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
