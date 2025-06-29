@@ -22,8 +22,8 @@ export class CardService {
    */
   static searchByTitle(query: string): Card[] {
     const lowercaseQuery = query.toLowerCase()
-    return mockCardData.filter(card =>
-      card.title.toLowerCase().includes(lowercaseQuery)
+    return mockCardData.filter(
+      card => card.title?.toLowerCase().includes(lowercaseQuery) || false
     )
   }
 
