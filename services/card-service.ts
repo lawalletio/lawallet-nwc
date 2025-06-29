@@ -70,6 +70,13 @@ export class CardService {
   }
 
   /**
+   * Create a new card
+   */
+  static create(id: string, designId: string): Card {
+    return { ...mockCardData[0] }
+  }
+
+  /**
    * Get cards used after a specific date
    */
   static getUsedAfter(date: Date): Card[] {
