@@ -93,10 +93,6 @@ export default function WalletCardsPage() {
                     key={card.id}
                     className="flex-shrink-0 relative group cursor-pointer"
                     onClick={() => toggleCardStatus(card.id)}
-                    style={{
-                      transform: `perspective(1000px) rotateY(${index * -5}deg) translateZ(${index * -20}px)`,
-                      zIndex: cards.length - index,
-                    }}
                   >
                     {/* Card */}
                     <div
@@ -107,7 +103,7 @@ export default function WalletCardsPage() {
                           ? "bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 shadow-purple-500/30"
                           : "bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 shadow-gray-900/50"
                       }
-                      hover:scale-105 hover:rotate-0 hover:translateZ-10 hover:shadow-3xl
+                      hover:scale-105 hover:shadow-3xl
                       ${card.ntag424 ? "hover:shadow-purple-500/50" : "hover:shadow-gray-700/50"}
                     `}
                     >
@@ -141,33 +137,6 @@ export default function WalletCardsPage() {
                         </div>
                       </div>
 
-                      {/* Card Content */}
-                      <div className="space-y-4">
-                        <div>
-                          <div className="text-white/60 text-xs mb-1">Card Name</div>
-                          <div className="text-white text-lg font-semibold">{card.username || "Unnamed Card"}</div>
-                        </div>
-
-                        <div>
-                          <div className="text-white/60 text-xs mb-1">Public Key</div>
-                          <div className="text-white/80 text-sm font-mono">
-                            {card.pubkey ? `${card.pubkey.slice(0, 12)}...${card.pubkey.slice(-8)}` : "Not linked"}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Card Footer */}
-                      <div className="absolute bottom-4 right-6">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`w-6 h-6 rounded-full ${card.ntag424 ? "bg-white/20" : "bg-gray-600/50"}`}
-                          ></div>
-                          <div
-                            className={`w-8 h-6 rounded-full ${card.ntag424 ? "bg-white/30" : "bg-gray-600/30"}`}
-                          ></div>
-                        </div>
-                      </div>
-
                       {/* Hover overlay */}
                       <div className="absolute inset-0 bg-white/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                         <div className="text-white text-sm font-medium">
@@ -175,14 +144,6 @@ export default function WalletCardsPage() {
                         </div>
                       </div>
                     </div>
-
-                    {/* 3D Shadow effect */}
-                    <div
-                      className="absolute inset-0 bg-black/20 rounded-2xl blur-xl -z-10"
-                      style={{
-                        transform: "translateY(20px) translateZ(-50px)",
-                      }}
-                    ></div>
                   </div>
                 ))}
               </div>
