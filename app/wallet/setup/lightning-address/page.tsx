@@ -1,51 +1,59 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useWallet } from "@/providers/wallet"
-import { ArrowLeft, Zap, CheckCircle } from "lucide-react"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useWallet } from '@/providers/wallet'
+import { ArrowLeft, Zap, CheckCircle } from 'lucide-react'
 
 export default function LightningAddressSetupPage() {
-  const [username, setUsername] = useState("")
+  const [username, setUsername] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
   const { setLightningAddress } = useWallet()
   const router = useRouter()
 
   const handleSetup = async () => {
     setIsLoading(true)
-    setError("")
+    setError('')
 
     if (!username.trim()) {
-      setError("Please enter a username")
+      setError('Please enter a username')
       setIsLoading(false)
       return
     }
 
     if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-      setError("Username can only contain letters, numbers, hyphens, and underscores")
+      setError(
+        'Username can only contain letters, numbers, hyphens, and underscores'
+      )
       setIsLoading(false)
       return
     }
 
     try {
       // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      await new Promise(resolve => setTimeout(resolve, 1500))
 
       const lightningAddress = `${username}@wallet.example.com`
       setLightningAddress(lightningAddress)
 
       // Show success and redirect
       setTimeout(() => {
-        router.push("/wallet")
+        router.push('/wallet')
       }, 1000)
     } catch (err) {
-      setError("Failed to register Lightning Address. Please try again.")
+      setError('Failed to register Lightning Address. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -61,7 +69,9 @@ export default function LightningAddressSetupPage() {
           </Button>
           <div>
             <h1 className="text-xl font-bold">Lightning Address Setup</h1>
-            <p className="text-gray-600 text-sm">Choose your Lightning Address</p>
+            <p className="text-gray-600 text-sm">
+              Choose your Lightning Address
+            </p>
           </div>
         </div>
 
@@ -71,7 +81,9 @@ export default function LightningAddressSetupPage() {
               <Zap className="w-5 h-5" />
               Register Username
             </CardTitle>
-            <CardDescription>Your Lightning Address will be used to receive payments</CardDescription>
+            <CardDescription>
+              Your Lightning Address will be used to receive payments
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -81,7 +93,7 @@ export default function LightningAddressSetupPage() {
                   id="username"
                   placeholder="satoshi"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  onChange={e => setUsername(e.target.value.toLowerCase())}
                   className="rounded-r-none"
                 />
                 <div className="px-3 py-2 bg-gray-100 border border-l-0 rounded-r-md text-sm text-gray-600">
@@ -89,11 +101,16 @@ export default function LightningAddressSetupPage() {
                 </div>
               </div>
               <p className="text-xs text-gray-500">
-                Your Lightning Address will be: {username || "username"}@wallet.example.com
+                Your Lightning Address will be: {username || 'username'}
+                @wallet.example.com
               </p>
             </div>
 
-            <Button onClick={handleSetup} disabled={isLoading || !username.trim()} className="w-full">
+            <Button
+              onClick={handleSetup}
+              disabled={isLoading || !username.trim()}
+              className="w-full"
+            >
               {isLoading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
@@ -117,7 +134,8 @@ export default function LightningAddressSetupPage() {
 
         <div className="text-center">
           <p className="text-xs text-gray-500">
-            Your Lightning Address will be publicly visible and can be used by anyone to send you payments
+            Your Lightning Address will be publicly visible and can be used by
+            anyone to send you payments
           </p>
         </div>
       </div>

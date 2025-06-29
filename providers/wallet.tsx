@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import type React from "react"
-import { createContext, useContext, useEffect, useState } from "react"
-import type { WalletContextType, WalletState } from "@/types/wallet"
-import { getPublicKeyFromPrivate } from "@/lib/nostr"
+import type React from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
+import type { WalletContextType, WalletState } from '@/types/wallet'
+import { getPublicKeyFromPrivate } from '@/lib/nostr'
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
@@ -13,18 +13,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     publicKey: null,
     lightningAddress: null,
     nwcUri: null,
-    balance: 125000, // Mock balance in sats
+    balance: 125000 // Mock balance in sats
   })
 
   // Load wallet data from localStorage on mount
   useEffect(() => {
-    const savedWallet = localStorage.getItem("wallet")
+    const savedWallet = localStorage.getItem('wallet')
     if (savedWallet) {
       try {
         const parsed = JSON.parse(savedWallet)
-        setWalletState((prev) => ({ ...prev, ...parsed }))
+        setWalletState(prev => ({ ...prev, ...parsed }))
       } catch (error) {
-        console.error("Failed to parse saved wallet data:", error)
+        console.error('Failed to parse saved wallet data:', error)
       }
     }
   }, [])
@@ -32,30 +32,30 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // Save wallet data to localStorage whenever it changes
   useEffect(() => {
     if (walletState.privateKey) {
-      localStorage.setItem("wallet", JSON.stringify(walletState))
+      localStorage.setItem('wallet', JSON.stringify(walletState))
     }
   }, [walletState])
 
   const setPrivateKey = (privateKeyHex: string) => {
     try {
       const publicKey = getPublicKeyFromPrivate(privateKeyHex)
-      setWalletState((prev) => ({
+      setWalletState(prev => ({
         ...prev,
         privateKey: privateKeyHex,
-        publicKey,
+        publicKey
       }))
     } catch (error) {
-      console.error("Failed to set private key:", error)
-      throw new Error("Invalid private key")
+      console.error('Failed to set private key:', error)
+      throw new Error('Invalid private key')
     }
   }
 
   const setLightningAddress = (address: string) => {
-    setWalletState((prev) => ({ ...prev, lightningAddress: address }))
+    setWalletState(prev => ({ ...prev, lightningAddress: address }))
   }
 
   const setNwcUri = (uri: string) => {
-    setWalletState((prev) => ({ ...prev, nwcUri: uri }))
+    setWalletState(prev => ({ ...prev, nwcUri: uri }))
   }
 
   const logout = () => {
@@ -64,9 +64,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       publicKey: null,
       lightningAddress: null,
       nwcUri: null,
-      balance: 125000,
+      balance: 125000
     })
-    localStorage.removeItem("wallet")
+    localStorage.removeItem('wallet')
   }
 
   const contextValue: WalletContextType = {
@@ -74,16 +74,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setPrivateKey,
     setLightningAddress,
     setNwcUri,
-    logout,
+    logout
   }
 
-  return <WalletContext.Provider value={contextValue}>{children}</WalletContext.Provider>
+  return (
+    <WalletContext.Provider value={contextValue}>
+      {children}
+    </WalletContext.Provider>
+  )
 }
 
 export function useWallet() {
   const context = useContext(WalletContext)
   if (context === undefined) {
-    throw new Error("useWallet must be used within a WalletProvider")
+    throw new Error('useWallet must be used within a WalletProvider')
   }
   return context
 }
