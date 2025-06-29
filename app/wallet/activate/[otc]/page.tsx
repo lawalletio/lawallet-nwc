@@ -131,12 +131,12 @@ export default function ActivateCardPage() {
       <div className="relative z-10 flex items-center justify-center min-h-screen p-8">
         <div className="w-full max-w-2xl">
           {/* Header with Large Logo */}
-          <div className="text-center mb-16">
-            <div className="w-64 h-64 mx-auto mb-12 relative">
+          <div className="text-center mb-8">
+            <div className="w-64 h-64 mx-auto mb-6 relative">
               <img src="/nwc-logo.png" alt="NWC Logo" className="w-full h-full object-contain drop-shadow-2xl" />
               <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-full blur-3xl animate-pulse" />
             </div>
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-white via-purple-200 to-blue-200 bg-clip-text text-transparent mb-6 leading-tight">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-white via-purple-200 to-blue-200 bg-clip-text text-transparent mb-4 leading-tight">
               Activate Your
               <br />
               <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
