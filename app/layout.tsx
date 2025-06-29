@@ -1,33 +1,37 @@
 import type React from 'react'
 import type { Metadata } from 'next'
-import { Alex_Brush } from 'next/font/google'
-import { GeistSans } from 'geist/font/sans'
+import { Inter } from 'next/font/google'
 import './globals.css'
-import { cn } from '@/lib/utils'
+import { ThemeProvider } from '@/components/theme-provider'
+import { WalletProvider } from '@/providers/wallet'
 import { SettingsProvider } from '@/providers/settings'
 
-const alexBrush = Alex_Brush({
-  subsets: ['latin'],
-  weight: '400',
-  variable: '--font-alex-brush',
-  display: 'swap'
-})
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'BoltCard + NWC',
-  description: 'A self-custodial Lightning payment card that anyone can issue.',
+  title: 'BoltCard + NWC Landing',
+  description: 'BoltCard and Nostr Wallet Connect integration platform',
   generator: 'v0.dev'
 }
 
 export default function RootLayout({
   children
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
-    <html lang="en" className={cn('light', alexBrush.variable)}>
-      <body className={cn('font-sans antialiased', GeistSans.variable)}>
-        <SettingsProvider>{children}</SettingsProvider>
+    <html lang="en">
+      <body className={inter.className}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <SettingsProvider>
+            <WalletProvider>{children}</WalletProvider>
+          </SettingsProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

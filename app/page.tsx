@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import {
   Github,
   Check,
-  Construction,
   Nfc,
   Wallet,
   Cpu,
@@ -154,14 +153,27 @@ const HeroSection = () => {
           >
             Join Waitlist <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            className="px-8 py-4 rounded-full border-white/20 text-black hover:bg-white/10 transition-all duration-300 ease-in-out bg-white hover:scale-105 hover:text-white hover:-translate-y-1"
-            asChild
-          >
-            <Link href="/admin">Admin Demo</Link>
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Button
+              size="lg"
+              variant="outline"
+              className="px-8 py-4 rounded-full border-white/20 text-black hover:bg-white/10 transition-all duration-300 ease-in-out bg-white hover:scale-105 hover:text-white hover:-translate-y-1"
+              asChild
+            >
+              <Link href="/admin">Admin Demo</Link>
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="px-8 py-4 rounded-full border-white/20 text-black hover:bg-white/10 transition-all duration-300 ease-in-out bg-white hover:scale-105 hover:text-white hover:-translate-y-1"
+              asChild
+            >
+              <Link href="/wallet">
+                <Wallet className="mr-2 h-5 w-5" />
+                Wallet Demo
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
     </section>
