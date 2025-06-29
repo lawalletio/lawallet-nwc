@@ -13,7 +13,8 @@ import {
   Cpu,
   LinkIcon,
   ArrowRight,
-  ArrowLeft
+  ArrowLeft,
+  SmartphoneNfc
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import Link from 'next/link'
@@ -82,18 +83,18 @@ const AnimatedBackground = () => (
 )
 
 const Header = () => (
-  <header className="sticky top-0 z-50 py-4 px-4 sm:px-6 lg:px-8 bg-background/50 backdrop-blur-lg border-b border-white/10 animate-fade-in-down">
+  <header className="sticky top-0 z-50 py-4 px-4 sm:px-6 lg:px-8 bg-black/50 backdrop-blur-lg border-b border-white/10 animate-fade-in-down">
     <div className="container mx-auto flex items-center justify-between">
       <div className="flex items-center gap-3">
         <img src="/nwc-logo.png" alt="NWC Logo" className="h-8 w-auto" />
       </div>
       <Button
         variant="ghost"
-        className="text-white hover:text-nwc-orange transition-all duration-300 hover:scale-105"
+        className="text-white hover:bg-gray-800 hover:text-white transition-all duration-300 hover:scale-105"
         asChild
       >
         <a
-          href="https://github.com"
+          href="https://github.com/agustinkassis/boltcard-nwc"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="GitHub Repository"
@@ -156,7 +157,7 @@ const HeroSection = () => {
           <Button
             size="lg"
             variant="outline"
-            className="px-8 py-4 rounded-full border-white/20 text-black hover:bg-white/10 transition-all duration-300 ease-in-out bg-white hover:scale-105 hover:-translate-y-1"
+            className="px-8 py-4 rounded-full border-white/20 text-black hover:bg-white/10 transition-all duration-300 ease-in-out bg-white hover:scale-105 hover:text-white hover:-translate-y-1"
             asChild
           >
             <Link href="/admin">Admin Demo</Link>
@@ -590,21 +591,29 @@ const OpenSourceSection = () => {
 }
 
 const roadmapItems = [
-  { title: 'BoltCard', description: 'NTAG424 payments', status: 'completed' },
+  {
+    title: 'BoltCard',
+    description: 'NTAG424 payments',
+    status: 'completed',
+    icon: Nfc
+  },
   {
     title: 'NWC',
     description: 'Nostr Wallet Connect backend',
-    status: 'completed'
+    status: 'completed',
+    icon: Cpu
   },
   {
     title: 'Wallet',
     description: 'Integrated webapp wallet',
-    status: 'in_progress'
+    status: 'in_progress',
+    icon: Wallet
   },
   {
     title: 'Pay with Phone',
     description: 'NFC from mobile with dynamic NWC',
-    status: 'in_progress'
+    status: 'in_progress',
+    icon: SmartphoneNfc
   }
 ]
 
@@ -626,69 +635,92 @@ const RoadmapSection = () => {
         <div className="relative max-w-6xl mx-auto">
           {/* Vertical Line */}
           <div
-            className={`absolute left-1/2 transform -translate-x-1/2 w-0.5 h-full bg-gradient-to-b from-nwc-purple via-nwc-orange to-nwc-highlight transition-all duration-1500 delay-300 ${
+            className={`absolute left-1/2 transform -translate-x-1/2 w-1 h-full bg-gradient-to-b from-nwc-purple via-nwc-orange to-nwc-highlight transition-all duration-1500 delay-300 ${
               isVisible ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
             }`}
             style={{ transformOrigin: 'top' }}
           ></div>
 
           {/* Timeline Items */}
-          <div className="space-y-12">
+          <div className="space-y-20">
             {roadmapItems.map((item, index) => (
               <div
                 key={item.title}
-                className={`relative flex items-center transition-all duration-1000 ${
-                  index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'
-                } ${
-                  isVisible
-                    ? 'opacity-100 translate-x-0'
-                    : `opacity-0 ${index % 2 === 0 ? '-translate-x-8' : 'translate-x-8'}`
-                }`}
+                className={`relative flex flex-col md:flex-row items-center transition-all duration-1000 \
+                  ${index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'} \
+                  ${isVisible ? 'opacity-100 translate-x-0' : `opacity-0 ${index % 2 === 0 ? '-translate-x-8' : 'translate-x-8'}`}
+                `}
                 style={{
                   transitionDelay: isVisible ? `${index * 200 + 600}ms` : '0ms'
                 }}
               >
                 {/* Timeline Icon */}
                 <div
-                  className={`absolute left-1/2 transform -translate-x-1/2 z-10 w-12 h-12 rounded-full bg-gray-900 border-4 border-white flex items-center justify-center transition-all duration-700 hover:scale-110 ${
-                    isVisible ? 'scale-100 opacity-100' : 'scale-0 opacity-0'
-                  }`}
+                  className={`z-20 w-16 h-16 rounded-full bg-gray-900 border-4 border-white flex items-center justify-center transition-all duration-700 hover:scale-110 \
+                    ${isVisible ? 'scale-100 opacity-100' : 'scale-0 opacity-0'} \
+                    md:absolute md:left-1/2 md:top-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 \
+                    absolute top-0 left-1/2 -translate-x-1/2 \
+                  `}
                   style={{
                     transitionDelay: isVisible
                       ? `${index * 200 + 800}ms`
                       : '0ms'
                   }}
                 >
-                  {item.status === 'completed' ? (
-                    <Check className="h-6 w-6 text-green-400" />
-                  ) : (
-                    <Construction className="h-6 w-6 text-yellow-400" />
+                  {item.icon && (
+                    <item.icon className="h-8 w-8 text-nwc-highlight" />
                   )}
                 </div>
 
                 {/* Content Card */}
                 <div
-                  className={`w-full md:w-5/12 ${index % 2 === 0 ? 'md:pr-8' : 'md:pl-8'}`}
+                  className={`w-full md:w-5/12 mt-8 md:mt-0 \
+                    ${index % 2 === 0 ? 'self-start items-start text-left md:pr-8' : 'self-end items-end text-right md:pl-8'} \
+                    flex flex-col md:items-stretch \
+                  `}
                 >
-                  <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-lg hover:bg-white/10 transition-all duration-300 hover:scale-105 hover:-translate-y-2">
+                  <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-lg hover:bg-white/10 transition-all duration-300 hover:scale-105 hover:-translate-y-2 w-full">
                     <CardContent className="p-6">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold text-white">
-                          {item.title}
-                        </h3>
-                        <div
-                          className={`px-2 py-1 rounded-full text-xs font-medium transition-all duration-300 ${
-                            item.status === 'completed'
-                              ? 'bg-green-500/20 text-green-400'
-                              : 'bg-yellow-500/20 text-yellow-400'
-                          }`}
-                        >
-                          {item.status === 'completed'
-                            ? 'Completed'
-                            : 'In Progress'}
-                        </div>
+                      <div
+                        className={`flex items-center gap-3 mb-2 ${index % 2 === 0 ? 'justify-start text-left' : 'justify-end text-right'}`}
+                      >
+                        {index % 2 === 0 ? (
+                          <>
+                            <h3 className="text-xl font-semibold text-white">
+                              {item.title}
+                            </h3>
+                            <div
+                              className={`px-2 py-1 rounded-full text-xs font-medium transition-all duration-300 \
+                                ${item.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}
+                              `}
+                            >
+                              {item.status === 'completed'
+                                ? 'Completed'
+                                : 'In Progress'}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div
+                              className={`px-2 py-1 rounded-full text-xs font-medium transition-all duration-300 \
+                                ${item.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}
+                              `}
+                            >
+                              {item.status === 'completed'
+                                ? 'Completed'
+                                : 'In Progress'}
+                            </div>
+                            <h3 className="text-xl font-semibold text-white">
+                              {item.title}
+                            </h3>
+                          </>
+                        )}
                       </div>
-                      <p className="text-gray-400">{item.description}</p>
+                      <p
+                        className={`text-gray-400 ${index % 2 === 0 ? 'text-left' : 'text-right'}`}
+                      >
+                        {item.description}
+                      </p>
                     </CardContent>
                   </Card>
                 </div>

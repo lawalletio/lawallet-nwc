@@ -24,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={cn('dark', alexBrush.variable)}>
+    <html lang="en" className={cn('light', alexBrush.variable)}>
       <body className={cn('font-sans antialiased', GeistSans.variable)}>
         {children}
       </body>
