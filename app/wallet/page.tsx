@@ -15,7 +15,6 @@ import { useWallet } from '@/providers/wallet'
 import {
   Settings,
   Zap,
-  TrendingUp,
   Clock,
   ArrowUpRight,
   ArrowDownLeft,
@@ -23,7 +22,8 @@ import {
 } from 'lucide-react'
 
 export default function WalletPage() {
-  const { privateKey, isInitialized, isHydrated } = useWallet()
+  const { privateKey, isInitialized, isHydrated, lightningAddress, nwcUri } =
+    useWallet()
   const router = useRouter()
   const [balance, setBalance] = useState(0)
   const [isLoading, setIsLoading] = useState(!isInitialized)
@@ -184,28 +184,46 @@ export default function WalletPage() {
                   {/* Card Content */}
                   <div className="absolute inset-0 p-6 flex flex-col justify-between text-white">
                     <div className="flex justify-between items-start">
-                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                        <Zap className="w-6 h-6 text-yellow-300" />
-                      </div>
                       <div className="text-right">
                         <span className="text-xl font-bold">
-                          agustin
-                          <span className="text-slate-300 font-medium">@</span>
-                          lawallet.ar
+                          {lightningAddress}
                         </span>
+                        {!lightningAddress && (
+                          <Button
+                            variant="outline"
+                            size="lg"
+                            className="mt-2 ml-2 bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm py-6 text-xl font-semibold w-full"
+                            onClick={() =>
+                              router.push('/wallet/setup/lightning-address')
+                            }
+                          >
+                            Setup Lightning Address
+                          </Button>
+                        )}
                       </div>
                     </div>
 
                     <div className="bg-gradient-to-br from-purple-700/80 to-cyan-700/60 border-2 border-white/20 shadow-xl rounded-2xl p-4 sm:p-8 flex flex-col items-center justify-center sm:scale-110 w-full max-w-xs sm:max-w-none mx-auto">
-                      <p className="text-sm sm:text-base opacity-90 mb-2 font-semibold text-white tracking-wide">
-                        Balance
-                      </p>
-                      <p className="font-mono text-2xl sm:text-4xl font-extrabold tracking-widest text-white drop-shadow-lg mb-2">
-                        {formatSats(balance)} sats
-                      </p>
-                      <p className="text-base sm:text-lg opacity-80 mt-2 text-white">
-                        ≈ $42.50 USD
-                      </p>
+                      {nwcUri ? (
+                        <>
+                          <p className="text-sm sm:text-base opacity-90 mb-2 font-semibold text-white tracking-wide">
+                            Balance
+                          </p>
+                          <p className="font-mono text-2xl sm:text-4xl font-extrabold tracking-widest text-white drop-shadow-lg mb-2">
+                            {formatSats(balance)} sats
+                          </p>
+                          <p className="text-base sm:text-lg opacity-80 mt-2 text-white">
+                            ≈ $42.50 USD
+                          </p>
+                        </>
+                      ) : (
+                        <Button
+                          onClick={() => router.push('/wallet/setup/nwc')}
+                          className="w-full h-12 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/25 transform hover:scale-[1.02] transition-all duration-200 text-xl"
+                        >
+                          Setup NWC Connection String
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
