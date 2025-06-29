@@ -5,9 +5,9 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "format": "prettier --write .",
     "lint": "next lint",
-    "start": "next start",
-    "format": "prettier --write ."
+    "start": "next start"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
