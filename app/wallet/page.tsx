@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { useWallet } from "@/providers/wallet"
 import {
   Wallet,
-  LogOut,
   Zap,
   Settings,
   DollarSign,
@@ -16,6 +15,7 @@ import {
   User,
   TrendingUp,
   ArrowUpRight,
+  CreditCard,
 } from "lucide-react"
 
 export default function WalletPage() {
@@ -40,11 +40,6 @@ export default function WalletPage() {
     // Mock conversion rate: 1 BTC = $45,000, 1 sat = $0.00045
     const usdValue = (sats * 0.00045) / 100
     return usdValue.toFixed(2)
-  }
-
-  const handleLogout = () => {
-    logout()
-    router.push("/wallet/login")
   }
 
   return (
@@ -73,27 +68,27 @@ export default function WalletPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => router.push("/wallet/cards")}
+                className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
+              >
+                <CreditCard className="w-4 h-4 mr-2" />
+                Cards
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => router.push("/wallet/settings")}
                 className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
               >
                 <User className="w-4 h-4 mr-2" />
                 Settings
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-                className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
             </div>
           </div>
 
           {/* Balance Card */}
-          <Card className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border-white/20 shadow-2xl shadow-black/20 overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10"></div>
+          <Card className="bg-gradient-to-br from-gray-900/90 to-black/90 backdrop-blur-xl border-gray-700/50 shadow-2xl shadow-black/40 overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-blue-500/5"></div>
             <CardHeader className="relative">
               <CardTitle className="flex items-center gap-3 text-white text-xl">
                 <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-yellow-500/25">
