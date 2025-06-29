@@ -762,11 +762,11 @@ const WaitlistSection = () => {
                 <Check className="h-8 w-8 text-white" />
               </div>
               <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
-                You're on the list! 🎉
+                You&apos;re on the list! 🎉
               </h2>
               <p className="text-gray-300 mb-6">
-                Thanks for joining our waitlist. We'll notify you as soon as
-                BoltCard + NWC is ready to launch.
+                Thanks for joining our waitlist. We&apos;ll notify you as soon
+                as BoltCard + NWC is ready to launch.
               </p>
               <Button
                 onClick={resetForm}

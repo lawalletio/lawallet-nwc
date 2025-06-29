@@ -59,7 +59,7 @@ export default function AdminPage() {
             Dashboard
           </h1>
           <p className="text-muted-foreground">
-            Welcome back! Here's an overview of your BoltCard system.
+            Welcome back! Here&apos;s an overview of your BoltCard system.
           </p>
         </div>
         <Button asChild>

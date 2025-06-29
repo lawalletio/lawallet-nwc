@@ -322,7 +322,8 @@ export default function NewCardPage() {
                       3
                     </span>
                     <span>
-                      Click "Card Written" in this dialog when complete
+                      Click &quot;Card Written&quot; in this dialog when
+                      complete
                     </span>
                   </li>
                 </ol>
