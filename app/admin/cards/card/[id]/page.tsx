@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,14 +24,20 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { CardService } from '@/services/card-service'
+import { formatDate } from '@/lib/utils'
 
-export default function CardPage({ params }: { params: { id: string } }) {
+export default function CardPage({
+  params
+}: {
+  params: Promise<{ id: string }>
+}) {
   const router = useRouter()
   const [showQRDialog, setShowQRDialog] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
-  const card = CardService.get(params.id)
+  const { id } = React.use(params)
+  const card = CardService.get(id)
 
   if (!card) {
     return (
@@ -151,14 +157,14 @@ export default function CardPage({ params }: { params: { id: string } }) {
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Created</span>
                     <span className="text-foreground">
-                      {card.createdAt.toLocaleDateString()}
+                      {formatDate(card.createdAt)}
                     </span>
                   </div>
                   {card.lastUsedAt && (
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Last Used</span>
                       <span className="text-foreground">
-                        {card.lastUsedAt.toLocaleDateString()}
+                        {formatDate(card.lastUsedAt)}
                       </span>
                     </div>
                   )}
@@ -208,6 +214,24 @@ export default function CardPage({ params }: { params: { id: string } }) {
                     <p className="font-mono text-foreground">{card.otc}</p>
                   </div>
                 )}
+                <div>
+                  <label className="font-medium text-muted-foreground">
+                    Created At
+                  </label>
+                  <p className="font-mono text-foreground">
+                    {formatDate(card.createdAt)}
+                  </p>
+                </div>
+                {card.lastUsedAt && (
+                  <div>
+                    <label className="font-medium text-muted-foreground">
+                      Last Used At
+                    </label>
+                    <p className="font-mono text-foreground">
+                      {formatDate(card.lastUsedAt)}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -231,7 +255,9 @@ export default function CardPage({ params }: { params: { id: string } }) {
                       <label className="font-medium text-muted-foreground">
                         Counter
                       </label>
-                      <p className="text-foreground">{card.ntag424.ctr}</p>
+                      <p className="text-foreground">
+                        {formatDate(card.ntag424.ctr)}
+                      </p>
                     </div>
                   </div>
                   {['k0', 'k1', 'k2', 'k3', 'k4'].map(key => (
@@ -241,7 +267,9 @@ export default function CardPage({ params }: { params: { id: string } }) {
                       </label>
                       <div className="flex items-center gap-2">
                         <p className="text-foreground break-all">
-                          {card.ntag424![key as keyof typeof card.ntag424]}
+                          {formatDate(
+                            card.ntag424![key as keyof typeof card.ntag424]
+                          )}
                         </p>
                         <Button
                           variant="ghost"
@@ -280,7 +308,7 @@ export default function CardPage({ params }: { params: { id: string } }) {
               Card QR Code
             </DialogTitle>
             <DialogDescription>
-              QR code for card: {card.title}
+              Scan this with a Phone to activate the card
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -308,7 +336,6 @@ export default function CardPage({ params }: { params: { id: string } }) {
               <p className="text-sm font-medium text-foreground">
                 Card ID: {card.id}
               </p>
-              <p className="text-xs text-muted-foreground break-all">{qrUrl}</p>
             </div>
             <div className="flex gap-2">
               <Button

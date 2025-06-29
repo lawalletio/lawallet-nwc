@@ -74,7 +74,6 @@ export default function NewCardPage() {
   }
 
   const qrPattern = generateQRPattern()
-  const qrUrl = `https://yourdomain.com/pair?token=${qrToken}`
 
   if (currentStep === 'design') {
     return (
@@ -162,6 +161,8 @@ export default function NewCardPage() {
   }
 
   if (currentStep === 'nfc') {
+    // Find the selected design object
+    const design = designs.find(d => d.id === selectedDesign)
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -174,6 +175,34 @@ export default function NewCardPage() {
             </p>
           </div>
         </div>
+
+        {/* Show selected design preview */}
+        {design && (
+          <div className="max-w-md mx-auto mb-6">
+            <Card className="border-gray-100 shadow bg-white">
+              <CardContent className="flex flex-col items-center p-4">
+                <div className="aspect-[856/540] w-full bg-gray-100 rounded-lg overflow-hidden mb-3">
+                  <img
+                    src={design.imageUrl || '/placeholder.svg'}
+                    alt={design.description}
+                    className="w-full h-full object-cover"
+                    onError={e => {
+                      const target = e.target as HTMLImageElement
+                      target.src =
+                        '/placeholder.svg?height=540&width=856&text=Design+Preview'
+                    }}
+                  />
+                </div>
+                <div className="space-y-2 text-center">
+                  <h3 className="font-semibold text-gray-900 text-sm">
+                    {design.description}
+                  </h3>
+                  <p className="text-xs text-gray-500">ID: {design.id}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <div className="max-w-md mx-auto">
           <Card className="border-gray-100 shadow-lg bg-white">
@@ -271,11 +300,6 @@ export default function NewCardPage() {
             </div>
 
             <div className="text-center space-y-4">
-              <p className="text-sm font-medium text-gray-900">
-                Setup Code: {qrToken.toUpperCase()}
-              </p>
-              <p className="text-xs text-gray-500 break-all">{qrUrl}</p>
-
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
                 <h4 className="text-sm font-medium text-blue-900 mb-3">
                   Setup Steps:

@@ -80,3 +80,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Admin section input text color override */
+.admin-root input,
+.admin-root textarea {
+  color: #111827 !important; /* Tailwind text-gray-900 */
+}
+
+/* Admin section outline button text color override */
+.admin-root .btn-outline,
+.admin-root [data-variant='outline'],
+.admin-root button[class*='outline'],
+.admin-root a[class*='outline'] {
+  color: #111827 !important; /* Tailwind text-gray-900 */
+}
