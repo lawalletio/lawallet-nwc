@@ -4,6 +4,7 @@ import { Alex_Brush } from 'next/font/google'
 import { GeistSans } from 'geist/font/sans'
 import './globals.css'
 import { cn } from '@/lib/utils'
+import { SettingsProvider } from '@/providers/settings'
 
 const alexBrush = Alex_Brush({
   subsets: ['latin'],
@@ -26,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn('light', alexBrush.variable)}>
       <body className={cn('font-sans antialiased', GeistSans.variable)}>
-        {children}
+        <SettingsProvider>{children}</SettingsProvider>
       </body>
     </html>
   )
