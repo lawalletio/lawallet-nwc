@@ -25,6 +25,8 @@ import {
 import Link from 'next/link'
 import { CardService } from '@/services/card-service'
 import { formatDate } from '@/lib/utils'
+import { QRCodeSVG } from 'qrcode.react'
+import { useSettings } from '@/hooks/use-settings'
 
 export default function CardPage({
   params
@@ -35,6 +37,7 @@ export default function CardPage({
   const [showQRDialog, setShowQRDialog] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const { settings } = useSettings()
 
   const { id } = React.use(params)
   const card = CardService.get(id)
@@ -85,7 +88,7 @@ export default function CardPage({
     return pattern
   }
 
-  const qrUrl = `https://yourdomain.com/card/${card.id}`
+  const qrUrl = `${settings.domain}/wallet/activate/${card.otc}`
   const status = card.ntag424
     ? card.lastUsedAt
       ? 'active'
@@ -147,7 +150,7 @@ export default function CardPage({
             <Card>
               <CardContent className="p-4">
                 <div className="aspect-[856/540] bg-gradient-to-br from-primary to-blue-400 rounded-md flex items-center justify-center text-primary-foreground font-bold text-lg mb-4 shadow-inner">
-                  {card.title}
+                  {card.username}
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
@@ -255,9 +258,7 @@ export default function CardPage({
                       <label className="font-medium text-muted-foreground">
                         Counter
                       </label>
-                      <p className="text-foreground">
-                        {formatDate(card.ntag424.ctr)}
-                      </p>
+                      <p className="text-foreground">{card.ntag424.ctr}</p>
                     </div>
                   </div>
                   {['k0', 'k1', 'k2', 'k3', 'k4'].map(key => (
@@ -314,22 +315,7 @@ export default function CardPage({
           <div className="space-y-4">
             <div className="flex justify-center p-4 bg-muted rounded-md">
               <div className="w-64 h-64 bg-white rounded-lg p-2 shadow-md border">
-                <svg viewBox="0 0 21 21" className="w-full h-full">
-                  <rect width="21" height="21" fill="white" />
-                  {generateQRPattern().map(
-                    (f, i) =>
-                      f && (
-                        <rect
-                          key={i}
-                          x={i % 21}
-                          y={Math.floor(i / 21)}
-                          width="1"
-                          height="1"
-                          fill="black"
-                        />
-                      )
-                  )}
-                </svg>
+                <QRCodeSVG value={qrUrl} size={240} level="H" />
               </div>
             </div>
             <div className="text-center space-y-1">
