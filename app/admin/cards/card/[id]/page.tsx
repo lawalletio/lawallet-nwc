@@ -120,7 +120,7 @@ export default function CardPage() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                {card.title}
+                {card.id}
               </h1>
               <p className="text-muted-foreground">
                 Card details and management

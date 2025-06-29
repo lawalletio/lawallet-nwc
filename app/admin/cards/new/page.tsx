@@ -15,6 +15,8 @@ import {
 import { Search, ArrowLeft, Nfc, QrCode, Check } from 'lucide-react'
 import Link from 'next/link'
 import { CardDesignService } from '@/services/card-design-service'
+import { CardService } from '@/services/card-service'
+import { Card as CardType } from '@/types'
 
 type Step = 'design' | 'nfc' | 'qr'
 
@@ -26,6 +28,7 @@ export default function NewCardPage() {
   const [qrToken, setQrToken] = useState('')
   const [showQRDialog, setShowQRDialog] = useState(false)
   const [isWritingCard, setIsWritingCard] = useState(false)
+  const [card, setCard] = useState<CardType | null>(null)
 
   const designs = CardDesignService.list()
 
@@ -40,8 +43,12 @@ export default function NewCardPage() {
 
   const handleNFCTap = () => {
     // Generate pairing token
-    const token = Math.random().toString(36).substr(2, 12)
-    setQrToken(token)
+
+    const card = CardService.create('id', selectedDesign)
+
+    setQrToken(JSON.stringify(card.ntag424))
+
+    setCard(card)
 
     // In a real implementation, this would create the card via API
     console.log('Creating card with design:', selectedDesign)
@@ -54,13 +61,15 @@ export default function NewCardPage() {
     setIsWritingCard(true)
 
     // Mock loading for 2 seconds
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     setShowQRDialog(false)
     setIsWritingCard(false)
 
     // Navigate to cards list since we can't get the specific card ID
-    router.push('/admin/cards')
+    console.info('CARD')
+    console.dir(card)
+    router.push(`/admin/cards/card/${card!.id}`)
   }
 
   // Generate QR code pattern as SVG
@@ -256,10 +265,11 @@ export default function NewCardPage() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              Card Created!
+              Please, complete the setup
             </h1>
             <p className="text-gray-600">
-              Your card has been successfully configured
+              Your card has been successfully configured. Please, complete the
+              setup by scanning the QR code with the BoltCard app.
             </p>
           </div>
         </div>
@@ -269,7 +279,7 @@ export default function NewCardPage() {
         <DialogContent className="sm:max-w-md bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-gray-900 flex items-center gap-2">
-              <QrCode className="h-5 w-5" />
+              <QrCode className="h-5 w-5" values={qrToken} />
               Setup QR Code
             </DialogTitle>
             <DialogDescription className="text-gray-600">
@@ -341,7 +351,7 @@ export default function NewCardPage() {
               <Button
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white border-0"
                 onClick={handleCardWritten}
-                disabled={isWritingCard}
+                disabled={isWritingCard || !card}
               >
                 {isWritingCard ? (
                   <>
