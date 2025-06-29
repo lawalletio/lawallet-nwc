@@ -1,24 +1,41 @@
-"use client"
+'use client'
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { useWallet } from "@/providers/wallet"
-import { hexToNsec } from "@/lib/nostr"
-import { ArrowLeft, Copy, Eye, EyeOff, Key, User, Zap, Settings, CheckCircle } from "lucide-react"
-import { useState as useStateHook } from "react"
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { useWallet } from '@/providers/wallet'
+import { hexToNsec } from '@/lib/nostr'
+import {
+  ArrowLeft,
+  Copy,
+  Eye,
+  EyeOff,
+  Key,
+  User,
+  Zap,
+  Settings,
+  CheckCircle
+} from 'lucide-react'
+import { useState as useStateHook } from 'react'
 
 export default function WalletSettingsPage() {
-  const { privateKey, publicKey, lightningAddress, nwcUri, logout } = useWallet()
+  const { privateKey, publicKey, lightningAddress, nwcUri, logout } =
+    useWallet()
   const router = useRouter()
   const [showPrivateKey, setShowPrivateKey] = useStateHook(false)
-  const [copied, setCopied] = useStateHook("")
+  const [copied, setCopied] = useStateHook('')
 
   useEffect(() => {
     if (!privateKey) {
-      router.push("/wallet/login")
+      router.push('/wallet/login')
     }
   }, [privateKey, router])
 
@@ -30,9 +47,9 @@ export default function WalletSettingsPage() {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(type)
-      setTimeout(() => setCopied(""), 2000)
+      setTimeout(() => setCopied(''), 2000)
     } catch (err) {
-      console.error("Failed to copy:", err)
+      console.error('Failed to copy:', err)
     }
   }
 
@@ -46,7 +63,9 @@ export default function WalletSettingsPage() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Wallet Settings</h1>
-            <p className="text-gray-600">Manage your wallet configuration and keys</p>
+            <p className="text-gray-600">
+              Manage your wallet configuration and keys
+            </p>
           </div>
         </div>
 
@@ -57,43 +76,73 @@ export default function WalletSettingsPage() {
               <Key className="w-5 h-5" />
               Wallet Keys
             </CardTitle>
-            <CardDescription>Your wallet's cryptographic keys</CardDescription>
+            <CardDescription>
+              Your wallet&#39;s cryptographic keys
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Public Key */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Public Key</label>
-                <Button size="sm" variant="outline" onClick={() => copyToClipboard(publicKey || "", "publicKey")}>
-                  {copied === "publicKey" ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => copyToClipboard(publicKey || '', 'publicKey')}
+                >
+                  {copied === 'publicKey' ? (
+                    <CheckCircle className="w-4 h-4" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
-              <code className="block p-3 bg-gray-100 rounded text-xs font-mono break-all">{publicKey}</code>
+              <code className="block p-3 bg-gray-100 rounded text-xs font-mono break-all">
+                {publicKey}
+              </code>
             </div>
 
             {/* Private Key */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Private Key (nsec)</label>
+                <label className="text-sm font-medium">
+                  Private Key (nsec)
+                </label>
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setShowPrivateKey(!showPrivateKey)}>
-                    {showPrivateKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowPrivateKey(!showPrivateKey)}
+                  >
+                    {showPrivateKey ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => copyToClipboard(hexToNsec(privateKey), "privateKey")}
+                    onClick={() =>
+                      copyToClipboard(hexToNsec(privateKey), 'privateKey')
+                    }
                   >
-                    {copied === "privateKey" ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    {copied === 'privateKey' ? (
+                      <CheckCircle className="w-4 h-4" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
                   </Button>
                 </div>
               </div>
               <code className="block p-3 bg-gray-100 rounded text-xs font-mono break-all">
                 {showPrivateKey
                   ? hexToNsec(privateKey)
-                  : "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"}
+                  : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
               </code>
-              <p className="text-xs text-red-600">⚠️ Keep this private key secure. Never share it with anyone.</p>
+              <p className="text-xs text-red-600">
+                ⚠️ Keep this private key secure. Never share it with anyone.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -105,7 +154,9 @@ export default function WalletSettingsPage() {
               <Settings className="w-5 h-5" />
               Connected Services
             </CardTitle>
-            <CardDescription>Your wallet's connected services and configurations</CardDescription>
+            <CardDescription>
+              Your wallet&#39;s connected services and configurations
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Lightning Address */}
@@ -117,7 +168,9 @@ export default function WalletSettingsPage() {
                 <div>
                   <div className="font-medium">Lightning Address</div>
                   {lightningAddress ? (
-                    <div className="text-sm text-gray-600 font-mono">{lightningAddress}</div>
+                    <div className="text-sm text-gray-600 font-mono">
+                      {lightningAddress}
+                    </div>
                   ) : (
                     <div className="text-sm text-gray-500">Not configured</div>
                   )}
@@ -130,9 +183,11 @@ export default function WalletSettingsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => copyToClipboard(lightningAddress, "lightningAddress")}
+                      onClick={() =>
+                        copyToClipboard(lightningAddress, 'lightningAddress')
+                      }
                     >
-                      {copied === "lightningAddress" ? (
+                      {copied === 'lightningAddress' ? (
                         <CheckCircle className="w-4 h-4" />
                       ) : (
                         <Copy className="w-4 h-4" />
@@ -140,7 +195,12 @@ export default function WalletSettingsPage() {
                     </Button>
                   </>
                 ) : (
-                  <Button size="sm" onClick={() => router.push("/wallet/setup/lightning-address")}>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      router.push('/wallet/setup/lightning-address')
+                    }
+                  >
                     Setup
                   </Button>
                 )}
@@ -166,12 +226,23 @@ export default function WalletSettingsPage() {
                 {nwcUri ? (
                   <>
                     <Badge variant="secondary">Active</Badge>
-                    <Button size="sm" variant="outline" onClick={() => copyToClipboard(nwcUri, "nwcUri")}>
-                      {copied === "nwcUri" ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(nwcUri, 'nwcUri')}
+                    >
+                      {copied === 'nwcUri' ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
                     </Button>
                   </>
                 ) : (
-                  <Button size="sm" onClick={() => router.push("/wallet/setup/nwc")}>
+                  <Button
+                    size="sm"
+                    onClick={() => router.push('/wallet/setup/nwc')}
+                  >
                     Setup
                   </Button>
                 )}
@@ -193,9 +264,13 @@ export default function WalletSettingsPage() {
             <Button
               variant="destructive"
               onClick={() => {
-                if (confirm("Are you sure you want to logout? Make sure you have backed up your private key.")) {
+                if (
+                  confirm(
+                    'Are you sure you want to logout? Make sure you have backed up your private key.'
+                  )
+                ) {
                   logout()
-                  router.push("/wallet/login")
+                  router.push('/wallet/login')
                 }
               }}
               className="w-full"
