@@ -173,7 +173,6 @@ export default function ActivateCardPage() {
                         <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm mb-2 flex items-center justify-center">
                           <img src="/nwc-logo.png" alt="NWC" className="w-4 h-4 object-contain" />
                         </div>
-                        <div className="w-8 h-8 bg-white/20 rounded-lg backdrop-blur-sm" />
                       </div>
                     </div>
 
