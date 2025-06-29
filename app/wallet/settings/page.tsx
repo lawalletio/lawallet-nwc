@@ -1,24 +1,42 @@
-"use client"
+'use client'
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { useWallet } from "@/providers/wallet"
-import { hexToNsec } from "@/lib/nostr"
-import { ArrowLeft, Copy, Eye, EyeOff, Key, User, Zap, Settings, CheckCircle, Shield } from "lucide-react"
-import { useState as useStateHook } from "react"
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { useWallet } from '@/providers/wallet'
+import { hexToNsec } from '@/lib/nostr'
+import {
+  ArrowLeft,
+  Copy,
+  Eye,
+  EyeOff,
+  Key,
+  User,
+  Zap,
+  Settings,
+  CheckCircle,
+  Shield
+} from 'lucide-react'
+import { useState as useStateHook } from 'react'
 
 export default function WalletSettingsPage() {
-  const { privateKey, publicKey, lightningAddress, nwcUri, logout } = useWallet()
+  const { privateKey, publicKey, lightningAddress, nwcUri, logout } =
+    useWallet()
   const router = useRouter()
   const [showPrivateKey, setShowPrivateKey] = useStateHook(false)
-  const [copied, setCopied] = useStateHook("")
+  const [copied, setCopied] = useStateHook('')
 
   useEffect(() => {
     if (!privateKey) {
-      router.push("/wallet/login")
+      router.push('/wallet/login')
     }
   }, [privateKey, router])
 
@@ -30,9 +48,9 @@ export default function WalletSettingsPage() {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(type)
-      setTimeout(() => setCopied(""), 2000)
+      setTimeout(() => setCopied(''), 2000)
     } catch (err) {
-      console.error("Failed to copy:", err)
+      console.error('Failed to copy:', err)
     }
   }
 
@@ -59,7 +77,9 @@ export default function WalletSettingsPage() {
               <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
                 Wallet Settings
               </h1>
-              <p className="text-gray-400">Manage your wallet configuration and keys</p>
+              <p className="text-gray-400">
+                Manage your wallet configuration and keys
+              </p>
             </div>
           </div>
 
@@ -72,20 +92,26 @@ export default function WalletSettingsPage() {
                 </div>
                 Wallet Keys
               </CardTitle>
-              <CardDescription className="text-gray-300">Your wallet's cryptographic keys</CardDescription>
+              <CardDescription className="text-gray-300">
+                Your wallet&apos;s cryptographic keys
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Public Key */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-white">Public Key</label>
+                  <label className="text-sm font-medium text-white">
+                    Public Key
+                  </label>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => copyToClipboard(publicKey || "", "publicKey")}
+                    onClick={() =>
+                      copyToClipboard(publicKey || '', 'publicKey')
+                    }
                     className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
                   >
-                    {copied === "publicKey" ? (
+                    {copied === 'publicKey' ? (
                       <CheckCircle className="w-4 h-4 text-green-400" />
                     ) : (
                       <Copy className="w-4 h-4" />
@@ -100,7 +126,9 @@ export default function WalletSettingsPage() {
               {/* Private Key */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-white">Private Key (nsec)</label>
+                  <label className="text-sm font-medium text-white">
+                    Private Key (nsec)
+                  </label>
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
@@ -108,15 +136,21 @@ export default function WalletSettingsPage() {
                       onClick={() => setShowPrivateKey(!showPrivateKey)}
                       className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
                     >
-                      {showPrivateKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPrivateKey ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => copyToClipboard(hexToNsec(privateKey), "privateKey")}
+                      onClick={() =>
+                        copyToClipboard(hexToNsec(privateKey), 'privateKey')
+                      }
                       className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
                     >
-                      {copied === "privateKey" ? (
+                      {copied === 'privateKey' ? (
                         <CheckCircle className="w-4 h-4 text-green-400" />
                       ) : (
                         <Copy className="w-4 h-4" />
@@ -127,11 +161,13 @@ export default function WalletSettingsPage() {
                 <code className="block p-4 bg-white/5 border border-white/10 rounded-xl text-xs font-mono break-all text-gray-300 backdrop-blur-sm">
                   {showPrivateKey
                     ? hexToNsec(privateKey)
-                    : "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"}
+                    : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
                 </code>
                 <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg backdrop-blur-sm">
                   <Shield className="w-4 h-4 text-red-400" />
-                  <p className="text-xs text-red-300">Keep this private key secure. Never share it with anyone.</p>
+                  <p className="text-xs text-red-300">
+                    Keep this private key secure. Never share it with anyone.
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -146,9 +182,6 @@ export default function WalletSettingsPage() {
                 </div>
                 Connected Services
               </CardTitle>
-              <CardDescription className="text-gray-300">
-                Your wallet's connected services and configurations
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Lightning Address */}
@@ -158,27 +191,35 @@ export default function WalletSettingsPage() {
                     <Zap className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <div className="font-medium text-white">Lightning Address</div>
+                    <div className="font-medium text-white">
+                      Lightning Address
+                    </div>
                     {lightningAddress ? (
                       <div className="text-sm text-gray-300 font-mono bg-white/10 px-2 py-1 rounded mt-1">
                         {lightningAddress}
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-400">Not configured</div>
+                      <div className="text-sm text-gray-400">
+                        Not configured
+                      </div>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {lightningAddress ? (
                     <>
-                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Active</Badge>
+                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                        Active
+                      </Badge>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => copyToClipboard(lightningAddress, "lightningAddress")}
+                        onClick={() =>
+                          copyToClipboard(lightningAddress, 'lightningAddress')
+                        }
                         className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
                       >
-                        {copied === "lightningAddress" ? (
+                        {copied === 'lightningAddress' ? (
                           <CheckCircle className="w-4 h-4 text-green-400" />
                         ) : (
                           <Copy className="w-4 h-4" />
@@ -188,7 +229,9 @@ export default function WalletSettingsPage() {
                   ) : (
                     <Button
                       size="sm"
-                      onClick={() => router.push("/wallet/setup/lightning-address")}
+                      onClick={() =>
+                        router.push('/wallet/setup/lightning-address')
+                      }
                       className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white"
                     >
                       Setup
@@ -196,7 +239,6 @@ export default function WalletSettingsPage() {
                   )}
                 </div>
               </div>
-
               {/* NWC */}
               <div className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl backdrop-blur-sm">
                 <div className="flex items-center gap-3">
@@ -204,25 +246,31 @@ export default function WalletSettingsPage() {
                     <Settings className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <div className="font-medium text-white">Nostr Wallet Connect</div>
+                    <div className="font-medium text-white">
+                      Nostr Wallet Connect
+                    </div>
                     {nwcUri ? (
                       <div className="text-sm text-gray-300">Connected</div>
                     ) : (
-                      <div className="text-sm text-gray-400">Not configured</div>
+                      <div className="text-sm text-gray-400">
+                        Not configured
+                      </div>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {nwcUri ? (
                     <>
-                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Active</Badge>
+                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                        Active
+                      </Badge>
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => copyToClipboard(nwcUri, "nwcUri")}
+                        onClick={() => copyToClipboard(nwcUri, 'nwcUri')}
                         className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
                       >
-                        {copied === "nwcUri" ? (
+                        {copied === 'nwcUri' ? (
                           <CheckCircle className="w-4 h-4 text-green-400" />
                         ) : (
                           <Copy className="w-4 h-4" />
@@ -232,7 +280,7 @@ export default function WalletSettingsPage() {
                   ) : (
                     <Button
                       size="sm"
-                      onClick={() => router.push("/wallet/setup/nwc")}
+                      onClick={() => router.push('/wallet/setup/nwc')}
                       className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white"
                     >
                       Setup
@@ -252,15 +300,21 @@ export default function WalletSettingsPage() {
                 </div>
                 Account Actions
               </CardTitle>
-              <CardDescription className="text-gray-300">Manage your wallet account</CardDescription>
+              <CardDescription className="text-gray-300">
+                Manage your wallet account
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Button
                 variant="destructive"
                 onClick={() => {
-                  if (confirm("Are you sure you want to logout? Make sure you have backed up your private key.")) {
+                  if (
+                    confirm(
+                      'Are you sure you want to logout? Make sure you have backed up your private key.'
+                    )
+                  ) {
                     logout()
-                    router.push("/wallet/login")
+                    router.push('/wallet/login')
                   }
                 }}
                 className="w-full h-12 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg shadow-red-500/25"
