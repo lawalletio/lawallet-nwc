@@ -8,12 +8,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
-import { User, LogOut, Settings, ChevronDown } from "lucide-react"
+import { User, LogOut, Settings, ChevronDown, Menu } from "lucide-react"
 import { useAdmin } from "./admin-provider"
 
-export function TopNavbar() {
+interface TopNavbarProps {
+  sidebarOpen: boolean
+  setSidebarOpen: (open: boolean) => void
+}
+
+export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
   const { auth, setAuth } = useAdmin()
 
   const handleLogout = () => {
@@ -48,13 +51,20 @@ export function TopNavbar() {
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-card w-full">
-      <SidebarTrigger className="-ml-1 md:hidden bg-foreground text-background hover:bg-foreground/90" />
-      <Separator orientation="vertical" className="mr-2 h-4 md:hidden" />
+      {/* Mobile menu button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden bg-foreground text-background hover:bg-foreground/90"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+      >
+        <Menu className="h-4 w-4" />
+      </Button>
 
-      {/* Logo and user info moved from sidebar */}
+      {/* Logo and user info */}
       <div className="flex items-center gap-3">
         <img src="/nwc-logo-black.png" alt="NWC Logo" className="h-8 w-auto" />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 hidden sm:block">
           <h2 className="text-base font-semibold text-foreground truncate">Admin Dashboard</h2>
           {auth && (
             <p className="text-xs text-muted-foreground truncate font-mono">
@@ -65,6 +75,8 @@ export function TopNavbar() {
       </div>
 
       <div className="flex-1" />
+
+      {/* User dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="flex items-center gap-2 px-3 py-2 h-auto text-secondary-foreground">
@@ -72,7 +84,7 @@ export function TopNavbar() {
               <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
                 <User className="h-4 w-4 text-muted-foreground" />
               </div>
-              <div className="hidden sm:block text-left">
+              <div className="hidden md:block text-left">
                 <div className="text-sm font-medium text-foreground font-mono">
                   {auth?.pubkey.slice(0, 8)}...{auth?.pubkey.slice(-8)}
                 </div>
@@ -84,7 +96,7 @@ export function TopNavbar() {
                   </span>
                 </div>
               </div>
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              <ChevronDown className="h-4 w-4 text-muted-foreground hidden sm:block" />
             </div>
           </Button>
         </DropdownMenuTrigger>

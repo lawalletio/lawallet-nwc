@@ -1,29 +1,30 @@
 "use client"
 
 import type React from "react"
+import { useState } from "react"
 
 import { useAdmin } from "./admin-provider"
 import { Login } from "./login"
 import { AdminSidebar } from "./admin-sidebar"
 import { TopNavbar } from "./top-navbar"
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 
 export function AdminWrapper({ children }: { children: React.ReactNode }) {
   const { auth } = useAdmin()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // If not authenticated, only show login dialog
   if (!auth) {
     return <Login />
   }
 
-  // If authenticated, show full admin interface
+  // If authenticated, show full admin interface with navbar on top
   return (
-    <SidebarProvider>
-      <AdminSidebar />
-      <SidebarInset>
-        <TopNavbar />
-        <div className="flex flex-1 flex-col gap-4 p-4 bg-gray-50 min-h-screen">{children}</div>
-      </SidebarInset>
-    </SidebarProvider>
+    <div className="min-h-screen bg-gray-50">
+      <TopNavbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+      <div className="flex">
+        <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main className="flex-1 p-4 lg:ml-0">{children}</main>
+      </div>
+    </div>
   )
 }
