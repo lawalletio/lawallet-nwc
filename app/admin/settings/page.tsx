@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Settings, Globe, RefreshCw, CheckCircle, Check, X } from 'lucide-react'
-import { useAdmin } from '@/components/admin/admin-provider'
+import { useAdmin } from '@/hooks/use-admin'
 
 export default function SettingsPage() {
   const { domain, setDomain } = useAdmin()

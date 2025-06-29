@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { User, LogOut, Settings, ChevronDown, Menu } from 'lucide-react'
-import { useAdmin } from './admin-provider'
+import { useAdmin } from '@/hooks/use-admin'
 
 interface TopNavbarProps {
   sidebarOpen: boolean

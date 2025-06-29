@@ -13,7 +13,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Eye, EyeOff, Zap, Key, Link, Lock } from 'lucide-react'
-import { useAdmin } from './admin-provider'
+import { useAdmin } from '@/hooks/use-admin'
 
 export function Login() {
   const { setAuth } = useAdmin()

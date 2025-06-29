@@ -1,6 +1,6 @@
 import type React from 'react'
 import type { Metadata } from 'next'
-import { AdminProvider } from '@/components/admin/admin-provider'
+import { AdminProvider } from '@/providers/admin-provider'
 import { AdminWrapper } from '@/components/admin/admin-wrapper'
 
 export const metadata: Metadata = {

@@ -3,20 +3,20 @@
 import type React from 'react'
 import { createContext, useContext, useState, useEffect } from 'react'
 
-interface NostrAuth {
+export interface NostrAuth {
   pubkey: string
   method: 'nip07' | 'nsec' | 'bunker'
   connected: boolean
 }
 
-interface AdminContextType {
+export interface AdminContextType {
   auth: NostrAuth | null
   domain: string
   setAuth: (auth: NostrAuth | null) => void
   setDomain: (domain: string) => void
 }
 
-const AdminContext = createContext<AdminContextType | null>(null)
+export const AdminContext = createContext<AdminContextType | null>(null)
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<NostrAuth | null>(null)
@@ -51,12 +51,4 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AdminContext.Provider>
   )
-}
-
-export function useAdmin() {
-  const context = useContext(AdminContext)
-  if (!context) {
-    throw new Error('useAdmin must be used within AdminProvider')
-  }
-  return context
 }
