@@ -170,9 +170,7 @@ export default function ActivateCardPage() {
                         <Zap className="w-6 h-6 text-yellow-300" />
                       </div>
                       <div className="text-right">
-                        <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm mb-2 flex items-center justify-center">
-                          <img src="/nwc-logo.png" alt="NWC" className="w-4 h-4 object-contain" />
-                        </div>
+                        <img src="/nwc-logo.png" alt="NWC" className="w-16 h-16 object-contain" />
                       </div>
                     </div>
 
