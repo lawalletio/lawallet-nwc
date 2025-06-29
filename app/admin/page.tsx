@@ -1,6 +1,6 @@
 'use client'
 
-import { useAdmin } from '@/components/admin/admin-provider'
+import { useAdmin } from '@/hooks/use-admin'
 import {
   Card,
   CardContent,

@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useState } from 'react'
 
-import { useAdmin } from './admin-provider'
+import { useAdmin } from '@/hooks/use-admin'
 import { Login } from './login'
 import { AdminSidebar } from './admin-sidebar'
 import { TopNavbar } from './top-navbar'
