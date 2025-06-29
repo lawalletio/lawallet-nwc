@@ -129,7 +129,7 @@ export default function ActivateCardPage() {
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
 
       <div className="relative z-10 flex items-center justify-center min-h-screen p-8">
-        <div className="w-full max-w-2xl">
+        <div className="w-full max-w-full">
           {/* Header with Large Logo */}
           <div className="text-center mb-8">
             <div className="w-64 h-64 mx-auto mb-6 relative">
