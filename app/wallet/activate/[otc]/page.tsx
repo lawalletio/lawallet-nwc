@@ -51,7 +51,7 @@ export default function ActivateCardPage() {
       // Simulate activation process
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
-      // Set the private key (this will auto-login)
+      // Set the private key (this will auto-login the user)
       setPrivateKey(privateKey)
 
       setIsActivated(true)
