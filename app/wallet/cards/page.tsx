@@ -2,22 +2,25 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
 import { useWallet } from "@/providers/wallet"
 import { CardService } from "@/services/card-service"
-import { ArrowLeft, CreditCard, Search, Zap, Calendar, Nfc, CheckCircle, AlertCircle } from "lucide-react"
+import { ArrowLeft, CreditCard, Power, PowerOff } from "lucide-react"
 
 export default function WalletCardsPage() {
   const { privateKey } = useWallet()
   const router = useRouter()
-  const [searchTerm, setSearchTerm] = useState("")
+  const [cards, setCards] = useState<any[]>([])
 
   useEffect(() => {
     if (!privateKey) {
       router.push("/wallet/login")
+    } else {
+      // Get cards assigned to this wallet (mock data for now)
+      const allCards = CardService.list()
+      const userCards = allCards.filter((card) => card.pubkey) // Cards that are linked/assigned
+      setCards(userCards)
     }
   }, [privateKey, router])
 
@@ -25,15 +28,9 @@ export default function WalletCardsPage() {
     return null
   }
 
-  // Get cards assigned to this wallet (mock data for now)
-  const allCards = CardService.list()
-  const userCards = allCards.filter((card) => card.pubkey) // Cards that are linked/assigned
-
-  const filteredCards = userCards.filter(
-    (card) =>
-      card.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      card.pubkey?.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const toggleCardStatus = (cardId: string) => {
+    setCards((prevCards) => prevCards.map((card) => (card.id === cardId ? { ...card, ntag424: !card.ntag424 } : card)))
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
@@ -43,7 +40,7 @@ export default function WalletCardsPage() {
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
 
       <div className="relative z-10 p-6">
-        <div className="max-w-4xl mx-auto space-y-8">
+        <div className="max-w-6xl mx-auto space-y-8">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -64,118 +61,131 @@ export default function WalletCardsPage() {
                   <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
                     My Cards
                   </h1>
-                  <p className="text-gray-400">Manage your BoltCards</p>
+                  <p className="text-gray-400">Tap to activate or deactivate</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="bg-white/10 backdrop-blur-xl border-white/20 shadow-2xl shadow-black/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-300">Total Cards</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">{userCards.length}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white/10 backdrop-blur-xl border-white/20 shadow-2xl shadow-black/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-300">Active Cards</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">{userCards.filter((card) => card.ntag424).length}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white/10 backdrop-blur-xl border-white/20 shadow-2xl shadow-black/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-300">Used This Month</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">
-                  {userCards.filter((card) => card.lastUsedAt).length}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Search */}
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search cards..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400 backdrop-blur-sm"
-            />
-          </div>
-
-          {/* Cards List */}
-          {filteredCards.length === 0 ? (
-            <Card className="bg-white/10 backdrop-blur-xl border-white/20 shadow-2xl shadow-black/20">
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <Nfc className="h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold mb-2 text-white">No cards found</h3>
-                <p className="text-gray-400 mb-4">
-                  {searchTerm ? "No cards match your search criteria." : "You don't have any cards assigned yet."}
-                </p>
-              </CardContent>
-            </Card>
+          {/* Cards Display */}
+          {cards.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center mb-6">
+                <CreditCard className="w-12 h-12 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-white">No cards found</h3>
+              <p className="text-gray-400">You don't have any cards assigned yet.</p>
+            </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {filteredCards.map((card) => (
-                <Card
-                  key={card.id}
-                  className="bg-white/10 backdrop-blur-xl border-white/20 shadow-2xl shadow-black/20 hover:shadow-purple-500/10 transition-all duration-300 group cursor-pointer"
-                  onClick={() => router.push(`/wallet/cards/${card.id}`)}
-                >
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-8 bg-gradient-to-br from-purple-500/80 to-blue-500/80 rounded flex items-center justify-center flex-shrink-0">
-                          <span className="text-white text-xs font-bold">{card.username?.charAt(0) || "C"}</span>
+            <div className="relative">
+              {/* Horizontal scrollable container */}
+              <div
+                className="flex gap-8 overflow-x-auto pb-8 px-4"
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+              >
+                <style jsx>{`
+                  div::-webkit-scrollbar {
+                    display: none;
+                  }
+                `}</style>
+                {cards.map((card, index) => (
+                  <div
+                    key={card.id}
+                    className="flex-shrink-0 relative group cursor-pointer"
+                    onClick={() => toggleCardStatus(card.id)}
+                    style={{
+                      transform: `perspective(1000px) rotateY(${index * -5}deg) translateZ(${index * -20}px)`,
+                      zIndex: cards.length - index,
+                    }}
+                  >
+                    {/* Card */}
+                    <div
+                      className={`
+                      w-80 h-48 rounded-2xl p-6 shadow-2xl transition-all duration-500 transform
+                      ${
+                        card.ntag424
+                          ? "bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 shadow-purple-500/30"
+                          : "bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 shadow-gray-900/50"
+                      }
+                      hover:scale-105 hover:rotate-0 hover:translateZ-10 hover:shadow-3xl
+                      ${card.ntag424 ? "hover:shadow-purple-500/50" : "hover:shadow-gray-700/50"}
+                    `}
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              card.ntag424 ? "bg-white/20" : "bg-gray-600/50"
+                            }`}
+                          >
+                            {card.ntag424 ? (
+                              <Power className="w-4 h-4 text-white" />
+                            ) : (
+                              <PowerOff className="w-4 h-4 text-gray-400" />
+                            )}
+                          </div>
+                          <Badge
+                            variant={card.ntag424 ? "default" : "secondary"}
+                            className={
+                              card.ntag424
+                                ? "bg-green-500/30 text-green-200 border-green-400/50"
+                                : "bg-red-500/30 text-red-200 border-red-400/50"
+                            }
+                          >
+                            {card.ntag424 ? "Active" : "Inactive"}
+                          </Badge>
                         </div>
+                        <div className="text-right">
+                          <div className="text-white/80 text-xs">BoltCard</div>
+                        </div>
+                      </div>
+
+                      {/* Card Content */}
+                      <div className="space-y-4">
                         <div>
-                          <CardTitle className="text-white text-lg">{card.username || "Unnamed Card"}</CardTitle>
-                          <CardDescription className="text-gray-400">
-                            {card.pubkey ? `${card.pubkey.slice(0, 8)}...${card.pubkey.slice(-8)}` : "Not linked"}
-                          </CardDescription>
+                          <div className="text-white/60 text-xs mb-1">Card Name</div>
+                          <div className="text-white text-lg font-semibold">{card.username || "Unnamed Card"}</div>
+                        </div>
+
+                        <div>
+                          <div className="text-white/60 text-xs mb-1">Public Key</div>
+                          <div className="text-white/80 text-sm font-mono">
+                            {card.pubkey ? `${card.pubkey.slice(0, 12)}...${card.pubkey.slice(-8)}` : "Not linked"}
+                          </div>
                         </div>
                       </div>
-                      <Badge
-                        variant={card.ntag424 ? "default" : "secondary"}
-                        className={
-                          card.ntag424
-                            ? "bg-green-500/20 text-green-400 border-green-500/30"
-                            : "bg-orange-500/20 text-orange-400 border-orange-500/30"
-                        }
-                      >
-                        {card.ntag424 ? (
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                        ) : (
-                          <AlertCircle className="w-3 h-3 mr-1" />
-                        )}
-                        {card.ntag424 ? "Active" : "Inactive"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 text-gray-400">
-                        <Calendar className="w-4 h-4" />
-                        <span>Created {card.createdAt.toLocaleDateString()}</span>
-                      </div>
-                      {card.lastUsedAt && (
-                        <div className="flex items-center gap-2 text-gray-400">
-                          <Zap className="w-4 h-4" />
-                          <span>Used {card.lastUsedAt.toLocaleDateString()}</span>
+
+                      {/* Card Footer */}
+                      <div className="absolute bottom-4 right-6">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-6 h-6 rounded-full ${card.ntag424 ? "bg-white/20" : "bg-gray-600/50"}`}
+                          ></div>
+                          <div
+                            className={`w-8 h-6 rounded-full ${card.ntag424 ? "bg-white/30" : "bg-gray-600/30"}`}
+                          ></div>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Hover overlay */}
+                      <div className="absolute inset-0 bg-white/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                        <div className="text-white text-sm font-medium">
+                          {card.ntag424 ? "Tap to deactivate" : "Tap to activate"}
+                        </div>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                    {/* 3D Shadow effect */}
+                    <div
+                      className="absolute inset-0 bg-black/20 rounded-2xl blur-xl -z-10"
+                      style={{
+                        transform: "translateY(20px) translateZ(-50px)",
+                      }}
+                    ></div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
