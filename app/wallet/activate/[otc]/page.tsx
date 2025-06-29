@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Power, Loader2, CheckCircle, Zap } from "lucide-react"
+import { Power, Loader2, CheckCircle } from "lucide-react"
 import { useWallet } from "@/providers/wallet"
 import { generatePrivateKey } from "@/lib/nostr"
 
@@ -165,18 +165,10 @@ export default function ActivateCardPage() {
 
                   {/* Card Content */}
                   <div className="absolute inset-0 p-6 flex flex-col justify-between text-white">
-                    <div className="flex justify-between items-start">
-                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-                        <Zap className="w-6 h-6 text-yellow-300" />
-                      </div>
+                    <div className="flex justify-end items-start">
                       <div className="text-right">
                         <img src="/nwc-logo.png" alt="NWC" className="w-16 h-16 object-contain" />
                       </div>
-                    </div>
-
-                    <div>
-                      <p className="text-sm opacity-80 mb-1">Card ID</p>
-                      <p className="font-mono text-2xl font-bold tracking-wider">{card.otc.slice(-8).toUpperCase()}</p>
                     </div>
                   </div>
                 </div>
