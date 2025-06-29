@@ -1,9 +1,10 @@
 'use client'
 
 import type React from 'react'
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { WalletContextType, WalletState } from '@/types/wallet'
 import { getPublicKeyFromPrivate } from '@/lib/nostr'
+import { nip19 } from 'nostr-tools'
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
@@ -17,6 +18,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     isInitialized: false // Added initialization state
   })
   const [isHydrated, setIsHydrated] = useState(false) // Track hydration
+
+  const npub = useMemo(() => {
+    if (!walletState.publicKey) return ''
+    try {
+      return nip19.npubEncode(walletState.publicKey)
+    } catch (e) {
+      return null
+    }
+  }, [walletState.publicKey])
 
   // Load wallet data from localStorage on mount
   useEffect(() => {
@@ -93,6 +103,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setLightningAddress,
     setNwcUri,
     logout,
+    npub,
     isHydrated // Expose hydration state
   }
 

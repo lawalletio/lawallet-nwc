@@ -28,8 +28,8 @@ import {
 import { useState as useStateHook } from 'react'
 
 export default function WalletSettingsPage() {
-  const { privateKey, publicKey, lightningAddress, nwcUri, logout } =
-    useWallet()
+  const { privateKey, lightningAddress, nwcUri, logout, npub } = useWallet()
+
   const router = useRouter()
   const [showPrivateKey, setShowPrivateKey] = useStateHook(false)
   const [copied, setCopied] = useStateHook('')
@@ -106,9 +106,7 @@ export default function WalletSettingsPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() =>
-                      copyToClipboard(publicKey || '', 'publicKey')
-                    }
+                    onClick={() => copyToClipboard(npub || '', 'publicKey')}
                     className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
                   >
                     {copied === 'publicKey' ? (
@@ -119,7 +117,7 @@ export default function WalletSettingsPage() {
                   </Button>
                 </div>
                 <code className="block p-4 bg-white/5 border border-white/10 rounded-xl text-xs font-mono break-all text-gray-300 backdrop-blur-sm">
-                  {publicKey}
+                  {npub}
                 </code>
               </div>
 
@@ -264,18 +262,6 @@ export default function WalletSettingsPage() {
                       <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
                         Active
                       </Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => copyToClipboard(nwcUri, 'nwcUri')}
-                        className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm"
-                      >
-                        {copied === 'nwcUri' ? (
-                          <CheckCircle className="w-4 h-4 text-green-400" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </Button>
                     </>
                   ) : (
                     <Button

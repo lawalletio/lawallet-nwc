@@ -154,7 +154,7 @@ export default function WalletPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => router.push('/wallet/settings')}
-                className="bg-white/5 border-white/20 text-white hover:bg-white/10 backdrop-blur-sm transition-all duration-300 hover:scale-105"
+                className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-slate-300 backdrop-blur-sm transition-all duration-300 hover:scale-105"
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Settings

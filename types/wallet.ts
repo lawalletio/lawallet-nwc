@@ -12,5 +12,6 @@ export interface WalletContextType extends WalletState {
   setLightningAddress: (address: string) => void
   setNwcUri: (uri: string) => void
   logout: () => void
+  npub: string | null
   isHydrated: boolean
 }
