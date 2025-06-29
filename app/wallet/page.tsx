@@ -109,12 +109,6 @@ export default function WalletPage() {
               <div className="w-12 h-12 flex items-center justify-center">
                 <img src="/nwc-logo.png" alt="NWC Logo" className="w-10 h-10 object-contain" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                  Lightning Wallet
-                </h1>
-                <p className="text-gray-400">Manage your Bitcoin Lightning payments</p>
-              </div>
             </div>
             <div className="flex gap-3">
               <Button
