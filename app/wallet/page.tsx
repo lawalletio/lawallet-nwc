@@ -22,19 +22,64 @@ export default function WalletPage() {
   const router = useRouter()
   const [balance, setBalance] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [isInitializing, setIsInitializing] = useState(true)
 
   useEffect(() => {
-    if (!privateKey) {
-      router.push("/wallet/login")
-    } else {
+    // Check authentication first
+    const checkAuth = async () => {
+      // Small delay to prevent flash
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      if (!privateKey) {
+        router.push("/wallet/login")
+        return
+      }
+
+      setIsInitializing(false)
+
       // Simulate loading balance
       setTimeout(() => {
         setBalance(125000) // 125k sats
         setIsLoading(false)
       }, 1000)
     }
+
+    checkAuth()
   }, [privateKey, router])
 
+  // Show loading splash screen while initializing
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center relative overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0 bg-[url('/placeholder.svg?height=1080&width=1920')] opacity-5"></div>
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+
+        <div className="relative z-10 text-center space-y-8">
+          {/* Logo */}
+          <div className="mx-auto w-24 h-24 bg-gradient-to-br from-purple-500 to-blue-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-500/25 animate-pulse">
+            <Wallet className="w-12 h-12 text-white" />
+          </div>
+
+          {/* Loading Text */}
+          <div className="space-y-4">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+              Lightning Wallet
+            </h1>
+            <p className="text-gray-400 text-lg">Initializing your wallet...</p>
+
+            {/* Loading Spinner */}
+            <div className="flex justify-center">
+              <div className="w-8 h-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render anything if not authenticated (will redirect)
   if (!privateKey) {
     return null
   }
