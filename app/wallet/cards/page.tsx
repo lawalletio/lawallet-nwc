@@ -32,20 +32,18 @@ export default function WalletCardsPage() {
     setCards((prevCards) => prevCards.map((card) => (card.id === cardId ? { ...card, ntag424: !card.ntag424 } : card)))
   }
 
-  // Generate random card images
-  const getCardImage = (index: number) => {
-    const patterns = [
-      "abstract-waves",
-      "geometric-pattern",
-      "digital-circuit",
-      "lightning-bolt",
-      "crypto-pattern",
-      "tech-grid",
-      "neon-lines",
-      "holographic",
-    ]
-    const pattern = patterns[index % patterns.length]
-    return `/placeholder.svg?height=192&width=320&text=${pattern}`
+  // Generate random card images for each card
+  const getCardImage = (cardId: string) => {
+    // Create a simple hash from card ID to ensure consistent image per card
+    let hash = 0
+    for (let i = 0; i < cardId.length; i++) {
+      const char = cardId.charCodeAt(i)
+      hash = (hash << 5) - hash + char
+      hash = hash & hash // Convert to 32bit integer
+    }
+
+    const imageIndex = (Math.abs(hash) % 20) + 1 // Use 20 different images
+    return `/placeholder.svg?height=192&width=320&text=Card-${imageIndex}&bg=${Math.abs(hash % 16).toString(16)}`
   }
 
   return (
@@ -100,9 +98,9 @@ export default function WalletCardsPage() {
                   >
                     {/* Card Background Image */}
                     <div
-                      className="absolute inset-0 opacity-20"
+                      className="absolute inset-0 opacity-30"
                       style={{
-                        backgroundImage: `url('${getCardImage(index)}')`,
+                        backgroundImage: `url('${getCardImage(card.id)}')`,
                         backgroundSize: "cover",
                         backgroundPosition: "center",
                       }}
