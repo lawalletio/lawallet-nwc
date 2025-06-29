@@ -27,16 +27,22 @@ const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
     const { lightningAddress } = useWallet()
 
     if (!lightningAddress) {
-      return <div ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />
+      return (
+        <div ref={ref} className={cn("text-lg font-medium", className)} {...props}>
+          <span className="text-gray-400">user</span>
+          <span className="text-purple-400 font-bold text-xl">@</span>
+          <span className="text-blue-400">example.com</span>
+        </div>
+      )
     }
 
     const [username, domain] = lightningAddress.split("@")
 
     return (
-      <div ref={ref} className={cn("text-lg font-medium", className)} {...props}>
-        <span className="text-white">{username}</span>
-        <span className="text-purple-400">@</span>
-        <span className="text-blue-400">{domain}</span>
+      <div ref={ref} className={cn("text-lg font-medium tracking-wide", className)} {...props}>
+        <span className="text-white font-semibold">{username}</span>
+        <span className="text-purple-400 font-bold text-xl mx-1 drop-shadow-lg">@</span>
+        <span className="text-blue-400 font-medium">{domain}</span>
       </div>
     )
   },
