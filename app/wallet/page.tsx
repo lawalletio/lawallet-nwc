@@ -106,8 +106,8 @@ export default function WalletPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center shadow-2xl shadow-purple-500/25">
-                <Wallet className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 flex items-center justify-center">
+                <img src="/nwc-logo.png" alt="NWC Logo" className="w-10 h-10 object-contain" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
