@@ -13,8 +13,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     publicKey: null,
     lightningAddress: null,
     nwcUri: null,
-    balance: 125000 // Mock balance in sats
+    balance: 125000, // Mock balance in sats
+    isInitialized: false // Added initialization state
   })
+  const [isHydrated, setIsHydrated] = useState(false) // Track hydration
 
   // Load wallet data from localStorage on mount
   useEffect(() => {
@@ -22,11 +24,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (savedWallet) {
       try {
         const parsed = JSON.parse(savedWallet)
-        setWalletState(prev => ({ ...prev, ...parsed }))
+        let publicKey = parsed.publicKey
+        if (parsed.privateKey) {
+          try {
+            publicKey = getPublicKeyFromPrivate(parsed.privateKey)
+          } catch (e) {
+            publicKey = null
+          }
+        }
+        setWalletState(prev => ({
+          ...prev,
+          ...parsed,
+          publicKey,
+          isInitialized: !!parsed.privateKey
+        }))
       } catch (error) {
         console.error('Failed to parse saved wallet data:', error)
       }
     }
+    setIsHydrated(true) // Mark as hydrated after attempting to load
   }, [])
 
   // Save wallet data to localStorage whenever it changes
@@ -42,7 +58,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setWalletState(prev => ({
         ...prev,
         privateKey: privateKeyHex,
-        publicKey
+        publicKey,
+        isInitialized: true // Set initialized when private key is set
       }))
     } catch (error) {
       console.error('Failed to set private key:', error)
@@ -64,7 +81,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       publicKey: null,
       lightningAddress: null,
       nwcUri: null,
-      balance: 125000
+      balance: 125000,
+      isInitialized: false // Reset initialization on logout
     })
     localStorage.removeItem('wallet')
   }
@@ -74,7 +92,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setPrivateKey,
     setLightningAddress,
     setNwcUri,
-    logout
+    logout,
+    isHydrated // Expose hydration state
   }
 
   return (

@@ -23,37 +23,47 @@ import {
 } from 'lucide-react'
 
 export default function WalletPage() {
-  const { privateKey } = useWallet()
+  const { privateKey, isInitialized, isHydrated } = useWallet()
   const router = useRouter()
   const [balance, setBalance] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(!isInitialized)
 
   useEffect(() => {
+    if (!isHydrated) return
     // Check authentication first
     const checkAuth = async () => {
       if (!privateKey) {
         router.push('/wallet/login')
         return
       }
-      // Only show splash/loading if authenticated
-      // Small delay to prevent flash
-      await new Promise(resolve => setTimeout(resolve, 500))
-      // Simulate loading balance
-      setTimeout(() => {
-        setBalance(125000) // 125k sats
+      if (!isInitialized) {
+        // Only show splash/loading if not initialized
+        // Small delay to prevent flash
+        await new Promise(resolve => setTimeout(resolve, 500))
+        // Simulate loading balance
+        setTimeout(() => {
+          setBalance(125000) // 125k sats
+          setIsLoading(false)
+        }, 1000)
+      } else {
+        setBalance(125000)
         setIsLoading(false)
-      }, 1000)
+      }
     }
     checkAuth()
-  }, [privateKey, router])
+  }, [privateKey, isInitialized, isHydrated, router])
 
+  // Wait for hydration before rendering anything
+  if (!isHydrated) {
+    return null
+  }
   // If not authenticated, don't render anything (will redirect)
   if (!privateKey) {
     return null
   }
 
-  // Show loading splash screen while loading balance
-  if (isLoading) {
+  // Show loading splash screen only if not initialized or loading
+  if (isLoading || !isInitialized) {
     return (
       <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center">
         {/* Animated Background */}
