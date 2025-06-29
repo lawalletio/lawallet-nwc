@@ -27,33 +27,33 @@ export default function WalletPage() {
   const router = useRouter()
   const [balance, setBalance] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-  const [isInitializing, setIsInitializing] = useState(true)
 
   useEffect(() => {
     // Check authentication first
     const checkAuth = async () => {
-      // Small delay to prevent flash
-      await new Promise(resolve => setTimeout(resolve, 500))
-
       if (!privateKey) {
         router.push('/wallet/login')
         return
       }
-
-      setIsInitializing(false)
-
+      // Only show splash/loading if authenticated
+      // Small delay to prevent flash
+      await new Promise(resolve => setTimeout(resolve, 500))
       // Simulate loading balance
       setTimeout(() => {
         setBalance(125000) // 125k sats
         setIsLoading(false)
       }, 1000)
     }
-
     checkAuth()
   }, [privateKey, router])
 
-  // Show loading splash screen while initializing
-  if (isInitializing) {
+  // If not authenticated, don't render anything (will redirect)
+  if (!privateKey) {
+    return null
+  }
+
+  // Show loading splash screen while loading balance
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center">
         {/* Animated Background */}
@@ -83,11 +83,6 @@ export default function WalletPage() {
         </div>
       </div>
     )
-  }
-
-  // Don't render anything if not authenticated (will redirect)
-  if (!privateKey) {
-    return null
   }
 
   const formatSats = (sats: number) => {
@@ -196,16 +191,7 @@ export default function WalletPage() {
                         Balance
                       </p>
                       <p className="font-mono text-2xl sm:text-4xl font-extrabold tracking-widest text-white drop-shadow-lg mb-2">
-                        {isLoading ? (
-                          <div className="flex items-center gap-2 sm:gap-3">
-                            <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-purple-200" />
-                            <span className="text-base sm:text-lg">
-                              Loading...
-                            </span>
-                          </div>
-                        ) : (
-                          `${formatSats(balance)} sats`
-                        )}
+                        {formatSats(balance)} sats
                       </p>
                       <p className="text-base sm:text-lg opacity-80 mt-2 text-white">
                         ≈ $42.50 USD
