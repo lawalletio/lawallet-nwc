@@ -106,8 +106,8 @@ export default function WalletPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-20 h-20 flex items-center justify-center">
-                <img src="/nwc-logo.png" alt="NWC Logo" className="w-16 h-16 object-contain" />
+              <div className="w-16 h-16 flex items-center justify-center">
+                <img src="/nwc-logo.png" alt="NWC Logo" className="w-32 h-32 object-contain" />
               </div>
             </div>
             <div className="flex gap-3">
