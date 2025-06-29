@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -28,18 +28,15 @@ import { formatDate } from '@/lib/utils'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSettings } from '@/hooks/use-settings'
 
-export default function CardPage({
-  params
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default function CardPage() {
   const router = useRouter()
   const [showQRDialog, setShowQRDialog] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const { settings } = useSettings()
 
-  const { id } = React.use(params)
+  const params = useParams()
+  const id = params.id as string
   const card = CardService.get(id)
 
   if (!card) {
