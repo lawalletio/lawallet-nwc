@@ -146,9 +146,21 @@ export default function CardPage() {
           <div className="lg:col-span-1 space-y-6">
             <Card>
               <CardContent className="p-4">
-                <div className="aspect-[856/540] bg-gradient-to-br from-primary to-blue-400 rounded-md flex items-center justify-center text-primary-foreground font-bold text-lg mb-4 shadow-inner">
-                  {card.username}
+                <div
+                  className="aspect-[856/540] rounded-md flex items-start justify-end text-primary-foreground font-bold text-lg mb-4 shadow-inner"
+                  style={{
+                    backgroundImage: `url(${card.design.imageUrl})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                  }}
+                >
+                  {card.username && (
+                    <div className="w-full p-2 bg-black/50 text-right mt-4">
+                      {`${card.username}@${settings.domain}`}
+                    </div>
+                  )}
                 </div>
+
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Status</span>
