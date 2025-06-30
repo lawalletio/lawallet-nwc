@@ -17,8 +17,12 @@ import Link from 'next/link'
 import { CardDesignService } from '@/services/card-design-service'
 import { CardService } from '@/services/card-service'
 import { Card as CardType } from '@/types'
+import { QRCodeSVG } from 'qrcode.react'
 
-type Step = 'design' | 'nfc' | 'qr'
+export type Step = 'design' | 'nfc' | 'qr'
+
+const boltcardUrl =
+  'https://play.google.com/store/apps/details?id=com.lightningnfcapp&hl=en'
 
 export default function NewCardPage() {
   const router = useRouter()
@@ -269,7 +273,16 @@ export default function NewCardPage() {
             </h1>
             <p className="text-gray-600">
               Your card has been successfully configured. Please, complete the
-              setup by scanning the QR code with the BoltCard app.
+              setup by scanning the QR code with the{' '}
+              <a
+                href={boltcardUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600"
+              >
+                BoltCard app
+              </a>
+              .
             </p>
           </div>
         </div>
@@ -279,36 +292,12 @@ export default function NewCardPage() {
         <DialogContent className="sm:max-w-md bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-gray-900 flex items-center gap-2">
-              <QrCode className="h-5 w-5" values={qrToken} />
+              <QrCode className="h-5 w-5" />
               Setup QR Code
             </DialogTitle>
-            <DialogDescription className="text-gray-600">
-              Scan this QR code with BoltCard NFC Card Creator
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="flex justify-center">
-              <div className="w-48 h-48 bg-white rounded-lg p-4 shadow-lg border border-gray-100">
-                <svg viewBox="0 0 21 21" className="w-full h-full">
-                  {qrPattern.map((filled, index) => {
-                    const x = index % 21
-                    const y = Math.floor(index / 21)
-                    return (
-                      <rect
-                        key={index}
-                        x={x}
-                        y={y}
-                        width="1"
-                        height="1"
-                        fill={filled ? '#000000' : '#ffffff'}
-                      />
-                    )
-                  })}
-                </svg>
-              </div>
-            </div>
-
             <div className="text-center space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
                 <h4 className="text-sm font-medium text-blue-900 mb-3">
@@ -319,7 +308,17 @@ export default function NewCardPage() {
                     <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
                       1
                     </span>
-                    <span>Scan this QR code with the BoltCard app</span>
+                    <span>
+                      Scan this QR code with the{' '}
+                      <a
+                        href={boltcardUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600"
+                      >
+                        BoltCard app
+                      </a>
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="flex-shrink-0 w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
@@ -337,6 +336,12 @@ export default function NewCardPage() {
                     </span>
                   </li>
                 </ol>
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <div className="w-full h-auto bg-white rounded-lg p-4 shadow-lg border border-gray-100 flex items-center justify-center">
+                <QRCodeSVG value={qrToken} size={370} level="H" />
               </div>
             </div>
 
