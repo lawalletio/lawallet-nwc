@@ -590,7 +590,7 @@ const OpenSourceSection = () => {
           asChild
         >
           <a
-            href="https://github.com"
+            href="https://github.com/agustinkassis/boltcard-nwc"
             target="_blank"
             rel="noopener noreferrer"
           >

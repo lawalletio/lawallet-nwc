@@ -14,9 +14,12 @@ import Link from 'next/link'
 import { CardService } from '@/services/card-service'
 import { LightningAddressService } from '@/services/lightning-address-service'
 import { MockDataService } from '@/services'
+import { useRouter } from 'next/navigation'
 
 export default function AdminPage() {
   const { auth } = useAdmin()
+  const router = useRouter()
+
   if (!auth) return null
 
   const systemStats = MockDataService.getSummary()
@@ -62,11 +65,14 @@ export default function AdminPage() {
             Welcome back! Here&apos;s an overview of your BoltCard system.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/admin/cards/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Create Card
-          </Link>
+        <Button
+          onClick={() => {
+            router.push('/admin/cards/new')
+          }}
+          className="text-white"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Create Card
         </Button>
       </div>
 
@@ -123,7 +129,7 @@ export default function AdminPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground truncate">
-                        {card.title}
+                        {card.username || card.pubkey || 'Unpaired'}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-muted-foreground truncate">

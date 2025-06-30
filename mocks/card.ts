@@ -81,7 +81,7 @@ export const mockCardData: Card[] = [
   {
     id: 'card-008',
     title: 'Backup Card',
-    design: mockCardDesignData[7],
+    design: mockCardDesignData[5],
     createdAt: new Date('2024-02-22T17:40:00Z'),
     lastUsedAt: new Date('2024-02-23T10:20:00Z'),
     ntag424: mockNtag424Data[4],
