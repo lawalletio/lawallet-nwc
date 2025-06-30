@@ -9,6 +9,7 @@ import {
 } from 'react'
 
 export interface Settings {
+  url?: string
   domain?: string
 }
 
@@ -31,7 +32,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     console.warn('Get default settings...')
-    setSettings({ domain: 'http://localhost:3000' })
+    setSettings({ url: 'http://localhost:3000', domain: 'localhost:3000' })
     setIsLoading(false)
   }, [])
 
