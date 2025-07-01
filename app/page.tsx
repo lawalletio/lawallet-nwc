@@ -403,27 +403,27 @@ const NWCSupportersSection = () => {
   const supporters = [
     {
       name: 'Alby',
-      logo: '/placeholder.svg?height=60&width=120&text=Alby',
+      logo: '/logos/alby.png',
       color: 'bg-yellow-500'
     },
     {
       name: 'Primal',
-      logo: '/placeholder.svg?height=60&width=120&text=Primal',
+      logo: '/logos/primal.png',
       color: 'bg-purple-500'
     },
     {
       name: 'Flash',
-      logo: '/placeholder.svg?height=60&width=120&text=Flash',
+      logo: '/logos/flash.png',
       color: 'bg-blue-500'
     },
     {
       name: 'BTCCuracao',
-      logo: '/placeholder.svg?height=60&width=120&text=BTCCuracao',
+      logo: '/logos/curacao.png',
       color: 'bg-orange-500'
     },
     {
       name: 'Geyser Fund',
-      logo: '/placeholder.svg?height=60&width=120&text=Geyser+Fund',
+      logo: '/logos/geyser.png',
       color: 'bg-green-500'
     }
   ]
@@ -462,7 +462,7 @@ const NWCSupportersSection = () => {
                 <img
                   src={supporter.logo || '/placeholder.svg'}
                   alt={`${supporter.name} logo`}
-                  className="h-12 w-auto object-contain filter brightness-0 invert opacity-80 group-hover:opacity-100 transition-all duration-300"
+                  className="h-12 w-auto object-contain opacity-80 group-hover:opacity-100 transition-all duration-300"
                 />
               </div>
               <span className="text-sm text-gray-400 group-hover:text-white transition-colors duration-300">

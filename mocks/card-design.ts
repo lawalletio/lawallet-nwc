@@ -26,21 +26,9 @@ export const mockCardDesignData: CardDesign[] = [
     createdAt: new Date('2024-01-18T09:45:00Z')
   },
   {
-    id: 'design-005',
-    imageUrl: '/card-bg-5.png',
-    description: 'Electronic card',
-    createdAt: new Date('2024-01-22T16:10:00Z')
-  },
-  {
-    id: 'design-006',
-    imageUrl: '/card-pattern-2.png',
-    description: 'Hexa Pattern',
-    createdAt: new Date('2024-01-25T12:35:00Z')
-  },
-  {
     id: 'design-007',
-    imageUrl: '/card-pattern-5.png',
-    description: 'Bitmatrix',
+    imageUrl: '/card-geyser.png',
+    description: 'Geyser.fund',
     createdAt: new Date('2024-01-28T15:50:00Z')
   }
 ]
