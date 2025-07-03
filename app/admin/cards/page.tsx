@@ -206,11 +206,14 @@ export default function CardsPage() {
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-8 bg-gradient-to-br from-primary/80 to-primary/50 rounded flex items-center justify-center flex-shrink-0">
-                          <span className="text-primary-foreground text-xs font-bold">
-                            {card.username?.charAt(0) || 'C'}
-                          </span>
-                        </div>
+                        <div
+                          className="w-12 h-8 rounded flex items-center justify-center flex-shrink-0"
+                          style={{
+                            backgroundImage: `url(${card.design?.imageUrl})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                          }}
+                        ></div>
                         <div className="min-w-0">
                           <p className="font-medium text-foreground truncate">
                             {card.username || ''}
@@ -235,7 +238,11 @@ export default function CardsPage() {
                     </td>
                     <td className="px-6 py-4 font-mono text-foreground">
                       {card.pubkey ? (
-                        `${card.pubkey.slice(0, 8)}...${card.pubkey.slice(-8)}`
+                        isMobile ? (
+                          `${card.pubkey.slice(0, 4)}...${card.pubkey.slice(-4)}`
+                        ) : (
+                          `${card.pubkey.slice(0, 8)}...${card.pubkey.slice(-8)}`
+                        )
                       ) : (
                         <span className="text-muted-foreground italic">
                           Not linked
