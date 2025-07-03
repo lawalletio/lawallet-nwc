@@ -11,8 +11,8 @@ const menuItems = [
   { title: 'Dashboard', url: '/admin', icon: Home },
   { title: 'Cards', url: '/admin/cards', icon: CreditCard },
   { title: 'Designs', url: '/admin/designs', icon: Palette },
-  { title: 'Lightning Addresses', url: '/admin/addresses', icon: Zap },
-  { title: 'Settings', url: '/admin/settings', icon: Settings }
+  { title: 'Lightning Addresses', url: '/admin/addresses', icon: Zap }
+  // { title: 'Settings', url: '/admin/settings', icon: Settings }
 ]
 
 interface AdminSidebarProps {
