@@ -8,17 +8,17 @@ import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Search, ArrowLeft, Nfc, QrCode, Check } from 'lucide-react'
+import { Search, ArrowLeft, Nfc, QrCode, Check, Copy } from 'lucide-react'
 import Link from 'next/link'
 import { CardDesignService } from '@/services/card-design-service'
 import { CardService } from '@/services/card-service'
 import { Card as CardType } from '@/types'
 import { QRCodeSVG } from 'qrcode.react'
 import { NFCTapCard } from '@/components/admin/cards/nfc-tap-card'
+import { useSettings } from '@/hooks/use-settings'
 
 export type Step = 'design' | 'nfc' | 'qr'
 
@@ -34,6 +34,9 @@ export default function NewCardPage() {
   const [showQRDialog, setShowQRDialog] = useState(false)
   const [isWritingCard, setIsWritingCard] = useState(false)
   const [card, setCard] = useState<CardType | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const { settings } = useSettings()
 
   const designs = CardDesignService.list()
 
@@ -51,7 +54,7 @@ export default function NewCardPage() {
 
     const card = CardService.create(uid, selectedDesign)
 
-    setQrToken(JSON.stringify(card.ntag424))
+    setQrToken(`${settings.domain}/api/cards/${card.id}/write`)
 
     setCard(card)
 
@@ -316,6 +319,30 @@ export default function NewCardPage() {
               <div className="w-full h-auto bg-white rounded-lg p-4 shadow-lg border border-gray-100 flex items-center justify-center">
                 <QRCodeSVG value={qrToken} size={370} level="H" />
               </div>
+            </div>
+            <div className="flex justify-center mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white w-full"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(qrToken)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                }}
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-4 w-4 mr-2 text-green-600" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy URL
+                  </>
+                )}
+              </Button>
             </div>
 
             <div className="flex gap-2">

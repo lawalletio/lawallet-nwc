@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,6 +27,8 @@ import { CardService } from '@/services/card-service'
 import { formatDate } from '@/lib/utils'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSettings } from '@/hooks/use-settings'
+import { Ntag424WipeData } from '@/types/ntag424'
+import { cardToNtag424WipeData } from '@/lib/ntag424'
 
 export default function CardPage() {
   const router = useRouter()
@@ -38,6 +40,9 @@ export default function CardPage() {
   const params = useParams()
   const id = params.id as string
   const card = CardService.get(id)
+  const wipeQrData = useMemo<Ntag424WipeData | undefined>(() => {
+    return card ? cardToNtag424WipeData(card) : undefined
+  }, [card])
 
   if (!card) {
     return (
@@ -373,23 +378,12 @@ export default function CardPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex justify-center p-4 bg-muted rounded-md">
-              <div className="w-48 h-48 bg-white rounded-lg p-2 shadow-md border">
-                <svg viewBox="0 0 21 21" className="w-full h-full">
-                  <rect width="21" height="21" fill="white" />
-                  {generateQRPattern().map(
-                    (f, i) =>
-                      f && (
-                        <rect
-                          key={i}
-                          x={i % 21}
-                          y={Math.floor(i / 21)}
-                          width="1"
-                          height="1"
-                          fill="black"
-                        />
-                      )
-                  )}
-                </svg>
+              <div className="w-[360px] h-[360px] bg-white rounded-lg p-2 shadow-md border flex items-center justify-center">
+                <QRCodeSVG
+                  value={JSON.stringify(wipeQrData)}
+                  size={320}
+                  level="H"
+                />
               </div>
             </div>
             <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-left">
