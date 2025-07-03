@@ -21,7 +21,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [settings, setSettings] = useState<Settings>({
     domain: process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000',
-    url: process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'
+    url: process.env.NEXT_PUBLIC_ENDPOINT || 'http://localhost:3000'
   })
 
   const updateSettings = useCallback((newSettings: Partial<Settings>) => {
