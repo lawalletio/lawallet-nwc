@@ -4,6 +4,8 @@ import type { Ntag424WriteData } from '@/types/ntag424'
 import { mockCardData } from '@/mocks/card'
 import { cardToNtag424WriteData } from '@/lib/ntag424'
 
+const domain = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -17,7 +19,7 @@ export async function GET(
   // Example mock data, replace with real logic as needed
   const mockWriteData: Ntag424WriteData = cardToNtag424WriteData(
     mockCardData[0],
-    'agustin.masize.com'
+    domain
   )
 
   return NextResponse.json(mockWriteData)
