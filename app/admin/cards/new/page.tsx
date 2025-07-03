@@ -18,6 +18,7 @@ import { CardDesignService } from '@/services/card-design-service'
 import { CardService } from '@/services/card-service'
 import { Card as CardType } from '@/types'
 import { QRCodeSVG } from 'qrcode.react'
+import { NFCTapCard } from '@/components/admin/cards/nfc-tap-card'
 
 export type Step = 'design' | 'nfc' | 'qr'
 
@@ -45,10 +46,10 @@ export default function NewCardPage() {
     setCurrentStep('nfc')
   }
 
-  const handleNFCTap = () => {
+  const handleNFCTap = async (uid: string) => {
     // Generate pairing token
 
-    const card = CardService.create('id', selectedDesign)
+    const card = CardService.create(uid, selectedDesign)
 
     setQrToken(JSON.stringify(card.ntag424))
 
@@ -218,35 +219,7 @@ export default function NewCardPage() {
         )}
 
         <div className="max-w-md mx-auto">
-          <Card className="border-gray-100 shadow-lg bg-white">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="relative mb-6">
-                <div className="w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center">
-                  <Nfc className="h-12 w-12 text-purple-600" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center animate-pulse">
-                  <div className="w-2 h-2 bg-white rounded-full"></div>
-                </div>
-              </div>
-
-              <h3 className="text-xl font-semibold mb-2 text-gray-900">
-                Ready to Write
-              </h3>
-              <p className="text-gray-500 text-center mb-6">
-                Place your NTAG424 card on the NFC reader and tap the button
-                below
-              </p>
-
-              <Button
-                onClick={handleNFCTap}
-                className="bg-purple-600 hover:bg-purple-700 text-white border-0 px-8 py-3"
-                size="lg"
-              >
-                <Nfc className="h-5 w-5 mr-2" />
-                Tap Card Now
-              </Button>
-            </CardContent>
-          </Card>
+          <NFCTapCard onTap={handleNFCTap} />
         </div>
       </div>
     )
