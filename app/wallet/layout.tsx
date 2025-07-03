@@ -1,11 +1,11 @@
-"use client"
+'use client'
 
-import type React from "react"
+import type React from 'react'
 
-import { WalletProvider } from "@/providers/wallet"
+import { WalletProvider } from '@/providers/wallet'
 
 export default function WalletLayout({
-  children,
+  children
 }: {
   children: React.ReactNode
 }) {

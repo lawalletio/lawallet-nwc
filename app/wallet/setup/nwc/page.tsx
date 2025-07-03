@@ -1,54 +1,68 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useWallet } from "@/providers/wallet"
-import { ArrowLeft, Settings, CheckCircle, AlertCircle, Shield } from "lucide-react"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useWallet } from '@/providers/wallet'
+import {
+  ArrowLeft,
+  Settings,
+  CheckCircle,
+  AlertCircle,
+  Shield
+} from 'lucide-react'
 
 export default function NwcSetupPage() {
-  const [nwcUri, setNwcUriState] = useState("")
+  const [nwcUri, setNwcUriState] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
   const { setNwcUri } = useWallet()
   const router = useRouter()
 
   const validateNwcUri = (uri: string): boolean => {
-    return uri.startsWith("nostr+walletconnect://") && uri.includes("?")
+    return uri.startsWith('nostr+walletconnect://') && uri.includes('?')
   }
 
   const handleSetup = async () => {
     setIsLoading(true)
-    setError("")
+    setError('')
 
     if (!nwcUri.trim()) {
-      setError("Please enter a NWC URI")
+      setError('Please enter a NWC URI')
       setIsLoading(false)
       return
     }
 
     if (!validateNwcUri(nwcUri.trim())) {
-      setError("Invalid NWC URI format. It should start with 'nostr+walletconnect://'")
+      setError(
+        "Invalid NWC URI format. It should start with 'nostr+walletconnect://'"
+      )
       setIsLoading(false)
       return
     }
 
     try {
       // Simulate validation
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 1000))
 
       setNwcUri(nwcUri.trim())
 
       // Show success and redirect
       setTimeout(() => {
-        router.push("/wallet")
+        router.push('/wallet')
       }, 1000)
     } catch (err) {
-      setError("Failed to configure NWC. Please check your URI and try again.")
+      setError('Failed to configure NWC. Please check your URI and try again.')
     } finally {
       setIsLoading(false)
     }
@@ -77,7 +91,9 @@ export default function NwcSetupPage() {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
                 NWC Setup
               </h1>
-              <p className="text-gray-400 text-sm">Configure Nostr Wallet Connect</p>
+              <p className="text-gray-400 text-sm">
+                Configure Nostr Wallet Connect
+              </p>
             </div>
           </div>
 
@@ -86,7 +102,9 @@ export default function NwcSetupPage() {
               <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-purple-500/25">
                 <Settings className="w-8 h-8 text-white" />
               </div>
-              <CardTitle className="text-white text-xl">Nostr Wallet Connect</CardTitle>
+              <CardTitle className="text-white text-xl">
+                Nostr Wallet Connect
+              </CardTitle>
               <CardDescription className="text-gray-300">
                 Connect your wallet to Nostr applications for seamless payments
               </CardDescription>
@@ -100,16 +118,19 @@ export default function NwcSetupPage() {
                   id="nwc-uri"
                   placeholder="nostr+walletconnect://..."
                   value={nwcUri}
-                  onChange={(e) => setNwcUriState(e.target.value)}
+                  onChange={e => setNwcUriState(e.target.value)}
                   className="font-mono text-sm min-h-[120px] bg-white/5 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-500/50 focus:ring-purple-500/25 rounded-xl backdrop-blur-sm"
                 />
-                <p className="text-xs text-gray-400">Paste the NWC URI from your Lightning wallet or service</p>
+                <p className="text-xs text-gray-400">
+                  Paste the NWC URI from your Lightning wallet or service
+                </p>
               </div>
 
               <Alert className="bg-orange-500/10 border-orange-500/20 backdrop-blur-sm">
                 <Shield className="h-4 w-4 text-orange-400" />
                 <AlertDescription className="text-xs text-orange-300">
-                  This URI contains sensitive information. Only use URIs from trusted sources.
+                  This URI contains sensitive information. Only use URIs from
+                  trusted sources.
                 </AlertDescription>
               </Alert>
 
@@ -132,9 +153,14 @@ export default function NwcSetupPage() {
               </Button>
 
               {error && (
-                <Alert variant="destructive" className="bg-red-500/10 border-red-500/20 backdrop-blur-sm">
+                <Alert
+                  variant="destructive"
+                  className="bg-red-500/10 border-red-500/20 backdrop-blur-sm"
+                >
                   <AlertCircle className="h-4 w-4 text-red-400" />
-                  <AlertDescription className="text-red-300">{error}</AlertDescription>
+                  <AlertDescription className="text-red-300">
+                    {error}
+                  </AlertDescription>
                 </Alert>
               )}
             </CardContent>
@@ -142,7 +168,8 @@ export default function NwcSetupPage() {
 
           <div className="text-center">
             <p className="text-xs text-gray-400">
-              NWC allows Nostr applications to request payments from your wallet with your permission
+              NWC allows Nostr applications to request payments from your wallet
+              with your permission
             </p>
           </div>
         </div>

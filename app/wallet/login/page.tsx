@@ -1,34 +1,40 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useWallet } from "@/providers/wallet"
-import { generatePrivateKey, nsecToHex, validateNsec } from "@/lib/nostr"
-import { Key, Plus, AlertCircle, Zap } from "lucide-react"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useWallet } from '@/providers/wallet'
+import { generatePrivateKey, nsecToHex, validateNsec } from '@/lib/nostr'
+import { Key, Plus, AlertCircle, Zap } from 'lucide-react'
 
 export default function WalletLoginPage() {
-  const [nsecInput, setNsecInput] = useState("")
+  const [nsecInput, setNsecInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
   const { setPrivateKey } = useWallet()
   const router = useRouter()
 
   const handleGenerateWallet = async () => {
     setIsLoading(true)
-    setError("")
+    setError('')
 
     try {
       const privateKeyHex = generatePrivateKey()
       setPrivateKey(privateKeyHex)
-      router.push("/wallet")
+      router.push('/wallet')
     } catch (err) {
-      setError("Failed to generate wallet. Please try again.")
+      setError('Failed to generate wallet. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -36,16 +42,16 @@ export default function WalletLoginPage() {
 
   const handleImportWallet = async () => {
     setIsLoading(true)
-    setError("")
+    setError('')
 
     if (!nsecInput.trim()) {
-      setError("Please enter your nsec private key")
+      setError('Please enter your nsec private key')
       setIsLoading(false)
       return
     }
 
     if (!validateNsec(nsecInput.trim())) {
-      setError("Invalid nsec format. Please check your private key.")
+      setError('Invalid nsec format. Please check your private key.')
       setIsLoading(false)
       return
     }
@@ -53,9 +59,9 @@ export default function WalletLoginPage() {
     try {
       const privateKeyHex = nsecToHex(nsecInput.trim())
       setPrivateKey(privateKeyHex)
-      router.push("/wallet")
+      router.push('/wallet')
     } catch (err) {
-      setError("Failed to import wallet. Please check your private key.")
+      setError('Failed to import wallet. Please check your private key.')
     } finally {
       setIsLoading(false)
     }
@@ -78,14 +84,18 @@ export default function WalletLoginPage() {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
               Lightning Wallet
             </h1>
-            <p className="text-gray-400 text-lg">Access your wallet or create a new one</p>
+            <p className="text-gray-400 text-lg">
+              Access your wallet or create a new one
+            </p>
           </div>
         </div>
 
         <Card className="bg-white/10 backdrop-blur-xl border-white/20 shadow-2xl shadow-black/20">
           <CardHeader className="text-center pb-2">
             <CardTitle className="text-white text-2xl">Wallet Access</CardTitle>
-            <CardDescription className="text-gray-300">Choose how you want to access your wallet</CardDescription>
+            <CardDescription className="text-gray-300">
+              Choose how you want to access your wallet
+            </CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
             <Tabs defaultValue="generate" className="space-y-6">
@@ -110,8 +120,12 @@ export default function WalletLoginPage() {
                     <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/25">
                       <Plus className="w-8 h-8 text-white" />
                     </div>
-                    <h3 className="font-semibold text-white text-lg mb-2">Create New Wallet</h3>
-                    <p className="text-gray-300 text-sm">Generate a new Lightning wallet with a fresh private key</p>
+                    <h3 className="font-semibold text-white text-lg mb-2">
+                      Create New Wallet
+                    </h3>
+                    <p className="text-gray-300 text-sm">
+                      Generate a new Lightning wallet with a fresh private key
+                    </p>
                   </div>
                   <Button
                     onClick={handleGenerateWallet}
@@ -139,8 +153,12 @@ export default function WalletLoginPage() {
                     <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-500/25">
                       <Key className="w-8 h-8 text-white" />
                     </div>
-                    <h3 className="font-semibold text-white text-lg mb-2 text-center">Import Existing Wallet</h3>
-                    <p className="text-gray-300 text-sm text-center">Import your wallet using your nsec private key</p>
+                    <h3 className="font-semibold text-white text-lg mb-2 text-center">
+                      Import Existing Wallet
+                    </h3>
+                    <p className="text-gray-300 text-sm text-center">
+                      Import your wallet using your nsec private key
+                    </p>
                   </div>
 
                   <div className="space-y-3">
@@ -152,10 +170,12 @@ export default function WalletLoginPage() {
                       type="password"
                       placeholder="nsec1..."
                       value={nsecInput}
-                      onChange={(e) => setNsecInput(e.target.value)}
+                      onChange={e => setNsecInput(e.target.value)}
                       className="font-mono bg-white/5 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-500/50 focus:ring-purple-500/25 h-12 rounded-xl"
                     />
-                    <p className="text-xs text-gray-400">Enter your nsec private key to import your wallet</p>
+                    <p className="text-xs text-gray-400">
+                      Enter your nsec private key to import your wallet
+                    </p>
                   </div>
 
                   <Button
@@ -180,16 +200,23 @@ export default function WalletLoginPage() {
             </Tabs>
 
             {error && (
-              <Alert variant="destructive" className="mt-6 bg-red-500/10 border-red-500/20 backdrop-blur-sm">
+              <Alert
+                variant="destructive"
+                className="mt-6 bg-red-500/10 border-red-500/20 backdrop-blur-sm"
+              >
                 <AlertCircle className="h-4 w-4 text-red-400" />
-                <AlertDescription className="text-red-300">{error}</AlertDescription>
+                <AlertDescription className="text-red-300">
+                  {error}
+                </AlertDescription>
               </Alert>
             )}
           </CardContent>
         </Card>
 
         <div className="text-center">
-          <p className="text-xs text-gray-400">Keep your private key secure. Never share it with anyone.</p>
+          <p className="text-xs text-gray-400">
+            Keep your private key secure. Never share it with anyone.
+          </p>
         </div>
       </div>
     </div>

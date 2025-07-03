@@ -1,51 +1,59 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useWallet } from "@/providers/wallet"
-import { ArrowLeft, Zap, CheckCircle } from "lucide-react"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useWallet } from '@/providers/wallet'
+import { ArrowLeft, Zap, CheckCircle } from 'lucide-react'
 
 export default function LightningAddressSetupPage() {
-  const [username, setUsername] = useState("")
+  const [username, setUsername] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
   const { setLightningAddress } = useWallet()
   const router = useRouter()
 
   const handleSetup = async () => {
     setIsLoading(true)
-    setError("")
+    setError('')
 
     if (!username.trim()) {
-      setError("Please enter a username")
+      setError('Please enter a username')
       setIsLoading(false)
       return
     }
 
     if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-      setError("Username can only contain letters, numbers, hyphens, and underscores")
+      setError(
+        'Username can only contain letters, numbers, hyphens, and underscores'
+      )
       setIsLoading(false)
       return
     }
 
     try {
       // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      await new Promise(resolve => setTimeout(resolve, 1500))
 
       const lightningAddress = `${username}@wallet.example.com`
       setLightningAddress(lightningAddress)
 
       // Show success and redirect
       setTimeout(() => {
-        router.push("/wallet")
+        router.push('/wallet')
       }, 1000)
     } catch (err) {
-      setError("Failed to register Lightning Address. Please try again.")
+      setError('Failed to register Lightning Address. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -74,7 +82,9 @@ export default function LightningAddressSetupPage() {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
                 Lightning Address Setup
               </h1>
-              <p className="text-gray-400 text-sm">Choose your Lightning Address</p>
+              <p className="text-gray-400 text-sm">
+                Choose your Lightning Address
+              </p>
             </div>
           </div>
 
@@ -83,7 +93,9 @@ export default function LightningAddressSetupPage() {
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-blue-500/25">
                 <Zap className="w-8 h-8 text-white" />
               </div>
-              <CardTitle className="text-white text-xl">Register Username</CardTitle>
+              <CardTitle className="text-white text-xl">
+                Register Username
+              </CardTitle>
               <CardDescription className="text-gray-300">
                 Your Lightning Address will be used to receive payments
               </CardDescription>
@@ -98,7 +110,7 @@ export default function LightningAddressSetupPage() {
                     id="username"
                     placeholder="satoshi"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                    onChange={e => setUsername(e.target.value.toLowerCase())}
                     className="border-0 bg-transparent text-white placeholder:text-gray-400 focus:ring-0 h-12"
                   />
                   <div className="px-4 py-3 bg-white/10 text-sm text-gray-300 border-l border-white/20">
@@ -106,8 +118,10 @@ export default function LightningAddressSetupPage() {
                   </div>
                 </div>
                 <p className="text-xs text-gray-400">
-                  Your Lightning Address will be:{" "}
-                  <span className="text-white font-mono">{username || "username"}@wallet.example.com</span>
+                  Your Lightning Address will be:{' '}
+                  <span className="text-white font-mono">
+                    {username || 'username'}@wallet.example.com
+                  </span>
                 </p>
               </div>
 
@@ -130,8 +144,13 @@ export default function LightningAddressSetupPage() {
               </Button>
 
               {error && (
-                <Alert variant="destructive" className="bg-red-500/10 border-red-500/20 backdrop-blur-sm">
-                  <AlertDescription className="text-red-300">{error}</AlertDescription>
+                <Alert
+                  variant="destructive"
+                  className="bg-red-500/10 border-red-500/20 backdrop-blur-sm"
+                >
+                  <AlertDescription className="text-red-300">
+                    {error}
+                  </AlertDescription>
                 </Alert>
               )}
             </CardContent>
@@ -139,7 +158,8 @@ export default function LightningAddressSetupPage() {
 
           <div className="text-center">
             <p className="text-xs text-gray-400">
-              Your Lightning Address will be publicly visible and can be used by anyone to send you payments
+              Your Lightning Address will be publicly visible and can be used by
+              anyone to send you payments
             </p>
           </div>
         </div>

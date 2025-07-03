@@ -13,9 +13,15 @@ export default function Loading() {
 
       <div className="relative z-10 text-center">
         <div className="w-32 h-32 mx-auto mb-8 animate-pulse">
-          <img src="/nwc-logo.png" alt="NWC Logo" className="w-full h-full object-contain" />
+          <img
+            src="/nwc-logo.png"
+            alt="NWC Logo"
+            className="w-full h-full object-contain"
+          />
         </div>
-        <p className="text-xl text-gray-300 font-light">Loading activation page...</p>
+        <p className="text-xl text-gray-300 font-light">
+          Loading activation page...
+        </p>
       </div>
     </div>
   )
