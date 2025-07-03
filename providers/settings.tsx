@@ -1,12 +1,6 @@
 'use client'
 
-import {
-  createContext,
-  ReactNode,
-  useCallback,
-  useEffect,
-  useState
-} from 'react'
+import { createContext, ReactNode, useCallback, useState } from 'react'
 
 export interface Settings {
   url?: string
@@ -16,6 +10,7 @@ export interface Settings {
 export interface SettingsContextType {
   settings: Settings
   updateSettings: (settings: Partial<Settings>) => void
+  isLoading: boolean
 }
 
 export const SettingsContext = createContext<SettingsContextType | undefined>(
@@ -23,21 +18,19 @@ export const SettingsContext = createContext<SettingsContextType | undefined>(
 )
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [settings, setSettings] = useState<Settings>({})
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [settings, setSettings] = useState<Settings>({
+    domain: process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000',
+    url: process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'
+  })
 
   const updateSettings = useCallback((newSettings: Partial<Settings>) => {
     // Save them and setSettings then
-  }, [])
-
-  useEffect(() => {
-    console.warn('Get default settings...')
-    setSettings({ url: 'http://localhost:3000', domain: 'localhost:3000' })
-    setIsLoading(false)
+    console.error('Not implemented yet')
   }, [])
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, isLoading }}>
       {children}
     </SettingsContext.Provider>
   )
