@@ -758,11 +758,9 @@ const WaitlistSection = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Reset states
     setError('')
     setIsSubmitting(true)
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!email || !emailRegex.test(email)) {
       setError('Please enter a valid email address')
@@ -770,13 +768,21 @@ const WaitlistSection = () => {
       return
     }
 
-    // Simulate API call
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000)) // 2 second delay
-
-      // Simulate success
-      setIsSuccess(true)
-      setEmail('')
+      const response = await fetch('/api/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email }) // add name if you want to collect it
+      })
+      const data = await response.json()
+      if (data.success) {
+        setIsSuccess(true)
+        setEmail('')
+      } else {
+        setError(data.error || 'Subscription failed. Please try again.')
+      }
     } catch (err) {
       setError('Something went wrong. Please try again.')
     } finally {
