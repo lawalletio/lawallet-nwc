@@ -10,6 +10,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@getalby/sdk": "^5.1.0",
     "@hookform/resolvers": "^3.3.4",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
@@ -60,6 +61,7 @@
     "tailwindcss-animate": "^1.0.7",
     "use-nfc-hook": "^1.0.4",
     "vaul": "latest",
+    "websocket-polyfill": "0.0.3",
     "zod": "^3.22.4"
   },
   "devDependencies": {
