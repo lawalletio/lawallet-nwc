@@ -54,7 +54,7 @@ export default function NewCardPage() {
 
     const card = CardService.create(uid, selectedDesign)
 
-    setQrToken(`${settings.domain}/api/cards/${card.id}/write`)
+    setQrToken(`${settings.url}/api/cards/${card.id}/write`)
 
     setCard(card)
 
