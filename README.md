@@ -1,30 +1,70 @@
-# Landing page design brief
+# Boltcard + NWC
 
-_Automatically synced with your [v0.dev](https://v0.dev) deployments_
+Boltcard + NWC is an open-source platform for creating, managing and serving Boltcard payments. Users can connect their own Nostr Wallet Connect (NWC) and configure lightning addresses to enable seamless NFC card payments. The platform provides a complete solution for managing Boltcard infrastructure while letting users maintain control of their payment channels.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/agustin-kassis-projects/v0-admin)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/TzA7QBqm98N)
+## Features
 
-## Overview
+### Admin
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+- Create and manage Boltcard designs
+- Create and manage Lightning Addresses
+- Create and manage Boltcard cards (NFC)
 
-## Deployment
+### User
 
-Your project is live at:
+- Webapp Wallet
+- Create and manage Lightning Addresses
+- Manage Boltcard cards (NFC)
+- Setup with NWC
 
-**[https://vercel.com/agustin-kassis-projects/v0-admin](https://vercel.com/agustin-kassis-projects/v0-admin)**
+### Landing page
 
-## Build your app
+- Fully responsive
+- Instructions
+- Waitlist from (Sendy subscription)
 
-Continue building your app on:
+## Tech Stack
 
-**[https://v0.dev/chat/projects/TzA7QBqm98N](https://v0.dev/chat/projects/TzA7QBqm98N)**
+- **TypeScript** 🔷 [v5.0+](https://www.typescriptlang.org/) - Typed JavaScript
+- **React** ⚛️ ([Next.js](https://nextjs.org/) v13.4+) - Web framework
+- **Tailwind CSS** 🎨 [v3.3+](https://tailwindcss.com/) - Utility-first CSS
+- **shadcn/ui** 🎯 [v0.4+](https://ui.shadcn.com/) - UI component library
+- **Prisma** 💾 [v4.16+](https://www.prisma.io/) - Database ORM
+- **Alby lib** ⚡ [v1.6+](https://github.com/getAlby/js-sdk) - NWC library
+- **UI**:
+  - [Radix UI](https://www.radix-ui.com/) 🎨 - Headless UI primitives
+  - [Lucide Icons](https://lucide.dev/) 🎯 - Icon library
+  - And more...
 
-## How It Works
+## Open Standards
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+This project is built on and interoperates with the following open standards:
+
+- **NWC** 🔑 [Nostr Wallet Connect](https://nwc.getalby.com/)
+- **BoltCard** 💳 [NFC Lightning card standard](https://github.com/boltcard/boltcard)
+- **LUD-16** ⚡ [Lightning Address](https://github.com/lnurl/luds/blob/luds/16.md)
+- **LUD-21** 🔗 [LNURL](https://github.com/lnurl/luds/blob/luds/21.md)
+- **NIP-46** 🔏 [Nostr remote signing](https://github.com/nostr-protocol/nips/blob/master/46.md)
+- **NIP-07** 🔌 [Nostr browser extension API](https://github.com/nostr-protocol/nips/blob/master/07.md)
+
+## Getting Started
+
+1. **Install dependencies:**
+
+```bash
+pnpm install
+```
+
+2. **Run the development server:**
+
+```bash
+pnpm dev
+```
+
+3. **Open your browser:**
+
+Visit [http://localhost:3000](http://localhost:3000) to see the app.
+
+## License
+
+MIT
