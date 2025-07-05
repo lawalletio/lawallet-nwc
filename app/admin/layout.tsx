@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { AdminProvider } from '@/providers/admin-provider'
 import { AdminWrapper } from '@/components/admin/admin-wrapper'
 import { CardsProvider } from '@/providers/card'
+import { CardDesignsProvider } from '@/providers/card-designs'
 
 export const metadata: Metadata = {
   title: 'Admin Dashboard - BoltCard + NWC',
@@ -18,7 +19,9 @@ export default function AdminLayout({
     <div className="admin-root light min-h-screen bg-background">
       <AdminProvider>
         <CardsProvider>
-          <AdminWrapper>{children}</AdminWrapper>
+          <CardDesignsProvider>
+            <AdminWrapper>{children}</AdminWrapper>
+          </CardDesignsProvider>
         </CardsProvider>
       </AdminProvider>
     </div>

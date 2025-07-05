@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Search, ArrowLeft, Nfc, QrCode, Check, Copy } from 'lucide-react'
 import Link from 'next/link'
-import { CardDesignService } from '@/services/card-design-service'
+import { useCardDesigns } from '@/providers/card-designs'
 import { useCards } from '@/providers/card'
 import { Card as CardType } from '@/types'
 import { QRCodeSVG } from 'qrcode.react'
@@ -38,8 +38,8 @@ export default function NewCardPage() {
 
   const { settings } = useSettings()
   const { create } = useCards()
-
-  const designs = CardDesignService.list()
+  const { list } = useCardDesigns()
+  const designs = list()
 
   const filteredDesigns = designs.filter(design =>
     design.description.toLowerCase().includes(searchTerm.toLowerCase())

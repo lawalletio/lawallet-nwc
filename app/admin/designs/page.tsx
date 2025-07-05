@@ -25,11 +25,12 @@ import {
   Palette,
   Upload
 } from 'lucide-react'
-import { CardDesignService } from '@/services/card-design-service'
+import { useCardDesigns } from '@/providers/card-designs'
 
 export default function DesignsPage() {
   const [searchTerm, setSearchTerm] = useState('')
-  const designs = CardDesignService.list()
+  const { list } = useCardDesigns()
+  const designs = list()
 
   const filteredDesigns = designs.filter(design =>
     design.description.toLowerCase().includes(searchTerm.toLowerCase())
