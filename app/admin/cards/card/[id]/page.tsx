@@ -23,7 +23,7 @@ import {
   Nfc
 } from 'lucide-react'
 import Link from 'next/link'
-import { CardService } from '@/services/card-service'
+import { useCards } from '@/providers/card'
 import { formatDate } from '@/lib/utils'
 import { QRCodeSVG } from 'qrcode.react'
 import { useSettings } from '@/hooks/use-settings'
@@ -39,7 +39,8 @@ export default function CardPage() {
 
   const params = useParams()
   const id = params.id as string
-  const card = CardService.get(id)
+  const { get } = useCards()
+  const card = get(id)
   const wipeQrData = useMemo<Ntag424WipeData | undefined>(() => {
     return card ? cardToNtag424WipeData(card) : undefined
   }, [card])

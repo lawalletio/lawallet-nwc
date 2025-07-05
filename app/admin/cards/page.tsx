@@ -24,7 +24,7 @@ import {
   Nfc
 } from 'lucide-react'
 import Link from 'next/link'
-import { CardService } from '@/services/card-service'
+import { useCards } from '@/providers/card'
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,8 @@ import { useIsMobile } from '@/components/ui/use-mobile'
 export default function CardsPage() {
   const router = useRouter()
   const { auth } = useAdmin()
+  const { list, count, getPairedCards, getUsedCards, getUnpairedCards } =
+    useCards()
   const [searchTerm, setSearchTerm] = useState('')
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [cardToDelete, setCardToDelete] = useState<string | null>(null)
@@ -44,7 +46,7 @@ export default function CardsPage() {
 
   if (!auth) return null
 
-  const cards = CardService.list()
+  const cards = list()
   const filteredCards = cards.filter(
     card =>
       card.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -100,9 +102,7 @@ export default function CardsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {CardService.count()}
-            </div>
+            <div className="text-2xl font-bold text-foreground">{count()}</div>
           </CardContent>
         </Card>
         <Card>
@@ -113,7 +113,7 @@ export default function CardsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {CardService.getPairedCards().length}
+              {getPairedCards().length}
             </div>
           </CardContent>
         </Card>
@@ -125,7 +125,7 @@ export default function CardsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {CardService.getUsedCards().length}
+              {getUsedCards().length}
             </div>
           </CardContent>
         </Card>
@@ -137,7 +137,7 @@ export default function CardsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {CardService.getUnpairedCards().length}
+              {getUnpairedCards().length}
             </div>
           </CardContent>
         </Card>

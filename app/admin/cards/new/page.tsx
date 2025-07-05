@@ -14,7 +14,7 @@ import {
 import { Search, ArrowLeft, Nfc, QrCode, Check, Copy } from 'lucide-react'
 import Link from 'next/link'
 import { CardDesignService } from '@/services/card-design-service'
-import { CardService } from '@/services/card-service'
+import { useCards } from '@/providers/card'
 import { Card as CardType } from '@/types'
 import { QRCodeSVG } from 'qrcode.react'
 import { NFCTapCard } from '@/components/admin/cards/nfc-tap-card'
@@ -37,6 +37,7 @@ export default function NewCardPage() {
   const [copied, setCopied] = useState(false)
 
   const { settings } = useSettings()
+  const { create } = useCards()
 
   const designs = CardDesignService.list()
 
@@ -51,16 +52,11 @@ export default function NewCardPage() {
 
   const handleNFCTap = async (uid: string) => {
     // Generate pairing token
-
-    const card = CardService.create(uid, selectedDesign)
-
+    const card = create(uid, selectedDesign)
     setQrToken(`${settings.url}/api/cards/${card.id}/write`)
-
     setCard(card)
-
     // In a real implementation, this would create the card via API
     console.log('Creating card with design:', selectedDesign)
-
     setCurrentStep('qr')
     setShowQRDialog(true)
   }
