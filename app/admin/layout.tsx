@@ -4,6 +4,7 @@ import { AdminProvider } from '@/providers/admin-provider'
 import { AdminWrapper } from '@/components/admin/admin-wrapper'
 import { CardsProvider } from '@/providers/card'
 import { CardDesignsProvider } from '@/providers/card-designs'
+import { LightningAddressesProvider } from '@/providers/lightning-addresses'
 
 export const metadata: Metadata = {
   title: 'Admin Dashboard - BoltCard + NWC',
@@ -20,7 +21,9 @@ export default function AdminLayout({
       <AdminProvider>
         <CardsProvider>
           <CardDesignsProvider>
-            <AdminWrapper>{children}</AdminWrapper>
+            <LightningAddressesProvider>
+              <AdminWrapper>{children}</AdminWrapper>
+            </LightningAddressesProvider>
           </CardDesignsProvider>
         </CardsProvider>
       </AdminProvider>

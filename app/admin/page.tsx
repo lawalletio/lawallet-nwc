@@ -12,11 +12,13 @@ import { Button } from '@/components/ui/button'
 import { CreditCard, Palette, Zap, Activity, Plus, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useCards } from '@/providers/card'
+import { useLightningAddresses } from '@/providers/lightning-addresses'
 import { useRouter } from 'next/navigation'
 
 export default function AdminPage() {
   const { auth } = useAdmin()
   const { list, count, getStatusCounts } = useCards()
+  const { list: listAddresses } = useLightningAddresses()
   const router = useRouter()
 
   if (!auth) return null
@@ -55,8 +57,7 @@ export default function AdminPage() {
   ]
 
   const recentCards = list().slice(0, 5)
-  // const recentAddresses = LightningAddressService.list().slice(0, 3) // Placeholder until LightningAddressProvider is refactored
-  const recentAddresses: any[] = [] // Placeholder
+  const recentAddresses = listAddresses().slice(0, 3)
 
   return (
     <div className="space-y-8">
@@ -178,7 +179,32 @@ export default function AdminPage() {
               </p>
             ) : (
               <div className="space-y-3">
-                {/* TODO: Refactor LightningAddressService to provider/hook and render recentAddresses here */}
+                {recentAddresses.map(address => (
+                  <div
+                    key={address.username}
+                    className="flex items-center justify-between p-3 bg-muted/50 rounded-md"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">
+                        {address.username}@yourdomain.com
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-xs text-muted-foreground font-mono truncate">
+                          {address.pubkey.slice(0, 16)}...
+                        </p>
+                        <div className="flex items-center text-xs text-muted-foreground/70">
+                          <Clock className="h-3 w-3 mr-1" />
+                          {address.createdAt.toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-2 ${address.nwc ? 'bg-green-100 text-green-800' : 'bg-secondary text-secondary-foreground'}`}
+                    >
+                      {address.nwc ? 'NWC Connected' : 'No NWC'}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

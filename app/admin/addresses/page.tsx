@@ -29,17 +29,19 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react'
-import { LightningAddressService } from '@/services/lightning-address-service'
+import { useLightningAddresses } from '@/providers/lightning-addresses'
 
 export default function AddressesPage() {
   const [searchTerm, setSearchTerm] = useState('')
-  const addresses = LightningAddressService.list()
+  const { list, count, getNWCStatusCounts, getUniqueRelays } =
+    useLightningAddresses()
+  const addresses = list()
 
   const filteredAddresses = addresses.filter(address =>
     address.username.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const nwcStatusCounts = LightningAddressService.getNWCStatusCounts()
+  const nwcStatusCounts = getNWCStatusCounts()
 
   return (
     <div className="space-y-6">
@@ -67,9 +69,7 @@ export default function AddressesPage() {
             <Zap className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {LightningAddressService.count()}
-            </div>
+            <div className="text-2xl font-bold text-foreground">{count()}</div>
           </CardContent>
         </Card>
         <Card>
@@ -107,7 +107,7 @@ export default function AddressesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {LightningAddressService.getUniqueRelays().length}
+              {getUniqueRelays().length}
             </div>
           </CardContent>
         </Card>
