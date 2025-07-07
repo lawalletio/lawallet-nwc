@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,6 +19,7 @@ import { Card as CardType } from '@/types'
 import { QRCodeSVG } from 'qrcode.react'
 import { NFCTapCard } from '@/components/admin/cards/nfc-tap-card'
 import { useSettings } from '@/hooks/use-settings'
+import { CardDesign } from '@/types/card-design'
 
 export type Step = 'design' | 'nfc' | 'qr'
 
@@ -39,9 +40,13 @@ export default function NewCardPage() {
   const { settings } = useSettings()
   const { create } = useCards()
   const { list } = useCardDesigns()
-  const designs = list()
+  const [designs, setDesigns] = useState<CardDesign[]>([])
 
-  const filteredDesigns = designs.filter(design =>
+  useEffect(() => {
+    list().then(setDesigns)
+  }, [list])
+
+  const filteredDesigns = designs.filter((design: CardDesign) =>
     design.description.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
@@ -175,7 +180,7 @@ export default function NewCardPage() {
 
   if (currentStep === 'nfc') {
     // Find the selected design object
-    const design = designs.find(d => d.id === selectedDesign)
+    const design = designs.find((d: CardDesign) => d.id === selectedDesign)
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
