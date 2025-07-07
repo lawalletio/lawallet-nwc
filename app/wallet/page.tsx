@@ -170,13 +170,12 @@ export default function WalletPage() {
                   className="relative w-full rounded-2xl overflow-hidden mb-6 group"
                   style={{
                     aspectRatio: '1.586',
-                    backgroundImage: `url(/card-bg-${Math.floor(Math.random() * 20) + 1}.png)`,
+                    backgroundImage: `url(/card-primal.png)`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                   }}
                 >
                   {/* Card Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-600/90 via-blue-600/90 to-cyan-600/90" />
 
                   {/* Animated Lightning Effect */}
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
@@ -203,7 +202,7 @@ export default function WalletPage() {
                       </div>
                     </div>
 
-                    <div className="bg-gradient-to-br from-purple-700/80 to-cyan-700/60 border-2 border-white/20 shadow-xl rounded-2xl p-4 sm:p-8 flex flex-col items-center justify-center sm:scale-110 w-full max-w-xs sm:max-w-none mx-auto">
+                    <div className="bg-black/50 border-2 border-white/20 shadow-xl rounded-2xl p-4 sm:p-8 flex flex-col items-center justify-center sm:scale-110 w-full max-w-xs sm:max-w-none mx-auto">
                       {nwcUri ? (
                         <>
                           <p className="text-sm sm:text-base opacity-90 mb-2 font-semibold text-white tracking-wide">
