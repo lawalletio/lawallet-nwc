@@ -27,6 +27,12 @@ export interface LUD06Response {
   callback: string
   maxSendable: number
   minSendable: number
+  metadata?: string
+  payerData?: {
+    name?: { mandatory: boolean }
+    email?: { mandatory: boolean }
+  }
+  commentAllowed?: number
 }
 
 export interface LUD06CallbackError {
