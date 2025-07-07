@@ -21,6 +21,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  console.dir('id', params.id)
   // Find card by id
   const card = mockCardData.find(card => card.id === params.id)
   if (!card) {

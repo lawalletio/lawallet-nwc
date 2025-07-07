@@ -3,7 +3,6 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
-import { WalletProvider } from '@/providers/wallet'
 import { SettingsProvider } from '@/providers/settings'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -28,9 +27,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <SettingsProvider>
-            <WalletProvider>{children}</WalletProvider>
-          </SettingsProvider>
+          <SettingsProvider>{children}</SettingsProvider>
         </ThemeProvider>
       </body>
     </html>

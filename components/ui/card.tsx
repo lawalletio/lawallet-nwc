@@ -1,7 +1,6 @@
 import * as React from 'react'
 
 import { cn } from '@/lib/utils'
-import { useWallet } from '@/providers/wallet'
 
 const Card = React.forwardRef<
   HTMLDivElement,
@@ -49,8 +48,6 @@ const CardDescription = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => {
-  const { lightningAddress } = useWallet()
-
   return (
     <div
       ref={ref}

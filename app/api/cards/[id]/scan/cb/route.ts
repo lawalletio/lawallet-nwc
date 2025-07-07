@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mockCardData } from '@/mocks/card'
 import { LUD03CallbackSuccess } from '@/types/lnurl'
-import { LN, SATS } from '@getalby/sdk'
+import { LN } from '@getalby/sdk'
 
 const NWC_URI = process.env.NWC_URI_EXAMPLE
 

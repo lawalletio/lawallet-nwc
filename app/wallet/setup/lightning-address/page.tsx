@@ -16,6 +16,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useWallet } from '@/providers/wallet'
 import { ArrowLeft, Zap, CheckCircle } from 'lucide-react'
 
+const PUBLIC_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
+
 export default function LightningAddressSetupPage() {
   const [username, setUsername] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -45,7 +47,7 @@ export default function LightningAddressSetupPage() {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500))
 
-      const lightningAddress = `${username}@wallet.example.com`
+      const lightningAddress = `${username}@${PUBLIC_DOMAIN}`
       setLightningAddress(lightningAddress)
 
       // Show success and redirect
@@ -114,13 +116,13 @@ export default function LightningAddressSetupPage() {
                     className="border-0 bg-transparent text-white placeholder:text-gray-400 focus:ring-0 h-12"
                   />
                   <div className="px-4 py-3 bg-white/10 text-sm text-gray-300 border-l border-white/20">
-                    @wallet.example.com
+                    @{PUBLIC_DOMAIN}
                   </div>
                 </div>
                 <p className="text-xs text-gray-400">
                   Your Lightning Address will be:{' '}
                   <span className="text-white font-mono">
-                    {username || 'username'}@wallet.example.com
+                    {username || 'username'}@{PUBLIC_DOMAIN}
                   </span>
                 </p>
               </div>

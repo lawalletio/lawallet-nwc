@@ -40,7 +40,6 @@ export const CardsProvider = ({ children }: { children: React.ReactNode }) => {
     // This is a mock; in a real app, you'd push to state or call an API
     return {
       ...mockCardData[0],
-      id,
       design: { ...mockCardData[0].design, id: designId }
     }
   }
