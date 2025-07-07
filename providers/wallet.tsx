@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { WalletContextType, WalletState } from '@/types/wallet'
 import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { nip19 } from 'nostr-tools'
+import { LN, nwc } from '@getalby/sdk'
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
@@ -14,10 +15,43 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     publicKey: null,
     lightningAddress: null,
     nwcUri: null,
-    balance: 125000, // Mock balance in sats
+    balance: 0,
     isInitialized: false // Added initialization state
   })
+
+  const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
   const [isHydrated, setIsHydrated] = useState(false) // Track hydration
+
+  const refreshBalance = async (notification?: any) => {
+    console.log(notification)
+    console.info('REFRESHING BALANCE')
+    const balance = await nwcObject?.getBalance()
+    console.info('balance:', balance)
+    setWalletState(prev => ({ ...prev, balance: balance?.balance ?? 0 }))
+  }
+
+  useEffect(() => {
+    if (!walletState.nwcUri) {
+      setNwcObject(null)
+      nwcObject?.close()
+      return
+    }
+
+    console.log('New nwc object')
+    const nwcClient = new nwc.NWCClient({
+      nostrWalletConnectUrl: walletState.nwcUri
+    })
+    setNwcObject(nwcClient)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletState.nwcUri])
+
+  useEffect(() => {
+    if (nwcObject) {
+      nwcObject.subscribeNotifications(refreshBalance)
+      refreshBalance()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nwcObject])
 
   const npub = useMemo(() => {
     if (!walletState.publicKey) return ''
@@ -91,7 +125,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       publicKey: null,
       lightningAddress: null,
       nwcUri: null,
-      balance: 125000,
+      balance: 0,
       isInitialized: false // Reset initialization on logout
     })
     localStorage.removeItem('wallet')
