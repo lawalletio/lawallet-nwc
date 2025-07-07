@@ -8,6 +8,14 @@ const nextConfig = {
   },
   images: {
     unoptimized: true
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/.well-known/lnurlp/:username',
+        destination: '/api/lud16/:username'
+      }
+    ]
   }
 }
 
