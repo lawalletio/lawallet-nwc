@@ -184,108 +184,89 @@ const flowSteps = [
   {
     title: '1. Create a new card',
     description:
-      'In your dashboard, enter a Lightning Address or NWC string to provision a new card.',
+      'In your admin dashboard, first add the available designs and then create a new card.',
     content: (
-      <div className="w-full p-6 bg-gray-800/50 rounded-lg border border-white/10 flex flex-col gap-4">
-        <Input
-          placeholder="Lightning Address or NWC string"
-          className="bg-gray-900/80 border-white/10"
+      <div className="w-full rounded-lg flex flex-col">
+        <img
+          src="/steps/step1.png"
+          alt="Step 1: Create a new card"
+          className="w-full h-full object-contain rounded-lg border-none"
+          style={{ minHeight: '180px' }}
         />
-        <Input
-          placeholder="Card Name (e.g., 'My Spending Card')"
-          className="bg-gray-900/80 border-white/10"
-        />
-        <Button className="w-full bg-nwc-purple hover:bg-nwc-purple/90 text-white">
-          Create Card
-        </Button>
       </div>
     )
   },
   {
     title: '2. Write to NFC Chip',
     description:
-      'Use a simple USB NFC writer to program the secure NTAG424 chip.',
+      'Scan NFC chip and then write it with Bolt Card NFC Card Creator App.',
     content: (
-      <div className="flex items-center justify-center w-full h-full">
-        <div className="relative">
-          <div className="w-32 h-20 bg-gradient-to-br from-gray-700 to-gray-900 rounded-lg border border-white/20 flex items-center justify-center">
-            <Nfc className="h-8 w-8 text-nwc-orange" />
-          </div>
-          <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-            <Check className="h-4 w-4 text-white" />
-          </div>
-        </div>
+      <div className="w-full rounded-lg flex flex-col">
+        <img
+          src="/steps/step2.png"
+          alt="Step 2: Write the NFC Card"
+          className="w-full h-full object-contain rounded-lg border-none"
+          style={{ minHeight: '180px' }}
+        />
       </div>
     )
   },
   {
     title: '3. Print Setup QR',
     description:
-      'An NWC setup link is auto-generated. Print it for the user to scan.',
+      'Print the QR or send the auto-generated link and give it to the user.',
     content: (
-      <div className="flex items-center justify-center w-full h-full">
-        <div className="w-32 h-32 bg-white rounded-lg p-4 shadow-lg">
-          <div className="w-full h-full bg-black rounded grid grid-cols-8 gap-px">
-            {Array.from({ length: 64 }).map((_, i) => (
-              <div
-                key={i}
-                className={`${Math.random() > 0.5 ? 'bg-black' : 'bg-white'} rounded-sm`}
-              />
-            ))}
-          </div>
-        </div>
+      <div className="w-full rounded-lg flex flex-col">
+        <img
+          src="/steps/step3.png"
+          alt="Step 3: Print activation QR code"
+          className="w-full h-full object-contain rounded-lg border-none"
+          style={{ minHeight: '180px' }}
+        />
       </div>
     )
   },
   {
-    title: '4. User Links Wallet',
+    title: '4. End user scans QR',
     description:
-      'The user scans the QR, opens their wallet, and authorizes the connection.',
+      'User scans the QR, opens a webapp and creates a new wallet (linked to the card).',
     content: (
-      <div className="flex items-center justify-center w-full h-full">
-        <div className="w-24 h-40 bg-gray-800 rounded-2xl border-2 border-gray-600 flex flex-col items-center justify-center gap-2 p-4">
-          <Wallet className="h-8 w-8 text-nwc-purple" />
-          <div className="text-xs text-gray-300 text-center">
-            Authorize Connection
-          </div>
-          <div className="w-full h-6 bg-nwc-purple/20 rounded flex items-center justify-center">
-            <Check className="h-4 w-4 text-nwc-purple" />
-          </div>
-        </div>
+      <div className="w-full rounded-lg flex flex-col">
+        <img
+          src="/steps/step4.png"
+          alt="Step 4: Users scans QR code and open"
+          className="w-full h-full object-contain rounded-lg border-none"
+          style={{ minHeight: '180px' }}
+        />
       </div>
     )
   },
   {
-    title: '5. Tap to Pay',
+    title: '5. Setup in 20 seconds',
+    description: 'Users sets a lightning address and a NWC connection string.',
+    content: (
+      <div className="w-full rounded-lg flex flex-col">
+        <img
+          src="/steps/step5.png"
+          alt="Step 5: Set lightning address and NWC connection string"
+          className="w-full h-full object-contain rounded-lg border-none"
+          style={{ minHeight: '180px' }}
+        />
+      </div>
+    )
+  },
+  {
+    title: '6. Receive payments via lightning address and tap to pay with NWC',
     description:
       'The card is ready! Tap on any compatible POS to make a Lightning payment via NWC.',
     content: (
-      <div className="flex items-center justify-center w-full h-full gap-4">
-        <div className="w-20 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-          <span className="text-white text-xs font-bold">CARD</span>
-        </div>
-        <div className="text-2xl text-gray-400">→</div>
-        <div className="w-16 h-16 bg-gray-800 rounded-lg border border-white/20 flex items-center justify-center">
-          <span className="text-green-400 text-xs">POS</span>
-        </div>
-      </div>
-    )
-  },
-  {
-    title: '6. Supported Wallets',
-    description:
-      'Start with Alby or Flash, and upgrade to full sovereignty anytime.',
-    content: (
-      <div className="flex items-center justify-center gap-6 h-full w-full">
-        <div className="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center font-bold text-black">
-          A
-        </div>
-        <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center font-bold text-white">
-          F
-        </div>
-        <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center font-bold text-white">
-          P
-        </div>
+      <div className="w-full rounded-lg flex flex-col">
+        <img
+          src="/steps/step6.png"
+          alt="Step 6: Receive lightning address and tap with NWC"
+          className="w-full h-full object-contain rounded-lg border-none"
+          style={{ minHeight: '180px' }}
+        />
       </div>
     )
   }
@@ -569,7 +550,7 @@ const OpenSourceSection = () => {
               <TechLogo name="Tailwind" />
               <TechLogo name="shadcn" />
               <TechLogo name="Prisma" />
-              <TechLogo name="Nostrify" />
+              <TechLogo name="Alby SDK" />
             </div>
           )}
         </div>
