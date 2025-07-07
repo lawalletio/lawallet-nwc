@@ -170,16 +170,14 @@ export default function ActivateCardPage() {
                   <div
                     className="relative w-full aspect-[1.586/1] rounded-2xl overflow-hidden mb-6 group"
                     style={{
-                      backgroundImage: `url(/card-bg-${card.design}.png)`,
+                      backgroundImage: `url(/card-primal.png)`,
                       backgroundSize: 'cover',
                       backgroundPosition: 'center'
                     }}
                   >
                     {/* Card Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-600/90 via-blue-600/90 to-cyan-600/90" />
-
                     {/* Animated Lightning Effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-80 w-[200%] transform -skew-x-12 animate-shine" />
 
                     {/* Card Content */}
                     <div className="absolute inset-0 p-6 flex flex-col justify-between text-white">
@@ -269,6 +267,20 @@ export default function ActivateCardPage() {
         }
         .animate-fade-in {
           animation: fade-in 0.5s ease-out;
+        }
+        @keyframes shine {
+          0% {
+            transform: skewX(-12deg) translateX(-100%);
+          }
+          80% {
+            transform: skewX(-12deg) translateX(100%);
+          }
+          100% {
+            transform: skewX(-12deg) translateX(100%);
+          }
+        }
+        .animate-shine {
+          animation: shine 2.5s linear infinite;
         }
       `}</style>
     </div>
