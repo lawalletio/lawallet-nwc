@@ -2,12 +2,11 @@
 
 import React, { createContext, useContext, useMemo } from 'react'
 import type { CardDesign } from '@/types/card-design'
-import { mockCardDesignData } from '@/mocks/card-design'
 
 interface CardDesignsContextType {
-  list: () => CardDesign[]
-  get: (id: string) => CardDesign | null
-  count: () => number
+  list: () => Promise<CardDesign[]>
+  get: (id: string) => Promise<CardDesign | null>
+  count: () => Promise<number>
 }
 
 const CardDesignsContext = createContext<CardDesignsContextType | undefined>(
@@ -19,10 +18,25 @@ export const CardDesignsProvider = ({
 }: {
   children: React.ReactNode
 }) => {
-  const list = () => mockCardDesignData
-  const get = (id: string) =>
-    mockCardDesignData.find(design => design.id === id) || null
-  const count = () => mockCardDesignData.length
+  const list = async () => {
+    const res = await fetch('/api/card-designs/list')
+    if (!res.ok) throw new Error('Failed to fetch card designs')
+    return (await res.json()).map((design: any) => {
+      return { ...design, createdAt: new Date(design.createdAt) }
+    })
+  }
+  const get = async (id: string) => {
+    const res = await fetch(`/api/card-designs/get/${id}`)
+    if (!res.ok) return null
+    const design = await res.json()
+    return { ...design, createdAt: new Date(design.createdAt) }
+  }
+  const count = async () => {
+    const res = await fetch('/api/card-designs/count')
+    if (!res.ok) throw new Error('Failed to fetch card design count')
+    const data = await res.json()
+    return data.count
+  }
 
   const value = useMemo<CardDesignsContextType>(
     () => ({

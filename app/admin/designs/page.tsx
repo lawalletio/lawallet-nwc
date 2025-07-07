@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -26,11 +26,16 @@ import {
   Upload
 } from 'lucide-react'
 import { useCardDesigns } from '@/providers/card-designs'
+import type { CardDesign } from '@/types/card-design'
 
 export default function DesignsPage() {
   const [searchTerm, setSearchTerm] = useState('')
+  const [designs, setDesigns] = useState<CardDesign[]>([])
   const { list } = useCardDesigns()
-  const designs = list()
+
+  useEffect(() => {
+    list().then(setDesigns)
+  }, [list])
 
   const filteredDesigns = designs.filter(design =>
     design.description.toLowerCase().includes(searchTerm.toLowerCase())
@@ -47,7 +52,7 @@ export default function DesignsPage() {
             Manage your card design templates and artwork
           </p>
         </div>
-        <Button>
+        <Button onClick={() => alert('Not implemented yet')}>
           <Upload className="h-4 w-4 mr-2" />
           Upload Design
         </Button>
@@ -107,15 +112,18 @@ export default function DesignsPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem disabled={true}>
                         <Eye className="h-4 w-4 mr-2" />
                         Preview
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem disabled={true}>
                         <Download className="h-4 w-4 mr-2" />
                         Download
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive focus:text-destructive">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        disabled={true}
+                      >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Delete
                       </DropdownMenuItem>
