@@ -6,6 +6,7 @@ import type { WalletContextType, WalletState } from '@/types/wallet'
 import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { nip19 } from 'nostr-tools'
 import { LN, nwc } from '@getalby/sdk'
+import { toast } from '@/hooks/use-toast'
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
@@ -24,7 +25,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const refreshBalance = async (notification?: any) => {
     console.log(notification)
-    console.info('REFRESHING BALANCE')
+
+    if (notification) {
+      const verb =
+        notification.notification.type === 'incoming' ? 'Received' : 'Sent'
+      const message = `${verb} ${notification.notification.amount / 1000} sats`
+      console.info(message)
+      toast({ title: message })
+    }
+
     const balance = await nwcObject?.getBalance()
     console.info('balance:', balance)
     setWalletState(prev => ({ ...prev, balance: balance?.balance ?? 0 }))
