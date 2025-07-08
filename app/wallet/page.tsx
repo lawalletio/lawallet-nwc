@@ -2,22 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useWallet } from '@/providers/wallet'
-import {
-  Settings,
-  Clock,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Loader2
-} from 'lucide-react'
+import { Settings, Loader2 } from 'lucide-react'
 
 export default function WalletPage() {
   const {
