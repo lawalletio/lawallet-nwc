@@ -29,4 +29,6 @@ next-env.d.ts
 ## Mac
 **.DS_Store
 
+## database
 /lib/generated/prisma
+/prisma/dev.db
