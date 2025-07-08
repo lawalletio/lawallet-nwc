@@ -100,30 +100,6 @@ export default function WalletPage() {
     return new Intl.NumberFormat().format(sats)
   }
 
-  const recentTransactions = [
-    {
-      id: 1,
-      type: 'receive',
-      amount: 25000,
-      description: 'Lightning payment',
-      time: '2 min ago'
-    },
-    {
-      id: 2,
-      type: 'send',
-      amount: -5000,
-      description: 'Coffee purchase',
-      time: '1 hour ago'
-    },
-    {
-      id: 3,
-      type: 'receive',
-      amount: 50000,
-      description: 'Invoice payment',
-      time: '3 hours ago'
-    }
-  ]
-
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
       {/* Animated Background */}
