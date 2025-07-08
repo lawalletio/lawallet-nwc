@@ -27,11 +27,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     console.log(notification)
 
     if (notification) {
-      const verb =
-        notification.notification.type === 'incoming' ? 'Received' : 'Paid'
-      const message = `${verb} ${notification.notification.amount / 1000} sats`
-      console.info(message)
-      toast({ title: message })
+      const { type, amount } = notification.notification
+      toast({
+        title: type === 'incoming' ? 'Received' : 'Paid',
+        variant: type === 'incoming' ? 'default' : 'destructive',
+        description: `${type === 'incoming' ? '+' : '-'}${amount / 1000} sats`
+      })
     }
 
     const balance = await nwcObject?.getBalance()
