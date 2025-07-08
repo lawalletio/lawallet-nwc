@@ -3,7 +3,8 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
+    "build": "prisma migrate deploy && next build",
     "dev": "next dev",
     "format": "prettier --write .",
     "lint": "next lint",
