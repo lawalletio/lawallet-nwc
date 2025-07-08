@@ -19,6 +19,7 @@ export default function WalletPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(!isInitialized)
   const [copied, setCopied] = useState(false)
+  const [animatedBalance, setAnimatedBalance] = useState(balance)
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
@@ -51,6 +52,34 @@ export default function WalletPage() {
     }
     checkAuth()
   }, [privateKey, isInitialized, isHydrated, router])
+
+  useEffect(() => {
+    if (balance === undefined || balance === null) return
+    let start: number | null = null
+    const duration = 800 // ms
+    const startValue = animatedBalance
+    const endValue = balance
+    const diff = endValue - startValue
+
+    if (diff === 0) return
+
+    function animate(ts: number) {
+      if (start === null) start = ts
+      const elapsed = ts - start
+      const progress = Math.min(elapsed / duration, 1)
+      const currentValue = Math.round(startValue + diff * progress)
+      setAnimatedBalance(currentValue)
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      }
+    }
+
+    requestAnimationFrame(animate)
+
+    // If the component unmounts or balance changes again, stop animation
+    return () => {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [balance])
 
   // Wait for hydration before rendering anything
   if (!isHydrated) {
@@ -196,7 +225,8 @@ export default function WalletPage() {
                       {nwcUri ? (
                         <>
                           <p className="font-mono text-2xl sm:text-4xl font-extrabold tracking-widest text-white drop-shadow-lg mb-2">
-                            {formatSats(balance / 1000)} sats
+                            {formatSats(Math.floor(animatedBalance / 1000))}{' '}
+                            sats
                           </p>
                         </>
                       ) : (

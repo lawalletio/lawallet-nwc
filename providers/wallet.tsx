@@ -28,7 +28,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     if (notification) {
       const verb =
-        notification.notification.type === 'incoming' ? 'Received' : 'Sent'
+        notification.notification.type === 'incoming' ? 'Received' : 'Paid'
       const message = `${verb} ${notification.notification.amount / 1000} sats`
       console.info(message)
       toast({ title: message })
