@@ -188,7 +188,7 @@ export default function WalletPage() {
                   <div className="absolute inset-0 p-6 flex flex-col justify-between text-white">
                     <div className="flex justify-between items-start">
                       <div className="text-right">
-                        <span className="text-xl font-bold">
+                        <span className="text-2xl font-bold">
                           {lightningAddress}
                         </span>
                         {lightningAddress && (
