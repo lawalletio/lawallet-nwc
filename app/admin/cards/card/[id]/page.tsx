@@ -159,13 +159,7 @@ export default function CardPage() {
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                   }}
-                >
-                  {card.username && (
-                    <div className="w-full p-2 bg-black/50 text-right mt-4">
-                      {`${card.username}@${settings.domain}`}
-                    </div>
-                  )}
-                </div>
+                ></div>
 
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
