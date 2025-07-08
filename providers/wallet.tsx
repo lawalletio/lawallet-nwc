@@ -7,6 +7,7 @@ import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { nip19 } from 'nostr-tools'
 import { LN, nwc } from '@getalby/sdk'
 import { toast } from '@/hooks/use-toast'
+import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
@@ -31,7 +32,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       toast({
         title: type === 'incoming' ? 'Received' : 'Paid',
         variant: type === 'incoming' ? 'default' : 'destructive',
-        description: `${type === 'incoming' ? '+' : '-'}${amount / 1000} sats`
+        description: (
+          <span className="flex items-center gap-2">
+            {type === 'incoming' ? (
+              <ArrowDownLeft className="w-4 h-4 text-green-600" />
+            ) : (
+              <ArrowUpRight className="w-4 h-4 text-red-600" />
+            )}
+            {type === 'incoming' ? '+' : '-'}
+            {amount / 1000} sats
+          </span>
+        )
       })
     }
 
