@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useWallet } from '@/providers/wallet'
-import { Settings, Loader2 } from 'lucide-react'
+import { Settings, Loader2, Copy, Check } from 'lucide-react'
 
 export default function WalletPage() {
   const {
@@ -18,6 +18,16 @@ export default function WalletPage() {
   } = useWallet()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(!isInitialized)
+  const [copied, setCopied] = useState(false)
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      // Optionally handle error
+    }
+  }
 
   useEffect(() => {
     if (!isHydrated) return
@@ -152,6 +162,21 @@ export default function WalletPage() {
                         <span className="text-xl font-bold">
                           {lightningAddress}
                         </span>
+                        {lightningAddress && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="ml-2 p-1 w-7 h-7 text-white hover:bg-white/10"
+                            onClick={() => copyToClipboard(lightningAddress)}
+                            aria-label="Copy lightning address"
+                          >
+                            {copied ? (
+                              <Check className="w-4 h-4 text-green-400" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
                         {!lightningAddress && nwcUri && (
                           <Button
                             variant="outline"
@@ -167,12 +192,9 @@ export default function WalletPage() {
                       </div>
                     </div>
 
-                    <div className="bg-black/50 border-2 border-white/20 shadow-xl rounded-2xl p-4 sm:p-8 flex flex-col items-center justify-center sm:scale-110 w-full max-w-xs sm:max-w-none mx-auto">
+                    <div className="bg-black/30 shadow-xl p-2 sm:p-4 flex flex-col items-center justify-center sm:scale-110 w-full max-w-xs sm:max-w-none mx-auto">
                       {nwcUri ? (
                         <>
-                          <p className="text-sm sm:text-base opacity-90 mb-2 font-semibold text-white tracking-wide">
-                            Balance
-                          </p>
                           <p className="font-mono text-2xl sm:text-4xl font-extrabold tracking-widest text-white drop-shadow-lg mb-2">
                             {formatSats(balance / 1000)} sats
                           </p>
