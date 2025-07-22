@@ -1,12 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Power, Loader2, CheckCircle } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+
 import { useWallet } from '@/providers/wallet'
 import { generatePrivateKey } from '@/lib/nostr'
+
+import { Button } from '@/components/ui/button'
+import { AppContent, AppFooter, AppViewport } from '@/components/app'
+import { CardPreview } from '@/components/card-preview'
 
 // Mock function to get card by OTC
 function getCardByOTC(otc: string) {
@@ -68,7 +72,7 @@ export default function ActivateCardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center">
+      <AppViewport className="overflow-y-hidden">
         {/* Animated Background */}
         <div className="absolute inset-0">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
@@ -76,74 +80,51 @@ export default function ActivateCardPage() {
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-500" />
         </div>
 
-        {/* Grid Pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
-
-        <div className="relative z-10 text-center">
-          <div className="w-32 h-32 mx-auto mb-8 animate-pulse">
-            <img
-              src="/nwc-logo.png"
-              alt="NWC Logo"
-              className="w-full h-full object-contain"
-            />
-          </div>
-          <div className="flex items-center justify-center gap-3">
+        <AppContent>
+          <div className="container-sm flex-1 flex flex-col justify-center items-center gap-4 text-center">
             <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
             <p className="text-xl text-gray-300 font-light">
-              Preparing your card...
+              Preparing your card
             </p>
           </div>
-        </div>
-      </div>
+        </AppContent>
+      </AppViewport>
     )
   }
 
   if (!card) {
     return (
-      <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center">
-        {/* Animated Background */}
-        <div className="absolute inset-0">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-        </div>
-
-        {/* Grid Pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
-
-        <div className="relative z-10 text-center">
-          <div className="w-32 h-32 mx-auto mb-8">
-            <img
-              src="/nwc-logo.png"
-              alt="NWC Logo"
-              className="w-full h-full object-contain opacity-50"
-            />
+      <AppViewport>
+        <AppContent>
+          <div className="container-sm flex-1 flex flex-col justify-center gap-4 text-center px-4">
+            <div className="w-32 h-32 mx-auto">
+              <img
+                src="/nwc-logo.png"
+                alt="NWC Logo"
+                className="w-full h-full object-contain opacity-50"
+              />
+            </div>
+            <h1 className="text-3xl font-bold text-destructive">
+              Card Not Found
+            </h1>
+            <p className="text-muted-foreground text-lg">
+              The activation code you provided is invalid
+            </p>
           </div>
-          <h1 className="text-3xl font-bold text-red-400 mb-4">
-            Card Not Found
-          </h1>
-          <p className="text-gray-400 text-lg">
-            The activation code you provided is invalid
-          </p>
-        </div>
-      </div>
+        </AppContent>
+        <AppFooter>
+          <Button className="w-full" variant="secondary" size="lg" asChild>
+            <Link href="/">Go home</Link>
+          </Button>
+        </AppFooter>
+      </AppViewport>
     )
   }
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="absolute inset-0">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-500" />
-        <div className="absolute top-1/4 right-1/3 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl animate-pulse delay-2000" />
-      </div>
-
-      {/* Grid Pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
-
-      <div className="relative z-10 flex items-center justify-center min-h-screen p-8">
-        <div className="w-full max-w-full">
+    <AppViewport>
+      <AppContent>
+        <div className="container flex-1 flex flex-col items-center">
           {/* Header with Large Logo */}
           <div className="text-center mb-4">
             <div className="w-48 h-20 mx-auto mb-3 relative">
@@ -162,127 +143,50 @@ export default function ActivateCardPage() {
             </h1>
           </div>
 
-          {/* Card Preview */}
-          <div className="mb-12 flex justify-center w-full">
-            <div className="w-full max-w-[800px]">
-              <Card className="bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 backdrop-blur-xl shadow-2xl shadow-purple-500/10 overflow-hidden">
-                <CardContent className="p-8">
-                  <div
-                    className="relative w-full aspect-[1.586/1] rounded-2xl overflow-hidden mb-6 group"
-                    style={{
-                      backgroundImage: `url(/card-primal.png)`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center'
-                    }}
-                  >
-                    {/* Card Overlay */}
-                    {/* Animated Lightning Effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent opacity-80 w-[200%] transform -skew-x-12 animate-shine" />
-
-                    {/* Card Content */}
-                    <div className="absolute inset-0 p-6 flex flex-col justify-between text-white">
-                      <div className="flex justify-end items-start">
-                        <div className="text-right">
-                          <img
-                            src="/nwc-logo.png"
-                            alt="NWC"
-                            className="w-16 h-16 object-contain"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          <CardPreview />
 
           {/* Activation Button */}
           <div className="text-center">
             {isActivated && (
               <div className="my-6 animate-fade-in">
                 <p className="text-green-400 text-lg font-medium mb-2">
-                  ✨ Success!
+                  ✨ Perfect!
                 </p>
-                <p className="text-gray-400">Redirecting to your wallet...</p>
+                <p className="text-muted-foreground">
+                  Redirecting to your wallet...
+                </p>
               </div>
             )}
-
-            <Button
-              onClick={handleActivate}
-              disabled={isActivating || isActivated}
-              className="w-full max-w-[800px] mx-auto h-16 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-700 hover:via-blue-700 hover:to-cyan-700 text-white font-bold text-xl rounded-2xl transition-all duration-500 shadow-2xl shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-105 transform relative overflow-hidden group"
-            >
-              {/* Button Shine Effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-
-              <div className="relative z-10">
-                {isActivating ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                    <span>Activating Card...</span>
-                  </div>
-                ) : isActivated ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <CheckCircle className="w-6 h-6" />
-                    <span>Card Activated!</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center gap-3">
-                    <Power className="w-6 h-6" />
-                    <span>ACTIVATE CARD</span>
-                  </div>
-                )}
-              </div>
-            </Button>
-
-            {/* Terms */}
-            <div className="mt-8 text-center">
-              <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
-                By activating this card, you agree to our{' '}
-                <span className="text-purple-400 hover:text-purple-300 cursor-pointer">
-                  terms of service
-                </span>{' '}
-                and{' '}
-                <span className="text-purple-400 hover:text-purple-300 cursor-pointer">
-                  privacy policy
-                </span>
-              </p>
-            </div>
           </div>
         </div>
-      </div>
+      </AppContent>
+      <AppFooter className="flex flex-col">
+        <Button
+          className="w-full"
+          size="lg"
+          onClick={handleActivate}
+          disabled={isActivating || isActivated}
+        >
+          {isActivating ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : isActivated ? (
+            <span>Card Activated!</span>
+          ) : (
+            <span>Activate</span>
+          )}
+        </Button>
 
-      {/* Custom CSS for animations */}
-      <style jsx>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.5s ease-out;
-        }
-        @keyframes shine {
-          0% {
-            transform: skewX(-12deg) translateX(-100%);
-          }
-          80% {
-            transform: skewX(-12deg) translateX(100%);
-          }
-          100% {
-            transform: skewX(-12deg) translateX(100%);
-          }
-        }
-        .animate-shine {
-          animation: shine 2.5s linear infinite;
-        }
-      `}</style>
-    </div>
+        {/* Terms */}
+        <div className="container-sm flex items-center text-center px-8">
+          <Button size="sm" variant="link" asChild>
+            <Link href="#">Terms of Service</Link>
+          </Button>
+          <p className="text-xs text-gray-500">-</p>
+          <Button size="sm" variant="link" asChild>
+            <Link href="#">Privacy Policy</Link>
+          </Button>
+        </div>
+      </AppFooter>
+    </AppViewport>
   )
 }

@@ -2,10 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Settings, Loader2 } from 'lucide-react'
+
 import { useWallet } from '@/providers/wallet'
-import { Settings, Loader2, Copy, Check } from 'lucide-react'
+
+import { AppContent, AppNavbar, AppViewport } from '@/components/app'
+import { Button } from '@/components/ui/button'
+import { CardPreview } from '@/components/card-preview'
+import { SatoshiIcon } from '@/components/icon/satoshi'
+import { Skeleton } from '@/components/ui/skeleton'
+
+const PUBLIC_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
 
 export default function WalletPage() {
   const {
@@ -128,127 +135,156 @@ export default function WalletPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="absolute inset-0">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-500" />
-        <div className="absolute top-1/4 right-1/3 w-48 h-48 bg-pink-500/10 rounded-full blur-3xl animate-pulse delay-2000" />
-      </div>
-
-      {/* Grid Pattern */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
-
-      <div className="relative z-10 p-8">
-        <div className="max-w-4xl mx-auto space-y-8">
+    <AppViewport>
+      <AppNavbar className="justify-between">
+        <div className="w-28 h-8 flex items-center justify-center">
+          <img
+            src="/nwc-logo.png"
+            alt="NWC Logo"
+            className="w-40 h-40 object-contain m-0"
+          />
+        </div>
+        <Button
+          variant="secondary"
+          size="icon"
+          onClick={() => router.push('/wallet/settings')}
+        >
+          <Settings className="size-4" />
+        </Button>
+      </AppNavbar>
+      <AppContent>
+        <div className="container flex flex-col gap-8">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              <div className="w-28 h-8 flex items-center justify-center">
-                <img
-                  src="/nwc-logo.png"
-                  alt="NWC Logo"
-                  className="w-40 h-40 object-contain m-0"
-                />
+
+          <div className="flex flex-col gap-2">
+            <h4 className="text-sm text-white">Balance</h4>
+            <div className="flex items-center">
+              <div className="size-8 text-white">
+                <SatoshiIcon />
               </div>
+              {nwcUri ? (
+                <p className="font-mono tracking-widest text-white drop-shadow-lg">
+                  <span className="text-2xl sm:text-4xl font-extrabold">
+                    {formatSats(Math.floor(animatedBalance / 1000))}
+                  </span>
+                </p>
+              ) : (
+                <Skeleton className="w-12 h-8 my-2.5 rounded-full bg-muted-foreground" />
+              )}
+              <p className="ml-2 text-muted-foreground">SAT</p>
             </div>
-            <div className="flex gap-3">
+
+            {/* {!nwcUri && (
               <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push('/wallet/settings')}
-                className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-slate-300 backdrop-blur-sm transition-all duration-300 hover:scale-105"
+                className="w-full"
+                size="lg"
+                onClick={() => router.push('/wallet/setup/nwc')}
               >
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
+                Setup NWC
               </Button>
-            </div>
+            )} */}
           </div>
 
-          {/* Main Card Display */}
-          <div className="mb-12">
-            <Card className="bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 backdrop-blur-xl shadow-2xl shadow-purple-500/10 overflow-hidden">
-              <CardContent className="p-8">
-                <div
-                  className="relative w-full rounded-2xl overflow-hidden mb-6 group"
-                  style={{
-                    aspectRatio: '1.586',
-                    backgroundImage: `url(/card-primal.png)`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
-                  }}
-                >
-                  {/* Card Overlay */}
+          {lightningAddress && (
+            <div
+              className="overflow-hidden relative w-full flex flex-col gap-2 border p-4 rounded-xl cursor-pointer"
+              onClick={() => copyToClipboard(lightningAddress)}
+            >
+              <div className="flex justify-between w-full">
+                <p className="text-sm text-muted-foreground">
+                  Lightning Address
+                </p>
+                {copied && <p className="text-sm text-green-400">Copied</p>}
+              </div>
+              <div className="flex text-2xl font-bold">
+                <p className="text-white">{lightningAddress}</p>
+                {/* <p className="text-muted-foreground">@{PUBLIC_DOMAIN}</p> */}
+              </div>
+            </div>
+          )}
 
-                  {/* Animated Lightning Effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-
-                  {/* Card Content */}
-                  <div className="absolute inset-0 p-6 flex flex-col justify-between text-white">
-                    <div className="flex justify-between items-start">
-                      <div className="text-right">
-                        <span className="text-2xl font-bold">
-                          {lightningAddress}
-                        </span>
-                        {lightningAddress && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="ml-2 p-1 w-7 h-7 text-white hover:bg-white/10"
-                            onClick={() => copyToClipboard(lightningAddress)}
-                            aria-label="Copy lightning address"
-                          >
-                            {copied ? (
-                              <Check className="w-4 h-4 text-green-400" />
-                            ) : (
-                              <Copy className="w-4 h-4" />
-                            )}
-                          </Button>
-                        )}
-                        {!lightningAddress && nwcUri && (
-                          <Button
-                            variant="outline"
-                            size="lg"
-                            className="mt-2 ml-2 bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm py-6 text-xl font-semibold w-full"
-                            onClick={() =>
-                              router.push('/wallet/setup/lightning-address')
-                            }
-                          >
-                            Setup Lightning Address
-                          </Button>
-                        )}
+          {/* Connected Services */}
+          {(!lightningAddress || !nwcUri) && (
+            <div className="flex flex-col gap-2">
+              <h4 className="text-sm text-white">Steps</h4>
+              <div className="overflow-hidden first-letter:lex flex-col gap-[1px] bg-border border rounded-xl backdrop-blur-sm">
+                <div className="flex items-center justify-between p-4 bg-black">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="font-medium text-white">
+                        Nostr Wallet Connect
                       </div>
-                    </div>
-
-                    <div className="bg-black/30 shadow-xl p-2 sm:p-4 flex flex-col items-center justify-center sm:scale-110 w-full max-w-xs sm:max-w-none mx-auto">
                       {nwcUri ? (
-                        <>
-                          <p className="font-mono text-2xl sm:text-4xl font-extrabold tracking-widest text-white drop-shadow-lg mb-2">
-                            {formatSats(Math.floor(animatedBalance / 1000))}{' '}
-                            sats
-                          </p>
-                        </>
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="size-2 rounded-full bg-green-400 animate-pulse"></div>
+                          <p className="text-muted-foreground">Connected</p>
+                        </div>
                       ) : (
-                        <Button
-                          onClick={() => router.push('/wallet/setup/nwc')}
-                          className="w-full h-12 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/25 transform hover:scale-[1.02] transition-all duration-200 text-xl"
-                        >
-                          Setup NWC Connection String
-                        </Button>
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="size-2 rounded-full bg-muted-foreground"></div>
+                          <p className="text-muted-foreground">
+                            Not configured
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>
+                  {!nwcUri && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="default"
+                        onClick={() => router.push('/wallet/setup/nwc')}
+                      >
+                        Setup
+                      </Button>
+                    </div>
+                  )}
                 </div>
+                <div className="flex items-center justify-between p-4 bg-black">
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <div className="font-medium text-white">
+                        Lightning Address
+                      </div>
+                      {lightningAddress ? (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="size-2 rounded-full bg-green-400 animate-pulse"></div>
+                          <p className="text-muted-foreground">Connected</p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="size-2 rounded-full bg-muted-foreground"></div>
+                          <p className="text-muted-foreground">
+                            Not configured
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!lightningAddress && (
+                      <Button
+                        variant="default"
+                        disabled={!nwcUri}
+                        onClick={() =>
+                          router.push('/wallet/setup/lightning-address')
+                        }
+                      >
+                        Setup
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
-                <div className="text-center space-y-6">
-                  <CardDescription />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="flex flex-col gap-4">
+            <h4 className="text-sm text-white">My Card</h4>
+            <CardPreview />
           </div>
         </div>
-      </div>
-    </div>
+      </AppContent>
+    </AppViewport>
   )
 }
