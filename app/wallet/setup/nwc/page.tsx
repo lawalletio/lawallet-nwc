@@ -89,7 +89,6 @@ export default function NwcSetupPage() {
               value={nwcUri}
               onChange={e => setNwcUriState(e.target.value)}
               autoFocus
-              className="font-mono text-sm min-h-[120px] bg-white/5 border-white/20 text-white placeholder:text-gray-400 focus:border-purple-500/50 focus:ring-purple-500/25 rounded-xl backdrop-blur-sm"
             />
             <p className="text-xs text-gray-400">
               Paste the NWC URI from your Lightning wallet or service.

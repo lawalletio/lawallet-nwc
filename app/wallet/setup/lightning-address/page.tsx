@@ -81,19 +81,13 @@ export default function LightningAddressSetupPage() {
           </div>
           <div className="flex flex-col gap-4">
             <Label htmlFor="username">Choose Username</Label>
-            <div className="flex items-center bg-white/5 border border-white/20 rounded-xl overflow-hidden backdrop-blur-sm">
-              <Input
-                id="username"
-                placeholder="satoshi"
-                value={username}
-                onChange={e => setUsername(e.target.value.toLowerCase())}
-                autoFocus
-                className="border-0 bg-transparent text-white placeholder:text-gray-400 focus:ring-0 h-12"
-              />
-              {/* <div className="px-4 py-3 bg-white/10 text-sm text-gray-300 border-l border-white/20">
-                @{PUBLIC_DOMAIN}
-              </div> */}
-            </div>
+            <Input
+              id="username"
+              placeholder="satoshi"
+              value={username}
+              onChange={e => setUsername(e.target.value.toLowerCase())}
+              autoFocus
+            />
             <p className="text-xs text-gray-400">
               Your address will be:{' '}
               <span className="text-white font-mono">
