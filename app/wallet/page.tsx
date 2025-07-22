@@ -164,7 +164,7 @@ export default function WalletPage() {
               </div>
               {nwcUri ? (
                 <p className="font-mono tracking-widest text-white drop-shadow-lg">
-                  <span className="text-2xl sm:text-4xl font-extrabold">
+                  <span className="text-4xl font-extrabold">
                     {formatSats(Math.floor(animatedBalance / 1000))}
                   </span>
                 </p>
