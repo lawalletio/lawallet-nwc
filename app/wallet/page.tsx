@@ -154,8 +154,6 @@ export default function WalletPage() {
       </AppNavbar>
       <AppContent>
         <div className="container flex flex-col gap-8">
-          {/* Header */}
-
           <div className="flex flex-col gap-2">
             <h4 className="text-sm text-white">Balance</h4>
             <div className="flex items-center">
@@ -190,7 +188,7 @@ export default function WalletPage() {
               className="overflow-hidden relative w-full flex flex-col gap-2 border p-4 rounded-xl cursor-pointer"
               onClick={() => copyToClipboard(lightningAddress)}
             >
-              <div className="flex justify-between w-full">
+              <div className="flex gap-2 w-full">
                 <p className="text-sm text-muted-foreground">
                   Lightning Address
                 </p>

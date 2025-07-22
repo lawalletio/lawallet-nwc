@@ -2,18 +2,7 @@
 
 import { useState as useStateHook, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  ArrowLeft,
-  Copy,
-  Eye,
-  EyeOff,
-  Key,
-  User,
-  Zap,
-  Settings,
-  CheckCircle,
-  Shield
-} from 'lucide-react'
+import { ArrowLeft, Copy, Eye, EyeOff, Shield, Check } from 'lucide-react'
 
 import { useWallet } from '@/providers/wallet'
 import { hexToNsec } from '@/lib/nostr'
@@ -80,10 +69,11 @@ export default function WalletSettingsPage() {
                 <Button
                   size="icon"
                   variant="secondary"
+                  disabled={copied === 'publicKey'}
                   onClick={() => copyToClipboard(npub || '', 'publicKey')}
                 >
                   {copied === 'publicKey' ? (
-                    <CheckCircle className="size-4 text-green-400" />
+                    <Check className="size-4" />
                   ) : (
                     <Copy className="size-4" />
                   )}
@@ -115,12 +105,13 @@ export default function WalletSettingsPage() {
                   <Button
                     size="icon"
                     variant="secondary"
+                    disabled={copied === 'privateKey'}
                     onClick={() =>
                       copyToClipboard(hexToNsec(privateKey), 'privateKey')
                     }
                   >
                     {copied === 'privateKey' ? (
-                      <CheckCircle className="size-4 text-green-400" />
+                      <Check className="size-4" />
                     ) : (
                       <Copy className="size-4" />
                     )}
