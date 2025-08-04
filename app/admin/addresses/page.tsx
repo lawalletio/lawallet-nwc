@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -30,18 +30,63 @@ import {
   XCircle
 } from 'lucide-react'
 import { useLightningAddresses } from '@/providers/lightning-addresses'
+import type { LightningAddress } from '@/types/lightning-address'
 
 export default function AddressesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const { list, count, getNWCStatusCounts, getUniqueRelays } =
     useLightningAddresses()
-  const addresses = list()
+
+  // State for async data
+  const [addresses, setAddresses] = useState<LightningAddress[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [nwcCounts, setNwcCounts] = useState({ withNWC: 0, withoutNWC: 0 })
+  const [uniqueRelaysCount, setUniqueRelaysCount] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true)
+        const [allAddresses, total, nwcStatus, relays] = await Promise.all([
+          list(),
+          count(),
+          getNWCStatusCounts(),
+          getUniqueRelays()
+        ])
+
+        setAddresses(allAddresses)
+        setTotalCount(total)
+        setNwcCounts(nwcStatus)
+        setUniqueRelaysCount(relays.length)
+      } catch (error) {
+        console.error('Error fetching addresses data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [list, count, getNWCStatusCounts, getUniqueRelays])
 
   const filteredAddresses = addresses.filter(address =>
     address.username.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const nwcStatusCounts = getNWCStatusCounts()
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center text-muted-foreground">
+              Loading addresses...
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -69,7 +114,9 @@ export default function AddressesPage() {
             <Zap className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{count()}</div>
+            <div className="text-2xl font-bold text-foreground">
+              {totalCount}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -81,7 +128,7 @@ export default function AddressesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {nwcStatusCounts.withNWC}
+              {nwcCounts.withNWC}
             </div>
           </CardContent>
         </Card>
@@ -94,7 +141,7 @@ export default function AddressesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {nwcStatusCounts.withoutNWC}
+              {nwcCounts.withoutNWC}
             </div>
           </CardContent>
         </Card>
@@ -107,7 +154,7 @@ export default function AddressesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {getUniqueRelays().length}
+              {uniqueRelaysCount}
             </div>
           </CardContent>
         </Card>
