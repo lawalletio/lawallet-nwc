@@ -8,15 +8,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id               String            @id
+  pubkey           String            @unique
+  createdAt        DateTime          @default(now())
+  nwc              String?
+  cardDesigns      CardDesign[]
+  ntag424s         Ntag424[]
+  lightningAddress LightningAddress?
+  cards            Card[]
+}
+
 model CardDesign {
   id          String   @id @default(uuid())
   imageUrl    String
   description String
   createdAt   DateTime @default(now())
   cards       Card[]
-  pubkey      String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
 
-  @@index([pubkey])
+  @@index([userId])
 }
 
 model Ntag424 {
@@ -29,32 +41,33 @@ model Ntag424 {
   ctr       Int
   createdAt DateTime @default(now())
   card      Card?
-  pubkey    String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
 
-  @@index([pubkey])
+  @@index([userId])
 }
 
 model LightningAddress {
   username  String   @id
-  pubkey    String
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
-  nwc       String?
-
-  @@index([pubkey])
 }
 
 model Card {
   id         String    @id @default(uuid())
   designId   String
-  ntag424Cid String    @unique
+  ntag424Cid String?   @unique
   createdAt  DateTime  @default(now())
   title      String?
   lastUsedAt DateTime?
-  pubkey     String?
+  userId     String?
   username   String?
+  otc        String?
 
   design  CardDesign @relation(fields: [designId], references: [id])
-  ntag424 Ntag424    @relation(fields: [ntag424Cid], references: [cid])
+  ntag424 Ntag424?   @relation(fields: [ntag424Cid], references: [cid])
+  user    User?      @relation(fields: [userId], references: [id])
 
-  @@index([pubkey])
+  @@index([userId])
 }
