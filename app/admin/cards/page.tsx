@@ -270,12 +270,12 @@ export default function CardsPage() {
                           </p>
                           <div className="flex items-center gap-2 mt-1">
                             <Badge
-                              variant={card.ntag424 ? 'default' : 'secondary'}
+                              variant={card.otc ? 'default' : 'secondary'}
                               className={
-                                card.ntag424 ? 'bg-blue-100 text-blue-800' : ''
+                                card.otc ? 'bg-blue-100 text-blue-800' : ''
                               }
                             >
-                              {card.ntag424 ? 'Paired' : 'Unpaired'}
+                              {card.otc ? 'Paired' : 'Unpaired'}
                             </Badge>
                             {!isMobile && (
                               <span className="text-xs text-muted-foreground">

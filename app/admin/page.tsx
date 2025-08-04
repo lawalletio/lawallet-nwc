@@ -174,9 +174,9 @@ export default function AdminPage() {
                       </div>
                     </div>
                     <div
-                      className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-2 ${card.ntag424 ? 'bg-blue-100 text-blue-800' : 'bg-secondary text-secondary-foreground'}`}
+                      className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-2 ${card.otc ? 'bg-blue-100 text-blue-800' : 'bg-secondary text-secondary-foreground'}`}
                     >
-                      {card.ntag424 ? 'Paired' : 'Unpaired'}
+                      {card.otc ? 'Paired' : 'Unpaired'}
                     </div>
                   </div>
                 ))}

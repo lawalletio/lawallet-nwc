@@ -1,12 +1,27 @@
 import { NextResponse } from 'next/server'
-import { mockCardData } from '@/mocks/card'
+import { prisma } from '@/lib/prisma'
 
 export async function GET() {
+  const [paired, unpaired, used, unused] = await Promise.all([
+    prisma.card.count({
+      where: { otc: { not: null } }
+    }),
+    prisma.card.count({
+      where: { otc: { equals: null } }
+    }),
+    prisma.card.count({
+      where: { lastUsedAt: { not: null } }
+    }),
+    prisma.card.count({
+      where: { lastUsedAt: { equals: null } }
+    })
+  ])
+
   const statusCounts = {
-    paired: mockCardData.filter(card => card.ntag424 !== undefined).length,
-    unpaired: mockCardData.filter(card => card.ntag424 === undefined).length,
-    used: mockCardData.filter(card => card.lastUsedAt !== undefined).length,
-    unused: mockCardData.filter(card => card.lastUsedAt === undefined).length
+    paired,
+    unpaired,
+    used,
+    unused
   }
 
   return NextResponse.json(statusCounts)

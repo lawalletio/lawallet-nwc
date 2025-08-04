@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { mockCardDesignData } from '@/mocks/card-design'
+import { prisma } from '@/lib/prisma'
 
 export async function GET() {
-  return NextResponse.json({ count: mockCardDesignData.length })
+  const count = await prisma.cardDesign.count()
+  return NextResponse.json({ count })
 }

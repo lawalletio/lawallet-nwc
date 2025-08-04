@@ -1,14 +1,28 @@
 import { NextResponse } from 'next/server'
-import { mockLightningAddressData } from '@/mocks/lightning-address'
+import { prisma } from '@/lib/prisma'
 
 export async function GET() {
-  const counts = {
-    total: mockLightningAddressData.length,
-    withNWC: mockLightningAddressData.filter(addr => addr.nwc !== undefined)
-      .length,
-    withoutNWC: mockLightningAddressData.filter(addr => addr.nwc === undefined)
-      .length
-  }
+  const [total, withNWC, withoutNWC] = await Promise.all([
+    prisma.lightningAddress.count(),
+    prisma.lightningAddress.count({
+      where: {
+        user: {
+          nwc: { not: null }
+        }
+      }
+    }),
+    prisma.lightningAddress.count({
+      where: {
+        user: {
+          nwc: null
+        }
+      }
+    })
+  ])
 
-  return NextResponse.json(counts)
+  return NextResponse.json({
+    total,
+    withNWC,
+    withoutNWC
+  })
 }

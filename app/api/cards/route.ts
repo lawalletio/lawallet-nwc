@@ -1,29 +1,10 @@
 import { NextResponse } from 'next/server'
-import { mockCardData } from '@/mocks/card'
-import { mockCardDesignData } from '@/mocks/card-design'
+import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
-import type { Ntag424 } from '@/types/ntag424'
 
 interface CardFilters {
   paired?: boolean
   used?: boolean
-}
-
-// Helper to ensure dates are parsed
-const parseDates = (card: Card): Card => {
-  const ntag424: Ntag424 | undefined = card.ntag424
-    ? {
-        ...card.ntag424,
-        createdAt: new Date(card.ntag424.createdAt)
-      }
-    : undefined
-
-  return {
-    ...card,
-    createdAt: new Date(card.createdAt),
-    lastUsedAt: card.lastUsedAt ? new Date(card.lastUsedAt) : undefined,
-    ntag424
-  }
 }
 
 export async function GET(request: Request) {
@@ -39,39 +20,141 @@ export async function GET(request: Request) {
       : undefined
   }
 
-  let filteredCards = [...mockCardData]
+  // Build where clause based on filters
+  const where: any = {}
 
-  // Apply paired filter if defined
   if (filters.paired !== undefined) {
-    filteredCards = filteredCards.filter(
-      card => filters.paired === (card.ntag424 !== undefined)
-    )
+    if (filters.paired) {
+      where.otc = { not: null }
+    } else {
+      where.otc = { equals: null }
+    }
   }
 
-  // Apply used filter if defined
   if (filters.used !== undefined) {
-    filteredCards = filteredCards.filter(
-      card => filters.used === (card.lastUsedAt !== undefined)
-    )
+    if (filters.used) {
+      where.lastUsedAt = { not: null }
+    } else {
+      where.lastUsedAt = { equals: null }
+    }
   }
 
-  // Parse dates before sending response
-  const cardsWithParsedDates = filteredCards.map(parseDates)
+  const cards = await prisma.card.findMany({
+    where,
+    select: {
+      id: true,
+      createdAt: true,
+      title: true,
+      lastUsedAt: true,
+      username: true,
+      otc: true,
+      design: {
+        select: {
+          id: true,
+          imageUrl: true,
+          description: true,
+          createdAt: true
+        }
+      },
+      ntag424: {
+        select: {
+          cid: true,
+          k0: true,
+          k1: true,
+          k2: true,
+          k3: true,
+          k4: true,
+          ctr: true,
+          createdAt: true
+        }
+      },
+      user: {
+        select: {
+          pubkey: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  })
 
-  return NextResponse.json(cardsWithParsedDates)
+  // Transform to match Card type
+  const transformedCards: Card[] = cards.map(card => ({
+    id: card.id,
+    design: card.design,
+    ntag424: card.ntag424
+      ? {
+          ...card.ntag424,
+          createdAt: card.ntag424.createdAt
+        }
+      : undefined,
+    createdAt: card.createdAt,
+    title: card.title || undefined,
+    lastUsedAt: card.lastUsedAt || undefined,
+    pubkey: card.user?.pubkey,
+    username: card.username || undefined,
+    otc: card.otc || undefined
+  }))
+
+  return NextResponse.json(transformedCards)
 }
 
 export async function POST(request: Request) {
   const { id, designId } = await request.json()
 
-  // Mock creating a new card
-  const newCard: Card = {
-    id,
-    design:
-      mockCardDesignData.find(d => d.id === designId) || mockCardDesignData[0],
-    createdAt: new Date(),
-    title: 'New Card'
+  const card = await prisma.card.create({
+    data: {
+      id,
+      designId,
+      title: 'New Card'
+    } as any,
+    select: {
+      id: true,
+      createdAt: true,
+      title: true,
+      lastUsedAt: true,
+      username: true,
+      otc: true,
+      design: {
+        select: {
+          id: true,
+          imageUrl: true,
+          description: true,
+          createdAt: true
+        }
+      },
+      ntag424: {
+        select: {
+          cid: true,
+          k0: true,
+          k1: true,
+          k2: true,
+          k3: true,
+          k4: true,
+          ctr: true,
+          createdAt: true
+        }
+      },
+      user: {
+        select: {
+          pubkey: true
+        }
+      }
+    }
+  })
+
+  // Transform to match Card type
+  const transformedCard: Card = {
+    id: card.id,
+    design: card.design,
+    createdAt: card.createdAt,
+    title: card.title || undefined,
+    lastUsedAt: card.lastUsedAt || undefined,
+    pubkey: card.user?.pubkey,
+    username: card.username || undefined,
+    otc: card.otc || undefined
   }
 
-  return NextResponse.json(parseDates(newCard))
+  return NextResponse.json(transformedCard)
 }

@@ -1,34 +1,69 @@
 import { NextResponse } from 'next/server'
-import { mockCardData } from '@/mocks/card'
+import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
-import type { Ntag424 } from '@/types/ntag424'
-
-// Helper to ensure dates are parsed
-const parseDates = (card: Card): Card => {
-  const ntag424: Ntag424 | undefined = card.ntag424
-    ? {
-        ...card.ntag424,
-        createdAt: new Date(card.ntag424.createdAt)
-      }
-    : undefined
-
-  return {
-    ...card,
-    createdAt: new Date(card.createdAt),
-    lastUsedAt: card.lastUsedAt ? new Date(card.lastUsedAt) : undefined,
-    ntag424
-  }
-}
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  const card = mockCardData.find(card => card.id === params.id)
+  const card = await prisma.card.findUnique({
+    where: { id: params.id },
+    select: {
+      id: true,
+      createdAt: true,
+      title: true,
+      lastUsedAt: true,
+      username: true,
+      otc: true,
+      design: {
+        select: {
+          id: true,
+          imageUrl: true,
+          description: true,
+          createdAt: true
+        }
+      },
+      ntag424: {
+        select: {
+          cid: true,
+          k0: true,
+          k1: true,
+          k2: true,
+          k3: true,
+          k4: true,
+          ctr: true,
+          createdAt: true
+        }
+      },
+      user: {
+        select: {
+          pubkey: true
+        }
+      }
+    }
+  })
 
   if (!card) {
     return new NextResponse('Card not found', { status: 404 })
   }
 
-  return NextResponse.json(parseDates(card))
+  // Transform to match Card type
+  const transformedCard: Card = {
+    id: card.id,
+    design: card.design,
+    ntag424: card.ntag424
+      ? {
+          ...card.ntag424,
+          createdAt: card.ntag424.createdAt
+        }
+      : undefined,
+    createdAt: card.createdAt,
+    title: card.title || undefined,
+    lastUsedAt: card.lastUsedAt || undefined,
+    pubkey: card.user?.pubkey,
+    username: card.username || undefined,
+    otc: card.otc || undefined
+  }
+
+  return NextResponse.json(transformedCard)
 }

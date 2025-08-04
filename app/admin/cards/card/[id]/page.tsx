@@ -140,11 +140,7 @@ export default function CardPage() {
   }
 
   const qrUrl = `${settings.domain}/wallet/activate/${card.otc}`
-  const status = card.ntag424
-    ? card.lastUsedAt
-      ? 'active'
-      : 'paired'
-    : 'unpaired'
+  const status = card.otc ? (card.lastUsedAt ? 'active' : 'paired') : 'unpaired'
 
   const getStatusBadge = (status: string) => {
     switch (status) {
