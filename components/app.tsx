@@ -24,6 +24,8 @@ export const AppViewport = React.forwardRef<
   )
 })
 
+AppViewport.displayName = 'AppViewport'
+
 export const AppNavbar = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -50,6 +52,8 @@ export const AppNavbar = React.forwardRef<
     </div>
   )
 })
+
+AppNavbar.displayName = 'AppNavbar'
 
 export const AppContent = React.forwardRef<
   HTMLDivElement,
@@ -89,6 +93,8 @@ export const AppContent = React.forwardRef<
   )
 })
 
+AppContent.displayName = 'AppContent'
+
 export const AppFooter = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -115,3 +121,5 @@ export const AppFooter = React.forwardRef<
     </div>
   )
 })
+
+AppFooter.displayName = 'AppFooter'
