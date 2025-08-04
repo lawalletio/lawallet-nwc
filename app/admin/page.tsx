@@ -13,6 +13,7 @@ import { CreditCard, Palette, Zap, Activity, Plus, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { useCards } from '@/providers/card'
 import { useLightningAddresses } from '@/providers/lightning-addresses'
+import { useCardDesigns } from '@/providers/card-designs'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { Card as CardType } from '@/types/card'
@@ -20,11 +21,14 @@ import type { Card as CardType } from '@/types/card'
 export default function AdminPage() {
   const { auth } = useAdmin()
   const { list, count, getStatusCounts } = useCards()
-  const { list: listAddresses } = useLightningAddresses()
+  const { count: countCardDesign } = useCardDesigns()
+  const { list: listAddresses, count: countAddresses } = useLightningAddresses()
   const router = useRouter()
 
   // State for async data
   const [cardCount, setCardCount] = useState<number>(0)
+  const [lightningAddressCount, setLightningAddressCount] = useState<number>(0)
+  const [cardDesignCount, setCardDesignCount] = useState<number>(0)
   const [statusCounts, setStatusCounts] = useState({
     paired: 0,
     unpaired: 0,
@@ -38,15 +42,26 @@ export default function AdminPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [totalCount, counts, cards, addresses] = await Promise.all([
+        const [
+          totalCount,
+          counts,
+          cards,
+          addresses,
+          cardDesignCount,
+          lightningAddressCount
+        ] = await Promise.all([
           count(),
           getStatusCounts(),
           list(),
-          listAddresses()
+          listAddresses(),
+          countCardDesign(),
+          countAddresses()
         ])
 
         setCardCount(totalCount)
+        setCardDesignCount(cardDesignCount)
         setStatusCounts(counts)
+        setLightningAddressCount(lightningAddressCount)
         setRecentCards(cards.slice(0, 5))
         setRecentAddresses(addresses.slice(0, 3))
       } catch (error) {
@@ -55,7 +70,15 @@ export default function AdminPage() {
     }
 
     fetchData()
-  }, [count, getStatusCounts, list, listAddresses])
+  }, [
+    cardDesignCount,
+    count,
+    getStatusCounts,
+    list,
+    listAddresses,
+    countCardDesign,
+    countAddresses
+  ])
 
   if (!auth) return null
 
@@ -68,13 +91,13 @@ export default function AdminPage() {
     },
     {
       title: 'Designs',
-      value: '—', // Placeholder until CardDesignProvider is refactored
+      value: cardDesignCount,
       description: 'Available card designs',
       icon: Palette
     },
     {
       title: 'Lightning Addresses',
-      value: '—', // Placeholder until LightningAddressProvider is refactored
+      value: lightningAddressCount,
       description: 'Configured addresses',
       icon: Zap
     },
