@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
@@ -33,6 +33,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { useIsMobile } from '@/components/ui/use-mobile'
+import type { Card as CardType } from '@/types/card'
 
 export default function CardsPage() {
   const router = useRouter()
@@ -44,9 +45,42 @@ export default function CardsPage() {
   const [cardToDelete, setCardToDelete] = useState<string | null>(null)
   const isMobile = useIsMobile()
 
+  // State for async data
+  const [cards, setCards] = useState<CardType[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [pairedCount, setPairedCount] = useState(0)
+  const [usedCount, setUsedCount] = useState(0)
+  const [unpairedCount, setUnpairedCount] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [allCards, total, paired, used, unpaired] = await Promise.all([
+          list(),
+          count(),
+          getPairedCards(),
+          getUsedCards(),
+          getUnpairedCards()
+        ])
+        setCards(allCards)
+        setTotalCount(total)
+        setPairedCount(paired.length)
+        setUsedCount(used.length)
+        setUnpairedCount(unpaired.length)
+      } catch (error) {
+        console.error('Error fetching cards data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [list, count, getPairedCards, getUsedCards, getUnpairedCards])
+
   if (!auth) return null
 
-  const cards = list()
   const filteredCards = cards.filter(
     card =>
       card.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -73,6 +107,20 @@ export default function CardsPage() {
       pattern.push(Math.random() > 0.5)
     }
     return pattern
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center text-muted-foreground">
+              Loading cards...
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -102,7 +150,9 @@ export default function CardsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">{count()}</div>
+            <div className="text-2xl font-bold text-foreground">
+              {totalCount}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -113,7 +163,7 @@ export default function CardsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {getPairedCards().length}
+              {pairedCount}
             </div>
           </CardContent>
         </Card>
@@ -125,7 +175,7 @@ export default function CardsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {getUsedCards().length}
+              {usedCount}
             </div>
           </CardContent>
         </Card>
@@ -137,7 +187,7 @@ export default function CardsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
-              {getUnpairedCards().length}
+              {unpairedCount}
             </div>
           </CardContent>
         </Card>

@@ -2,56 +2,107 @@
 
 import React, { createContext, useContext, useMemo } from 'react'
 import type { Card } from '@/types/card'
-import { mockCardData } from '@/mocks/card'
+import type { Ntag424 } from '@/types/ntag424'
 
 interface CardsContextType {
-  list: () => Card[]
-  get: (id: string) => Card | null
-  getPairedCards: () => Card[]
-  getUnpairedCards: () => Card[]
-  getUsedCards: () => Card[]
-  create: (id: string, designId: string) => Card
-  count: () => number
-  getStatusCounts: () => {
+  list: () => Promise<Card[]>
+  get: (id: string) => Promise<Card | null>
+  getPairedCards: () => Promise<Card[]>
+  getUnpairedCards: () => Promise<Card[]>
+  getUsedCards: () => Promise<Card[]>
+  create: (id: string, designId: string) => Promise<Card>
+  count: () => Promise<number>
+  getStatusCounts: () => Promise<{
     paired: number
     unpaired: number
     used: number
     unused: number
-  }
+  }>
 }
 
 const CardsContext = createContext<CardsContextType | undefined>(undefined)
 
+// Helper to parse dates in card data
+const parseCardDates = (card: any): Card => {
+  const ntag424: Ntag424 | undefined = card.ntag424
+    ? {
+        ...card.ntag424,
+        createdAt: new Date(card.ntag424.createdAt)
+      }
+    : undefined
+
+  return {
+    ...card,
+    createdAt: new Date(card.createdAt),
+    lastUsedAt: card.lastUsedAt ? new Date(card.lastUsedAt) : undefined,
+    ntag424
+  }
+}
+
 export const CardsProvider = ({ children }: { children: React.ReactNode }) => {
-  const list = () => mockCardData
+  const list = async () => {
+    const response = await fetch('/api/cards')
+    const data = await response.json()
+    return data.map(parseCardDates) as Card[]
+  }
 
-  const get = (id: string) => mockCardData.find(card => card.id === id) || null
-
-  const getPairedCards = () =>
-    mockCardData.filter(card => card.ntag424 !== undefined)
-
-  const getUnpairedCards = () =>
-    mockCardData.filter(card => card.ntag424 === undefined)
-
-  const getUsedCards = () =>
-    mockCardData.filter(card => card.lastUsedAt !== undefined)
-
-  const create = (id: string, designId: string) => {
-    // This is a mock; in a real app, you'd push to state or call an API
-    return {
-      ...mockCardData[0],
-      design: { ...mockCardData[0].design, id: designId }
+  const get = async (id: string) => {
+    try {
+      const response = await fetch(`/api/cards/${id}`)
+      if (!response.ok) return null
+      const data = await response.json()
+      return parseCardDates(data)
+    } catch (error) {
+      console.error('Error fetching card:', error)
+      return null
     }
   }
 
-  const count = () => mockCardData.length
+  const getPairedCards = async () => {
+    const response = await fetch('/api/cards?paired=true')
+    const data = await response.json()
+    return data.map(parseCardDates) as Card[]
+  }
 
-  const getStatusCounts = () => ({
-    paired: getPairedCards().length,
-    unpaired: getUnpairedCards().length,
-    used: getUsedCards().length,
-    unused: mockCardData.filter(card => card.lastUsedAt === undefined).length
-  })
+  const getUnpairedCards = async () => {
+    const response = await fetch('/api/cards?paired=false')
+    const data = await response.json()
+    return data.map(parseCardDates) as Card[]
+  }
+
+  const getUsedCards = async () => {
+    const response = await fetch('/api/cards?used=true')
+    const data = await response.json()
+    return data.map(parseCardDates) as Card[]
+  }
+
+  const create = async (id: string, designId: string) => {
+    const response = await fetch('/api/cards', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ id, designId })
+    })
+    const data = await response.json()
+    return parseCardDates(data)
+  }
+
+  const count = async () => {
+    const counts = await getStatusCounts()
+    return counts.used + counts.unused
+  }
+
+  const getStatusCounts = async () => {
+    const response = await fetch('/api/cards/counts')
+    const data = await response.json()
+    return data as {
+      paired: number
+      unpaired: number
+      used: number
+      unused: number
+    }
+  }
 
   const value = useMemo<CardsContextType>(
     () => ({
@@ -64,6 +115,7 @@ export const CardsProvider = ({ children }: { children: React.ReactNode }) => {
       count,
       getStatusCounts
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
 

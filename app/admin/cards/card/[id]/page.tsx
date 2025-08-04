@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,6 +29,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useSettings } from '@/hooks/use-settings'
 import { Ntag424WipeData } from '@/types/ntag424'
 import { cardToNtag424WipeData } from '@/lib/ntag424'
+import type { Card as CardType } from '@/types/card'
 
 export default function CardPage() {
   const router = useRouter()
@@ -37,15 +38,62 @@ export default function CardPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const { settings } = useSettings()
 
+  // State for async data
+  const [card, setCard] = useState<CardType | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
   const params = useParams()
   const id = params.id as string
   const { get } = useCards()
-  const card = get(id)
+
+  // Fetch card data
+  useEffect(() => {
+    const fetchCard = async () => {
+      try {
+        setIsLoading(true)
+        const data = await get(id)
+        if (!data) {
+          setError('Card not found')
+          return
+        }
+        setCard(data)
+      } catch (err) {
+        setError('Error loading card')
+        console.error('Error fetching card:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCard()
+  }, [get, id])
+
   const wipeQrData = useMemo<Ntag424WipeData | undefined>(() => {
     return card ? cardToNtag424WipeData(card) : undefined
   }, [card])
 
-  if (!card) {
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" asChild>
+            <Link href="/admin/cards">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Cards
+            </Link>
+          </Button>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <div className="text-muted-foreground">Loading card details...</div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error || !card) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -62,7 +110,7 @@ export default function CardPage() {
               Card Not Found
             </h1>
             <p className="text-muted-foreground">
-              The requested card could not be found.
+              {error || 'The requested card could not be found.'}
             </p>
           </CardContent>
         </Card>

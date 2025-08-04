@@ -14,6 +14,8 @@ import Link from 'next/link'
 import { useCards } from '@/providers/card'
 import { useLightningAddresses } from '@/providers/lightning-addresses'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import type { Card as CardType } from '@/types/card'
 
 export default function AdminPage() {
   const { auth } = useAdmin()
@@ -21,18 +23,46 @@ export default function AdminPage() {
   const { list: listAddresses } = useLightningAddresses()
   const router = useRouter()
 
-  if (!auth) return null
+  // State for async data
+  const [cardCount, setCardCount] = useState<number>(0)
+  const [statusCounts, setStatusCounts] = useState({
+    paired: 0,
+    unpaired: 0,
+    used: 0,
+    unused: 0
+  })
+  const [recentCards, setRecentCards] = useState<CardType[]>([])
+  const [recentAddresses, setRecentAddresses] = useState<any[]>([])
 
-  const systemStats = {
-    cardCount: count(),
-    cardStatusCounts: getStatusCounts()
-    // The rest (cardDesignCount, lightningAddressCount, nwcStatusCounts) will be filled in when those providers are refactored
-  }
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [totalCount, counts, cards, addresses] = await Promise.all([
+          count(),
+          getStatusCounts(),
+          list(),
+          listAddresses()
+        ])
+
+        setCardCount(totalCount)
+        setStatusCounts(counts)
+        setRecentCards(cards.slice(0, 5))
+        setRecentAddresses(addresses.slice(0, 3))
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error)
+      }
+    }
+
+    fetchData()
+  }, [count, getStatusCounts, list, listAddresses])
+
+  if (!auth) return null
 
   const stats = [
     {
       title: 'Total Cards',
-      value: systemStats.cardCount,
+      value: cardCount,
       description: 'Active payment cards',
       icon: CreditCard
     },
@@ -50,14 +80,11 @@ export default function AdminPage() {
     },
     {
       title: 'Active Cards',
-      value: systemStats.cardStatusCounts.paired,
+      value: statusCounts.paired,
       description: 'Currently paired',
       icon: Activity
     }
   ]
-
-  const recentCards = list().slice(0, 5)
-  const recentAddresses = listAddresses().slice(0, 3)
 
   return (
     <div className="space-y-8">
