@@ -270,39 +270,6 @@ export default function CardPage() {
                       <p className="text-foreground">{card.ntag424.ctr}</p>
                     </div>
                   </div>
-                  {['k0', 'k1', 'k2', 'k3', 'k4'].map(key => (
-                    <div key={key}>
-                      <label className="font-medium text-muted-foreground">
-                        Key {key.toUpperCase()}
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <p className="text-foreground break-all">
-                          {formatDate(
-                            card.ntag424![key as keyof typeof card.ntag424]
-                          )}
-                        </p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() =>
-                            handleCopy(
-                              card.ntag424![
-                                key as keyof typeof card.ntag424
-                              ] as string,
-                              key
-                            )
-                          }
-                        >
-                          {copied === key ? (
-                            <Check className="h-3 w-3 text-green-600" />
-                          ) : (
-                            <Copy className="h-3 w-3 text-muted-foreground" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
                 </CardContent>
               </Card>
             )}
