@@ -16,6 +16,7 @@
   "dependencies": {
     "@getalby/sdk": "^5.1.0",
     "@hookform/resolvers": "^3.3.4",
+    "@nostrify/nostrify": "^0.46.6",
     "@prisma/client": "^6.11.1",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",

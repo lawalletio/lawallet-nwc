@@ -14,6 +14,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.3.4
         version: 3.9.1(react-hook-form@7.59.0(react@18.0.0))
+      '@nostrify/nostrify':
+        specifier: ^0.46.6
+        version: 0.46.6(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@prisma/client':
         specifier: ^6.11.1
         version: 6.11.1(prisma@6.11.1(typescript@5.0.2))(typescript@5.0.2)
@@ -391,6 +394,12 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
+
+  '@nostrify/nostrify@0.46.6':
+    resolution: {integrity: sha512-PPVR6bdgaja+DH5UvU07uMymMIJu5EEDdn9KQl/R5ri4r7LyGgTFtnVbeT5QYAvbNfHyddrzVmPYeBSQQXv9AA==}
+
+  '@nostrify/types@0.36.2':
+    resolution: {integrity: sha512-J6i9py4A+XZDTmB5C15n0JXqafhm6Tnela8o3QMWBCTz1oY8to0yDLZkIuTiXnbXdYfN7oMdYptSkNus0PbacQ==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -3070,6 +3079,18 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  ws@8.18.3:
+    resolution: {integrity: sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   yaeti@0.0.6:
     resolution: {integrity: sha512-MvQa//+KcZCUkBTIC9blM+CU9J2GzuTytsOUwf2lidtvkx/6gnEp1QvJv34t9vdjhFmha/mUiNDbN0D0mJWdug==}
     engines: {node: '>=0.10.32'}
@@ -3265,6 +3286,16 @@ snapshots:
       fastq: 1.19.1
 
   '@nolyfill/is-core-module@1.0.39': {}
+
+  '@nostrify/nostrify@0.46.6(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@nostrify/types': 0.36.2
+      ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@nostrify/types@0.36.2': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -6266,6 +6297,11 @@ snapshots:
       strip-ansi: 7.1.0
 
   wrappy@1.0.2: {}
+
+  ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10):
+    optionalDependencies:
+      bufferutil: 4.0.9
+      utf-8-validate: 5.0.10
 
   yaeti@0.0.6: {}
 
