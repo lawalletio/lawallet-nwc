@@ -6,23 +6,24 @@ import { useParams, useRouter } from 'next/navigation'
 import { BadgeX, Loader2 } from 'lucide-react'
 
 import { useWallet } from '@/providers/wallet'
-import { generatePrivateKey } from '@/lib/nostr'
+import { generatePrivateKey, getPublicKeyFromPrivate } from '@/lib/nostr'
 
 import { Button } from '@/components/ui/button'
 import { AppContent, AppFooter, AppViewport } from '@/components/app'
 import { CardPreview } from '@/components/card-preview'
 import { useCardOTC } from '@/hooks/use-card-otc'
+import { useUser } from '@/hooks/use-user'
 
 export default function ActivateCardPage() {
   const params = useParams()
   const router = useRouter()
-  const { setPrivateKey } = useWallet()
+  const { setPrivateKey, setUserId } = useWallet()
   const [card, setCard] = useState<any>(null)
-  const [isActivating, setIsActivating] = useState(false)
   const [isActivated, setIsActivated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const otc = params.otc as string
   const { card: otcCard, error: otcError } = useCardOTC(otc)
+  const { createUser, isLoading: isActivating } = useUser()
 
   useEffect(() => {
     if (!otcCard) {
@@ -33,27 +34,22 @@ export default function ActivateCardPage() {
   }, [otcCard])
 
   const handleActivate = async () => {
-    setIsActivating(true)
-
     try {
       // Generate new private key
       const privateKey = generatePrivateKey()
-
-      // Simulate activation process
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      const pubkey = getPublicKeyFromPrivate(privateKey)
 
       // Set the private key (this will auto-login the user)
       setPrivateKey(privateKey)
+      const user = await createUser({ pubkey, otc })
+      setUserId(user.userId)
 
       setIsActivated(true)
 
       // Redirect to wallet after a brief success message
-      setTimeout(() => {
-        router.push('/wallet')
-      }, 1500)
+      router.push('/wallet')
     } catch (error) {
       console.error('Failed to activate card:', error)
-      setIsActivating(false)
     }
   }
 
