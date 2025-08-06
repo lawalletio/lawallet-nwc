@@ -85,6 +85,15 @@ export function NFCTapCard({ onTap }: NFCTapCardProps) {
             Scan Blank NFC Card
           </Button>
         )}
+
+        <Button
+          onClick={() => onTap(`04:E1:62:CA:7F:8D:B3`)}
+          className="bg-purple-600 hover:bg-purple-700 text-white border-0 px-8 py-3"
+          size="lg"
+        >
+          <Nfc className="h-5 w-5 mr-2" />
+          Simulate NFC Card Scan
+        </Button>
       </CardContent>
     </Card>
   )

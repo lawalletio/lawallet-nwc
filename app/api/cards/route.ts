@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
+import { generateNtag424Values } from '@/lib/ntag424'
+import { randomBytes } from 'crypto'
 
 interface CardFilters {
   paired?: boolean
@@ -103,11 +105,26 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { id, designId } = await request.json()
 
+  // Generate ntag424 values using the id as cid
+  const serial = id.toUpperCase().replace(/:/g, '')
+  const ntag424Values = generateNtag424Values(serial)
+
+  // Generate random 16-byte string for otc
+  const otc = randomBytes(16).toString('hex')
+
+  // Create the ntag424 record first
+  const ntag424 = await prisma.ntag424.create({
+    data: ntag424Values
+  })
+
+  // Then create the card and link it to the ntag424
   const card = await prisma.card.create({
     data: {
-      id,
+      id: serial,
       designId,
-      title: 'New Card'
+      title: 'New Card',
+      ntag424Cid: ntag424.cid, // Link to the created ntag424
+      otc: otc // Set the random 16-byte string for otc
     } as any,
     select: {
       id: true,
@@ -148,6 +165,12 @@ export async function POST(request: Request) {
   const transformedCard: Card = {
     id: card.id,
     design: card.design,
+    ntag424: card.ntag424
+      ? {
+          ...card.ntag424,
+          createdAt: card.ntag424.createdAt
+        }
+      : undefined,
     createdAt: card.createdAt,
     title: card.title || undefined,
     lastUsedAt: card.lastUsedAt || undefined,
