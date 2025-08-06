@@ -8,8 +8,7 @@ export function generatePrivateKey(): string {
 
 export function getPublicKeyFromPrivate(privateKeyHex: string): string {
   const privateKeyBytes = hexToBytes(privateKeyHex)
-  const publicKeyBytes = getPublicKey(privateKeyBytes)
-  return bytesToHex(publicKeyBytes)
+  return getPublicKey(privateKeyBytes)
 }
 
 export function hexToNsec(privateKeyHex: string): string {
