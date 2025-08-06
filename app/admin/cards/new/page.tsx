@@ -57,7 +57,7 @@ export default function NewCardPage() {
 
   const handleNFCTap = async (uid: string) => {
     // Generate pairing token
-    const card = create(uid, selectedDesign)
+    const card = await create(uid, selectedDesign)
     setQrToken(`${settings.url}/api/cards/${card.id}/write`)
     setCard(card)
     // In a real implementation, this would create the card via API
