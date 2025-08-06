@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { WalletContextType, WalletState } from '@/types/wallet'
 import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { nip19 } from 'nostr-tools'
-import { LN, nwc } from '@getalby/sdk'
+import { nwc } from '@getalby/sdk'
 import { toast } from '@/hooks/use-toast'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 
@@ -18,7 +18,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     lightningAddress: null,
     nwcUri: null,
     balance: 0,
-    isInitialized: false // Added initialization state
+    isInitialized: false, // Added initialization state
+    userId: null
   })
 
   const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
@@ -51,7 +52,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setWalletState(prev => ({ ...prev, balance: balance?.balance ?? 0 }))
   }
 
+  const enabled = false
+
   useEffect(() => {
+    if (!enabled) return
     if (!walletState.nwcUri) {
       setNwcObject(null)
       nwcObject?.close()
@@ -64,7 +68,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     })
     setNwcObject(nwcClient)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletState.nwcUri])
+  }, [walletState.nwcUri, enabled])
 
   useEffect(() => {
     if (nwcObject) {
@@ -140,6 +144,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setWalletState(prev => ({ ...prev, nwcUri: uri }))
   }
 
+  const setUserId = (userId: string) => {
+    setWalletState(prev => ({ ...prev, userId }))
+  }
+
   const logout = () => {
     setWalletState({
       privateKey: null,
@@ -147,7 +155,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       lightningAddress: null,
       nwcUri: null,
       balance: 0,
-      isInitialized: false // Reset initialization on logout
+      isInitialized: false, // Reset initialization on logout
+      userId: null
     })
     localStorage.removeItem('wallet')
   }
@@ -159,6 +168,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setNwcUri,
     logout,
     npub,
+    setUserId,
     isHydrated // Expose hydration state
   }
 

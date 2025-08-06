@@ -5,14 +5,13 @@ import { useRouter } from 'next/navigation'
 import { Settings, Loader2 } from 'lucide-react'
 
 import { useWallet } from '@/providers/wallet'
+import { useCards } from '@/hooks/use-cards'
 
 import { AppContent, AppNavbar, AppViewport } from '@/components/app'
 import { Button } from '@/components/ui/button'
 import { CardPreview } from '@/components/card-preview'
 import { SatoshiIcon } from '@/components/icon/satoshi'
 import { Skeleton } from '@/components/ui/skeleton'
-
-const PUBLIC_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
 
 export default function WalletPage() {
   const {
@@ -21,12 +20,16 @@ export default function WalletPage() {
     isHydrated,
     lightningAddress,
     nwcUri,
-    balance
+    balance,
+    userId
   } = useWallet()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(!isInitialized)
   const [copied, setCopied] = useState(false)
   const [animatedBalance, setAnimatedBalance] = useState(balance)
+
+  // Fetch cards for the current user
+  const { cards, isLoading: cardsLoading } = useCards(userId)
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
@@ -277,10 +280,12 @@ export default function WalletPage() {
             </div>
           )}
 
-          <div className="flex flex-col gap-4">
-            <h4 className="text-sm text-white">My Card</h4>
-            <CardPreview />
-          </div>
+          {cards.length > 0 && (
+            <div className="flex flex-col gap-4">
+              <h4 className="text-sm text-white">My Card</h4>
+              <CardPreview card={cards[0]} />
+            </div>
+          )}
         </div>
       </AppContent>
     </AppViewport>

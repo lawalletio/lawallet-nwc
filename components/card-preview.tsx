@@ -1,11 +1,13 @@
-export function CardPreview() {
+import { Card } from '@/types'
+
+export function CardPreview({ card }: { card: Card }) {
   return (
     <>
       {/* Card Preview */}
       <div
         className="relative w-full max-w-96 mx-auto aspect-[1.5/1] rounded-2xl overflow-hidden group"
         style={{
-          backgroundImage: `url(/card-primal.png)`,
+          backgroundImage: `url(${card.design.imageUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}

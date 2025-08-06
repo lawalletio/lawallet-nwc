@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
+import { BadgeX, Loader2 } from 'lucide-react'
 
 import { useWallet } from '@/providers/wallet'
 import { generatePrivateKey } from '@/lib/nostr'
@@ -11,19 +11,7 @@ import { generatePrivateKey } from '@/lib/nostr'
 import { Button } from '@/components/ui/button'
 import { AppContent, AppFooter, AppViewport } from '@/components/app'
 import { CardPreview } from '@/components/card-preview'
-
-// Mock function to get card by OTC
-function getCardByOTC(otc: string) {
-  // In a real app, this would fetch from an API
-  return {
-    id: `card-${otc}`,
-    name: `BoltCard #${otc.slice(-4).toUpperCase()}`,
-    otc: otc,
-    status: 'pending',
-    design: Math.floor(Math.random() * 20) + 1,
-    createdAt: new Date().toISOString()
-  }
-}
+import { useCardOTC } from '@/hooks/use-card-otc'
 
 export default function ActivateCardPage() {
   const params = useParams()
@@ -33,17 +21,16 @@ export default function ActivateCardPage() {
   const [isActivating, setIsActivating] = useState(false)
   const [isActivated, setIsActivated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-
   const otc = params.otc as string
+  const { card: otcCard, error: otcError } = useCardOTC(otc)
 
   useEffect(() => {
-    // Simulate loading card data
-    setTimeout(() => {
-      const cardData = getCardByOTC(otc)
-      setCard(cardData)
-      setIsLoading(false)
-    }, 1000)
-  }, [otc])
+    if (!otcCard) {
+      return
+    }
+    setCard(otcCard)
+    setIsLoading(false)
+  }, [otcCard])
 
   const handleActivate = async () => {
     setIsActivating(true)
@@ -68,6 +55,28 @@ export default function ActivateCardPage() {
       console.error('Failed to activate card:', error)
       setIsActivating(false)
     }
+  }
+
+  if (otcError) {
+    return (
+      <AppViewport className="overflow-y-hidden">
+        {/* Animated Background */}
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-500" />
+        </div>
+
+        <AppContent>
+          <div className="container-sm flex-1 flex flex-col justify-center items-center gap-4 text-center">
+            <BadgeX className="w-32 h-32 text-red-400" />
+            <p className="text-xl text-gray-300 font-light">
+              OTC Error: {otcError}
+            </p>
+          </div>
+        </AppContent>
+      </AppViewport>
+    )
   }
 
   if (isLoading) {
@@ -143,7 +152,7 @@ export default function ActivateCardPage() {
             </h1>
           </div>
 
-          <CardPreview />
+          <CardPreview card={card} />
 
           {/* Activation Button */}
           <div className="text-center">
