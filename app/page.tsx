@@ -82,7 +82,7 @@ const AnimatedBackground = () => (
 )
 
 const Header = () => (
-  <header className="sticky top-0 z-50 py-4 px-4 sm:px-6 lg:px-8 bg-black/50 backdrop-blur-lg border-b border-white/10 animate-fade-in-down">
+  <header className="sticky top-0 z-50 py-4 px-4 bg-black/50 backdrop-blur-lg border-b border-white/10 animate-fade-in-down">
     <div className="container mx-auto flex items-center justify-between">
       <div className="flex items-center gap-3">
         <img src="/nwc-logo.png" alt="NWC Logo" className="h-8 w-auto" />
@@ -118,14 +118,14 @@ const HeroSection = () => {
         }`}
       >
         <h1
-          className={`text-4xl md:text-6xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 transition-all duration-1200 delay-200 ${
+          className={`text-4xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 transition-all duration-1200 delay-200 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
           }`}
         >
           BoltCard meets NWC
         </h1>
         <p
-          className={`mt-8 max-w-3xl mx-auto text-xl md:text-2xl text-gray-300 leading-relaxed font-light transition-all duration-1000 delay-400 ${
+          className={`mt-8 max-w-3xl mx-auto text-xl text-gray-300 leading-relaxed font-light transition-all duration-1000 delay-400 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
@@ -138,7 +138,7 @@ const HeroSection = () => {
           </span>
         </p>
         <div
-          className={`mt-12 flex flex-col sm:flex-row gap-4 justify-center items-center transition-all duration-1000 delay-600 ${
+          className={`mt-12 flex flex-col gap-4 justify-center items-center transition-all duration-1000 delay-600 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
@@ -153,7 +153,7 @@ const HeroSection = () => {
           >
             Join Waitlist <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
-          <div className="flex flex-col sm:flex-row gap-4">
+          {/* <div className="flex flex-col sm:flex-row gap-4">
             <Button
               size="lg"
               variant="outline"
@@ -173,7 +173,7 @@ const HeroSection = () => {
                 Wallet Demo
               </Link>
             </Button>
-          </div>
+          </div> */}
         </div>
       </div>
     </section>
@@ -256,7 +256,7 @@ const flowSteps = [
     )
   },
   {
-    title: '6. Receive payments via lightning address and tap to pay with NWC',
+    title: '6. Receive and Send payments',
     description:
       'The card is ready! Tap on any compatible POS to make a Lightning payment via NWC.',
     content: (
@@ -292,7 +292,7 @@ const FlowSection = () => {
     <section ref={progressRef} className="py-20 sm:py-24">
       <div className="container mx-auto px-4">
         <h2
-          className={`text-center text-3xl md:text-4xl font-bold tracking-tight text-white mb-16 transition-all duration-1000 ${
+          className={`text-center text-3xl font-bold tracking-tight text-white mb-16 transition-all duration-1000 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
@@ -312,10 +312,10 @@ const FlowSection = () => {
           onMouseLeave={() => setIsHovered(false)}
         >
           <div className="bg-white rounded-2xl shadow-2xl overflow-hidden transition-all duration-500 hover:shadow-3xl">
-            <div className="grid grid-cols-1 lg:grid-cols-2 min-h-[500px]">
+            <div className="grid grid-cols-1 min-h-[500px]">
               {/* Left Content */}
-              <div className="p-8 lg:p-12 flex flex-col justify-center">
-                <h3 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-6 transition-all duration-500">
+              <div className="p-8 flex flex-col justify-center">
+                <h3 className="text-3xl font-bold text-gray-900 mb-6 transition-all duration-500">
                   {currentStepData.title}
                 </h3>
                 <p className="text-gray-600 text-lg mb-8 leading-relaxed transition-all duration-500">
@@ -324,7 +324,7 @@ const FlowSection = () => {
               </div>
 
               {/* Right Visual */}
-              <div className="bg-gray-50 p-8 lg:p-12 flex items-center justify-center">
+              <div className="bg-gray-50 p-8 flex items-center justify-center">
                 <div className="w-full max-w-md transition-all duration-500 hover:scale-105">
                   {currentStepData.content}
                 </div>
@@ -413,7 +413,7 @@ const NWCSupportersSection = () => {
     <section className="py-16 sm:py-20">
       <div ref={ref} className="container mx-auto px-4 text-center">
         <h2
-          className={`text-2xl md:text-3xl font-bold tracking-tight text-white mb-4 transition-all duration-1000 ${
+          className={`text-2xl font-bold tracking-tight text-white mb-4 transition-all duration-1000 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
@@ -426,7 +426,7 @@ const NWCSupportersSection = () => {
         >
           Trusted by leading Lightning wallets and Bitcoin organizations
         </p>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8 items-center justify-items-center">
+        <div className="grid grid-cols-2 gap-8 items-center justify-items-center">
           {supporters.map((supporter, index) => (
             <div
               key={supporter.name}
@@ -489,7 +489,7 @@ const OpenSourceSection = () => {
     <section className="py-20 sm:py-24">
       <div ref={ref} className="container mx-auto px-4 text-center">
         <h2
-          className={`text-3xl md:text-4xl font-bold tracking-tight text-white mb-8 transition-all duration-1000 ${
+          className={`text-3xl font-bold tracking-tight text-white mb-8 transition-all duration-1000 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
@@ -533,7 +533,7 @@ const OpenSourceSection = () => {
           }`}
         >
           {activeTab === 'standards' && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 animate-fade-in">
+            <div className="grid grid-cols-2 gap-8 animate-fade-in">
               <StandardsLogo Icon={Wallet} name="NWC" />
               <StandardsLogo Icon={Nfc} name="BoltCard" />
               <StandardsLogo Icon={LinkIcon} name="LUD-16" />
@@ -544,7 +544,7 @@ const OpenSourceSection = () => {
           )}
 
           {activeTab === 'tech' && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 animate-fade-in">
+            <div className="grid grid-cols-2 gap-8 animate-fade-in">
               <TechLogo name="TypeScript" />
               <TechLogo name="React" />
               <TechLogo name="Tailwind" />
@@ -556,7 +556,7 @@ const OpenSourceSection = () => {
         </div>
 
         <p
-          className={`mt-12 font-accent text-4xl md:text-5xl text-nwc-highlight transition-all duration-1000 delay-600 ${
+          className={`mt-12 font-accent text-4xl text-nwc-highlight transition-all duration-1000 delay-600 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
@@ -617,7 +617,7 @@ const RoadmapSection = () => {
     <section className="py-20 sm:py-24">
       <div ref={ref} className="container mx-auto px-4">
         <h2
-          className={`text-center text-3xl md:text-4xl font-bold tracking-tight text-white mb-16 transition-all duration-1000 ${
+          className={`text-center text-3xl font-bold tracking-tight text-white mb-16 transition-all duration-1000 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
@@ -639,8 +639,7 @@ const RoadmapSection = () => {
             {roadmapItems.map((item, index) => (
               <div
                 key={item.title}
-                className={`relative flex flex-col md:flex-row items-center transition-all duration-1000 \
-                  ${index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'} \
+                className={`relative flex flex-col items-center transition-all duration-1000 \
                   ${isVisible ? 'opacity-100 translate-x-0' : `opacity-0 ${index % 2 === 0 ? '-translate-x-8' : 'translate-x-8'}`}
                 `}
                 style={{
@@ -649,9 +648,8 @@ const RoadmapSection = () => {
               >
                 {/* Timeline Icon */}
                 <div
-                  className={`z-20 w-16 h-16 rounded-full bg-gray-900 border-4 border-white flex items-center justify-center transition-all duration-700 hover:scale-110 \
+                  className={`z-20 w-12 h-12 rounded-full bg-gray-900 border-2 border-white flex items-center justify-center transition-all duration-700 hover:scale-110 \
                     ${isVisible ? 'scale-100 opacity-100' : 'scale-0 opacity-0'} \
-                    md:absolute md:left-1/2 md:top-1/2 md:transform md:-translate-x-1/2 md:-translate-y-1/2 \
                     absolute top-0 left-1/2 -translate-x-1/2 \
                   `}
                   style={{
@@ -661,65 +659,40 @@ const RoadmapSection = () => {
                   }}
                 >
                   {item.icon && (
-                    <item.icon className="h-8 w-8 text-nwc-highlight" />
+                    <item.icon className="h-4 w-4 text-nwc-highlight" />
                   )}
                 </div>
 
                 {/* Content Card */}
                 <div
-                  className={`w-full md:w-5/12 mt-8 md:mt-0 \
-                    ${index % 2 === 0 ? 'self-start items-start text-left md:pr-8' : 'self-end items-end text-right md:pl-8'} \
-                    flex flex-col md:items-stretch \
-                  `}
+                  className={`w-full mt-8 flex flex-col`}
                 >
-                  <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-lg hover:bg-white/10 transition-all duration-300 hover:scale-105 hover:-translate-y-2 w-full">
+                  <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-lg hover:bg-white/10 transition-all duration-300  w-full">
                     <CardContent className="p-6">
                       <div
-                        className={`flex items-center gap-3 mb-2 ${index % 2 === 0 ? 'justify-start text-left' : 'justify-end text-right'}`}
+                        className={`flex items-center gap-3 mb-2`}
                       >
-                        {index % 2 === 0 ? (
-                          <>
-                            <h3 className="text-xl font-semibold text-white">
-                              {item.title}
-                            </h3>
-                            <div
-                              className={`px-2 py-1 rounded-full text-xs font-medium transition-all duration-300 \
-                                ${item.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}
-                              `}
-                            >
-                              {item.status === 'completed'
-                                ? 'Completed'
-                                : 'In Progress'}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div
-                              className={`px-2 py-1 rounded-full text-xs font-medium transition-all duration-300 \
-                                ${item.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}
-                              `}
-                            >
-                              {item.status === 'completed'
-                                ? 'Completed'
-                                : 'In Progress'}
-                            </div>
-                            <h3 className="text-xl font-semibold text-white">
-                              {item.title}
-                            </h3>
-                          </>
-                        )}
+                        <h3 className="text-xl font-semibold text-white">
+                          {item.title}
+                        </h3>
+                        <div
+                          className={`px-2 py-1 rounded-full text-xs font-medium transition-all duration-300 \
+                            ${item.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}
+                          `}
+                        >
+                          {item.status === 'completed'
+                            ? 'Completed'
+                            : 'In Progress'}
+                        </div>
                       </div>
                       <p
-                        className={`text-gray-400 ${index % 2 === 0 ? 'text-left' : 'text-right'}`}
+                        className={`text-left text-gray-400`}
                       >
                         {item.description}
                       </p>
                     </CardContent>
                   </Card>
                 </div>
-
-                {/* Spacer for opposite side on desktop */}
-                <div className="hidden md:block w-5/12"></div>
               </div>
             ))}
           </div>
