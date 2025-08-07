@@ -72,11 +72,10 @@ export default function NwcSetupPage() {
         <div className="container flex-1">
           <div className="flex flex-col gap-4 py-4">
             <h2 className="text-xl font-semibold leading-none tracking-tight text-white">
-              Lorem, ipsum dolor.
+              Set your NWC URI
             </h2>
             <p className="text-lg font-medium tracking-wide text-muted-foreground">
-              Lorem ipsum dolor sit amet, consectetur adipisicing elit. Quisquam
-              aliquid fugit sed.
+              Generate one from wallets like Alby, Primal, Coinos, etc.
             </p>
           </div>
           <div className="space-y-3">
@@ -91,7 +90,7 @@ export default function NwcSetupPage() {
               autoFocus
             />
             <p className="text-xs text-gray-400">
-              Paste the NWC URI from your Lightning wallet or service.
+              This app and card would be able to spend/receive from your wallet.
             </p>
           </div>
 
