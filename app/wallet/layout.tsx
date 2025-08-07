@@ -12,11 +12,11 @@ export default function WalletLayout({
   children: React.ReactNode
 }) {
   return (
-    <WalletProvider>
-      <APIProvider>
+    <APIProvider>
+      <WalletProvider>
         <Toaster />
         {children}
-      </APIProvider>
-    </WalletProvider>
+      </WalletProvider>
+    </APIProvider>
   )
 }
