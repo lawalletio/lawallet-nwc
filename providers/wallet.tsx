@@ -8,6 +8,7 @@ import { nip19 } from 'nostr-tools'
 import { nwc } from '@getalby/sdk'
 import { toast } from '@/hooks/use-toast'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { useAPI } from '@/providers/api'
 
 export const WalletContext = createContext<WalletContextType | undefined>(
   undefined
@@ -26,6 +27,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
   const [isHydrated, setIsHydrated] = useState(false) // Track hydration
+  const { put } = useAPI()
 
   const refreshBalance = async (notification?: any) => {
     console.log(notification)
@@ -141,29 +143,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch(
+      const response = await put<{ lightningAddress: string }>(
         `/api/user/${walletState.userId}/lightning-address`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ username })
-        }
+        { username }
       )
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to set lightning address')
+      if (response.error) {
+        throw new Error(response.error)
       }
 
-      const data = await response.json()
+      const data = response.data
+      if (!data) {
+        throw new Error('No response data received')
+      }
+
       setWalletState(prev => ({
         ...prev,
         lightningAddress: data.lightningAddress
       }))
-
-      return data
     } catch (error) {
       console.error('Error setting lightning address:', error)
       throw error
@@ -176,23 +173,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch(`/api/user/${walletState.userId}/nwc`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ nwcUri })
-      })
+      const response = await put<{ nwcUri: string }>(
+        `/api/user/${walletState.userId}/nwc`,
+        { nwcUri }
+      )
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to set NWC URI')
+      if (response.error) {
+        throw new Error(response.error)
       }
 
-      const data = await response.json()
-      setWalletState(prev => ({ ...prev, nwcUri: data.nwcUri }))
+      const data = response.data
+      if (!data) {
+        throw new Error('No response data received')
+      }
 
-      return data
+      setWalletState(prev => ({ ...prev, nwcUri: data.nwcUri }))
     } catch (error) {
       console.error('Error setting NWC URI:', error)
       throw error

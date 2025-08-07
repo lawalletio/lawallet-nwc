@@ -3,6 +3,7 @@
 import type React from 'react'
 
 import { WalletProvider } from '@/providers/wallet'
+import { APIProvider } from '@/providers/api'
 import { Toaster } from '@/components/ui/toaster'
 
 export default function WalletLayout({
@@ -11,9 +12,11 @@ export default function WalletLayout({
   children: React.ReactNode
 }) {
   return (
-    <WalletProvider>
-      <Toaster />
-      {children}
-    </WalletProvider>
+    <APIProvider>
+      <WalletProvider>
+        <Toaster />
+        {children}
+      </WalletProvider>
+    </APIProvider>
   )
 }
