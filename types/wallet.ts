@@ -12,8 +12,8 @@ export interface WalletState {
 
 export interface WalletContextType extends WalletState {
   setPrivateKey: (key: string) => void
-  setLightningAddress: (address: string) => void
-  setNwcUri: (uri: string) => void
+  setLightningAddress: (username: string) => Promise<void>
+  setNwcUri: (uri: string) => Promise<void>
   setUserId: (userId: string) => void
   logout: () => void
   npub: string | null
