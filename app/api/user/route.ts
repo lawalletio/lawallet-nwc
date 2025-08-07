@@ -43,8 +43,9 @@ export async function POST(request: Request) {
     if (otc) {
       const card = await prisma.card.findFirst({
         where: {
-          otc: otc,
-          userId: null // Only assign unassigned cards
+          otc: otc
+          // TODO: Unless there is a specific user lock, whoever scans the otc will get the card
+          // userId: null // Only assign unassigned cards
         }
       })
 
