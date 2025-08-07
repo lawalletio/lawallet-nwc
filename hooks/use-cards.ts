@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import type { Card } from '@/types/card'
-import { useAPI } from '@/providers/api'
 
 interface UseCardsResult {
   cards: Card[]
@@ -13,7 +12,6 @@ export function useCards(userId: string | null): UseCardsResult {
   const [cards, setCards] = useState<Card[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { get } = useAPI()
 
   const fetchCards = async () => {
     if (!userId) {
@@ -26,16 +24,16 @@ export function useCards(userId: string | null): UseCardsResult {
     setError(null)
 
     try {
-      const response = await get<Card[]>(`/api/cards/user/${userId}`)
+      const response = await fetch(`/api/cards/user/${userId}`)
 
-      if (response.error) {
+      if (!response.ok) {
         if (response.status === 404) {
           throw new Error('User not found')
         }
-        throw new Error(response.error)
+        throw new Error('Failed to fetch cards')
       }
 
-      const cardsData = response.data || []
+      const cardsData: Card[] = await response.json()
 
       // Transform dates to Date objects
       const transformedCards = cardsData.map(card => ({

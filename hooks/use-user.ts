@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react'
-import { useAPI } from '@/providers/api'
 
 export interface CreateUserParams {
   pubkey: string
@@ -21,7 +20,6 @@ export interface UseUserResult {
 export function useUser(): UseUserResult {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { post } = useAPI()
 
   const createUser = useCallback(
     async ({ pubkey, otc }: CreateUserParams): Promise<CreateUserResult> => {
@@ -29,20 +27,22 @@ export function useUser(): UseUserResult {
       setError(null)
 
       try {
-        const response = await post<CreateUserResult>(`/api/user`, {
-          otc,
-          pubkey
+        const response = await fetch(`/api/user`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ otc, pubkey })
         })
 
-        if (response.error) {
-          throw new Error(response.error)
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => ({ error: 'Failed to create user' }))
+          throw new Error(errorData.error || 'Failed to create user')
         }
 
-        const result = response.data
-        if (!result) {
-          throw new Error('No user data received')
-        }
-
+        const result = await response.json()
         return {
           userId: result.userId,
           lightningAddress: result.lightningAddress || undefined,
@@ -57,7 +57,7 @@ export function useUser(): UseUserResult {
         setIsLoading(false)
       }
     },
-    [post]
+    []
   )
 
   return {
