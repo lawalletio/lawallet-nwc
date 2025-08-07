@@ -1,6 +1,6 @@
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 import { nip19 } from 'nostr-tools'
-import { hexToBytes } from 'nostr-tools/utils'
+import { bytesToHex, hexToBytes } from 'nostr-tools/utils'
 
 export function generatePrivateKey(): string {
   const secretKey = generateSecretKey()
@@ -32,10 +32,4 @@ export function validateNsec(nsec: string): boolean {
   } catch {
     return false
   }
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
 }
