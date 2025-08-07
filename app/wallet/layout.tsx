@@ -4,7 +4,6 @@ import type React from 'react'
 
 import { WalletProvider } from '@/providers/wallet'
 import { APIProvider } from '@/providers/api'
-import { useWallet } from '@/hooks/use-wallet'
 import { Toaster } from '@/components/ui/toaster'
 
 export default function WalletLayout({
@@ -14,20 +13,10 @@ export default function WalletLayout({
 }) {
   return (
     <WalletProvider>
-      <APIProviderWrapper>
+      <APIProvider>
         <Toaster />
         {children}
-      </APIProviderWrapper>
+      </APIProvider>
     </WalletProvider>
-  )
-}
-
-function APIProviderWrapper({ children }: { children: React.ReactNode }) {
-  const { privateKey, publicKey } = useWallet()
-  
-  return (
-    <APIProvider privateKey={privateKey} publicKey={publicKey}>
-      {children}
-    </APIProvider>
   )
 }

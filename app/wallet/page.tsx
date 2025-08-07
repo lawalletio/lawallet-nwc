@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Settings, Loader2 } from 'lucide-react'
 
 import { useWallet } from '@/hooks/use-wallet'
+import { useAPI } from '@/providers/api'
 import { useCards } from '@/hooks/use-cards'
 
 import { AppContent, AppNavbar, AppViewport } from '@/components/app'
@@ -15,16 +16,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export default function WalletPage() {
   const {
-    privateKey,
     isInitialized,
-    isHydrated,
+    isHydrated: walletHydrated,
     lightningAddress,
     nwcUri,
     balance,
     userId
   } = useWallet()
+  const { privateKey, isKeyInitialized, isHydrated: apiHydrated } = useAPI()
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(!isInitialized)
+  const [isLoading, setIsLoading] = useState(!isKeyInitialized)
   const [copied, setCopied] = useState(false)
   const [animatedBalance, setAnimatedBalance] = useState(balance)
   const [fontSize, setFontSize] = useState(32)
@@ -44,14 +45,14 @@ export default function WalletPage() {
   }
 
   useEffect(() => {
-    if (!isHydrated) return
+    if (!apiHydrated) return
     // Check authentication first
     const checkAuth = async () => {
       if (!privateKey) {
         router.push('/wallet/login')
         return
       }
-      if (!isInitialized) {
+      if (!isKeyInitialized) {
         // Only show splash/loading if not initialized
         // Small delay to prevent flash
         await new Promise(resolve => setTimeout(resolve, 500))
@@ -64,7 +65,7 @@ export default function WalletPage() {
       }
     }
     checkAuth()
-  }, [privateKey, isInitialized, isHydrated, router])
+  }, [privateKey, isKeyInitialized, apiHydrated, router])
 
   useEffect(() => {
     if (balance === undefined || balance === null) return
@@ -95,7 +96,7 @@ export default function WalletPage() {
   }, [balance])
 
   // Wait for hydration before rendering anything
-  if (!isHydrated) {
+  if (!apiHydrated) {
     return null
   }
   // If not authenticated, don't render anything (will redirect)
@@ -104,7 +105,7 @@ export default function WalletPage() {
   }
 
   // Show loading splash screen only if not initialized or loading
-  if (isLoading || !isInitialized) {
+  if (isLoading || !isKeyInitialized) {
     return (
       <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center">
         {/* Animated Background */}

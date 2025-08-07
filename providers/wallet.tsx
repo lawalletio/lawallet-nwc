@@ -1,10 +1,8 @@
 'use client'
 
 import type React from 'react'
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import type { WalletContextType, WalletState } from '@/types/wallet'
-import { getPublicKeyFromPrivate } from '@/lib/nostr'
-import { nip19 } from 'nostr-tools'
 import { nwc } from '@getalby/sdk'
 import { toast } from '@/hooks/use-toast'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
@@ -15,17 +13,15 @@ export const WalletContext = createContext<WalletContextType | undefined>(
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [walletState, setWalletState] = useState<WalletState>({
-    privateKey: null,
-    publicKey: null,
     lightningAddress: null,
     nwcUri: null,
     balance: 0,
-    isInitialized: false, // Added initialization state
+    isInitialized: false,
     userId: null
   })
 
   const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
-  const [isHydrated, setIsHydrated] = useState(false) // Track hydration
+  const [isHydrated, setIsHydrated] = useState(false)
 
   const refreshBalance = async (notification?: any) => {
     console.log(notification)
@@ -77,63 +73,49 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nwcObject])
 
-  const npub = useMemo(() => {
-    if (!walletState.publicKey) return ''
-    try {
-      return nip19.npubEncode(walletState.publicKey)
-    } catch (e) {
-      return null
-    }
-  }, [walletState.publicKey])
-
   // Load wallet data from localStorage on mount
   useEffect(() => {
     const savedWallet = localStorage.getItem('wallet')
     if (savedWallet) {
       try {
         const parsed = JSON.parse(savedWallet)
-        let publicKey = parsed.publicKey
-        if (parsed.privateKey) {
-          try {
-            publicKey = getPublicKeyFromPrivate(parsed.privateKey)
-          } catch (e) {
-            publicKey = null
-          }
-        }
         setWalletState(prev => ({
           ...prev,
-          ...parsed,
-          publicKey,
-          isInitialized: !!parsed.privateKey
+          lightningAddress: parsed.lightningAddress || null,
+          nwcUri: parsed.nwcUri || null,
+          balance: parsed.balance || 0,
+          userId: parsed.userId || null,
+          isInitialized: !!parsed.privateKey // Check if private key exists for initialization
         }))
       } catch (error) {
         console.error('Failed to parse saved wallet data:', error)
       }
     }
-    setIsHydrated(true) // Mark as hydrated after attempting to load
+    setIsHydrated(true)
   }, [])
 
   // Save wallet data to localStorage whenever it changes
   useEffect(() => {
-    if (walletState.privateKey) {
-      localStorage.setItem('wallet', JSON.stringify(walletState))
+    const existingData = localStorage.getItem('wallet')
+    let walletData = {}
+    if (existingData) {
+      try {
+        walletData = JSON.parse(existingData)
+      } catch (e) {
+        console.error('Failed to parse existing wallet data:', e)
+      }
     }
+    localStorage.setItem(
+      'wallet',
+      JSON.stringify({
+        ...walletData,
+        lightningAddress: walletState.lightningAddress,
+        nwcUri: walletState.nwcUri,
+        balance: walletState.balance,
+        userId: walletState.userId
+      })
+    )
   }, [walletState])
-
-  const setPrivateKey = (privateKeyHex: string) => {
-    try {
-      const publicKey = getPublicKeyFromPrivate(privateKeyHex)
-      setWalletState(prev => ({
-        ...prev,
-        privateKey: privateKeyHex,
-        publicKey,
-        isInitialized: true // Set initialized when private key is set
-      }))
-    } catch (error) {
-      console.error('Failed to set private key:', error)
-      throw new Error('Invalid private key')
-    }
-  }
 
   const setLightningAddress = async (username: string) => {
     if (!walletState.userId) {
@@ -205,12 +187,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setWalletState({
-      privateKey: null,
-      publicKey: null,
       lightningAddress: null,
       nwcUri: null,
       balance: 0,
-      isInitialized: false, // Reset initialization on logout
+      isInitialized: false,
       userId: null
     })
     localStorage.removeItem('wallet')
@@ -218,13 +198,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue: WalletContextType = {
     ...walletState,
-    setPrivateKey,
     setLightningAddress,
     setNwcUri,
     logout,
-    npub,
     setUserId,
-    isHydrated // Expose hydration state
+    isHydrated
   }
 
   return (

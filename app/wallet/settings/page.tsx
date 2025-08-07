@@ -5,13 +5,15 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Copy, Eye, EyeOff, Shield, Check } from 'lucide-react'
 
 import { useWallet } from '@/hooks/use-wallet'
+import { useAPI } from '@/providers/api'
 import { hexToNsec } from '@/lib/nostr'
 
 import { Button } from '@/components/ui/button'
 import { AppNavbar, AppViewport } from '@/components/app'
 
 export default function WalletSettingsPage() {
-  const { privateKey, lightningAddress, nwcUri, logout, npub } = useWallet()
+  const { lightningAddress, nwcUri, logout } = useWallet()
+  const { privateKey, npub } = useAPI()
 
   const router = useRouter()
   const [showPrivateKey, setShowPrivateKey] = useStateHook(false)

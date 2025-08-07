@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Loader2 } from 'lucide-react'
 
-import { useWallet } from '@/hooks/use-wallet'
+import { useAPI } from '@/providers/api'
 import { generatePrivateKey, nsecToHex, validateNsec } from '@/lib/nostr'
 
 import { AppContent, AppFooter, AppViewport } from '@/components/app'
@@ -17,7 +17,7 @@ export default function WalletLoginPage() {
   const [nsecInput, setNsecInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { setPrivateKey } = useWallet()
+  const { setPrivateKey } = useAPI()
   const router = useRouter()
 
   const handleGenerateWallet = async () => {

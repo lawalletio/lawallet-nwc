@@ -13,11 +13,13 @@ import { AppContent, AppFooter, AppViewport } from '@/components/app'
 import { CardPreview } from '@/components/card-preview'
 import { useCardOTC } from '@/hooks/use-card-otc'
 import { useUser } from '@/hooks/use-user'
+import { useAPI } from '@/providers/api'
 
 export default function ActivateCardPage() {
   const params = useParams()
   const router = useRouter()
-  const { setPrivateKey, setUserId } = useWallet()
+  const { setUserId } = useWallet()
+  const { setPrivateKey } = useAPI()
   const [card, setCard] = useState<any>(null)
   const [isActivated, setIsActivated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
