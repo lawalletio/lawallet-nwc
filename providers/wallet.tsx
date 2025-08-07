@@ -136,12 +136,68 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const setLightningAddress = (address: string) => {
-    setWalletState(prev => ({ ...prev, lightningAddress: address }))
+  const setLightningAddress = async (username: string) => {
+    if (!walletState.userId) {
+      throw new Error('User ID is required to set lightning address')
+    }
+
+    try {
+      const response = await fetch(
+        `/api/user/${walletState.userId}/lightning-address`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ username })
+        }
+      )
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to set lightning address')
+      }
+
+      const data = await response.json()
+      setWalletState(prev => ({
+        ...prev,
+        lightningAddress: data.lightningAddress
+      }))
+
+      return data
+    } catch (error) {
+      console.error('Error setting lightning address:', error)
+      throw error
+    }
   }
 
-  const setNwcUri = (uri: string) => {
-    setWalletState(prev => ({ ...prev, nwcUri: uri }))
+  const setNwcUri = async (nwcUri: string) => {
+    if (!walletState.userId) {
+      throw new Error('User ID is required to set NWC URI')
+    }
+
+    try {
+      const response = await fetch(`/api/user/${walletState.userId}/nwc`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ nwcUri })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to set NWC URI')
+      }
+
+      const data = await response.json()
+      setWalletState(prev => ({ ...prev, nwcUri: data.nwcUri }))
+
+      return data
+    } catch (error) {
+      console.error('Error setting NWC URI:', error)
+      throw error
+    }
   }
 
   const setUserId = (userId: string) => {
