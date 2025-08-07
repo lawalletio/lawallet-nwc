@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Loader2 } from 'lucide-react'
 
-import { useWallet } from '@/providers/wallet'
+import { useWallet } from '@/hooks/use-wallet'
 import { generatePrivateKey, nsecToHex, validateNsec } from '@/lib/nostr'
 
 import { AppContent, AppFooter, AppViewport } from '@/components/app'

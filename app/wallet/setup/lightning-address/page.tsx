@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
-import { useWallet } from '@/providers/wallet'
+import { useWallet } from '@/hooks/use-wallet'
 
 import { AppContent, AppFooter, AppNavbar, AppViewport } from '@/components/app'
 import { Button } from '@/components/ui/button'

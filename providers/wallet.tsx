@@ -9,7 +9,9 @@ import { nwc } from '@getalby/sdk'
 import { toast } from '@/hooks/use-toast'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 
-const WalletContext = createContext<WalletContextType | undefined>(undefined)
+export const WalletContext = createContext<WalletContextType | undefined>(
+  undefined
+)
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [walletState, setWalletState] = useState<WalletState>({
@@ -52,10 +54,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setWalletState(prev => ({ ...prev, balance: balance?.balance ?? 0 }))
   }
 
-  const enabled = false
-
   useEffect(() => {
-    if (!enabled) return
     if (!walletState.nwcUri) {
       setNwcObject(null)
       nwcObject?.close()
@@ -68,7 +67,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     })
     setNwcObject(nwcClient)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletState.nwcUri, enabled])
+  }, [walletState.nwcUri])
 
   useEffect(() => {
     if (nwcObject) {
@@ -233,12 +232,4 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       {children}
     </WalletContext.Provider>
   )
-}
-
-export function useWallet() {
-  const context = useContext(WalletContext)
-  if (context === undefined) {
-    throw new Error('useWallet must be used within a WalletProvider')
-  }
-  return context
 }

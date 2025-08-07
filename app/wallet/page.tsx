@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Settings, Loader2 } from 'lucide-react'
 
-import { useWallet } from '@/providers/wallet'
+import { useWallet } from '@/hooks/use-wallet'
 import { useCards } from '@/hooks/use-cards'
 
 import { AppContent, AppNavbar, AppViewport } from '@/components/app'
@@ -27,9 +27,12 @@ export default function WalletPage() {
   const [isLoading, setIsLoading] = useState(!isInitialized)
   const [copied, setCopied] = useState(false)
   const [animatedBalance, setAnimatedBalance] = useState(balance)
+  const [fontSize, setFontSize] = useState(32)
+  const addressRef = useRef<HTMLDivElement>(null)
 
   // Fetch cards for the current user
   const { cards, isLoading: cardsLoading } = useCards(userId)
+
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
@@ -157,35 +160,6 @@ export default function WalletPage() {
       </AppNavbar>
       <AppContent>
         <div className="container flex flex-col gap-8">
-          <div className="flex flex-col gap-2">
-            <h4 className="text-sm text-white">Balance</h4>
-            <div className="flex items-center">
-              <div className="size-8 text-white">
-                <SatoshiIcon />
-              </div>
-              {nwcUri ? (
-                <p className="font-mono tracking-widest text-white drop-shadow-lg">
-                  <span className="text-4xl font-extrabold">
-                    {formatSats(Math.floor(animatedBalance / 1000))}
-                  </span>
-                </p>
-              ) : (
-                <Skeleton className="w-12 h-8 my-2.5 rounded-full bg-muted-foreground" />
-              )}
-              <p className="ml-2 text-muted-foreground">SAT</p>
-            </div>
-
-            {/* {!nwcUri && (
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={() => router.push('/wallet/setup/nwc')}
-              >
-                Setup NWC
-              </Button>
-            )} */}
-          </div>
-
           {lightningAddress && (
             <div
               className="overflow-hidden relative w-full flex flex-col gap-2 border p-4 rounded-xl cursor-pointer"
@@ -197,12 +171,44 @@ export default function WalletPage() {
                 </p>
                 {copied && <p className="text-sm text-green-400">Copied</p>}
               </div>
-              <div className="flex text-2xl font-bold">
-                <p className="text-white">{lightningAddress}</p>
+              <div ref={addressRef} className="flex font-bold w-full">
+                <p
+                  className="text-white w-full text-center"
+                  style={{
+                    fontSize: `${45 - lightningAddress.length * 0.9}px`
+                  }}
+                >
+                  {lightningAddress}
+                </p>
                 {/* <p className="text-muted-foreground">@{PUBLIC_DOMAIN}</p> */}
               </div>
             </div>
           )}
+
+          <div className="flex flex-col gap-2">
+            {nwcUri && (
+              <div className="flex items-center">
+                <div className="font-mono text-white text-center justify-center text-4xl font-extrabold flex items-center flex-row w-full">
+                  <span className="size-8 text-white">
+                    <SatoshiIcon />{' '}
+                  </span>
+                  <span className="text-4xl font-extrabold">
+                    {formatSats(Math.floor(animatedBalance / 1000))}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* {!nwcUri && (
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={() => router.push('/wallet/setup/nwc')}
+              >
+                Setup NWC
+              </Button>
+            )} */}
+          </div>
 
           {/* Connected Services */}
           {(!lightningAddress || !nwcUri) && (

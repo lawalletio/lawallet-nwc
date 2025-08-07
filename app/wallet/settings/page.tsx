@@ -4,7 +4,7 @@ import { useState as useStateHook, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Copy, Eye, EyeOff, Shield, Check } from 'lucide-react'
 
-import { useWallet } from '@/providers/wallet'
+import { useWallet } from '@/hooks/use-wallet'
 import { hexToNsec } from '@/lib/nostr'
 
 import { Button } from '@/components/ui/button'
