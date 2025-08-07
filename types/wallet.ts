@@ -4,7 +4,6 @@ export interface WalletState {
   lightningAddress: string | null
   nwcUri: string | null
   balance: number
-  isInitialized: boolean
 }
 
 export interface WalletContextType extends WalletState {

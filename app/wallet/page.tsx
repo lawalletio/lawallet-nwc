@@ -12,16 +12,9 @@ import { AppContent, AppNavbar, AppViewport } from '@/components/app'
 import { Button } from '@/components/ui/button'
 import { CardPreview } from '@/components/card-preview'
 import { SatoshiIcon } from '@/components/icon/satoshi'
-import { Skeleton } from '@/components/ui/skeleton'
 
 export default function WalletPage() {
-  const {
-    isInitialized,
-    isHydrated: walletHydrated,
-    lightningAddress,
-    nwcUri,
-    balance
-  } = useWallet()
+  const { lightningAddress, nwcUri, balance } = useWallet()
   const {
     privateKey,
     isKeyInitialized,
@@ -32,7 +25,6 @@ export default function WalletPage() {
   const [isLoading, setIsLoading] = useState(!isKeyInitialized)
   const [copied, setCopied] = useState(false)
   const [animatedBalance, setAnimatedBalance] = useState(balance)
-  const [fontSize, setFontSize] = useState(32)
   const addressRef = useRef<HTMLDivElement>(null)
 
   // Fetch cards for the current user

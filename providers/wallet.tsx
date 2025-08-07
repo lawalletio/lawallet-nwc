@@ -16,8 +16,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [walletState, setWalletState] = useState<WalletState>({
     lightningAddress: null,
     nwcUri: null,
-    balance: 0,
-    isInitialized: false
+    balance: 0
   })
 
   const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
@@ -84,8 +83,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           lightningAddress: parsed.lightningAddress || null,
           nwcUri: parsed.nwcUri || null,
-          balance: parsed.balance || 0,
-          isInitialized: !!parsed.privateKey // Check if private key exists for initialization
+          balance: parsed.balance || 0
         }))
       } catch (error) {
         console.error('Failed to parse saved wallet data:', error)
@@ -111,8 +109,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         ...walletData,
         lightningAddress: walletState.lightningAddress,
         nwcUri: walletState.nwcUri,
-        balance: walletState.balance,
-        isInitialized: walletState.isInitialized
+        balance: walletState.balance
       })
     )
   }, [walletState])
@@ -182,8 +179,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setWalletState({
       lightningAddress: null,
       nwcUri: null,
-      balance: 0,
-      isInitialized: false
+      balance: 0
     })
     localStorage.removeItem('wallet')
     localStorage.removeItem('api')
