@@ -85,6 +85,7 @@ export default function NwcSetupPage() {
             <Textarea
               id="nwc-uri"
               placeholder="nostr+walletconnect://..."
+              className="text-white"
               value={nwcUri}
               onChange={e => setNwcUriState(e.target.value)}
               autoFocus
