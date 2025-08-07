@@ -9,6 +9,7 @@ import React, {
 } from 'react'
 import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { nip19 } from 'nostr-tools'
+import { NSecSigner } from '@nostrify/nostrify'
 
 interface APIResponse<T = any> {
   data?: T
@@ -29,6 +30,7 @@ interface APIContextType {
   setUserId: (userId: string) => void
   isKeyInitialized: boolean
   isHydrated: boolean
+  signer: NSecSigner | null
 }
 
 const APIContext = createContext<APIContextType | undefined>(undefined)
@@ -37,6 +39,7 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
   const [privateKey, setPrivateKeyState] = useState<string | null>(null)
   const [userId, setUserIdState] = useState<string | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
+  const [signer, setSigner] = useState<NSecSigner | null>(null)
 
   // Load private key and userId from localStorage on mount
   useEffect(() => {
@@ -63,6 +66,25 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
       })
     )
   }, [privateKey, userId])
+
+  // Create signer when private key is set
+  useEffect(() => {
+    if (privateKey) {
+      try {
+        // Convert hex string to Uint8Array
+        const secretKey = new Uint8Array(
+          privateKey.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
+        )
+        const newSigner = new NSecSigner(secretKey)
+        setSigner(newSigner)
+      } catch (error) {
+        console.error('Failed to create signer:', error)
+        setSigner(null)
+      }
+    } else {
+      setSigner(null)
+    }
+  }, [privateKey])
 
   const setPrivateKey = useCallback((privateKeyHex: string) => {
     try {
@@ -185,8 +207,9 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     setPrivateKey,
     userId,
     setUserId,
-    isKeyInitialized: !!privateKey,
-    isHydrated
+    isKeyInitialized: signer !== null,
+    isHydrated,
+    signer
   }
 
   return (
