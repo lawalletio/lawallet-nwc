@@ -43,8 +43,7 @@ export default function LightningAddressSetupPage() {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1500))
 
-      const lightningAddress = `${username}@${PUBLIC_DOMAIN}`
-      setLightningAddress(lightningAddress)
+      setLightningAddress(username)
 
       // Show success and redirect
       setTimeout(() => {
