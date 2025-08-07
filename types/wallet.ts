@@ -5,13 +5,11 @@ export interface WalletState {
   nwcUri: string | null
   balance: number
   isInitialized: boolean
-  userId: string | null
 }
 
 export interface WalletContextType extends WalletState {
   setLightningAddress: (username: string) => Promise<void>
   setNwcUri: (uri: string) => Promise<void>
-  setUserId: (userId: string) => void
   logout: () => void
   isHydrated: boolean
 }

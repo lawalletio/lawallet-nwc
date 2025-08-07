@@ -6,6 +6,7 @@ import type { WalletContextType, WalletState } from '@/types/wallet'
 import { nwc } from '@getalby/sdk'
 import { toast } from '@/hooks/use-toast'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { useAPI } from '@/providers/api'
 
 export const WalletContext = createContext<WalletContextType | undefined>(
   undefined
@@ -16,12 +17,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     lightningAddress: null,
     nwcUri: null,
     balance: 0,
-    isInitialized: false,
-    userId: null
+    isInitialized: false
   })
 
   const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
+  const { userId } = useAPI()
 
   const refreshBalance = async (notification?: any) => {
     console.log(notification)
@@ -84,7 +85,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           lightningAddress: parsed.lightningAddress || null,
           nwcUri: parsed.nwcUri || null,
           balance: parsed.balance || 0,
-          userId: parsed.userId || null,
           isInitialized: !!parsed.privateKey // Check if private key exists for initialization
         }))
       } catch (error) {
@@ -112,27 +112,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         lightningAddress: walletState.lightningAddress,
         nwcUri: walletState.nwcUri,
         balance: walletState.balance,
-        userId: walletState.userId
+        isInitialized: walletState.isInitialized
       })
     )
   }, [walletState])
 
   const setLightningAddress = async (username: string) => {
-    if (!walletState.userId) {
+    if (!userId) {
       throw new Error('User ID is required to set lightning address')
     }
 
     try {
-      const response = await fetch(
-        `/api/user/${walletState.userId}/lightning-address`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ username })
-        }
-      )
+      const response = await fetch(`/api/user/${userId}/lightning-address`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username })
+      })
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -153,12 +150,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }
 
   const setNwcUri = async (nwcUri: string) => {
-    if (!walletState.userId) {
+    if (!userId) {
       throw new Error('User ID is required to set NWC URI')
     }
 
     try {
-      const response = await fetch(`/api/user/${walletState.userId}/nwc`, {
+      const response = await fetch(`/api/user/${userId}/nwc`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -181,19 +178,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const setUserId = (userId: string) => {
-    setWalletState(prev => ({ ...prev, userId }))
-  }
-
   const logout = () => {
     setWalletState({
       lightningAddress: null,
       nwcUri: null,
       balance: 0,
-      isInitialized: false,
-      userId: null
+      isInitialized: false
     })
     localStorage.removeItem('wallet')
+    localStorage.removeItem('api')
   }
 
   const contextValue: WalletContextType = {
@@ -201,7 +194,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setLightningAddress,
     setNwcUri,
     logout,
-    setUserId,
     isHydrated
   }
 

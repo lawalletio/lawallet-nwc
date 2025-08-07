@@ -20,10 +20,14 @@ export default function WalletPage() {
     isHydrated: walletHydrated,
     lightningAddress,
     nwcUri,
-    balance,
-    userId
+    balance
   } = useWallet()
-  const { privateKey, isKeyInitialized, isHydrated: apiHydrated } = useAPI()
+  const {
+    privateKey,
+    isKeyInitialized,
+    isHydrated: apiHydrated,
+    userId
+  } = useAPI()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(!isKeyInitialized)
   const [copied, setCopied] = useState(false)

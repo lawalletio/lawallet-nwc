@@ -25,6 +25,8 @@ interface APIContextType {
   publicKey: string | null
   npub: string | null
   setPrivateKey: (key: string) => void
+  userId: string | null
+  setUserId: (userId: string) => void
   isKeyInitialized: boolean
   isHydrated: boolean
 }
@@ -33,15 +35,17 @@ const APIContext = createContext<APIContextType | undefined>(undefined)
 
 export function APIProvider({ children }: { children: React.ReactNode }) {
   const [privateKey, setPrivateKeyState] = useState<string | null>(null)
+  const [userId, setUserIdState] = useState<string | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
 
-  // Load private key from localStorage on mount
+  // Load private key and userId from localStorage on mount
   useEffect(() => {
     const savedApiData = localStorage.getItem('api')
     if (savedApiData) {
       try {
         const parsed = JSON.parse(savedApiData)
         setPrivateKeyState(parsed.privateKey || null)
+        setUserIdState(parsed.userId || null)
       } catch (error) {
         console.error('Failed to parse saved API data:', error)
       }
@@ -49,17 +53,16 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     setIsHydrated(true)
   }, [])
 
-  // Save private key to localStorage whenever it changes
+  // Save private key and userId to localStorage whenever they change
   useEffect(() => {
-    if (privateKey) {
-      localStorage.setItem(
-        'api',
-        JSON.stringify({
-          privateKey
-        })
-      )
-    }
-  }, [privateKey])
+    localStorage.setItem(
+      'api',
+      JSON.stringify({
+        privateKey,
+        userId
+      })
+    )
+  }, [privateKey, userId])
 
   const setPrivateKey = useCallback((privateKeyHex: string) => {
     try {
@@ -70,6 +73,10 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to set private key:', error)
       throw new Error('Invalid private key')
     }
+  }, [])
+
+  const setUserId = useCallback((userId: string) => {
+    setUserIdState(userId)
   }, [])
 
   // Calculate public key from private key
@@ -176,6 +183,8 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     publicKey,
     npub,
     setPrivateKey,
+    userId,
+    setUserId,
     isKeyInitialized: !!privateKey,
     isHydrated
   }

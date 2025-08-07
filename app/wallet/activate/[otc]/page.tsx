@@ -18,8 +18,7 @@ import { useAPI } from '@/providers/api'
 export default function ActivateCardPage() {
   const params = useParams()
   const router = useRouter()
-  const { setUserId } = useWallet()
-  const { setPrivateKey } = useAPI()
+  const { setPrivateKey, setUserId } = useAPI()
   const [card, setCard] = useState<any>(null)
   const [isActivated, setIsActivated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
