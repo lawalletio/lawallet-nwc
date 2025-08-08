@@ -59,14 +59,17 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
 
   // Save private key and userId to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem(
-      'api',
-      JSON.stringify({
-        privateKey,
-        userId
-      })
-    )
-  }, [privateKey, userId])
+    // Only save to localStorage after hydration is complete to avoid overwriting during initial load
+    if (isHydrated) {
+      localStorage.setItem(
+        'api',
+        JSON.stringify({
+          privateKey,
+          userId
+        })
+      )
+    }
+  }, [privateKey, userId, isHydrated])
 
   // Create signer when private key is set
   useEffect(() => {
