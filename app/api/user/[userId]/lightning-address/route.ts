@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { validateNip98 } from '@/lib/nip98'
 
 export async function PUT(
   request: Request,
   { params }: { params: { userId: string } }
 ) {
   try {
+    const { pubkey: authenticatedPubkey } = await validateNip98(request)
+
     const { userId } = params
     const { username: _username } = await request.json()
 
@@ -43,6 +46,10 @@ export async function PUT(
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    if (user.pubkey !== authenticatedPubkey) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Check if user already has a lightning address

@@ -7,21 +7,10 @@ export async function PUT(
   { params }: { params: { userId: string } }
 ) {
   try {
-    // Clone the request for validation
-    const requestClone = request.clone()
+    const { pubkey: authenticatedPubkey } = await validateNip98(request)
 
     // Read the request body for our data
     const { nwcUri } = await request.json()
-
-    const validated = await validateNip98(requestClone)
-
-    console.info('validated:')
-    console.dir(validated)
-
-    const authenticatedPubkey = validated.pubkey
-
-    console.info('authenticatedPubkey:')
-    console.dir(authenticatedPubkey)
 
     const { userId } = params
 
@@ -47,6 +36,10 @@ export async function PUT(
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    if (user.pubkey !== authenticatedPubkey) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Update the user's NWC URI
