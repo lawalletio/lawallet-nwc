@@ -10,6 +10,7 @@ import React, {
 import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { nip19 } from 'nostr-tools'
 import { NSecSigner } from '@nostrify/nostrify'
+import { createNip98Token } from '@/lib/nip98'
 
 interface APIResponse<T = any> {
   data?: T
@@ -128,11 +129,17 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
       url: string,
       options: RequestInit = {}
     ): Promise<APIResponse<T>> => {
+      options.method
       try {
+        const authHeader = signer
+          ? await createNip98Token(url, options, signer)
+          : undefined
+
         const response = await fetch(url, {
           headers: {
             'Content-Type': 'application/json',
-            ...options.headers
+            ...options.headers,
+            ...(authHeader ? { Authorization: authHeader } : {})
           },
           ...options
         })
@@ -159,7 +166,7 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    []
+    [signer]
   )
 
   const get = useCallback(

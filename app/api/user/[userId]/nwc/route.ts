@@ -1,13 +1,29 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { validateNip98 } from '@/lib/nip98'
 
 export async function PUT(
   request: Request,
   { params }: { params: { userId: string } }
 ) {
   try {
-    const { userId } = params
+    // Clone the request for validation
+    const requestClone = request.clone()
+
+    // Read the request body for our data
     const { nwcUri } = await request.json()
+
+    const validated = await validateNip98(requestClone)
+
+    console.info('validated:')
+    console.dir(validated)
+
+    const authenticatedPubkey = validated.pubkey
+
+    console.info('authenticatedPubkey:')
+    console.dir(authenticatedPubkey)
+
+    const { userId } = params
 
     // Validate input
     if (!userId) {

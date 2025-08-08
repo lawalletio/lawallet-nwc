@@ -21,7 +21,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
-  const { userId } = useAPI()
+  const { userId, put } = useAPI()
 
   const refreshBalance = async (notification?: any) => {
     console.log(notification)
@@ -120,20 +120,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch(`/api/user/${userId}/lightning-address`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username })
-      })
+      const { data, error } = await put(
+        `/api/user/${userId}/lightning-address`,
+        {
+          username
+        }
+      )
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to set lightning address')
+      if (error) {
+        throw new Error(error)
       }
 
-      const data = await response.json()
       setWalletState(prev => ({
         ...prev,
         lightningAddress: data.lightningAddress
@@ -152,20 +149,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch(`/api/user/${userId}/nwc`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ nwcUri })
+      const { data, error } = await put(`/api/user/${userId}/nwc`, {
+        nwcUri
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to set NWC URI')
+      if (error) {
+        throw new Error(error)
       }
 
-      const data = await response.json()
       setWalletState(prev => ({ ...prev, nwcUri: data.nwcUri }))
 
       return data
