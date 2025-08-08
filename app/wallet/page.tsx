@@ -12,6 +12,7 @@ import { AppContent, AppNavbar, AppViewport } from '@/components/app'
 import { Button } from '@/components/ui/button'
 import { CardPreview } from '@/components/card-preview'
 import { SatoshiIcon } from '@/components/icon/satoshi'
+import { LaWalletIcon } from '@/components/icon/lawallet'
 
 export default function WalletPage() {
   const { lightningAddress, nwcUri, balance } = useWallet()
@@ -116,11 +117,12 @@ export default function WalletPage() {
 
         <div className="relative z-10 text-center">
           <div className="w-32 h-32 mx-auto mb-8 animate-pulse">
-            <img
+            <LaWalletIcon width="200" />
+            {/* <img
               src="/nwc-logo.png"
               alt="NWC Logo"
               className="w-full h-full object-contain"
-            />
+            /> */}
           </div>
           <div className="flex items-center justify-center gap-3">
             <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
@@ -141,10 +143,9 @@ export default function WalletPage() {
     <AppViewport>
       <AppNavbar className="justify-between">
         <div className="w-28 h-8 flex items-center justify-center">
-          <img
-            src="/nwc-logo.png"
-            alt="NWC Logo"
-            className="w-40 h-40 object-contain m-0"
+          <LaWalletIcon
+            width="200"
+            className="object-contain drop-shadow-2xl"
           />
         </div>
         <Button

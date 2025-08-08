@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { LaWalletIcon } from '@/components/icon/lawallet'
 
 export default function WalletLoginPage() {
   const [nsecInput, setNsecInput] = useState('')
@@ -65,14 +66,16 @@ export default function WalletLoginPage() {
   return (
     <AppViewport>
       <AppContent>
-        <div className="container flex-1 flex flex-col items-center gap-4 w-full h-full">
+        <div className="container flex-1 flex flex-col gap-4 w-full h-full">
           <div className="flex flex-col gap-2 w-full">
-            <h1 className="text-2xl font-bold text-white">Lightning Wallet</h1>
+            <div className="flex flex-row w-full justify-center pt-20">
+              <LaWalletIcon width="250" />
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col justify-end gap-4 w-full">
             <p className="text-muted-foreground text-lg">
               Access your wallet or create a new one
             </p>
-          </div>
-          <div className="flex-1 flex flex-col justify-end gap-4 w-full">
             <div className="flex flex-col gap-2 w-full">
               <Label htmlFor="nsec">Private Key (nsec)</Label>
               <Input

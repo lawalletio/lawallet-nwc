@@ -14,6 +14,7 @@ import { CardPreview } from '@/components/card-preview'
 import { useCardOTC } from '@/hooks/use-card-otc'
 import { useUser } from '@/hooks/use-user'
 import { useAPI } from '@/providers/api'
+import { LaWalletIcon } from '@/components/icon/lawallet'
 
 export default function ActivateCardPage() {
   const params = useParams()
@@ -133,11 +134,10 @@ export default function ActivateCardPage() {
         <div className="container flex-1 flex flex-col items-center">
           {/* Header with Large Logo */}
           <div className="text-center mb-4">
-            <div className="w-48 h-20 mx-auto mb-3 relative">
-              <img
-                src="/nwc-logo.png"
-                alt="NWC Logo"
-                className="w-full h-full object-contain drop-shadow-2xl"
+            <div className="w-full h-20 mx-auto mb-3 relative flex flex-row items-center justify-center">
+              <LaWalletIcon
+                width="200"
+                className="object-contain drop-shadow-2xl"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-full blur-3xl animate-pulse" />
             </div>
