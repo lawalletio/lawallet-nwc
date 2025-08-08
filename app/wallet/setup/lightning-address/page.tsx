@@ -40,18 +40,10 @@ export default function LightningAddressSetupPage() {
     }
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500))
-
       setLightningAddress(username)
-
-      // Show success and redirect
-      setTimeout(() => {
-        router.push('/wallet')
-      }, 1000)
+      router.push('/wallet')
     } catch (err) {
       setError('Failed to register Lightning Address. Please try again.')
-    } finally {
       setIsLoading(false)
     }
   }
@@ -85,6 +77,7 @@ export default function LightningAddressSetupPage() {
               placeholder="satoshi"
               value={username}
               onChange={e => setUsername(e.target.value.toLowerCase())}
+              maxLength={16}
               autoFocus
             />
             <p className="text-xs text-gray-400">

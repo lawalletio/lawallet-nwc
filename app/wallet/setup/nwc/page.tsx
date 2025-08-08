@@ -27,12 +27,6 @@ export default function NwcSetupPage() {
     setIsLoading(true)
     setError('')
 
-    if (!nwcUri.trim()) {
-      setError('Please enter a NWC URI')
-      setIsLoading(false)
-      return
-    }
-
     if (!validateNwcUri(nwcUri.trim())) {
       setError(
         "Invalid NWC URI format. It should start with 'nostr+walletconnect://'"
@@ -42,18 +36,12 @@ export default function NwcSetupPage() {
     }
 
     try {
-      // Simulate validation
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
       setNwcUri(nwcUri.trim())
 
       // Show success and redirect
-      setTimeout(() => {
-        router.push('/wallet')
-      }, 1000)
+      router.push('/wallet')
     } catch (err) {
       setError('Failed to configure NWC. Please check your URI and try again.')
-    } finally {
       setIsLoading(false)
     }
   }
