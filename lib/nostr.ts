@@ -1,6 +1,7 @@
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
-import { nip19 } from 'nostr-tools'
+import { nip19, nip98 } from 'nostr-tools'
 import { bytesToHex, hexToBytes } from 'nostr-tools/utils'
+import type { NostrEvent } from '@/types/nostr'
 
 export function generatePrivateKey(): string {
   const secretKey = generateSecretKey()
