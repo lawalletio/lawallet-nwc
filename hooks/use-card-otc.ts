@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Card } from '@/types/card'
+import { useAPI } from '@/providers/api'
 
 interface UseCardOTCResult {
   isLoading: boolean
@@ -12,39 +13,43 @@ export function useCardOTC(otc: string | null): UseCardOTCResult {
   const [isLoading, setIsLoading] = useState(false)
   const [card, setCard] = useState<Card | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { get } = useAPI()
 
-  const fetchCard = async (otc: string): Promise<Card | null> => {
-    setIsLoading(true)
-    setError(null)
+  const fetchCard = useCallback(
+    async (otc: string): Promise<Card | null> => {
+      setIsLoading(true)
+      setError(null)
 
-    try {
-      const response = await fetch(`/api/cards/otc/${otc}`)
+      try {
+        const response = await get<Card>(`/api/cards/otc/${otc}`)
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('Card not found')
+        if (response.error) {
+          if (response.status === 404) {
+            throw new Error('Card not found')
+          }
+          throw new Error(response.error)
         }
-        throw new Error('Failed to fetch card')
-      }
 
-      const cardData: Card = await response.json()
-      setCard(cardData)
-      return {
-        ...cardData,
-        createdAt: new Date(cardData.createdAt),
-        design: {
-          ...cardData.design,
-          createdAt: new Date(cardData.design.createdAt)
+        const cardData = response.data!
+        setCard(cardData)
+        return {
+          ...cardData,
+          createdAt: new Date(cardData.createdAt),
+          design: {
+            ...cardData.design,
+            createdAt: new Date(cardData.design.createdAt)
+          }
         }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
+        setCard(null)
+      } finally {
+        setIsLoading(false)
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-      setCard(null)
-    } finally {
-      setIsLoading(false)
-    }
-    return null
-  }
+      return null
+    },
+    [get]
+  )
 
   useEffect(() => {
     if (!otc) {
@@ -54,7 +59,7 @@ export function useCardOTC(otc: string | null): UseCardOTCResult {
     }
 
     fetchCard(otc)
-  }, [otc])
+  }, [otc, fetchCard])
 
   return { isLoading, card, error, getByOTC: fetchCard }
 }

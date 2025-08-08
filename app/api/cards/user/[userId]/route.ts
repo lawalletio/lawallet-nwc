@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
+import { validateNip98 } from '@/lib/nip98'
 
 export async function GET(
   request: Request,
   { params }: { params: { userId: string } }
 ) {
   try {
+    const { pubkey: authenticatedPubkey } = await validateNip98(request)
     const { userId } = params
 
     if (!userId) {
@@ -23,6 +25,10 @@ export async function GET(
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    if (user.pubkey !== authenticatedPubkey) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get all cards associated with the user

@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { BadgeX, Loader2 } from 'lucide-react'
 
-import { useWallet } from '@/hooks/use-wallet'
 import { generatePrivateKey, getPublicKeyFromPrivate } from '@/lib/nostr'
 
 import { Button } from '@/components/ui/button'

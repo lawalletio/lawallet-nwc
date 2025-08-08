@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Card } from '@/types/card'
+import { useAPI } from '@/providers/api'
 
 interface UseCardsResult {
   cards: Card[]
@@ -12,8 +13,9 @@ export function useCards(userId: string | null): UseCardsResult {
   const [cards, setCards] = useState<Card[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { get, isKeyInitialized } = useAPI()
 
-  const fetchCards = async () => {
+  const fetchCards = useCallback(async () => {
     if (!userId) {
       setCards([])
       setError(null)
@@ -24,16 +26,16 @@ export function useCards(userId: string | null): UseCardsResult {
     setError(null)
 
     try {
-      const response = await fetch(`/api/cards/user/${userId}`)
+      const response = await get<Card[]>(`/api/cards/user/${userId}`)
 
-      if (!response.ok) {
+      if (response.error) {
         if (response.status === 404) {
           throw new Error('User not found')
         }
-        throw new Error('Failed to fetch cards')
+        throw new Error(response.error)
       }
 
-      const cardsData: Card[] = await response.json()
+      const cardsData = response.data!
 
       // Transform dates to Date objects
       const transformedCards = cardsData.map(card => ({
@@ -53,12 +55,12 @@ export function useCards(userId: string | null): UseCardsResult {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [userId, get])
 
   useEffect(() => {
+    if (!isKeyInitialized) return
     fetchCards()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId])
+  }, [fetchCards, isKeyInitialized])
 
   return {
     cards,
