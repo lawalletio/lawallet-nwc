@@ -94,25 +94,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   // Save wallet data to localStorage whenever it changes
   useEffect(() => {
-    const existingData = localStorage.getItem('wallet')
-    let walletData = {}
-    if (existingData) {
-      try {
-        walletData = JSON.parse(existingData)
-      } catch (e) {
-        console.error('Failed to parse existing wallet data:', e)
+    // Only save to localStorage after hydration is complete to avoid overwriting during initial load
+    if (isHydrated) {
+      const existingData = localStorage.getItem('wallet')
+      let walletData = {}
+      if (existingData) {
+        try {
+          walletData = JSON.parse(existingData)
+        } catch (e) {
+          console.error('Failed to parse existing wallet data:', e)
+        }
       }
+      localStorage.setItem(
+        'wallet',
+        JSON.stringify({
+          ...walletData,
+          lightningAddress: walletState.lightningAddress,
+          nwcUri: walletState.nwcUri,
+          balance: walletState.balance
+        })
+      )
     }
-    localStorage.setItem(
-      'wallet',
-      JSON.stringify({
-        ...walletData,
-        lightningAddress: walletState.lightningAddress,
-        nwcUri: walletState.nwcUri,
-        balance: walletState.balance
-      })
-    )
-  }, [walletState])
+  }, [walletState, isHydrated])
 
   const setLightningAddress = async (username: string) => {
     if (!userId) {
