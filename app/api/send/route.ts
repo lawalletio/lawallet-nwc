@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const SENDY_URL = process.env.SENDY_URL
-const SENDY_LIST_ID = process.env.ENDY_LIST_ID
+const SENDY_LIST_ID = process.env.SENDY_LIST_ID
 const SENDY_API_KEY = process.env.SENDY_API_KEY!
 
 export async function POST(req: NextRequest) {
