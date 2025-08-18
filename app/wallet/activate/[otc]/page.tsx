@@ -18,7 +18,12 @@ import { LaWalletIcon } from '@/components/icon/lawallet'
 export default function ActivateCardPage() {
   const params = useParams()
   const router = useRouter()
-  const { setPrivateKey, setUserId } = useAPI()
+  const {
+    setPrivateKey,
+    setUserId,
+    publicKey,
+    isHydrated: isApiHydrated
+  } = useAPI()
   const [card, setCard] = useState<any>(null)
   const [isActivated, setIsActivated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -26,6 +31,7 @@ export default function ActivateCardPage() {
   const { card: otcCard, error: otcError } = useCardOTC(otc)
   const { createUser, isLoading: isActivating } = useUser()
 
+  // Set the card if it exists
   useEffect(() => {
     if (!otcCard) {
       return
@@ -34,15 +40,17 @@ export default function ActivateCardPage() {
     setIsLoading(false)
   }, [otcCard])
 
+  // Generate a new private key if one doesn't exist
+  useEffect(() => {
+    if (isApiHydrated && !publicKey) {
+      const privateKey = generatePrivateKey()
+      setPrivateKey(privateKey)
+    }
+  }, [isApiHydrated, publicKey, setPrivateKey])
+
   const handleActivate = async () => {
     try {
-      // Generate new private key
-      const privateKey = generatePrivateKey()
-      const pubkey = getPublicKeyFromPrivate(privateKey)
-
-      // Set the private key (this will auto-login the user)
-      setPrivateKey(privateKey)
-      const user = await createUser({ pubkey, otc })
+      const user = await createUser({ pubkey: publicKey!, otc })
       setUserId(user.userId)
 
       setIsActivated(true)
