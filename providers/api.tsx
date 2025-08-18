@@ -11,6 +11,7 @@ import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { nip19 } from 'nostr-tools'
 import { NSecSigner } from '@nostrify/nostrify'
 import { createNip98Token } from '@/lib/nip98'
+import { hexToBytes } from 'nostr-tools/utils'
 
 interface APIResponse<T = any> {
   data?: T
@@ -76,9 +77,7 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     if (privateKey) {
       try {
         // Convert hex string to Uint8Array
-        const secretKey = new Uint8Array(
-          privateKey.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
-        )
+        const secretKey = hexToBytes(privateKey)
         const newSigner = new NSecSigner(secretKey)
         setSigner(newSigner)
       } catch (error) {
