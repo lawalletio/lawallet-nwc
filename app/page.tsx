@@ -664,14 +664,10 @@ const RoadmapSection = () => {
                 </div>
 
                 {/* Content Card */}
-                <div
-                  className={`w-full mt-8 flex flex-col`}
-                >
+                <div className={`w-full mt-8 flex flex-col`}>
                   <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-lg hover:bg-white/10 transition-all duration-300  w-full">
                     <CardContent className="p-6">
-                      <div
-                        className={`flex items-center gap-3 mb-2`}
-                      >
+                      <div className={`flex items-center gap-3 mb-2`}>
                         <h3 className="text-xl font-semibold text-white">
                           {item.title}
                         </h3>
@@ -685,9 +681,7 @@ const RoadmapSection = () => {
                             : 'In Progress'}
                         </div>
                       </div>
-                      <p
-                        className={`text-left text-gray-400`}
-                      >
+                      <p className={`text-left text-gray-400`}>
                         {item.description}
                       </p>
                     </CardContent>
@@ -723,7 +717,7 @@ const WaitlistSection = () => {
     }
 
     try {
-      const response = await fetch('/api/send', {
+      const response = await fetch('/api/waitlist/subscribe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
