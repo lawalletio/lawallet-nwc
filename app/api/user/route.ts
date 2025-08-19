@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { randomUUID } from 'crypto'
+import { validateNip98 } from '@/lib/nip98'
 
 export async function POST(request: Request) {
   try {
-    const { otc, pubkey } = await request.json()
+    const { pubkey } = await validateNip98(request)
+    const { otc } = await request.json()
 
     if (!pubkey) {
       return NextResponse.json(

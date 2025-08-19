@@ -50,7 +50,7 @@ export default function ActivateCardPage() {
 
   const handleActivate = async () => {
     try {
-      const user = await createUser({ pubkey: publicKey!, otc })
+      const user = await createUser({ otc })
       setUserId(user.userId)
 
       setIsActivated(true)

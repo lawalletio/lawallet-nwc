@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react'
 import { useAPI } from '@/providers/api'
 
 export interface CreateUserParams {
-  pubkey: string
   otc?: string
 }
 
@@ -24,14 +23,13 @@ export function useUser(): UseUserResult {
   const { post } = useAPI()
 
   const createUser = useCallback(
-    async ({ pubkey, otc }: CreateUserParams): Promise<CreateUserResult> => {
+    async ({ otc }: CreateUserParams): Promise<CreateUserResult> => {
       setIsLoading(true)
       setError(null)
 
       try {
         const response = await post<CreateUserResult>(`/api/user`, {
-          otc,
-          pubkey
+          otc
         })
 
         if (response.error) {
