@@ -45,7 +45,7 @@ export default function LightningAddressSetupPage() {
     }
 
     try {
-      setLightningAddress(username)
+      await setLightningAddress(username)
       router.push('/wallet')
     } catch (err) {
       setError('Failed to register Lightning Address. Please try again.')
