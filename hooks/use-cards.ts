@@ -26,7 +26,7 @@ export function useCards(userId: string | null): UseCardsResult {
     setError(null)
 
     try {
-      const response = await get<Card[]>(`/api/cards/user/${userId}`)
+      const response = await get<Card[]>(`/api/users/${userId}/cards`)
 
       if (response.error) {
         if (response.status === 404) {
