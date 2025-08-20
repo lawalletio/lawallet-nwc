@@ -3,10 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { randomUUID } from 'crypto'
 import { validateNip98 } from '@/lib/nip98'
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  { params }: { params: { otc: string } }
+) {
   try {
     const { pubkey } = await validateNip98(request)
-    const { otc } = await request.json()
+    const { otc } = params
 
     if (!pubkey) {
       return NextResponse.json(
