@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useAPI } from '@/providers/api'
 
 export interface CreateUserParams {
-  otc?: string
+  otc: string
 }
 
 export interface CreateUserResult {
@@ -28,9 +28,10 @@ export function useUser(): UseUserResult {
       setError(null)
 
       try {
-        const response = await post<CreateUserResult>(`/api/user`, {
-          otc
-        })
+        const response = await post<CreateUserResult>(
+          `/api/cards/otc/${otc}/activate`,
+          {}
+        )
 
         if (response.error) {
           throw new Error(response.error)
