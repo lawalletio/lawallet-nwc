@@ -189,6 +189,17 @@ export default function ActivateCardPage() {
           )}
         </Button>
 
+        {/* <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => {
+            localStorage.clear()
+          }}
+        >
+          Clear All Data
+        </Button> */}
+
         {/* Terms */}
         <div className="container-sm flex items-center text-center px-8">
           <Button size="sm" variant="link" asChild>

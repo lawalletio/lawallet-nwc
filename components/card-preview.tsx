@@ -5,9 +5,11 @@ export function CardPreview({ card }: { card: Card }) {
     <>
       {/* Card Preview */}
       <div
-        className="relative w-full max-w-96 mx-auto aspect-[1.5/1] rounded-2xl overflow-hidden group"
+        className="relative w-full max-w-96 aspect-[1.5/1] rounded-2xl overflow-hidden group bg-gradient-to-br from-blue-500 to-purple-600"
         style={{
-          backgroundImage: `url(${card.design.imageUrl})`,
+          backgroundImage: card.design.imageUrl
+            ? `url(${card.design.imageUrl})`
+            : 'none',
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}

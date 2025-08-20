@@ -10,7 +10,7 @@ import { useCards } from '@/hooks/use-cards'
 
 import { AppContent, AppNavbar, AppViewport } from '@/components/app'
 import { Button } from '@/components/ui/button'
-import { CardPreview } from '@/components/card-preview'
+import { CardsGallery } from '@/components/cards-gallery'
 import { SatoshiIcon } from '@/components/icon/satoshi'
 import { LaWalletIcon } from '@/components/icon/lawallet'
 import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
@@ -223,8 +223,19 @@ export default function WalletPage() {
 
           {cards.length > 0 && (
             <div className="flex flex-col gap-4">
-              <h4 className="text-sm text-white">My Card</h4>
-              <CardPreview card={cards[0]} />
+              {cards.length > 1 && (
+                <h4 className="text-sm text-white">My Cards</h4>
+              )}
+              <CardsGallery cards={cards} />
+            </div>
+          )}
+
+          {cards.length === 0 && !cardsLoading && (
+            <div className="flex flex-col gap-4">
+              <h4 className="text-sm text-white">No Cards Found</h4>
+              <p className="text-muted-foreground text-sm">
+                You don&apos;t have any cards yet.
+              </p>
             </div>
           )}
         </div>
