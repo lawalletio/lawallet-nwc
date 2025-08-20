@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Settings, Loader2 } from 'lucide-react'
+import { Settings, Loader2, BadgeAlert } from 'lucide-react'
 
 import { useWallet } from '@/hooks/use-wallet'
 import { useAPI } from '@/providers/api'
@@ -16,7 +16,7 @@ import { LaWalletIcon } from '@/components/icon/lawallet'
 import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
 
 export default function WalletPage() {
-  const { lightningAddress, nwcUri, balance } = useWallet()
+  const { lightningAddress, nwcUri, balance, isConnected } = useWallet()
   const {
     privateKey,
     isKeyInitialized,
@@ -143,7 +143,7 @@ export default function WalletPage() {
   return (
     <AppViewport>
       <AppNavbar className="justify-between">
-        <div className="w-28 h-8 flex items-center justify-center">
+        <div className="w-32 h-8 flex items-center justify-center">
           <LaWalletIcon
             width="200"
             className="object-contain drop-shadow-2xl"
@@ -186,14 +186,19 @@ export default function WalletPage() {
 
           <div className="flex flex-col gap-2">
             {nwcUri && (
-              <div className="flex items-center">
-                <div className="font-mono text-white text-center justify-center text-4xl font-extrabold flex items-center flex-row w-full">
-                  <span className="size-8 text-white">
+              <div
+                className={`flex items-center ${isConnected ? 'text-white' : 'text-gray-400 animate-pulse'}`}
+              >
+                <div className="font-mono  text-center justify-center text-4xl font-extrabold flex items-center flex-row w-full">
+                  <span className="size-8 ">
                     <SatoshiIcon />{' '}
                   </span>
                   <span className="text-4xl font-extrabold">
                     {formatSats(Math.floor(animatedBalance / 1000))}
                   </span>
+                  {!isConnected && (
+                    <BadgeAlert className="text-yellow-500 text-sm ml-2" />
+                  )}
                 </div>
               </div>
             )}
@@ -217,6 +222,7 @@ export default function WalletPage() {
               <NwcLnWidget
                 nwcUri={nwcUri || undefined}
                 lightningAddress={lightningAddress || undefined}
+                isNWCConnected={isConnected}
               />
             </div>
           )}

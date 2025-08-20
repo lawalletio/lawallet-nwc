@@ -20,6 +20,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   })
 
   const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
   const [isHydrated, setIsHydrated] = useState(false)
   const { userId, put } = useAPI()
 
@@ -45,9 +46,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       })
     }
 
-    const balance = await nwcObject?.getBalance()
-    console.info('balance:', balance)
-    setWalletState(prev => ({ ...prev, balance: balance?.balance ?? 0 }))
+    try {
+      const balance = await nwcObject?.getBalance()
+      console.info('balance:', balance)
+      setWalletState(prev => ({ ...prev, balance: balance?.balance ?? 0 }))
+      setIsConnected(true)
+    } catch {
+      setIsConnected(false)
+    }
   }
 
   useEffect(() => {
@@ -184,6 +190,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setLightningAddress,
     setNwcUri,
     logout,
+    isConnected,
     isHydrated
   }
 

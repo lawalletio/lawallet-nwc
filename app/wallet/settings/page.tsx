@@ -13,7 +13,7 @@ import { AppNavbar, AppViewport } from '@/components/app'
 import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
 
 export default function WalletSettingsPage() {
-  const { lightningAddress, nwcUri, logout } = useWallet()
+  const { lightningAddress, nwcUri, isConnected, logout } = useWallet()
   const { privateKey, npub } = useAPI()
 
   const router = useRouter()
@@ -67,6 +67,7 @@ export default function WalletSettingsPage() {
               nwcUri={nwcUri || undefined}
               lightningAddress={lightningAddress || undefined}
               hiddenWhenFilled={false}
+              isNWCConnected={isConnected}
             />
           </div>
 

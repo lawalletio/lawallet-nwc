@@ -5,12 +5,14 @@ interface NwcLnWidgetProps {
   nwcUri?: string
   lightningAddress?: string
   hiddenWhenFilled?: boolean
+  isNWCConnected?: boolean
 }
 
 export function NwcLnWidget({
   nwcUri,
   lightningAddress,
-  hiddenWhenFilled = true
+  hiddenWhenFilled = true,
+  isNWCConnected = false
 }: NwcLnWidgetProps) {
   const router = useRouter()
 
@@ -22,8 +24,12 @@ export function NwcLnWidget({
             <div className="font-medium text-white">Nostr Wallet Connect</div>
             {nwcUri ? (
               <div className="flex items-center gap-2 text-sm">
-                <div className="size-2 rounded-full bg-green-400 animate-pulse"></div>
-                <p className="text-muted-foreground">Connected</p>
+                <div
+                  className={`size-2 rounded-full ${isNWCConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}
+                ></div>
+                <p className="text-muted-foreground">
+                  {isNWCConnected ? 'Connected' : 'Offline'}
+                </p>
               </div>
             ) : (
               <div className="flex items-center gap-2 text-sm">
