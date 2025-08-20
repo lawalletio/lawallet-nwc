@@ -138,13 +138,31 @@ export async function validateNip98(
   try {
     const eventData = atob(base64Event)
     event = JSON.parse(eventData)
+
+    console.info('EVENT')
+    console.dir(event, { depth: null })
   } catch (error) {
     console.error('Failed to parse event:', error)
     throw new Error('Invalid event format')
   }
 
   // Validate the event using nostr-tools nip98 functions
-  const url = new URL(request.url)
+  // Handle tunnel scenarios by reconstructing the URL from headers
+  const host =
+    request.headers.get('x-forwarded-host') ||
+    request.headers.get('host') ||
+    'localhost:3000'
+  const protocol =
+    request.headers.get('x-forwarded-proto') ||
+    (request.url.startsWith('https') ? 'https' : 'http')
+
+  // Reconstruct the URL using the public host and protocol
+  const originalUrl = new URL(request.url)
+  const publicUrl = new URL(
+    originalUrl.pathname + originalUrl.search,
+    `${protocol}://${host}`
+  )
+
   const method = request.method
 
   try {
@@ -152,7 +170,7 @@ export async function validateNip98(
 
     const isValid = await nip98.validateEvent(
       event,
-      url.toString(),
+      publicUrl.toString(),
       method,
       requestBody
     )
