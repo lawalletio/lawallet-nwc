@@ -40,7 +40,7 @@ export default function NwcSetupPage() {
     }
 
     try {
-      setNwcUri(nwcUri.trim())
+      await setNwcUri(nwcUri.trim())
 
       // Show success and redirect
       router.push('/wallet')
