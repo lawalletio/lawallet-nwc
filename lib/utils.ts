@@ -13,3 +13,13 @@ export function formatDate(value: string | number | Date | undefined): string {
   if (value instanceof Date) return value.toLocaleDateString()
   return String(value)
 }
+
+export function generateHexGroups(groups: number): string {
+  return Array.from({ length: groups }, () => {
+    const hex = Math.floor(Math.random() * 256)
+      .toString(16)
+      .padStart(2, '0')
+      .toUpperCase()
+    return hex
+  }).join(':')
+}

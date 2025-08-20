@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Nfc } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNfc } from 'use-nfc-hook'
+import { generateHexGroups } from '@/lib/utils'
 
 interface NFCTapCardProps {
   onTap: (uid: string) => void
@@ -87,7 +88,7 @@ export function NFCTapCard({ onTap }: NFCTapCardProps) {
         )}
 
         <Button
-          onClick={() => onTap(`04:E1:62:CA:7F:8D:B3`)}
+          onClick={() => onTap(generateHexGroups(7))}
           className="bg-purple-600 hover:bg-purple-700 text-white border-0 px-8 py-3"
           size="lg"
         >
