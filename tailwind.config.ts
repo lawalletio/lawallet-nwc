@@ -13,9 +13,9 @@ const config = {
   theme: {
     container: {
       center: true,
-      padding: '1rem',
+      padding: '0rem',
       screens: {
-        sm: '380px'
+        sm: '400px'
       }
     },
     extend: {
