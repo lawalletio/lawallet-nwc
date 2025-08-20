@@ -124,7 +124,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const { data, error } = await put(
-        `/api/user/${userId}/lightning-address`,
+        `/api/users/${userId}/lightning-address`,
         {
           username
         }
@@ -152,7 +152,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const { data, error } = await put(`/api/user/${userId}/nwc`, {
+      const { data, error } = await put(`/api/users/${userId}/nwc`, {
         nwcUri
       })
 
