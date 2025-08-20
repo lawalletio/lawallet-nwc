@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { CardPreview } from '@/components/card-preview'
 import { SatoshiIcon } from '@/components/icon/satoshi'
 import { LaWalletIcon } from '@/components/icon/lawallet'
+import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
 
 export default function WalletPage() {
   const { lightningAddress, nwcUri, balance } = useWallet()
@@ -212,75 +213,11 @@ export default function WalletPage() {
           {(!lightningAddress || !nwcUri) && (
             <div className="flex flex-col gap-2">
               <h4 className="text-sm text-white">Steps</h4>
-              <div className="overflow-hidden first-letter:lex flex-col gap-[1px] bg-border border rounded-xl backdrop-blur-sm">
-                <div className="flex items-center justify-between p-4 bg-black">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="font-medium text-white">
-                        Nostr Wallet Connect
-                      </div>
-                      {nwcUri ? (
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="size-2 rounded-full bg-green-400 animate-pulse"></div>
-                          <p className="text-muted-foreground">Connected</p>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="size-2 rounded-full bg-muted-foreground"></div>
-                          <p className="text-muted-foreground">
-                            Not configured
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {!nwcUri && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="default"
-                        onClick={() => router.push('/wallet/setup/nwc')}
-                      >
-                        Setup
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center justify-between p-4 bg-black">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="font-medium text-white">
-                        Lightning Address
-                      </div>
-                      {lightningAddress ? (
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="size-2 rounded-full bg-green-400 animate-pulse"></div>
-                          <p className="text-muted-foreground">Connected</p>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="size-2 rounded-full bg-muted-foreground"></div>
-                          <p className="text-muted-foreground">
-                            Not configured
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {!lightningAddress && (
-                      <Button
-                        variant="default"
-                        disabled={!nwcUri}
-                        onClick={() =>
-                          router.push('/wallet/setup/lightning-address')
-                        }
-                      >
-                        Setup
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
+
+              <NwcLnWidget
+                nwcUri={nwcUri || undefined}
+                lightningAddress={lightningAddress || undefined}
+              />
             </div>
           )}
 

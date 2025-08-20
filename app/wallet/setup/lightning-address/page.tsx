@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
@@ -18,8 +18,13 @@ export default function LightningAddressSetupPage() {
   const [username, setUsername] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { setLightningAddress } = useWallet()
+  const { setLightningAddress, lightningAddress: lightningAddressState } =
+    useWallet()
   const router = useRouter()
+
+  useEffect(() => {
+    setUsername(lightningAddressState?.split('@')[0] || '')
+  }, [lightningAddressState])
 
   const handleSetup = async () => {
     setIsLoading(true)
@@ -76,12 +81,16 @@ export default function LightningAddressSetupPage() {
               id="username"
               placeholder="satoshi"
               value={username}
+              disabled={!!lightningAddressState}
               onChange={e => setUsername(e.target.value.toLowerCase())}
               maxLength={16}
               autoFocus
             />
             <p className="text-xs text-gray-400">
-              Your address will be:{' '}
+              {!!lightningAddressState
+                ? 'Your address is'
+                : 'Your address will be'}
+              :{' '}
               <span className="text-white font-mono">
                 {username || 'username'}@{PUBLIC_DOMAIN}
               </span>
@@ -112,7 +121,7 @@ export default function LightningAddressSetupPage() {
           className="w-full"
           size="lg"
           onClick={handleSetup}
-          disabled={isLoading || !username.trim()}
+          disabled={isLoading || !username.trim() || !!lightningAddressState}
         >
           {isLoading ? (
             <Loader2 className="size-4 animate-spin" />

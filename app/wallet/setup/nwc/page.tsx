@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react'
 
@@ -16,8 +16,12 @@ export default function NwcSetupPage() {
   const [nwcUri, setNwcUriState] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { setNwcUri } = useWallet()
+  const { setNwcUri, nwcUri: nwcUriState } = useWallet()
   const router = useRouter()
+
+  useEffect(() => {
+    setNwcUriState(nwcUriState || '')
+  }, [nwcUriState])
 
   const validateNwcUri = (uri: string): boolean => {
     return uri.startsWith('nostr+walletconnect://') && uri.includes('?')

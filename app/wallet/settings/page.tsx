@@ -10,6 +10,7 @@ import { hexToNsec } from '@/lib/nostr'
 
 import { Button } from '@/components/ui/button'
 import { AppNavbar, AppViewport } from '@/components/app'
+import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
 
 export default function WalletSettingsPage() {
   const { lightningAddress, nwcUri, logout } = useWallet()
@@ -54,7 +55,21 @@ export default function WalletSettingsPage() {
       </AppNavbar>
       <div className="container flex flex-col gap-8">
         {/* Wallet Keys */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col">
+            <h4 className="text-sm text-white">Backend</h4>
+            <p className="text-sm text-muted-foreground">
+              NWC for spending and Lightning Address for receiving.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <NwcLnWidget
+              nwcUri={nwcUri || undefined}
+              lightningAddress={lightningAddress || undefined}
+              hiddenWhenFilled={false}
+            />
+          </div>
+
           <div className="flex flex-col">
             <h4 className="text-sm text-white">Wallet Keys</h4>
             <p className="text-sm text-muted-foreground">
