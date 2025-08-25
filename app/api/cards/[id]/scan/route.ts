@@ -1,5 +1,6 @@
+import { nwc } from '@getalby/sdk'
 import { NextRequest, NextResponse } from 'next/server'
-import { mockCardData } from '@/mocks/card'
+import { prisma } from '@/lib/prisma'
 import { LUD03Request } from '@/types/lnurl'
 
 export async function OPTIONS() {
@@ -22,12 +23,27 @@ export async function GET(
   const p = searchParams.get('p') || ''
   const c = searchParams.get('c') || ''
 
-  // Find card by id
-  const card = mockCardData.find(card => card.id === cardId)
+  // Find card by id in database
+  const card = await prisma.card.findUnique({
+    where: { id: cardId },
+    include: {
+      design: true,
+      user: true
+    }
+  })
+
   if (!card) {
     return NextResponse.json(
       { error: 'Card not found' },
       { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } }
+    )
+  }
+
+  // Check if user has NWC set up
+  if (!card.user?.nwc) {
+    return NextResponse.json(
+      { status: 'ERROR', reason: 'NWC not setup' },
+      { headers: { 'Access-Control-Allow-Origin': '*' } }
     )
   }
 
