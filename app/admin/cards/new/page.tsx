@@ -40,10 +40,12 @@ export default function NewCardPage() {
   const { settings } = useSettings()
   const { create } = useCards()
   const { list } = useCardDesigns()
+  const [error, setError] = useState<string | null>(null)
   const [designs, setDesigns] = useState<CardDesign[]>([])
 
   useEffect(() => {
     list().then(setDesigns)
+    setError(null)
   }, [list])
 
   const filteredDesigns = designs.filter((design: CardDesign) =>
@@ -56,14 +58,20 @@ export default function NewCardPage() {
   }
 
   const handleNFCTap = async (uid: string) => {
-    // Generate pairing token
-    const card = await create(uid, selectedDesign)
-    setQrToken(`${settings.url}/api/cards/${card.id}/write`)
-    setCard(card)
-    // In a real implementation, this would create the card via API
-    console.log('Creating card with design:', selectedDesign)
-    setCurrentStep('qr')
-    setShowQRDialog(true)
+    setError(null)
+    try {
+      // Generate pairing token
+      const card = await create(uid, selectedDesign)
+      setQrToken(`${settings.url}/api/cards/${card.id}/write`)
+      setCard(card)
+      // In a real implementation, this would create the card via API
+      console.log('Creating card with design:', selectedDesign)
+      setCurrentStep('qr')
+      setShowQRDialog(true)
+    } catch (error) {
+      console.error('Error creating card:', error)
+      setError((error as any).reason || 'Error creating card')
+    }
   }
 
   const handleCardWritten = async () => {
@@ -80,18 +88,6 @@ export default function NewCardPage() {
     console.dir(card)
     router.push(`/admin/cards/card/${card!.id}`)
   }
-
-  // Generate QR code pattern as SVG
-  const generateQRPattern = () => {
-    const size = 21
-    const pattern = []
-    for (let i = 0; i < size * size; i++) {
-      pattern.push(Math.random() > 0.5)
-    }
-    return pattern
-  }
-
-  const qrPattern = generateQRPattern()
 
   if (currentStep === 'design') {
     return (
@@ -191,6 +187,7 @@ export default function NewCardPage() {
             <p className="text-gray-600">
               Place your NFC card on the reader to write the configuration
             </p>
+            {error && <p className="text-red-500">{error}</p>}
           </div>
         </div>
 
@@ -221,10 +218,11 @@ export default function NewCardPage() {
             </Card>
           </div>
         )}
-
-        <div className="max-w-md mx-auto">
-          <NFCTapCard onTap={handleNFCTap} />
-        </div>
+        {!error && (
+          <div className="max-w-md mx-auto">
+            <NFCTapCard onTap={handleNFCTap} />
+          </div>
+        )}
       </div>
     )
   }
