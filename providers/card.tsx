@@ -84,6 +84,12 @@ export const CardsProvider = ({ children }: { children: React.ReactNode }) => {
       },
       body: JSON.stringify({ id, designId })
     })
+
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.reason)
+    }
+
     const data = await response.json()
     return parseCardDates(data)
   }
