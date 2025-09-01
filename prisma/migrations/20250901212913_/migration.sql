@@ -3,7 +3,8 @@ CREATE TABLE "User" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "pubkey" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "nwc" TEXT
+    "nwc" TEXT,
+    "albyEnabled" BOOLEAN NOT NULL DEFAULT false
 );
 
 -- CreateTable
@@ -54,6 +55,17 @@ CREATE TABLE "Card" (
     CONSTRAINT "Card_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
+-- CreateTable
+CREATE TABLE "AlbySubAccount" (
+    "appId" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "userId" TEXT NOT NULL,
+    "username" TEXT,
+    "nwcUri" TEXT NOT NULL,
+    "nostrPubkey" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "AlbySubAccount_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_pubkey_key" ON "User"("pubkey");
 
@@ -71,3 +83,6 @@ CREATE UNIQUE INDEX "Card_ntag424Cid_key" ON "Card"("ntag424Cid");
 
 -- CreateIndex
 CREATE INDEX "Card_userId_idx" ON "Card"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AlbySubAccount_userId_key" ON "AlbySubAccount"("userId");

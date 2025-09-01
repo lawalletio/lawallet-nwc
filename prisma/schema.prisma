@@ -17,6 +17,8 @@ model User {
   ntag424s         Ntag424[]
   lightningAddress LightningAddress?
   cards            Card[]
+  albySubAccount   AlbySubAccount?
+  albyEnabled      Boolean           @default(false)
 }
 
 model CardDesign {
@@ -70,4 +72,14 @@ model Card {
   user    User?      @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+model AlbySubAccount {
+  appId       Int      @id
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  username    String? // alby sub account username@getalby.com
+  nwcUri      String
+  nostrPubkey String? // nostr pubkey for nip57
+  createdAt   DateTime @default(now())
 }
