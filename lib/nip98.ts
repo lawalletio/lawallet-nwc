@@ -138,9 +138,6 @@ export async function validateNip98(
   try {
     const eventData = atob(base64Event)
     event = JSON.parse(eventData)
-
-    console.info('EVENT')
-    console.dir(event, { depth: null })
   } catch (error) {
     console.error('Failed to parse event:', error)
     throw new Error('Invalid event format')
