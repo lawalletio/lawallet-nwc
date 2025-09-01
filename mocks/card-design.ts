@@ -30,5 +30,11 @@ export const mockCardDesignData: CardDesign[] = [
     imageUrl: '/card-geyser.png',
     description: 'Geyser.fund',
     createdAt: new Date('2024-01-28T15:50:00Z')
+  },
+  {
+    id: 'design-008',
+    imageUrl: '/card-metal.png',
+    description: 'Metal Test',
+    createdAt: new Date('2024-01-28T15:50:00Z')
   }
 ]
