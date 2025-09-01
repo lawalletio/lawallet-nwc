@@ -14,6 +14,7 @@ import { useCardOTC } from '@/hooks/use-card-otc'
 import { useUser } from '@/hooks/use-user'
 import { useAPI } from '@/providers/api'
 import { LaWalletIcon } from '@/components/icon/lawallet'
+import { useWallet } from '@/hooks/use-wallet'
 
 export default function ActivateCardPage() {
   const params = useParams()
@@ -22,14 +23,18 @@ export default function ActivateCardPage() {
     setPrivateKey,
     setUserId,
     publicKey,
-    isHydrated: isApiHydrated
+    isHydrated: isApiHydrated,
+    userId
   } = useAPI()
   const [card, setCard] = useState<any>(null)
   const [isActivated, setIsActivated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+
+  const [nwcStringUpdated, setNwcStringUpdated] = useState<string | null>(null)
   const otc = params.otc as string
   const { card: otcCard, error: otcError } = useCardOTC(otc)
   const { createUser, isLoading: isActivating } = useUser()
+  const { setNwcUri } = useWallet()
 
   // Set the card if it exists
   useEffect(() => {
@@ -52,15 +57,25 @@ export default function ActivateCardPage() {
     try {
       const user = await createUser({ otc })
       setUserId(user.userId)
+      setNwcStringUpdated(user.nwcString || null)
 
       setIsActivated(true)
-
-      // Redirect to wallet after a brief success message
-      router.push('/wallet')
     } catch (error) {
       console.error('Failed to activate card:', error)
     }
   }
+
+  useEffect(() => {
+    if (!isActivated || !userId) {
+      return
+    }
+    if (nwcStringUpdated) {
+      setNwcUri(nwcStringUpdated)
+    }
+    // Redirect to wallet after a brief success message
+    router.push('/wallet')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, isActivated, nwcStringUpdated])
 
   if (otcError) {
     return (
