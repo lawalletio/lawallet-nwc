@@ -108,13 +108,6 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     }
   }, [privateKey, userId, loginMethod, isHydrated])
 
-  // Create signer when private key is set
-  useEffect(() => {
-    if (!privateKey) {
-      setSigner(null)
-    }
-  }, [privateKey])
-
   // Calculate npub from public key
   const npub = React.useMemo(() => {
     if (!publicKey) return null
