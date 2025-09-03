@@ -18,7 +18,7 @@ export default function WalletLoginPage() {
   const [nsecInput, setNsecInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { setPrivateKey } = useAPI()
+  const { loginWithPrivateKey } = useAPI()
   const router = useRouter()
 
   const handleGenerateWallet = async () => {
@@ -27,7 +27,7 @@ export default function WalletLoginPage() {
 
     try {
       const privateKeyHex = generatePrivateKey()
-      setPrivateKey(privateKeyHex)
+      loginWithPrivateKey(privateKeyHex)
       router.push('/wallet')
     } catch (err) {
       setError('Failed to generate wallet. Please try again.')
@@ -54,7 +54,7 @@ export default function WalletLoginPage() {
 
     try {
       const privateKeyHex = nsecToHex(nsecInput.trim())
-      setPrivateKey(privateKeyHex)
+      loginWithPrivateKey(privateKeyHex)
       router.push('/wallet')
     } catch (err) {
       setError('Failed to import wallet. Please check your private key.')

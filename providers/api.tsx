@@ -27,21 +27,38 @@ interface APIContextType {
   privateKey: string | null
   publicKey: string | null
   npub: string | null
-  setPrivateKey: (key: string) => void
   userId: string | null
   setUserId: (userId: string) => void
   isKeyInitialized: boolean
   isHydrated: boolean
   signer: NSecSigner | null
+  loginWithPrivateKey: (privateKeyHex: string) => Promise<void>
 }
 
 const APIContext = createContext<APIContextType | undefined>(undefined)
 
 export function APIProvider({ children }: { children: React.ReactNode }) {
   const [privateKey, setPrivateKeyState] = useState<string | null>(null)
-  const [userId, setUserIdState] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
   const [signer, setSigner] = useState<NSecSigner | null>(null)
+  const [loginMethod, setLoginMethod] = useState<'nsec' | 'nip07' | null>(null)
+  const [publicKey, setPublicKey] = useState<string | null>(null)
+
+  const loginWithPrivateKey = useCallback(
+    async (privateKeyHex: string) => {
+      try {
+        // Validate the private key by deriving public key
+        setPublicKey(getPublicKeyFromPrivate(privateKeyHex))
+        setPrivateKeyState(privateKeyHex)
+        setLoginMethod('nsec')
+      } catch (error) {
+        console.error('Failed to set private key:', error)
+        throw new Error('Invalid private key')
+      }
+    },
+    [setPublicKey, setLoginMethod, setPrivateKeyState]
+  )
 
   // Load private key and userId from localStorage on mount
   useEffect(() => {
@@ -49,8 +66,15 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     if (savedApiData) {
       try {
         const parsed = JSON.parse(savedApiData)
-        setPrivateKeyState(parsed.privateKey || null)
-        setUserIdState(parsed.userId || null)
+        switch (parsed.method) {
+          case 'nsec':
+            loginWithPrivateKey(parsed.privateKey)
+            break
+          // case 'nip07':
+          //   setLoginMethod('nip07')
+          //   break
+        }
+        setUserId(parsed.userId || null)
       } catch (error) {
         console.error('Failed to parse saved API data:', error)
       }
@@ -66,11 +90,12 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
         'api',
         JSON.stringify({
           privateKey,
-          userId
+          userId,
+          method: loginMethod
         })
       )
     }
-  }, [privateKey, userId, isHydrated])
+  }, [privateKey, userId, loginMethod, isHydrated])
 
   // Create signer when private key is set
   useEffect(() => {
@@ -86,32 +111,6 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
       }
     } else {
       setSigner(null)
-    }
-  }, [privateKey])
-
-  const setPrivateKey = useCallback((privateKeyHex: string) => {
-    try {
-      // Validate the private key by deriving public key
-      getPublicKeyFromPrivate(privateKeyHex)
-      setPrivateKeyState(privateKeyHex)
-    } catch (error) {
-      console.error('Failed to set private key:', error)
-      throw new Error('Invalid private key')
-    }
-  }, [])
-
-  const setUserId = useCallback((userId: string) => {
-    setUserIdState(userId)
-  }, [])
-
-  // Calculate public key from private key
-  const publicKey = React.useMemo(() => {
-    if (!privateKey) return null
-    try {
-      return getPublicKeyFromPrivate(privateKey)
-    } catch (e) {
-      console.error('Failed to derive public key:', e)
-      return null
     }
   }, [privateKey])
 
@@ -213,11 +212,11 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     privateKey,
     publicKey,
     npub,
-    setPrivateKey,
     userId,
     setUserId,
     isKeyInitialized: signer !== null,
     isHydrated,
+    loginWithPrivateKey,
     signer
   }
 

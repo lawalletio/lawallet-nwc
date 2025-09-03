@@ -20,7 +20,7 @@ export default function ActivateCardPage() {
   const params = useParams()
   const router = useRouter()
   const {
-    setPrivateKey,
+    loginWithPrivateKey,
     setUserId,
     publicKey,
     isHydrated: isApiHydrated,
@@ -49,9 +49,9 @@ export default function ActivateCardPage() {
   useEffect(() => {
     if (isApiHydrated && !publicKey) {
       const privateKey = generatePrivateKey()
-      setPrivateKey(privateKey)
+      loginWithPrivateKey(privateKey)
     }
-  }, [isApiHydrated, publicKey, setPrivateKey])
+  }, [isApiHydrated, publicKey, loginWithPrivateKey])
 
   const handleActivate = async () => {
     try {
