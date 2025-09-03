@@ -22,7 +22,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isHydrated, setIsHydrated] = useState(false)
-  const { userId, put } = useAPI()
+  const { userId, put, logout: logoutApi } = useAPI()
 
   const refreshBalance = async (notification?: any) => {
     console.log(notification)
@@ -182,7 +182,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       balance: 0
     })
     localStorage.removeItem('wallet')
-    localStorage.removeItem('api')
+    logoutApi()
   }
 
   const contextValue: WalletContextType = {

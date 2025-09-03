@@ -7,7 +7,6 @@ import React, {
   useEffect,
   useState
 } from 'react'
-import { getPublicKeyFromPrivate } from '@/lib/nostr'
 import { nip19 } from 'nostr-tools'
 import { NSecSigner } from '@nostrify/nostrify'
 import { createNip98Token } from '@/lib/nip98'
@@ -33,6 +32,7 @@ interface APIContextType {
   isHydrated: boolean
   signer: NSecSigner | null
   loginWithPrivateKey: (privateKeyHex: string) => Promise<void>
+  logout: () => void
 }
 
 const APIContext = createContext<APIContextType | undefined>(undefined)
@@ -48,8 +48,10 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
   const loginWithPrivateKey = useCallback(
     async (privateKeyHex: string) => {
       try {
-        // Validate the private key by deriving public key
-        setPublicKey(getPublicKeyFromPrivate(privateKeyHex))
+        const secretKey = hexToBytes(privateKeyHex)
+        const newSigner = new NSecSigner(secretKey)
+        setSigner(newSigner)
+        setPublicKey(await newSigner.getPublicKey())
         setPrivateKey(privateKeyHex)
         setLoginMethod('nsec')
       } catch (error) {
@@ -59,6 +61,15 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     },
     [setPublicKey, setLoginMethod, setPrivateKey]
   )
+
+  const logout = useCallback(() => {
+    setSigner(null)
+    setPrivateKey(null)
+    setLoginMethod(null)
+    setPublicKey(null)
+    setUserId(null)
+    localStorage.removeItem('api')
+  }, [setSigner, setPrivateKey, setLoginMethod, setPublicKey, setUserId])
 
   // Load private key and userId from localStorage on mount
   useEffect(() => {
@@ -99,17 +110,7 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
 
   // Create signer when private key is set
   useEffect(() => {
-    if (privateKey) {
-      try {
-        // Convert hex string to Uint8Array
-        const secretKey = hexToBytes(privateKey)
-        const newSigner = new NSecSigner(secretKey)
-        setSigner(newSigner)
-      } catch (error) {
-        console.error('Failed to create signer:', error)
-        setSigner(null)
-      }
-    } else {
+    if (!privateKey) {
       setSigner(null)
     }
   }, [privateKey])
@@ -217,7 +218,8 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     isKeyInitialized: signer !== null,
     isHydrated,
     loginWithPrivateKey,
-    signer
+    signer,
+    logout
   }
 
   return (
