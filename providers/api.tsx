@@ -38,7 +38,7 @@ interface APIContextType {
 const APIContext = createContext<APIContextType | undefined>(undefined)
 
 export function APIProvider({ children }: { children: React.ReactNode }) {
-  const [privateKey, setPrivateKeyState] = useState<string | null>(null)
+  const [privateKey, setPrivateKey] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
   const [signer, setSigner] = useState<NSecSigner | null>(null)
@@ -50,14 +50,14 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
       try {
         // Validate the private key by deriving public key
         setPublicKey(getPublicKeyFromPrivate(privateKeyHex))
-        setPrivateKeyState(privateKeyHex)
+        setPrivateKey(privateKeyHex)
         setLoginMethod('nsec')
       } catch (error) {
         console.error('Failed to set private key:', error)
         throw new Error('Invalid private key')
       }
     },
-    [setPublicKey, setLoginMethod, setPrivateKeyState]
+    [setPublicKey, setLoginMethod, setPrivateKey]
   )
 
   // Load private key and userId from localStorage on mount
