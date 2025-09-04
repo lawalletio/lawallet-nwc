@@ -1,6 +1,6 @@
-![LaWallet Logo](/public/logos/lawallet.png)
+<img src="/public/logos/lawallet.png" alt="LaWallet Logo" width="400" />
 
-# NWC version
+# v2 NWC
 
 > 🚨 Project in pre-alpha, do not use real data. Expect breaking changes.
 
@@ -51,6 +51,8 @@ This project is built on and interoperates with the following open standards:
 - **NIP-46** 🔏 [Nostr remote signing](https://github.com/nostr-protocol/nips/blob/master/46.md)
 - **NIP-07** 🔌 [Nostr browser extension API](https://github.com/nostr-protocol/nips/blob/master/07.md)
 
+---
+
 ## Getting Started
 
 1. **Install dependencies:**
@@ -67,13 +69,17 @@ Install dependencies
 pnpm install
 ```
 
+---
+
 2. **Set up environment variables**
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env.local` with your own values. More information in [ENVIRONMENT.md](./docs/ENVIRONMENT.md).
+Edit `.env` with your own values. More information in [ENVIRONMENT.md](./docs/ENVIRONMENT.md).
+
+---
 
 3. **Generate Prisma client and run migrations**
 
@@ -89,19 +95,29 @@ pnpm prisma migrate deploy
 pnpm prisma db seed
 ```
 
+---
+
 4. **Run the development server:**
 
 ```bash
 pnpm dev
 ```
 
+---
+
 5. **Open your browser:**
 
 Visit [http://localhost:3000](http://localhost:3000) to see the app.
 
+---
+
+# Sections
+
 ## Admin Dashboard
 
 Go to admin dashboard at [http://localhost:3000/admin](http://localhost:3000/admin) to see the app.
+
+---
 
 ## Wallet
 
