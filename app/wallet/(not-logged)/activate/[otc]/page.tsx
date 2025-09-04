@@ -34,7 +34,7 @@ export default function ActivateCardPage() {
   const otc = params.otc as string
   const { card: otcCard, error: otcError } = useCardOTC(otc)
   const { createUser, isLoading: isActivating } = useUser()
-  const { setNwcUri } = useWallet()
+  const { setNwcUri, setLightningAddress } = useWallet()
 
   // Set the card if it exists
   useEffect(() => {
@@ -56,26 +56,16 @@ export default function ActivateCardPage() {
   const handleActivate = async () => {
     try {
       const user = await createUser({ otc })
+      user.nwcString && setNwcUri(user.nwcString)
+      user.lightningAddress && setLightningAddress(user.lightningAddress)
       setUserId(user.userId)
-      setNwcStringUpdated(user.nwcString || null)
 
       setIsActivated(true)
+      router.push('/wallet')
     } catch (error) {
       console.error('Failed to activate card:', error)
     }
   }
-
-  useEffect(() => {
-    if (!isActivated || !userId) {
-      return
-    }
-    if (nwcStringUpdated) {
-      setNwcUri(nwcStringUpdated)
-    }
-    // Redirect to wallet after a brief success message
-    router.push('/wallet')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, isActivated, nwcStringUpdated])
 
   if (otcError) {
     return (

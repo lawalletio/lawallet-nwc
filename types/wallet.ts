@@ -7,6 +7,7 @@ export interface WalletState {
 }
 
 export interface WalletContextType extends WalletState {
+  getWalletData: () => Promise<void>
   setLightningAddress: (username: string) => Promise<void>
   setNwcUri: (uri: string) => Promise<void>
   logout: () => void

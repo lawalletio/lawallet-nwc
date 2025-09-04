@@ -22,7 +22,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isHydrated, setIsHydrated] = useState(false)
-  const { userId, put, logout: logoutApi } = useAPI()
+  const { userId, get, put, logout: logoutApi } = useAPI()
 
   const refreshBalance = async (notification?: any) => {
     console.log(notification)
@@ -125,7 +125,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const setLightningAddress = async (username: string) => {
     if (!userId) {
-      throw new Error('User ID is required to set lightning address')
+      setWalletState(prev => ({
+        ...prev,
+        lightningAddress: username
+      }))
+      return
     }
 
     try {
@@ -154,7 +158,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const setNwcUri = async (nwcUri: string) => {
     if (!userId) {
-      throw new Error('User ID is required to set NWC URI')
+      setWalletState(prev => ({ ...prev, nwcUri }))
+      return
     }
 
     try {
@@ -175,6 +180,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const getWalletData = async () => {
+    const { data, error } = await get(`/api/users/wallet`)
+    if (error) {
+      throw new Error(error)
+    }
+    return data
+  }
+
   const logout = () => {
     setWalletState({
       lightningAddress: null,
@@ -187,6 +200,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue: WalletContextType = {
     ...walletState,
+    getWalletData,
     setLightningAddress,
     setNwcUri,
     logout,

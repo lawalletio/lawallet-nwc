@@ -1,13 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { randomUUID } from 'crypto'
 import { validateNip98 } from '@/lib/nip98'
-import { AlbyHub } from '@/lib/albyhub'
-
-const ALBY_API_URL = process.env.ALBY_API_URL!
-const ALBY_BEARER_TOKEN = process.env.ALBY_BEARER_TOKEN!
-const AUTO_GENERATE_ALBY_SUBACCOUNTS =
-  process.env.AUTO_GENERATE_ALBY_SUBACCOUNTS === 'true'
+import { createNewUser } from '@/lib/user'
 
 export async function POST(
   request: Request,
@@ -33,43 +27,7 @@ export async function POST(
       }
     })
 
-    let user
-    if (existingUser) {
-      user = existingUser
-    } else {
-      // Create new user
-      const userId = randomUUID()
-
-      const albyHub = new AlbyHub(ALBY_API_URL, ALBY_BEARER_TOKEN)
-
-      const subAccount = AUTO_GENERATE_ALBY_SUBACCOUNTS
-        ? await albyHub.createSubAccount(`LaWallet-${userId}`)
-        : null
-
-      user = await prisma.user.create({
-        data: {
-          id: userId,
-          pubkey,
-          createdAt: new Date(),
-          albyEnabled: !!subAccount,
-          albySubAccount: subAccount
-            ? {
-                create: {
-                  appId: subAccount.id,
-                  nwcUri: subAccount.pairingUri,
-                  username: subAccount.lud16,
-                  nostrPubkey: subAccount.walletPubkey
-                }
-              }
-            : undefined
-        },
-        include: {
-          lightningAddress: true,
-          albySubAccount: true
-        }
-      })
-    }
-
+    const user = existingUser || (await createNewUser(pubkey))
     // If OTC is provided, try to assign a card to this user
     if (otc) {
       const card = await prisma.card.findFirst({
@@ -88,9 +46,14 @@ export async function POST(
       }
     }
 
+    const domain = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
+    const lightningAddress = user.lightningAddress?.username
+      ? `${user.lightningAddress.username}@${domain}`
+      : null
+
     return NextResponse.json({
       userId: user.id,
-      lightningAddress: user.lightningAddress?.username || null,
+      lightningAddress,
       albySubAccount: user.albySubAccount
         ? {
             appId: user.albySubAccount.appId,

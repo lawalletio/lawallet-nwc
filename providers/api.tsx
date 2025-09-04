@@ -37,6 +37,16 @@ interface APIContextType {
   loginWithSigner: (signer: NostrSigner) => Promise<void>
   logout: () => void
   loginMethod: LoginMethod | null
+  getUserId: () => Promise<{
+    userId: string
+    lightningAddress: string | null
+    albySubAccount: {
+      appId: string
+      nwcUri: string
+      username: string
+    } | null
+    nwcString: string
+  }>
 }
 
 const APIContext = createContext<APIContextType | undefined>(undefined)
@@ -218,6 +228,23 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     [makeRequest]
   )
 
+  const getUserId = useCallback(async () => {
+    const { data, error } = await get('/api/users/me')
+    if (error) {
+      throw new Error(error)
+    }
+    return data as {
+      userId: string
+      lightningAddress: string | null
+      albySubAccount: {
+        appId: string
+        nwcUri: string
+        username: string
+      } | null
+      nwcString: string
+    }
+  }, [get])
+
   const contextValue: APIContextType = {
     get,
     post,
@@ -234,7 +261,8 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     loginWithSigner,
     loginMethod,
     signer,
-    logout
+    logout,
+    getUserId
   }
 
   return (
