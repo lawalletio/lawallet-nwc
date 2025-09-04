@@ -100,7 +100,9 @@ export async function createNip98Token(
   const authHeader = await getToken(
     generateAbsoluteUrl(url),
     method,
-    signer.signEvent.bind(signer),
+    event => {
+      return signer.signEvent(event)
+    },
     true, // includePayloadHash
     payload
   )
