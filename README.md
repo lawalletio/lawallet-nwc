@@ -1,8 +1,10 @@
+![LaWallet Logo](/public/logos/lawallet.png)
+
+# NWC version
+
 > 🚨 Project in pre-alpha, do not use real data. Expect breaking changes.
 
-# 🚨 Boltcard + NWC
-
-Boltcard + NWC is an open-source platform for creating, managing and serving Boltcard payments. Users can connect their own Nostr Wallet Connect (NWC) and configure lightning addresses to enable seamless NFC card payments. The platform provides a complete solution for managing Boltcard infrastructure while letting users maintain control of their payment channels.
+LaWallet NWC is an open-source platform for creating, managing and serving Boltcard payments. Users can connect their own Nostr Wallet Connect (NWC) and configure lightning addresses to enable seamless NFC card payments. The platform provides a complete solution for managing Boltcard infrastructure while letting users maintain control of their payment channels.
 
 ## Features
 
@@ -53,19 +55,57 @@ This project is built on and interoperates with the following open standards:
 
 1. **Install dependencies:**
 
+Set correct node version with `nvm`
+
+```bash
+nvm use
+```
+
+Install dependencies
+
 ```bash
 pnpm install
 ```
 
-2. **Run the development server:**
+2. **Set up environment variables**
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env.local` with your own values. More information in [ENVIRONMENT.md](./docs/ENVIRONMENT.md).
+
+3. **Generate Prisma client and run migrations**
+
+```bash
+pnpm prisma generate
+```
+
+```bash
+pnpm prisma migrate deploy
+```
+
+```bash
+pnpm prisma db seed
+```
+
+4. **Run the development server:**
 
 ```bash
 pnpm dev
 ```
 
-3. **Open your browser:**
+5. **Open your browser:**
 
 Visit [http://localhost:3000](http://localhost:3000) to see the app.
+
+## Admin Dashboard
+
+Go to admin dashboard at [http://localhost:3000/admin](http://localhost:3000/admin) to see the app.
+
+## Wallet
+
+Go to wallet at [http://localhost:3000/wallet](http://localhost:3000/wallet) to see user's wallet app.
 
 ## License
 
