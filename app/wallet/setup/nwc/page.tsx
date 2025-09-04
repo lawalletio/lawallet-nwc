@@ -45,7 +45,9 @@ export default function NwcSetupPage() {
       // Show success and redirect
       router.push('/wallet')
     } catch (err) {
-      setError('Failed to configure NWC. Please check your URI and try again.')
+      setError(
+        `Failed to configure NWC. Please check your URI and try again. ${err}`
+      )
       setIsLoading(false)
     }
   }
