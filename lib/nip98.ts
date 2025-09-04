@@ -1,4 +1,4 @@
-import { NSecSigner } from '@nostrify/nostrify'
+import { NostrSigner } from '@nostrify/nostrify'
 import { nip98, NostrEvent } from 'nostr-tools'
 import { getToken } from 'nostr-tools/nip98'
 
@@ -88,7 +88,7 @@ export function bodyToPayload(body: any): Record<string, any> | undefined {
 export async function createNip98Token(
   url: string,
   requestInit: RequestInit,
-  signer: NSecSigner
+  signer: NostrSigner
 ): Promise<string> {
   // Create the NIP-98 event using nostr-tools helper
   const method = requestInit.method || 'GET'

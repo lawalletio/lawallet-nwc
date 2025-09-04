@@ -17,14 +17,9 @@ import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
 
 export default function WalletPage() {
   const { lightningAddress, nwcUri, balance, isConnected } = useWallet()
-  const {
-    privateKey,
-    isKeyInitialized,
-    isHydrated: apiHydrated,
-    userId
-  } = useAPI()
+  const { isHydrated: apiHydrated, signer, userId } = useAPI()
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(!isKeyInitialized)
+  const [isLoading, setIsLoading] = useState(!signer)
   const [copied, setCopied] = useState(false)
   const [animatedBalance, setAnimatedBalance] = useState(balance)
   const addressRef = useRef<HTMLDivElement>(null)
@@ -46,11 +41,11 @@ export default function WalletPage() {
     if (!apiHydrated) return
     // Check authentication first
     const checkAuth = async () => {
-      if (!privateKey) {
+      if (!signer) {
         router.push('/wallet/login')
         return
       }
-      if (!isKeyInitialized) {
+      if (!signer) {
         // Only show splash/loading if not initialized
         // Small delay to prevent flash
         await new Promise(resolve => setTimeout(resolve, 500))
@@ -63,7 +58,7 @@ export default function WalletPage() {
       }
     }
     checkAuth()
-  }, [privateKey, isKeyInitialized, apiHydrated, router])
+  }, [signer, apiHydrated, router])
 
   useEffect(() => {
     if (balance === undefined || balance === null) return
@@ -98,12 +93,12 @@ export default function WalletPage() {
     return null
   }
   // If not authenticated, don't render anything (will redirect)
-  if (!privateKey) {
+  if (!signer) {
     return null
   }
 
   // Show loading splash screen only if not initialized or loading
-  if (isLoading || !isKeyInitialized) {
+  if (isLoading || !signer) {
     return (
       <div className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center">
         {/* Animated Background */}

@@ -3,17 +3,17 @@
 import type React from 'react'
 import { useState } from 'react'
 
-import { useAdmin } from '@/hooks/use-admin'
 import { Login } from './login'
 import { AdminSidebar } from './admin-sidebar'
 import { TopNavbar } from './top-navbar'
+import { useAPI } from '@/providers/api'
 
 export function AdminWrapper({ children }: { children: React.ReactNode }) {
-  const { auth } = useAdmin()
+  const { signer } = useAPI()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // If not authenticated, only show login dialog
-  if (!auth) {
+  if (!signer) {
     return <Login />
   }
 

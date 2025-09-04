@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -34,10 +33,11 @@ import {
 } from '@/components/ui/dialog'
 import { useIsMobile } from '@/components/ui/use-mobile'
 import type { Card as CardType } from '@/types/card'
+import { useAPI } from '@/providers/api'
 
 export default function CardsPage() {
   const router = useRouter()
-  const { auth } = useAdmin()
+  const { signer } = useAPI()
   const { list, count, getPairedCards, getUsedCards, getUnpairedCards } =
     useCards()
   const [searchTerm, setSearchTerm] = useState('')
@@ -79,7 +79,7 @@ export default function CardsPage() {
     fetchData()
   }, [list, count, getPairedCards, getUsedCards, getUnpairedCards])
 
-  if (!auth) return null
+  if (!signer) return null
 
   const filteredCards = cards.filter(
     card =>

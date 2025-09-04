@@ -9,7 +9,7 @@ export interface Settings {
 
 export interface SettingsContextType {
   settings: Settings
-  updateSettings: (settings: Partial<Settings>) => void
+  updateSettings: (settings: Settings) => void
   isLoading: boolean
 }
 

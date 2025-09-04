@@ -13,13 +13,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Settings, Globe, RefreshCw, CheckCircle, Check, X } from 'lucide-react'
-import { useAdmin } from '@/hooks/use-admin'
+import { useSettings } from '@/hooks/use-settings'
 
 export default function SettingsPage() {
-  const { domain, setDomain } = useAdmin()
-  const [settings, setSettings] = useState({
-    domain: domain || 'yourdomain.com'
-  })
+  const { settings, updateSettings } = useSettings()
   const [isSaving, setIsSaving] = useState(false)
   const [isValidating, setIsValidating] = useState(false)
   const [domainValidation, setDomainValidation] = useState<{
@@ -37,7 +34,7 @@ export default function SettingsPage() {
     await new Promise(resolve => setTimeout(resolve, 1500))
     const isValid =
       /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$/.test(
-        settings.domain
+        settings.domain || ''
       )
     if (isValid) {
       setDomainValidation({
@@ -53,7 +50,7 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     setIsSaving(true)
     await new Promise(resolve => setTimeout(resolve, 1000))
-    setDomain(settings.domain)
+    updateSettings({ ...settings, domain: settings.domain })
     setLastSaved(new Date())
     setIsSaving(false)
   }
@@ -95,7 +92,6 @@ export default function SettingsPage() {
                 id="domain"
                 value={settings.domain}
                 onChange={e => {
-                  setSettings(prev => ({ ...prev, domain: e.target.value }))
                   setDomainValidation({ isValid: null, message: '' })
                 }}
                 placeholder="yourdomain.com"

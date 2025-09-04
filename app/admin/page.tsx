@@ -1,6 +1,5 @@
 'use client'
 
-import { useAdmin } from '@/hooks/use-admin'
 import {
   Card,
   CardContent,
@@ -17,9 +16,10 @@ import { useCardDesigns } from '@/providers/card-designs'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { Card as CardType } from '@/types/card'
+import { useAPI } from '@/providers/api'
 
 export default function AdminPage() {
-  const { auth } = useAdmin()
+  const { signer } = useAPI()
   const { list, count, getStatusCounts } = useCards()
   const { count: countCardDesign } = useCardDesigns()
   const { list: listAddresses, count: countAddresses } = useLightningAddresses()
@@ -80,7 +80,7 @@ export default function AdminPage() {
     countAddresses
   ])
 
-  if (!auth) return null
+  if (!signer) return null
 
   const stats = [
     {

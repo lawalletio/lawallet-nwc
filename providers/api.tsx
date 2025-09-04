@@ -8,7 +8,7 @@ import React, {
   useState
 } from 'react'
 import { nip19 } from 'nostr-tools'
-import { NSecSigner } from '@nostrify/nostrify'
+import { NostrSigner, NSecSigner } from '@nostrify/nostrify'
 import { createNip98Token } from '@/lib/nip98'
 import { hexToBytes } from 'nostr-tools/utils'
 
@@ -17,6 +17,8 @@ interface APIResponse<T = any> {
   error?: string
   status: number
 }
+
+export type LoginMethod = 'nsec' | 'nip07' | 'bunker'
 
 interface APIContextType {
   get: <T = any>(url: string) => Promise<APIResponse<T>>
@@ -30,9 +32,11 @@ interface APIContextType {
   setUserId: (userId: string) => void
   isKeyInitialized: boolean
   isHydrated: boolean
-  signer: NSecSigner | null
+  signer: NostrSigner | null
   loginWithPrivateKey: (privateKeyHex: string) => Promise<void>
+  loginWithSigner: (signer: NostrSigner) => Promise<void>
   logout: () => void
+  loginMethod: LoginMethod | null
 }
 
 const APIContext = createContext<APIContextType | undefined>(undefined)
@@ -41,12 +45,22 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
   const [privateKey, setPrivateKey] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
-  const [signer, setSigner] = useState<NSecSigner | null>(null)
-  const [loginMethod, setLoginMethod] = useState<'nsec' | 'nip07' | null>(null)
+  const [signer, setSigner] = useState<NostrSigner | null>(null)
+  const [loginMethod, setLoginMethod] = useState<LoginMethod | null>(null)
   const [publicKey, setPublicKey] = useState<string | null>(null)
+
+  const logout = useCallback(() => {
+    setSigner(null)
+    setPrivateKey(null)
+    setLoginMethod(null)
+    setPublicKey(null)
+    setUserId(null)
+    localStorage.removeItem('api')
+  }, [setSigner, setPrivateKey, setLoginMethod, setPublicKey, setUserId])
 
   const loginWithPrivateKey = useCallback(
     async (privateKeyHex: string) => {
+      logout()
       try {
         const secretKey = hexToBytes(privateKeyHex)
         const newSigner = new NSecSigner(secretKey)
@@ -59,17 +73,18 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Invalid private key')
       }
     },
-    [setPublicKey, setLoginMethod, setPrivateKey]
+    [setPublicKey, setLoginMethod, setPrivateKey, logout]
   )
 
-  const logout = useCallback(() => {
-    setSigner(null)
-    setPrivateKey(null)
-    setLoginMethod(null)
-    setPublicKey(null)
-    setUserId(null)
-    localStorage.removeItem('api')
-  }, [setSigner, setPrivateKey, setLoginMethod, setPublicKey, setUserId])
+  const loginWithSigner = useCallback(
+    async (signer: NostrSigner) => {
+      logout()
+      setSigner(signer)
+      setLoginMethod('nip07')
+      setPublicKey(await signer.getPublicKey())
+    },
+    [setSigner, setPublicKey, setLoginMethod, logout]
+  )
 
   // Load private key and userId from localStorage on mount
   useEffect(() => {
@@ -81,9 +96,13 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
           case 'nsec':
             loginWithPrivateKey(parsed.privateKey)
             break
-          // case 'nip07':
-          //   setLoginMethod('nip07')
-          //   break
+          case 'nip07':
+            if (!window.nostr) {
+              throw new Error('Nostr extension not available')
+            }
+            setLoginMethod('nip07')
+            loginWithSigner(window.nostr)
+            break
         }
         setUserId(parsed.userId || null)
       } catch (error) {
@@ -91,6 +110,7 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
       }
     }
     setIsHydrated(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Save private key and userId to localStorage whenever they change
@@ -211,6 +231,8 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     isKeyInitialized: signer !== null,
     isHydrated,
     loginWithPrivateKey,
+    loginWithSigner,
+    loginMethod,
     signer,
     logout
   }

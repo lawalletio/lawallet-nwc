@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { User, LogOut, Settings, ChevronDown, Menu } from 'lucide-react'
-import { useAdmin } from '@/hooks/use-admin'
+import { LoginMethod, useAPI } from '@/providers/api'
 
 interface TopNavbarProps {
   sidebarOpen: boolean
@@ -17,13 +17,13 @@ interface TopNavbarProps {
 }
 
 export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
-  const { auth, setAuth } = useAdmin()
+  const { signer, npub, logout, loginMethod } = useAPI()
 
   const handleLogout = () => {
-    setAuth(null)
+    logout()
   }
 
-  const getMethodBadge = (method: string) => {
+  const getMethodBadge = (method: LoginMethod | null) => {
     switch (method) {
       case 'nip07':
         return 'Extension'
@@ -36,7 +36,7 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
     }
   }
 
-  const getMethodColor = (method: string) => {
+  const getMethodColor = (method: LoginMethod | null) => {
     switch (method) {
       case 'nip07':
         return 'bg-green-100 text-green-800'
@@ -68,9 +68,9 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
           <h2 className="text-base font-semibold text-foreground truncate">
             Admin Dashboard
           </h2>
-          {auth && (
+          {signer && npub && (
             <p className="text-xs text-muted-foreground truncate font-mono">
-              {auth.pubkey.slice(0, 8)}...{auth.pubkey.slice(-8)}
+              {npub.slice(0, 8)}...{npub.slice(-8)}
             </p>
           )}
         </div>
@@ -90,14 +90,16 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
                 <User className="h-4 w-4 text-muted-foreground" />
               </div>
               <div className="hidden md:block text-left">
-                <div className="text-sm font-medium text-foreground font-mono">
-                  {auth?.pubkey.slice(0, 8)}...{auth?.pubkey.slice(-8)}
-                </div>
+                {npub && (
+                  <div className="text-sm font-medium text-foreground font-mono">
+                    {npub.slice(0, 8)}...{npub.slice(-8)}
+                  </div>
+                )}
                 <div className="text-xs text-muted-foreground">
                   <span
-                    className={`inline-block px-2 py-0.5 rounded-full text-xs ${getMethodColor(auth?.method || '')}`}
+                    className={`inline-block px-2 py-0.5 rounded-full text-xs ${getMethodColor(loginMethod)}`}
                   >
-                    {getMethodBadge(auth?.method || '')}
+                    {getMethodBadge(loginMethod)}
                   </span>
                 </div>
               </div>
@@ -111,13 +113,13 @@ export function TopNavbar({ sidebarOpen, setSidebarOpen }: TopNavbarProps) {
               Logged in as
             </div>
             <div className="text-xs text-muted-foreground font-mono break-all">
-              {auth?.pubkey}
+              {npub}
             </div>
             <div className="mt-1">
               <span
-                className={`inline-block px-2 py-0.5 rounded-full text-xs ${getMethodColor(auth?.method || '')}`}
+                className={`inline-block px-2 py-0.5 rounded-full text-xs ${getMethodColor(loginMethod)}`}
               >
-                {getMethodBadge(auth?.method || '')}
+                {getMethodBadge(loginMethod)}
               </span>
             </div>
           </div>

@@ -13,10 +13,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Eye, EyeOff, Zap, Key, Link, Lock } from 'lucide-react'
-import { useAdmin } from '@/hooks/use-admin'
+import { useAPI } from '@/providers/api'
+import { nsecToHex } from '@/lib/nostr'
 
 export function Login() {
-  const { setAuth } = useAdmin()
+  const { loginWithSigner, loginWithPrivateKey } = useAPI()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [nsec, setNsec] = useState('')
@@ -33,8 +34,8 @@ export function Login() {
           'No Nostr extension found. Please install Alby or nos2x.'
         )
       }
-      const pubkey = await window.nostr.getPublicKey()
-      setAuth({ pubkey, method: 'nip07', connected: true })
+      await window.nostr.getPublicKey()
+      loginWithSigner(window.nostr)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect')
     } finally {
@@ -49,8 +50,7 @@ export function Login() {
       if (!nsec.startsWith('nsec1')) {
         throw new Error('Invalid nsec format. Must start with nsec1')
       }
-      const mockPubkey = 'npub1' + Math.random().toString(36).substr(2, 59)
-      setAuth({ pubkey: mockPubkey, method: 'nsec', connected: true })
+      loginWithPrivateKey(nsecToHex(nsec))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to login with nsec')
     } finally {
@@ -62,11 +62,10 @@ export function Login() {
     setLoading(true)
     setError('')
     try {
+      alert('Not implemented yet')
       if (!bunkerUri.startsWith('nsec://')) {
         throw new Error('Invalid bunker URI format. Must start with nsec://')
       }
-      const mockPubkey = 'npub1' + Math.random().toString(36).substr(2, 59)
-      setAuth({ pubkey: mockPubkey, method: 'bunker', connected: true })
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to connect to bunker'

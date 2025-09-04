@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Loader2 } from 'lucide-react'
 
@@ -16,9 +16,9 @@ import { LaWalletIcon } from '@/components/icon/lawallet'
 
 export default function WalletLoginPage() {
   const [nsecInput, setNsecInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
-  const { loginWithPrivateKey } = useAPI()
+  const { loginWithPrivateKey, signer } = useAPI()
   const router = useRouter()
 
   const handleGenerateWallet = async () => {
@@ -35,6 +35,12 @@ export default function WalletLoginPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (signer) {
+      router.push('/wallet')
+    }
+  }, [signer, router])
 
   const handleImportWallet = async () => {
     setIsLoading(true)
@@ -55,12 +61,22 @@ export default function WalletLoginPage() {
     try {
       const privateKeyHex = nsecToHex(nsecInput.trim())
       loginWithPrivateKey(privateKeyHex)
-      router.push('/wallet')
     } catch (err) {
       setError('Failed to import wallet. Please check your private key.')
-    } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <AppViewport>
+        <AppContent>
+          <div className="container flex-1 flex flex-col gap-4 w-full h-full">
+            <Loader2 className="size-4 animate-spin" />
+          </div>
+        </AppContent>
+      </AppViewport>
+    )
   }
 
   return (

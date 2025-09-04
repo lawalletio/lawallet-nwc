@@ -22,7 +22,7 @@ export default function ActivateCardPage() {
   const {
     loginWithPrivateKey,
     setUserId,
-    publicKey,
+    signer,
     isHydrated: isApiHydrated,
     userId
   } = useAPI()
@@ -47,11 +47,11 @@ export default function ActivateCardPage() {
 
   // Generate a new private key if one doesn't exist
   useEffect(() => {
-    if (isApiHydrated && !publicKey) {
+    if (isApiHydrated && !signer) {
       const privateKey = generatePrivateKey()
       loginWithPrivateKey(privateKey)
     }
-  }, [isApiHydrated, publicKey, loginWithPrivateKey])
+  }, [isApiHydrated, signer, loginWithPrivateKey])
 
   const handleActivate = async () => {
     try {
