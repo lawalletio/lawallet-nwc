@@ -18,7 +18,7 @@ export default function WalletLoginPage() {
   const [nsecInput, setNsecInput] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
-  const { loginWithPrivateKey, signer } = useAPI()
+  const { loginWithPrivateKey, isHydrated, signer } = useAPI()
   const router = useRouter()
 
   const handleGenerateWallet = async () => {
@@ -35,12 +35,6 @@ export default function WalletLoginPage() {
       setIsLoading(false)
     }
   }
-
-  useEffect(() => {
-    if (signer) {
-      router.push('/wallet')
-    }
-  }, [signer, router])
 
   const handleImportWallet = async () => {
     setIsLoading(true)
@@ -67,11 +61,22 @@ export default function WalletLoginPage() {
     }
   }
 
+  useEffect(() => {
+    if (signer) {
+      router.push('/wallet')
+      return
+    }
+    if (isHydrated) {
+      setIsLoading(false)
+    }
+  }, [isHydrated, signer, router])
+
   if (isLoading) {
     return (
       <AppViewport>
         <AppContent>
-          <div className="container flex-1 flex flex-col gap-4 w-full h-full">
+          <div className="container flex-1 flex flex-col gap-4 w-full h-full text-white">
+            Loading...
             <Loader2 className="size-4 animate-spin" />
           </div>
         </AppContent>

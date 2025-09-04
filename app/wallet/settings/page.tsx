@@ -14,19 +14,19 @@ import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
 
 export default function WalletSettingsPage() {
   const { lightningAddress, nwcUri, isConnected, logout } = useWallet()
-  const { privateKey, npub } = useAPI()
+  const { signer, npub, loginMethod, privateKey } = useAPI()
 
   const router = useRouter()
   const [showPrivateKey, setShowPrivateKey] = useStateHook(false)
   const [copied, setCopied] = useStateHook('')
 
   useEffect(() => {
-    if (!privateKey) {
+    if (!signer) {
       router.push('/wallet/login')
     }
-  }, [privateKey, router])
+  }, [signer, router])
 
-  if (!privateKey) {
+  if (!signer) {
     return null
   }
 
@@ -103,52 +103,56 @@ export default function WalletSettingsPage() {
             </div>
 
             {/* Private Key */}
-            <div className="space-y-3 p-4 bg-black">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-white">
-                  Private Key (nsec)
-                </label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    onClick={() => setShowPrivateKey(!showPrivateKey)}
-                  >
-                    {showPrivateKey ? (
-                      <EyeOff className="size-4" />
-                    ) : (
-                      <Eye className="size-4" />
-                    )}
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    disabled={copied === 'privateKey'}
-                    onClick={() =>
-                      copyToClipboard(hexToNsec(privateKey), 'privateKey')
-                    }
-                  >
-                    {copied === 'privateKey' ? (
-                      <Check className="size-4" />
-                    ) : (
-                      <Copy className="size-4" />
-                    )}
-                  </Button>
+            {loginMethod === 'nsec' && privateKey && (
+              <div className="space-y-3 p-4 bg-black">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-white">
+                    Private Key (nsec)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      onClick={() => setShowPrivateKey(!showPrivateKey)}
+                    >
+                      {showPrivateKey ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      disabled={copied === 'privateKey'}
+                      onClick={() =>
+                        copyToClipboard(hexToNsec(privateKey), 'privateKey')
+                      }
+                    >
+                      {copied === 'privateKey' ? (
+                        <Check className="size-4" />
+                      ) : (
+                        <Copy className="size-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
+                <code className="block p-4 bg-white/5 border border-white/10 rounded-xl text-xs font-mono break-all text-gray-300 backdrop-blur-sm">
+                  {showPrivateKey
+                    ? hexToNsec(privateKey)
+                    : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
+                </code>
               </div>
-              <code className="block p-4 bg-white/5 border border-white/10 rounded-xl text-xs font-mono break-all text-gray-300 backdrop-blur-sm">
-                {showPrivateKey
-                  ? hexToNsec(privateKey)
-                  : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
-              </code>
+            )}
+          </div>
+          {privateKey && (
+            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg backdrop-blur-sm">
+              <Shield className="size-10 text-red-400" />
+              <p className="text-sm text-red-300">
+                Keep this private key secure. Never share it with anyone.
+              </p>
             </div>
-          </div>
-          <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg backdrop-blur-sm">
-            <Shield className="size-10 text-red-400" />
-            <p className="text-sm text-red-300">
-              Keep this private key secure. Never share it with anyone.
-            </p>
-          </div>
+          )}
         </div>
 
         {/* Account Actions */}
