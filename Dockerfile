@@ -1,51 +1,73 @@
-# 1. Builder stage
-FROM node:20-alpine AS builder
+# Base image with Node.js 22 on Debian Trixie Slim
+FROM node:22-trixie-slim AS base
 
-# 2. Set working directory
+# Install system dependencies and pnpm in one layer
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g pnpm
+
+# Install dependencies only when needed
+FROM base AS deps
 WORKDIR /app
 
-# 3. Install pnpm
-RUN npm install -g pnpm
-
-# 4. Copy package and lock files
-# Copy package files and prisma directory first
+# Copy package files first for better caching
 COPY package.json pnpm-lock.yaml ./
-COPY prisma ./prisma
 
-# 5. Install dependencies
-# Install dependencies (postinstall will now work)
+# Install all dependencies (including dev dependencies for build)
 RUN pnpm install --frozen-lockfile
 
-# 6. Copy the rest of the code
-# Copy the rest of the code
-COPY . .
-
-# 7. Generate Prisma client and run migrations
-# Build the app
-RUN pnpm build
-
-# 8. Build the Next.js app
-
-# 2. Production stage
-FROM node:20-alpine AS production
-
-# 2. Set working directory
+# Rebuild the source code only when needed
+FROM base AS builder
 WORKDIR /app
 
-# 3. Install pnpm
-RUN npm install -g pnpm
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
 
-# 4. Copy only the necessary files from builder
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/pnpm-lock.yaml ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
+# Copy source code
+COPY . .
+
+# Generate Prisma client and build in one layer
+ENV SKIP_ENV_VALIDATION=1
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+RUN pnpm exec prisma generate && pnpm run build
+
+# Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+# Create non-root user for security in one layer
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
+
+# Copy the standalone output from builder
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/.env ./.env
+COPY --from=builder /app/lib/generated ./lib/generated
 
-# 9. Expose the port Next.js runs on
-EXPOSE 3000
+# Install only Prisma CLI for migrations
+RUN npm install -g prisma
 
-# 10. Start the app
-CMD ["pnpm", "start"] 
+# Create database directory and set proper permissions in one layer
+RUN mkdir -p /app/data && chown -R nextjs:nodejs /app
+
+# Switch to non-root user
+USER nextjs
+
+# Expose port
+EXPOSE ${PORT}
+
+# Set environment variables
+ENV NODE_ENV=production
+# DATABASE_URL will be set by docker-compose.yml
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:${PORT} || exit 1
+
+# Run database migrations and start the application
+CMD ["sh", "-c", "prisma migrate deploy && node server.js"]

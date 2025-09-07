@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=lawallet
+      - POSTGRES_USER=lawallet
+      - POSTGRES_PASSWORD=lawallet_password
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lawallet -d lawallet']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - '8888:8888'
+    environment:
+      - DATABASE_URL=postgresql://lawallet:lawallet_password@postgres:5432/lawallet
+      - NODE_ENV=production
+      - PORT=8888
+      # Add other environment variables here
+      # - JWT_SECRET=your-secret-key
+      # - NEXTAUTH_SECRET=your-nextauth-secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
