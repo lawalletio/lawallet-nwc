@@ -84,3 +84,12 @@ model AlbySubAccount {
   nostrPubkey String? // nostr pubkey for nip57
   createdAt   DateTime @default(now())
 }
+
+model Settings {
+  name String @id
+  value String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
