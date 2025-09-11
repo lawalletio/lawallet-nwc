@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getSettings } from '@/lib/settings'
+import { validateNip98 } from '@/lib/nip98'
 
 // Validation function for setting names
 function validateSettingName(name: string): string | null {
@@ -25,25 +27,25 @@ function validateSettingName(name: string): string | null {
   return null
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Validate authentication
+  let authenticatedPubkey: string
+  try {
+    const { pubkey } = await validateNip98(request)
+    authenticatedPubkey = pubkey
+  } catch (error) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     // Fetch all settings records from the database
-    const settings = await prisma.settings.findMany({
-      orderBy: {
-        name: 'asc'
-      }
-    })
+    const settings = await getSettings()
 
-    // Transform the array into a JSON object where name is the key and value is the value
-    const settingsObject = settings.reduce(
-      (acc, setting) => {
-        acc[setting.name] = setting.value
-        return acc
-      },
-      {} as Record<string, string>
-    )
+    if (authenticatedPubkey !== settings.root) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    return NextResponse.json(settingsObject)
+    return NextResponse.json(settings)
   } catch (error) {
     console.error('Error fetching settings:', error)
     return NextResponse.json(

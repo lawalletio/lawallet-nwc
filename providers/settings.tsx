@@ -39,6 +39,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true) // Start with loading true for initial load
   const [isUpdating, setIsUpdating] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+  const { signer } = useAPI()
   const [settings, setSettings] = useState<Settings>({
     domain: process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000',
     endpoint: process.env.NEXT_PUBLIC_ENDPOINT || 'http://localhost:3000'
@@ -123,8 +124,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   // Load settings on mount
   useEffect(() => {
-    loadSettings()
-  }, [loadSettings])
+    if (signer) {
+      loadSettings()
+    }
+  }, [loadSettings, signer])
 
   return (
     <SettingsContext.Provider
