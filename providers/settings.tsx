@@ -17,6 +17,7 @@ export interface Settings {
   alby_auto_generate?: string
   alby_api_url?: string
   alby_bearer_token?: string
+  root?: string
   [key: string]: string | undefined
 }
 
