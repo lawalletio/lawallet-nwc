@@ -20,6 +20,7 @@ model User {
   cards            Card[]
   albySubAccount   AlbySubAccount?
   albyEnabled      Boolean           @default(false)
+  role             String?           @default("user")
 }
 
 model CardDesign {
