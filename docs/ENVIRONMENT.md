@@ -2,16 +2,6 @@
 
 ## Required
 
-You can leave it as is for local development.
-
-```bash
-## Public access
-NEXT_PUBLIC_DOMAIN=localhost:3000
-NEXT_PUBLIC_ENDPOINT=http://localhost:3000
-```
-
-You can leave it as is for local development.
-
 ```bash
 ## Database
 DATABASE_URL="file:./dev.db"

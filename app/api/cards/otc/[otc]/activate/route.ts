@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateNip98 } from '@/lib/nip98'
 import { createNewUser } from '@/lib/user'
+import { getSettings } from '@/lib/settings'
 
 export async function POST(
   request: Request,
@@ -46,7 +47,7 @@ export async function POST(
       }
     }
 
-    const domain = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
+    const { domain } = await getSettings(['domain'])
     const lightningAddress = user.lightningAddress?.username
       ? `${user.lightningAddress.username}@${domain}`
       : null

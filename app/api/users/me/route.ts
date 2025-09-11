@@ -2,6 +2,7 @@ import { validateNip98 } from '@/lib/nip98'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
+import { getSettings } from '@/lib/settings'
 
 export async function GET(request: Request) {
   try {
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     const user = existingUser || (await createNewUser(authenticatedPubkey))
 
     // Get domain from environment or use default
-    const domain = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
+    const { domain } = await getSettings(['domain'])
     const lightningAddress = user.lightningAddress?.username
       ? `${user.lightningAddress.username}@${domain}`
       : null

@@ -41,8 +41,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const { signer } = useAPI()
   const [settings, setSettings] = useState<Settings>({
-    domain: process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000',
-    endpoint: process.env.NEXT_PUBLIC_ENDPOINT || 'http://localhost:3000'
+    domain: 'localhost:9877',
+    endpoint: 'http://localhost:9877'
   })
 
   // Track if component is mounted to prevent state updates after unmount

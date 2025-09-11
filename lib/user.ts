@@ -1,20 +1,23 @@
 import { randomUUID } from 'crypto'
 import { AlbyHub } from './albyhub'
 import { prisma } from './prisma'
-
-const ALBY_API_URL = process.env.ALBY_API_URL!
-const ALBY_BEARER_TOKEN = process.env.ALBY_BEARER_TOKEN!
-const AUTO_GENERATE_ALBY_SUBACCOUNTS =
-  process.env.AUTO_GENERATE_ALBY_SUBACCOUNTS === 'true'
+import { getSettings } from './settings'
 
 export async function createNewUser(pubkey: string) {
+  const { alby_api_url, alby_bearer_token, alby_auto_generate } =
+    await getSettings([
+      'alby_api_url',
+      'alby_bearer_token',
+      'alby_auto_generate'
+    ])
   const userId = randomUUID()
 
-  const albyHub = new AlbyHub(ALBY_API_URL, ALBY_BEARER_TOKEN)
+  const albyHub = new AlbyHub(alby_api_url, alby_bearer_token)
 
-  const subAccount = AUTO_GENERATE_ALBY_SUBACCOUNTS
-    ? await albyHub.createSubAccount(`LaWallet-${userId}`)
-    : null
+  const subAccount =
+    alby_auto_generate === 'true'
+      ? await albyHub.createSubAccount(`LaWallet-${userId}`)
+      : null
 
   const user = await prisma.user.create({
     data: {

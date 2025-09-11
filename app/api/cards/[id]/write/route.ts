@@ -3,8 +3,7 @@ import type { Ntag424WriteData } from '@/types/ntag424'
 
 import { prisma } from '@/lib/prisma'
 import { cardToNtag424WriteData } from '@/lib/ntag424'
-
-const domain = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
+import { getSettings } from '@/lib/settings'
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -59,7 +58,11 @@ export async function GET(
       otc: card.otc || undefined
     }
 
-    const writeData: Ntag424WriteData = cardToNtag424WriteData(cardData, domain)
+    const settings = await getSettings(['domain'])
+    const writeData: Ntag424WriteData = cardToNtag424WriteData(
+      cardData,
+      settings.domain
+    )
 
     return NextResponse.json(writeData, {
       headers: {

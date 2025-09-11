@@ -1,8 +1,7 @@
 import { LUD06Response } from '@/types/lnurl'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
-const ENDPOINT = process.env.NEXT_PUBLIC_ENDPOINT || 'http://localhost:3000'
+import { getSettings } from '@/lib/settings'
 
 export async function GET(
   req: NextRequest,
@@ -46,7 +45,8 @@ export async function GET(
     // LUD-16 (LNURLp) response
     // See: https://github.com/lnurl/luds/blob/luds/lud-16.md
     const domain = req.headers.get('host') || 'localhost:3000'
-    const callback = `${ENDPOINT}/api/lud16/${username}/cb`
+    const { endpoint } = await getSettings(['endpoint'])
+    const callback = `${endpoint}/api/lud16/${username}/cb`
 
     return NextResponse.json({
       status: 'OK',

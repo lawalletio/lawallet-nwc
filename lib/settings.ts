@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma'
 
-export async function getSettings() {
+export async function getSettings(keys?: string[]) {
   try {
-    const settings = await prisma.settings.findMany()
+    const settings = await prisma.settings.findMany({
+      where: keys ? { name: { in: keys } } : undefined
+    })
 
     // Transform the array into a JSON object where name is the key and value is the value
     const settingsObject = settings.reduce(

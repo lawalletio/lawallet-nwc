@@ -2,6 +2,7 @@ import { nwc } from '@getalby/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { LUD03Request } from '@/types/lnurl'
+import { getSettings } from '@/lib/settings'
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -47,6 +48,8 @@ export async function GET(
     )
   }
 
+  const { endpoint } = await getSettings(['endpoint'])
+
   return NextResponse.json(
     {
       tag: 'withdrawRequest',
@@ -54,7 +57,7 @@ export async function GET(
       minWithdrawable: 1,
       maxWithdrawable: 10000000,
       defaultDescription: 'Boltcard + NWC',
-      callback: `${process.env.NEXT_PUBLIC_ENDPOINT}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
+      callback: `${endpoint}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
     } as LUD03Request,
     {
       headers: {

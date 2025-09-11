@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateNip98 } from '@/lib/nip98'
+import { getSettings } from '@/lib/settings'
 
 export async function PUT(
   request: Request,
@@ -70,8 +71,7 @@ export async function PUT(
       )
     }
 
-    // Get domain from environment or use default
-    const domain = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
+    const { domain } = await getSettings(['domain'])
 
     // If the user already has this exact username, return it
     if (oldLightningAddress && oldLightningAddress.username === username) {

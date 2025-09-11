@@ -11,8 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-
-const PUBLIC_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || 'localhost:3000'
+import { useSettings } from '@/hooks/use-settings'
 
 export default function LightningAddressSetupPage() {
   const [username, setUsername] = useState('')
@@ -21,6 +20,9 @@ export default function LightningAddressSetupPage() {
   const { setLightningAddress, lightningAddress: lightningAddressState } =
     useWallet()
   const router = useRouter()
+  const {
+    settings: { domain }
+  } = useSettings()
 
   useEffect(() => {
     setUsername(lightningAddressState?.split('@')[0] || '')
@@ -92,7 +94,7 @@ export default function LightningAddressSetupPage() {
                 : 'Your address will be'}
               :{' '}
               <span className="text-white font-mono">
-                {username || 'username'}@{PUBLIC_DOMAIN}
+                {username || 'username'}@{domain}
               </span>
             </p>
             {error && (
