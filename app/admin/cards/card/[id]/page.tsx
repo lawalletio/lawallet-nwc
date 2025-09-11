@@ -139,7 +139,7 @@ export default function CardPage() {
     return pattern
   }
 
-  const qrUrl = `${settings.url}/wallet/activate/${card.otc}`
+  const qrUrl = `${settings.endpoint}/wallet/activate/${card.otc}`
   const status = card.otc ? (card.lastUsedAt ? 'active' : 'paired') : 'unpaired'
 
   const getStatusBadge = (status: string) => {

@@ -62,7 +62,7 @@ export default function NewCardPage() {
     try {
       // Generate pairing token
       const card = await create(uid, selectedDesign)
-      setQrToken(`${settings.url}/api/cards/${card.id}/write`)
+      setQrToken(`${settings.endpoint}/api/cards/${card.id}/write`)
       setCard(card)
       // In a real implementation, this would create the card via API
       console.log('Creating card with design:', selectedDesign)
