@@ -130,15 +130,6 @@ export default function CardPage() {
     router.push('/admin/cards')
   }
 
-  const generateQRPattern = () => {
-    const size = 21
-    const pattern = []
-    for (let i = 0; i < size * size; i++) {
-      pattern.push(Math.random() > 0.5)
-    }
-    return pattern
-  }
-
   const qrUrl = `${settings.endpoint}/wallet/activate/${card.otc}`
   const status = card.otc ? (card.lastUsedAt ? 'active' : 'paired') : 'unpaired'
 
