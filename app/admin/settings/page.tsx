@@ -341,7 +341,7 @@ export default function SettingsPage() {
               <Input
                 id="albyApiUrl"
                 type="url"
-                placeholder="http://umbrel.local:59000"
+                placeholder="http://albyhub_server_1:8080/api"
                 value={settingsData.albyApiUrl}
                 onChange={e =>
                   updateSettingsData({ albyApiUrl: e.target.value })
