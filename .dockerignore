@@ -68,7 +68,6 @@ docs/
 # Database (development)
 prisma/dev.db
 prisma/dev.db-journal
-prisma/migrations/
 
 # Logs
 logs
