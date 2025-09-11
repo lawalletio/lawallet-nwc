@@ -63,11 +63,6 @@ EXPOSE ${PORT}
 
 # Set environment variables
 ENV NODE_ENV=production
-# DATABASE_URL will be set by docker-compose.yml
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:${PORT} || exit 1
 
 # Run database migrations and start the application
 CMD ["sh", "-c", "prisma migrate deploy && node server.js"]
