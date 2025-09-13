@@ -28,21 +28,24 @@ function validateSettingName(name: string): string | null {
 }
 
 export async function GET(request: NextRequest) {
-  // Validate authentication
-  let authenticatedPubkey: string
-  try {
-    const { pubkey } = await validateNip98(request)
-    authenticatedPubkey = pubkey
-  } catch (error) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   try {
     // Fetch all settings records from the database
     const settings = await getSettings()
 
-    if (authenticatedPubkey !== settings.root) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Validate authentication
+    let authenticatedPubkey: string
+    try {
+      const { pubkey } = await validateNip98(request)
+      authenticatedPubkey = pubkey
+    } catch {
+      authenticatedPubkey = ''
+    }
+
+    if (!authenticatedPubkey || authenticatedPubkey !== settings.root) {
+      return NextResponse.json({
+        domain: settings.domain,
+        endpoint: settings.endpoint
+      })
     }
 
     return NextResponse.json(settings)
@@ -56,6 +59,22 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Validate authentication
+  let authenticatedPubkey: string
+  try {
+    const { pubkey } = await validateNip98(request)
+    authenticatedPubkey = pubkey
+  } catch (error) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Fetch all settings records from the database
+  const settings = await getSettings(['root'])
+
+  if (authenticatedPubkey !== settings.root) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
 
