@@ -13,7 +13,7 @@ export interface Settings {
   domain?: string
   endpoint?: string
   is_community?: string
-  community_name?: string
+  community_id?: string
   alby_auto_generate?: string
   alby_api_url?: string
   alby_bearer_token?: string

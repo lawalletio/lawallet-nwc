@@ -30,7 +30,7 @@ interface SettingsData {
   domain: string
   endpoint: string
   isCommunity: boolean
-  communityName: string
+  communityId: string
   albyAutoGenerate: boolean
   albyApiUrl: string
   albyBearerToken: string
@@ -56,7 +56,7 @@ export default function SettingsPage() {
     domain: '',
     endpoint: '',
     isCommunity: false,
-    communityName: '',
+    communityId: '',
     albyAutoGenerate: false,
     albyApiUrl: '',
     albyBearerToken: ''
@@ -70,7 +70,7 @@ export default function SettingsPage() {
         domain: settings.domain || '',
         endpoint: settings.endpoint || '',
         isCommunity: settings.is_community === 'true',
-        communityName: settings.community_name || '',
+        communityId: settings.community_id || '',
         albyAutoGenerate: settings.alby_auto_generate === 'true',
         albyApiUrl: settings.alby_api_url || '',
         albyBearerToken: settings.alby_bearer_token || ''
@@ -95,7 +95,7 @@ export default function SettingsPage() {
   }
 
   const validateCommunitySettings = () => {
-    if (settingsData.isCommunity && !settingsData.communityName) {
+    if (settingsData.isCommunity && !settingsData.communityId) {
       setError('Please select a community')
       return false
     }
@@ -139,8 +139,8 @@ export default function SettingsPage() {
       }
 
       // Add community-specific settings
-      if (settingsData.isCommunity && settingsData.communityName) {
-        settingsToSave.community_name = settingsData.communityName
+      if (settingsData.isCommunity && settingsData.communityId) {
+        settingsToSave.community_id = settingsData.communityId
       }
 
       // Add Alby-specific settings
@@ -258,7 +258,7 @@ export default function SettingsPage() {
             onCheckedChange={checked =>
               updateSettingsData({
                 isCommunity: checked,
-                communityName: checked ? settingsData.communityName : ''
+                communityId: checked ? settingsData.communityId : ''
               })
             }
           />
@@ -273,9 +273,9 @@ export default function SettingsPage() {
               Choose which Bitcoin community this instance serves
             </p>
             <Select
-              value={settingsData.communityName}
+              value={settingsData.communityId}
               onValueChange={value =>
-                updateSettingsData({ communityName: value })
+                updateSettingsData({ communityId: value })
               }
             >
               <SelectTrigger>
@@ -283,7 +283,7 @@ export default function SettingsPage() {
               </SelectTrigger>
               <SelectContent>
                 {bitcoinCommunities.map(community => (
-                  <SelectItem key={community.id} value={community.name}>
+                  <SelectItem key={community.id} value={community.id}>
                     {community.name}
                   </SelectItem>
                 ))}
