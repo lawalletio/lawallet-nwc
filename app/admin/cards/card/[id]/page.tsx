@@ -36,6 +36,7 @@ export default function CardPage() {
   const [showQRDialog, setShowQRDialog] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeletingCard, setIsDeletingCard] = useState(false)
   const { settings } = useSettings()
 
   // State for async data
@@ -45,7 +46,7 @@ export default function CardPage() {
 
   const params = useParams()
   const id = params.id as string
-  const { get } = useCards()
+  const { get, delete: deleteCard } = useCards()
 
   // Fetch card data
   useEffect(() => {
@@ -124,10 +125,21 @@ export default function CardPage() {
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const handleRemoveCard = () => {
-    console.log('Remove card:', card.id)
-    setShowDeleteDialog(false)
-    router.push('/admin/cards')
+  const handleRemoveCard = async () => {
+    if (!card) return
+
+    try {
+      setIsDeletingCard(true)
+      await deleteCard(card.id)
+      setShowDeleteDialog(false)
+      // router.push('/admin/cards')
+    } catch (error) {
+      console.error('Error deleting card:', error)
+      // You could add a toast notification here for better UX
+      alert(error instanceof Error ? error.message : 'Failed to delete card')
+    } finally {
+      setIsDeletingCard(false)
+    }
   }
 
   const qrUrl = `${settings.endpoint}/wallet/activate/${card.otc}`
@@ -409,6 +421,7 @@ export default function CardPage() {
                 variant="outline"
                 className="flex-1 bg-transparent"
                 onClick={() => setShowDeleteDialog(false)}
+                disabled={isDeletingCard}
               >
                 Cancel
               </Button>
@@ -416,9 +429,10 @@ export default function CardPage() {
                 variant="destructive"
                 className="flex-1"
                 onClick={handleRemoveCard}
+                disabled={isDeletingCard}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Remove it
+                {isDeletingCard ? 'Removing...' : 'Remove it'}
               </Button>
             </div>
           </div>
