@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useMemo } from 'react'
 import type { Card } from '@/types/card'
 import type { Ntag424 } from '@/types/ntag424'
+import { useAPI } from './api'
 
 interface CardsContextType {
   list: () => Promise<Card[]>
@@ -11,6 +12,7 @@ interface CardsContextType {
   getUnpairedCards: () => Promise<Card[]>
   getUsedCards: () => Promise<Card[]>
   create: (id: string, designId: string) => Promise<Card>
+  delete: (id: string) => Promise<void>
   count: () => Promise<number>
   getStatusCounts: () => Promise<{
     paired: number
@@ -40,6 +42,7 @@ const parseCardDates = (card: any): Card => {
 }
 
 export const CardsProvider = ({ children }: { children: React.ReactNode }) => {
+  const { delete: deleteRequest } = useAPI()
   const list = async () => {
     const response = await fetch('/api/cards')
     const data = await response.json()
@@ -94,6 +97,14 @@ export const CardsProvider = ({ children }: { children: React.ReactNode }) => {
     return parseCardDates(data)
   }
 
+  const deleteCard = async (id: string) => {
+    const response = await deleteRequest(`/api/cards/${id}`)
+
+    if (response.error) {
+      throw new Error(response.error)
+    }
+  }
+
   const count = async () => {
     const counts = await getStatusCounts()
     return counts.used + counts.unused
@@ -118,11 +129,12 @@ export const CardsProvider = ({ children }: { children: React.ReactNode }) => {
       getUnpairedCards,
       getUsedCards,
       create,
+      delete: deleteCard,
       count,
       getStatusCounts
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [deleteRequest]
   )
 
   return <CardsContext.Provider value={value}>{children}</CardsContext.Provider>
