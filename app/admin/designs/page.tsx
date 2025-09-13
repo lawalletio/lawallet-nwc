@@ -23,7 +23,8 @@ import {
   Download,
   Trash2,
   Palette,
-  Upload
+  Upload,
+  CloudDownload
 } from 'lucide-react'
 import { useCardDesigns } from '@/providers/card-designs'
 import type { CardDesign } from '@/types/card-design'
@@ -31,11 +32,19 @@ import type { CardDesign } from '@/types/card-design'
 export default function DesignsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [designs, setDesigns] = useState<CardDesign[]>([])
-  const { list } = useCardDesigns()
+  const { list, import: importDesigns } = useCardDesigns()
+  const [isImporting, setIsImporting] = useState(false)
 
   useEffect(() => {
     list().then(setDesigns)
   }, [list])
+
+  const importDesigns_ = async () => {
+    setIsImporting(true)
+    await importDesigns()
+    list().then(setDesigns)
+    setIsImporting(false)
+  }
 
   const filteredDesigns = designs.filter(design =>
     design.description.toLowerCase().includes(searchTerm.toLowerCase())
@@ -52,10 +61,21 @@ export default function DesignsPage() {
             Manage your card design templates and artwork
           </p>
         </div>
-        <Button onClick={() => alert('Not implemented yet')}>
-          <Upload className="h-4 w-4 mr-2" />
-          Upload Design
-        </Button>
+        <div className="flex gap-1">
+          <Button
+            variant="secondary"
+            onClick={() => importDesigns_()}
+            disabled={isImporting}
+          >
+            <CloudDownload className="h-4 w-4 mr-2" />
+            {isImporting ? 'Importing...' : 'Import designs'}
+          </Button>
+
+          <Button onClick={() => alert('Not implemented yet')}>
+            <Upload className="h-4 w-4 mr-2" />
+            Upload Design
+          </Button>
+        </div>
       </div>
 
       <div className="relative max-w-sm">
