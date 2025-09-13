@@ -4,14 +4,48 @@ export interface Community {
 }
 
 export const communities: Community[] = [
-  { id: 'bitcoin-beach', name: 'Bitcoin Beach' },
-  { id: 'bitcoin-jungle', name: 'Bitcoin Jungle' },
-  { id: 'bitcoin-lake', name: 'Bitcoin Lake' },
-  { id: 'bitcoin-island', name: 'Bitcoin Island' },
-  { id: 'bitcoin-ekasi', name: 'Bitcoin Ekasi' },
-  { id: 'bitcoin-berlin', name: 'Bitcoin Berlin' },
-  { id: 'bitcoin-tokyo', name: 'Bitcoin Tokyo' },
-  { id: 'bitcoin-amsterdam', name: 'Bitcoin Amsterdam' },
-  { id: 'bitcoin-prague', name: 'Bitcoin Prague' },
-  { id: 'bitcoin-miami', name: 'Bitcoin Miami' }
+  {
+    id: 'lago-bitcoin',
+    name: 'Lago Bitcoin'
+  },
+  {
+    id: 'btc-bolivia',
+    name: 'BtcxBolivia'
+  },
+  {
+    id: 'isla-btc',
+    name: 'La IslaBTC'
+  },
+  {
+    id: 'la-crypta',
+    name: 'La Crypta'
+  },
+  {
+    id: 'satoshi-somos-todos',
+    name: 'Satoshi somos todos'
+  },
+  {
+    id: 'club-satoshi',
+    name: 'Club Satoshi'
+  },
+  {
+    id: 'cuba-bitcoin',
+    name: 'Cuba Bitcoin'
+  },
+  {
+    id: 'bitcoin-nea',
+    name: 'Bitcoin NEA'
+  },
+  {
+    id: 'bitcoin-berlin',
+    name: 'Bitcoin Berlín SV'
+  },
+  {
+    id: 'bitcoin-school-argentina',
+    name: 'Bitcoin School Argentina'
+  },
+  {
+    id: 'bitcoin-district-prospera',
+    name: 'Bitcoin District Próspera'
+  }
 ]
