@@ -1,15 +1,14 @@
 {
   "name": "lawallet-nwc",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "private": true,
   "scripts": {
     "build": "next build",
-    "build:with-migrate": "prisma migrate deploy && next build",
     "generate": "prisma generate",
     "dev": "next dev",
     "format": "prettier --write .",
     "lint": "next lint",
-    "start": "next start"
+    "start": "prisma migrate deploy && next start"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
