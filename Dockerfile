@@ -65,4 +65,4 @@ EXPOSE 9877
 ENV NODE_ENV=production
 
 # Run database migrations and start the application
-CMD ["sh", "-c", "node server.js"]
+CMD ["sh", "-c", "prisma migrate deploy && node server.js"]
