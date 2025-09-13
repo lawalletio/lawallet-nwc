@@ -24,9 +24,9 @@ export async function GET(
 ) {
   // Get query parameters
   const searchParams = req.nextUrl.searchParams
-  const pr = searchParams.get('pr') || ''
   const p = searchParams.get('p') || ''
   const c = searchParams.get('c') || ''
+  const action = req.headers.get('LAWALLET_ACTION') || 'pay'
 
   if (!p || !c) {
     return NextResponse.json(
@@ -34,13 +34,6 @@ export async function GET(
       { headers: { 'Access-Control-Allow-Origin': '*' } }
     )
   }
-
-  // if (!pr) {
-  //   return NextResponse.json(
-  //     { status: 'ERROR', reason: 'Missing required parameter: pr' },
-  //     { headers: { 'Access-Control-Allow-Origin': '*' } }
-  //   )
-  // }
 
   try {
     // Find card by id in database
@@ -81,53 +74,7 @@ export async function GET(
       }
     })
 
-    // Check if it has nwc set up
-    if (!card.user?.nwc) {
-      return NextResponse.json(
-        { status: 'ERROR', reason: 'NWC not setup' },
-        { headers: { 'Access-Control-Allow-Origin': '*' } }
-      )
-    }
-
-    // Get NWC URI from the user
-    if (!card.user?.nwc) {
-      console.error('User NWC not configured for card:', cardId)
-      return NextResponse.json(
-        {
-          status: 'ERROR',
-          reason: 'User payment service not configured'
-        },
-        { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-      )
-    }
-
-    try {
-      const ln = new LN(card.user.nwc)
-      console.log('Processing payment request:', pr)
-      const payment = await ln.pay(pr)
-      console.log('Payment successful:', payment)
-    } catch (error) {
-      console.error('Payment failed:', error)
-      return NextResponse.json(
-        {
-          status: 'ERROR',
-          reason:
-            error instanceof Error ? error.message : 'Payment processing failed'
-        },
-        { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-      )
-    }
-
-    return NextResponse.json(
-      {
-        status: 'OK'
-      } as LUD03CallbackSuccess,
-      {
-        headers: {
-          'Access-Control-Allow-Origin': '*'
-        }
-      }
-    )
+    return (await import(`./actions/${action}`)).default(req, card)
   } catch (error) {
     console.error('Database error:', error)
     return NextResponse.json(
