@@ -24,13 +24,6 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useCards } from '@/providers/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
 import { useIsMobile } from '@/components/ui/use-mobile'
 import type { Card as CardType } from '@/types/card'
 import { useAPI } from '@/providers/api'
@@ -41,8 +34,6 @@ export default function CardsPage() {
   const { list, count, getPairedCards, getUsedCards, getUnpairedCards } =
     useCards()
   const [searchTerm, setSearchTerm] = useState('')
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [cardToDelete, setCardToDelete] = useState<string | null>(null)
   const isMobile = useIsMobile()
 
   // State for async data
@@ -86,28 +77,6 @@ export default function CardsPage() {
       card.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       card.pubkey?.toLowerCase().includes(searchTerm.toLowerCase())
   )
-
-  const handleDeleteCard = (cardId: string) => {
-    setCardToDelete(cardId)
-    setShowDeleteDialog(true)
-  }
-
-  const handleRemoveCard = () => {
-    if (cardToDelete) {
-      console.log('Remove card:', cardToDelete)
-      setShowDeleteDialog(false)
-      setCardToDelete(null)
-    }
-  }
-
-  const generateQRPattern = () => {
-    const size = 21
-    const pattern = []
-    for (let i = 0; i < size * size; i++) {
-      pattern.push(Math.random() > 0.5)
-    }
-    return pattern
-  }
 
   if (isLoading) {
     return (
@@ -343,8 +312,7 @@ export default function CardsPage() {
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={e => {
-                              e.stopPropagation()
-                              handleDeleteCard(card.id)
+                              alert('Not implemented')
                             }}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
@@ -360,80 +328,6 @@ export default function CardsPage() {
           </div>
         </Card>
       )}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5" />
-              Remove Card
-            </DialogTitle>
-            <DialogDescription>
-              Scan this QR code with BoltCard NFC Card Creator to reset the
-              card.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex justify-center p-4 bg-muted rounded-md">
-              <div className="w-48 h-48 bg-white rounded-lg p-2 shadow-md border">
-                <svg viewBox="0 0 21 21" className="w-full h-full">
-                  <rect width="21" height="21" fill="white" />
-                  {generateQRPattern().map(
-                    (f, i) =>
-                      f && (
-                        <rect
-                          key={i}
-                          x={i % 21}
-                          y={Math.floor(i / 21)}
-                          width="1"
-                          height="1"
-                          fill="black"
-                        />
-                      )
-                  )}
-                </svg>
-              </div>
-            </div>
-            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-left">
-              <h4 className="font-medium text-destructive mb-3">
-                Reset Steps:
-              </h4>
-              <ol className="space-y-2 text-sm text-destructive/80">
-                {[
-                  'Open BoltCard NFC Card Creator',
-                  'Open Reset Keys tab',
-                  'Scan this QR code',
-                  'Hold card in the NFC reader until it finishes',
-                  "Click on 'Remove it' button in this modal"
-                ].map((step, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <span className="flex-shrink-0 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-xs font-bold mt-px">
-                      {i + 1}
-                    </span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1 bg-transparent"
-                onClick={() => setShowDeleteDialog(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1"
-                onClick={handleRemoveCard}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Remove it
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
