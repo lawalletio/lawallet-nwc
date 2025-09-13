@@ -132,7 +132,7 @@ export default function CardPage() {
       setIsDeletingCard(true)
       await deleteCard(card.id)
       setShowDeleteDialog(false)
-      // router.push('/admin/cards')
+      router.push('/admin/cards')
     } catch (error) {
       console.error('Error deleting card:', error)
       // You could add a toast notification here for better UX
