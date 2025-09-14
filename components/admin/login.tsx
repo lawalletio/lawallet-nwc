@@ -12,20 +12,21 @@ import {
 } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Eye, EyeOff, Zap, Key, Link, Lock } from 'lucide-react'
+import { Eye, EyeOff, Zap, Key, Link, Lock, Camera } from 'lucide-react'
 import { useAPI } from '@/providers/api'
 import { nsecToHex } from '@/lib/nostr'
+import { QRScanner } from '@/components/ui/qr-scanner'
 
 export function Login() {
   const { loginWithSigner, loginWithPrivateKey, loginWithBunker } = useAPI()
-  const [loading, setLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [nsec, setNsec] = useState('')
   const [showNsec, setShowNsec] = useState(false)
   const [bunkerUri, setBunkerUri] = useState('')
 
   const handleNip07Login = async () => {
-    setLoading(true)
+    setIsLoading(true)
     setError('')
 
     try {
@@ -39,12 +40,12 @@ export function Login() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect')
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
   const handleNsecLogin = async () => {
-    setLoading(true)
+    setIsLoading(true)
     setError('')
     try {
       if (!nsec.startsWith('nsec1')) {
@@ -54,12 +55,12 @@ export function Login() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to login with nsec')
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
   const handleBunkerLogin = async () => {
-    setLoading(true)
+    setIsLoading(true)
     setError('')
     try {
       if (!bunkerUri.startsWith('bunker://')) {
@@ -71,7 +72,27 @@ export function Login() {
         err instanceof Error ? err.message : 'Failed to connect to bunker'
       )
     } finally {
-      setLoading(false)
+      setIsLoading(false)
+    }
+  }
+
+  const handleQRScan = async (result: string) => {
+    setBunkerUri(result)
+    // Auto-login after successful scan if the URI is valid
+    if (result.startsWith('bunker://')) {
+      try {
+        setIsLoading(true)
+        setError('')
+        await loginWithBunker(result)
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : 'Failed to connect to bunker'
+        )
+      } finally {
+        setIsLoading(false)
+      }
+    } else {
+      setError('Scanned QR code is not a valid bunker URI')
     }
   }
 
@@ -114,10 +135,10 @@ export function Login() {
                 </p>
                 <Button
                   onClick={handleNip07Login}
-                  disabled={loading}
+                  disabled={isLoading}
                   className="w-full"
                 >
-                  {loading ? 'Connecting...' : 'Connect Extension'}
+                  {isLoading ? 'Connecting...' : 'Connect Extension'}
                 </Button>
               </div>
             </TabsContent>
@@ -159,10 +180,10 @@ export function Login() {
                 </Alert>
                 <Button
                   onClick={handleNsecLogin}
-                  disabled={loading || !nsec}
+                  disabled={isLoading || !nsec}
                   className="w-full"
                 >
-                  {loading ? 'Logging in...' : 'Login with nsec'}
+                  {isLoading ? 'Logging in...' : 'Login with nsec'}
                 </Button>
               </div>
             </TabsContent>
@@ -175,17 +196,34 @@ export function Login() {
                     Connect to remote signer
                   </p>
                 </div>
-                <Input
-                  placeholder="bunker://..."
-                  value={bunkerUri}
-                  onChange={e => setBunkerUri(e.target.value)}
-                />
+                <div className="space-y-2">
+                  <Input
+                    placeholder="bunker://..."
+                    value={bunkerUri}
+                    disabled={isLoading}
+                    onChange={e => setBunkerUri(e.target.value)}
+                  />
+                  <div className="flex justify-center">
+                    <QRScanner onScan={handleQRScan}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isLoading}
+                        className="flex items-center gap-2"
+                      >
+                        <Camera className="h-4 w-4" />
+                        Scan QR Code
+                      </Button>
+                    </QRScanner>
+                  </div>
+                </div>
                 <Button
                   onClick={handleBunkerLogin}
-                  disabled={loading || !bunkerUri}
+                  disabled={isLoading || !bunkerUri}
                   className="w-full"
                 >
-                  {loading ? 'Connecting...' : 'Connect Bunker'}
+                  {isLoading ? 'Connecting...' : 'Connect Bunker'}
                 </Button>
               </div>
             </TabsContent>
