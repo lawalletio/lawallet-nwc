@@ -1,7 +1,6 @@
 import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
-import { nip19, nip98 } from 'nostr-tools'
+import { nip19 } from 'nostr-tools'
 import { bytesToHex, hexToBytes } from 'nostr-tools/utils'
-import type { NostrEvent } from '@/types/nostr'
 
 export function generatePrivateKey(): string {
   const secretKey = generateSecretKey()
@@ -33,4 +32,15 @@ export function validateNsec(nsec: string): boolean {
   } catch {
     return false
   }
+}
+
+export function parseBunkerUrl(url: string) {
+  const u = new URL(url)
+  const remoteUserPubkey = u.hostname // hex
+  const relays = u.searchParams.getAll('relay')
+  const secret = u.searchParams.get('secret') ?? undefined
+  if (!remoteUserPubkey || relays.length === 0) {
+    throw new Error('Invalid bunker URL')
+  }
+  return { remoteUserPubkey, relays, secret }
 }

@@ -17,7 +17,7 @@ import { useAPI } from '@/providers/api'
 import { nsecToHex } from '@/lib/nostr'
 
 export function Login() {
-  const { loginWithSigner, loginWithPrivateKey } = useAPI()
+  const { loginWithSigner, loginWithPrivateKey, loginWithBunker } = useAPI()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [nsec, setNsec] = useState('')
@@ -62,10 +62,10 @@ export function Login() {
     setLoading(true)
     setError('')
     try {
-      alert('Not implemented yet')
-      if (!bunkerUri.startsWith('nsec://')) {
-        throw new Error('Invalid bunker URI format. Must start with nsec://')
+      if (!bunkerUri.startsWith('bunker://')) {
+        throw new Error('Invalid bunker URI format. Must start with bunker://')
       }
+      await loginWithBunker(bunkerUri)
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Failed to connect to bunker'
@@ -176,7 +176,7 @@ export function Login() {
                   </p>
                 </div>
                 <Input
-                  placeholder="nsec://..."
+                  placeholder="bunker://..."
                   value={bunkerUri}
                   onChange={e => setBunkerUri(e.target.value)}
                 />

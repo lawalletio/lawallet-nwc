@@ -7,10 +7,16 @@ import React, {
   useEffect,
   useState
 } from 'react'
-import { nip19 } from 'nostr-tools'
-import { NostrSigner, NSecSigner } from '@nostrify/nostrify'
+import { generateSecretKey, nip19 } from 'nostr-tools'
+import {
+  NConnectSigner,
+  NostrSigner,
+  NRelay1,
+  NSecSigner
+} from '@nostrify/nostrify'
 import { createNip98Token } from '@/lib/nip98'
 import { hexToBytes } from 'nostr-tools/utils'
+import { parseBunkerUrl } from '@/lib/nostr'
 
 interface APIResponse<T = any> {
   data?: T
@@ -35,6 +41,7 @@ interface APIContextType {
   signer: NostrSigner | null
   loginWithPrivateKey: (privateKeyHex: string) => Promise<void>
   loginWithSigner: (signer: NostrSigner) => Promise<void>
+  loginWithBunker: (bunkerUrl: string) => Promise<void>
   logout: () => void
   loginMethod: LoginMethod | null
   getUserId: () => Promise<{
@@ -58,6 +65,13 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
   const [signer, setSigner] = useState<NostrSigner | null>(null)
   const [loginMethod, setLoginMethod] = useState<LoginMethod | null>(null)
   const [publicKey, setPublicKey] = useState<string | null>(null)
+  const [bunkerData, setBunkerData] = useState<
+    | {
+        uri: string
+        localKey: Uint8Array
+      }
+    | undefined
+  >(undefined)
 
   const logout = useCallback(() => {
     setSigner(null)
@@ -96,6 +110,30 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     [setSigner, setPublicKey, setLoginMethod, logout]
   )
 
+  const loginWithBunker = useCallback(
+    async (bunkerUri: string, localPrivateKey?: Uint8Array) => {
+      logout()
+      localPrivateKey = localPrivateKey || generateSecretKey()
+      const { remoteUserPubkey, relays, secret } = parseBunkerUrl(bunkerUri)
+      const localSigner = new NSecSigner(localPrivateKey)
+      const relay = new NRelay1(relays[0])
+      const signer = new NConnectSigner({
+        pubkey: remoteUserPubkey,
+        signer: localSigner,
+        relay
+      })
+      await signer.connect(secret)
+      setSigner(signer)
+      setPublicKey(await signer.getPublicKey())
+      setLoginMethod('bunker')
+      setBunkerData({
+        uri: bunkerUri,
+        localKey: localPrivateKey
+      })
+    },
+    [setLoginMethod, logout]
+  )
+
   // Load private key and userId from localStorage on mount
   useEffect(() => {
     const savedApiData = localStorage.getItem('api')
@@ -112,6 +150,13 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
             }
             setLoginMethod('nip07')
             loginWithSigner(window.nostr)
+            break
+          case 'bunker':
+            loginWithBunker(
+              parsed.bunker.uri,
+              hexToBytes(parsed.bunker.localKey)
+            )
+            setLoginMethod('bunker')
             break
         }
         setUserId(parsed.userId || null)
@@ -132,7 +177,8 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
         JSON.stringify({
           privateKey,
           userId,
-          method: loginMethod
+          method: loginMethod,
+          bunker: bunkerData
         })
       )
     }
@@ -261,6 +307,7 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
     loginWithSigner,
     loginMethod,
     signer,
+    loginWithBunker,
     logout,
     getUserId
   }
