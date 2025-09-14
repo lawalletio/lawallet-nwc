@@ -61,7 +61,7 @@ export async function GET(
     const settings = await getSettings(['domain'])
     const writeData: Ntag424WriteData = cardToNtag424WriteData(
       cardData,
-      settings.domain
+      settings.endpoint.replace(/^https?:\/\//, '')
     )
 
     return NextResponse.json(writeData, {
