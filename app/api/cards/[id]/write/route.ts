@@ -58,7 +58,7 @@ export async function GET(
       otc: card.otc || undefined
     }
 
-    const settings = await getSettings(['domain'])
+    const settings = await getSettings(['endpoint'])
     const writeData: Ntag424WriteData = cardToNtag424WriteData(
       cardData,
       settings.endpoint.replace(/^https?:\/\//, '')
