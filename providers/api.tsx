@@ -15,7 +15,7 @@ import {
   NSecSigner
 } from '@nostrify/nostrify'
 import { createNip98Token } from '@/lib/nip98'
-import { hexToBytes } from 'nostr-tools/utils'
+import { bytesToHex, hexToBytes } from 'nostr-tools/utils'
 import { parseBunkerUrl } from '@/lib/nostr'
 
 interface APIResponse<T = any> {
@@ -68,7 +68,7 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
   const [bunkerData, setBunkerData] = useState<
     | {
         uri: string
-        localKey: Uint8Array
+        localKey: string
       }
     | undefined
   >(undefined)
@@ -128,7 +128,7 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
       setLoginMethod('bunker')
       setBunkerData({
         uri: bunkerUri,
-        localKey: localPrivateKey
+        localKey: bytesToHex(localPrivateKey)
       })
     },
     [setLoginMethod, logout]
@@ -182,7 +182,7 @@ export function APIProvider({ children }: { children: React.ReactNode }) {
         })
       )
     }
-  }, [privateKey, userId, loginMethod, isHydrated])
+  }, [privateKey, userId, loginMethod, isHydrated, bunkerData])
 
   // Calculate npub from public key
   const npub = React.useMemo(() => {
