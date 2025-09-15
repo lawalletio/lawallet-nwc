@@ -58,7 +58,7 @@ export default function SettingsPage() {
     isCommunity: false,
     communityId: '',
     albyAutoGenerate: false,
-    albyApiUrl: '',
+    albyApiUrl: 'http://albyhub_server_1:8080/api',
     albyBearerToken: ''
   })
 
