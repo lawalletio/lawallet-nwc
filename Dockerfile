@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y \
 FROM base AS deps
 WORKDIR /app
 
-# Copy package files first for better caching
+# Copy package files and prisma schema for better caching
 COPY package.json pnpm-lock.yaml ./
+COPY prisma ./prisma
 
 # Install all dependencies (including dev dependencies for build)
 RUN pnpm install --frozen-lockfile
@@ -59,7 +60,7 @@ RUN mkdir -p /app/data && chown -R nextjs:nodejs /app
 USER nextjs
 
 # Expose port
-EXPOSE 9877
+EXPOSE 8888
 
 # Set environment variables
 ENV NODE_ENV=production
