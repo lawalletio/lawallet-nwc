@@ -23,6 +23,7 @@ export async function createNewUser(pubkey: string) {
     data: {
       id: userId,
       pubkey,
+      nwc: subAccount?.pairingUri || null,
       createdAt: new Date(),
       albyEnabled: !!subAccount,
       albySubAccount: subAccount
