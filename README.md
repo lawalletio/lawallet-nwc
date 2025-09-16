@@ -53,6 +53,10 @@ This project is built on and interoperates with the following open standards:
 
 ---
 
+## Instant Deploy
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD)
+
 ## Getting Started
 
 1. **Install dependencies:**
