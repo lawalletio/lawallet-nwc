@@ -17,11 +17,13 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { Card as CardType } from '@/types/card'
 import { useAPI } from '@/providers/api'
+import { useSettings } from '@/hooks/use-settings'
 
 export default function AdminPage() {
   const { signer } = useAPI()
   const { list, count, getStatusCounts } = useCards()
   const { count: countCardDesign } = useCardDesigns()
+  const { settings } = useSettings()
   const { list: listAddresses, count: countAddresses } = useLightningAddresses()
   const router = useRouter()
 
@@ -236,7 +238,7 @@ export default function AdminPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground">
-                        {address.username}@yourdomain.com
+                        {address.username}@{settings.domain}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-muted-foreground font-mono truncate">

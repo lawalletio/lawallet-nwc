@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { useLightningAddresses } from '@/providers/lightning-addresses'
 import type { LightningAddress } from '@/types/lightning-address'
+import { useSettings } from '@/hooks/use-settings'
 
 export default function AddressesPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -43,6 +44,7 @@ export default function AddressesPage() {
   const [nwcCounts, setNwcCounts] = useState({ withNWC: 0, withoutNWC: 0 })
   const [uniqueRelaysCount, setUniqueRelaysCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const { settings } = useSettings()
 
   // Fetch data on component mount
   useEffect(() => {
@@ -202,7 +204,7 @@ export default function AddressesPage() {
                   <div className="space-y-1 min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base text-foreground">
-                        {address.username}@yourdomain.com
+                        {address.username}@{settings.domain}
                       </CardTitle>
                       <Badge
                         variant={address.nwc ? 'default' : 'secondary'}
