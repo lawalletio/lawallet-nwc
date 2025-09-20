@@ -13,7 +13,8 @@ import {
   LinkIcon,
   ArrowRight,
   ArrowLeft,
-  SmartphoneNfc
+  SmartphoneNfc,
+  PanelTopDashed
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import Link from 'next/link'
@@ -153,6 +154,14 @@ const HeroSection = () => {
           >
             Join Waitlist <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
+          <Link href="/admin">
+            <Button
+              size="lg"
+              className="px-8 py-4 rounded-full bg-nwc-orange hover:bg-nwc-orange/90 text-white transition-all duration-300 ease-in-out shadow-lg hover:shadow-nwc-purple/20 hover:scale-105 hover:-translate-y-1"
+            >
+              Admin <PanelTopDashed className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
           {/* <div className="flex flex-col sm:flex-row gap-4">
             <Button
               size="lg"
