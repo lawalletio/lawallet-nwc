@@ -10,7 +10,7 @@ export async function OPTIONS() {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
+      'Access-Control-Allow-Headers': 'Content-Type, LAWALLET_ACTION'
     }
   })
 }
@@ -40,29 +40,21 @@ export async function GET(
     )
   }
 
-  // Check if user has NWC set up
-  if (!card.user?.nwc) {
-    return NextResponse.json(
-      { status: 'ERROR', reason: 'NWC not setup' },
-      { headers: { 'Access-Control-Allow-Origin': '*' } }
-    )
-  }
-
   const { endpoint } = await getSettings(['endpoint'])
 
-  return NextResponse.json(
-    {
-      tag: 'withdrawRequest',
-      k1: 'k',
-      minWithdrawable: 1,
-      maxWithdrawable: 10000000,
-      defaultDescription: 'Boltcard + NWC',
-      callback: `${endpoint}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
-    } as LUD03Request,
-    {
-      headers: {
-        'Access-Control-Allow-Origin': '*'
-      }
+  const response = {
+    tag: 'withdrawRequest',
+    k1: 'k',
+    minWithdrawable: 1,
+    maxWithdrawable: 10000000,
+    defaultDescription: 'Boltcard + NWC',
+    callback: `${endpoint}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
+  } as LUD03Request
+
+  console.dir(response)
+  return NextResponse.json(response, {
+    headers: {
+      'Access-Control-Allow-Origin': '*'
     }
-  )
+  })
 }
