@@ -20,8 +20,21 @@ export default async function newOTC(
 
   const { endpoint } = await getSettings(['endpoint'])
 
-  return NextResponse.json({
-    otc,
-    url: `${endpoint}/api/otc/${otc}/`
-  })
+  console.info('--------------------------------')
+  console.info('otc', otc)
+  console.info('url', `${endpoint}/wallet/activate/${otc}/`)
+  console.info('--------------------------------')
+
+  return NextResponse.json(
+    {
+      otc,
+      url: `${endpoint}/wallet/activate/${otc}/`
+    },
+    {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, LAWALLET_ACTION'
+      }
+    }
+  )
 }
