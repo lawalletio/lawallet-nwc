@@ -9,12 +9,12 @@ export const communities: Community[] = [
     name: 'Lago Bitcoin'
   },
   {
-    id: 'btc-bolivia',
+    id: 'btc-x-bolivia',
     name: 'BtcxBolivia'
   },
   {
-    id: 'isla-btc',
-    name: 'La IslaBTC'
+    id: 'btc-isla',
+    name: 'BTC Isla'
   },
   {
     id: 'la-crypta',
@@ -41,11 +41,7 @@ export const communities: Community[] = [
     name: 'Bitcoin Berlín SV'
   },
   {
-    id: 'bitcoin-school-argentina',
-    name: 'Bitcoin School Argentina'
-  },
-  {
-    id: 'bitcoin-district-prospera',
+    id: 'prospera-distrito-bitcoin',
     name: 'Bitcoin District Próspera'
   }
 ]
