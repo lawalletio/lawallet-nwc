@@ -41,9 +41,16 @@ export default function DesignsPage() {
 
   const importDesigns_ = async () => {
     setIsImporting(true)
-    await importDesigns()
-    list().then(setDesigns)
-    setIsImporting(false)
+    try {
+      await importDesigns()
+      const designs = await list()
+      setDesigns(designs)
+    } catch (error) {
+      console.error('Error importing designs:', error)
+      alert('Error importing designs. Please try again.')
+    } finally {
+      setIsImporting(false)
+    }
   }
 
   const filteredDesigns = designs.filter(design =>
