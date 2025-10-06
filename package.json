@@ -10,10 +10,6 @@
     "start": "prisma migrate deploy && next start",
     "postinstall": "prisma generate"
   },
-  "prisma": {
-    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
-    "schema": "prisma/schema.prisma"
-  },
   "dependencies": {
     "@getalby/sdk": "^5.1.0",
     "@hookform/resolvers": "^3.3.4",
