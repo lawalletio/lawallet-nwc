@@ -2,8 +2,17 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { mockCardDesignData } from '@/mocks/card-design'
 import { getSettings } from '@/lib/settings'
+import { validateAdminAuth } from '@/lib/admin-auth'
 
-export async function POST() {
+export async function POST(request: Request) {
+  try {
+    await validateAdminAuth(request)
+  } catch (response) {
+    if (response instanceof NextResponse) {
+      return response
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
   try {
     console.info('🌱 Starting card design import...')
 

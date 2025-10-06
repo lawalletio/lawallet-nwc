@@ -1,16 +1,18 @@
-import { validateNip98 } from '@/lib/nip98'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
+import { validateNip98Auth } from '@/lib/admin-auth'
 
 export async function POST(request: Request) {
   try {
     // Validate authentication
     let authenticatedPubkey: string
     try {
-      const { pubkey } = await validateNip98(request)
-      authenticatedPubkey = pubkey
-    } catch (error) {
+      authenticatedPubkey = await validateNip98Auth(request)
+    } catch (response) {
+      if (response instanceof NextResponse) {
+        return response
+      }
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -76,9 +78,11 @@ export async function GET(request: Request) {
     // Validate authentication
     let authenticatedPubkey: string
     try {
-      const { pubkey } = await validateNip98(request)
-      authenticatedPubkey = pubkey
-    } catch (error) {
+      authenticatedPubkey = await validateNip98Auth(request)
+    } catch (response) {
+      if (response instanceof NextResponse) {
+        return response
+      }
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

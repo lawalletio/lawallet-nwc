@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { validateNip98 } from '@/lib/nip98'
 import type { Card } from '@/types/card'
-import { getSettings } from '@/lib/settings'
+import { validateAdminAuth } from '@/lib/admin-auth'
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  try {
+    await validateAdminAuth(request)
+  } catch (response) {
+    if (response instanceof NextResponse) {
+      return response
+    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+
   const card = await prisma.card.findUnique({
     where: { id: params.id },
     select: {
@@ -75,20 +83,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Validate NIP98 authentication
-    let authenticatedPubkey: string
-    try {
-      const { pubkey } = await validateNip98(request)
-      authenticatedPubkey = pubkey
-    } catch (error) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const settings = await getSettings(['root'])
-
-    if (authenticatedPubkey !== settings.root) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    await validateAdminAuth(request)
 
     // Find the card first to check if it exists and get ntag424 info
     const card = await prisma.card.findUnique({

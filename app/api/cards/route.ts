@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
 import { generateNtag424Values } from '@/lib/ntag424'
 import { randomBytes } from 'crypto'
+import { validateAdminAuth } from '@/lib/admin-auth'
 
 interface CardFilters {
   paired?: boolean
@@ -10,6 +11,18 @@ interface CardFilters {
 }
 
 export async function GET(request: Request) {
+  try {
+    await validateAdminAuth(request)
+  } catch (response) {
+    if (response instanceof NextResponse) {
+      return response
+    }
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+
   const { searchParams } = new URL(request.url)
 
   // Parse filters from query params
@@ -104,6 +117,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await validateAdminAuth(request)
+
     const { id, designId } = await request.json()
 
     // Generate ntag424 values using the id as cid

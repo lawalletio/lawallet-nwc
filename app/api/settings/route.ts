@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
-import { validateNip98 } from '@/lib/nip98'
+import { validateNip98Auth } from '@/lib/admin-auth'
 
 // Validation function for setting names
 function validateSettingName(name: string): string | null {
@@ -35,8 +35,7 @@ export async function GET(request: NextRequest) {
     // Validate authentication
     let authenticatedPubkey: string
     try {
-      const { pubkey } = await validateNip98(request)
-      authenticatedPubkey = pubkey
+      authenticatedPubkey = await validateNip98Auth(request)
     } catch {
       authenticatedPubkey = ''
     }
@@ -62,9 +61,11 @@ export async function POST(request: NextRequest) {
   // Validate authentication
   let authenticatedPubkey: string
   try {
-    const { pubkey } = await validateNip98(request)
-    authenticatedPubkey = pubkey
-  } catch (error) {
+    authenticatedPubkey = await validateNip98Auth(request)
+  } catch (response) {
+    if (response instanceof NextResponse) {
+      return response
+    }
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
