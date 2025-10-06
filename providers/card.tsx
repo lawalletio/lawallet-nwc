@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useMemo } from 'react'
+import React, { createContext, useContext, useMemo, useCallback } from 'react'
 import type { Card } from '@/types/card'
 import type { Ntag424 } from '@/types/ntag424'
 import { useAPI } from './api'
@@ -42,84 +42,97 @@ const parseCardDates = (card: any): Card => {
 }
 
 export const CardsProvider = ({ children }: { children: React.ReactNode }) => {
-  const { delete: deleteRequest } = useAPI()
-  const list = async () => {
-    const response = await fetch('/api/cards')
-    const data = await response.json()
-    return data.map(parseCardDates) as Card[]
-  }
-
-  const get = async (id: string) => {
-    try {
-      const response = await fetch(`/api/cards/${id}`)
-      if (!response.ok) return null
-      const data = await response.json()
-      return parseCardDates(data)
-    } catch (error) {
-      console.error('Error fetching card:', error)
-      return null
-    }
-  }
-
-  const getPairedCards = async () => {
-    const response = await fetch('/api/cards?paired=true')
-    const data = await response.json()
-    return data.map(parseCardDates) as Card[]
-  }
-
-  const getUnpairedCards = async () => {
-    const response = await fetch('/api/cards?paired=false')
-    const data = await response.json()
-    return data.map(parseCardDates) as Card[]
-  }
-
-  const getUsedCards = async () => {
-    const response = await fetch('/api/cards?used=true')
-    const data = await response.json()
-    return data.map(parseCardDates) as Card[]
-  }
-
-  const create = async (id: string, designId: string) => {
-    const response = await fetch('/api/cards', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ id, designId })
-    })
-
-    if (!response.ok) {
-      const data = await response.json()
-      throw new Error(data.reason)
-    }
-
-    const data = await response.json()
-    return parseCardDates(data)
-  }
-
-  const deleteCard = async (id: string) => {
-    const response = await deleteRequest(`/api/cards/${id}`)
-
+  const { get: apiGet, post: apiPost, delete: deleteRequest } = useAPI()
+  const list = useCallback(async () => {
+    const response = await apiGet('/api/cards')
     if (response.error) {
       throw new Error(response.error)
     }
-  }
+    return response.data.map(parseCardDates) as Card[]
+  }, [apiGet])
 
-  const count = async () => {
-    const counts = await getStatusCounts()
-    return counts.used + counts.unused
-  }
+  const get = useCallback(
+    async (id: string) => {
+      try {
+        const response = await apiGet(`/api/cards/${id}`)
+        if (response.error) return null
+        return parseCardDates(response.data)
+      } catch (error) {
+        console.error('Error fetching card:', error)
+        return null
+      }
+    },
+    [apiGet]
+  )
 
-  const getStatusCounts = async () => {
-    const response = await fetch('/api/cards/counts')
-    const data = await response.json()
-    return data as {
+  const getPairedCards = useCallback(async () => {
+    const response = await apiGet('/api/cards?paired=true')
+    if (response.error) {
+      throw new Error(response.error)
+    }
+    return response.data.map(parseCardDates) as Card[]
+  }, [apiGet])
+
+  const getUnpairedCards = useCallback(async () => {
+    const response = await apiGet('/api/cards?paired=false')
+    if (response.error) {
+      throw new Error(response.error)
+    }
+    return response.data.map(parseCardDates) as Card[]
+  }, [apiGet])
+
+  const getUsedCards = useCallback(async () => {
+    const response = await apiGet('/api/cards?used=true')
+    if (response.error) {
+      throw new Error(response.error)
+    }
+    return response.data.map(parseCardDates) as Card[]
+  }, [apiGet])
+
+  const create = useCallback(
+    async (id: string, designId: string) => {
+      const response = await apiPost('/api/cards', {
+        id,
+        designId
+      })
+
+      if (response.error) {
+        throw new Error(response.error)
+      }
+
+      return parseCardDates(response.data)
+    },
+    [apiPost]
+  )
+
+  const deleteCard = useCallback(
+    async (id: string) => {
+      const response = await deleteRequest(`/api/cards/${id}`)
+
+      if (response.error) {
+        throw new Error(response.error)
+      }
+    },
+    [deleteRequest]
+  )
+
+  const getStatusCounts = useCallback(async () => {
+    const response = await apiGet('/api/cards/counts')
+    if (response.error) {
+      throw new Error(response.error)
+    }
+    return response.data as {
       paired: number
       unpaired: number
       used: number
       unused: number
     }
-  }
+  }, [apiGet])
+
+  const count = useCallback(async () => {
+    const counts = await getStatusCounts()
+    return counts.used + counts.unused
+  }, [getStatusCounts])
 
   const value = useMemo<CardsContextType>(
     () => ({
@@ -133,8 +146,17 @@ export const CardsProvider = ({ children }: { children: React.ReactNode }) => {
       count,
       getStatusCounts
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [deleteRequest]
+    [
+      list,
+      get,
+      getPairedCards,
+      getUnpairedCards,
+      getUsedCards,
+      create,
+      deleteCard,
+      count,
+      getStatusCounts
+    ]
   )
 
   return <CardsContext.Provider value={value}>{children}</CardsContext.Provider>

@@ -31,29 +31,33 @@ export const CardDesignsProvider = ({
 }: {
   children: React.ReactNode
 }) => {
-  const api = useAPI()
-  const list = async () => {
-    const res = await fetch('/api/card-designs/list')
-    if (!res.ok) throw new Error('Failed to fetch card designs')
-    return (await res.json()).map((design: any) => {
+  const { get: apiGet, post: apiPost } = useAPI()
+
+  const list = useCallback(async () => {
+    const response = await apiGet('/api/card-designs/list')
+    if (response.error) throw new Error(response.error)
+    return response.data.map((design: any) => {
       return { ...design, createdAt: new Date(design.createdAt) }
     })
-  }
-  const get = async (id: string) => {
-    const res = await fetch(`/api/card-designs/get/${id}`)
-    if (!res.ok) return null
-    const design = await res.json()
-    return { ...design, createdAt: new Date(design.createdAt) }
-  }
-  const count = async () => {
-    const res = await fetch('/api/card-designs/count')
-    if (!res.ok) throw new Error('Failed to fetch card design count')
-    const data = await res.json()
-    return data.count
-  }
+  }, [apiGet])
+
+  const get = useCallback(
+    async (id: string) => {
+      const response = await apiGet(`/api/card-designs/get/${id}`)
+      if (response.error) return null
+      return { ...response.data, createdAt: new Date(response.data.createdAt) }
+    },
+    [apiGet]
+  )
+
+  const count = useCallback(async () => {
+    const response = await apiGet('/api/card-designs/count')
+    if (response.error) throw new Error(response.error)
+    return response.data.count
+  }, [apiGet])
 
   const importDesigns = useCallback(async () => {
-    const response = await api.post('/api/card-designs/import')
+    const response = await apiPost('/api/card-designs/import')
 
     if (response.error) {
       throw new Error(response.error)
@@ -68,7 +72,7 @@ export const CardDesignsProvider = ({
     }
 
     return response.data
-  }, [api])
+  }, [apiPost])
 
   const value = useMemo<CardDesignsContextType>(
     () => ({
@@ -77,7 +81,7 @@ export const CardDesignsProvider = ({
       count,
       import: importDesigns
     }),
-    [importDesigns]
+    [list, get, count, importDesigns]
   )
 
   return (
