@@ -25,7 +25,7 @@ import { Settings, AlertTriangle, Shield, Copy, Check } from 'lucide-react'
 
 export function AdminWrapper({ children }: { children: React.ReactNode }) {
   const { signer, publicKey, post } = useAPI()
-  const { settings, isLoading } = useSettings()
+  const { settings, isLoading, revalidate } = useSettings()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showActivateModal, setShowActivateModal] = useState(false)
@@ -59,6 +59,7 @@ export function AdminWrapper({ children }: { children: React.ReactNode }) {
         setActivationStep('error')
       } else {
         setActivationStep('success')
+        revalidate()
         // Optionally refresh settings or redirect
         setTimeout(() => {
           setShowActivateModal(false)

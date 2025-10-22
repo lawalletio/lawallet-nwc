@@ -29,6 +29,7 @@ export interface SettingsContextType {
   isUpdating: boolean
   error: string | null
   clearError: () => void
+  revalidate: () => void
 }
 
 export const SettingsContext = createContext<SettingsContextType | undefined>(
@@ -138,7 +139,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         isLoading,
         isUpdating,
         error,
-        clearError
+        clearError,
+        revalidate: () => {
+          void loadSettings()
+        }
       }}
     >
       {children}
