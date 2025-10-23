@@ -60,7 +60,7 @@ RUN mkdir -p /app/data && chown -R nextjs:nodejs /app
 USER nextjs
 
 # Expose port
-EXPOSE 8888
+EXPOSE 2288
 
 # Set environment variables
 ENV NODE_ENV=production
