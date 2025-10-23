@@ -21,11 +21,11 @@ services:
   app:
     build: .
     ports:
-      - '8888:8888'
+      - '2288:2288'
     environment:
       - DATABASE_URL=postgresql://lawallet:lawallet_password@postgres:5432/lawallet
       - NODE_ENV=production
-      - PORT=8888
+      - PORT=2288
       # Add other environment variables here
       # - JWT_SECRET=your-secret-key
       # - NEXTAUTH_SECRET=your-nextauth-secret
