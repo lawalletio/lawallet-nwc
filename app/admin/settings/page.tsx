@@ -23,7 +23,16 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CheckCircle, Loader2, Settings, Globe, Users, Zap } from 'lucide-react'
+import {
+  CheckCircle,
+  Loader2,
+  Settings,
+  Globe,
+  Users,
+  Zap,
+  Smartphone
+} from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 
 interface SettingsData {
   enabled: boolean
@@ -34,6 +43,7 @@ interface SettingsData {
   albyAutoGenerate: boolean
   albyApiUrl: string
   albyBearerToken: string
+  externalDeviceKey: string
 }
 
 const bitcoinCommunities = communities
@@ -59,7 +69,8 @@ export default function SettingsPage() {
     communityId: '',
     albyAutoGenerate: false,
     albyApiUrl: 'http://albyhub_server_1:8080/api',
-    albyBearerToken: ''
+    albyBearerToken: '',
+    externalDeviceKey: ''
   })
 
   // Initialize settings data from settings
@@ -73,13 +84,37 @@ export default function SettingsPage() {
         communityId: settings.community_id || '',
         albyAutoGenerate: settings.alby_auto_generate === 'true',
         albyApiUrl: settings.alby_api_url || '',
-        albyBearerToken: settings.alby_bearer_token || ''
+        albyBearerToken: settings.alby_bearer_token || '',
+        externalDeviceKey: settings.external_device_key || ''
       })
     }
   }, [settings])
 
   const updateSettingsData = (updates: Partial<SettingsData>) => {
     setSettingsData(prev => ({ ...prev, ...updates }))
+  }
+
+  const generateExternalDeviceKey = () => {
+    // Generate 16 random bytes and convert to hex string
+    const array = new Uint8Array(16)
+    crypto.getRandomValues(array)
+    const key = Array.from(array, byte =>
+      byte.toString(16).padStart(2, '0')
+    ).join('')
+    return key
+  }
+
+  const handleGenerateRemoteKey = async () => {
+    const newKey = generateExternalDeviceKey()
+    updateSettingsData({ externalDeviceKey: newKey })
+
+    // Save the key to settings
+    try {
+      await updateSettings({ external_device_key: newKey })
+    } catch (err) {
+      console.error('Error saving external device key:', err)
+      setError('Failed to save remote connection key')
+    }
   }
 
   const validateGeneralSettings = () => {
@@ -372,6 +407,89 @@ export default function SettingsPage() {
     </Card>
   )
 
+  const renderRemoteConnectionsSettings = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Smartphone className="h-5 w-5" />
+          Remote Connections
+        </CardTitle>
+        <CardDescription>
+          Configure remote device connections for external access
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {settingsData.externalDeviceKey ? (
+          <div className="space-y-4">
+            <div className="text-center">
+              <Label className="text-base font-medium">
+                Scan this QR with your remote device
+              </Label>
+              <p className="text-sm text-muted-foreground mt-2">
+                Use this QR code to connect your remote device to this instance
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <div className="p-4 bg-white rounded-lg border-2 border-gray-200">
+                <QRCodeSVG
+                  value={`${settingsData.endpoint}/api/remote-connections/${settingsData.externalDeviceKey}`}
+                  size={240}
+                  level="H"
+                />
+                <input
+                  type="text"
+                  value={`${settingsData.endpoint}/api/remote-connections/${settingsData.externalDeviceKey}`}
+                />
+              </div>
+            </div>
+            <div className="text-center">
+              <Button
+                variant="outline"
+                onClick={handleGenerateRemoteKey}
+                disabled={settingsUpdating}
+                className="mt-4"
+              >
+                {settingsUpdating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate New Key'
+                )}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center space-y-4">
+            <div>
+              <Label className="text-base font-medium">
+                No Remote Connection Key
+              </Label>
+              <p className="text-sm text-muted-foreground mt-2">
+                Generate a key to enable remote device connections
+              </p>
+            </div>
+            <Button
+              onClick={handleGenerateRemoteKey}
+              disabled={settingsUpdating}
+              className="mt-4"
+            >
+              {settingsUpdating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                'Generate Remote Key QR Code'
+              )}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+
   return (
     <div className="space-y-6">
       <div>
@@ -395,7 +513,7 @@ export default function SettingsPage() {
         onValueChange={setActiveTab}
         className="space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="general" className="flex items-center gap-2">
             <Globe className="h-4 w-4" />
             General
@@ -407,6 +525,10 @@ export default function SettingsPage() {
           <TabsTrigger value="alby" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             Alby Integration
+          </TabsTrigger>
+          <TabsTrigger value="remote" className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4" />
+            Remote Connections
           </TabsTrigger>
         </TabsList>
 
@@ -420,6 +542,10 @@ export default function SettingsPage() {
 
         <TabsContent value="alby" className="space-y-6">
           {renderAlbySettings()}
+        </TabsContent>
+
+        <TabsContent value="remote" className="space-y-6">
+          {renderRemoteConnectionsSettings()}
         </TabsContent>
 
         <div className="flex justify-end">
