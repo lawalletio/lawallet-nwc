@@ -14,7 +14,7 @@ import { CardsGallery } from '@/components/cards-gallery'
 import { SatoshiIcon } from '@/components/icon/satoshi'
 import { LaWalletIcon } from '@/components/icon/lawallet'
 import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
-import { QRCodeSVG } from 'qrcode.react'
+import { LightningAddressQRDialog } from '@/components/wallet/lightning-address-qr-dialog'
 
 export default function WalletPage() {
   const { lightningAddress, nwcUri, balance, isConnected } = useWallet()
@@ -157,29 +157,32 @@ export default function WalletPage() {
         <div className="container flex flex-col gap-8">
           {lightningAddress && (
             <div className="overflow-hidden relative flex flex-col items-center justify-center gap-2 border p-4 rounded-xl">
-              <div
-                className="flex flex-col items-center cursor-pointer"
-                onClick={() => copyToClipboard(lightningAddress)}
-              >
+              <div className="flex flex-col items-center cursor-pointer">
                 <div className="flex gap-2">
                   <p className="text-sm text-muted-foreground">
                     Lightning Address
                   </p>
                   {copied && <p className="text-sm text-green-400">Copied</p>}
                 </div>
-                <div ref={addressRef} className="flex font-bold w-full">
+                <div
+                  ref={addressRef}
+                  className="flex font-bold w-full items-center gap-3 cursor-pointer"
+                >
                   <p
-                    className="text-white w-full text-center"
+                    className="text-white w-full text-center cursor-pointer"
                     style={{
                       fontSize: `${45 - lightningAddress.length * 0.9}px`
                     }}
+                    onClick={() => copyToClipboard(lightningAddress)}
                   >
                     {lightningAddress}
                   </p>
-                  {/* <p className="text-muted-foreground">@{PUBLIC_DOMAIN}</p> */}
+
+                  <LightningAddressQRDialog
+                    lightningAddress={lightningAddress}
+                  />
                 </div>
               </div>
-              <QRCodeSVG value={lightningAddress} size={240} level="H" />
             </div>
           )}
 
