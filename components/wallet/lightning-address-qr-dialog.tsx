@@ -30,7 +30,7 @@ export function LightningAddressQRDialog({
       <DialogTrigger asChild>
         <QrCode className="size-5 text-white cursor-pointer hover:text-orange-300" />
       </DialogTrigger>
-      <DialogContent className="flex flex-col items-center justify-center gap-10 bg-gray-100">
+      <DialogContent className="flex flex-col items-center justify-center gap-10 bg-gray-100 w-[365px]">
         <DialogHeader>
           <DialogTitle>Lightning Address QR Code</DialogTitle>
         </DialogHeader>
