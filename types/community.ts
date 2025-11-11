@@ -43,5 +43,9 @@ export const communities: Community[] = [
   {
     id: 'prospera-distrito-bitcoin',
     name: 'Bitcoin District Próspera'
+  },
+  {
+    id: 'escuelita-bitcoin',
+    name: 'Escuelita Bitcoin'
   }
 ]
