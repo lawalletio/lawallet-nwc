@@ -162,6 +162,14 @@ const HeroSection = () => {
               Admin <PanelTopDashed className="ml-2 h-5 w-5" />
             </Button>
           </Link>
+          <Link href="/wallet">
+            <Button
+              size="lg"
+              className="px-8 py-4 rounded-full bg-green-700 hover:bg-green-400 text-white transition-all duration-300 ease-in-out shadow-lg hover:shadow-nwc-purple/20 hover:scale-105 hover:-translate-y-1"
+            >
+              Wallet <Wallet className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
           {/* <div className="flex flex-col sm:flex-row gap-4">
             <Button
               size="lg"
