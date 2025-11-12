@@ -188,6 +188,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return data
   }
 
+  const sendPayment = async (amount: number, to: string, card?: any): Promise<{ success: boolean; error?: string }> => {
+    if (!nwcObject) return { success: false, error: 'NWC no conectado. Configura tu conexión NWC en ajustes y vuelve a intentar.' }
+    if (!to) return { success: false, error: 'Proporciona una invoice o lightning address válida.' }
+    try {
+      if (to.startsWith('lnbc') || to.startsWith('lntb')) {
+        await nwcObject.payInvoice({ invoice: to })
+      } else {
+        await nwcObject.payKeysend({
+          pubkey: to,
+          amount: amount * 1000
+        })
+      }
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: `Error al enviar sats: ${error.message}. Verifica los datos e intenta de nuevo.` }
+    }
+  }
+
   const logout = () => {
     setWalletState({
       lightningAddress: null,
@@ -205,7 +223,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setNwcUri,
     logout,
     isConnected,
-    isHydrated
+    isHydrated,
+    sendPayment
   }
 
   return (

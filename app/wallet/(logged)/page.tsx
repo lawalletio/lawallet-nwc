@@ -14,6 +14,9 @@ import { CardsGallery } from '@/components/cards-gallery'
 import { SatoshiIcon } from '@/components/icon/satoshi'
 import { LaWalletIcon } from '@/components/icon/lawallet'
 import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 
 export default function WalletPage() {
   const { lightningAddress, nwcUri, balance, isConnected } = useWallet()
@@ -23,6 +26,19 @@ export default function WalletPage() {
   const [copied, setCopied] = useState(false)
   const [animatedBalance, setAnimatedBalance] = useState(balance)
   const addressRef = useRef<HTMLDivElement>(null)
+  const [isSendDialogOpen, setIsSendDialogOpen] = useState(false)
+  const [invoice, setInvoice] = useState('')
+  const [sendLightningAddress, setSendLightningAddress] = useState('')
+
+  const sendSats = async () => {
+    if (!invoice && !sendLightningAddress) return
+    // Logic to send sats using invoice or sendLightningAddress
+    // Example: await api.sendPayment({ invoice, sendLightningAddress })
+    console.log('Sending sats:', { invoice, sendLightningAddress })
+    setIsSendDialogOpen(false)
+    setInvoice('')
+    setSendLightningAddress('')
+  }
 
   // Fetch cards for the current user
   const { cards, isLoading: cardsLoading } = useCards(userId)
@@ -178,6 +194,34 @@ export default function WalletPage() {
               </div>
             </div>
           )}
+
+          <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="w-full" size="lg">
+                Enviar Sats
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Enviar Sats</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col gap-4">
+                <Textarea
+                  placeholder="Invoice"
+                  value={invoice}
+                  onChange={(e) => setInvoice(e.target.value)}
+                />
+                <Input
+                  placeholder="Lightning Address"
+                  value={sendLightningAddress}
+                  onChange={(e) => setSendLightningAddress(e.target.value)}
+                />
+                <Button onClick={sendSats} disabled={!invoice && !sendLightningAddress}>
+                  Enviar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <div className="flex flex-col gap-2">
             {nwcUri && (
