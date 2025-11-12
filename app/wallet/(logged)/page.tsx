@@ -7,6 +7,7 @@ import { Settings, Loader2, BadgeAlert } from 'lucide-react'
 import { useWallet } from '@/hooks/use-wallet'
 import { useAPI } from '@/providers/api'
 import { useCards } from '@/hooks/use-cards'
+import { decode } from 'bolt11'
 
 import { AppContent, AppNavbar, AppViewport } from '@/components/app'
 import { Button } from '@/components/ui/button'
@@ -19,25 +20,52 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 
 export default function WalletPage() {
-  const { lightningAddress, nwcUri, balance, isConnected } = useWallet()
+  const { lightningAddress, nwcUri, balance, isConnected, sendPayment } = useWallet()
   const { isHydrated: apiHydrated, signer, userId } = useAPI()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(!signer)
   const [copied, setCopied] = useState(false)
   const [animatedBalance, setAnimatedBalance] = useState(balance)
   const addressRef = useRef<HTMLDivElement>(null)
+  const [inputValue, setInputValue] = useState('')
+  const [amount, setAmount] = useState('')
+  const [message, setMessage] = useState('')
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false)
-  const [invoice, setInvoice] = useState('')
-  const [sendLightningAddress, setSendLightningAddress] = useState('')
+  const [isAmountDisabled, setIsAmountDisabled] = useState(false)
+
+  useEffect(() => {
+    if (inputValue.startsWith('lnbc') || inputValue.startsWith('lntb')) {
+      try {
+        const decoded = decode(inputValue)
+        const invoiceAmount = decoded.satoshis || 0
+        if (invoiceAmount > 0) {
+          setAmount((invoiceAmount).toString())
+          setIsAmountDisabled(true)
+        } else {
+          setAmount('')
+          setIsAmountDisabled(false)
+        }
+      } catch {
+        setAmount('')
+        setIsAmountDisabled(false)
+      }
+    } else {
+      setAmount('')
+      setIsAmountDisabled(false)
+    }
+  }, [inputValue])
 
   const sendSats = async () => {
-    if (!invoice && !sendLightningAddress) return
-    // Logic to send sats using invoice or sendLightningAddress
-    // Example: await api.sendPayment({ invoice, sendLightningAddress })
-    console.log('Sending sats:', { invoice, sendLightningAddress })
+    if (!inputValue || !amount) return
+    const sats = parseInt(amount)
+    if (isNaN(sats) || sats <= 0) return
+    const result = await sendPayment(sats, inputValue)
+    if (!result.success) throw new Error(result.error)
     setIsSendDialogOpen(false)
-    setInvoice('')
-    setSendLightningAddress('')
+    setInputValue('')
+    setAmount('')
+    setMessage('')
+    setIsAmountDisabled(false)
   }
 
   // Fetch cards for the current user
@@ -201,22 +229,29 @@ export default function WalletPage() {
                 Enviar Sats
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className='bg-black text-white'>
               <DialogHeader>
                 <DialogTitle>Enviar Sats</DialogTitle>
               </DialogHeader>
               <div className="flex flex-col gap-4">
-                <Textarea
-                  placeholder="Invoice"
-                  value={invoice}
-                  onChange={(e) => setInvoice(e.target.value)}
+                <Input
+                  placeholder="Invoice o Lightning Address"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
                 />
                 <Input
-                  placeholder="Lightning Address"
-                  value={sendLightningAddress}
-                  onChange={(e) => setSendLightningAddress(e.target.value)}
+                  type="number"
+                  placeholder="Cantidad de Sats"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  disabled={isAmountDisabled}
                 />
-                <Button onClick={sendSats} disabled={!invoice && !sendLightningAddress}>
+                <Textarea
+                  placeholder="Mensaje"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                />
+                <Button onClick={sendSats} disabled={!inputValue || !amount}>
                   Enviar
                 </Button>
               </div>

@@ -45,6 +45,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@zxing/library": "^0.21.3",
     "aes-cmac": "^4.0.0",
+    "bolt11": "^1.4.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "latest",

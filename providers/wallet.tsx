@@ -194,6 +194,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       if (to.startsWith('lnbc') || to.startsWith('lntb')) {
         await nwcObject.payInvoice({ invoice: to })
+      } else if (to.includes('@')) {
+        const [username, domain] = to.split('@')
+        const response = await fetch(`https://${domain}/.well-known/lnurlp/${username}`)
+        if (!response.ok) throw new Error('No se pudo resolver la lightning address. Verifica que el dominio y username sean correctos.')
+        const lnurlData = await response.json()
+        const callbackResponse = await fetch(`${lnurlData.callback}?amount=${amount * 1000}`)
+        if (!callbackResponse.ok) throw new Error('Error al solicitar invoice. Verifica la cantidad y vuelve a intentar.')
+        const invoiceData = await callbackResponse.json()
+        await nwcObject.payInvoice({ invoice: invoiceData.pr })
       } else {
         await nwcObject.payKeysend({
           pubkey: to,
