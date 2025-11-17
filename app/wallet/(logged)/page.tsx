@@ -16,9 +16,10 @@ import { CardsGallery } from '@/components/cards-gallery'
 import { SatoshiIcon } from '@/components/icon/satoshi'
 import { LaWalletIcon } from '@/components/icon/lawallet'
 import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
+import { set } from 'zod'
 
 export default function WalletPage() {
   const { lightningAddress, nwcUri, balance, isConnected, sendPayment } = useWallet()
@@ -34,6 +35,14 @@ export default function WalletPage() {
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false)
   const [isAmountDisabled, setIsAmountDisabled] = useState(false)
   const [showScanner, setShowScanner] = useState(true)
+  const [errorMessage, setErrorMessage] = useState('')
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  const constraints = isMobile ? { video: { facingMode: 'environment' } } : {}
+  const [isSending, setIsSending] = useState(false)
+
+  useEffect(() => {
+    setErrorMessage('')
+  }, [inputValue, amount, message])
 
   useEffect(() => {
     if (!inputValue || typeof inputValue !== 'string') return
@@ -57,52 +66,6 @@ export default function WalletPage() {
       setIsAmountDisabled(false)
     }
   }, [inputValue])
-
-  const handleScan = (data: any) => {
-    if (data && data.text) {
-      setInputValue(data.text)
-      setShowScanner(false)
-    }
-  }
-
-  const handleError = (err: any) => {
-    console.error(err)
-  }
-
-  const pasteFromClipboard = async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      setInputValue(text)
-      setShowScanner(false)
-    } catch (err) {
-      console.error('Failed to read clipboard:', err)
-    }
-  }
-
-  const sendSats = async () => {
-    if (!inputValue || !amount) return
-    const sats = parseInt(amount)
-    if (isNaN(sats) || sats <= 0) return
-    const result = await sendPayment(sats, inputValue)
-    if (!result.success) throw new Error(result.error)
-    setIsSendDialogOpen(false)
-    setInputValue('')
-    setAmount('')
-    setMessage('')
-    setIsAmountDisabled(false)
-    setShowScanner(true)
-  }
-
-  const { cards, isLoading: cardsLoading } = useCards(userId)
-
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-    }
-  }
 
   useEffect(() => {
     if (!apiHydrated) return
@@ -153,6 +116,72 @@ export default function WalletPage() {
   }
   if (!signer) {
     return null
+  }
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsSendDialogOpen(open)
+    if (!open) {
+      setShowScanner(true)
+      setInputValue('')
+      setAmount('')
+      setMessage('')
+      setErrorMessage('')
+      setIsAmountDisabled(false)
+    }
+  }
+
+  const handleScan = (data: any) => {
+    if (data && data.text) {
+      const sanitized = data.text.toLowerCase().replace(/^lightning:/, '')
+      setInputValue(sanitized)
+      setShowScanner(false)
+    }
+  }
+
+  const handleError = (err: any) => {
+    console.error(err)
+  }
+
+  const pasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      setInputValue(text)
+      setShowScanner(false)
+    } catch (err) {
+      console.error('Failed to read clipboard:', err)
+    }
+  }
+
+  const sendSats = async () => {
+    if (!inputValue || !amount) return
+    const sats = parseInt(amount)
+    if (isNaN(sats) || sats <= 0) return
+    setIsSending(true)
+    const result = await sendPayment(sats, inputValue)
+    if (!result.success) {
+      setErrorMessage(result.error || 'An unknown error occurred')
+      setIsSending(false)
+      return
+    }
+    setIsSendDialogOpen(false)
+    setInputValue('')
+    setAmount('')
+    setMessage('')
+    setIsAmountDisabled(false)
+    setShowScanner(true)
+    setErrorMessage('')
+    setIsSending(false)
+  }
+
+  const { cards, isLoading: cardsLoading } = useCards(userId)
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+    }
   }
 
   if (isLoading || !signer) {
@@ -228,15 +257,25 @@ export default function WalletPage() {
             </div>
           )}
 
-          {nwcUri && (<Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
+          {nwcUri && (<Dialog open={isSendDialogOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
-              <Button className="w-full" size="lg">
-                Enviar Sats
+              <Button className="w-full" size="lg" disabled={isSending}>
+                {isSending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Enviando...
+                  </>
+                ) : (
+                  'Enviar Sats'
+                )}
               </Button>
             </DialogTrigger>
             <DialogContent className='bg-black text-white'>
               <DialogHeader>
                 <DialogTitle>Enviar Sats</DialogTitle>
+                <DialogDescription>
+                  Escanea un QR o pega una invoice para enviar sats.
+                </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-4">
                 {showScanner ? (
@@ -244,6 +283,7 @@ export default function WalletPage() {
                     <QrScanner
                       onScan={handleScan}
                       onError={handleError}
+                      constraints={constraints}
                       style={{ width: '100%' }}
                     />
                     <Button onClick={pasteFromClipboard}>
@@ -270,8 +310,20 @@ export default function WalletPage() {
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                     />
-                    <Button onClick={sendSats} disabled={!inputValue || !amount}>
-                      Enviar
+                    {errorMessage && (
+                      <div className="bg-red-500 text-white p-2 rounded">
+                        {errorMessage}
+                      </div>
+                    )}
+                    <Button onClick={sendSats} disabled={isSending || !inputValue || !amount}>
+                      {isSending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Enviando...
+                        </>
+                      ) : (
+                        'Enviar'
+                      )}
                     </Button>
                   </>
                 )}

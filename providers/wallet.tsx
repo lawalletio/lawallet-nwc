@@ -7,6 +7,7 @@ import { nwc } from '@getalby/sdk'
 import { toast } from '@/hooks/use-toast'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { useAPI } from '@/providers/api'
+import { decode } from 'bolt11'
 
 export const WalletContext = createContext<WalletContextType | undefined>(
   undefined
@@ -25,8 +26,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { userId, get, put, logout: logoutApi } = useAPI()
 
   const refreshBalance = async (notification?: any) => {
-    console.log(notification)
-
     if (notification) {
       const { type, amount } = notification.notification
       toast({
@@ -63,7 +62,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    console.log('New nwc object')
     const nwcClient = new nwc.NWCClient({
       nostrWalletConnectUrl: walletState.nwcUri
     })
@@ -193,17 +191,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!to) return { success: false, error: 'Proporciona una invoice o lightning address válida.' }
     try {
       if (to.startsWith('lnbc') || to.startsWith('lntb')) {
-        await nwcObject.payInvoice({ invoice: to })
+        const decoded = decode(to)
+        if (!decoded.satoshis || decoded.satoshis === 0) {
+          await nwcObject.payInvoice({ invoice: to, amount: amount * 1000 })
+        } else {
+          await nwcObject.payInvoice({ invoice: to })
+        }
       } else if (to.includes('@')) {
         const [username, domain] = to.split('@')
         const response = await fetch(`https://${domain}/.well-known/lnurlp/${username}`)
         if (!response.ok) throw new Error('No se pudo resolver la lightning address. Verifica que el dominio y username sean correctos.')
         const lnurlData = await response.json()
-        const callbackResponse = await fetch(`${lnurlData.callback}?amount=${amount * 1000}`)
+        let callbackUrl = `${lnurlData.callback}?amount=${amount * 1000}`
+        if (card?.message && lnurlData.commentAllowed) callbackUrl += `&comment=${encodeURIComponent(card.message)}`
+        const callbackResponse = await fetch(callbackUrl)
         if (!callbackResponse.ok) throw new Error('Error al solicitar invoice. Verifica la cantidad y vuelve a intentar.')
         const invoiceData = await callbackResponse.json()
         await nwcObject.payInvoice({ invoice: invoiceData.pr })
       } else {
+        if (!/^[0-9a-fA-F]{64}$/.test(to)) {
+          throw new Error('Pubkey inválida para keysend. Debe ser una cadena hex de 64 caracteres (0-9, a-f, A-F). Verifica la pubkey y vuelve a intentar.')
+        }
         await nwcObject.payKeysend({
           pubkey: to,
           amount: amount * 1000
