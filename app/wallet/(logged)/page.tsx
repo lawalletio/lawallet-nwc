@@ -20,6 +20,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { set } from 'zod'
+import { LightningAddressQRDialog } from '@/components/wallet/lightning-address-qr-dialog'
+
 
 export default function WalletPage() {
   const { lightningAddress, nwcUri, balance, isConnected, sendPayment } = useWallet()
@@ -234,25 +236,32 @@ export default function WalletPage() {
       <AppContent>
         <div className="container flex flex-col gap-8">
           {lightningAddress && (
-            <div
-              className="overflow-hidden relative w-full flex flex-col gap-2 border p-4 rounded-xl cursor-pointer"
-              onClick={() => copyToClipboard(lightningAddress)}
-            >
-              <div className="flex gap-2 w-full">
-                <p className="text-sm text-muted-foreground">
-                  Lightning Address
-                </p>
-                {copied && <p className="text-sm text-green-400">Copied</p>}
-              </div>
-              <div ref={addressRef} className="flex font-bold w-full">
-                <p
-                  className="text-white w-full text-center"
-                  style={{
-                    fontSize: `${45 - lightningAddress.length * 0.9}px`
-                  }}
+            <div className="overflow-hidden relative flex flex-col items-center justify-center gap-2 border p-4 rounded-xl">
+              <div className="flex flex-col items-center cursor-pointer">
+                <div className="flex gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    Lightning Address
+                  </p>
+                  {copied && <p className="text-sm text-green-400">Copied</p>}
+                </div>
+                <div
+                  ref={addressRef}
+                  className="flex font-bold w-full items-center gap-3 cursor-pointer"
                 >
-                  {lightningAddress}
-                </p>
+                  <p
+                    className="text-white w-full text-center cursor-pointer"
+                    style={{
+                      fontSize: `${45 - lightningAddress.length * 0.9}px`
+                    }}
+                    onClick={() => copyToClipboard(lightningAddress)}
+                  >
+                    {lightningAddress}
+                  </p>
+
+                  <LightningAddressQRDialog
+                    lightningAddress={lightningAddress}
+                  />
+                </div>
               </div>
             </div>
           )}
