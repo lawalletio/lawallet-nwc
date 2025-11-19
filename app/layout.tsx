@@ -18,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning={true}> 
       <body
         className={`flex flex-col min-h-[100dvh] bg-black ${inter.className} select-none`}
       >
