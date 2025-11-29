@@ -51,9 +51,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         description: (
           <span className="flex items-center gap-2">
             {type === 'incoming' ? (
-              <ArrowDownLeft className="w-4 h-4 bg-black" />
+              <ArrowDownLeft className="w-4 h-4 text-green-600" />
             ) : (
-              <ArrowUpRight className="w-4 h-4 bg-black" />
+              <ArrowUpRight className="w-4 h-4 text-red-600" />
             )}
             {type === 'incoming' ? (
               <span className="text-green-600">+</span>
