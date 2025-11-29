@@ -39,7 +39,7 @@ export default function WalletPage() {
   const [showScanner, setShowScanner] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  const constraints = isMobile ? { video: { facingMode: 'environment' } } : {}
+  const constraints = isMobile ? { video: { facingMode: 'environment' } } : { video: true }
   const [isSending, setIsSending] = useState(false)
 
   useEffect(() => {
@@ -141,7 +141,7 @@ export default function WalletPage() {
   }
 
   const handleError = (err: any) => {
-    console.error(err)
+    setErrorMessage(`Error accediendo a cámara: ${err.message}. Verifica permisos en navegador, usa HTTPS y permite acceso a cámara.`)
   }
 
   const pasteFromClipboard = async () => {
