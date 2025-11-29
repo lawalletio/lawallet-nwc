@@ -47,15 +47,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const { type, amount } = notification.notification
       toast({
         title: type === 'incoming' ? 'Received' : 'Paid',
-        variant: type === 'incoming' ? 'default' : 'destructive',
+        variant: 'default',
         description: (
           <span className="flex items-center gap-2">
             {type === 'incoming' ? (
-              <ArrowDownLeft className="w-4 h-4 text-green-600" />
+              <ArrowDownLeft className="w-4 h-4 bg-black" />
             ) : (
-              <ArrowUpRight className="w-4 h-4 text-red-600" />
+              <ArrowUpRight className="w-4 h-4 bg-black" />
             )}
-            {type === 'incoming' ? '+' : '-'}
+            {type === 'incoming' ? (
+              <span className="text-green-600">+</span>
+            ) : (
+              <span className="text-red-600">-</span>
+            )}
             {amount / 1000} sats
           </span>
         )
