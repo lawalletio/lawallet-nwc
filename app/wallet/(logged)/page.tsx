@@ -146,11 +146,13 @@ export default function WalletPage() {
 
   const pasteFromClipboard = async () => {
     try {
-      const text = await navigator.clipboard.readText()
+      let text = await navigator.clipboard.readText()
+      text = text.toLowerCase().replace(/^lightning:/, '').trim().replace(/\s+/g, '') // Sanitiza: minúsculas, quita prefijo, trim espacios/saltos
       setInputValue(text)
       setShowScanner(false)
     } catch (err) {
       console.error('Failed to read clipboard:', err)
+      setErrorMessage('Error al leer portapapeles. Verificá permisos o pegá manualmente.')
     }
   }
 
