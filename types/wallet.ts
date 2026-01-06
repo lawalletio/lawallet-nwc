@@ -13,4 +13,5 @@ export interface WalletContextType extends WalletState {
   logout: () => void
   isConnected: boolean
   isHydrated: boolean
+  sendPayment: (amount: number, to: string, card?: Card) => Promise<{ success: boolean; error?: string }>
 }

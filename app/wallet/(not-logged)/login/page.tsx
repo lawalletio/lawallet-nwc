@@ -18,7 +18,7 @@ export default function WalletLoginPage() {
   const [nsecInput, setNsecInput] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
-  const { loginWithPrivateKey, isHydrated, signer } = useAPI()
+  const { loginWithPrivateKey, loginWithSigner, isHydrated, signer } = useAPI()
   const router = useRouter()
 
   const handleGenerateWallet = async () => {
@@ -61,6 +61,23 @@ export default function WalletLoginPage() {
     }
   }
 
+  const handleExtensionLogin = async () => {
+    setIsLoading(true)
+    setError('')
+    try {
+      if (!window.nostr) {
+        throw new Error('No Nostr extension found. Please install Alby or nos2x.')
+      }
+      await window.nostr.getPublicKey()
+      loginWithSigner(window.nostr)
+      router.push('/wallet')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (signer) {
       router.push('/wallet')
@@ -85,80 +102,104 @@ export default function WalletLoginPage() {
   }
 
   return (
-    <AppViewport>
-      <AppContent>
-        <div className="container flex-1 flex flex-col gap-4 w-full h-full">
-          <div className="flex flex-col gap-2 w-full">
-            <div className="flex flex-row w-full justify-center pt-20">
-              <LaWalletIcon width="250" />
-            </div>
-          </div>
-          <div className="flex-1 flex flex-col justify-end gap-4 w-full">
-            <p className="text-muted-foreground text-lg">
-              Access your wallet or create a new one
-            </p>
+    <>
+      <style jsx global>{`
+        ::-webkit-scrollbar {
+          display: none;
+        }
+        * {
+          scrollbar-width: none;
+        }
+      `}</style>
+      <AppViewport>
+        <AppContent>
+          <div className="container flex-1 flex flex-col gap-4 w-full h-full">
             <div className="flex flex-col gap-2 w-full">
-              <Label htmlFor="nsec">Private Key (nsec)</Label>
-              <Input
-                id="nsec"
-                type="password"
-                placeholder="nsec1..."
-                value={nsecInput}
-                onChange={e => setNsecInput(e.target.value)}
-              />
-              <p className="text-sm text-muted-foreground">
-                Enter your nsec private key to import your wallet.
+              <div className="flex flex-row w-full justify-center mt-10">
+                <LaWalletIcon width="250" />
+              </div>
+            </div>
+            <div className="flex-1 flex flex-col justify-center gap-4 w-full">
+              <p className="text-muted-foreground text-lg">
+                Access your wallet or create a new one
               </p>
+              <div className="flex flex-col gap-2 w-full">
+                <Label htmlFor="nsec">Private Key (nsec)</Label>
+                <Input
+                  id="nsec"
+                  type="password"
+                  placeholder="nsec1..."
+                  value={nsecInput}
+                  onChange={e => setNsecInput(e.target.value)}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Enter your nsec private key to import your wallet.
+                </p>
+              </div>
+
+              <Button
+                className="w-full"
+                size="lg"
+                variant="secondary"
+                onClick={handleImportWallet}
+                disabled={isLoading || !nsecInput.trim()}
+              >
+                {isLoading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <>Import Wallet</>
+                )}
+              </Button>
+
+              <Button
+                className="w-full"
+                size="lg"
+                variant="outline"
+                onClick={handleExtensionLogin}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <>Login with Extension</>
+                )}
+              </Button>
             </div>
 
-            <Button
-              className="w-full"
-              size="lg"
-              variant="secondary"
-              onClick={handleImportWallet}
-              disabled={isLoading || !nsecInput.trim()}
-            >
-              {isLoading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <>Import Wallet</>
-              )}
-            </Button>
-          </div>
+            {error && (
+              <Alert
+                variant="destructive"
+                className="bg-red-500/10 border-red-500/20 backdrop-blur-sm"
+              >
+                <AlertCircle className="size-4 text-red-400" />
+                <AlertDescription className="text-red-300">
+                  {error}
+                </AlertDescription>
+              </Alert>
+            )}
 
-          {error && (
-            <Alert
-              variant="destructive"
-              className="bg-red-500/10 border-red-500/20 backdrop-blur-sm"
-            >
-              <AlertCircle className="size-4 text-red-400" />
-              <AlertDescription className="text-red-300">
-                {error}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="flex items-center w-full gap-2 text-center">
-            <div className="opacity-25 w-full h-[1px] bg-muted-foreground"></div>
-            <p className="text-sm text-muted-foreground">OR</p>
-            <div className="opacity-25 w-full h-[1px] bg-muted-foreground"></div>
+            <div className="flex items-center w-full gap-2 text-center">
+              <div className="opacity-25 w-full h-[1px] bg-muted-foreground"></div>
+              <p className="text-sm text-muted-foreground">OR</p>
+              <div className="opacity-25 w-full h-[1px] bg-muted-foreground"></div>
+            </div>
           </div>
-        </div>
-      </AppContent>
-      <AppFooter>
-        <Button
-          className="w-full"
-          size="lg"
-          onClick={handleGenerateWallet}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <>Create new</>
-          )}
-        </Button>
-      </AppFooter>
-    </AppViewport>
+        </AppContent>
+        <AppFooter>
+          <Button
+            className="w-full mb-10"
+            size="lg"
+            onClick={handleGenerateWallet}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <>Create new</>
+            )}
+          </Button>
+        </AppFooter>
+      </AppViewport>
+    </>
   )
 }
