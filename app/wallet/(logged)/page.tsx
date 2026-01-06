@@ -16,16 +16,23 @@ import { CardsGallery } from '@/components/cards-gallery'
 import { SatoshiIcon } from '@/components/icon/satoshi'
 import { LaWalletIcon } from '@/components/icon/lawallet'
 import { NwcLnWidget } from '@/components/wallet/settings/nwc-ln-widget'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { set } from 'zod'
 import { LightningAddressQRDialog } from '@/components/wallet/lightning-address-qr-dialog'
 
-
 export default function WalletPage() {
-  const { lightningAddress, nwcUri, balance, isConnected, sendPayment } = useWallet()
+  const { lightningAddress, nwcUri, balance, isConnected, sendPayment } =
+    useWallet()
   const { isHydrated: apiHydrated, signer, userId } = useAPI()
+  const { cards, isLoading: cardsLoading } = useCards(userId)
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(!signer)
   const [copied, setCopied] = useState(false)
@@ -38,8 +45,13 @@ export default function WalletPage() {
   const [isAmountDisabled, setIsAmountDisabled] = useState(false)
   const [showScanner, setShowScanner] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
-  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  const constraints = isMobile ? { video: { facingMode: 'environment' } } : { video: true }
+  const isMobile =
+    /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    )
+  const constraints = isMobile
+    ? { video: { facingMode: 'environment' } }
+    : { video: true }
   const [isSending, setIsSending] = useState(false)
 
   useEffect(() => {
@@ -111,6 +123,7 @@ export default function WalletPage() {
 
     requestAnimationFrame(animate)
     return () => {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [balance])
 
   if (!apiHydrated) {
@@ -141,18 +154,26 @@ export default function WalletPage() {
   }
 
   const handleError = (err: any) => {
-    setErrorMessage(`Error accediendo a cámara: ${err.message}. Verifica permisos en navegador, usa HTTPS y permite acceso a cámara.`)
+    setErrorMessage(
+      `Error accediendo a cámara: ${err.message}. Verifica permisos en navegador, usa HTTPS y permite acceso a cámara.`
+    )
   }
 
   const pasteFromClipboard = async () => {
     try {
       let text = await navigator.clipboard.readText()
-      text = text.toLowerCase().replace(/^lightning:/, '').trim().replace(/\s+/g, '') // Sanitiza: minúsculas, quita prefijo, trim espacios/saltos
+      text = text
+        .toLowerCase()
+        .replace(/^lightning:/, '')
+        .trim()
+        .replace(/\s+/g, '') // Sanitiza: minúsculas, quita prefijo, trim espacios/saltos
       setInputValue(text)
       setShowScanner(false)
     } catch (err) {
       console.error('Failed to read clipboard:', err)
-      setErrorMessage('Error al leer portapapeles. Verificá permisos o pegá manualmente.')
+      setErrorMessage(
+        'Error al leer portapapeles. Verificá permisos o pegá manualmente.'
+      )
     }
   }
 
@@ -177,15 +198,12 @@ export default function WalletPage() {
     setIsSending(false)
   }
 
-  const { cards, isLoading: cardsLoading } = useCards(userId)
-
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-    }
+    } catch (err) {}
   }
 
   if (isLoading || !signer) {
@@ -268,80 +286,87 @@ export default function WalletPage() {
             </div>
           )}
 
-          {nwcUri && (<Dialog open={isSendDialogOpen} onOpenChange={handleDialogOpenChange}>
-            <DialogTrigger asChild>
-              <Button className="w-full" size="lg" disabled={isSending}>
-                {isSending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Enviando...
-                  </>
-                ) : (
-                  'Enviar Sats'
-                )}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className='bg-black text-white'>
-              <DialogHeader>
-                <DialogTitle>Enviar Sats</DialogTitle>
-                <DialogDescription>
-                  Escanea un QR o pega una invoice para enviar sats.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex flex-col gap-4">
-                {showScanner ? (
-                  <>
-                    <QrScanner
-                      onScan={handleScan}
-                      onError={handleError}
-                      constraints={constraints}
-                      style={{ width: '100%' }}
-                    />
-                    <Button onClick={pasteFromClipboard}>
-                      <Clipboard className="w-4 h-4 mr-2" />
-                      Pegar Invoice
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Input
-                      placeholder="Invoice o Lightning Address"
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Cantidad de Sats"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      disabled={isAmountDisabled}
-                    />
-                    <Textarea
-                      placeholder="Mensaje"
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                    />
-                    {errorMessage && (
-                      <div className="bg-red-500 text-white p-2 rounded">
-                        {errorMessage}
-                      </div>
-                    )}
-                    <Button onClick={sendSats} disabled={isSending || !inputValue || !amount}>
-                      {isSending ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                          Enviando...
-                        </>
-                      ) : (
-                        'Enviar'
+          {nwcUri && (
+            <Dialog
+              open={isSendDialogOpen}
+              onOpenChange={handleDialogOpenChange}
+            >
+              <DialogTrigger asChild>
+                <Button className="w-full" size="lg" disabled={isSending}>
+                  {isSending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Enviando...
+                    </>
+                  ) : (
+                    'Enviar Sats'
+                  )}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-black text-white">
+                <DialogHeader>
+                  <DialogTitle>Enviar Sats</DialogTitle>
+                  <DialogDescription>
+                    Escanea un QR o pega una invoice para enviar sats.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col gap-4">
+                  {showScanner ? (
+                    <>
+                      <QrScanner
+                        onScan={handleScan}
+                        onError={handleError}
+                        constraints={constraints}
+                        style={{ width: '100%' }}
+                      />
+                      <Button onClick={pasteFromClipboard}>
+                        <Clipboard className="w-4 h-4 mr-2" />
+                        Pegar Invoice
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Input
+                        placeholder="Invoice o Lightning Address"
+                        value={inputValue}
+                        onChange={e => setInputValue(e.target.value)}
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Cantidad de Sats"
+                        value={amount}
+                        onChange={e => setAmount(e.target.value)}
+                        disabled={isAmountDisabled}
+                      />
+                      <Textarea
+                        placeholder="Mensaje"
+                        value={message}
+                        onChange={e => setMessage(e.target.value)}
+                      />
+                      {errorMessage && (
+                        <div className="bg-red-500 text-white p-2 rounded">
+                          {errorMessage}
+                        </div>
                       )}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
+                      <Button
+                        onClick={sendSats}
+                        disabled={isSending || !inputValue || !amount}
+                      >
+                        {isSending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            Enviando...
+                          </>
+                        ) : (
+                          'Enviar'
+                        )}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
 
           <div className="flex flex-col gap-2">
             {nwcUri && (
