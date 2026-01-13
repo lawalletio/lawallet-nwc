@@ -2,7 +2,7 @@
 
 # v2 NWC
 
-> 🚨 Project in pre-alpha, do not use real data. Expect breaking changes.
+> 🚨 Project in pre-alpha, do not use real data. Expect breaking changes!
 
 LaWallet NWC is an open-source platform for creating, managing and serving Boltcard payments. Users can connect their own Nostr Wallet Connect (NWC) and configure lightning addresses to enable seamless NFC card payments. The platform provides a complete solution for managing Boltcard infrastructure while letting users maintain control of their payment channels.
 
