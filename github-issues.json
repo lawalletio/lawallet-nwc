@@ -1,0 +1,145 @@
+{
+  "repository": "lawalletio/lawallet-nwc",
+  "issues": [
+    {
+      "title": "Fix critical bugs in API routes",
+      "body": "## Description\n\nFix critical bugs identified in the codebase:\n- Fix typo in `app/api/waitlist/subscribe/route.ts` (line 4: `ENDY_LIST_ID` should be `SENDY_LIST_ID`)\n- Review all API routes for similar typos and syntax errors\n- Fix any TypeScript errors or type safety issues\n\n## Files Affected\n- `app/api/waitlist/subscribe/route.ts`\n- All API routes in `app/api/`\n\n## Acceptance Criteria\n- [ ] Typo fixed in waitlist route\n- [ ] All API routes reviewed for errors\n- [ ] No TypeScript errors\n- [ ] All linter errors resolved",
+      "labels": ["bug", "backend", "priority: high"]
+    },
+    {
+      "title": "Create error handling infrastructure",
+      "body": "## Description\n\nCreate comprehensive error handling infrastructure:\n- Create `lib/errors.ts` with custom error classes:\n  - `ApiError` (base class)\n  - `ValidationError` (400)\n  - `AuthenticationError` (401)\n  - `AuthorizationError` (403)\n  - `NotFoundError` (404)\n  - `InternalServerError` (500)\n- Create `lib/api-response.ts` for standardized API responses\n- Create `lib/error-handler.ts` middleware for consistent error handling\n\n## Files to Create\n- `lib/errors.ts`\n- `lib/api-response.ts`\n- `lib/error-handler.ts`\n\n## Acceptance Criteria\n- [ ] All error classes defined\n- [ ] Standardized API response utilities\n- [ ] Error handler middleware created\n- [ ] Unit tests for error classes",
+      "labels": ["enhancement", "backend", "refactoring"]
+    },
+    {
+      "title": "Refactor all API routes to use standardized error handling",
+      "body": "## Description\n\nRefactor all API routes to use the new error handling infrastructure:\n- Wrap all API route handlers with error handling middleware\n- Replace generic error responses with typed errors\n- Ensure all routes return consistent error format\n- Add proper HTTP status codes\n\n## Files Affected\n- All files in `app/api/`\n\n## Dependencies\n- Requires: \"Create error handling infrastructure\"\n\n## Acceptance Criteria\n- [ ] All API routes use error handling middleware\n- [ ] Consistent error format across all endpoints\n- [ ] Proper HTTP status codes\n- [ ] All error responses follow standard format",
+      "labels": ["enhancement", "backend", "refactoring"]
+    },
+    {
+      "title": "Setup Pino logger with structured logging",
+      "body": "## Description\n\nSetup Pino logger for structured logging:\n- Install `pino` and `pino-pretty` (dev)\n- Create `lib/logger.ts` with:\n  - Logger instance with appropriate log levels\n  - Request/response logging middleware\n  - Error logging with stack traces\n  - Structured logging format (JSON in production, pretty in dev)\n- Configure log levels via environment variables\n- Implement request correlation IDs for tracing\n\n## Files to Create\n- `lib/logger.ts`\n\n## Dependencies\n- `pino`\n- `pino-pretty` (dev)\n\n## Acceptance Criteria\n- [ ] Pino logger configured\n- [ ] Request/response middleware created\n- [ ] Correlation IDs implemented\n- [ ] Environment-based log levels",
+      "labels": ["enhancement", "backend", "logging"]
+    },
+    {
+      "title": "Replace all console.log/error calls with Pino structured logging",
+      "body": "## Description\n\nReplace all `console.log/error/warn/info` calls in API routes with Pino logger:\n- Replace 61+ console calls throughout API routes\n- Add contextual logging (request ID, user ID, route path)\n- Add performance logging for slow requests\n- Sanitize sensitive data in logs\n\n## Files Affected\n- All files in `app/api/`\n- All files in `lib/`\n\n## Dependencies\n- Requires: \"Setup Pino logger with structured logging\"\n\n## Acceptance Criteria\n- [ ] All console.log replaced\n- [ ] Contextual information added\n- [ ] Sensitive data sanitized\n- [ ] Performance logging added",
+      "labels": ["enhancement", "backend", "logging", "refactoring"]
+    },
+    {
+      "title": "Add environment variable schema and validation using zod/envsafe",
+      "body": "## Description\n\nAdd type-safe environment variable validation:\n- Install `envsafe` and `zod` (if not already installed)\n- Create `lib/config/env.ts` with:\n  - Zod schema for all environment variables\n  - Type-safe environment variable access\n  - Validation on application startup\n  - Clear error messages for missing/invalid env vars\n- Create `.env.example` with all required variables documented\n- Add validation in application entry point\n\n## Files to Create\n- `lib/config/env.ts`\n- `.env.example` (update if exists)\n\n## Dependencies\n- `envsafe`\n- `zod`\n\n## Acceptance Criteria\n- [ ] Environment schema defined\n- [ ] Validation on startup\n- [ ] Clear error messages\n- [ ] .env.example updated",
+      "labels": ["enhancement", "backend", "configuration"]
+    },
+    {
+      "title": "Create backend config loader with per-environment configuration",
+      "body": "## Description\n\nCreate environment-specific configuration loader:\n- Create `lib/config/index.ts` with:\n  - Environment-specific configuration loader\n  - Config objects for `development`, `test`, and `production`\n  - Type-safe config access throughout application\n  - Feature flags configuration\n  - Database connection configs\n  - External service configs (Alby, Sendy, etc.)\n- Ensure config is loaded once and cached\n\n## Files to Create\n- `lib/config/index.ts`\n\n## Dependencies\n- Requires: \"Add environment variable schema and validation using zod/envsafe\"\n\n## Acceptance Criteria\n- [ ] Config loader created\n- [ ] Environment-specific configs\n- [ ] Type-safe access\n- [ ] Feature flags support",
+      "labels": ["enhancement", "backend", "configuration"]
+    },
+    {
+      "title": "Define roles & permissions model with authorization utilities",
+      "body": "## Description\n\nDefine comprehensive roles & permissions model:\n- Define roles enum: `admin`, `operator`, `viewer`, `user`\n- Create `lib/auth/permissions.ts` with:\n  - Permission definitions for each role\n  - Permission checking utilities\n  - Role-based access control (RBAC) helpers\n  - Role hierarchy validation (admin > operator > viewer > user)\n- Update `lib/admin-auth.ts` to use role-based checks\n- Update `lib/jwt-auth.ts` to support role claims\n- Document permission matrix\n\n## Files to Create\n- `lib/auth/permissions.ts`\n\n## Files to Update\n- `lib/admin-auth.ts`\n- `lib/jwt-auth.ts`\n\n## Acceptance Criteria\n- [ ] Roles enum defined\n- [ ] Permission utilities created\n- [ ] RBAC helpers implemented\n- [ ] Permission matrix documented",
+      "labels": ["enhancement", "backend", "security", "authorization"]
+    },
+    {
+      "title": "Update Prisma schema to use enum for User roles",
+      "body": "## Description\n\nUpdate Prisma schema to use enum instead of String for roles:\n- Create `UserRole` enum with values: `ADMIN`, `OPERATOR`, `VIEWER`, `USER`\n- Change User model `role` field from `String?` to `UserRole` enum\n- Set default role to `USER`\n- Add index on role field for query performance\n\n## Files to Update\n- `prisma/schema.prisma`\n\n## Acceptance Criteria\n- [ ] UserRole enum created\n- [ ] User model updated\n- [ ] Default role set\n- [ ] Index added",
+      "labels": ["enhancement", "backend", "database", "schema"]
+    },
+    {
+      "title": "Create Prisma migration for role enum and update existing data",
+      "body": "## Description\n\nCreate Prisma migration for role enum:\n- Convert existing string roles to enum values\n- Handle migration of existing data:\n  - Map \"root\" to \"ADMIN\"\n  - Map \"user\" to \"USER\"\n  - Handle other existing values\n- Ensure backward compatibility during migration\n- Test migration on development database\n\n## Files to Create\n- `prisma/migrations/[timestamp]_add_user_role_enum/migration.sql`\n\n## Dependencies\n- Requires: \"Update Prisma schema to use enum for User roles\"\n\n## Acceptance Criteria\n- [ ] Migration created\n- [ ] Existing data migrated\n- [ ] Migration tested\n- [ ] Rollback tested",
+      "labels": ["enhancement", "backend", "database", "migration"]
+    },
+    {
+      "title": "Create API endpoint to add and modify user roles with proper hierarchy validation",
+      "body": "## Description\n\nCreate role management API endpoint:\n- Create `app/api/users/[userId]/role/route.ts`:\n  - `PUT` endpoint to update user role\n  - `GET` endpoint to retrieve user role\n  - Role hierarchy validation:\n    - Only users with higher or equal role can assign roles\n    - Admin can assign any role\n    - Operator can assign viewer/user roles\n    - Viewer/user cannot assign roles\n  - Prevent self-demotion (users cannot lower their own role)\n  - Prevent removing last admin\n  - Validation using Zod schemas\n  - Proper error handling and logging\n- Update existing role assignment endpoints (`/api/root/assign`, `/api/admin/assign`) to use new enum\n\n## Files to Create\n- `app/api/users/[userId]/role/route.ts`\n\n## Files to Update\n- `app/api/root/assign/route.ts`\n- `app/api/admin/assign/route.ts`\n\n## Dependencies\n- Requires: \"Define roles & permissions model with authorization utilities\"\n- Requires: \"Create Prisma migration for role enum and update existing data\"\n\n## Acceptance Criteria\n- [ ] Role management endpoints created\n- [ ] Hierarchy validation implemented\n- [ ] Self-demotion prevention\n- [ ] Last admin protection\n- [ ] Tests written",
+      "labels": ["enhancement", "backend", "api", "security"]
+    },
+    {
+      "title": "Add maintenance mode feature flag (env-driven) with middleware",
+      "body": "## Description\n\nAdd maintenance mode functionality:\n- Create `lib/middleware/maintenance.ts`:\n  - Check maintenance mode flag from config\n  - Return 503 Service Unavailable when enabled\n  - Allow bypass for admin users (optional)\n  - Custom maintenance message\n- Add middleware to API routes\n- Add environment variable for maintenance mode toggle\n\n## Files to Create\n- `lib/middleware/maintenance.ts`\n\n## Dependencies\n- Requires: \"Create backend config loader with per-environment configuration\"\n\n## Acceptance Criteria\n- [ ] Maintenance middleware created\n- [ ] Config-driven flag\n- [ ] Admin bypass option\n- [ ] Applied to API routes",
+      "labels": ["enhancement", "backend", "feature-flag"]
+    },
+    {
+      "title": "Create Zod validation schemas for all API inputs",
+      "body": "## Description\n\nStandardize validation across all API routes:\n- Create `lib/validation/` directory with:\n  - `schemas.ts` - Zod schemas for all API inputs\n  - `middleware.ts` - Validation middleware\n- Convert all manual validation to Zod schemas\n- Add validation for query parameters, path parameters, and request bodies\n\n## Files to Create\n- `lib/validation/schemas.ts`\n- `lib/validation/middleware.ts`\n\n## Acceptance Criteria\n- [ ] All API inputs have Zod schemas\n- [ ] Validation middleware created\n- [ ] Query/path/body validation",
+      "labels": ["enhancement", "backend", "validation"]
+    },
+    {
+      "title": "Refactor all API routes to use Zod validation schemas",
+      "body": "## Description\n\nRefactor all API routes to use Zod validation:\n- Replace manual validation with Zod schemas\n- Apply validation middleware to all routes\n- Ensure consistent validation error responses\n\n## Files Affected\n- All files in `app/api/`\n\n## Dependencies\n- Requires: \"Create Zod validation schemas for all API inputs\"\n\n## Acceptance Criteria\n- [ ] All routes use Zod validation\n- [ ] Consistent error responses\n- [ ] All inputs validated",
+      "labels": ["enhancement", "backend", "refactoring", "validation"]
+    },
+    {
+      "title": "Add rate limiting middleware for public endpoints",
+      "body": "## Description\n\nAdd rate limiting for public endpoints:\n- Install rate limiting library (`@upstash/ratelimit` or `express-rate-limit` adapter for Next.js)\n- Create `lib/middleware/rate-limit.ts`:\n  - Per-IP rate limiting for public endpoints\n  - Different limits for authenticated vs unauthenticated users\n  - Configurable limits per endpoint type\n  - Rate limit headers in responses\n- Apply rate limiting to:\n  - Public endpoints (LUD16, waitlist, etc.)\n  - Authentication endpoints\n  - Card scan callbacks\n- Add rate limit error responses\n\n## Files to Create\n- `lib/middleware/rate-limit.ts`\n\n## Dependencies\n- `@upstash/ratelimit` or similar\n\n## Acceptance Criteria\n- [ ] Rate limiting middleware created\n- [ ] Applied to public endpoints\n- [ ] Configurable limits\n- [ ] Proper error responses",
+      "labels": ["enhancement", "backend", "security", "rate-limiting"]
+    },
+    {
+      "title": "Add request size limits (body size and file upload constraints) middleware",
+      "body": "## Description\n\nAdd request size limits:\n- Create `lib/middleware/request-limits.ts`:\n  - Body size limits (JSON payloads)\n  - File upload size constraints\n  - Configurable limits per endpoint\n  - Clear error messages when limits exceeded\n- Configure limits in config loader\n- Apply middleware to relevant routes\n- Document size limits in API documentation\n\n## Files to Create\n- `lib/middleware/request-limits.ts`\n\n## Acceptance Criteria\n- [ ] Request limits middleware created\n- [ ] Body size limits\n- [ ] File upload limits\n- [ ] Configurable per endpoint",
+      "labels": ["enhancement", "backend", "security"]
+    },
+    {
+      "title": "Configure Vitest with coverage (95% threshold), test utilities, mocks, and helpers",
+      "body": "## Description\n\nSetup comprehensive testing infrastructure:\n- Update `vitest.config.mjs` with:\n  - Coverage configuration (95% threshold)\n  - Test environment setup\n  - Mock utilities for Prisma, Next.js, external APIs\n- Install testing dependencies:\n  - `@vitest/coverage-v8` for coverage\n  - `@testing-library/jest-dom` for DOM assertions\n  - `msw` (Mock Service Worker) for API mocking\n  - `@faker-js/faker` for test data generation\n- Create `tests/setup.ts` for test configuration\n- Create `tests/helpers/` with:\n  - `prisma-mock.ts` - Prisma client mock\n  - `api-helpers.ts` - API request helpers\n  - `auth-helpers.ts` - Authentication test helpers\n  - `fixtures.ts` - Test data fixtures\n- Create `tests/mocks/` for external service mocks\n\n## Files to Create\n- `tests/setup.ts`\n- `tests/helpers/prisma-mock.ts`\n- `tests/helpers/api-helpers.ts`\n- `tests/helpers/auth-helpers.ts`\n- `tests/helpers/fixtures.ts`\n- `tests/mocks/external-apis.ts`\n\n## Files to Update\n- `vitest.config.mjs`\n\n## Dependencies\n- `@vitest/coverage-v8`\n- `@testing-library/jest-dom`\n- `msw`\n- `@faker-js/faker`\n\n## Acceptance Criteria\n- [ ] Vitest configured with coverage\n- [ ] Test utilities created\n- [ ] Mocks and helpers ready\n- [ ] 95% coverage threshold set",
+      "labels": ["enhancement", "testing", "backend"]
+    },
+    {
+      "title": "Write unit tests for all lib utilities, auth functions, and validation",
+      "body": "## Description\n\nWrite comprehensive unit tests:\n- Test all utility functions in `lib/`\n- Test authentication functions (`jwt-auth.ts`, `admin-auth.ts`, `nip98.ts`)\n- Test validation schemas\n- Test error handling utilities\n- Target: 100% coverage for utility functions\n\n## Files to Create\n- `tests/unit/lib/*.test.ts`\n\n## Dependencies\n- Requires: \"Configure Vitest with coverage (95% threshold), test utilities, mocks, and helpers\"\n\n## Acceptance Criteria\n- [ ] All lib utilities tested\n- [ ] All auth functions tested\n- [ ] Validation schemas tested\n- [ ] 100% coverage for utilities",
+      "labels": ["enhancement", "testing", "backend"]
+    },
+    {
+      "title": "Write integration tests for all API routes",
+      "body": "## Description\n\nWrite comprehensive integration tests:\n- Test all API routes:\n  - Authentication flows (JWT, NIP-98)\n  - CRUD operations (cards, users, lightning addresses)\n  - Business logic (card activation, payment processing)\n- Test database operations with test database\n- Test external API integrations (mocked)\n- Target: 95% coverage for API routes\n\n## Files to Create\n- `tests/integration/api/*.test.ts`\n\n## Dependencies\n- Requires: \"Configure Vitest with coverage (95% threshold), test utilities, mocks, and helpers\"\n- Requires: \"Write unit tests for all lib utilities, auth functions, and validation\"\n\n## Acceptance Criteria\n- [ ] All API routes tested\n- [ ] Authentication flows tested\n- [ ] CRUD operations tested\n- [ ] 95% coverage achieved",
+      "labels": ["enhancement", "testing", "backend", "integration-tests"]
+    },
+    {
+      "title": "Configure coverage reporting, thresholds, and HTML reports",
+      "body": "## Description\n\nConfigure comprehensive coverage reporting:\n- Configure Vitest coverage to track:\n  - Statements, branches, functions, lines\n  - Exclude test files, mocks, and generated code\n- Set coverage thresholds:\n  - Overall: 95%\n  - Branches: 90%\n  - Functions: 95%\n  - Lines: 95%\n- Generate HTML coverage reports\n- Add coverage badge to README\n- Set up coverage reporting in CI/CD\n\n## Files to Update\n- `vitest.config.mjs`\n- `README.md`\n\n## Dependencies\n- Requires: \"Configure Vitest with coverage (95% threshold), test utilities, mocks, and helpers\"\n\n## Acceptance Criteria\n- [ ] Coverage thresholds configured\n- [ ] HTML reports generated\n- [ ] Coverage badge added\n- [ ] CI/CD integration",
+      "labels": ["enhancement", "testing", "ci/cd"]
+    },
+    {
+      "title": "Enhance GitHub Actions: enable tests, add coverage, linting, type-checking, security scanning",
+      "body": "## Description\n\nEnhance GitHub Actions CI workflow:\n- Update `.github/workflows/ci.yml`:\n  - Enable tests (uncomment test step)\n  - Add coverage reporting\n  - Add linting checks\n  - Add type checking\n  - Add build verification\n  - Cache dependencies and build artifacts\n- Create separate workflow for:\n  - PR checks (lint, test, type-check)\n  - Coverage reporting (upload to Codecov or similar)\n  - Security scanning\n\n## Files to Create\n- `.github/workflows/coverage.yml`\n- `.github/workflows/security.yml`\n\n## Files to Update\n- `.github/workflows/ci.yml`\n\n## Dependencies\n- Requires: \"Configure coverage reporting, thresholds, and HTML reports\"\n\n## Acceptance Criteria\n- [ ] Tests enabled in CI\n- [ ] Coverage reporting\n- [ ] Linting in CI\n- [ ] Type checking in CI\n- [ ] Security scanning",
+      "labels": ["enhancement", "ci/cd", "github-actions"]
+    },
+    {
+      "title": "Configure Vercel CI/CD with tests, preview deployments, and environment management",
+      "body": "## Description\n\nConfigure Vercel integration:\n- Configure Vercel for:\n  - Automatic deployments on push to main\n  - Preview deployments for PRs\n  - Environment variable management\n  - Build and test in Vercel CI\n- Add Vercel-specific test commands\n- Configure deployment hooks\n\n## Files to Create/Update\n- `vercel.json` (update if exists)\n\n## Dependencies\n- Requires: \"Enhance GitHub Actions: enable tests, add coverage, linting, type-checking, security scanning\"\n\n## Acceptance Criteria\n- [ ] Vercel CI configured\n- [ ] Preview deployments\n- [ ] Environment management\n- [ ] Deployment hooks",
+      "labels": ["enhancement", "ci/cd", "vercel"]
+    },
+    {
+      "title": "Create comprehensive API documentation with all endpoints, schemas, and examples",
+      "body": "## Description\n\nCreate comprehensive API documentation:\n- Create `docs/API.md` with:\n  - All API endpoints\n  - Request/response schemas\n  - Authentication requirements\n  - Error codes and meanings\n  - Example requests/responses\n- Consider OpenAPI/Swagger specification\n\n## Files to Create\n- `docs/API.md`\n\n## Acceptance Criteria\n- [ ] All endpoints documented\n- [ ] Schemas included\n- [ ] Examples provided\n- [ ] Error codes documented",
+      "labels": ["documentation", "api"]
+    },
+    {
+      "title": "Create comprehensive ARCHITECTURE.md with modules, boundaries, and data flow diagrams",
+      "body": "## Description\n\nCreate comprehensive architecture documentation:\n- Create `docs/ARCHITECTURE.md`:\n  - System architecture diagram\n  - Module boundaries and responsibilities\n  - Data flow diagrams (request → response)\n  - Authentication flow (JWT, NIP-98)\n  - Authorization flow (roles & permissions)\n  - Database schema documentation\n  - External integrations (Alby, Sendy, etc.)\n  - Middleware pipeline\n  - Configuration management\n  - Error handling flow\n\n## Files to Create\n- `docs/ARCHITECTURE.md`\n\n## Acceptance Criteria\n- [ ] Architecture diagrams\n- [ ] Module boundaries documented\n- [ ] Data flows documented\n- [ ] All integrations documented",
+      "labels": ["documentation", "architecture"]
+    },
+    {
+      "title": "Create testing documentation with guides and best practices",
+      "body": "## Description\n\nCreate testing documentation:\n- Create `docs/TESTING.md`:\n  - How to run tests\n  - Test structure and organization\n  - Writing new tests\n  - Coverage requirements\n  - Mocking strategies\n\n## Files to Create\n- `docs/TESTING.md`\n\n## Dependencies\n- Requires: \"Configure Vitest with coverage (95% threshold), test utilities, mocks, and helpers\"\n\n## Acceptance Criteria\n- [ ] Testing guide complete\n- [ ] Best practices documented\n- [ ] Examples provided",
+      "labels": ["documentation", "testing"]
+    },
+    {
+      "title": "Create backend CONTRIBUTING.md with local setup instructions and commands",
+      "body": "## Description\n\nCreate contributing guide:\n- Create `CONTRIBUTING.md`:\n  - Local development setup instructions\n  - Environment variable setup\n  - Database setup and migrations\n  - Running tests locally\n  - Available npm/pnpm commands\n  - Code style guidelines\n  - Pull request process\n  - Testing requirements\n  - Debugging tips\n\n## Files to Create\n- `CONTRIBUTING.md`\n\n## Acceptance Criteria\n- [ ] Setup instructions\n- [ ] Commands documented\n- [ ] PR process documented\n- [ ] Code style guide",
+      "labels": ["documentation", "contributing"]
+    },
+    {
+      "title": "Add JSDoc comments to all public functions and document complex logic",
+      "body": "## Description\n\nAdd comprehensive code documentation:\n- Add JSDoc comments to all public functions\n- Document complex business logic\n- Add inline comments for non-obvious code\n- Document error handling strategies\n\n## Files Affected\n- All files in `lib/`\n- All files in `app/api/`\n\n## Acceptance Criteria\n- [ ] All public functions documented\n- [ ] Complex logic explained\n- [ ] Inline comments added\n- [ ] Error handling documented",
+      "labels": ["documentation", "code-quality"]
+    },
+    {
+      "title": "Add OpenAPI/Swagger specification and UI",
+      "body": "## Description\n\nAdd OpenAPI/Swagger documentation:\n- Install `swagger-jsdoc` and `swagger-ui-react` or `next-swagger-doc`\n- Create OpenAPI 3.0 specification for all API endpoints\n- Generate Swagger UI at `/api-docs` endpoint\n- Auto-generate spec from JSDoc comments or route definitions\n- Include:\n  - All endpoints with methods\n  - Request/response schemas\n  - Authentication requirements\n  - Error responses\n  - Examples\n- Keep spec in sync with code changes\n\n## Files to Create\n- `lib/swagger/spec.ts` or `docs/openapi.yaml`\n- `app/api-docs/page.tsx` (if using UI)\n\n## Dependencies\n- `swagger-jsdoc` or `next-swagger-doc`\n- `swagger-ui-react` (optional)\n\n## Acceptance Criteria\n- [ ] OpenAPI spec created\n- [ ] Swagger UI available\n- [ ] All endpoints documented\n- [ ] Auto-generation setup\n- [ ] Spec stays in sync",
+      "labels": ["documentation", "api", "swagger", "openapi"]
+    }
+  ]
+}
