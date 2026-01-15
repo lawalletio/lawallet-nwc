@@ -1,19 +1,10 @@
 import { NextResponse } from 'next/server'
 import { mockLightningAddressData } from '@/mocks/lightning-address'
 import { validateAdminAuth } from '@/lib/admin-auth'
+import { withErrorHandling } from '@/types/server/error-handler'
 
-export async function GET(request: Request) {
-  try {
-    await validateAdminAuth(request)
-  } catch (response) {
-    if (response instanceof NextResponse) {
-      return response
-    }
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
+export const GET = withErrorHandling(async (request: Request) => {
+  await validateAdminAuth(request)
   const relays = new Set<string>()
 
   mockLightningAddressData.forEach(addr => {
@@ -31,4 +22,4 @@ export async function GET(request: Request) {
   })
 
   return NextResponse.json(Array.from(relays))
-}
+})

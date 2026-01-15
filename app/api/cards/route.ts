@@ -4,24 +4,15 @@ import type { Card } from '@/types/card'
 import { generateNtag424Values } from '@/lib/ntag424'
 import { randomBytes } from 'crypto'
 import { validateAdminAuth } from '@/lib/admin-auth'
+import { withErrorHandling } from '@/types/server/error-handler'
 
 interface CardFilters {
   paired?: boolean
   used?: boolean
 }
 
-export async function GET(request: Request) {
-  try {
-    await validateAdminAuth(request)
-  } catch (response) {
-    if (response instanceof NextResponse) {
-      return response
-    }
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
+export const GET = withErrorHandling(async (request: Request) => {
+  await validateAdminAuth(request)
 
   const { searchParams } = new URL(request.url)
 
@@ -113,13 +104,12 @@ export async function GET(request: Request) {
   }))
 
   return NextResponse.json(transformedCards)
-}
+})
 
-export async function POST(request: Request) {
-  try {
-    await validateAdminAuth(request)
+export const POST = withErrorHandling(async (request: Request) => {
+  await validateAdminAuth(request)
 
-    const { id, designId } = await request.json()
+  const { id, designId } = await request.json()
 
     // Generate ntag424 values using the id as cid
     const serial = id.toUpperCase().replace(/:/g, '')
@@ -195,12 +185,5 @@ export async function POST(request: Request) {
       otc: card.otc || undefined
     }
 
-    return NextResponse.json(transformedCard)
-  } catch (error) {
-    console.error('Error creating card:', error)
-    return NextResponse.json(
-      { status: 'ERROR', reason: 'Error creating card' },
-      { status: 500 }
-    )
-  }
-}
+  return NextResponse.json(transformedCard)
+})

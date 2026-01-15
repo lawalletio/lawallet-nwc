@@ -3,8 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { LUD03Request } from '@/types/lnurl'
 import { getSettings } from '@/lib/settings'
+import { withErrorHandling } from '@/types/server/error-handler'
+import { NotFoundError } from '@/types/server/errors'
 
-export async function OPTIONS() {
+export const OPTIONS = withErrorHandling(async () => {
   return new NextResponse(null, {
     status: 204,
     headers: {
@@ -13,12 +15,10 @@ export async function OPTIONS() {
       'Access-Control-Allow-Headers': 'Content-Type, LAWALLET_ACTION'
     }
   })
-}
+})
 
-export async function GET(
-  req: NextRequest,
-  { params: { id: cardId } }: { params: { id: string } }
-) {
+export const GET = withErrorHandling(
+  async (req: NextRequest, { params: { id: cardId } }: { params: { id: string } }) => {
   // Get query parameters
   const searchParams = req.nextUrl.searchParams
   const p = searchParams.get('p') || ''
@@ -34,10 +34,7 @@ export async function GET(
   })
 
   if (!card) {
-    return NextResponse.json(
-      { error: 'Card not found' },
-      { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } }
-    )
+    throw new NotFoundError('Card not found')
   }
 
   const { endpoint } = await getSettings(['endpoint'])
@@ -57,4 +54,6 @@ export async function GET(
       'Access-Control-Allow-Origin': '*'
     }
   })
-}
+  },
+  { headers: { 'Access-Control-Allow-Origin': '*' } }
+)

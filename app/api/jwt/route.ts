@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createJwtToken } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { z } from 'zod'
+import { withErrorHandling } from '@/types/server/error-handler'
+import {
+  AuthenticationError,
+  InternalServerError,
+  ValidationError
+} from '@/types/server/errors'
 
 // Schema for JWT token request
 const jwtRequestSchema = z.object({
@@ -10,89 +16,67 @@ const jwtRequestSchema = z.object({
   additionalClaims: z.record(z.any()).optional()
 })
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  const body = await request.json()
 
-    // Validate request body
-    const validatedData = jwtRequestSchema.parse(body)
-
-    // Get JWT secret from config
-    const config = getConfig()
-
-    if (!config.jwt.enabled || !config.jwt.secret) {
-      console.error('JWT_SECRET environment variable is not set')
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      )
-    }
-
-    const jwtSecret = config.jwt.secret
-
-    // Create JWT payload
-    const payload = {
-      sub: validatedData.userId,
-      ...validatedData.additionalClaims
-    }
-
-    // Create JWT token
-    const token = createJwtToken(payload, jwtSecret!, {
-      expiresIn: parseInt(validatedData.expiresIn),
-      issuer: 'lawallet-nwc',
-      audience: 'lawallet-users'
-    })
-
-    // Return the token
-    return NextResponse.json({
-      token,
-      expiresIn: validatedData.expiresIn,
-      type: 'Bearer'
-    })
-  } catch (error) {
-    console.error('JWT token creation error:', error)
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    return NextResponse.json(
-      { error: 'Failed to create JWT token' },
-      { status: 500 }
-    )
+  // Validate request body
+  const validatedData = jwtRequestSchema.safeParse(body)
+  if (!validatedData.success) {
+    throw new ValidationError('Invalid request data', validatedData.error.errors)
   }
-}
+
+  // Get JWT secret from config
+  const config = getConfig()
+
+  if (!config.jwt.enabled || !config.jwt.secret) {
+    console.error('JWT_SECRET environment variable is not set')
+    throw new InternalServerError('Server configuration error')
+  }
+
+  const jwtSecret = config.jwt.secret
+
+  // Create JWT payload
+  const payload = {
+    sub: validatedData.data.userId,
+    ...validatedData.data.additionalClaims
+  }
+
+  // Create JWT token
+  const token = createJwtToken(payload, jwtSecret!, {
+    expiresIn: parseInt(validatedData.data.expiresIn),
+    issuer: 'lawallet-nwc',
+    audience: 'lawallet-users'
+  })
+
+  // Return the token
+  return NextResponse.json({
+    token,
+    expiresIn: validatedData.data.expiresIn,
+    type: 'Bearer'
+  })
+})
 
 // GET endpoint to validate a JWT token
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const authHeader = request.headers.get('authorization')
+
+  if (!authHeader) {
+    throw new AuthenticationError('Authorization header is required')
+  }
+
+  const config = getConfig()
+
+  if (!config.jwt.enabled || !config.jwt.secret) {
+    console.error('JWT_SECRET environment variable is not set')
+    throw new InternalServerError('Server configuration error')
+  }
+
+  const jwtSecret = config.jwt.secret
+
+  // Import the validation function
+  const { validateJwtFromRequest } = await import('@/lib/jwt')
+
   try {
-    const authHeader = request.headers.get('authorization')
-
-    if (!authHeader) {
-      return NextResponse.json(
-        { error: 'Authorization header is required' },
-        { status: 401 }
-      )
-    }
-
-    const config = getConfig()
-
-    if (!config.jwt.enabled || !config.jwt.secret) {
-      console.error('JWT_SECRET environment variable is not set')
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      )
-    }
-
-    const jwtSecret = config.jwt.secret
-
-    // Import the validation function
-    const { validateJwtFromRequest } = await import('@/lib/jwt')
-
     // Validate the token
     const result = await validateJwtFromRequest(request, jwtSecret!, {
       issuer: 'lawallet-nwc',
@@ -113,13 +97,8 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('JWT validation error:', error)
-
-    return NextResponse.json(
-      {
-        error: 'Invalid or expired token',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 401 }
-    )
+    throw new AuthenticationError('Invalid or expired token', {
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
   }
-}
+})

@@ -2,19 +2,19 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
 import type { LoginResponse, Skin } from '@/types/remote-connections'
+import { withErrorHandling } from '@/types/server/error-handler'
+import {
+  AuthenticationError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 
-export async function GET(
-  request: Request,
-  { params }: { params: { externalDeviceKey: string } }
-) {
-  try {
+export const GET = withErrorHandling(
+  async (request: Request, { params }: { params: { externalDeviceKey: string } }) => {
     const { externalDeviceKey } = params
 
     if (!externalDeviceKey) {
-      return NextResponse.json(
-        { error: 'External device key is required' },
-        { status: 400 }
-      )
+      throw new ValidationError('External device key is required')
     }
 
     // Get the external_device_key from settings
@@ -22,18 +22,12 @@ export async function GET(
     const storedKey = settings.external_device_key
 
     if (!storedKey) {
-      return NextResponse.json(
-        { error: 'External device key not configured' },
-        { status: 404 }
-      )
+      throw new NotFoundError('External device key not configured')
     }
 
     // Verify the provided key matches the stored key
     if (externalDeviceKey !== storedKey) {
-      return NextResponse.json(
-        { error: 'Invalid external device key' },
-        { status: 401 }
-      )
+      throw new AuthenticationError('Invalid external device key')
     }
 
     // Get all card designs from the database
@@ -66,14 +60,5 @@ export async function GET(
     }
 
     return NextResponse.json(response)
-  } catch (error) {
-    console.error(
-      'Error in GET /api/remote-connections/[externalDeviceKey]:',
-      error
-    )
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
   }
-}
+)

@@ -2,21 +2,21 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
 import { validateNip98 } from '@/lib/nip98'
+import { withErrorHandling } from '@/types/server/error-handler'
+import {
+  AuthorizationError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 
-export async function GET(
-  request: Request,
-  { params }: { params: { userId: string } }
-) {
-  try {
+export const GET = withErrorHandling(
+  async (request: Request, { params }: { params: { userId: string } }) => {
     const { pubkey: authenticatedPubkey } = await validateNip98(request)
 
     const { userId } = params
 
     if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      )
+      throw new ValidationError('User ID is required')
     }
 
     // Verify the user exists
@@ -25,11 +25,11 @@ export async function GET(
     })
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      throw new NotFoundError('User not found')
     }
 
     if (user.pubkey !== authenticatedPubkey) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      throw new AuthorizationError('Not authorized to view this user')
     }
 
     // Get all cards associated with the user
@@ -76,11 +76,5 @@ export async function GET(
     }))
 
     return NextResponse.json(transformedCards)
-  } catch (error) {
-    console.error('Error fetching user cards:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
   }
-}
+)

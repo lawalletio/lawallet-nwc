@@ -2,17 +2,16 @@ import { LUD06Response } from '@/types/lnurl'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
+import { withErrorHandling } from '@/types/server/error-handler'
+import { NotFoundError } from '@/types/server/errors'
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { username: string } }
-) {
-  const _username = params.username
-  const username = _username.trim().toLowerCase()
+export const GET = withErrorHandling(
+  async (req: NextRequest, { params }: { params: { username: string } }) => {
+    const _username = params.username
+    const username = _username.trim().toLowerCase()
 
-  console.info('LUD16 username:', username)
+    console.info('LUD16 username:', username)
 
-  try {
     // Look for the user with that lightning address
     const lightningAddress = await prisma.lightningAddress.findUnique({
       where: { username },
@@ -28,18 +27,12 @@ export async function GET(
 
     // If not found, return 404
     if (!lightningAddress) {
-      return NextResponse.json(
-        { error: 'Lightning address not found' },
-        { status: 404 }
-      )
+      throw new NotFoundError('Lightning address not found')
     }
 
     // If user doesn't have an nwc string, return 404
     if (!lightningAddress.user.nwc) {
-      return NextResponse.json(
-        { error: 'User not configured for payments' },
-        { status: 404 }
-      )
+      throw new NotFoundError('User not configured for payments')
     }
 
     // LUD-16 (LNURLp) response
@@ -63,11 +56,5 @@ export async function GET(
         email: { mandatory: false }
       }
     } as LUD06Response)
-  } catch (error) {
-    console.error('Error in LUD16 route:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
   }
-}
+)

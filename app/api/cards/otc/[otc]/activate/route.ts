@@ -3,20 +3,25 @@ import { prisma } from '@/lib/prisma'
 import { validateNip98 } from '@/lib/nip98'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
+import { withErrorHandling } from '@/types/server/error-handler'
+import {
+  AuthenticationError,
+  ValidationError
+} from '@/types/server/errors'
 
-export async function POST(
-  request: Request,
-  { params }: { params: { otc: string } }
-) {
-  try {
-    const { pubkey } = await validateNip98(request)
+export const POST = withErrorHandling(
+  async (request: Request, { params }: { params: { otc: string } }) => {
+    let pubkey: string
+    try {
+      const result = await validateNip98(request)
+      pubkey = result.pubkey
+    } catch (error) {
+      throw new AuthenticationError()
+    }
     const { otc } = params
 
     if (!pubkey) {
-      return NextResponse.json(
-        { error: 'Public key is required' },
-        { status: 400 }
-      )
+      throw new ValidationError('Public key is required')
     }
 
     // Check if user already exists
@@ -64,11 +69,5 @@ export async function POST(
         : null,
       nwcString: user.albySubAccount ? user.albySubAccount.nwcUri : ''
     })
-  } catch (error) {
-    console.error('Error creating user:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
   }
-}
+)

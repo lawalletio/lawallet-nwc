@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateJwtFromRequest, JwtValidationResult } from './jwt'
 import { getConfig } from './config'
+import {
+  AuthenticationError,
+  AuthorizationError,
+  InternalServerError
+} from '@/types/server/errors'
 
 export interface JwtAuthOptions {
   algorithms?: string[]
@@ -18,21 +23,18 @@ export interface AuthenticatedRequest extends NextRequest {
  * Middleware function to authenticate JWT tokens in API routes
  * @param request - The Next.js request object
  * @param options - JWT validation options
- * @returns Promise<NextResponse | null> - Returns null if authentication succeeds, or error response if it fails
+ * @returns Promise<JwtValidationResult> - Returns token data when authentication succeeds
  */
 export async function authenticateJwt(
   request: NextRequest,
   options: JwtAuthOptions = {}
-): Promise<NextResponse | null> {
+): Promise<JwtValidationResult> {
   try {
     const config = getConfig()
 
     if (!config.jwt.enabled || !config.jwt.secret) {
       console.error('JWT_SECRET environment variable is not set')
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      )
+      throw new InternalServerError('Server configuration error')
     }
 
     const jwtSecret = config.jwt.secret
@@ -49,29 +51,20 @@ export async function authenticateJwt(
     if (options.requiredClaims) {
       for (const claim of options.requiredClaims) {
         if (!(claim in result.payload)) {
-          return NextResponse.json(
-            { error: `Missing required claim: ${claim}` },
-            { status: 403 }
-          )
+          throw new AuthorizationError(`Missing required claim: ${claim}`)
         }
       }
     }
 
-    // Add JWT data to request for use in route handlers
-    ;(request as AuthenticatedRequest).jwt = result
-
-    return null // Authentication successful
+    return result
   } catch (error) {
     console.error('JWT authentication error:', error)
 
-    return NextResponse.json(
-      {
-        error: 'Authentication failed',
-        details:
-          error instanceof Error ? error.message : 'Invalid or expired token'
-      },
-      { status: 401 }
-    )
+    throw new AuthenticationError('Authentication failed', {
+      details:
+        error instanceof Error ? error.message : 'Invalid or expired token',
+      cause: error
+    })
   }
 }
 
@@ -87,10 +80,7 @@ export function withJwtAuth<T extends any[]>(
 ) {
   return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
     const authResult = await authenticateJwt(request, options)
-
-    if (authResult) {
-      return authResult
-    }
+    ;(request as AuthenticatedRequest).jwt = authResult
 
     // Authentication successful, call the original handler
     return handler(request as AuthenticatedRequest, ...args)
@@ -104,7 +94,7 @@ export function withJwtAuth<T extends any[]>(
  */
 export function getUserIdFromRequest(request: AuthenticatedRequest): string {
   if (!request.jwt) {
-    throw new Error('Request not authenticated')
+    throw new AuthenticationError('Request not authenticated')
   }
 
   return request.jwt.payload.userId
@@ -121,7 +111,7 @@ export function getClaimFromRequest<T = any>(
   claimKey: string
 ): T {
   if (!request.jwt) {
-    throw new Error('Request not authenticated')
+    throw new AuthenticationError('Request not authenticated')
   }
 
   return request.jwt.payload[claimKey] as T

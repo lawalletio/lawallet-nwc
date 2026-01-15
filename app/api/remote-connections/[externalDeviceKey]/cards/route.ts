@@ -7,12 +7,16 @@ import type {
   CreateCardRequest,
   InitializeCardResponse
 } from '@/types/remote-connections'
+import { withErrorHandling } from '@/types/server/error-handler'
+import {
+  AuthenticationError,
+  ConflictError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 
-export async function POST(
-  request: Request,
-  { params }: { params: { externalDeviceKey: string } }
-) {
-  try {
+export const POST = withErrorHandling(
+  async (request: Request, { params }: { params: { externalDeviceKey: string } }) => {
     const { externalDeviceKey } = params
 
     // Parse request body
@@ -21,17 +25,11 @@ export async function POST(
 
     // Validate required fields
     if (!designId || !cardUID) {
-      return NextResponse.json(
-        { error: 'designId and cardUID are required' },
-        { status: 400 }
-      )
+      throw new ValidationError('designId and cardUID are required')
     }
 
     if (!externalDeviceKey) {
-      return NextResponse.json(
-        { error: 'External device key is required' },
-        { status: 400 }
-      )
+      throw new ValidationError('External device key is required')
     }
 
     // Get the external_device_key from settings
@@ -39,18 +37,12 @@ export async function POST(
     const storedKey = settings.external_device_key
 
     if (!storedKey) {
-      return NextResponse.json(
-        { error: 'External device key not configured' },
-        { status: 404 }
-      )
+      throw new NotFoundError('External device key not configured')
     }
 
     // Verify the provided key matches the stored key
     if (externalDeviceKey !== storedKey) {
-      return NextResponse.json(
-        { error: 'Invalid external device key' },
-        { status: 401 }
-      )
+      throw new AuthenticationError('Invalid external device key')
     }
 
     // Verify the design exists
@@ -59,10 +51,7 @@ export async function POST(
     })
 
     if (!design) {
-      return NextResponse.json(
-        { error: 'Card design not found' },
-        { status: 404 }
-      )
+      throw new NotFoundError('Card design not found')
     }
 
     // Check if a card with this UID already exists
@@ -75,10 +64,7 @@ export async function POST(
     })
 
     if (existingCard) {
-      return NextResponse.json(
-        { error: 'Card with this UID already exists' },
-        { status: 409 }
-      )
+      throw new ConflictError('Card with this UID already exists')
     }
 
     // Generate ntag424 values using the cardUID as cid
@@ -115,11 +101,5 @@ export async function POST(
     }
 
     return NextResponse.json(response)
-  } catch (error) {
-    console.error('Error creating remote card:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
   }
-}
+)
