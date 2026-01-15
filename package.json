@@ -53,6 +53,7 @@
     "cmdk": "latest",
     "date-fns": "^3.3.1",
     "embla-carousel-react": "latest",
+    "envsafe": "^2.0.3",
     "html5-qrcode": "^2.3.8",
     "input-otp": "latest",
     "jsonwebtoken": "^9.0.2",
