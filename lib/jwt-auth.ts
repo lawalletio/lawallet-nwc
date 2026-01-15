@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateJwtFromRequest, JwtValidationResult } from './jwt'
+import { getConfig } from './config'
 
 export interface JwtAuthOptions {
   algorithms?: string[]
@@ -24,9 +25,9 @@ export async function authenticateJwt(
   options: JwtAuthOptions = {}
 ): Promise<NextResponse | null> {
   try {
-    const jwtSecret = process.env.JWT_SECRET
+    const config = getConfig()
 
-    if (!jwtSecret) {
+    if (!config.jwt.enabled || !config.jwt.secret) {
       console.error('JWT_SECRET environment variable is not set')
       return NextResponse.json(
         { error: 'Server configuration error' },
@@ -34,8 +35,10 @@ export async function authenticateJwt(
       )
     }
 
+    const jwtSecret = config.jwt.secret
+
     // Validate the JWT token
-    const result = await validateJwtFromRequest(request, jwtSecret, {
+    const result = await validateJwtFromRequest(request, jwtSecret!, {
       algorithms: options.algorithms as any,
       issuer: options.issuer || 'lawallet-nwc',
       audience: options.audience || 'lawallet-users',

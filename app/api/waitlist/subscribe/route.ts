@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-const SENDY_URL = process.env.SENDY_URL
-const SENDY_LIST_ID = process.env.ENDY_LIST_ID
-const SENDY_API_KEY = process.env.SENDY_API_KEY!
+import { getConfig } from '@/lib/config'
 
 export async function POST(req: NextRequest) {
   try {
+    // Use non-strict mode since this route only needs optional Sendy configuration
+    // and doesn't require DATABASE_URL to check if Sendy is enabled
+    const config = getConfig(false)
     console.log('POST request received')
     const { email, name } = await req.json()
     console.log('Request body:', { email, name })
 
-    console.log('Environment variables:', {
-      SENDY_URL,
-      SENDY_LIST_ID,
-      SENDY_API_KEY
-    })
-
-    if (!SENDY_URL || !SENDY_LIST_ID) {
+    if (!config.sendy.enabled) {
       console.error('Sendy configuration missing')
       return NextResponse.json(
         { success: false, error: 'Sendy configuration missing.' },
@@ -33,15 +27,14 @@ export async function POST(req: NextRequest) {
 
     const formData = new URLSearchParams()
     formData.append('email', email)
-    formData.append('api_key', SENDY_API_KEY)
-    formData.append('name', name)
-    formData.append('list', SENDY_LIST_ID)
+    formData.append('api_key', config.sendy.apiKey!)
+    formData.append('list', config.sendy.listId!)
     formData.append('boolean', 'true')
     if (name) formData.append('name', name)
     console.log('Form data:', formData.toString())
 
     console.log('Sending request to Sendy...')
-    const sendyRes = await fetch(`${SENDY_URL}/subscribe`, {
+    const sendyRes = await fetch(`${config.sendy.url}/subscribe`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
