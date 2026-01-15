@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
     const formData = new URLSearchParams()
     formData.append('email', email)
     formData.append('api_key', config.sendy.apiKey!)
-    formData.append('name', name)
     formData.append('list', config.sendy.listId!)
     formData.append('boolean', 'true')
     if (name) formData.append('name', name)
