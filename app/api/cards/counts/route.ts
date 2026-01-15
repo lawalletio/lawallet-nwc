@@ -1,19 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateAdminAuth } from '@/lib/admin-auth'
+import { withErrorHandling } from '@/types/server/error-handler'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET(request: Request) {
-  try {
-    await validateAdminAuth(request)
-  } catch (response) {
-    if (response instanceof NextResponse) {
-      return response
-    }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+export const GET = withErrorHandling(async (request: Request) => {
+  await validateAdminAuth(request)
   const [paired, unpaired, used, unused] = await Promise.all([
     prisma.card.count({
       where: { otc: { not: null } }
@@ -37,4 +31,4 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json(statusCounts)
-}
+})

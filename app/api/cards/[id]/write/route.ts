@@ -4,8 +4,10 @@ import type { Ntag424WriteData } from '@/types/ntag424'
 import { prisma } from '@/lib/prisma'
 import { cardToNtag424WriteData } from '@/lib/ntag424'
 import { getSettings } from '@/lib/settings'
+import { withErrorHandling } from '@/types/server/error-handler'
+import { NotFoundError, ValidationError } from '@/types/server/errors'
 
-export async function OPTIONS() {
+export const OPTIONS = withErrorHandling(async () => {
   return new NextResponse(null, {
     status: 204,
     headers: {
@@ -14,15 +16,12 @@ export async function OPTIONS() {
       'Access-Control-Allow-Headers': 'Content-Type'
     }
   })
-}
+})
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  console.log('Card ID:', params.id)
+export const GET = withErrorHandling(
+  async (req: NextRequest, { params }: { params: { id: string } }) => {
+    console.log('Card ID:', params.id)
 
-  try {
     // Find card by id with related data
     const card = await prisma.card.findUnique({
       where: { id: params.id },
@@ -33,17 +32,11 @@ export async function GET(
     })
 
     if (!card) {
-      return NextResponse.json(
-        { error: 'Card not found' },
-        { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } }
-      )
+      throw new NotFoundError('Card not found')
     }
 
     if (!card.ntag424) {
-      return NextResponse.json(
-        { error: 'Card does not have NTAG424 data' },
-        { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } }
-      )
+      throw new ValidationError('Card does not have NTAG424 data')
     }
 
     // Transform the Prisma result to match the expected Card type
@@ -69,11 +62,6 @@ export async function GET(
         'Access-Control-Allow-Origin': '*'
       }
     })
-  } catch (error) {
-    console.error('Error fetching card:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-    )
-  }
-}
+  },
+  { headers: { 'Access-Control-Allow-Origin': '*' } }
+)

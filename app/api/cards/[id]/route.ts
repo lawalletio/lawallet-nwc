@@ -2,60 +2,53 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
 import { validateAdminAuth } from '@/lib/admin-auth'
+import { withErrorHandling } from '@/types/server/error-handler'
+import { NotFoundError } from '@/types/server/errors'
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
+export const GET = withErrorHandling(
+  async (request: Request, { params }: { params: { id: string } }) => {
     await validateAdminAuth(request)
-  } catch (response) {
-    if (response instanceof NextResponse) {
-      return response
-    }
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
 
-  const card = await prisma.card.findUnique({
-    where: { id: params.id },
-    select: {
-      id: true,
-      createdAt: true,
-      title: true,
-      lastUsedAt: true,
-      username: true,
-      otc: true,
-      design: {
-        select: {
-          id: true,
-          imageUrl: true,
-          description: true,
-          createdAt: true
-        }
-      },
-      ntag424: {
-        select: {
-          cid: true,
-          k0: true,
-          k1: true,
-          k2: true,
-          k3: true,
-          k4: true,
-          ctr: true,
-          createdAt: true
-        }
-      },
-      user: {
-        select: {
-          pubkey: true
+    const card = await prisma.card.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        createdAt: true,
+        title: true,
+        lastUsedAt: true,
+        username: true,
+        otc: true,
+        design: {
+          select: {
+            id: true,
+            imageUrl: true,
+            description: true,
+            createdAt: true
+          }
+        },
+        ntag424: {
+          select: {
+            cid: true,
+            k0: true,
+            k1: true,
+            k2: true,
+            k3: true,
+            k4: true,
+            ctr: true,
+            createdAt: true
+          }
+        },
+        user: {
+          select: {
+            pubkey: true
+          }
         }
       }
-    }
-  })
+    })
 
-  if (!card) {
-    return new NextResponse('Card not found', { status: 404 })
-  }
+    if (!card) {
+      throw new NotFoundError('Card not found')
+    }
 
   // Transform to match Card type
   const transformedCard: Card = {
@@ -75,14 +68,12 @@ export async function GET(
     otc: card.otc || undefined
   }
 
-  return NextResponse.json(transformedCard)
-}
+    return NextResponse.json(transformedCard)
+  }
+)
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
+export const DELETE = withErrorHandling(
+  async (request: Request, { params }: { params: { id: string } }) => {
     await validateAdminAuth(request)
 
     // Find the card first to check if it exists and get ntag424 info
@@ -95,7 +86,7 @@ export async function DELETE(
     })
 
     if (!card) {
-      return NextResponse.json({ error: 'Card not found' }, { status: 404 })
+      throw new NotFoundError('Card not found')
     }
 
     // Delete card and its associated ntag424 in a transaction
@@ -118,11 +109,5 @@ export async function DELETE(
       cardId: params.id,
       ntag424Cid: card.ntag424Cid
     })
-  } catch (error) {
-    console.error('Error deleting card:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
   }
-}
+)

@@ -1,13 +1,22 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateNip98 } from '@/lib/nip98'
+import { withErrorHandling } from '@/types/server/error-handler'
+import {
+  AuthorizationError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 
-export async function PUT(
-  request: Request,
-  { params }: { params: { userId: string } }
-) {
-  try {
-    const { pubkey: authenticatedPubkey } = await validateNip98(request)
+export const PUT = withErrorHandling(
+  async (request: Request, { params }: { params: { userId: string } }) => {
+    let authenticatedPubkey: string
+    try {
+      const result = await validateNip98(request)
+      authenticatedPubkey = result.pubkey
+    } catch (error) {
+      throw new AuthenticationError()
+    }
 
     // Read the request body for our data
     const { nwcUri } = await request.json()
@@ -16,17 +25,11 @@ export async function PUT(
 
     // Validate input
     if (!userId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      )
+      throw new ValidationError('User ID is required')
     }
 
     if (!nwcUri) {
-      return NextResponse.json(
-        { error: 'NWC URI is required' },
-        { status: 400 }
-      )
+      throw new ValidationError('NWC URI is required')
     }
 
     // Check if user exists
@@ -35,11 +38,11 @@ export async function PUT(
     })
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      throw new NotFoundError('User not found')
     }
 
     if (user.pubkey !== authenticatedPubkey) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      throw new AuthorizationError('Not authorized to update this user')
     }
 
     // Update the user's NWC URI
@@ -53,11 +56,5 @@ export async function PUT(
       nwcUri: updatedUser.nwc,
       updated: true
     })
-  } catch (error) {
-    console.error('Error updating NWC URI:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
   }
-}
+)

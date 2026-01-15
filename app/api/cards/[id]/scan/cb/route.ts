@@ -4,10 +4,12 @@ import { prisma } from '@/lib/prisma'
 import { LUD03CallbackSuccess } from '@/types/lnurl'
 import { LN } from '@getalby/sdk'
 import { consumeNtag424FromPC } from '@/lib/ntag424'
+import { withErrorHandling } from '@/types/server/error-handler'
+import { NotFoundError, ValidationError } from '@/types/server/errors'
 
 // NWC URI will be fetched from the user record
 
-export async function OPTIONS(req: NextRequest) {
+export const OPTIONS = withErrorHandling(async () => {
   return new NextResponse(null, {
     status: 204,
     headers: {
@@ -16,12 +18,10 @@ export async function OPTIONS(req: NextRequest) {
       'Access-Control-Allow-Headers': 'Content-Type, LAWALLET_ACTION'
     }
   })
-}
+})
 
-export async function GET(
-  req: NextRequest,
-  { params: { id: cardId } }: { params: { id: string } }
-) {
+export const GET = withErrorHandling(
+  async (req: NextRequest, { params: { id: cardId } }: { params: { id: string } }) => {
   // Get query parameters
   const searchParams = req.nextUrl.searchParams
   const p = searchParams.get('p') || ''
@@ -31,60 +31,42 @@ export async function GET(
   console.info('IMPACTO!!')
 
   if (!p || !c) {
-    return NextResponse.json(
-      { status: 'ERROR', reason: 'Missing required parameters: p and c' },
-      { headers: { 'Access-Control-Allow-Origin': '*' } }
-    )
+    throw new ValidationError('Missing required parameters: p and c')
   }
 
-  try {
-    // Find card by id in database
-    const card = await prisma.card.findUnique({
-      where: { id: cardId },
-      include: {
-        ntag424: true,
-        user: true
-      }
-    })
-
-    if (!card) {
-      return NextResponse.json(
-        { error: 'Card not found' },
-        { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } }
-      )
+  // Find card by id in database
+  const card = await prisma.card.findUnique({
+    where: { id: cardId },
+    include: {
+      ntag424: true,
+      user: true
     }
+  })
 
-    const ntag424Response = await consumeNtag424FromPC(card!.ntag424!, p, c)
+  if (!card) {
+    throw new NotFoundError('Card not found')
+  }
 
-    if ('error' in ntag424Response) {
-      return NextResponse.json(
-        { status: 'ERROR', reason: ntag424Response.error },
-        { headers: { 'Access-Control-Allow-Origin': '*' } }
-      )
-    }
+  const ntag424Response = await consumeNtag424FromPC(card!.ntag424!, p, c)
 
-    // Update lastUsedAt timestamp and ntag.ctr
-    await prisma.card.update({
-      where: { id: cardId },
-      data: {
-        lastUsedAt: new Date(),
-        ntag424: {
-          update: {
-            ctr: ntag424Response.ctrNew
-          }
+  if ('error' in ntag424Response) {
+    throw new ValidationError(ntag424Response.error)
+  }
+
+  // Update lastUsedAt timestamp and ntag.ctr
+  await prisma.card.update({
+    where: { id: cardId },
+    data: {
+      lastUsedAt: new Date(),
+      ntag424: {
+        update: {
+          ctr: ntag424Response.ctrNew
         }
       }
-    })
+    }
+  })
 
-    return (await import(`./actions/${action}`)).default(req, card)
-  } catch (error) {
-    console.error('Database error:', error)
-    return NextResponse.json(
-      {
-        status: 'ERROR',
-        reason: 'Internal server error'
-      },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-    )
-  }
-}
+  return (await import(`./actions/${action}`)).default(req, card)
+  },
+  { headers: { 'Access-Control-Allow-Origin': '*' } }
+)

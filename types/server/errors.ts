@@ -62,6 +62,16 @@ export class NotFoundError extends ApiError {
   }
 }
 
+export class ConflictError extends ApiError {
+  constructor(message = 'Conflict', details?: unknown) {
+    super(message, {
+      statusCode: 409,
+      code: 'CONFLICT',
+      details
+    })
+  }
+}
+
 export class InternalServerError extends ApiError {
   constructor(
     message = 'Internal server error',
