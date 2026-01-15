@@ -1,4 +1,5 @@
 import { PrismaClient } from './generated/prisma'
+import { getConfig } from './config'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -10,4 +11,5 @@ export const prisma =
     log: ['query']
   })
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+const config = getConfig(false) // Use non-strict mode to avoid build-time errors
+if (!config.isProduction) globalForPrisma.prisma = prisma

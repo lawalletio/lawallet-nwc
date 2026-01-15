@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createJwtToken } from '@/lib/jwt'
+import { getConfig } from '@/lib/config'
 import { z } from 'zod'
 
 // Schema for JWT token request
@@ -16,16 +17,18 @@ export async function POST(request: NextRequest) {
     // Validate request body
     const validatedData = jwtRequestSchema.parse(body)
 
-    // Get JWT secret from environment variable
-    const jwtSecret = process.env.JWT_SECRET
+    // Get JWT secret from config
+    const config = getConfig()
 
-    if (!jwtSecret) {
+    if (!config.jwt.enabled || !config.jwt.secret) {
       console.error('JWT_SECRET environment variable is not set')
       return NextResponse.json(
         { error: 'Server configuration error' },
         { status: 500 }
       )
     }
+
+    const jwtSecret = config.jwt.secret
 
     // Create JWT payload
     const payload = {
@@ -34,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create JWT token
-    const token = createJwtToken(payload, jwtSecret, {
+    const token = createJwtToken(payload, jwtSecret!, {
       expiresIn: parseInt(validatedData.expiresIn),
       issuer: 'lawallet-nwc',
       audience: 'lawallet-users'
@@ -75,9 +78,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const jwtSecret = process.env.JWT_SECRET
+    const config = getConfig()
 
-    if (!jwtSecret) {
+    if (!config.jwt.enabled || !config.jwt.secret) {
       console.error('JWT_SECRET environment variable is not set')
       return NextResponse.json(
         { error: 'Server configuration error' },
@@ -85,11 +88,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const jwtSecret = config.jwt.secret
+
     // Import the validation function
     const { validateJwtFromRequest } = await import('@/lib/jwt')
 
     // Validate the token
-    const result = await validateJwtFromRequest(request, jwtSecret, {
+    const result = await validateJwtFromRequest(request, jwtSecret!, {
       issuer: 'lawallet-nwc',
       audience: 'lawallet-users'
     })
