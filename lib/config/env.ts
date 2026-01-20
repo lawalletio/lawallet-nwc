@@ -89,7 +89,23 @@ const envSchema = z.object({
     .default('false')
     .transform(val => val === 'true')
     .pipe(z.boolean())
-    .describe('Enable maintenance mode (returns 503 for all requests)')
+    .describe('Enable maintenance mode (returns 503 for all requests)'),
+
+  LOG_PRETTY: z
+    .string()
+    .default('false')
+    .transform(val => val === 'true')
+    .pipe(z.boolean())
+    .describe('Log pretty mode (true for pretty, false for JSON)'),
+
+  LOG_LEVEL: z
+    .string()
+    .default('info')
+    .transform(val => val.toLowerCase())
+    .pipe(
+      z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
+    )
+    .describe('Log level (fatal, error, warn, info, debug, trace, silent)')
 })
 
 /**
