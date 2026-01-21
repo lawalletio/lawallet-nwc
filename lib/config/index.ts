@@ -9,6 +9,7 @@ export interface AppConfig {
   isDevelopment: boolean
   isTest: boolean
   isProduction: boolean
+  logPretty: boolean
 
   // Database
   database: {
@@ -75,6 +76,7 @@ export function getConfig(strict: boolean = true): AppConfig {
     isDevelopment: env.NODE_ENV === 'development',
     isTest: env.NODE_ENV === 'test',
     isProduction: env.NODE_ENV === 'production',
+    logPretty: env.LOG_PRETTY,
 
     database: {
       url: env.DATABASE_URL
