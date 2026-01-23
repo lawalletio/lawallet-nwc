@@ -5,29 +5,27 @@ import { getSettings } from '@/lib/settings'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { InternalServerError, ValidationError } from '@/types/server/errors'
+import { logger } from '@/lib/logger'
 
 export const POST = withErrorHandling(async (request: Request) => {
   await validateAdminAuth(request)
-  console.info('🌱 Starting card design import...')
+  logger.info('Starting card design import')
 
   const { is_community, community_id } = await getSettings([
     'is_community',
     'community_id'
   ])
-  console.info('Fetched settings:', { is_community, community_id })
+  logger.info({ is_community, community_id }, 'Fetched settings')
 
   if (!is_community || !community_id) {
-    console.info('Community ID is not set. Aborting import.')
+    logger.warn('Community ID is not set. Aborting import.')
     throw new ValidationError('Community ID is not set')
   }
 
-  console.info('Fetching card designs from veintiuno.lat...')
+  logger.info('Fetching card designs from veintiuno.lat')
   const res = await fetch('https://veintiuno.lat/api/cards.json')
   if (!res.ok) {
-    console.info(
-      'Failed to fetch cards from veintiuno.lat. Status:',
-      res.status
-    )
+    logger.error({ status: res.status }, 'Failed to fetch cards from veintiuno.lat')
     throw new InternalServerError('Failed to fetch cards from veintiuno.lat', {
       details: { status: res.status }
     })
@@ -35,12 +33,10 @@ export const POST = withErrorHandling(async (request: Request) => {
   const fetchedDesigns = (await res.json()).filter(
     (card: any) => card.communityId === community_id
   )
-  console.info(
-    `Fetched ${fetchedDesigns.length} designs for community ${community_id}`
-  )
+  logger.info({ count: fetchedDesigns.length, community_id }, 'Fetched designs for community')
 
   // Check if designs already exist to avoid duplicates
-  console.info('Checking for existing card designs in the database...')
+  logger.info('Checking for existing card designs in the database')
   const existingDesigns = await prisma.cardDesign.findMany({
     where: {
       id: {
@@ -49,16 +45,16 @@ export const POST = withErrorHandling(async (request: Request) => {
     },
     select: { id: true }
   })
-  console.info(`Found ${existingDesigns.length} existing designs in the database.`)
+  logger.info({ count: existingDesigns.length }, 'Found existing designs in database')
 
   const existingIds = new Set(existingDesigns.map(design => design.id))
   const newDesigns = fetchedDesigns.filter(
     (design: { id: string }) => !existingIds.has(design.id)
   )
-  console.info(`Identified ${newDesigns.length} new designs to import.`)
+  logger.info({ count: newDesigns.length }, 'Identified new designs to import')
 
   if (newDesigns.length === 0) {
-    console.info('All card designs already exist. Nothing to import.')
+    logger.info('All card designs already exist. Nothing to import.')
     return NextResponse.json({
       success: true,
       message: 'All card designs already exist',
@@ -68,7 +64,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
 
   // Import new designs
-  console.info('Importing new card designs...')
+  logger.info({ count: newDesigns.length }, 'Importing new card designs')
   const importedDesigns = await Promise.all(
     newDesigns.map(
       (design: {
@@ -89,7 +85,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     )
   )
 
-  console.info(`✅ Imported ${importedDesigns.length} card designs successfully.`)
+  logger.info({ count: importedDesigns.length }, 'Imported card designs successfully')
 
   return NextResponse.json({
     success: true,

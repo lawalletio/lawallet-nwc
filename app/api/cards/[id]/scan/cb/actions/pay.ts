@@ -7,6 +7,7 @@ import {
   InternalServerError,
   ValidationError
 } from '@/types/server/errors'
+import { logger } from '@/lib/logger'
 
 export default async function pay(
   req: NextRequest,
@@ -25,17 +26,17 @@ export default async function pay(
 
   // Get NWC URI from the user
   if (!card.user?.nwc) {
-    console.error('User NWC not configured for card:', card.id)
+    logger.error({ cardId: card.id }, 'User NWC not configured for card')
     throw new InternalServerError('User payment service not configured')
   }
 
   try {
     const ln = new LN(card.user.nwc)
-    console.log('Processing payment request:', pr)
+    logger.info({ cardId: card.id }, 'Processing payment request')
     const payment = await ln.pay(pr)
-    console.log('Payment successful:', payment)
+    logger.info({ cardId: card.id }, 'Payment successful')
   } catch (error) {
-    console.error('Payment failed:', error)
+    logger.error({ err: error, cardId: card.id }, 'Payment failed')
     throw new InternalServerError('Payment processing failed', {
       details: error instanceof Error ? error.message : 'Unknown error',
       cause: error
