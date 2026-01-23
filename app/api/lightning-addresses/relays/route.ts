@@ -3,6 +3,8 @@ import { mockLightningAddressData } from '@/mocks/lightning-address'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withErrorHandling(async (request: Request) => {
   await validateAdminAuth(request)
   const relays = new Set<string>()

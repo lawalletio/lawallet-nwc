@@ -4,13 +4,14 @@ import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
+import { logger } from '@/lib/logger'
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: { username: string } }) => {
     const _username = params.username
     const username = _username.trim().toLowerCase()
 
-    console.info('LUD16 username:', username)
+    logger.info({ username }, 'LUD16 lookup request')
 
     // Look for the user with that lightning address
     const lightningAddress = await prisma.lightningAddress.findUnique({

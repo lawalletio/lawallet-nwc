@@ -4,6 +4,7 @@ import { User } from '@/types/user'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
+import { logger } from '@/lib/logger'
 
 export default async function newOTC(
   _req: NextRequest,
@@ -20,10 +21,7 @@ export default async function newOTC(
 
   const { endpoint } = await getSettings(['endpoint'])
 
-  console.info('--------------------------------')
-  console.info('otc', otc)
-  console.info('url', `${endpoint}/wallet/activate/${otc}/`)
-  console.info('--------------------------------')
+  logger.info({ cardId: card.id, otc }, 'Generated new OTC for card')
 
   return NextResponse.json(
     {

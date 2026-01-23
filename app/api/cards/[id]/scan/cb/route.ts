@@ -6,6 +6,7 @@ import { LN } from '@getalby/sdk'
 import { consumeNtag424FromPC } from '@/lib/ntag424'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, ValidationError } from '@/types/server/errors'
+import { logger } from '@/lib/logger'
 
 // NWC URI will be fetched from the user record
 
@@ -28,7 +29,7 @@ export const GET = withErrorHandling(
   const c = searchParams.get('c') || ''
   const action = req.headers.get('LAWALLET_ACTION') || 'pay'
 
-  console.info('IMPACTO!!')
+  logger.info({ cardId, action }, 'Card scan callback request')
 
   if (!p || !c) {
     throw new ValidationError('Missing required parameters: p and c')

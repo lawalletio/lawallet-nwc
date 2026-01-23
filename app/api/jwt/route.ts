@@ -8,6 +8,7 @@ import {
   InternalServerError,
   ValidationError
 } from '@/types/server/errors'
+import { logger } from '@/lib/logger'
 
 // Schema for JWT token request
 const jwtRequestSchema = z.object({
@@ -29,7 +30,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const config = getConfig()
 
   if (!config.jwt.enabled || !config.jwt.secret) {
-    console.error('JWT_SECRET environment variable is not set')
+    logger.error('JWT_SECRET environment variable is not set')
     throw new InternalServerError('Server configuration error')
   }
 
@@ -67,7 +68,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const config = getConfig()
 
   if (!config.jwt.enabled || !config.jwt.secret) {
-    console.error('JWT_SECRET environment variable is not set')
+    logger.error('JWT_SECRET environment variable is not set')
     throw new InternalServerError('Server configuration error')
   }
 
@@ -96,7 +97,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       )
     })
   } catch (error) {
-    console.error('JWT validation error:', error)
+    logger.error({ err: error }, 'JWT validation error')
     throw new AuthenticationError('Invalid or expired token', {
       details: error instanceof Error ? error.message : 'Unknown error'
     })

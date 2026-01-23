@@ -6,6 +6,7 @@ import { cardToNtag424WriteData } from '@/lib/ntag424'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, ValidationError } from '@/types/server/errors'
+import { logger } from '@/lib/logger'
 
 export const OPTIONS = withErrorHandling(async () => {
   return new NextResponse(null, {
@@ -20,7 +21,7 @@ export const OPTIONS = withErrorHandling(async () => {
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: { id: string } }) => {
-    console.log('Card ID:', params.id)
+    logger.info({ cardId: params.id }, 'Card write data request')
 
     // Find card by id with related data
     const card = await prisma.card.findUnique({

@@ -6,6 +6,8 @@ import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { AuthenticationError } from '@/types/server/errors'
 
+export const dynamic = 'force-dynamic'
+
 export const GET = withErrorHandling(async (request: Request) => {
   let authenticatedPubkey: string
   try {
