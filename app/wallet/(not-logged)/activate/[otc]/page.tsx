@@ -26,9 +26,7 @@ export default function ActivateCardPage() {
     isHydrated: isApiHydrated,
     userId
   } = useAPI()
-  const [card, setCard] = useState<any>(null)
   const [isActivated, setIsActivated] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
 
   const [nwcStringUpdated, setNwcStringUpdated] = useState<string | null>(null)
   const otc = params.otc as string
@@ -36,14 +34,8 @@ export default function ActivateCardPage() {
   const { createUser, isLoading: isActivating } = useUser()
   const { setNwcUri, setLightningAddress } = useWallet()
 
-  // Set the card if it exists
-  useEffect(() => {
-    if (!otcCard) {
-      return
-    }
-    setCard(otcCard)
-    setIsLoading(false)
-  }, [otcCard])
+  // Derive loading state from otcCard availability
+  const isLoading = !otcCard && !otcError
 
   // Generate a new private key if one doesn't exist
   useEffect(() => {
@@ -111,7 +103,7 @@ export default function ActivateCardPage() {
     )
   }
 
-  if (!card) {
+  if (!otcCard) {
     return (
       <AppViewport>
         <AppContent>
@@ -161,7 +153,7 @@ export default function ActivateCardPage() {
             </h1>
           </div>
 
-          <CardPreview card={card} />
+          <CardPreview card={otcCard} />
 
           {/* Activation Button */}
           <div className="text-center">

@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server'
 import { validateNip98 } from '@/lib/nip98'
 import { getSettings } from '@/lib/settings'
 import { AuthenticationError, AuthorizationError } from '@/types/server/errors'

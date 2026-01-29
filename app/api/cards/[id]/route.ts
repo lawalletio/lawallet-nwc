@@ -6,11 +6,12 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 
 export const GET = withErrorHandling(
-  async (request: Request, { params }: { params: { id: string } }) => {
+  async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await validateAdminAuth(request)
+    const { id } = await params
 
     const card = await prisma.card.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         createdAt: true,
@@ -73,12 +74,13 @@ export const GET = withErrorHandling(
 )
 
 export const DELETE = withErrorHandling(
-  async (request: Request, { params }: { params: { id: string } }) => {
+  async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await validateAdminAuth(request)
+    const { id } = await params
 
     // Find the card first to check if it exists and get ntag424 info
     const card = await prisma.card.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         ntag424Cid: true
@@ -93,7 +95,7 @@ export const DELETE = withErrorHandling(
     await prisma.$transaction(async tx => {
       // Delete the card first (this will remove the foreign key reference)
       await tx.card.delete({
-        where: { id: params.id }
+        where: { id }
       })
 
       // Delete the associated ntag424 if it exists
@@ -106,7 +108,7 @@ export const DELETE = withErrorHandling(
 
     return NextResponse.json({
       message: 'Card and associated NTAG424 deleted successfully',
-      cardId: params.id,
+      cardId: id,
       ntag424Cid: card.ntag424Cid
     })
   }

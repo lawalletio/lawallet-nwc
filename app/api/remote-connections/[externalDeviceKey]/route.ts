@@ -10,8 +10,8 @@ import {
 } from '@/types/server/errors'
 
 export const GET = withErrorHandling(
-  async (request: Request, { params }: { params: { externalDeviceKey: string } }) => {
-    const { externalDeviceKey } = params
+  async (request: Request, { params }: { params: Promise<{ externalDeviceKey: string }> }) => {
+    const { externalDeviceKey } = await params
 
     if (!externalDeviceKey) {
       throw new ValidationError('External device key is required')

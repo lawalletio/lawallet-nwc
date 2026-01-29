@@ -6,10 +6,11 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 
 export const GET = withErrorHandling(
-  async (request: Request, { params }: { params: { id: string } }) => {
+  async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await validateAdminAuth(request)
+    const { id } = await params
     const design = await prisma.cardDesign.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         imageUrl: true,

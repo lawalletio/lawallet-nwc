@@ -3,13 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { validateNip98 } from '@/lib/nip98'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
+  AuthenticationError,
   AuthorizationError,
   NotFoundError,
   ValidationError
 } from '@/types/server/errors'
 
 export const PUT = withErrorHandling(
-  async (request: Request, { params }: { params: { userId: string } }) => {
+  async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
     let authenticatedPubkey: string
     try {
       const result = await validateNip98(request)
@@ -21,7 +22,7 @@ export const PUT = withErrorHandling(
     // Read the request body for our data
     const { nwcUri } = await request.json()
 
-    const { userId } = params
+    const { userId } = await params
 
     // Validate input
     if (!userId) {

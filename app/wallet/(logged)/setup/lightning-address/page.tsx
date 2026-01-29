@@ -14,7 +14,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useSettings } from '@/hooks/use-settings'
 
 export default function LightningAddressSetupPage() {
-  const [username, setUsername] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const { setLightningAddress, lightningAddress: lightningAddressState } =
@@ -24,9 +23,9 @@ export default function LightningAddressSetupPage() {
     settings: { domain }
   } = useSettings()
 
-  useEffect(() => {
-    setUsername(lightningAddressState?.split('@')[0] || '')
-  }, [lightningAddressState])
+  const [username, setUsername] = useState(
+    () => lightningAddressState?.split('@')[0] || ''
+  )
 
   const handleSetup = async () => {
     setIsLoading(true)

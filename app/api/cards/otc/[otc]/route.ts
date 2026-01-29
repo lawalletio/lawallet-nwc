@@ -5,8 +5,8 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, ValidationError } from '@/types/server/errors'
 
 export const GET = withErrorHandling(
-  async (request: Request, { params }: { params: { otc: string } }) => {
-    const { otc } = params
+  async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
+    const { otc } = await params
 
     if (!otc) {
       throw new ValidationError('OTC parameter is required')

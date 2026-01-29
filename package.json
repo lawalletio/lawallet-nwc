@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "format": "prettier --write .",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "start": "prisma migrate deploy && next start",
     "postinstall": "prisma generate"
   },
@@ -59,7 +60,7 @@
     "jsonwebtoken": "^9.0.2",
     "lnurl": "^0.27.0",
     "lucide-react": "^0.454.0",
-    "next": "14.2.35",
+    "next": "^16.0.0",
     "next-themes": "latest",
     "nostr-tools": "latest",
     "pino": "^9.0.0",
@@ -81,18 +82,21 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@eslint/js": "^9.39.2",
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
-    "eslint": "^8",
-    "eslint-config-next": "14.1.0",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "^16.0.0",
     "pino-pretty": "^11.3.0",
     "postcss": "^8.5",
     "prettier": "^3.6.2",
     "prisma": "^6.11.1",
     "tailwindcss": "^3.3.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "typescript-eslint": "^8.0.0"
   }
 }

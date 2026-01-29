@@ -11,10 +11,10 @@ import {
 } from '@/types/server/errors'
 
 export const PUT = withErrorHandling(
-  async (request: Request, { params }: { params: { userId: string } }) => {
+  async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
     const { pubkey: authenticatedPubkey } = await validateNip98(request)
 
-    const { userId } = params
+    const { userId } = await params
     const { username: _username } = await request.json()
 
     // Validate input
