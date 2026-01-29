@@ -256,7 +256,7 @@ export default function AddressesPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground flex items-center gap-2">
+                  <div className="text-muted-foreground flex items-center gap-2">
                     NWC Connection:
                     <Badge
                       variant={address.nwc ? 'default' : 'secondary'}
@@ -268,7 +268,7 @@ export default function AddressesPage() {
                     >
                       {address.nwc ? 'Enabled' : 'Disabled'}
                     </Badge>
-                  </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
