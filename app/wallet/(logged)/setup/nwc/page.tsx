@@ -13,15 +13,12 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function NwcSetupPage() {
-  const [nwcUri, setNwcUriState] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { setNwcUri, nwcUri: nwcUriState } = useWallet()
+  const { setNwcUri: saveNwcUri, nwcUri: nwcUriFromWallet } = useWallet()
   const router = useRouter()
 
-  useEffect(() => {
-    setNwcUriState(nwcUriState || '')
-  }, [nwcUriState])
+  const [nwcUri, setNwcUri] = useState(() => nwcUriFromWallet || '')
 
   const validateNwcUri = (uri: string): boolean => {
     return uri.startsWith('nostr+walletconnect://') && uri.includes('?')
@@ -40,7 +37,7 @@ export default function NwcSetupPage() {
     }
 
     try {
-      await setNwcUri(nwcUri.trim())
+      await saveNwcUri(nwcUri.trim())
 
       // Show success and redirect
       router.push('/wallet')
@@ -81,7 +78,7 @@ export default function NwcSetupPage() {
               placeholder="nostr+walletconnect://..."
               className="text-white"
               value={nwcUri}
-              onChange={e => setNwcUriState(e.target.value)}
+              onChange={e => setNwcUri(e.target.value)}
               autoFocus
             />
             <p className="text-xs text-gray-400">

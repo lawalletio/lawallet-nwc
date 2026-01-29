@@ -45,7 +45,6 @@ export default function NewCardPage() {
 
   useEffect(() => {
     list().then(setDesigns)
-    setError(null)
   }, [list])
 
   const filteredDesigns = designs.filter((design: CardDesign) =>

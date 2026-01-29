@@ -396,6 +396,30 @@ const FlowSection = () => {
   )
 }
 
+const StandardsLogo = ({
+  Icon,
+  name
+}: {
+  Icon: React.ComponentType<LucideProps>
+  name: string
+}) => (
+  <div className="flex flex-col items-center gap-2 text-gray-400 hover:text-white transition-all duration-300 hover:scale-110 hover:-translate-y-1">
+    <Icon className="h-10 w-10" />
+    <span className="text-sm">{name}</span>
+  </div>
+)
+
+const TechLogo = ({ name }: { name: string }) => (
+  <div className="flex flex-col items-center gap-2 text-gray-400 hover:text-white transition-all duration-300 hover:scale-110 hover:-translate-y-1">
+    <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
+      <span className="text-xs font-bold">
+        {name.slice(0, 2).toUpperCase()}
+      </span>
+    </div>
+    <span className="text-sm">{name}</span>
+  </div>
+)
+
 const NWCSupportersSection = () => {
   const { ref, isVisible } = useScrollAnimation()
   const supporters = [
@@ -477,30 +501,6 @@ const NWCSupportersSection = () => {
 const OpenSourceSection = () => {
   const [activeTab, setActiveTab] = React.useState('standards')
   const { ref, isVisible } = useScrollAnimation()
-
-  const StandardsLogo = ({
-    Icon,
-    name
-  }: {
-    Icon: React.ComponentType<LucideProps>
-    name: string
-  }) => (
-    <div className="flex flex-col items-center gap-2 text-gray-400 hover:text-white transition-all duration-300 hover:scale-110 hover:-translate-y-1">
-      <Icon className="h-10 w-10" />
-      <span className="text-sm">{name}</span>
-    </div>
-  )
-
-  const TechLogo = ({ name }: { name: string }) => (
-    <div className="flex flex-col items-center gap-2 text-gray-400 hover:text-white transition-all duration-300 hover:scale-110 hover:-translate-y-1">
-      <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
-        <span className="text-xs font-bold">
-          {name.slice(0, 2).toUpperCase()}
-        </span>
-      </div>
-      <span className="text-sm">{name}</span>
-    </div>
-  )
 
   return (
     <section className="py-20 sm:py-24">
