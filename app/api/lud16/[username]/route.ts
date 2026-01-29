@@ -7,8 +7,8 @@ import { NotFoundError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 
 export const GET = withErrorHandling(
-  async (req: NextRequest, { params }: { params: { username: string } }) => {
-    const _username = params.username
+  async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
+    const { username: _username } = await params
     const username = _username.trim().toLowerCase()
 
     logger.info({ username }, 'LUD16 lookup request')

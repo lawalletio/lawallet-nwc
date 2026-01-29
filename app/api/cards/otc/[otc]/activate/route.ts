@@ -10,7 +10,7 @@ import {
 } from '@/types/server/errors'
 
 export const POST = withErrorHandling(
-  async (request: Request, { params }: { params: { otc: string } }) => {
+  async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
     let pubkey: string
     try {
       const result = await validateNip98(request)
@@ -18,7 +18,7 @@ export const POST = withErrorHandling(
     } catch (error) {
       throw new AuthenticationError()
     }
-    const { otc } = params
+    const { otc } = await params
 
     if (!pubkey) {
       throw new ValidationError('Public key is required')

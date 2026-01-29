@@ -10,10 +10,10 @@ import {
 } from '@/types/server/errors'
 
 export const GET = withErrorHandling(
-  async (request: Request, { params }: { params: { userId: string } }) => {
+  async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
     const { pubkey: authenticatedPubkey } = await validateNip98(request)
 
-    const { userId } = params
+    const { userId } = await params
 
     if (!userId) {
       throw new ValidationError('User ID is required')

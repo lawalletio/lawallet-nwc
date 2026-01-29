@@ -10,8 +10,8 @@ import {
 } from '@/types/server/errors'
 
 export const GET = withErrorHandling(
-  async (req: NextRequest, { params }: { params: { username: string } }) => {
-    const _username = params.username
+  async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
+    const { username: _username } = await params
     const username = _username.trim().toLowerCase()
     const { searchParams } = new URL(req.url)
     const amount = searchParams.get('amount')

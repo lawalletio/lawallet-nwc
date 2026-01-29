@@ -16,8 +16,8 @@ import {
 } from '@/types/server/errors'
 
 export const POST = withErrorHandling(
-  async (request: Request, { params }: { params: { externalDeviceKey: string } }) => {
-    const { externalDeviceKey } = params
+  async (request: Request, { params }: { params: Promise<{ externalDeviceKey: string }> }) => {
+    const { externalDeviceKey } = await params
 
     // Parse request body
     const body: CreateCardRequest = await request.json()

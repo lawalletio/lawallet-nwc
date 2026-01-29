@@ -22,7 +22,9 @@ export const OPTIONS = withErrorHandling(async () => {
 })
 
 export const GET = withErrorHandling(
-  async (req: NextRequest, { params: { id: cardId } }: { params: { id: string } }) => {
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  const { id: cardId } = await params
+
   // Get query parameters
   const searchParams = req.nextUrl.searchParams
   const p = searchParams.get('p') || ''

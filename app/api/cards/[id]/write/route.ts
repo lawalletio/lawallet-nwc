@@ -20,12 +20,13 @@ export const OPTIONS = withErrorHandling(async () => {
 })
 
 export const GET = withErrorHandling(
-  async (req: NextRequest, { params }: { params: { id: string } }) => {
-    logger.info({ cardId: params.id }, 'Card write data request')
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const { id } = await params
+    logger.info({ cardId: id }, 'Card write data request')
 
     // Find card by id with related data
     const card = await prisma.card.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         design: true,
         ntag424: true
