@@ -6,6 +6,7 @@ import {
   AuthorizationError,
   InternalServerError
 } from '@/types/server/errors'
+import { Role, Permission, hasPermission, isValidRole } from '@/lib/auth/permissions'
 
 export interface JwtAuthOptions {
   algorithms?: string[]
@@ -140,4 +141,35 @@ export function hasClaim(
   }
 
   return claimValue !== undefined
+}
+
+/**
+ * Extracts the role from an authenticated JWT request.
+ * Falls back to Role.USER if no role claim is present or invalid.
+ */
+export function getRoleFromRequest(request: AuthenticatedRequest): Role {
+  if (!request.jwt) {
+    throw new AuthenticationError('Request not authenticated')
+  }
+
+  const role = request.jwt.payload.role as string | undefined
+  if (role && isValidRole(role)) {
+    return role
+  }
+  return Role.USER
+}
+
+/**
+ * Checks if the authenticated user's role grants a specific permission.
+ */
+export function hasPermissionFromRequest(
+  request: AuthenticatedRequest,
+  permission: Permission
+): boolean {
+  try {
+    const role = getRoleFromRequest(request)
+    return hasPermission(role, permission)
+  } catch {
+    return false
+  }
 }
