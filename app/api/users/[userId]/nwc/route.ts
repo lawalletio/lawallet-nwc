@@ -6,8 +6,9 @@ import {
   AuthenticationError,
   AuthorizationError,
   NotFoundError,
-  ValidationError
 } from '@/types/server/errors'
+import { userIdParam, updateNwcSchema } from '@/lib/validation/schemas'
+import { validateParams, validateBody } from '@/lib/validation/middleware'
 
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
@@ -19,19 +20,8 @@ export const PUT = withErrorHandling(
       throw new AuthenticationError()
     }
 
-    // Read the request body for our data
-    const { nwcUri } = await request.json()
-
-    const { userId } = await params
-
-    // Validate input
-    if (!userId) {
-      throw new ValidationError('User ID is required')
-    }
-
-    if (!nwcUri) {
-      throw new ValidationError('NWC URI is required')
-    }
+    const { nwcUri } = await validateBody(request, updateNwcSchema)
+    const { userId } = validateParams(await params, userIdParam)
 
     // Check if user exists
     const user = await prisma.user.findUnique({
