@@ -6,16 +6,13 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthenticationError,
   NotFoundError,
-  ValidationError
 } from '@/types/server/errors'
+import { externalDeviceKeyParam } from '@/lib/validation/schemas'
+import { validateParams } from '@/lib/validation/middleware'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ externalDeviceKey: string }> }) => {
-    const { externalDeviceKey } = await params
-
-    if (!externalDeviceKey) {
-      throw new ValidationError('External device key is required')
-    }
+    const { externalDeviceKey } = validateParams(await params, externalDeviceKeyParam)
 
     // Get the external_device_key from settings
     const settings = await getSettings(['external_device_key'])

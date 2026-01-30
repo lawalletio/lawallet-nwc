@@ -12,25 +12,14 @@ import {
   AuthenticationError,
   ConflictError,
   NotFoundError,
-  ValidationError
 } from '@/types/server/errors'
+import { externalDeviceKeyParam, createRemoteCardSchema } from '@/lib/validation/schemas'
+import { validateParams, validateBody } from '@/lib/validation/middleware'
 
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ externalDeviceKey: string }> }) => {
-    const { externalDeviceKey } = await params
-
-    // Parse request body
-    const body: CreateCardRequest = await request.json()
-    const { designId, cardUID } = body
-
-    // Validate required fields
-    if (!designId || !cardUID) {
-      throw new ValidationError('designId and cardUID are required')
-    }
-
-    if (!externalDeviceKey) {
-      throw new ValidationError('External device key is required')
-    }
+    const { externalDeviceKey } = validateParams(await params, externalDeviceKeyParam)
+    const { designId, cardUID } = await validateBody(request, createRemoteCardSchema)
 
     // Get the external_device_key from settings
     const settings = await getSettings(['external_device_key'])
