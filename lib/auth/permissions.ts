@@ -1,8 +1,8 @@
 export enum Role {
-  ADMIN = 'admin',
-  OPERATOR = 'operator',
-  VIEWER = 'viewer',
-  USER = 'user',
+  ADMIN = 'ADMIN',
+  OPERATOR = 'OPERATOR',
+  VIEWER = 'VIEWER',
+  USER = 'USER',
 }
 
 const ROLE_HIERARCHY: Role[] = [Role.USER, Role.VIEWER, Role.OPERATOR, Role.ADMIN]
