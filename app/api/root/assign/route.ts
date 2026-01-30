@@ -43,7 +43,7 @@ export const POST = withErrorHandling(async (request: Request) => {
         pubkey: authenticatedPubkey
       },
       data: {
-        role: 'root'
+        role: 'ADMIN'
       }
     })
   ])

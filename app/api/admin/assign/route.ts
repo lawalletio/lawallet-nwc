@@ -44,19 +44,29 @@ export const POST = withErrorHandling(async (request: Request) => {
     })
   }
 
-  // Create or update root setting entry
-  await prisma.settings.upsert({
-    where: {
-      name: 'root'
-    },
-    update: {
-      value: authenticatedPubkey
-    },
-    create: {
-      name: 'root',
-      value: authenticatedPubkey
-    }
-  })
+  // Create or update root setting entry and set user role
+  await prisma.$transaction([
+    prisma.settings.upsert({
+      where: {
+        name: 'root'
+      },
+      update: {
+        value: authenticatedPubkey
+      },
+      create: {
+        name: 'root',
+        value: authenticatedPubkey
+      }
+    }),
+    prisma.user.update({
+      where: {
+        pubkey: authenticatedPubkey
+      },
+      data: {
+        role: 'ADMIN'
+      }
+    })
+  ])
 
   return NextResponse.json({
     message: 'Root role assigned successfully',
