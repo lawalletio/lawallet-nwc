@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -7,13 +6,14 @@ import {
   Role,
   Permission,
   hasPermission,
-  hasRole,
 } from '@/lib/auth/permissions'
 import {
   AuthorizationError,
   ValidationError,
   NotFoundError,
 } from '@/types/server/errors'
+import { updateRoleSchema } from '@/lib/validation/schemas'
+import { validateBody } from '@/lib/validation/middleware'
 
 const ROLE_HIERARCHY: Role[] = [Role.USER, Role.VIEWER, Role.OPERATOR, Role.ADMIN]
 
@@ -28,10 +28,6 @@ async function resolveCallerRole(pubkey: string): Promise<Role> {
   })
   return (user?.role as Role) ?? Role.USER
 }
-
-const updateRoleSchema = z.object({
-  role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']),
-})
 
 export const GET = withErrorHandling(
   async (
@@ -77,15 +73,9 @@ export const PUT = withErrorHandling(
       throw new AuthorizationError('Not authorized to manage roles')
     }
 
-    const body = await request.json()
-    const parsed = updateRoleSchema.safeParse(body)
-    if (!parsed.success) {
-      throw new ValidationError('Invalid role', {
-        errors: parsed.error.flatten().fieldErrors,
-      })
-    }
+    const parsed = await validateBody(request, updateRoleSchema)
 
-    const targetRole = parsed.data.role as Role
+    const targetRole = parsed.role as Role
 
     const targetUser = await prisma.user.findUnique({
       where: { id: userId },

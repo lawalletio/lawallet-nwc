@@ -7,6 +7,8 @@ import { consumeNtag424FromPC } from '@/lib/ntag424'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, ValidationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
+import { scanCardQuerySchema } from '@/lib/validation/schemas'
+import { validateQuery } from '@/lib/validation/middleware'
 
 // NWC URI will be fetched from the user record
 
@@ -26,16 +28,10 @@ export const GET = withErrorHandling(
   const { id: cardId } = await params
 
   // Get query parameters
-  const searchParams = req.nextUrl.searchParams
-  const p = searchParams.get('p') || ''
-  const c = searchParams.get('c') || ''
+  const { p, c } = validateQuery(req.url, scanCardQuerySchema)
   const action = req.headers.get('LAWALLET_ACTION') || 'pay'
 
   logger.info({ cardId, action }, 'Card scan callback request')
-
-  if (!p || !c) {
-    throw new ValidationError('Missing required parameters: p and c')
-  }
 
   // Find card by id in database
   const card = await prisma.card.findUnique({

@@ -6,19 +6,15 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   InternalServerError,
   NotFoundError,
-  ValidationError
 } from '@/types/server/errors'
+import { lud16CallbackQuerySchema } from '@/lib/validation/schemas'
+import { validateQuery } from '@/lib/validation/middleware'
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
     const { username: _username } = await params
     const username = _username.trim().toLowerCase()
-    const { searchParams } = new URL(req.url)
-    const amount = searchParams.get('amount')
-
-    if (!amount) {
-      throw new ValidationError('Missing amount')
-    }
+    const { amount } = validateQuery(req.url, lud16CallbackQuerySchema)
 
     // Look for the user with that lightning address
     const lightningAddress = await prisma.lightningAddress.findUnique({

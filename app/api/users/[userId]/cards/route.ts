@@ -6,18 +6,15 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthorizationError,
   NotFoundError,
-  ValidationError
 } from '@/types/server/errors'
+import { userIdParam } from '@/lib/validation/schemas'
+import { validateParams } from '@/lib/validation/middleware'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
     const { pubkey: authenticatedPubkey } = await validateNip98(request)
 
-    const { userId } = await params
-
-    if (!userId) {
-      throw new ValidationError('User ID is required')
-    }
+    const { userId } = validateParams(await params, userIdParam)
 
     // Verify the user exists
     const user = await prisma.user.findUnique({

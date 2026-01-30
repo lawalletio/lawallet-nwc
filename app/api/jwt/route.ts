@@ -1,30 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createJwtToken } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
-import { z } from 'zod'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthenticationError,
   InternalServerError,
-  ValidationError
 } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
-
-// Schema for JWT token request
-const jwtRequestSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
-  expiresIn: z.string().optional().default('1h'),
-  additionalClaims: z.record(z.any()).optional()
-})
+import { jwtRequestSchema } from '@/lib/validation/schemas'
+import { validateBody } from '@/lib/validation/middleware'
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  const body = await request.json()
-
-  // Validate request body
-  const validatedData = jwtRequestSchema.safeParse(body)
-  if (!validatedData.success) {
-    throw new ValidationError('Invalid request data', validatedData.error.errors)
-  }
+  const data = await validateBody(request, jwtRequestSchema)
 
   // Get JWT secret from config
   const config = getConfig()
@@ -38,13 +25,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Create JWT payload
   const payload = {
-    sub: validatedData.data.userId,
-    ...validatedData.data.additionalClaims
+    sub: data.userId,
+    ...data.additionalClaims
   }
 
   // Create JWT token
   const token = createJwtToken(payload, jwtSecret!, {
-    expiresIn: parseInt(validatedData.data.expiresIn),
+    expiresIn: parseInt(data.expiresIn),
     issuer: 'lawallet-nwc',
     audience: 'lawallet-users'
   })
@@ -52,7 +39,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Return the token
   return NextResponse.json({
     token,
-    expiresIn: validatedData.data.expiresIn,
+    expiresIn: data.expiresIn,
     type: 'Bearer'
   })
 })

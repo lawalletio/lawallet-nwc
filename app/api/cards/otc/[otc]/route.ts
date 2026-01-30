@@ -2,15 +2,13 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { NotFoundError, ValidationError } from '@/types/server/errors'
+import { NotFoundError } from '@/types/server/errors'
+import { otcParam } from '@/lib/validation/schemas'
+import { validateParams } from '@/lib/validation/middleware'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
-    const { otc } = await params
-
-    if (!otc) {
-      throw new ValidationError('OTC parameter is required')
-    }
+    const { otc } = validateParams(await params, otcParam)
 
     const card = await prisma.card.findFirst({
       where: {

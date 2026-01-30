@@ -7,34 +7,16 @@ import {
   AuthorizationError,
   ConflictError,
   NotFoundError,
-  ValidationError
 } from '@/types/server/errors'
+import { userIdParam, updateLightningAddressSchema } from '@/lib/validation/schemas'
+import { validateParams, validateBody } from '@/lib/validation/middleware'
 
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
     const { pubkey: authenticatedPubkey } = await validateNip98(request)
 
-    const { userId } = await params
-    const { username: _username } = await request.json()
-
-    // Validate input
-    if (!userId || !_username) {
-      throw new ValidationError('User ID and username are required')
-    }
-
-    // Clean and validate username
-    const username = _username.trim().toLowerCase()
-
-    // Validate username format: alphanumeric characters only, max 16 characters
-    if (!/^[a-z0-9]+$/.test(username)) {
-      throw new ValidationError(
-        'Username must contain only lowercase letters and numbers'
-      )
-    }
-
-    if (username.length > 16) {
-      throw new ValidationError('Username must be 16 characters or less')
-    }
+    const { userId } = validateParams(await params, userIdParam)
+    const { username } = await validateBody(request, updateLightningAddressSchema)
 
     // Check if user exists
     const user = await prisma.user.findUnique({
