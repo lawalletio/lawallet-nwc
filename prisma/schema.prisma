@@ -9,6 +9,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  ADMIN
+  OPERATOR
+  VIEWER
+  USER
+}
+
 model User {
   id               String            @id
   pubkey           String            @unique
@@ -20,7 +27,9 @@ model User {
   cards            Card[]
   albySubAccount   AlbySubAccount?
   albyEnabled      Boolean           @default(false)
-  role             String?           @default("user")
+  role             UserRole          @default(USER)
+
+  @@index([role])
 }
 
 model CardDesign {
