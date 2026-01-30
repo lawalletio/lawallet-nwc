@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { validateNip98 } from '@/lib/nip98'
 import { getSettings } from '@/lib/settings'
+import { prisma } from '@/lib/prisma'
 import { AuthenticationError, AuthorizationError } from '@/types/server/errors'
 import { Role, Permission, hasRole, hasPermission } from '@/lib/auth/permissions'
 
@@ -21,15 +22,26 @@ export async function validateNip98Auth(request: Request): Promise<string> {
 }
 
 /**
- * Resolves the role for an authenticated pubkey based on settings.
- * Currently: root pubkey gets ADMIN, all others get USER.
+ * Resolves the role for an authenticated pubkey.
+ * Checks the User record first, falls back to Settings root check for backwards compatibility.
  */
 async function resolveRole(pubkey: string): Promise<Role> {
+  const user = await prisma.user.findUnique({
+    where: { pubkey },
+    select: { role: true },
+  })
+
+  if (user?.role && user.role !== 'USER') {
+    return user.role as Role
+  }
+
+  // Backwards compatibility: check if pubkey is the root in Settings
   const settings = await getSettings(['root'])
   if (pubkey === settings.root) {
     return Role.ADMIN
   }
-  return Role.USER
+
+  return user?.role as Role ?? Role.USER
 }
 
 /**
