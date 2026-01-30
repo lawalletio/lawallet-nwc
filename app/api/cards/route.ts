@@ -5,6 +5,8 @@ import { generateNtag424Values } from '@/lib/ntag424'
 import { randomBytes } from 'crypto'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
+import { createCardSchema } from '@/lib/validation/schemas'
+import { validateBody } from '@/lib/validation/middleware'
 
 interface CardFilters {
   paired?: boolean
@@ -109,7 +111,7 @@ export const GET = withErrorHandling(async (request: Request) => {
 export const POST = withErrorHandling(async (request: Request) => {
   await validateAdminAuth(request)
 
-  const { id, designId } = await request.json()
+  const { id, designId } = await validateBody(request, createCardSchema)
 
     // Generate ntag424 values using the id as cid
     const serial = id.toUpperCase().replace(/:/g, '')
