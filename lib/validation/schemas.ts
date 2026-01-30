@@ -17,9 +17,18 @@ export const createCardSchema = z.object({
   designId: z.string().min(1, 'Design ID is required'),
 })
 
+export const cardListQuerySchema = z.object({
+  paired: z.enum(['true', 'false']).optional(),
+  used: z.enum(['true', 'false']).optional(),
+})
+
 export const scanCardQuerySchema = z.object({
   p: z.string().min(1, 'Parameter p is required'),
   c: z.string().min(1, 'Parameter c is required'),
+})
+
+export const payActionQuerySchema = z.object({
+  pr: z.string().min(1, 'Missing required parameter: pr'),
 })
 
 export const otcParam = z.object({
