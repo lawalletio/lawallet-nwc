@@ -72,6 +72,16 @@ export class ConflictError extends ApiError {
   }
 }
 
+export class ServiceUnavailableError extends ApiError {
+  constructor(message = 'Service temporarily unavailable', details?: unknown) {
+    super(message, {
+      statusCode: 503,
+      code: 'SERVICE_UNAVAILABLE',
+      details
+    })
+  }
+}
+
 export class InternalServerError extends ApiError {
   constructor(
     message = 'Internal server error',

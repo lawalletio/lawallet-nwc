@@ -4,6 +4,7 @@ import { buildErrorResponse } from './api-response'
 import { ApiError, InternalServerError } from './errors'
 import { withRequestLogging } from '@/lib/logger'
 import { logger } from '@/lib/logger'
+import { checkMaintenance } from '@/lib/middleware/maintenance'
 
 export const toApiError = (error: unknown): ApiError => {
   if (error instanceof ApiError) {
@@ -65,6 +66,10 @@ export const withErrorHandling = <
 
   return async (...args: TArgs) => {
     try {
+      const request = args[0]
+      if (request instanceof Request) {
+        await checkMaintenance(request)
+      }
       return await loggedHandler(...args)
     } catch (error) {
       return handleApiError(error, options?.headers)
