@@ -5,8 +5,8 @@ import { generateNtag424Values } from '@/lib/ntag424'
 import { randomBytes } from 'crypto'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { createCardSchema } from '@/lib/validation/schemas'
-import { validateBody } from '@/lib/validation/middleware'
+import { createCardSchema, cardListQuerySchema } from '@/lib/validation/schemas'
+import { validateBody, validateQuery } from '@/lib/validation/middleware'
 
 interface CardFilters {
   paired?: boolean
@@ -16,16 +16,12 @@ interface CardFilters {
 export const GET = withErrorHandling(async (request: Request) => {
   await validateAdminAuth(request)
 
-  const { searchParams } = new URL(request.url)
+  const query = validateQuery(request.url, cardListQuerySchema)
 
   // Parse filters from query params
   const filters: CardFilters = {
-    paired: searchParams.has('paired')
-      ? searchParams.get('paired') === 'true'
-      : undefined,
-    used: searchParams.has('used')
-      ? searchParams.get('used') === 'true'
-      : undefined
+    paired: query.paired !== undefined ? query.paired === 'true' : undefined,
+    used: query.used !== undefined ? query.used === 'true' : undefined,
   }
 
   // Build where clause based on filters

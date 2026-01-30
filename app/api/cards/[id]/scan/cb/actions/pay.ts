@@ -8,16 +8,14 @@ import {
   ValidationError
 } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
+import { payActionQuerySchema } from '@/lib/validation/schemas'
+import { validateQuery } from '@/lib/validation/middleware'
 
 export default async function pay(
   req: NextRequest,
   card: Card & { user?: User }
 ) {
-  const pr = req.nextUrl.searchParams.get('pr') || ''
-
-  if (!pr) {
-    throw new ValidationError('Missing required parameter: pr')
-  }
+  const { pr } = validateQuery(req.url, payActionQuerySchema)
 
   // Check if it has nwc set up
   if (!card.user?.nwc) {

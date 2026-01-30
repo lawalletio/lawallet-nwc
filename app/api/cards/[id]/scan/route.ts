@@ -5,6 +5,8 @@ import { LUD03Request } from '@/types/lnurl'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
+import { scanCardQuerySchema } from '@/lib/validation/schemas'
+import { validateQuery } from '@/lib/validation/middleware'
 
 export const OPTIONS = withErrorHandling(async () => {
   return new NextResponse(null, {
@@ -22,9 +24,7 @@ export const GET = withErrorHandling(
   const { id: cardId } = await params
 
   // Get query parameters
-  const searchParams = req.nextUrl.searchParams
-  const p = searchParams.get('p') || ''
-  const c = searchParams.get('c') || ''
+  const { p, c } = validateQuery(req.url, scanCardQuerySchema)
 
   // Find card by id in database
   const card = await prisma.card.findUnique({
