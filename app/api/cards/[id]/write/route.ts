@@ -7,6 +7,8 @@ import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, ValidationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
+import { idParam } from '@/lib/validation/schemas'
+import { validateParams } from '@/lib/validation/middleware'
 
 export const OPTIONS = withErrorHandling(async () => {
   return new NextResponse(null, {
@@ -21,7 +23,7 @@ export const OPTIONS = withErrorHandling(async () => {
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id } = await params
+    const { id } = validateParams(await params, idParam)
     logger.info({ cardId: id }, 'Card write data request')
 
     // Find card by id with related data

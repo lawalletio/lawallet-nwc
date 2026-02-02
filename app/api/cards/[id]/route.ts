@@ -4,11 +4,13 @@ import type { Card } from '@/types/card'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
+import { idParam } from '@/lib/validation/schemas'
+import { validateParams } from '@/lib/validation/middleware'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await validateAdminAuth(request)
-    const { id } = await params
+    const { id } = validateParams(await params, idParam)
 
     const card = await prisma.card.findUnique({
       where: { id },
@@ -76,7 +78,7 @@ export const GET = withErrorHandling(
 export const DELETE = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await validateAdminAuth(request)
-    const { id } = await params
+    const { id } = validateParams(await params, idParam)
 
     // Find the card first to check if it exists and get ntag424 info
     const card = await prisma.card.findUnique({
