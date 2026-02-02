@@ -4,11 +4,13 @@ import type { CardDesign } from '@/types/card-design'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
+import { idParam } from '@/lib/validation/schemas'
+import { validateParams } from '@/lib/validation/middleware'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await validateAdminAuth(request)
-    const { id } = await params
+    const { id } = validateParams(await params, idParam)
     const design = await prisma.cardDesign.findUnique({
       where: { id },
       select: {

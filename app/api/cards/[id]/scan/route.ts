@@ -5,8 +5,8 @@ import { LUD03Request } from '@/types/lnurl'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
-import { scanCardQuerySchema } from '@/lib/validation/schemas'
-import { validateQuery } from '@/lib/validation/middleware'
+import { idParam, scanCardQuerySchema } from '@/lib/validation/schemas'
+import { validateParams, validateQuery } from '@/lib/validation/middleware'
 
 export const OPTIONS = withErrorHandling(async () => {
   return new NextResponse(null, {
@@ -21,9 +21,7 @@ export const OPTIONS = withErrorHandling(async () => {
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  const { id: cardId } = await params
-
-  // Get query parameters
+  const { id: cardId } = validateParams(await params, idParam)
   const { p, c } = validateQuery(req.url, scanCardQuerySchema)
 
   // Find card by id in database

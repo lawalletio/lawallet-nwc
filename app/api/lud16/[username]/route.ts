@@ -5,10 +5,12 @@ import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
+import { lud16UsernameParam } from '@/lib/validation/schemas'
+import { validateParams } from '@/lib/validation/middleware'
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
-    const { username: _username } = await params
+    const { username: _username } = validateParams(await params, lud16UsernameParam)
     const username = _username.trim().toLowerCase()
 
     logger.info({ username }, 'LUD16 lookup request')

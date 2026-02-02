@@ -8,6 +8,8 @@ import {
   AuthenticationError,
   ValidationError
 } from '@/types/server/errors'
+import { otcParam } from '@/lib/validation/schemas'
+import { validateParams } from '@/lib/validation/middleware'
 
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
@@ -18,7 +20,7 @@ export const POST = withErrorHandling(
     } catch (error) {
       throw new AuthenticationError()
     }
-    const { otc } = await params
+    const { otc } = validateParams(await params, otcParam)
 
     if (!pubkey) {
       throw new ValidationError('Public key is required')
