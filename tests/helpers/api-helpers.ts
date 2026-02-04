@@ -29,7 +29,7 @@ export function createNextRequest(
     requestInit.body = JSON.stringify(body)
   }
 
-  return new NextRequest(urlObj, requestInit)
+  return new NextRequest(urlObj, requestInit as ConstructorParameters<typeof NextRequest>[1])
 }
 
 // Extract JSON from NextResponse
