@@ -9,7 +9,12 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "start": "prisma migrate deploy && next start",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.4",
@@ -84,12 +89,20 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.39.2",
+    "@faker-js/faker": "^10.2.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/ui": "^4.0.18",
     "autoprefixer": "^10.0.1",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.0.0",
+    "happy-dom": "^20.4.0",
+    "msw": "^2.12.7",
     "pino-pretty": "^11.3.0",
     "postcss": "^8.5",
     "prettier": "^3.6.2",
@@ -97,6 +110,7 @@
     "tailwindcss": "^3.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5",
-    "typescript-eslint": "^8.0.0"
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.0.18"
   }
 }
