@@ -26,6 +26,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# test coverage
+/coverage
+
 ## Mac
 **.DS_Store
 
