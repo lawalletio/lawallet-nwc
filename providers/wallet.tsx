@@ -3,7 +3,7 @@
 import type React from 'react'
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { WalletContextType, WalletState } from '@/types/wallet'
-import { nwc } from '@getalby/sdk'
+import { NWCClient } from '@getalby/sdk'
 import { toast } from '@/hooks/use-toast'
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { useAPI } from '@/providers/api'
@@ -37,7 +37,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     balance: 0
   })
 
-  const [nwcObject, setNwcObject] = useState<nwc.NWCClient | null>(null)
+  const [nwcObject, setNwcObject] = useState<NWCClient | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isHydrated, setIsHydrated] = useState(false)
   const { userId, get, put, logout: logoutApi } = useAPI()
@@ -83,7 +83,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    const nwcClient = new nwc.NWCClient({
+    const nwcClient = new NWCClient({
       nostrWalletConnectUrl: walletState.nwcUri
     })
     setNwcObject(nwcClient)

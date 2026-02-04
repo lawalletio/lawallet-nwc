@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import type { PrismaClient } from '@prisma/client'
+import type { PrismaClient } from '@/lib/generated/prisma'
 
 // Deep mock of PrismaClient for unit tests
 // Each model gets standard Prisma methods mocked

@@ -1,4 +1,3 @@
-import { nwc } from '@getalby/sdk'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { LUD03Request } from '@/types/lnurl'
