@@ -65,7 +65,7 @@ export const GET = withErrorHandling(
     }
   })
 
-  return (await import(`./actions/${action}`)).default(req, card)
+  return (await import(`./actions/${action}.ts`)).default(req, card)
   },
   { headers: { 'Access-Control-Allow-Origin': '*' } }
 )
