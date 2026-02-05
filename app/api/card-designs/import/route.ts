@@ -6,8 +6,10 @@ import { validateAdminAuth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { InternalServerError, ValidationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const POST = withErrorHandling(async (request: Request) => {
+  await checkRequestLimits(request, 'large')
   await validateAdminAuth(request)
   logger.info('Starting card design import')
 

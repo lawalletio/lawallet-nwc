@@ -15,9 +15,11 @@ import {
 } from '@/types/server/errors'
 import { externalDeviceKeyParam, createRemoteCardSchema } from '@/lib/validation/schemas'
 import { validateParams, validateBody } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ externalDeviceKey: string }> }) => {
+    await checkRequestLimits(request, 'json')
     const { externalDeviceKey } = validateParams(await params, externalDeviceKeyParam)
     const { designId, cardUID } = await validateBody(request, createRemoteCardSchema)
 

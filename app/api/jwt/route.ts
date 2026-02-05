@@ -9,8 +9,10 @@ import {
 import { logger } from '@/lib/logger'
 import { jwtRequestSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  await checkRequestLimits(request, 'json')
   const data = await validateBody(request, jwtRequestSchema)
 
   // Get JWT secret from config

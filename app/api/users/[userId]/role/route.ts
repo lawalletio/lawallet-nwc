@@ -14,6 +14,7 @@ import {
 } from '@/types/server/errors'
 import { updateRoleSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 const ROLE_HIERARCHY: Role[] = [Role.USER, Role.VIEWER, Role.OPERATOR, Role.ADMIN]
 
@@ -65,6 +66,7 @@ export const PUT = withErrorHandling(
     request: Request,
     { params }: { params: Promise<{ userId: string }> }
   ) => {
+    await checkRequestLimits(request, 'json')
     const pubkey = await validateNip98Auth(request)
     const { userId } = await params
 

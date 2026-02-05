@@ -10,9 +10,11 @@ import {
 } from '@/types/server/errors'
 import { otcParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
+    await checkRequestLimits(request, 'json')
     let pubkey: string
     try {
       const result = await validateNip98(request)

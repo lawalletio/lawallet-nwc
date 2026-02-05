@@ -54,6 +54,14 @@ export interface AppConfig {
   maintenance: {
     enabled: boolean
   }
+
+  // Request Size Limits
+  requestLimits: {
+    maxBodySize: number
+    maxJsonSize: number
+    maxFileSize: number
+    maxFiles: number
+  }
 }
 
 let cachedConfig: AppConfig | null = null
@@ -117,6 +125,13 @@ export function getConfig(strict: boolean = true): AppConfig {
 
     maintenance: {
       enabled: env.MAINTENANCE_MODE
+    },
+
+    requestLimits: {
+      maxBodySize: env.REQUEST_MAX_BODY_SIZE,
+      maxJsonSize: env.REQUEST_MAX_JSON_SIZE,
+      maxFileSize: env.REQUEST_MAX_FILE_SIZE,
+      maxFiles: env.REQUEST_MAX_FILES
     }
   }
 

@@ -7,9 +7,11 @@ import {
 } from '@/lib/jwt-auth'
 import type { AuthenticatedRequest } from '@/lib/jwt-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 // Example protected endpoint that requires JWT authentication
 async function protectedHandler(request: AuthenticatedRequest) {
+  await checkRequestLimits(request, 'json')
   // Get user ID from the authenticated request
   const userId = getUserIdFromRequest(request)
 
