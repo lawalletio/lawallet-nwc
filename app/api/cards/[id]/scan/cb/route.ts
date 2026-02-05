@@ -9,6 +9,7 @@ import { NotFoundError, ValidationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { scanCardQuerySchema } from '@/lib/validation/schemas'
 import { validateQuery } from '@/lib/validation/middleware'
+import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 
 // NWC URI will be fetched from the user record
 
@@ -25,6 +26,9 @@ export const OPTIONS = withErrorHandling(async () => {
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  // Apply rate limiting for card scan callback (high volume endpoint)
+  await rateLimit(req, RateLimitPresets.cardScan)
+
   const { id: cardId } = await params
 
   // Get query parameters

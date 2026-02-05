@@ -92,6 +92,22 @@ export class ServiceUnavailableError extends ApiError {
   }
 }
 
+export class TooManyRequestsError extends ApiError {
+  public readonly retryAfter: number
+
+  constructor(
+    message = 'Too many requests',
+    options?: { retryAfter?: number; details?: unknown }
+  ) {
+    super(message, {
+      statusCode: 429,
+      code: 'TOO_MANY_REQUESTS',
+      details: options?.details
+    })
+    this.retryAfter = options?.retryAfter ?? 60
+  }
+}
+
 export class InternalServerError extends ApiError {
   constructor(
     message = 'Internal server error',

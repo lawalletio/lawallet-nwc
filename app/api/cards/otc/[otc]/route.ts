@@ -5,9 +5,13 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { otcParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
+import { rateLimit } from '@/lib/middleware/rate-limit'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
+    // Apply rate limiting for public OTC lookup
+    await rateLimit(request)
+
     const { otc } = validateParams(await params, otcParam)
 
     const card = await prisma.card.findFirst({

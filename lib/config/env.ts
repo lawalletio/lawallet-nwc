@@ -91,6 +91,47 @@ const envSchema = z.object({
     .pipe(z.boolean())
     .describe('Enable maintenance mode (returns 503 for all requests)'),
 
+  // Rate Limiting
+  RATE_LIMIT_ENABLED: z
+    .string()
+    .default('true')
+    .transform(val => val === 'true')
+    .pipe(z.boolean())
+    .describe('Enable rate limiting for public endpoints'),
+
+  RATE_LIMIT_WINDOW_MS: z
+    .string()
+    .default('60000')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .describe('Rate limit window in milliseconds (default: 60000 = 1 minute)'),
+
+  RATE_LIMIT_MAX_REQUESTS: z
+    .string()
+    .default('60')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .describe('Maximum requests per window for unauthenticated users (default: 60)'),
+
+  RATE_LIMIT_MAX_REQUESTS_AUTH: z
+    .string()
+    .default('300')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .describe('Maximum requests per window for authenticated users (default: 300)'),
+
+  UPSTASH_REDIS_URL: z
+    .string()
+    .url('UPSTASH_REDIS_URL must be a valid URL')
+    .optional()
+    .describe('Upstash Redis URL for distributed rate limiting (optional)'),
+
+  UPSTASH_REDIS_TOKEN: z
+    .string()
+    .min(1, 'UPSTASH_REDIS_TOKEN must not be empty')
+    .optional()
+    .describe('Upstash Redis token for authentication (optional)'),
+
   LOG_PRETTY: z
     .string()
     .default('false')
