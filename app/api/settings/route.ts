@@ -6,6 +6,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { AuthorizationError, ValidationError } from '@/types/server/errors'
 import { settingsBodySchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch all settings records from the database
@@ -30,6 +31,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 })
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  await checkRequestLimits(request, 'json')
   // Validate authentication
   const authenticatedPubkey = await validateNip98Auth(request)
 

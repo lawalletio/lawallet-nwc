@@ -72,6 +72,16 @@ export class ConflictError extends ApiError {
   }
 }
 
+export class PayloadTooLargeError extends ApiError {
+  constructor(message = 'Payload too large', details?: unknown) {
+    super(message, {
+      statusCode: 413,
+      code: 'PAYLOAD_TOO_LARGE',
+      details
+    })
+  }
+}
+
 export class ServiceUnavailableError extends ApiError {
   constructor(message = 'Service temporarily unavailable', details?: unknown) {
     super(message, {

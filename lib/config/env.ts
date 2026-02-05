@@ -146,7 +146,36 @@ const envSchema = z.object({
     .pipe(
       z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     )
-    .describe('Log level (fatal, error, warn, info, debug, trace, silent)')
+    .describe('Log level (fatal, error, warn, info, debug, trace, silent)'),
+
+  // Request Size Limits
+  REQUEST_MAX_BODY_SIZE: z
+    .string()
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .default('1048576')
+    .describe('Maximum request body size in bytes (default: 1MB)'),
+
+  REQUEST_MAX_JSON_SIZE: z
+    .string()
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .default('102400')
+    .describe('Maximum JSON payload size in bytes (default: 100KB)'),
+
+  REQUEST_MAX_FILE_SIZE: z
+    .string()
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .default('5242880')
+    .describe('Maximum single file upload size in bytes (default: 5MB)'),
+
+  REQUEST_MAX_FILES: z
+    .string()
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .default('10')
+    .describe('Maximum number of files per upload request (default: 10)')
 })
 
 /**

@@ -4,8 +4,10 @@ import { createNewUser } from '@/lib/user'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { AuthorizationError } from '@/types/server/errors'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const POST = withErrorHandling(async (request: Request) => {
+  await checkRequestLimits(request, 'json')
   // Validate authentication
   const authenticatedPubkey = await validateNip98Auth(request)
 

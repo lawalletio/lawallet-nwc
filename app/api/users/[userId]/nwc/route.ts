@@ -9,9 +9,11 @@ import {
 } from '@/types/server/errors'
 import { userIdParam, updateNwcSchema } from '@/lib/validation/schemas'
 import { validateParams, validateBody } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
+    await checkRequestLimits(request, 'json')
     let authenticatedPubkey: string
     try {
       const result = await validateNip98(request)

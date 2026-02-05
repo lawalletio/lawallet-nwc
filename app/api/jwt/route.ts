@@ -9,9 +9,11 @@ import {
 import { logger } from '@/lib/logger'
 import { jwtRequestSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
+  await checkRequestLimits(request, 'json')
   // Apply strict rate limiting for authentication endpoint
   await rateLimit(request, RateLimitPresets.auth)
 

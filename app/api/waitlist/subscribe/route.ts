@@ -5,8 +5,10 @@ import { InternalServerError, ValidationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { waitlistSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const POST = withErrorHandling(async (req: NextRequest) => {
+  await checkRequestLimits(req, 'json')
   // Use non-strict mode since this route only needs optional Sendy configuration
   // and doesn't require DATABASE_URL to check if Sendy is enabled
   const config = getConfig(false)

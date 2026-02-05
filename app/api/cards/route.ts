@@ -7,6 +7,7 @@ import { validateAdminAuth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { createCardSchema, cardListQuerySchema } from '@/lib/validation/schemas'
 import { validateBody, validateQuery } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 interface CardFilters {
   paired?: boolean
@@ -105,6 +106,7 @@ export const GET = withErrorHandling(async (request: Request) => {
 })
 
 export const POST = withErrorHandling(async (request: Request) => {
+  await checkRequestLimits(request, 'json')
   await validateAdminAuth(request)
 
   const { id, designId } = await validateBody(request, createCardSchema)

@@ -10,9 +10,11 @@ import {
 } from '@/types/server/errors'
 import { userIdParam, updateLightningAddressSchema } from '@/lib/validation/schemas'
 import { validateParams, validateBody } from '@/lib/validation/middleware'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
+    await checkRequestLimits(request, 'json')
     const { pubkey: authenticatedPubkey } = await validateNip98(request)
 
     const { userId } = validateParams(await params, userIdParam)
