@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { buildErrorResponse } from './api-response'
-import { ApiError, InternalServerError } from './errors'
+import { ApiError, InternalServerError, TooManyRequestsError } from './errors'
 import { withRequestLogging } from '@/lib/logger'
 import { logger } from '@/lib/logger'
 import { checkMaintenance } from '@/lib/middleware/maintenance'
@@ -40,9 +40,17 @@ export const handleApiError = (
     'api.error'
   )
 
+  // Build response headers
+  const responseHeaders = new Headers(headers)
+
+  // Add Retry-After header for rate limit errors
+  if (apiError instanceof TooManyRequestsError) {
+    responseHeaders.set('Retry-After', apiError.retryAfter.toString())
+  }
+
   return NextResponse.json(responseBody, {
     status: apiError.statusCode,
-    headers
+    headers: responseHeaders
   })
 }
 

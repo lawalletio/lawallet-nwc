@@ -54,6 +54,19 @@ export interface AppConfig {
   maintenance: {
     enabled: boolean
   }
+
+  // Rate Limiting
+  rateLimit: {
+    enabled: boolean
+    windowMs: number
+    maxRequests: number
+    maxRequestsAuth: number
+    upstash: {
+      url: string | undefined
+      token: string | undefined
+      enabled: boolean
+    }
+  }
 }
 
 let cachedConfig: AppConfig | null = null
@@ -117,6 +130,18 @@ export function getConfig(strict: boolean = true): AppConfig {
 
     maintenance: {
       enabled: env.MAINTENANCE_MODE
+    },
+
+    rateLimit: {
+      enabled: env.RATE_LIMIT_ENABLED,
+      windowMs: env.RATE_LIMIT_WINDOW_MS,
+      maxRequests: env.RATE_LIMIT_MAX_REQUESTS,
+      maxRequestsAuth: env.RATE_LIMIT_MAX_REQUESTS_AUTH,
+      upstash: {
+        url: env.UPSTASH_REDIS_URL,
+        token: env.UPSTASH_REDIS_TOKEN,
+        enabled: !!(env.UPSTASH_REDIS_URL && env.UPSTASH_REDIS_TOKEN)
+      }
     }
   }
 

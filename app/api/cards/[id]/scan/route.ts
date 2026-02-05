@@ -6,6 +6,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { idParam, scanCardQuerySchema } from '@/lib/validation/schemas'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
+import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 
 export const OPTIONS = withErrorHandling(async () => {
   return new NextResponse(null, {
@@ -20,6 +21,9 @@ export const OPTIONS = withErrorHandling(async () => {
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  // Apply rate limiting for card scan (high volume endpoint)
+  await rateLimit(req, RateLimitPresets.cardScan)
+
   const { id: cardId } = validateParams(await params, idParam)
   const { p, c } = validateQuery(req.url, scanCardQuerySchema)
 
