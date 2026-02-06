@@ -509,32 +509,51 @@ const DeploySection = () => {
 
 // ─── How It Works / NFC Cards ───────────────────────────────────────────────
 
-const flowSteps = [
-  'Create a new card',
-  'Write to NFC chip',
-  'Print setup QR',
-  'User scans QR',
-  'Setup in 20 seconds',
-  'Send & receive payments'
-]
-
-const floatingCards = [
-  { src: '/card-primal.png', alt: 'Primal NFC Card', left: '25%', top: '5%', z: 5, tilt: 'rotateY(-6deg) rotateX(4deg)', anim: 'nfc-float-2', dur: '10s', delay: '0s', width: 'w-36 sm:w-48 md:w-60' },
-  { src: '/card-alby.png', alt: 'Alby NFC Card', left: '0%', top: '25%', z: 3, tilt: 'rotateY(14deg) rotateX(-5deg)', anim: 'nfc-float-1', dur: '8.5s', delay: '1s', width: 'w-32 sm:w-40 md:w-48' },
-  { src: '/card-flash.png', alt: 'Flash NFC Card', left: '52%', top: '12%', z: 4, tilt: 'rotateY(-14deg) rotateX(3deg)', anim: 'nfc-float-3', dur: '9s', delay: '0.5s', width: 'w-32 sm:w-44 md:w-52' },
-  { src: '/card-geyser.png', alt: 'Geyser NFC Card', left: '65%', top: '52%', z: 3, tilt: 'rotateY(8deg) rotateX(-4deg)', anim: 'nfc-float-4', dur: '10.5s', delay: '2.5s', width: 'w-28 sm:w-36 md:w-44' },
-  { src: '/card-curacao.png', alt: 'BTC Curacao NFC Card', left: '72%', top: '2%', z: 2, tilt: 'rotateY(-18deg) rotateX(6deg)', anim: 'nfc-float-1', dur: '9.5s', delay: '1.5s', width: 'w-28 sm:w-36 md:w-44' },
-  { src: '/card-bg-1.png', alt: 'Custom NFC Card', left: '5%', top: '60%', z: 2, tilt: 'rotateY(12deg) rotateX(7deg)', anim: 'nfc-float-4', dur: '11s', delay: '2s', width: 'w-28 sm:w-36 md:w-44' },
-  { src: '/card-bg-5.png', alt: 'Custom NFC Card', left: '38%', top: '55%', z: 2, tilt: 'rotateY(-8deg) rotateX(-6deg)', anim: 'nfc-float-2', dur: '12s', delay: '3s', width: 'w-28 sm:w-40 md:w-48' }
+const cardRows = [
+  {
+    cards: [
+      '/cards/card1.png', '/cards/card2.png', '/cards/card3.png', '/cards/card4.png',
+      '/cards/card5.png', '/cards/card6.png', '/cards/card7.png', '/cards/card8.png',
+      '/cards/card9.png', '/cards/card10.png', '/cards/card11.png', '/cards/card12.png',
+      '/cards/card13.png', '/cards/card14.png',
+    ],
+    direction: 'left' as const,
+    duration: '60s',
+  },
+  {
+    cards: [
+      '/cards/card15.png', '/cards/card16.png', '/cards/card17.png', '/cards/card18.png',
+      '/cards/card19.png', '/cards/card20.png', '/cards/card21.png', '/cards/card22.png',
+      '/cards/card23.png', '/cards/card24.png', '/cards/card25.png', '/cards/card26.png',
+      '/cards/card27.png',
+    ],
+    direction: 'right' as const,
+    duration: '55s',
+  },
+  {
+    cards: [
+      '/cards/card28.png', '/cards/card29.png', '/cards/card30.png', '/cards/card31.png',
+      '/cards/card32.png', '/cards/card33.png', '/cards/card34.png', '/cards/card35.png',
+      '/cards/card36.png', '/cards/card37.png', '/cards/card38.png', '/cards/card39.png',
+      '/cards/card40.png',
+    ],
+    direction: 'left' as const,
+    duration: '65s',
+  }
 ]
 
 const FlowSection = () => {
   const { ref, isVisible } = useScrollAnimation()
+  const { ref: parallaxRef, scrollProgress } = useScrollProgress()
+
+  const rotateX = 14 - scrollProgress * 10
+  const translateY = (0.5 - scrollProgress) * 40
+  const scale = 0.92 + scrollProgress * 0.08
 
   return (
     <section id="nfc-cards" className="py-20 sm:py-28 overflow-hidden">
       <div className="max-w-6xl mx-auto px-4">
-        <div className="text-center mb-12 sm:mb-16">
+        <div ref={ref} className="text-center mb-12 sm:mb-16">
           <span
             className={`inline-block text-xs font-mono tracking-widest uppercase text-lw-teal mb-4 transition-all duration-700 ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
@@ -558,71 +577,72 @@ const FlowSection = () => {
           </p>
         </div>
 
-        {/* Floating 3D Cards Showcase */}
+        {/* 3D Carousel with Parallax */}
         <div
-          ref={ref}
-          className={`relative h-[320px] sm:h-[420px] md:h-[500px] mx-auto max-w-4xl overflow-hidden rounded-3xl transition-all duration-1000 delay-300 ${
+          ref={parallaxRef}
+          className={`relative transition-all duration-1000 delay-300 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
           }`}
           style={{ perspective: '1200px' }}
         >
-          {/* Ambient glow */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-96 h-56 bg-lw-gold/8 blur-[120px] rounded-full" />
-          </div>
-          <div className="absolute top-1/4 left-1/4 pointer-events-none">
-            <div className="w-48 h-48 bg-nwc-purple/6 blur-[80px] rounded-full" />
-          </div>
-          <div className="absolute bottom-1/4 right-1/4 pointer-events-none">
-            <div className="w-40 h-40 bg-lw-teal/6 blur-[80px] rounded-full" />
-          </div>
+          <div
+            className="will-change-transform"
+            style={{
+              transform: `rotateX(${rotateX}deg) translateY(${translateY}px) scale(${scale})`,
+              transformStyle: 'preserve-3d',
+              transition: 'transform 0.1s linear',
+            }}
+          >
+            {/* Gradient fade masks */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-24 sm:w-40 z-10 bg-gradient-to-r from-lw-dark to-transparent" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-24 sm:w-40 z-10 bg-gradient-to-l from-lw-dark to-transparent" />
 
-          {floatingCards.map((card) => (
-            <div
-              key={card.src}
-              className="absolute"
-              style={{
-                left: card.left,
-                top: card.top,
-                zIndex: card.z
-              }}
-            >
-              <div
-                className="will-change-transform"
-                style={{
-                  animation: `${card.anim} ${card.dur} ease-in-out infinite`,
-                  animationDelay: card.delay
-                }}
-              >
-                <div style={{ transform: card.tilt, transformStyle: 'preserve-3d' }}>
-                  <img
-                    src={card.src}
-                    alt={card.alt}
-                    className={`${card.width} h-auto rounded-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5),0_4px_25px_-5px_rgba(0,0,0,0.3)] border border-white/10 pointer-events-none select-none`}
-                    draggable={false}
-                  />
+            {/* Ambient glows behind cards */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
+              <div className="w-[30rem] h-40 bg-lw-gold/8 blur-[120px] rounded-full" />
+            </div>
+            <div className="absolute top-0 left-1/4 pointer-events-none -z-10">
+              <div className="w-48 h-48 bg-nwc-purple/5 blur-[80px] rounded-full" />
+            </div>
+            <div className="absolute bottom-0 right-1/4 pointer-events-none -z-10">
+              <div className="w-40 h-40 bg-lw-teal/5 blur-[80px] rounded-full" />
+            </div>
+
+            {/* Card rows */}
+            <div className="space-y-4 sm:space-y-5 overflow-hidden py-4">
+              {cardRows.map((row, rowIndex) => (
+                <div key={rowIndex} className="overflow-hidden">
+                  <div
+                    className="card-track flex gap-4 sm:gap-5 will-change-transform"
+                    style={{
+                      animation: `card-scroll-${row.direction} ${row.duration} linear infinite`,
+                      width: 'max-content',
+                    }}
+                  >
+                    {/* Duplicate cards for seamless loop */}
+                    {[...row.cards, ...row.cards].map((src, cardIndex) => (
+                      <div
+                        key={`${rowIndex}-${cardIndex}`}
+                        className="shrink-0 group/card"
+                        style={{
+                          transform: `rotateY(${rowIndex === 1 ? 2 : -2}deg)`,
+                          transformStyle: 'preserve-3d',
+                        }}
+                      >
+                        <img
+                          src={src}
+                          alt="NFC Card Design"
+                          className="w-40 sm:w-52 md:w-60 h-auto rounded-xl shadow-[0_8px_30px_-8px_rgba(0,0,0,0.6)] border border-white/[0.08] pointer-events-none select-none transition-all duration-500 group-hover/card:shadow-[0_12px_40px_-8px_rgba(245,166,35,0.2)] group-hover/card:border-white/20 group-hover/card:scale-105"
+                          draggable={false}
+                          loading="lazy"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-
-        {/* Compact BoltCard Flow Steps */}
-        <div
-          className={`mt-14 sm:mt-16 max-w-4xl mx-auto grid grid-cols-3 sm:grid-cols-6 gap-4 sm:gap-6 transition-all duration-1000 delay-500 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          {flowSteps.map((step, index) => (
-            <div key={step} className="text-center group">
-              <div className="w-8 h-8 rounded-full bg-lw-gold/10 border border-lw-gold/20 text-lw-gold text-xs font-mono flex items-center justify-center mx-auto mb-2.5 group-hover:bg-lw-gold/20 group-hover:border-lw-gold/40 transition-colors duration-300">
-                {index + 1}
-              </div>
-              <p className="text-xs font-medium text-white/40 group-hover:text-white/70 transition-colors duration-300 leading-tight">
-                {step}
-              </p>
-            </div>
-          ))}
+          </div>
         </div>
       </div>
     </section>
