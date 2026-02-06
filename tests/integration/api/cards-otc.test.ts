@@ -44,6 +44,7 @@ vi.mock('@/lib/settings', () => ({
 import { GET as GetOtc } from '@/app/api/cards/otc/[otc]/route'
 import { POST as ActivateOtc } from '@/app/api/cards/otc/[otc]/activate/route'
 import { validateNip98 } from '@/lib/nip98'
+import { createNip98Result } from '@/tests/helpers/auth-helpers'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 
@@ -91,7 +92,7 @@ describe('GET /api/cards/otc/[otc]', () => {
 
 describe('POST /api/cards/otc/[otc]/activate', () => {
   it('activates card for authenticated user', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: { username: 'alice' },
@@ -114,7 +115,7 @@ describe('POST /api/cards/otc/[otc]/activate', () => {
   })
 
   it('creates user if not existing', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
     const newUser = createUserFixture({
       pubkey: mockPubkey,
@@ -143,7 +144,7 @@ describe('POST /api/cards/otc/[otc]/activate', () => {
   })
 
   it('succeeds even if card not found for OTC', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: null,

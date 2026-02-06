@@ -30,6 +30,7 @@ vi.mock('@/lib/nip98', () => ({
 
 import { PUT } from '@/app/api/users/[userId]/nwc/route'
 import { validateNip98 } from '@/lib/nip98'
+import { createNip98Result } from '@/tests/helpers/auth-helpers'
 
 const mockPubkey = 'a'.repeat(64)
 
@@ -41,7 +42,7 @@ beforeEach(() => {
 describe('PUT /api/users/[userId]/nwc', () => {
   it('updates NWC URI for own user', async () => {
     const user = createUserFixture({ pubkey: mockPubkey })
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({
       id: user.id,
@@ -64,7 +65,7 @@ describe('PUT /api/users/[userId]/nwc', () => {
 
   it('rejects unauthorized user', async () => {
     const otherUser = createUserFixture({ pubkey: 'b'.repeat(64) })
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(otherUser as any)
 
     const req = createNextRequest(`/api/users/${otherUser.id}/nwc`, {
@@ -77,7 +78,7 @@ describe('PUT /api/users/[userId]/nwc', () => {
   })
 
   it('returns 404 for nonexistent user', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/users/nonexistent/nwc', {
@@ -90,7 +91,7 @@ describe('PUT /api/users/[userId]/nwc', () => {
   })
 
   it('rejects missing nwcUri', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
 
     const req = createNextRequest('/api/users/some-id/nwc', {
       method: 'PUT',
