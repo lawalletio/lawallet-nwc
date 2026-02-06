@@ -2,7 +2,6 @@
 
 import React from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
   Github,
@@ -10,16 +9,31 @@ import {
   Nfc,
   Wallet,
   Cpu,
-  LinkIcon,
   ArrowRight,
   ArrowLeft,
   SmartphoneNfc,
-  PanelTopDashed
+  PanelTopDashed,
+  Zap,
+  Shield,
+  Globe,
+  Code2,
+  ExternalLink,
+  Terminal,
+  Hash,
+  Key,
+  Radio,
+  Users,
+  MessageSquare,
+  Server,
+  Cloud,
+  HardDrive,
+  Mail,
+  AtSign
 } from 'lucide-react'
-import type { LucideProps } from 'lucide-react'
 import Link from 'next/link'
 
-// Custom hook for scroll-triggered animations
+// ─── Hooks ──────────────────────────────────────────────────────────────────
+
 const useScrollAnimation = (threshold = 0.1, rootMargin = '50px') => {
   const [isVisible, setIsVisible] = React.useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
@@ -27,24 +41,17 @@ const useScrollAnimation = (threshold = 0.1, rootMargin = '50px') => {
   React.useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true)
-        }
+        if (entry.isIntersecting) setIsVisible(true)
       },
       { threshold, rootMargin }
     )
-
-    if (ref.current) {
-      observer.observe(ref.current)
-    }
-
+    if (ref.current) observer.observe(ref.current)
     return () => observer.disconnect()
   }, [threshold, rootMargin])
 
   return { ref, isVisible }
 }
 
-// Custom hook for scroll progress
 const useScrollProgress = () => {
   const [scrollProgress, setScrollProgress] = React.useState(0)
   const ref = React.useRef<HTMLDivElement>(null)
@@ -52,240 +59,534 @@ const useScrollProgress = () => {
   React.useEffect(() => {
     const handleScroll = () => {
       if (!ref.current) return
-
       const rect = ref.current.getBoundingClientRect()
       const windowHeight = window.innerHeight
       const elementHeight = rect.height
-
       const progress = Math.max(
         0,
         Math.min(1, (windowHeight - rect.top) / (windowHeight + elementHeight))
       )
       setScrollProgress(progress)
     }
-
     window.addEventListener('scroll', handleScroll, { passive: true })
     handleScroll()
-
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
   return { ref, scrollProgress }
 }
 
+// ─── Animated Background ────────────────────────────────────────────────────
+
 const AnimatedBackground = () => (
-  <div className="fixed inset-0 -z-10 h-full w-full overflow-hidden bg-gray-950">
-    <div className="absolute left-[-20rem] top-[-10rem] h-[30rem] w-[50rem] rounded-full bg-[#001c80]/30 blur-[150px] animate-[gradient-move_18s_ease-in-out_infinite]" />
-    <div className="absolute right-[-15rem] top-[5rem] h-[30rem] w-[40rem] rounded-full bg-[#1ac7ff]/20 blur-[120px] animate-[gradient-move_20s_ease-in-out_infinite_2s]" />
-    <div className="absolute bottom-[-10rem] left-[10rem] h-[25rem] w-[40rem] rounded-full bg-[#04ffb1]/20 blur-[100px] animate-[gradient-move_22s_ease-in-out_infinite_4s]" />
-    <div className="absolute bottom-[5rem] right-[-5rem] h-[30rem] w-[30rem] rounded-full bg-[#ff1ff1]/20 blur-[130px] animate-[gradient-move_24s_ease-in-out_infinite_6s]" />
+  <div className="fixed inset-0 -z-10 h-full w-full overflow-hidden bg-lw-dark">
+    <div className="absolute inset-0 grid-pattern" />
+    <div className="absolute left-[-15rem] top-[-8rem] h-[35rem] w-[35rem] rounded-full bg-lw-gold/8 blur-[150px] animate-[gradient-move_20s_ease-in-out_infinite]" />
+    <div className="absolute right-[-10rem] top-[10rem] h-[30rem] w-[30rem] rounded-full bg-lw-teal/10 blur-[130px] animate-[gradient-move_24s_ease-in-out_infinite_3s]" />
+    <div className="absolute bottom-[-8rem] left-[20%] h-[25rem] w-[35rem] rounded-full bg-nwc-purple/6 blur-[120px] animate-[gradient-move_22s_ease-in-out_infinite_6s]" />
+    <div className="absolute bottom-[20%] right-[-5rem] h-[20rem] w-[20rem] rounded-full bg-lw-coral/5 blur-[100px] animate-[gradient-move_18s_ease-in-out_infinite_9s]" />
   </div>
 )
 
-const Header = () => (
-  <header className="sticky top-0 z-50 py-4 px-4 bg-black/50 backdrop-blur-lg border-b border-white/10 animate-fade-in-down">
-    <div className="container mx-auto flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <img src="/nwc-logo.png" alt="NWC Logo" className="h-8 w-auto" />
+// ─── Header ─────────────────────────────────────────────────────────────────
+
+const Header = () => {
+  const [scrolled, setScrolled] = React.useState(false)
+
+  React.useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', handler, { passive: true })
+    return () => window.removeEventListener('scroll', handler)
+  }, [])
+
+  return (
+    <header
+      className={`sticky top-0 z-50 py-3 px-4 backdrop-blur-xl border-b transition-all duration-500 animate-fade-in-down ${
+        scrolled
+          ? 'bg-lw-dark/80 border-lw-gold/10 shadow-lg shadow-lw-dark/50'
+          : 'bg-transparent border-transparent'
+      }`}
+    >
+      <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <img src="/logos/lawallet.png" alt="LaWallet" className="h-6 w-auto opacity-90" />
+        </div>
+        <nav className="hidden md:flex items-center gap-6">
+          <a href="#features" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
+            Features
+          </a>
+          <a href="#deploy" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
+            Deploy
+          </a>
+          <a href="#screenshots" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
+            Screenshots
+          </a>
+          <a href="#roadmap" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
+            Roadmap
+          </a>
+        </nav>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-white/60 hover:text-white hover:bg-white/5 transition-all duration-300"
+            asChild
+          >
+            <a
+              href="https://github.com/lawalletio/lawallet-nwc"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Github className="h-4 w-4 mr-1.5" />
+              <span className="hidden sm:inline">GitHub</span>
+            </a>
+          </Button>
+        </div>
       </div>
-      <Button
-        variant="ghost"
-        className="text-white hover:bg-gray-800 hover:text-white transition-all duration-300 hover:scale-105"
-        asChild
-      >
-        <a
-          href="https://github.com/agustinkassis/boltcard-nwc"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="GitHub Repository"
-        >
-          <Github className="h-5 w-5 mr-2" />
-          Fork me
-        </a>
-      </Button>
-    </div>
-  </header>
-)
+    </header>
+  )
+}
+
+// ─── Hero Section ───────────────────────────────────────────────────────────
 
 const HeroSection = () => {
   const { ref, isVisible } = useScrollAnimation()
 
   return (
-    <section className="py-20 sm:py-32">
-      <div
-        ref={ref}
-        className={`container mx-auto px-4 text-center transition-all duration-1000 ease-out ${
-          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-        }`}
-      >
+    <section className="relative pt-16 pb-8 sm:pt-28 sm:pb-16 overflow-hidden">
+      <div ref={ref} className="max-w-5xl mx-auto px-4 text-center relative z-10">
+        {/* Protocol badges */}
+        <div
+          className={`flex flex-wrap justify-center gap-2 mb-8 transition-all duration-700 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+        >
+          {['Lightning', 'Nostr', 'NWC', 'Open Source'].map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono border border-lw-gold/20 text-lw-gold/70 bg-lw-gold/5"
+            >
+              <Zap className="h-3 w-3" />
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        {/* Main headline */}
         <h1
-          className={`text-4xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 transition-all duration-1200 delay-200 ${
+          className={`text-5xl sm:text-7xl md:text-8xl font-black tracking-tight leading-[0.9] transition-all duration-1000 delay-200 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
           }`}
         >
-          BoltCard meets NWC
+          <span className="text-gradient-gold">Lightning addresses</span>
+          <br />
+          <span className="text-white">for everyone.</span>
         </h1>
+
+        {/* Subheadline */}
         <p
-          className={`mt-8 max-w-3xl mx-auto text-xl text-gray-300 leading-relaxed font-light transition-all duration-1000 delay-400 ${
+          className={`mt-8 max-w-2xl mx-auto text-lg sm:text-xl text-white/50 leading-relaxed font-light transition-all duration-1000 delay-400 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          <span className="bg-gradient-to-r from-gray-200 to-gray-400 bg-clip-text text-transparent">
-            Build your own NFC cards and connect them with your own NWC.
-          </span>
-          <br />
-          <span className="text-gray-400">
-            Just top it up via <b>Lightning Address</b> and start tapping.
-          </span>
+          The open-source{' '}
+          <span className="text-lw-gold font-medium">Lightning + Nostr CRM</span>{' '}
+          for communities and companies.
+          <br className="hidden sm:block" />
+          Connect your domain. Deploy in minutes. Your users get{' '}
+          <span className="text-lw-teal font-medium">addresses, wallets, and identity</span> — instantly.
         </p>
+
+        {/* CTA Buttons */}
         <div
-          className={`mt-12 flex flex-col gap-4 justify-center items-center transition-all duration-1000 delay-600 ${
+          className={`mt-10 flex flex-col sm:flex-row gap-3 justify-center items-center transition-all duration-1000 delay-600 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
           <Button
             size="lg"
-            className="px-8 py-4 rounded-full bg-nwc-purple hover:bg-nwc-purple/90 text-white transition-all duration-300 ease-in-out shadow-lg hover:shadow-nwc-purple/20 hover:scale-105 hover:-translate-y-1"
-            onClick={() => {
-              const waitlistSection =
-                document.getElementById('waitlist-section')
-              waitlistSection?.scrollIntoView({ behavior: 'smooth' })
-            }}
+            className="group px-8 py-5 rounded-full bg-lw-gold hover:bg-lw-gold/90 text-black font-semibold transition-all duration-300 shadow-lg shadow-lw-gold/20 hover:shadow-lw-gold/30 hover:scale-105"
+            onClick={() =>
+              document.getElementById('waitlist-section')?.scrollIntoView({ behavior: 'smooth' })
+            }
           >
-            Join Waitlist <ArrowRight className="ml-2 h-5 w-5" />
+            Get Early Access
+            <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
           </Button>
-          <Link href="/admin">
-            <Button
-              size="lg"
-              className="px-8 py-4 rounded-full bg-nwc-orange hover:bg-nwc-orange/90 text-white transition-all duration-300 ease-in-out shadow-lg hover:shadow-nwc-purple/20 hover:scale-105 hover:-translate-y-1"
-            >
-              Admin <PanelTopDashed className="ml-2 h-5 w-5" />
-            </Button>
-          </Link>
-          <Link href="/wallet">
-            <Button
-              size="lg"
-              className="px-8 py-4 rounded-full bg-green-700 hover:bg-green-400 text-white transition-all duration-300 ease-in-out shadow-lg hover:shadow-nwc-purple/20 hover:scale-105 hover:-translate-y-1"
-            >
-              Wallet <Wallet className="ml-2 h-5 w-5" />
-            </Button>
-          </Link>
-          {/* <div className="flex flex-col sm:flex-row gap-4">
-            <Button
-              size="lg"
-              variant="outline"
-              className="px-8 py-4 rounded-full border-white/20 text-black hover:bg-white/10 transition-all duration-300 ease-in-out bg-white hover:scale-105 hover:text-white hover:-translate-y-1"
-              asChild
-            >
-              <Link href="/admin">Admin Demo</Link>
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="px-8 py-4 rounded-full border-white/20 text-black hover:bg-white/10 transition-all duration-300 ease-in-out bg-white hover:scale-105 hover:text-white hover:-translate-y-1"
-              asChild
-            >
-              <Link href="/wallet">
-                <Wallet className="mr-2 h-5 w-5" />
+          <div className="flex gap-3">
+            <Link href="/admin">
+              <Button
+                size="lg"
+                variant="outline"
+                className="px-6 py-5 rounded-full border-white/10 text-white/70 hover:text-white hover:bg-white/5 hover:border-lw-teal/30 transition-all duration-300"
+              >
+                <PanelTopDashed className="mr-2 h-4 w-4" />
+                Admin Demo
+              </Button>
+            </Link>
+            <Link href="/wallet">
+              <Button
+                size="lg"
+                variant="outline"
+                className="px-6 py-5 rounded-full border-white/10 text-white/70 hover:text-white hover:bg-white/5 hover:border-lw-gold/30 transition-all duration-300"
+              >
+                <Wallet className="mr-2 h-4 w-4" />
                 Wallet Demo
-              </Link>
-            </Button>
-          </div> */}
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Domain example */}
+        <div
+          className={`mt-12 inline-flex items-center gap-3 px-5 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06] transition-all duration-1000 delay-700 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+        >
+          <AtSign className="h-4 w-4 text-lw-teal" />
+          <span className="font-mono text-sm text-white/50">
+            <span className="text-lw-gold">alice</span>
+            <span className="text-white/30">@</span>
+            <span className="text-lw-teal">yourdomain.com</span>
+          </span>
+          <Zap className="h-3.5 w-3.5 text-lw-gold/40" />
         </div>
       </div>
     </section>
   )
 }
 
+// ─── Scrolling Tech Strip ───────────────────────────────────────────────────
+
+const TechStrip = () => {
+  const items = [
+    'Lightning Address', 'Nostr Identity', 'NWC', 'BoltCard', 'NIP-47', 'NIP-05',
+    'NIP-46', 'LUD-16', 'LUD-21', 'NIP-57 Zaps', 'Vercel Deploy', 'Docker',
+    'Lightning Address', 'Nostr Identity', 'NWC', 'BoltCard', 'NIP-47', 'NIP-05',
+    'NIP-46', 'LUD-16', 'LUD-21', 'NIP-57 Zaps', 'Vercel Deploy', 'Docker'
+  ]
+
+  return (
+    <div className="relative py-6 overflow-hidden border-y border-white/[0.04]">
+      <div className="animate-marquee marquee-track flex gap-8 whitespace-nowrap">
+        {items.map((item, i) => (
+          <span
+            key={i}
+            className="text-sm font-mono text-white/15 flex items-center gap-2"
+          >
+            <span className="text-lw-gold/30">&#x26A1;</span>
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Features Section ───────────────────────────────────────────────────────
+
+const features = [
+  {
+    icon: Zap,
+    title: 'Lightning Addresses',
+    description:
+      'Give every user a lightning address on your domain. alice@yourdomain.com — receive payments, zaps, and tips instantly.',
+    color: 'lw-gold'
+  },
+  {
+    icon: Users,
+    title: 'Nostr-Native CRM',
+    description:
+      'Manage your community with user profiles, activity tracking, segmentation, and Nostr-powered communication built in.',
+    color: 'nwc-purple'
+  },
+  {
+    icon: Radio,
+    title: 'NWC Integration',
+    description:
+      'Progressive self-custody. Users start with zero friction, then connect their own NWC wallet when ready. Sovereignty is a journey.',
+    color: 'lw-teal'
+  },
+  {
+    icon: Nfc,
+    title: 'BoltCard / NFC',
+    description:
+      'Program NTAG424 cards as BoltCards. Tap any compatible POS to pay with Lightning — physical cards for your community.',
+    color: 'lw-coral'
+  },
+  {
+    icon: Cloud,
+    title: 'Deploy Anywhere',
+    description:
+      'One-click deploy on Vercel. Docker for your server. Umbrel or Start9 for your node. Your infrastructure, your choice.',
+    color: 'lw-gold'
+  },
+  {
+    icon: Code2,
+    title: 'Open Source, FOREVER',
+    description:
+      'MIT licensed. No open-core tricks. No proprietary features behind a paywall. Fork it, hack it, deploy it. The community owns this.',
+    color: 'lw-teal'
+  }
+]
+
+const colorMap: Record<string, string> = {
+  'lw-gold': 'text-lw-gold',
+  'nwc-purple': 'text-nwc-purple',
+  'lw-teal': 'text-lw-teal',
+  'lw-coral': 'text-lw-coral'
+}
+
+const bgColorMap: Record<string, string> = {
+  'lw-gold': 'bg-lw-gold/10',
+  'nwc-purple': 'bg-nwc-purple/10',
+  'lw-teal': 'bg-lw-teal/10',
+  'lw-coral': 'bg-lw-coral/10'
+}
+
+const FeaturesSection = () => {
+  const { ref, isVisible } = useScrollAnimation()
+
+  return (
+    <section id="features" className="py-20 sm:py-28">
+      <div ref={ref} className="max-w-6xl mx-auto px-4">
+        <div className="text-center mb-16">
+          <span
+            className={`inline-block text-xs font-mono tracking-widest uppercase text-lw-teal mb-4 transition-all duration-700 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}
+          >
+            {'// Features'}
+          </span>
+          <h2
+            className={`text-3xl sm:text-5xl font-bold text-white tracking-tight transition-all duration-1000 delay-100 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            A CRM with Lightning and Nostr
+            <br />
+            <span className="text-gradient-gold">built in, not bolted on</span>
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {features.map((feature, index) => (
+            <div
+              key={feature.title}
+              className={`glow-card group rounded-2xl bg-white/[0.02] border border-white/[0.06] p-6 hover:bg-white/[0.04] transition-all duration-500 hover:-translate-y-1 ${
+                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`}
+              style={{
+                transitionDelay: isVisible ? `${index * 100 + 200}ms` : '0ms'
+              }}
+            >
+              <div
+                className={`w-10 h-10 rounded-lg ${bgColorMap[feature.color]} flex items-center justify-center mb-4`}
+              >
+                <feature.icon className={`h-5 w-5 ${colorMap[feature.color]}`} />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
+              <p className="text-sm text-white/40 leading-relaxed">{feature.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Deploy Section ─────────────────────────────────────────────────────────
+
+const deployOptions = [
+  {
+    icon: Cloud,
+    title: 'Vercel',
+    time: '2 min',
+    description: 'One-click deploy. Perfect for communities that want to be live instantly.',
+    command: 'npx vercel deploy'
+  },
+  {
+    icon: Server,
+    title: 'Docker',
+    time: '5 min',
+    description: 'Compose file included. Run on any VPS or server you control.',
+    command: 'docker compose up -d'
+  },
+  {
+    icon: HardDrive,
+    title: 'Your Node',
+    time: '5 min',
+    description: 'Umbrel, Start9, or bare metal. Full sovereignty on your own hardware.',
+    command: 'lawallet-nwc start'
+  }
+]
+
+const DeploySection = () => {
+  const { ref, isVisible } = useScrollAnimation()
+
+  return (
+    <section id="deploy" className="py-20 sm:py-28">
+      <div ref={ref} className="max-w-5xl mx-auto px-4">
+        <div className="text-center mb-16">
+          <span
+            className={`inline-block text-xs font-mono tracking-widest uppercase text-lw-gold mb-4 transition-all duration-700 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}
+          >
+            {'// Deploy'}
+          </span>
+          <h2
+            className={`text-3xl sm:text-5xl font-bold text-white tracking-tight transition-all duration-1000 delay-100 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            Connect your domain.
+            <br />
+            <span className="text-gradient-gold">Be live in minutes.</span>
+          </h2>
+          <p
+            className={`mt-4 text-white/30 max-w-xl mx-auto transition-all duration-1000 delay-200 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            Choose your deployment path. From instant cloud to full sovereignty.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {deployOptions.map((option, index) => (
+            <div
+              key={option.title}
+              className={`glow-card group rounded-2xl bg-white/[0.02] border border-white/[0.06] p-6 hover:bg-white/[0.04] transition-all duration-500 hover:-translate-y-1 ${
+                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`}
+              style={{
+                transitionDelay: isVisible ? `${index * 150 + 200}ms` : '0ms'
+              }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-10 h-10 rounded-lg bg-lw-gold/10 flex items-center justify-center">
+                  <option.icon className="h-5 w-5 text-lw-gold" />
+                </div>
+                <span className="text-xs font-mono text-lw-teal bg-lw-teal/10 px-2.5 py-1 rounded-full">
+                  ~{option.time}
+                </span>
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">{option.title}</h3>
+              <p className="text-sm text-white/40 leading-relaxed mb-4">{option.description}</p>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.04] font-mono text-xs text-white/30">
+                <Terminal className="h-3 w-3 text-lw-teal flex-shrink-0" />
+                <span className="text-lw-teal">$</span> {option.command}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Screenshots Section ────────────────────────────────────────────────────
+
+const ScreenshotsSection = () => {
+  const { ref, isVisible } = useScrollAnimation()
+  const screenshots = [
+    { label: 'Admin Dashboard', sublabel: 'Manage users & cards', img: '/steps/step1.png' },
+    { label: 'User Onboarding', sublabel: 'QR scan to activate', img: '/steps/step4.png' },
+    { label: 'Wallet Setup', sublabel: 'NWC in 20 seconds', img: '/steps/step5.png' },
+    { label: 'Payments', sublabel: 'Send & receive Lightning', img: '/steps/step6.png' }
+  ]
+
+  return (
+    <section id="screenshots" className="py-20 sm:py-28">
+      <div ref={ref} className="max-w-6xl mx-auto px-4">
+        <div className="text-center mb-16">
+          <span
+            className={`inline-block text-xs font-mono tracking-widest uppercase text-nwc-purple mb-4 transition-all duration-700 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}
+          >
+            {'// Screenshots'}
+          </span>
+          <h2
+            className={`text-3xl sm:text-5xl font-bold text-white tracking-tight transition-all duration-1000 delay-100 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            See it in <span className="text-gradient-teal">action</span>
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          {screenshots.map((shot, index) => (
+            <div
+              key={shot.label}
+              className={`transition-all duration-700 ${
+                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
+              }`}
+              style={{
+                transitionDelay: isVisible ? `${index * 150 + 200}ms` : '0ms'
+              }}
+            >
+              <div className="phone-frame group">
+                <div className="phone-screen aspect-[9/16] relative overflow-hidden">
+                  <img
+                    src={shot.img}
+                    alt={shot.label}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
+                </div>
+              </div>
+              <div className="mt-3 text-center">
+                <p className="text-sm font-medium text-white/70">{shot.label}</p>
+                <p className="text-xs text-white/30 mt-0.5">{shot.sublabel}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── How It Works ───────────────────────────────────────────────────────────
+
 const flowSteps = [
   {
     title: '1. Create a new card',
     description:
       'In your admin dashboard, first add the available designs and then create a new card.',
-    content: (
-      <div className="w-full rounded-lg flex flex-col">
-        <img
-          src="/steps/step1.png"
-          alt="Step 1: Create a new card"
-          className="w-full h-full object-contain rounded-lg border-none"
-          style={{ minHeight: '180px' }}
-        />
-      </div>
-    )
+    img: '/steps/step1.png'
   },
   {
     title: '2. Write to NFC Chip',
     description:
       'Scan NFC chip and then write it with Bolt Card NFC Card Creator App.',
-    content: (
-      <div className="w-full rounded-lg flex flex-col">
-        <img
-          src="/steps/step2.png"
-          alt="Step 2: Write the NFC Card"
-          className="w-full h-full object-contain rounded-lg border-none"
-          style={{ minHeight: '180px' }}
-        />
-      </div>
-    )
+    img: '/steps/step2.png'
   },
   {
     title: '3. Print Setup QR',
     description:
       'Print the QR or send the auto-generated link and give it to the user.',
-    content: (
-      <div className="w-full rounded-lg flex flex-col">
-        <img
-          src="/steps/step3.png"
-          alt="Step 3: Print activation QR code"
-          className="w-full h-full object-contain rounded-lg border-none"
-          style={{ minHeight: '180px' }}
-        />
-      </div>
-    )
+    img: '/steps/step3.png'
   },
   {
     title: '4. End user scans QR',
     description:
       'User scans the QR, opens a webapp and creates a new wallet (linked to the card).',
-    content: (
-      <div className="w-full rounded-lg flex flex-col">
-        <img
-          src="/steps/step4.png"
-          alt="Step 4: Users scans QR code and open"
-          className="w-full h-full object-contain rounded-lg border-none"
-          style={{ minHeight: '180px' }}
-        />
-      </div>
-    )
+    img: '/steps/step4.png'
   },
   {
     title: '5. Setup in 20 seconds',
-    description: 'Users sets a lightning address and a NWC connection string.',
-    content: (
-      <div className="w-full rounded-lg flex flex-col">
-        <img
-          src="/steps/step5.png"
-          alt="Step 5: Set lightning address and NWC connection string"
-          className="w-full h-full object-contain rounded-lg border-none"
-          style={{ minHeight: '180px' }}
-        />
-      </div>
-    )
+    description: 'User sets a lightning address and a NWC connection string.',
+    img: '/steps/step5.png'
   },
   {
     title: '6. Receive and Send payments',
     description:
       'The card is ready! Tap on any compatible POS to make a Lightning payment via NWC.',
-    content: (
-      <div className="w-full rounded-lg flex flex-col">
-        <img
-          src="/steps/step6.png"
-          alt="Step 6: Receive lightning address and tap with NWC"
-          className="w-full h-full object-contain rounded-lg border-none"
-          style={{ minHeight: '180px' }}
-        />
-      </div>
-    )
+    img: '/steps/step6.png'
   }
 ]
 
@@ -293,202 +594,176 @@ const FlowSection = () => {
   const [currentStep, setCurrentStep] = React.useState(0)
   const [isHovered, setIsHovered] = React.useState(false)
   const { ref, isVisible } = useScrollAnimation()
-  const { ref: progressRef, scrollProgress } = useScrollProgress()
+  const { ref: progressRef } = useScrollProgress()
+  const step = flowSteps[currentStep]
 
-  const nextStep = () => {
-    setCurrentStep(prev => (prev + 1) % flowSteps.length)
-  }
-
-  const prevStep = () => {
-    setCurrentStep(prev => (prev - 1 + flowSteps.length) % flowSteps.length)
-  }
-
-  const currentStepData = flowSteps[currentStep]
+  const nextStep = () => setCurrentStep((prev) => (prev + 1) % flowSteps.length)
+  const prevStep = () =>
+    setCurrentStep((prev) => (prev - 1 + flowSteps.length) % flowSteps.length)
 
   return (
-    <section ref={progressRef} className="py-20 sm:py-24">
-      <div className="container mx-auto px-4">
-        <h2
-          className={`text-center text-3xl font-bold tracking-tight text-white mb-16 transition-all duration-1000 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          How It Works
-        </h2>
+    <section id="how-it-works" ref={progressRef} className="py-20 sm:py-28">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="text-center mb-16">
+          <span
+            className={`inline-block text-xs font-mono tracking-widest uppercase text-lw-teal mb-4 transition-all duration-700 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}
+          >
+            {'// BoltCard Flow'}
+          </span>
+          <h2
+            className={`text-3xl sm:text-5xl font-bold text-white tracking-tight transition-all duration-1000 delay-100 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            NFC cards for your <span className="text-gradient-gold">community</span>
+          </h2>
+          <p
+            className={`mt-4 text-white/30 max-w-xl mx-auto transition-all duration-1000 delay-200 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            Create physical payment cards. Users tap to pay with Lightning — no app needed.
+          </p>
+        </div>
 
-        {/* Main Content Card with Integrated Navigation */}
         <div
           ref={ref}
-          className={`max-w-6xl mx-auto relative transition-all duration-1000 ${
+          className={`relative max-w-4xl mx-auto transition-all duration-1000 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
           }`}
-          style={{
-            transform: `translateY(${(1 - scrollProgress) * 20}px)`
-          }}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden transition-all duration-500 hover:shadow-3xl">
-            <div className="grid grid-cols-1 min-h-[500px]">
-              {/* Left Content */}
-              <div className="p-8 flex flex-col justify-center">
-                <h3 className="text-3xl font-bold text-gray-900 mb-6 transition-all duration-500">
-                  {currentStepData.title}
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2 min-h-[420px]">
+              <div className="p-8 md:p-10 flex flex-col justify-center">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="font-mono text-xs text-lw-gold/60">
+                    {String(currentStep + 1).padStart(2, '0')}
+                  </span>
+                  <div className="h-px flex-1 bg-white/10" />
+                  <span className="font-mono text-xs text-white/20">
+                    {String(flowSteps.length).padStart(2, '0')}
+                  </span>
+                </div>
+
+                <h3 className="text-2xl sm:text-3xl font-bold text-white mb-4 transition-all duration-300">
+                  {step.title}
                 </h3>
-                <p className="text-gray-600 text-lg mb-8 leading-relaxed transition-all duration-500">
-                  {currentStepData.description}
+                <p className="text-white/40 text-base leading-relaxed transition-all duration-300">
+                  {step.description}
                 </p>
+
+                <div className="flex gap-1.5 mt-8">
+                  {flowSteps.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentStep(index)}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        index === currentStep
+                          ? 'bg-lw-gold w-8'
+                          : 'bg-white/10 w-1.5 hover:bg-white/20'
+                      }`}
+                      aria-label={`Go to step ${index + 1}`}
+                    />
+                  ))}
+                </div>
               </div>
 
-              {/* Right Visual */}
-              <div className="bg-gray-50 p-8 flex items-center justify-center">
-                <div className="w-full max-w-md transition-all duration-500 hover:scale-105">
-                  {currentStepData.content}
+              <div className="bg-white/[0.02] p-6 flex items-center justify-center border-l border-white/[0.04]">
+                <div className="w-full max-w-sm">
+                  <img
+                    src={step.img}
+                    alt={step.title}
+                    className="w-full h-auto rounded-xl transition-all duration-500"
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Left Navigation Arrow */}
           <button
             onClick={prevStep}
-            className={`absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/80 hover:bg-black transition-all duration-300 text-white shadow-lg backdrop-blur-sm hover:scale-110 ${
-              isHovered
-                ? 'opacity-100 translate-x-0'
-                : 'opacity-0 -translate-x-2'
+            className={`absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-lw-dark/90 border border-white/10 text-white/60 hover:text-white hover:border-lw-gold/30 transition-all duration-300 ${
+              isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'
             }`}
             aria-label="Previous step"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
           </button>
-
-          {/* Right Navigation Arrow */}
           <button
             onClick={nextStep}
-            className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/80 hover:bg-black transition-all duration-300 text-white shadow-lg backdrop-blur-sm hover:scale-110 ${
-              isHovered
-                ? 'opacity-100 translate-x-0'
-                : 'opacity-0 translate-x-2'
+            className={`absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-lw-dark/90 border border-white/10 text-white/60 hover:text-white hover:border-lw-gold/30 transition-all duration-300 ${
+              isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
             }`}
             aria-label="Next step"
           >
-            <ArrowRight className="h-5 w-5" />
+            <ArrowRight className="h-4 w-4" />
           </button>
-
-          {/* Step Indicators */}
-          <div className="flex justify-center mt-6 gap-2">
-            {flowSteps.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentStep(index)}
-                className={`h-2 rounded-full transition-all duration-300 hover:scale-125 ${
-                  index === currentStep
-                    ? 'bg-white w-8 shadow-lg'
-                    : 'bg-white/30 w-2 hover:bg-white/50'
-                }`}
-                aria-label={`Go to step ${index + 1}`}
-              />
-            ))}
-          </div>
         </div>
       </div>
     </section>
   )
 }
 
-const StandardsLogo = ({
-  Icon,
-  name
-}: {
-  Icon: React.ComponentType<LucideProps>
-  name: string
-}) => (
-  <div className="flex flex-col items-center gap-2 text-gray-400 hover:text-white transition-all duration-300 hover:scale-110 hover:-translate-y-1">
-    <Icon className="h-10 w-10" />
-    <span className="text-sm">{name}</span>
-  </div>
-)
-
-const TechLogo = ({ name }: { name: string }) => (
-  <div className="flex flex-col items-center gap-2 text-gray-400 hover:text-white transition-all duration-300 hover:scale-110 hover:-translate-y-1">
-    <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
-      <span className="text-xs font-bold">
-        {name.slice(0, 2).toUpperCase()}
-      </span>
-    </div>
-    <span className="text-sm">{name}</span>
-  </div>
-)
+// ─── NWC Supporters ─────────────────────────────────────────────────────────
 
 const NWCSupportersSection = () => {
   const { ref, isVisible } = useScrollAnimation()
   const supporters = [
-    {
-      name: 'Alby',
-      logo: '/logos/alby.png',
-      color: 'bg-yellow-500'
-    },
-    {
-      name: 'Primal',
-      logo: '/logos/primal.png',
-      color: 'bg-purple-500'
-    },
-    {
-      name: 'Flash',
-      logo: '/logos/flash.png',
-      color: 'bg-blue-500'
-    },
-    {
-      name: 'BTCCuracao',
-      logo: '/logos/curacao.png',
-      color: 'bg-orange-500'
-    },
-    {
-      name: 'Geyser Fund',
-      logo: '/logos/geyser.png',
-      color: 'bg-green-500'
-    }
+    { name: 'Alby', logo: '/logos/alby.png' },
+    { name: 'Primal', logo: '/logos/primal.png' },
+    { name: 'Flash', logo: '/logos/flash.png' },
+    { name: 'BTCCuracao', logo: '/logos/curacao.png' },
+    { name: 'Geyser Fund', logo: '/logos/geyser.png' }
   ]
 
   return (
-    <section className="py-16 sm:py-20">
-      <div ref={ref} className="container mx-auto px-4 text-center">
+    <section className="py-16 sm:py-24">
+      <div ref={ref} className="max-w-5xl mx-auto px-4 text-center">
+        <span
+          className={`inline-block text-xs font-mono tracking-widest uppercase text-white/30 mb-4 transition-all duration-700 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+        >
+          Your users connect with
+        </span>
         <h2
-          className={`text-2xl font-bold tracking-tight text-white mb-4 transition-all duration-1000 ${
+          className={`text-2xl sm:text-3xl font-bold text-white mb-4 tracking-tight transition-all duration-1000 delay-100 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          NWC Supporters
+          NWC Ecosystem
         </h2>
         <p
-          className={`text-gray-400 mb-12 max-w-2xl mx-auto transition-all duration-1000 delay-200 ${
+          className={`text-white/30 mb-12 max-w-xl mx-auto text-sm transition-all duration-1000 delay-200 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          Trusted by leading Lightning wallets and Bitcoin organizations
+          Users bring their own NWC-compatible wallet. Progressive self-custody — from zero friction to full sovereignty.
         </p>
-        <div className="grid grid-cols-2 gap-8 items-center justify-items-center">
-          {supporters.map((supporter, index) => (
+        <div className="flex flex-wrap justify-center gap-6 sm:gap-10">
+          {supporters.map((s, index) => (
             <div
-              key={supporter.name}
-              className={`group flex flex-col items-center gap-3 p-4 rounded-lg hover:bg-white/5 transition-all duration-500 hover:scale-110 hover:-translate-y-2 ${
-                isVisible
-                  ? 'opacity-100 translate-y-0'
-                  : 'opacity-0 translate-y-8'
+              key={s.name}
+              className={`group flex flex-col items-center gap-3 p-4 rounded-xl hover:bg-white/[0.03] transition-all duration-500 ${
+                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
               }`}
               style={{
-                transitionDelay: isVisible ? `${index * 100 + 400}ms` : '0ms'
+                transitionDelay: isVisible ? `${index * 100 + 300}ms` : '0ms'
               }}
             >
-              <div className="relative overflow-hidden rounded-lg bg-white/10 p-4 group-hover:bg-white/20 transition-all duration-300 group-hover:rotate-3">
+              <div className="relative w-16 h-16 flex items-center justify-center rounded-xl bg-white/5 border border-white/[0.06] group-hover:border-lw-gold/20 group-hover:bg-white/10 transition-all duration-300">
                 <img
-                  src={supporter.logo || '/placeholder.svg'}
-                  alt={`${supporter.name} logo`}
-                  className="h-12 w-auto object-contain opacity-80 group-hover:opacity-100 transition-all duration-300"
+                  src={s.logo || '/placeholder.svg'}
+                  alt={`${s.name} logo`}
+                  className="h-8 w-auto object-contain opacity-60 group-hover:opacity-100 transition-all duration-300"
                 />
               </div>
-              <span className="text-sm text-gray-400 group-hover:text-white transition-colors duration-300">
-                {supporter.name}
+              <span className="text-xs text-white/30 group-hover:text-white/60 transition-colors duration-300 font-mono">
+                {s.name}
               </span>
             </div>
           ))}
@@ -498,44 +773,81 @@ const NWCSupportersSection = () => {
   )
 }
 
+// ─── Open Source Section ────────────────────────────────────────────────────
+
+const protocols = [
+  { icon: Radio, name: 'NWC', label: 'NIP-47' },
+  { icon: Nfc, name: 'BoltCard', label: 'NTAG424' },
+  { icon: Zap, name: 'LUD-16', label: 'Lightning Address' },
+  { icon: Zap, name: 'LUD-21', label: 'Verification' },
+  { icon: Hash, name: 'NIP-05', label: 'Nostr Identity' },
+  { icon: Key, name: 'NIP-46', label: 'Remote Signing' },
+  { icon: MessageSquare, name: 'NIP-04', label: 'Encrypted DMs' },
+  { icon: Mail, name: 'NIP-57', label: 'Zaps' },
+  { icon: Shield, name: 'LUD-22', label: 'Webhooks' }
+]
+
+const techStack = [
+  'TypeScript',
+  'Next.js',
+  'React',
+  'Tailwind CSS',
+  'Prisma',
+  'PostgreSQL'
+]
+
 const OpenSourceSection = () => {
-  const [activeTab, setActiveTab] = React.useState('standards')
+  const [activeTab, setActiveTab] = React.useState<'protocols' | 'stack'>('protocols')
   const { ref, isVisible } = useScrollAnimation()
 
   return (
-    <section className="py-20 sm:py-24">
-      <div ref={ref} className="container mx-auto px-4 text-center">
+    <section className="py-20 sm:py-28">
+      <div ref={ref} className="max-w-5xl mx-auto px-4 text-center">
+        <span
+          className={`inline-block text-xs font-mono tracking-widest uppercase text-lw-teal mb-4 transition-all duration-700 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+        >
+          {'// Open Standards'}
+        </span>
         <h2
-          className={`text-3xl font-bold tracking-tight text-white mb-8 transition-all duration-1000 ${
+          className={`text-3xl sm:text-5xl font-bold text-white tracking-tight mb-4 transition-all duration-1000 delay-100 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          100% Open Source
+          100% open source.{' '}
+          <span className="text-gradient-teal">FOREVER.</span>
         </h2>
-
-        {/* Tab Navigation */}
-        <div
-          className={`flex justify-center mb-12 transition-all duration-1000 delay-200 ${
+        <p
+          className={`text-white/30 max-w-xl mx-auto mb-12 transition-all duration-1000 delay-200 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          <div className="bg-white/10 rounded-full p-1 backdrop-blur-sm">
+          No vendor lock-in. No open-core tricks. No proprietary features behind a paywall. Everything is auditable.
+        </p>
+
+        <div
+          className={`flex justify-center mb-10 transition-all duration-1000 delay-300 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          <div className="inline-flex rounded-full border border-white/[0.06] bg-white/[0.02] p-1">
             <button
-              onClick={() => setActiveTab('standards')}
-              className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105 ${
-                activeTab === 'standards'
-                  ? 'bg-white text-black shadow-lg'
-                  : 'text-white hover:text-gray-300'
+              onClick={() => setActiveTab('protocols')}
+              className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                activeTab === 'protocols'
+                  ? 'bg-lw-gold text-black'
+                  : 'text-white/40 hover:text-white/60'
               }`}
             >
-              Open Standards
+              Protocols
             </button>
             <button
-              onClick={() => setActiveTab('tech')}
-              className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105 ${
-                activeTab === 'tech'
-                  ? 'bg-white text-black shadow-lg'
-                  : 'text-white hover:text-gray-300'
+              onClick={() => setActiveTab('stack')}
+              className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                activeTab === 'stack'
+                  ? 'bg-lw-gold text-black'
+                  : 'text-white/40 hover:text-white/60'
               }`}
             >
               Tech Stack
@@ -543,56 +855,68 @@ const OpenSourceSection = () => {
           </div>
         </div>
 
-        {/* Tab Content */}
         <div
-          className={`mt-12 transition-all duration-1000 delay-400 ${
+          className={`transition-all duration-700 delay-400 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          {activeTab === 'standards' && (
-            <div className="grid grid-cols-2 gap-8 animate-fade-in">
-              <StandardsLogo Icon={Wallet} name="NWC" />
-              <StandardsLogo Icon={Nfc} name="BoltCard" />
-              <StandardsLogo Icon={LinkIcon} name="LUD-16" />
-              <StandardsLogo Icon={LinkIcon} name="LUD-21" />
-              <StandardsLogo Icon={Cpu} name="NIP-46" />
-              <StandardsLogo Icon={Cpu} name="NIP-07" />
+          {activeTab === 'protocols' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+              {protocols.map((proto) => (
+                <div
+                  key={proto.name}
+                  className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-lw-gold/20 transition-all duration-300"
+                >
+                  <proto.icon className="h-6 w-6 text-lw-gold/60 group-hover:text-lw-gold mx-auto mb-3 transition-colors duration-300" />
+                  <p className="text-sm font-semibold text-white/80">{proto.name}</p>
+                  <p className="text-xs text-white/25 font-mono mt-1">{proto.label}</p>
+                </div>
+              ))}
             </div>
           )}
 
-          {activeTab === 'tech' && (
-            <div className="grid grid-cols-2 gap-8 animate-fade-in">
-              <TechLogo name="TypeScript" />
-              <TechLogo name="React" />
-              <TechLogo name="Tailwind" />
-              <TechLogo name="shadcn" />
-              <TechLogo name="Prisma" />
-              <TechLogo name="Alby SDK" />
+          {activeTab === 'stack' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+              {techStack.map((tech) => (
+                <div
+                  key={tech}
+                  className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-lw-teal/20 transition-all duration-300"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-lw-teal/10 flex items-center justify-center mx-auto mb-3">
+                    <span className="text-xs font-bold text-lw-teal font-mono">
+                      {tech.slice(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-white/80">{tech}</p>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
         <p
-          className={`mt-12 font-accent text-4xl text-nwc-highlight transition-all duration-1000 delay-600 ${
+          className={`mt-14 font-accent text-3xl sm:text-4xl text-lw-gold/80 transition-all duration-1000 delay-600 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
           Interoperability or death.
         </p>
+
         <Button
           size="lg"
-          className={`mt-8 rounded-full bg-white text-black hover:bg-gray-200 transition-all duration-300 shadow-lg hover:shadow-nwc-purple/20 hover:scale-105 hover:-translate-y-1 ${
+          className={`mt-8 rounded-full bg-white/5 text-white/70 border border-white/10 hover:bg-white/10 hover:border-lw-gold/20 hover:text-white transition-all duration-300 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
-          style={{ transitionDelay: isVisible ? '800ms' : '0ms' }}
+          style={{ transitionDelay: isVisible ? '700ms' : '0ms' }}
           asChild
         >
           <a
-            href="https://github.com/agustinkassis/boltcard-nwc"
+            href="https://github.com/lawalletio/lawallet-nwc"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Github className="mr-2 h-5 w-5" /> View Code on GitHub
+            <Github className="mr-2 h-4 w-4" /> View on GitHub
+            <ExternalLink className="ml-2 h-3 w-3 opacity-50" />
           </a>
         </Button>
       </div>
@@ -600,30 +924,56 @@ const OpenSourceSection = () => {
   )
 }
 
+// ─── Roadmap ────────────────────────────────────────────────────────────────
+
 const roadmapItems = [
   {
-    title: 'BoltCard',
-    description: 'NTAG424 payments',
-    status: 'completed',
-    icon: Nfc
+    title: 'Infrastructure & Security',
+    description: 'Testing, auth, RBAC, rate limiting, error handling, logging',
+    status: 'completed' as const,
+    icon: Shield
   },
   {
-    title: 'NWC',
-    description: 'Nostr Wallet Connect backend',
-    status: 'completed',
-    icon: Cpu
+    title: 'SDK & React Hooks',
+    description: 'TypeScript client SDK, React hooks, CI/CD pipeline',
+    status: 'in_progress' as const,
+    icon: Code2
   },
   {
-    title: 'Wallet',
-    description: 'Integrated webapp wallet',
-    status: 'in_progress',
+    title: 'Admin Dashboard',
+    description: 'User management, activity monitor, Nostr login (NIP-07/46)',
+    status: 'planned' as const,
+    icon: PanelTopDashed
+  },
+  {
+    title: 'User Dashboard & NWC Proxy',
+    description: 'Profile, address config, courtesy NWC wallet provisioning',
+    status: 'planned' as const,
     icon: Wallet
   },
   {
-    title: 'Pay with Phone',
-    description: 'NFC from mobile with dynamic NWC',
-    status: 'in_progress',
-    icon: SmartphoneNfc
+    title: 'Payment Listener & Zaps',
+    description: 'NWC relay monitoring, webhooks (LUD-22), NIP-57 zaps',
+    status: 'planned' as const,
+    icon: Zap
+  },
+  {
+    title: 'Deploy Everywhere',
+    description: 'Vercel, Docker, Umbrel, Start9 — full documentation',
+    status: 'planned' as const,
+    icon: Globe
+  },
+  {
+    title: 'Nostr CRM & Communications',
+    description: 'DMs, broadcasts, segmentation, Nostr-native messaging',
+    status: 'planned' as const,
+    icon: MessageSquare
+  },
+  {
+    title: 'Plugins: Events, Badges, Commerce',
+    description: 'Community event management, NIP-58 badges, merchant directory',
+    status: 'planned' as const,
+    icon: Users
   }
 ]
 
@@ -631,78 +981,77 @@ const RoadmapSection = () => {
   const { ref, isVisible } = useScrollAnimation()
 
   return (
-    <section className="py-20 sm:py-24">
-      <div ref={ref} className="container mx-auto px-4">
-        <h2
-          className={`text-center text-3xl font-bold tracking-tight text-white mb-16 transition-all duration-1000 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          Roadmap
-        </h2>
-
-        {/* Timeline Container */}
-        <div className="relative max-w-6xl mx-auto">
-          {/* Vertical Line */}
-          <div
-            className={`absolute left-1/2 transform -translate-x-1/2 w-1 h-full bg-gradient-to-b from-nwc-purple via-nwc-orange to-nwc-highlight transition-all duration-1500 delay-300 ${
-              isVisible ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0'
+    <section id="roadmap" className="py-20 sm:py-28">
+      <div ref={ref} className="max-w-4xl mx-auto px-4">
+        <div className="text-center mb-16">
+          <span
+            className={`inline-block text-xs font-mono tracking-widest uppercase text-lw-coral mb-4 transition-all duration-700 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}
-            style={{ transformOrigin: 'top' }}
-          ></div>
+          >
+            {'// Roadmap'}
+          </span>
+          <h2
+            className={`text-3xl sm:text-5xl font-bold text-white tracking-tight transition-all duration-1000 delay-100 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            What&apos;s <span className="text-gradient-gold">next</span>
+          </h2>
+          <p
+            className={`mt-4 text-white/30 max-w-xl mx-auto transition-all duration-1000 delay-200 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            Funded by OpenSats. Built in public. Shipping monthly.
+          </p>
+        </div>
 
-          {/* Timeline Items */}
-          <div className="space-y-20">
+        <div className="relative">
+          <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-lw-teal/50 via-lw-gold/30 to-transparent" />
+
+          <div className="space-y-6">
             {roadmapItems.map((item, index) => (
               <div
                 key={item.title}
-                className={`relative flex flex-col items-center transition-all duration-1000 \
-                  ${isVisible ? 'opacity-100 translate-x-0' : `opacity-0 ${index % 2 === 0 ? '-translate-x-8' : 'translate-x-8'}`}
-                `}
+                className={`relative pl-16 transition-all duration-700 ${
+                  isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'
+                }`}
                 style={{
-                  transitionDelay: isVisible ? `${index * 200 + 600}ms` : '0ms'
+                  transitionDelay: isVisible ? `${index * 100 + 300}ms` : '0ms'
                 }}
               >
-                {/* Timeline Icon */}
                 <div
-                  className={`z-20 w-12 h-12 rounded-full bg-gray-900 border-2 border-white flex items-center justify-center transition-all duration-700 hover:scale-110 \
-                    ${isVisible ? 'scale-100 opacity-100' : 'scale-0 opacity-0'} \
-                    absolute top-0 left-1/2 -translate-x-1/2 \
-                  `}
-                  style={{
-                    transitionDelay: isVisible
-                      ? `${index * 200 + 800}ms`
-                      : '0ms'
-                  }}
-                >
-                  {item.icon && (
-                    <item.icon className="h-4 w-4 text-nwc-highlight" />
-                  )}
-                </div>
+                  className={`absolute left-4 top-4 w-4 h-4 rounded-full border-2 ${
+                    item.status === 'completed'
+                      ? 'bg-lw-teal border-lw-teal shadow-lg shadow-lw-teal/30'
+                      : item.status === 'in_progress'
+                        ? 'bg-lw-dark border-lw-gold animate-pulse-glow'
+                        : 'bg-lw-dark border-white/15'
+                  }`}
+                />
 
-                {/* Content Card */}
-                <div className={`w-full mt-8 flex flex-col`}>
-                  <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-lg hover:bg-white/10 transition-all duration-300  w-full">
-                    <CardContent className="p-6">
-                      <div className={`flex items-center gap-3 mb-2`}>
-                        <h3 className="text-xl font-semibold text-white">
-                          {item.title}
-                        </h3>
-                        <div
-                          className={`px-2 py-1 rounded-full text-xs font-medium transition-all duration-300 \
-                            ${item.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}
-                          `}
-                        >
-                          {item.status === 'completed'
-                            ? 'Completed'
-                            : 'In Progress'}
-                        </div>
-                      </div>
-                      <p className={`text-left text-gray-400`}>
-                        {item.description}
-                      </p>
-                    </CardContent>
-                  </Card>
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] transition-all duration-300 group">
+                  <div className="flex items-center gap-3 mb-1">
+                    <item.icon className="h-4 w-4 text-white/30 group-hover:text-lw-gold transition-colors duration-300" />
+                    <h3 className="text-base font-semibold text-white">{item.title}</h3>
+                    <span
+                      className={`ml-auto text-xs font-mono px-2.5 py-0.5 rounded-full ${
+                        item.status === 'completed'
+                          ? 'bg-lw-teal/10 text-lw-teal'
+                          : item.status === 'in_progress'
+                            ? 'bg-lw-gold/10 text-lw-gold'
+                            : 'bg-white/5 text-white/25'
+                      }`}
+                    >
+                      {item.status === 'completed'
+                        ? 'shipped'
+                        : item.status === 'in_progress'
+                          ? 'building'
+                          : 'planned'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-white/30 ml-7">{item.description}</p>
                 </div>
               </div>
             ))}
@@ -712,6 +1061,8 @@ const RoadmapSection = () => {
     </section>
   )
 }
+
+// ─── Waitlist / CTA ─────────────────────────────────────────────────────────
 
 const WaitlistSection = () => {
   const { ref, isVisible } = useScrollAnimation()
@@ -722,7 +1073,6 @@ const WaitlistSection = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
     setError('')
     setIsSubmitting(true)
 
@@ -736,10 +1086,8 @@ const WaitlistSection = () => {
     try {
       const response = await fetch('/api/waitlist/subscribe', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email }) // add name if you want to collect it
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
       })
       const data = await response.json()
       if (data.success) {
@@ -748,7 +1096,7 @@ const WaitlistSection = () => {
       } else {
         setError(data.error || 'Subscription failed. Please try again.')
       }
-    } catch (err) {
+    } catch {
       setError('Something went wrong. Please try again.')
     } finally {
       setIsSubmitting(false)
@@ -763,34 +1111,28 @@ const WaitlistSection = () => {
 
   if (isSuccess) {
     return (
-      <section id="waitlist-section" className="py-20 sm:py-24">
-        <div ref={ref} className="container mx-auto px-4 text-center">
+      <section id="waitlist-section" className="py-20 sm:py-28">
+        <div ref={ref} className="max-w-md mx-auto px-4 text-center">
           <div
-            className={`max-w-md mx-auto transition-all duration-1000 ${
-              isVisible
-                ? 'opacity-100 translate-y-0 scale-100'
-                : 'opacity-0 translate-y-8 scale-95'
+            className={`rounded-2xl border border-lw-teal/20 bg-lw-teal/5 p-8 backdrop-blur-sm transition-all duration-1000 ${
+              isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
             }`}
           >
-            <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-8 backdrop-blur-sm">
-              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Check className="h-8 w-8 text-white" />
-              </div>
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
-                You&apos;re on the list! 🎉
-              </h2>
-              <p className="text-gray-300 mb-6">
-                Thanks for joining our waitlist. We&apos;ll notify you as soon
-                as BoltCard + NWC is ready to launch.
-              </p>
-              <Button
-                onClick={resetForm}
-                variant="outline"
-                className="border-white/20 text-white hover:bg-white/10 transition-all duration-300 bg-transparent"
-              >
-                Join Another Email
-              </Button>
+            <div className="w-14 h-14 bg-lw-teal rounded-full flex items-center justify-center mx-auto mb-5">
+              <Check className="h-7 w-7 text-white" />
             </div>
+            <h2 className="text-2xl font-bold text-white mb-3">You&apos;re in!</h2>
+            <p className="text-white/40 mb-6 text-sm">
+              We&apos;ll notify you when LaWallet NWC is ready for your community.
+            </p>
+            <Button
+              onClick={resetForm}
+              variant="outline"
+              size="sm"
+              className="border-white/10 text-white/50 hover:bg-white/5 hover:text-white bg-transparent"
+            >
+              Add another email
+            </Button>
           </div>
         </div>
       </section>
@@ -798,21 +1140,28 @@ const WaitlistSection = () => {
   }
 
   return (
-    <section id="waitlist-section" className="py-20 sm:py-24">
-      <div ref={ref} className="container mx-auto px-4 text-center">
+    <section id="waitlist-section" className="py-20 sm:py-28">
+      <div ref={ref} className="max-w-2xl mx-auto px-4 text-center">
+        <Zap
+          className={`h-8 w-8 text-lw-gold/40 mx-auto mb-6 transition-all duration-700 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+        />
         <h2
-          className={`text-3xl md:text-4xl font-bold tracking-tight text-white transition-all duration-1000 ${
+          className={`text-3xl sm:text-5xl font-bold text-white tracking-tight transition-all duration-1000 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          Join the waitlist
+          Give your community
+          <br />
+          <span className="text-gradient-gold">Lightning addresses</span>
         </h2>
         <p
-          className={`mt-4 max-w-xl mx-auto text-gray-400 transition-all duration-1000 delay-200 ${
+          className={`mt-4 text-white/30 max-w-md mx-auto transition-all duration-1000 delay-200 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          Be the first to know when we launch. Get early access and updates.
+          Get early access. Be the first to deploy Lightning + Nostr for your community or company.
         </p>
         <form
           onSubmit={handleSubmit}
@@ -823,36 +1172,34 @@ const WaitlistSection = () => {
           <div className="relative">
             <Input
               type="email"
-              placeholder="your@email.com"
+              placeholder="you@yourdomain.com"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               disabled={isSubmitting}
-              className={`h-14 pl-6 pr-36 rounded-full bg-white/10 border-white/20 focus:ring-2 focus:ring-nwc-purple text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-105 ${
-                error ? 'border-red-500/50 focus:ring-red-500' : ''
+              className={`h-14 pl-5 pr-32 rounded-full bg-white/[0.04] border-white/[0.08] focus:ring-2 focus:ring-lw-gold/30 focus:border-lw-gold/30 text-white placeholder:text-white/20 font-mono text-sm transition-all duration-300 ${
+                error ? 'border-lw-coral/40 focus:ring-lw-coral/30' : ''
               } ${isSubmitting ? 'opacity-50' : ''}`}
               aria-label="Email for waitlist"
             />
             <Button
               type="submit"
               disabled={isSubmitting || !email}
-              className={`absolute top-1.5 right-1.5 h-11 rounded-full px-6 bg-nwc-purple hover:bg-nwc-purple/90 text-white transition-all duration-300 ease-in-out shadow-md hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${
-                isSubmitting ? 'animate-pulse' : ''
-              }`}
+              className="absolute top-1.5 right-1.5 h-11 rounded-full px-6 bg-lw-gold hover:bg-lw-gold/90 text-black font-semibold transition-all duration-300 shadow-md shadow-lw-gold/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                  Joining...
-                </>
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-black border-t-transparent" />
+                  <span>Joining</span>
+                </div>
               ) : (
-                <>
-                  Join <ArrowRight className="ml-2 h-4 w-4" />
-                </>
+                <div className="flex items-center gap-1.5">
+                  Join <ArrowRight className="h-3.5 w-3.5" />
+                </div>
               )}
             </Button>
           </div>
           {error && (
-            <p className="mt-3 text-red-400 text-sm animate-fade-in">{error}</p>
+            <p className="mt-3 text-lw-coral text-xs font-mono animate-fade-in">{error}</p>
           )}
         </form>
       </div>
@@ -860,31 +1207,73 @@ const WaitlistSection = () => {
   )
 }
 
-const Footer = () => {
-  const { ref, isVisible } = useScrollAnimation()
+// ─── Footer ─────────────────────────────────────────────────────────────────
 
-  return (
-    <footer className="py-8 border-t border-white/10">
-      <div
-        ref={ref}
-        className={`container mx-auto px-4 text-center text-gray-500 text-sm transition-all duration-1000 ${
-          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-        }`}
-      >
-        &copy; {new Date().getFullYear()} BoltCard + NWC. All Rights Reserved.
+const Footer = () => (
+  <footer className="py-10 border-t border-white/[0.04]">
+    <div className="max-w-6xl mx-auto px-4">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-3">
+          <img src="/logos/lawallet.png" alt="LaWallet" className="h-5 w-auto opacity-40" />
+        </div>
+
+        <div className="flex items-center gap-6 text-xs text-white/20 font-mono">
+          <a
+            href="https://github.com/lawalletio/lawallet-nwc"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-lw-gold transition-colors duration-300"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://nwc.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-lw-gold transition-colors duration-300"
+          >
+            NWC
+          </a>
+          <a
+            href="https://lawallet.ar"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-lw-gold transition-colors duration-300"
+          >
+            LaWallet
+          </a>
+          <a
+            href="https://opensats.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-lw-gold transition-colors duration-300"
+          >
+            OpenSats
+          </a>
+        </div>
+
+        <p className="text-xs text-white/15 font-mono">
+          &copy; {new Date().getFullYear()} LaWallet — Open source, forever.
+        </p>
       </div>
-    </footer>
-  )
-}
+    </div>
+  </footer>
+)
+
+// ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
   return (
-    <div className="relative min-h-screen w-full">
+    <div className="relative min-h-screen w-full noise-overlay">
       <AnimatedBackground />
       <div className="relative z-10 flex flex-col">
         <Header />
         <main>
           <HeroSection />
+          <TechStrip />
+          <FeaturesSection />
+          <DeploySection />
+          <ScreenshotsSection />
           <FlowSection />
           <NWCSupportersSection />
           <OpenSourceSection />

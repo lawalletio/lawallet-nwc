@@ -83,6 +83,93 @@
   }
 }
 
+/* Grid pattern overlay for landing page */
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(245, 166, 35, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 166, 35, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Noise texture overlay */
+.noise-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Glowing card borders */
+.glow-card {
+  position: relative;
+}
+.glow-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(245, 166, 35, 0.3), rgba(38, 166, 154, 0.3), rgba(229, 57, 53, 0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.glow-card:hover::before {
+  opacity: 1;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0A0F;
+}
+::-webkit-scrollbar-thumb {
+  background: #26A69A;
+  border-radius: 3px;
+}
+
+/* Text gradient utility */
+.text-gradient-gold {
+  background: linear-gradient(135deg, #F5A623, #FFD580, #F5A623);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-teal {
+  background: linear-gradient(135deg, #26A69A, #4DB6AC, #80CBC4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Marquee pause on hover */
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* Phone mockup frame */
+.phone-frame {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 2px solid rgba(245, 166, 35, 0.2);
+  border-radius: 2rem;
+  padding: 8px;
+  box-shadow: 0 0 40px rgba(245, 166, 35, 0.1), inset 0 0 20px rgba(0, 0, 0, 0.3);
+}
+
+.phone-screen {
+  border-radius: 1.5rem;
+  overflow: hidden;
+  background: #0f0f1a;
+}
+
 /* Admin section input text color override */
 .admin-root input,
 .admin-root textarea {

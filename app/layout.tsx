@@ -7,8 +7,9 @@ import { ThemeProvider } from '@/components/theme-provider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'BoltCard + NWC Landing',
-  description: 'BoltCard and Nostr Wallet Connect integration platform',
+  title: 'LaWallet NWC — Lightning Addresses for Everyone',
+  description:
+    'The open-source Lightning + Nostr CRM for communities and companies. Connect your domain, deploy in minutes, give your users lightning addresses, wallets, and identity.',
   generator: 'v0.dev'
 }
 
