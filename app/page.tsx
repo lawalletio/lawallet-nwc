@@ -344,6 +344,13 @@ const bgColorMap: Record<string, string> = {
   'lw-coral': 'bg-lw-coral/10'
 }
 
+const gradientBgMap: Record<string, string> = {
+  'lw-gold': 'bg-gradient-to-br from-lw-gold/15 via-lw-gold/5 to-lw-dark',
+  'nwc-purple': 'bg-gradient-to-br from-nwc-purple/15 via-nwc-purple/5 to-lw-dark',
+  'lw-teal': 'bg-gradient-to-br from-lw-teal/15 via-lw-teal/5 to-lw-dark',
+  'lw-coral': 'bg-gradient-to-br from-lw-coral/15 via-lw-coral/5 to-lw-dark'
+}
+
 const FeaturesSection = () => {
   const { ref, isVisible } = useScrollAnimation()
 
@@ -373,20 +380,34 @@ const FeaturesSection = () => {
           {features.map((feature, index) => (
             <div
               key={feature.title}
-              className={`glow-card group rounded-2xl bg-white/[0.02] border border-white/[0.06] p-6 hover:bg-white/[0.04] transition-all duration-500 hover:-translate-y-1 ${
+              className={`glow-card group relative overflow-hidden rounded-2xl border border-white/[0.06] transition-all duration-500 hover:-translate-y-1 ${
                 isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
               }`}
               style={{
                 transitionDelay: isVisible ? `${index * 100 + 200}ms` : '0ms'
               }}
             >
-              <div
-                className={`w-10 h-10 rounded-lg ${bgColorMap[feature.color]} flex items-center justify-center mb-4`}
-              >
-                <feature.icon className={`h-5 w-5 ${colorMap[feature.color]}`} />
+              {/* Full-card gradient background */}
+              <div className={`absolute inset-0 ${gradientBgMap[feature.color]}`} />
+              <div className="absolute inset-0 bg-gradient-to-t from-lw-dark via-lw-dark/50 to-transparent" />
+
+              {/* Large icon visual */}
+              <div className="relative flex items-center justify-center pt-12 pb-8">
+                <div
+                  className={`absolute w-28 h-28 rounded-full ${bgColorMap[feature.color]} blur-2xl opacity-40 group-hover:opacity-60 transition-opacity duration-500`}
+                />
+                <feature.icon
+                  className={`relative h-16 w-16 ${colorMap[feature.color]} opacity-30 group-hover:opacity-60 group-hover:scale-110 transition-all duration-500`}
+                />
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">{feature.title}</h3>
-              <p className="text-sm text-white/40 leading-relaxed">{feature.description}</p>
+
+              {/* Content at bottom */}
+              <div className="relative px-6 pb-6">
+                <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
+                <p className="text-sm text-white/40 leading-relaxed overflow-hidden transition-all duration-300 mt-2 md:max-h-0 md:opacity-0 md:mt-0 md:group-hover:max-h-28 md:group-hover:opacity-100 md:group-hover:mt-2">
+                  {feature.description}
+                </p>
+              </div>
             </div>
           ))}
         </div>
