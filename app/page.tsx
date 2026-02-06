@@ -156,13 +156,18 @@ const HeroSection = () => {
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
         >
-          {['Lightning', 'Nostr', 'NWC', 'Open Source'].map((tag) => (
+          {([
+            { label: 'Lightning', icon: Zap },
+            { label: 'Nostr', icon: Hash },
+            { label: 'NWC', icon: Radio },
+            { label: 'BoltCard', icon: Nfc },
+          ] as const).map(({ label, icon: Icon }) => (
             <span
-              key={tag}
+              key={label}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono border border-lw-gold/20 text-lw-gold/70 bg-lw-gold/5"
             >
-              <Zap className="h-3 w-3" />
-              {tag}
+              <Icon className="h-3 w-3" />
+              {label}
             </span>
           ))}
         </div>
@@ -255,10 +260,9 @@ const HeroSection = () => {
 
 const TechStrip = () => {
   const items = [
-    'Lightning Address', 'Nostr Identity', 'NWC', 'BoltCard', 'NIP-47', 'NIP-05',
-    'NIP-46', 'LUD-16', 'LUD-21', 'NIP-57 Zaps', 'Vercel Deploy', 'Docker',
-    'Lightning Address', 'Nostr Identity', 'NWC', 'BoltCard', 'NIP-47', 'NIP-05',
-    'NIP-46', 'LUD-16', 'LUD-21', 'NIP-57 Zaps', 'Vercel Deploy', 'Docker'
+    'Lightning Address', 'Nostr Identity', 'NWC', 'BoltCard', 'NIP-05', 'NIP-98',
+    'NIP-46', 'Lightning Network','LUD-21', 'Vercel', 'Netlify', 'Docker', 'Umbrel', 'Start9',
+    'Nostr Identity', 'BoltCard', 'NIP-05', 'LUD-16', 'LUD-21', 'NIP-57 Zaps'
   ]
 
   return (
