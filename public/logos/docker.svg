@@ -1,0 +1,14 @@
+<svg viewBox="0 0 95 78" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Containers -->
+  <rect x="30" y="1" width="13" height="11" rx="1.5" fill="white"/>
+  <rect x="15" y="14" width="13" height="11" rx="1.5" fill="white"/>
+  <rect x="30" y="14" width="13" height="11" rx="1.5" fill="white"/>
+  <rect x="45" y="14" width="13" height="11" rx="1.5" fill="white"/>
+  <rect x="0" y="27" width="13" height="11" rx="1.5" fill="white"/>
+  <rect x="15" y="27" width="13" height="11" rx="1.5" fill="white"/>
+  <rect x="30" y="27" width="13" height="11" rx="1.5" fill="white"/>
+  <rect x="45" y="27" width="13" height="11" rx="1.5" fill="white"/>
+  <rect x="60" y="27" width="13" height="11" rx="1.5" fill="white"/>
+  <!-- Whale body -->
+  <path d="M88.3 40.5c-4.3-2.8-9.3-3.3-14-1.5.3-4.3-1-8.5-4-11.5-2.8 3-4 7.3-3.3 11.5H10c-5.5 0-10 4.5-10 10C0 65 11.5 78 38 78c18.5 0 31.5-10 36.5-25 5.3 1.5 11 .5 15.8-3-4.5-3.5-9.8-5-14.5-3.5 1-3 1-6-.5-6z" fill="white" opacity=".45"/>
+</svg>

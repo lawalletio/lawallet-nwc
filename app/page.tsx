@@ -420,21 +420,21 @@ const FeaturesSection = () => {
 
 const deployOptions = [
   {
-    icon: Cloud,
+    logo: '/logos/vercel.svg',
     title: 'Vercel',
     time: '2 min',
     description: 'One-click deploy. Perfect for communities that want to be live instantly.',
     command: 'npx vercel deploy'
   },
   {
-    icon: Server,
+    logo: '/logos/docker.svg',
     title: 'Docker',
     time: '5 min',
     description: 'Compose file included. Run on any VPS or server you control.',
     command: 'docker compose up -d'
   },
   {
-    icon: HardDrive,
+    logo: '/logos/umbrel.svg',
     title: 'Your Node',
     time: '5 min',
     description: 'Umbrel, Start9, or bare metal. Full sovereignty on your own hardware.',
@@ -487,7 +487,7 @@ const DeploySection = () => {
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="w-10 h-10 rounded-lg bg-lw-gold/10 flex items-center justify-center">
-                  <option.icon className="h-5 w-5 text-lw-gold" />
+                  <img src={option.logo} alt={`${option.title} logo`} className="h-5 w-auto opacity-80 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>
                 <span className="text-xs font-mono text-lw-teal bg-lw-teal/10 px-2.5 py-1 rounded-full">
                   ~{option.time}
