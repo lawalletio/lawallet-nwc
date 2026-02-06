@@ -4,14 +4,11 @@ import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Github,
+  GithubIcon,
   Check,
   Nfc,
   Wallet,
-  Cpu,
   ArrowRight,
-  ArrowLeft,
-  SmartphoneNfc,
   PanelTopDashed,
   Zap,
   Shield,
@@ -24,9 +21,7 @@ import {
   Radio,
   Users,
   MessageSquare,
-  Server,
   Cloud,
-  HardDrive,
   Mail,
   AtSign
 } from 'lucide-react'
@@ -137,7 +132,7 @@ const Header = () => {
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Github className="h-4 w-4 mr-1.5" />
+              <GithubIcon className="h-4 w-4 mr-1.5" />
               <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
@@ -791,7 +786,7 @@ const OpenSourceSection = () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Github className="mr-2 h-4 w-4" /> View on GitHub
+            <GithubIcon className="mr-2 h-4 w-4" /> View on GitHub
             <ExternalLink className="ml-2 h-3 w-3 opacity-50" />
           </a>
         </Button>
@@ -947,7 +942,7 @@ const WaitlistSection = () => {
   const [isSuccess, setIsSuccess] = React.useState(false)
   const [error, setError] = React.useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault()
     setError('')
     setIsSubmitting(true)
