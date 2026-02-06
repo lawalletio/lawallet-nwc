@@ -123,6 +123,30 @@
   opacity: 1;
 }
 
+/* Floating NFC card animations */
+@keyframes nfc-float-1 {
+  0%, 100% { transform: translateY(0) rotateY(0deg) rotateX(0deg); }
+  50% { transform: translateY(-20px) rotateY(3deg) rotateX(-2deg); }
+}
+
+@keyframes nfc-float-2 {
+  0%, 100% { transform: translateY(0) rotateY(0deg) rotateX(0deg); }
+  50% { transform: translateY(16px) rotateY(-4deg) rotateX(3deg); }
+}
+
+@keyframes nfc-float-3 {
+  0%, 100% { transform: translateY(0) rotateY(0deg) rotateX(0deg); }
+  33% { transform: translateY(-15px) rotateY(5deg) rotateX(-3deg); }
+  66% { transform: translateY(8px) rotateY(-3deg) rotateX(2deg); }
+}
+
+@keyframes nfc-float-4 {
+  0%, 100% { transform: translateY(0) rotateY(0deg) rotateX(0deg); }
+  25% { transform: translateY(10px) rotateY(-2deg) rotateX(1deg); }
+  50% { transform: translateY(-14px) rotateY(4deg) rotateX(-3deg); }
+  75% { transform: translateY(6px) rotateY(-1deg) rotateX(2deg); }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

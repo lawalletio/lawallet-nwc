@@ -118,8 +118,8 @@ const Header = () => {
           <a href="#deploy" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
             Deploy
           </a>
-          <a href="#screenshots" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
-            Screenshots
+          <a href="#nfc-cards" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
+            NFC Cards
           </a>
           <a href="#roadmap" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
             Roadmap
@@ -507,222 +507,122 @@ const DeploySection = () => {
   )
 }
 
-// ─── Screenshots Section ────────────────────────────────────────────────────
-
-const ScreenshotsSection = () => {
-  const { ref, isVisible } = useScrollAnimation()
-  const screenshots = [
-    { label: 'Admin Dashboard', sublabel: 'Manage users & cards', img: '/steps/step1.png' },
-    { label: 'User Onboarding', sublabel: 'QR scan to activate', img: '/steps/step4.png' },
-    { label: 'Wallet Setup', sublabel: 'NWC in 20 seconds', img: '/steps/step5.png' },
-    { label: 'Payments', sublabel: 'Send & receive Lightning', img: '/steps/step6.png' }
-  ]
-
-  return (
-    <section id="screenshots" className="py-20 sm:py-28">
-      <div ref={ref} className="max-w-6xl mx-auto px-4">
-        <div className="text-center mb-16">
-          <span
-            className={`inline-block text-xs font-mono tracking-widest uppercase text-nwc-purple mb-4 transition-all duration-700 ${
-              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-            }`}
-          >
-            {'// Screenshots'}
-          </span>
-          <h2
-            className={`text-3xl sm:text-5xl font-bold text-white tracking-tight transition-all duration-1000 delay-100 ${
-              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-            }`}
-          >
-            See it in <span className="text-gradient-teal">action</span>
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-          {screenshots.map((shot, index) => (
-            <div
-              key={shot.label}
-              className={`transition-all duration-700 ${
-                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
-              }`}
-              style={{
-                transitionDelay: isVisible ? `${index * 150 + 200}ms` : '0ms'
-              }}
-            >
-              <div className="phone-frame group">
-                <div className="phone-screen aspect-[9/16] relative overflow-hidden">
-                  <img
-                    src={shot.img}
-                    alt={shot.label}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent" />
-                </div>
-              </div>
-              <div className="mt-3 text-center">
-                <p className="text-sm font-medium text-white/70">{shot.label}</p>
-                <p className="text-xs text-white/30 mt-0.5">{shot.sublabel}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ─── How It Works ───────────────────────────────────────────────────────────
+// ─── How It Works / NFC Cards ───────────────────────────────────────────────
 
 const flowSteps = [
-  {
-    title: '1. Create a new card',
-    description:
-      'In your admin dashboard, first add the available designs and then create a new card.',
-    img: '/steps/step1.png'
-  },
-  {
-    title: '2. Write to NFC Chip',
-    description:
-      'Scan NFC chip and then write it with Bolt Card NFC Card Creator App.',
-    img: '/steps/step2.png'
-  },
-  {
-    title: '3. Print Setup QR',
-    description:
-      'Print the QR or send the auto-generated link and give it to the user.',
-    img: '/steps/step3.png'
-  },
-  {
-    title: '4. End user scans QR',
-    description:
-      'User scans the QR, opens a webapp and creates a new wallet (linked to the card).',
-    img: '/steps/step4.png'
-  },
-  {
-    title: '5. Setup in 20 seconds',
-    description: 'User sets a lightning address and a NWC connection string.',
-    img: '/steps/step5.png'
-  },
-  {
-    title: '6. Receive and Send payments',
-    description:
-      'The card is ready! Tap on any compatible POS to make a Lightning payment via NWC.',
-    img: '/steps/step6.png'
-  }
+  'Create a new card',
+  'Write to NFC chip',
+  'Print setup QR',
+  'User scans QR',
+  'Setup in 20 seconds',
+  'Send & receive payments'
+]
+
+const floatingCards = [
+  { src: '/card-primal.png', alt: 'Primal NFC Card', left: '25%', top: '5%', z: 5, tilt: 'rotateY(-6deg) rotateX(4deg)', anim: 'nfc-float-2', dur: '10s', delay: '0s', width: 'w-36 sm:w-48 md:w-60' },
+  { src: '/card-alby.png', alt: 'Alby NFC Card', left: '0%', top: '25%', z: 3, tilt: 'rotateY(14deg) rotateX(-5deg)', anim: 'nfc-float-1', dur: '8.5s', delay: '1s', width: 'w-32 sm:w-40 md:w-48' },
+  { src: '/card-flash.png', alt: 'Flash NFC Card', left: '52%', top: '12%', z: 4, tilt: 'rotateY(-14deg) rotateX(3deg)', anim: 'nfc-float-3', dur: '9s', delay: '0.5s', width: 'w-32 sm:w-44 md:w-52' },
+  { src: '/card-geyser.png', alt: 'Geyser NFC Card', left: '65%', top: '52%', z: 3, tilt: 'rotateY(8deg) rotateX(-4deg)', anim: 'nfc-float-4', dur: '10.5s', delay: '2.5s', width: 'w-28 sm:w-36 md:w-44' },
+  { src: '/card-curacao.png', alt: 'BTC Curacao NFC Card', left: '72%', top: '2%', z: 2, tilt: 'rotateY(-18deg) rotateX(6deg)', anim: 'nfc-float-1', dur: '9.5s', delay: '1.5s', width: 'w-28 sm:w-36 md:w-44' },
+  { src: '/card-bg-1.png', alt: 'Custom NFC Card', left: '5%', top: '60%', z: 2, tilt: 'rotateY(12deg) rotateX(7deg)', anim: 'nfc-float-4', dur: '11s', delay: '2s', width: 'w-28 sm:w-36 md:w-44' },
+  { src: '/card-bg-5.png', alt: 'Custom NFC Card', left: '38%', top: '55%', z: 2, tilt: 'rotateY(-8deg) rotateX(-6deg)', anim: 'nfc-float-2', dur: '12s', delay: '3s', width: 'w-28 sm:w-40 md:w-48' }
 ]
 
 const FlowSection = () => {
-  const [currentStep, setCurrentStep] = React.useState(0)
-  const [isHovered, setIsHovered] = React.useState(false)
   const { ref, isVisible } = useScrollAnimation()
-  const { ref: progressRef } = useScrollProgress()
-  const step = flowSteps[currentStep]
-
-  const nextStep = () => setCurrentStep((prev) => (prev + 1) % flowSteps.length)
-  const prevStep = () =>
-    setCurrentStep((prev) => (prev - 1 + flowSteps.length) % flowSteps.length)
 
   return (
-    <section id="how-it-works" ref={progressRef} className="py-20 sm:py-28">
+    <section id="nfc-cards" className="py-20 sm:py-28 overflow-hidden">
       <div className="max-w-6xl mx-auto px-4">
-        <div className="text-center mb-16">
+        <div className="text-center mb-12 sm:mb-16">
           <span
             className={`inline-block text-xs font-mono tracking-widest uppercase text-lw-teal mb-4 transition-all duration-700 ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
             }`}
           >
-            {'// BoltCard Flow'}
+            {'// NFC Cards'}
           </span>
           <h2
             className={`text-3xl sm:text-5xl font-bold text-white tracking-tight transition-all duration-1000 delay-100 ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
             }`}
           >
-            NFC cards for your <span className="text-gradient-gold">community</span>
+            Create custom <span className="text-gradient-gold">NFC cards!</span>
           </h2>
           <p
             className={`mt-4 text-white/30 max-w-xl mx-auto transition-all duration-1000 delay-200 ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
             }`}
           >
-            Create physical payment cards. Users tap to pay with Lightning — no app needed.
+            Design branded payment cards for your community. Users tap to pay with Lightning — no app needed.
           </p>
         </div>
 
+        {/* Floating 3D Cards Showcase */}
         <div
           ref={ref}
-          className={`relative max-w-4xl mx-auto transition-all duration-1000 ${
+          className={`relative h-[320px] sm:h-[420px] md:h-[500px] mx-auto max-w-4xl overflow-hidden rounded-3xl transition-all duration-1000 delay-300 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
           }`}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          style={{ perspective: '1200px' }}
         >
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm overflow-hidden">
-            <div className="grid grid-cols-1 md:grid-cols-2 min-h-[420px]">
-              <div className="p-8 md:p-10 flex flex-col justify-center">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="font-mono text-xs text-lw-gold/60">
-                    {String(currentStep + 1).padStart(2, '0')}
-                  </span>
-                  <div className="h-px flex-1 bg-white/10" />
-                  <span className="font-mono text-xs text-white/20">
-                    {String(flowSteps.length).padStart(2, '0')}
-                  </span>
-                </div>
+          {/* Ambient glow */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-96 h-56 bg-lw-gold/8 blur-[120px] rounded-full" />
+          </div>
+          <div className="absolute top-1/4 left-1/4 pointer-events-none">
+            <div className="w-48 h-48 bg-nwc-purple/6 blur-[80px] rounded-full" />
+          </div>
+          <div className="absolute bottom-1/4 right-1/4 pointer-events-none">
+            <div className="w-40 h-40 bg-lw-teal/6 blur-[80px] rounded-full" />
+          </div>
 
-                <h3 className="text-2xl sm:text-3xl font-bold text-white mb-4 transition-all duration-300">
-                  {step.title}
-                </h3>
-                <p className="text-white/40 text-base leading-relaxed transition-all duration-300">
-                  {step.description}
-                </p>
-
-                <div className="flex gap-1.5 mt-8">
-                  {flowSteps.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentStep(index)}
-                      className={`h-1.5 rounded-full transition-all duration-300 ${
-                        index === currentStep
-                          ? 'bg-lw-gold w-8'
-                          : 'bg-white/10 w-1.5 hover:bg-white/20'
-                      }`}
-                      aria-label={`Go to step ${index + 1}`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-white/[0.02] p-6 flex items-center justify-center border-l border-white/[0.04]">
-                <div className="w-full max-w-sm">
+          {floatingCards.map((card) => (
+            <div
+              key={card.src}
+              className="absolute"
+              style={{
+                left: card.left,
+                top: card.top,
+                zIndex: card.z
+              }}
+            >
+              <div
+                className="will-change-transform"
+                style={{
+                  animation: `${card.anim} ${card.dur} ease-in-out infinite`,
+                  animationDelay: card.delay
+                }}
+              >
+                <div style={{ transform: card.tilt, transformStyle: 'preserve-3d' }}>
                   <img
-                    src={step.img}
-                    alt={step.title}
-                    className="w-full h-auto rounded-xl transition-all duration-500"
+                    src={card.src}
+                    alt={card.alt}
+                    className={`${card.width} h-auto rounded-xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5),0_4px_25px_-5px_rgba(0,0,0,0.3)] border border-white/10 pointer-events-none select-none`}
+                    draggable={false}
                   />
                 </div>
               </div>
             </div>
-          </div>
+          ))}
+        </div>
 
-          <button
-            onClick={prevStep}
-            className={`absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-lw-dark/90 border border-white/10 text-white/60 hover:text-white hover:border-lw-gold/30 transition-all duration-300 ${
-              isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'
-            }`}
-            aria-label="Previous step"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <button
-            onClick={nextStep}
-            className={`absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-lw-dark/90 border border-white/10 text-white/60 hover:text-white hover:border-lw-gold/30 transition-all duration-300 ${
-              isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2'
-            }`}
-            aria-label="Next step"
-          >
-            <ArrowRight className="h-4 w-4" />
-          </button>
+        {/* Compact BoltCard Flow Steps */}
+        <div
+          className={`mt-14 sm:mt-16 max-w-4xl mx-auto grid grid-cols-3 sm:grid-cols-6 gap-4 sm:gap-6 transition-all duration-1000 delay-500 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+          }`}
+        >
+          {flowSteps.map((step, index) => (
+            <div key={step} className="text-center group">
+              <div className="w-8 h-8 rounded-full bg-lw-gold/10 border border-lw-gold/20 text-lw-gold text-xs font-mono flex items-center justify-center mx-auto mb-2.5 group-hover:bg-lw-gold/20 group-hover:border-lw-gold/40 transition-colors duration-300">
+                {index + 1}
+              </div>
+              <p className="text-xs font-medium text-white/40 group-hover:text-white/70 transition-colors duration-300 leading-tight">
+                {step}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -1294,7 +1194,6 @@ export default function LandingPage() {
           <TechStrip />
           <FeaturesSection />
           <DeploySection />
-          <ScreenshotsSection />
           <FlowSection />
           <NWCSupportersSection />
           <OpenSourceSection />
