@@ -218,7 +218,7 @@ const HeroSection = () => {
               <Button
                 size="lg"
                 variant="outline"
-                className="px-6 py-5 rounded-full border-white/10 text-white/70 hover:text-white hover:bg-white/5 hover:border-lw-teal/30 transition-all duration-300"
+                className="px-6 py-5 rounded-full bg-transparent border-white/10 text-white/70 hover:text-white hover:bg-white/5 hover:border-lw-teal/30 transition-all duration-300"
               >
                 <PanelTopDashed className="mr-2 h-4 w-4" />
                 Admin Demo
@@ -228,7 +228,7 @@ const HeroSection = () => {
               <Button
                 size="lg"
                 variant="outline"
-                className="px-6 py-5 rounded-full border-white/10 text-white/70 hover:text-white hover:bg-white/5 hover:border-lw-gold/30 transition-all duration-300"
+                className="px-6 py-5 rounded-full bg-transparent border-white/10 text-white/70 hover:text-white hover:bg-white/5 hover:border-lw-gold/30 transition-all duration-300"
               >
                 <Wallet className="mr-2 h-4 w-4" />
                 Wallet Demo
