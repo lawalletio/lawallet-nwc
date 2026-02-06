@@ -1,4 +1,4 @@
-<img src="/public/logos/lawallet.png" alt="LaWallet Logo" width="400" />
+<img src="/public/logos/lawallet.svg" alt="LaWallet Logo" width="400" />
 
 # LaWallet NWC
 

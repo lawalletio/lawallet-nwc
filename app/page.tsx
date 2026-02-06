@@ -109,7 +109,7 @@ const Header = () => {
     >
       <div className="max-w-6xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <img src="/logos/lawallet.png" alt="LaWallet" className="h-6 w-auto opacity-90" />
+          <img src="/logos/lawallet.svg" alt="LaWallet" className="h-6 w-auto opacity-90" />
         </div>
         <nav className="hidden md:flex items-center gap-6">
           <a href="#features" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
@@ -1214,7 +1214,7 @@ const Footer = () => (
     <div className="max-w-6xl mx-auto px-4">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-3">
-          <img src="/logos/lawallet.png" alt="LaWallet" className="h-5 w-auto opacity-40" />
+          <img src="/logos/lawallet.svg" alt="LaWallet" className="h-5 w-auto opacity-40" />
         </div>
 
         <div className="flex items-center gap-6 text-xs text-white/20 font-mono">
