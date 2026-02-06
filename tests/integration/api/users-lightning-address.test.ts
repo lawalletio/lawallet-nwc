@@ -34,6 +34,7 @@ vi.mock('@/lib/settings', () => ({
 
 import { PUT } from '@/app/api/users/[userId]/lightning-address/route'
 import { validateNip98 } from '@/lib/nip98'
+import { createNip98Result } from '@/tests/helpers/auth-helpers'
 import { getSettings } from '@/lib/settings'
 
 const mockPubkey = 'a'.repeat(64)
@@ -46,7 +47,7 @@ beforeEach(() => {
 describe('PUT /api/users/[userId]/lightning-address', () => {
   it('creates new lightning address for user', async () => {
     const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: null })
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -70,7 +71,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   it('replaces existing lightning address', async () => {
     const oldAddress = createLightningAddressFixture({ username: 'oldalice' })
     const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: oldAddress })
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -94,7 +95,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   it('returns existing when username unchanged', async () => {
     const address = createLightningAddressFixture({ username: 'alice' })
     const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: address })
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
 
@@ -114,7 +115,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
 
   it('rejects duplicate username taken by another user', async () => {
     const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: null })
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
@@ -132,7 +133,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
 
   it('rejects unauthorized user', async () => {
     const otherUser = createUserFixture({ pubkey: 'b'.repeat(64) })
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(otherUser as any)
 
     const req = createNextRequest(`/api/users/${otherUser.id}/lightning-address`, {
@@ -145,7 +146,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   })
 
   it('returns 404 for nonexistent user', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/users/nonexistent/lightning-address', {
@@ -158,7 +159,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   })
 
   it('rejects invalid username format', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
 
     const req = createNextRequest('/api/users/some-id/lightning-address', {
       method: 'PUT',
@@ -170,7 +171,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   })
 
   it('rejects empty username', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
 
     const req = createNextRequest('/api/users/some-id/lightning-address', {
       method: 'PUT',

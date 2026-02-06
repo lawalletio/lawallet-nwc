@@ -30,6 +30,7 @@ vi.mock('@/lib/settings', () => ({
 
 import { GET } from '@/app/api/users/me/route'
 import { validateNip98 } from '@/lib/nip98'
+import { createNip98Result } from '@/tests/helpers/auth-helpers'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 
@@ -42,7 +43,7 @@ beforeEach(() => {
 
 describe('GET /api/users/me', () => {
   it('returns existing user data', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: { username: 'alice' },
@@ -62,7 +63,7 @@ describe('GET /api/users/me', () => {
   })
 
   it('creates new user if not existing', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
     const newUser = createUserFixture({
       pubkey: mockPubkey,
@@ -81,7 +82,7 @@ describe('GET /api/users/me', () => {
   })
 
   it('returns null lightning address when user has none', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: null,
@@ -107,7 +108,7 @@ describe('GET /api/users/me', () => {
   })
 
   it('returns alby sub account data when present', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: null,

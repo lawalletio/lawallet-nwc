@@ -156,12 +156,12 @@ describe('POST /api/card-designs/import', () => {
     )
 
     vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([]) // no existing
-    vi.mocked(prismaMock.cardDesign.create).mockImplementation(async ({ data }: any) => ({
+    vi.mocked(prismaMock.cardDesign.create).mockImplementation((async ({ data }: any) => ({
       id: data.id,
       imageUrl: data.imageUrl,
       description: data.description,
       createdAt: new Date(),
-    }))
+    })) as any)
 
     const req = createNextRequest('/api/card-designs/import', { method: 'POST' })
     const res = await ImportPost(req)

@@ -23,6 +23,7 @@ vi.mock('@/lib/nip98', () => ({
 
 import { GET } from '@/app/api/users/[userId]/cards/route'
 import { validateNip98 } from '@/lib/nip98'
+import { createNip98Result } from '@/tests/helpers/auth-helpers'
 
 const mockPubkey = 'a'.repeat(64)
 
@@ -37,7 +38,7 @@ describe('GET /api/users/[userId]/cards', () => {
     const design = createCardDesignFixture()
     const card = createCardFixture({ userId: user.id })
 
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([
       { ...card, design, user: { pubkey: mockPubkey } },
@@ -53,7 +54,7 @@ describe('GET /api/users/[userId]/cards', () => {
 
   it('returns empty array when user has no cards', async () => {
     const user = createUserFixture({ pubkey: mockPubkey })
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([])
 
@@ -66,7 +67,7 @@ describe('GET /api/users/[userId]/cards', () => {
 
   it('rejects when viewing another users cards', async () => {
     const otherUser = createUserFixture({ pubkey: 'b'.repeat(64) })
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(otherUser as any)
 
     const req = createNextRequest(`/api/users/${otherUser.id}/cards`)
@@ -76,7 +77,7 @@ describe('GET /api/users/[userId]/cards', () => {
   })
 
   it('returns 404 for nonexistent user', async () => {
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: mockPubkey })
+    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/users/nonexistent/cards')

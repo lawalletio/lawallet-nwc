@@ -13,7 +13,7 @@ import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 
 // NWC URI will be fetched from the user record
 
-export const OPTIONS = withErrorHandling(async () => {
+export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
   return new NextResponse(null, {
     status: 204,
     headers: {

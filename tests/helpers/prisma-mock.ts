@@ -53,7 +53,7 @@ vi.mock('@/lib/prisma', () => ({
 export function resetPrismaMock() {
   const models = ['user', 'card', 'cardDesign', 'lightningAddress', 'ntag424', 'settings', 'remoteConnection'] as const
   for (const model of models) {
-    const m = prismaMock[model] as Record<string, ReturnType<typeof vi.fn>>
+    const m = (prismaMock as any)[model] as Record<string, ReturnType<typeof vi.fn>>
     for (const method of Object.values(m)) {
       if (typeof method?.mockReset === 'function') {
         method.mockReset()
