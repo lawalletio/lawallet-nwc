@@ -1,139 +1,156 @@
-# Post-Grant Vision: CRM + AI + Nostr Communications
+# Vision: Lightning Addresses for Everyone
 
-## Overview
+## The Problem
 
-After the initial 6-month grant period, the platform evolves from a Lightning Address management tool into a **Nostr-native CRM** (Customer Relationship Management) platform. This enables operators to build and maintain relationships with their users through Lightning payments, Nostr identity, and AI-powered communications.
+Communities, companies, and organizations want to give their members a Lightning-native identity — a lightning address on their own domain, a wallet, and a communication channel — but today's options are either custodial, proprietary, or require deep technical knowledge to deploy.
 
----
-
-## Foundation (Built During Grant)
-
-The 6-month grant period establishes the building blocks for CRM:
-
-- **User profiles** with npub (Nostr public key) via NIP-05 resolution
-- **Lightning address** as the primary user identifier
-- **Admin dashboard** with user management and activity monitoring
-- **User dashboard** with profile, preferences, and communication settings
-- **Webhook system** (LUD-22) for event-driven integrations
+There is no open-source, self-hostable platform that lets you **connect a domain** and **instantly give everyone a lightning address, a wallet, and Nostr-powered communication** — all under your brand.
 
 ---
 
-## CRM Features (Post-Grant)
+## The Solution
 
-### User Relationship Data
+LaWallet NWC is an **open-source Lightning + Nostr CRM** for communities and companies.
 
-- Payment history and frequency per user
-- Onboarding stage tracking (alias → courtesy NWC → own NWC → self-hosted)
-- User segmentation by activity, payment volume, onboarding stage
-- Custom tags and notes on user profiles
-- Engagement scoring based on payment activity and communication interactions
+Connect your domain. Deploy in minutes. Your users get:
 
-### Nostr Communications
+- **A lightning address** on your domain (`alice@yourdomain.com`)
+- **A wallet** powered by Nostr Wallet Connect (NWC)
+- **Nostr identity** (NIP-05) unified with their lightning address
+- **Communication** via encrypted Nostr DMs and broadcasts
+- **NFC payments** via BoltCard integration
 
-- **Direct messages** to users via Nostr relay (NIP-04/NIP-17 encrypted DMs, NIP-44)
+You get:
+
+- **A CRM** with user management, activity tracking, and segmentation
+- **Nostr-native communication** tools (DMs, broadcasts, newsletters)
+- **Lightning payment infrastructure** out of the box
+- **Progressive self-custody** — users bring their own wallets when ready
+- **Full control** — your domain, your data, your rules
+
+---
+
+## Core Principles
+
+### Lightning addresses for everyone
+Every user on your platform gets a lightning address on your domain. Receive payments, zaps, and tips — instantly. No apps to install, no seeds to back up (unless they want to).
+
+### Connect your domain, deploy instantly
+Point your domain to LaWallet NWC and you're live. One-click deploy on Vercel. Docker for your server. Umbrel/Start9 for your node. Choose your path.
+
+### CRM with Lightning and Nostr built in
+Not a wallet with CRM bolted on. Not a CRM with payments bolted on. Lightning and Nostr are the foundation — user identity, payments, and communication are native from day one.
+
+### Progressive self-custody
+Users start with zero friction (alias redirect to an existing address), graduate to a courtesy NWC wallet, then bring their own NWC-compatible wallet when ready. Sovereignty is a journey, not a gate.
+
+| Stage | Friction | What happens |
+|-------|----------|-------------|
+| 1. Alias/Redirect | Zero | Lightning address redirects to user's existing address |
+| 2. Courtesy NWC | Low | Platform provides a temporary NWC wallet |
+| 3. Own NWC Wallet | Medium | User connects Alby, Primal, or any NWC wallet |
+| 4. Self-Hosted | Full sovereignty | User runs their own LaWallet NWC instance |
+
+### 100% Open Source, FOREVER
+MIT licensed. No open-core tricks. No proprietary features behind a paywall. Fork it, hack it, deploy it. The community owns this.
+
+---
+
+## Who is this for?
+
+- **Bitcoin communities** that want `member@community.com` lightning addresses
+- **Companies** that want to give employees or customers Lightning-native identity
+- **Events and conferences** that need instant onboarding with NFC cards and zaps
+- **Nostr communities** that want unified identity (NIP-05 + lightning address)
+- **Bitcoin circular economies** that need a merchant + user directory with payments
+- **Educators and organizations** that want to onboard people to Lightning with zero friction
+
+---
+
+## Architecture
+
+Three independent services, no shared databases:
+
+| Service | Role |
+|---------|------|
+| **lawallet-web** | Next.js app — frontend, REST API, address resolution, dashboards, wallet |
+| **lawallet-listener** | NWC Payment Listener — monitors relays, dispatches webhooks |
+| **lawallet-nwc-proxy** | Courtesy NWC Proxy — provisions temporary wallets from providers |
+
+Deploy all three, or just `lawallet-web` to start. Each service scales independently.
+
+---
+
+## Deployment Options
+
+| Option | Best for | Setup time |
+|--------|----------|-----------|
+| **Vercel** | Communities that want instant deploy | 2 minutes |
+| **Docker** | Servers and VPS | 5 minutes |
+| **Umbrel / Start9** | Node runners | 5 minutes |
+| **Manual** | Full control | 15 minutes |
+
+---
+
+## Roadmap
+
+### Foundation (Months 1–6, Grant Period)
+
+- Backend infrastructure, testing, error handling, auth, security
+- CI/CD, Client SDK, React Hooks
+- Admin Dashboard (user management, activity monitor, logs)
+- User Dashboard (profile, NWC management, preferences)
+- Courtesy NWC Proxy service
+- NWC Payment Listener service
+- Full LUD-16/21/22 compliance, NIP-57 zaps
+- Documentation, deployment configurations (Vercel, Docker, Umbrel)
+
+### CRM + Communications (Post-Grant)
+
+- Payment history and frequency tracking per user
+- Onboarding stage tracking and user segmentation
+- **Nostr DMs** to users (NIP-04/NIP-17/NIP-44 encrypted)
 - **Broadcast messages** to user segments via Nostr
 - **Newsletter-style long-form posts** (kind:30023) published to relays
-- **Notification system** for payment events, account changes, platform updates
-- **Inbox management** for admin to receive and respond to user messages
+- Notification system for payment events and platform updates
+- Inbox management for admin
 
-### Communication Channels
+### AI Integration (Future)
 
-| Channel | Protocol | Direction |
-|---------|----------|-----------|
-| Nostr DM | NIP-04 / NIP-17 / NIP-44 | Admin → User, User → Admin |
-| Nostr Broadcast | kind:1 notes | Admin → All Users |
-| Nostr Long-form | kind:30023 | Admin → All Users |
-| Webhooks | LUD-22 | Platform → External Services |
+- Smart message drafting with AI assistance
+- Message personalization based on user profile and payment history
+- Auto-responses to common user inquiries via Nostr DM
+- User behavior analysis, churn prediction, segment recommendations
+- Natural language search across users, payments, and communications
 
----
+### Plugins (Community)
 
-## AI Integration (Post-Grant)
-
-### AI-Powered Communications
-
-- **Smart message drafting**: AI assists admin in composing messages to users and segments
-- **Message personalization**: AI tailors messages based on user profile, payment history, and preferences
-- **Auto-responses**: AI-generated responses to common user inquiries via Nostr DM
-- **Sentiment analysis**: Analyze user communications for satisfaction and engagement signals
-
-### AI-Powered Analytics
-
-- **User behavior analysis**: Identify patterns in payment activity and onboarding progression
-- **Churn prediction**: Flag users at risk of disengaging based on activity patterns
-- **Segment recommendations**: AI suggests user segments for targeted communications
-- **Revenue insights**: Analyze payment flows, volume trends, and growth opportunities
-
-### AI-Powered Admin Tools
-
-- **Smart search**: Natural language queries across users, addresses, payments, and communications
-- **Report generation**: AI-generated reports on platform health, user engagement, and growth
-- **Anomaly detection**: Flag unusual payment patterns or potential issues
-- **Onboarding optimization**: AI suggests improvements to the onboarding funnel
+- **Events** — event management with check-in via QR/NFC, badge issuance
+- **Badges** — Nostr badges (NIP-58) for attendance, achievements, tiers
+- **Commerce** — merchant directory with badge-based discounts
 
 ---
 
-## Nostr Identity Deepening
+## Open Standards
 
-### NIP-05 as Platform Identity
+Every piece of the platform is built on open, interoperable protocols:
 
-- Lightning address and Nostr identity unified: `alice@domain.com` resolves to both LNURL-pay and npub
-- Platform serves `.well-known/nostr.json` for all users with registered npubs
-- Users can use their platform identity across the Nostr ecosystem
+| Protocol | Usage |
+|----------|-------|
+| NIP-47 (NWC) | Wallet Connect — payment backend |
+| NIP-05 | Nostr identity verification |
+| NIP-07 / NIP-46 | Browser extension and remote signing |
+| NIP-57 | Nostr zaps |
+| NIP-04 / NIP-17 / NIP-44 | Encrypted DMs and communication |
+| LUD-16 | Lightning Address (LNURL-pay) |
+| LUD-21 | Payment verification |
+| LUD-22 | Webhooks |
+| BoltCard / NTAG424 | NFC tap-to-pay cards |
 
-### Nostr Profile Enrichment
-
-- Pull user profile metadata from Nostr relays (kind:0 events)
-- Display name, avatar, bio from Nostr profile in admin and user dashboards
-- Keep profile data synced with Nostr relays
-
-### Nostr Social Graph
-
-- Map relationships between platform users via Nostr follows (kind:3)
-- Identify influencers and connectors within the user base
-- Leverage social graph for referral tracking and community building
+No vendor lock-in. No proprietary protocols. Interoperability or death.
 
 ---
 
-## Technical Requirements
+## Funded by
 
-### New Infrastructure
-
-- Nostr relay connection manager (for sending/receiving messages)
-- Message queue for outbound Nostr communications
-- AI inference endpoint (self-hosted or API: OpenAI, Anthropic, local models)
-- Analytics data pipeline for user behavior processing
-
-### New API Endpoints
-
-- `POST /api/messages` — Send Nostr DM to user
-- `POST /api/broadcasts` — Send broadcast to segment
-- `GET /api/communications/:userId` — Communication history
-- `POST /api/ai/draft` — AI-assisted message drafting
-- `GET /api/analytics/segments` — User segment analysis
-- `GET /api/analytics/insights` — AI-generated insights
-
-### New Admin Dashboard Sections
-
-- **Communications**: Message composer, broadcast manager, inbox
-- **Segments**: User segmentation with filters and AI suggestions
-- **Analytics**: AI-powered dashboards and reports
-- **AI Settings**: Model configuration, auto-response rules, personalization settings
-
----
-
-## Implementation Timeline (Estimated)
-
-| Quarter | Focus |
-|---------|-------|
-| Q3 2026 (Months 7–9) | Nostr messaging infrastructure, basic CRM features, user segmentation |
-| Q4 2026 (Months 10–12) | AI integration, smart communications, analytics pipeline |
-| Q1 2027 (Months 13–15) | Advanced analytics, social graph, auto-responses, report generation |
-
----
-
-## Dependencies
-
-- Grant period deliverables complete (especially user profiles, npub integration, admin dashboard)
-- Nostr relay infrastructure stable
-- AI model access (API or self-hosted)
-- User base large enough to benefit from segmentation and analytics
+OpenSats — Fifteenth Wave (December 2025). 6-month development grant for testing, security, SDK, dashboards, and deployment infrastructure.
