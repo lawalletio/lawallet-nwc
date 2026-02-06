@@ -8,4 +8,4 @@ We are grateful to OpenSats and its donors for supporting open-source Bitcoin in
 
 | Period | Report |
 |--------|--------|
-| Month 1 (Jan 5 - Feb 5, 2026) | [Changelog](./changelogs/MONTH-1.md) |
+| Month 1 (Jan 5 - Feb 5, 2026) | [Report](./reports/MONTH-1.md) · [Changelog](./changelogs/MONTH-1.md) |
