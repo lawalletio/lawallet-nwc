@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import type { Nip98ValidationResult } from '@/lib/nip98'
 
 // Mock admin auth validation
 export function mockAdminAuth(pubkey?: string) {
@@ -14,9 +15,36 @@ export function mockAdminAuth(pubkey?: string) {
 export function mockNip98(pubkey?: string) {
   const mockPubkey = pubkey || 'b'.repeat(64)
   vi.mock('@/lib/nip98', () => ({
-    validateNip98: vi.fn().mockResolvedValue({ pubkey: mockPubkey }),
+    validateNip98: vi.fn().mockResolvedValue({
+      pubkey: mockPubkey,
+      event: {
+        id: 'a'.repeat(64),
+        pubkey: mockPubkey,
+        created_at: Math.floor(Date.now() / 1000),
+        kind: 27235,
+        tags: [],
+        content: '',
+        sig: 'b'.repeat(128),
+      },
+    }),
   }))
   return mockPubkey
+}
+
+// Create a mock Nip98ValidationResult
+export function createNip98Result(pubkey: string): Nip98ValidationResult {
+  return {
+    pubkey,
+    event: {
+      id: 'a'.repeat(64),
+      pubkey,
+      created_at: Math.floor(Date.now() / 1000),
+      kind: 27235,
+      tags: [],
+      content: '',
+      sig: 'b'.repeat(128),
+    },
+  }
 }
 
 // Create a mock JWT token payload
