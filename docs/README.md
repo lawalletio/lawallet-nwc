@@ -1,75 +1,80 @@
 # LaWallet NWC
 
-**Lightning Address Platform using Nostr Wallet Connect**
+**Lightning Address Platform with Nostr Wallet Connect**
 
-LaWallet NWC enables users and organizations to create, manage, and serve Lightning Addresses connected via Nostr Wallet Connect (NWC). The platform prioritizes frictionless onboarding through lightning address aliasing and redirect, allowing users to start receiving payments immediately with their existing wallet, then progressively migrate to NWC and eventually self-hosting.
+An open-source platform for creating, managing, and serving Lightning Addresses connected via NWC. Built on a progressive self-custody model -- users start receiving payments instantly through address aliasing, then upgrade to NWC and eventually self-hosting at their own pace.
 
----
-
-## Project Status
-
-- **Version**: 1.0
-- **Date**: February 2026
-- **Status**: Pre-Alpha
-- **Repository**: [github.com/lawalletio/lawallet-nwc](https://github.com/lawalletio/lawallet-nwc)
-- **Stack**: Next.js 14 + TypeScript + Prisma + PostgreSQL + Tailwind/shadcn
-- **Timeline**: 6-month development roadmap
+**Status:** Pre-Alpha | **Stack:** Next.js 16 + TypeScript + Prisma + PostgreSQL
 
 ---
 
-## Key Concepts
+## Architecture
 
-- **Lightning Address as Alias**: Users get an address that redirects to their existing wallet — zero friction onboarding
-- **Progressive Self-Custody**: alias → courtesy NWC → own NWC → self-hosted LaWallet
-- **Three Independent Services**: No shared infrastructure between containers
-- **Nostr-Native**: NWC for payments, NIP-05 for identity, Nostr relays for messaging
+Three independent containerized services with no shared infrastructure:
+
+| Service | Container | Description |
+|---------|-----------|-------------|
+| [Web Application](./services/LAWALLET-WEB.md) | `lawallet-web` | Next.js app: frontend, REST API, lightning address resolution |
+| [NWC Proxy](./services/NWC-PROXY.md) | `lawallet-nwc-proxy` | Provisions courtesy NWC connections from external providers |
+| [Payment Listener](./services/NWC-LISTENER.md) | `lawallet-listener` | Monitors NWC relays, dispatches webhooks on payments |
 
 ---
 
-## Documentation Index
-
-### Core
+## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | System architecture, 3 independent services, data flow |
-| [ROADMAP.md](./ROADMAP.md) | 6-month timeline summary |
-| [ONBOARDING.md](./ONBOARDING.md) | User progression: alias → NWC → self-hosted |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, data flow, address resolution |
+| [ROADMAP.md](./ROADMAP.md) | 6-month development timeline and current progress |
+| [ONBOARDING.md](./ONBOARDING.md) | Progressive self-custody: alias -> NWC -> self-hosted |
 | [SDK.md](./SDK.md) | TypeScript Client SDK + React Hooks reference |
-| [TESTING.md](./TESTING.md) | Testing strategy and tools |
-| [VISION.md](./VISION.md) | Post-grant: CRM + AI + Nostr communications |
+| [TESTING.md](./TESTING.md) | Testing strategy (Vitest, MSW, Playwright) |
+| [VISION.md](./VISION.md) | Post-grant vision: CRM + AI + Nostr communications |
 
-### Monthly Breakdown
+### Roadmap by Month
 
-| Month | Focus | Document |
-|-------|-------|----------|
-| 1 | Testing + CI/CD | [MONTH-1.md](./months/MONTH-1.md) |
-| 2 | Integration tests + SDK + Hooks | [MONTH-2.md](./months/MONTH-2.md) |
-| 3 | Admin Dashboard + Auth + Courtesy NWC + E2E | [MONTH-3.md](./months/MONTH-3.md) |
-| 4 | User Dashboard + Wallet Completion | [MONTH-4.md](./months/MONTH-4.md) |
-| 5 | Lightning Compliance + NWC Listener | [MONTH-5.md](./months/MONTH-5.md) |
-| 6 | Documentation + Deployment | [MONTH-6.md](./months/MONTH-6.md) |
+| Month | Focus | Status |
+|-------|-------|--------|
+| [1](./roadmap/MONTH-1.md) | Backend infrastructure + testing | Completed |
+| [2](./roadmap/MONTH-2.md) | CI/CD + Client SDK + React Hooks | In Progress |
+| [3](./roadmap/MONTH-3.md) | Admin Dashboard + Nostr login + E2E | Planned |
+| [4](./roadmap/MONTH-4.md) | User Dashboard + Courtesy NWC Proxy | Planned |
+| [5](./roadmap/MONTH-5.md) | Lightning compliance + NWC Listener | Planned |
+| [6](./roadmap/MONTH-6.md) | Documentation + deployment | Planned |
 
-### Service Specifications
+### Changelogs
 
-| Service | Container | Document |
-|---------|-----------|----------|
-| Next.js Application | lawallet-web | [LAWALLET-WEB.md](./services/LAWALLET-WEB.md) |
-| NWC Payment Listener | lawallet-listener | [NWC-LISTENER.md](./services/NWC-LISTENER.md) |
-| Courtesy NWC Proxy | lawallet-nwc-proxy | [NWC-PROXY.md](./services/NWC-PROXY.md) |
+| Period | Document |
+|--------|----------|
+| Jan 5 - Feb 5, 2026 | [MONTH-1.md](./changelogs/MONTH-1.md) |
 
 ---
 
-## Current Gaps
+## Open Standards
 
-| Gap | Priority |
-|-----|----------|
-| No testing infrastructure | P0 Critical |
-| No CI/CD pipeline | P0 Critical |
-| No alias/redirect system | P0 Critical |
-| No courtesy NWC proxy | P1 High |
-| Incomplete LUD compliance (16/21/22) | P1 High |
-| No webhook system | P1 High |
-| No structured logging | P1 High |
-| No client SDK or React hooks | P2 Medium |
-| No documentation | P2 Medium |
+| Standard | Protocol | Usage |
+|----------|----------|-------|
+| NIP-47 | Nostr Wallet Connect | Payment connections |
+| NIP-05 | Nostr Identity | User verification |
+| NIP-07 / NIP-46 | Nostr Signing | Browser + remote auth |
+| NIP-57 | Zaps | Lightning tips via Nostr |
+| LUD-16 | Lightning Address | Address resolution |
+| LUD-21 | Verify | Payment verification |
+| LUD-22 | Webhooks | Payment notifications |
+
+---
+
+## License
+
+MIT
+
+---
+
+<p align="center">
+  <br />
+  Supported by
+  <br /><br />
+  <a href="https://opensats.org">
+    <img src="https://opensats.org/logo.svg" alt="OpenSats" width="150" />
+  </a>
+</p>
