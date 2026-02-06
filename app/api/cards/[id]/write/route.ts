@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 
-export const OPTIONS = withErrorHandling(async () => {
+export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
   return new NextResponse(null, {
     status: 204,
     headers: {
