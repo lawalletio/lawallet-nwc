@@ -629,71 +629,6 @@ const FlowSection = () => {
   )
 }
 
-// ─── NWC Supporters ─────────────────────────────────────────────────────────
-
-const NWCSupportersSection = () => {
-  const { ref, isVisible } = useScrollAnimation()
-  const supporters = [
-    { name: 'Alby', logo: '/logos/alby.png' },
-    { name: 'Primal', logo: '/logos/primal.png' },
-    { name: 'Flash', logo: '/logos/flash.png' },
-    { name: 'BTCCuracao', logo: '/logos/curacao.png' },
-    { name: 'Geyser Fund', logo: '/logos/geyser.png' }
-  ]
-
-  return (
-    <section className="py-16 sm:py-24">
-      <div ref={ref} className="max-w-5xl mx-auto px-4 text-center">
-        <span
-          className={`inline-block text-xs font-mono tracking-widest uppercase text-white/30 mb-4 transition-all duration-700 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-          }`}
-        >
-          Your users connect with
-        </span>
-        <h2
-          className={`text-2xl sm:text-3xl font-bold text-white mb-4 tracking-tight transition-all duration-1000 delay-100 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          NWC Ecosystem
-        </h2>
-        <p
-          className={`text-white/30 mb-12 max-w-xl mx-auto text-sm transition-all duration-1000 delay-200 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          Users bring their own NWC-compatible wallet. Progressive self-custody — from zero friction to full sovereignty.
-        </p>
-        <div className="flex flex-wrap justify-center gap-6 sm:gap-10">
-          {supporters.map((s, index) => (
-            <div
-              key={s.name}
-              className={`group flex flex-col items-center gap-3 p-4 rounded-xl hover:bg-white/[0.03] transition-all duration-500 ${
-                isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-              }`}
-              style={{
-                transitionDelay: isVisible ? `${index * 100 + 300}ms` : '0ms'
-              }}
-            >
-              <div className="relative w-16 h-16 flex items-center justify-center rounded-xl bg-white/5 border border-white/[0.06] group-hover:border-lw-gold/20 group-hover:bg-white/10 transition-all duration-300">
-                <img
-                  src={s.logo || '/placeholder.svg'}
-                  alt={`${s.name} logo`}
-                  className="h-8 w-auto object-contain opacity-60 group-hover:opacity-100 transition-all duration-300"
-                />
-              </div>
-              <span className="text-xs text-white/30 group-hover:text-white/60 transition-colors duration-300 font-mono">
-                {s.name}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
 // ─── Open Source Section ────────────────────────────────────────────────────
 
 const protocols = [
@@ -1195,7 +1130,6 @@ export default function LandingPage() {
           <FeaturesSection />
           <DeploySection />
           <FlowSection />
-          <NWCSupportersSection />
           <OpenSourceSection />
           <RoadmapSection />
           <WaitlistSection />
