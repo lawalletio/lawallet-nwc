@@ -48,6 +48,18 @@ Three independent containerized services with no shared infrastructure:
 |--------|----------|
 | Jan 5 - Feb 5, 2026 | [MONTH-1.md](./changelogs/MONTH-1.md) |
 
+### Plugins (Proposed)
+
+> ⚠️ **PROPOSAL**: These plugins are community proposals, not yet implemented.
+
+| Plugin | Description | Document |
+|--------|-------------|----------|
+| [Events](./plugins/EVENTS.md) | Community event management with check-in and badges | [EVENTS.md](./plugins/EVENTS.md) |
+| [Badges](./plugins/BADGES.md) | Nostr badge system (NIP-58) for reputation | [BADGES.md](./plugins/BADGES.md) |
+| [Commerce](./plugins/COMMERCE.md) | Merchant directory with badge-based discounts | [COMMERCE.md](./plugins/COMMERCE.md) |
+
+See [plugins/README.md](./plugins/README.md) for the full plugin architecture proposal.
+
 ---
 
 ## Open Standards
