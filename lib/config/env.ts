@@ -24,24 +24,18 @@ const envSchema = z.object({
     .optional()
     .describe('Secret key for JWT token signing and verification'),
 
-  // Sendy (Email/Newsletter)
-  SENDY_URL: z
+  // Tally.so (Waitlist)
+  TALLY_API_KEY: z
     .string()
-    .url('SENDY_URL must be a valid URL')
+    .min(1, 'TALLY_API_KEY must not be empty')
     .optional()
-    .describe('Sendy API base URL for waitlist subscriptions'),
+    .describe('Tally.so API key for waitlist form submissions'),
 
-  SENDY_LIST_ID: z
+  TALLY_FORM_ID: z
     .string()
-    .min(1, 'SENDY_LIST_ID must not be empty')
+    .min(1, 'TALLY_FORM_ID must not be empty')
     .optional()
-    .describe('Sendy list ID for waitlist subscriptions'),
-
-  SENDY_API_KEY: z
-    .string()
-    .min(1, 'SENDY_API_KEY must not be empty')
-    .optional()
-    .describe('Sendy API key for authentication'),
+    .describe('Tally.so form ID for waitlist submissions'),
 
   // Alby Integration
   ALBY_API_URL: z

@@ -22,11 +22,10 @@ export interface AppConfig {
     enabled: boolean
   }
 
-  // Sendy (Email/Newsletter)
-  sendy: {
-    url: string | undefined
-    listId: string | undefined
+  // Tally.so (Waitlist)
+  tally: {
     apiKey: string | undefined
+    formId: string | undefined
     enabled: boolean
   }
 
@@ -108,11 +107,10 @@ export function getConfig(strict: boolean = true): AppConfig {
       enabled: !!env.JWT_SECRET
     },
 
-    sendy: {
-      url: env.SENDY_URL,
-      listId: env.SENDY_LIST_ID,
-      apiKey: env.SENDY_API_KEY,
-      enabled: !!(env.SENDY_URL && env.SENDY_LIST_ID && env.SENDY_API_KEY)
+    tally: {
+      apiKey: env.TALLY_API_KEY,
+      formId: env.TALLY_FORM_ID,
+      enabled: !!(env.TALLY_API_KEY && env.TALLY_FORM_ID)
     },
 
     alby: {

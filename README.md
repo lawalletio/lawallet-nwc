@@ -33,7 +33,7 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 
 - Fully responsive
 - Instructions
-- Waitlist form (Sendy subscription)
+- Waitlist form (Tally.so integration)
 
 ---
 

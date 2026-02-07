@@ -203,12 +203,4 @@ describe('getConfig', () => {
     expect(config.rateLimit.maxRequestsAuth).toBe(300)
   })
 
-  it('sendy is disabled when not all vars are set', async () => {
-    process.env.DATABASE_URL = 'postgresql://localhost/test'
-    setNodeEnv('test')
-    delete process.env.SENDY_URL
-    const { getConfig } = await import('@/lib/config')
-    const config = getConfig()
-    expect(config.sendy.enabled).toBe(false)
-  })
 })

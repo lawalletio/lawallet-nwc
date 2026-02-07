@@ -148,10 +148,12 @@ const DemoModal = ({
 }) => {
   const [contact, setContact] = React.useState('')
   const [submitted, setSubmitted] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault()
-    if (!contact.trim()) return
+    if (!contact.trim() || isSubmitting) return
+    setIsSubmitting(true)
     try {
       await fetch('/api/waitlist/subscribe', {
         method: 'POST',
@@ -161,6 +163,7 @@ const DemoModal = ({
     } catch {
       // silent fail
     }
+    setIsSubmitting(false)
     setSubmitted(true)
   }
 
@@ -170,6 +173,7 @@ const DemoModal = ({
       setTimeout(() => {
         setContact('')
         setSubmitted(false)
+        setIsSubmitting(false)
       }, 300)
     }
   }
@@ -218,11 +222,20 @@ const DemoModal = ({
               </div>
               <Button
                 type="submit"
-                disabled={!contact.trim()}
+                disabled={!contact.trim() || isSubmitting}
                 className="w-full h-12 rounded-xl font-semibold transition-all duration-300 shadow-lg bg-gradient-to-r from-lw-gold to-lw-gold/90 text-black shadow-lw-gold/10 hover:shadow-lw-gold/20 hover:from-lw-gold hover:to-lw-gold disabled:from-white/[0.06] disabled:to-white/[0.06] disabled:text-white/20 disabled:shadow-none disabled:cursor-not-allowed"
               >
-                Count me in
-                <Zap className="ml-2 h-4 w-4" />
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent mr-2" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    Count me in
+                    <Zap className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
               <p className="text-center text-[11px] text-white/15 font-mono">
                 Nostr-friendly. We respect your sovereignty.
@@ -598,7 +611,8 @@ const deployOptions = [
     title: 'Vercel',
     time: '2 min',
     description: 'One-click deploy. Perfect for communities that want to be live instantly.',
-    command: 'npx vercel deploy'
+    command: 'npx vercel deploy',
+    deployUrl: 'https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD'
   },
   {
     logo: '/logos/docker.svg',
@@ -673,6 +687,18 @@ const DeploySection = () => {
                 <Terminal className="h-3 w-3 text-lw-teal flex-shrink-0" />
                 <span className="text-lw-teal">$</span> {option.command}
               </div>
+              {option.deployUrl && (
+                <a
+                  href={option.deployUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 flex items-center justify-center gap-2 w-full h-10 rounded-xl font-semibold text-sm transition-all duration-300 bg-white text-black hover:bg-white/90 shadow-lg shadow-white/5 hover:shadow-white/10"
+                >
+                  <img src={option.logo} alt="" className="h-4 w-auto" />
+                  Deploy on Vercel
+                  <ExternalLink className="h-3.5 w-3.5 opacity-50" />
+                </a>
+              )}
             </div>
           ))}
         </div>

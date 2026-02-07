@@ -234,4 +234,5 @@ describe('Validation Schemas', () => {
       expect(() => waitlistSchema.parse({ email: 'not-email' })).toThrow()
     })
   })
+
 })

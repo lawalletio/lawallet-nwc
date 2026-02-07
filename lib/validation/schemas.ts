@@ -102,3 +102,4 @@ export const waitlistSchema = z.object({
   email: z.string().email('Email must be a valid email address'),
   name: z.string().min(1).optional(),
 })
+

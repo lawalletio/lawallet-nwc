@@ -27,26 +27,34 @@ import { getConfig } from '@/lib/config'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  // Reset global fetch mock
   vi.restoreAllMocks()
 })
 
 describe('POST /api/waitlist/subscribe', () => {
   it('subscribes email successfully', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      sendy: {
+      tally: {
         enabled: true,
-        url: 'https://sendy.test',
-        listId: 'list123',
-        apiKey: 'key123',
+        apiKey: 'test-key',
+        formId: 'test-form',
       },
       maintenance: { enabled: false },
     } as any)
 
-    // Mock global fetch for Sendy
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('1', { status: 200 })
-    )
+    // Mock fetch: first call returns questions, second submits to Tally
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          questions: [{
+            type: 'INPUT_EMAIL',
+            id: 'BG4olK',
+            fields: [{ uuid: 'field-uuid-123', blockGroupUuid: 'field-uuid-123' }]
+          }]
+        }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ submissionId: 'sub_123', respondentId: 'resp_123' }), { status: 200 })
+      )
 
     const req = createNextRequest('/api/waitlist/subscribe', {
       method: 'POST',
@@ -57,25 +65,35 @@ describe('POST /api/waitlist/subscribe', () => {
 
     expect(body).toEqual({ success: true })
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'https://sendy.test/subscribe',
-      expect.objectContaining({ method: 'POST' })
+      'https://api.tally.so/forms/test-form/questions',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer test-key' }
+      })
+    )
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://tally.so/api/forms/test-form/respond',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
     )
   })
 
-  it('handles Sendy failure response', async () => {
+  it('handles Tally submission failure', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      sendy: {
+      tally: {
         enabled: true,
-        url: 'https://sendy.test',
-        listId: 'list123',
-        apiKey: 'key123',
+        apiKey: 'test-key',
+        formId: 'test-form',
       },
       maintenance: { enabled: false },
     } as any)
 
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('Invalid email', { status: 200 })
-    )
+    // Email field UUID is cached from previous test
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response('Bad request', { status: 400 })
+      )
 
     const req = createNextRequest('/api/waitlist/subscribe', {
       method: 'POST',
@@ -86,9 +104,9 @@ describe('POST /api/waitlist/subscribe', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns error when Sendy is not configured', async () => {
+  it('returns error when Tally is not configured', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      sendy: { enabled: false, url: undefined, listId: undefined, apiKey: undefined },
+      tally: { enabled: false, apiKey: undefined, formId: undefined },
       maintenance: { enabled: false },
     } as any)
 
@@ -103,7 +121,7 @@ describe('POST /api/waitlist/subscribe', () => {
 
   it('rejects invalid email', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      sendy: { enabled: true, url: 'https://sendy.test', listId: 'l', apiKey: 'k' },
+      tally: { enabled: true, apiKey: 'k', formId: 'f' },
       maintenance: { enabled: false },
     } as any)
 
@@ -114,32 +132,5 @@ describe('POST /api/waitlist/subscribe', () => {
     const res = await POST(req)
 
     expect(res.status).toBe(400)
-  })
-
-  it('includes name in Sendy request when provided', async () => {
-    vi.mocked(getConfig).mockReturnValue({
-      sendy: {
-        enabled: true,
-        url: 'https://sendy.test',
-        listId: 'list123',
-        apiKey: 'key123',
-      },
-      maintenance: { enabled: false },
-    } as any)
-
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('1', { status: 200 })
-    )
-
-    const req = createNextRequest('/api/waitlist/subscribe', {
-      method: 'POST',
-      body: { email: 'test@example.com', name: 'Test User' },
-    })
-    const res = await POST(req)
-    await assertResponse(res, 200)
-
-    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0]
-    const body = fetchCall[1]?.body as string
-    expect(body).toContain('name=Test+User')
   })
 })
