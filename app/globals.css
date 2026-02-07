@@ -111,6 +111,7 @@
   inset: -1px;
   border-radius: inherit;
   padding: 1px;
+  pointer-events: none;
   background: linear-gradient(135deg, rgba(245, 166, 35, 0.3), rgba(38, 166, 154, 0.3), rgba(229, 57, 53, 0.1));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
