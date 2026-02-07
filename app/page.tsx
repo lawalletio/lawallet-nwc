@@ -205,9 +205,27 @@ const Header = () => {
 
 const HeroSection = () => {
   const { ref, isVisible } = useScrollAnimation()
+  const { ref: parallaxRef, scrollProgress } = useScrollProgress()
 
   return (
-    <section className="relative pt-16 pb-8 sm:pt-28 sm:pb-16 overflow-hidden">
+    <section ref={parallaxRef} className="relative pt-16 pb-8 sm:pt-28 sm:pb-16 overflow-hidden">
+      {/* Background @ symbol with parallax */}
+      <div
+        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
+        aria-hidden="true"
+      >
+        <span
+          className="text-[20rem] sm:text-[28rem] md:text-[36rem] font-black leading-none text-transparent"
+          style={{
+            WebkitTextStroke: '1px rgba(245, 166, 35, 0.04)',
+            transform: `translateY(${(scrollProgress - 0.3) * -80}px) rotate(${-6 + scrollProgress * 4}deg)`,
+            transition: 'transform 0.15s linear',
+          }}
+        >
+          @
+        </span>
+      </div>
+
       <div ref={ref} className="max-w-5xl mx-auto px-4 text-center relative z-10">
         {/* Protocol badges */}
         <div
