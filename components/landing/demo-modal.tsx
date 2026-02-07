@@ -22,10 +22,12 @@ export const DemoModal = ({
 }) => {
   const [contact, setContact] = React.useState('')
   const [submitted, setSubmitted] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault()
-    if (!contact.trim()) return
+    if (!contact.trim() || isSubmitting) return
+    setIsSubmitting(true)
     try {
       await fetch('/api/waitlist/subscribe', {
         method: 'POST',
@@ -35,6 +37,7 @@ export const DemoModal = ({
     } catch {
       // silent fail
     }
+    setIsSubmitting(false)
     setSubmitted(true)
   }
 
@@ -44,6 +47,7 @@ export const DemoModal = ({
       setTimeout(() => {
         setContact('')
         setSubmitted(false)
+        setIsSubmitting(false)
       }, 300)
     }
   }
@@ -92,11 +96,20 @@ export const DemoModal = ({
               </div>
               <Button
                 type="submit"
-                disabled={!contact.trim()}
+                disabled={!contact.trim() || isSubmitting}
                 className="w-full h-12 rounded-xl font-semibold transition-all duration-300 shadow-lg bg-gradient-to-r from-lw-gold to-lw-gold/90 text-black shadow-lw-gold/10 hover:shadow-lw-gold/20 hover:from-lw-gold hover:to-lw-gold disabled:from-white/[0.06] disabled:to-white/[0.06] disabled:text-white/20 disabled:shadow-none disabled:cursor-not-allowed"
               >
-                Count me in
-                <Zap className="ml-2 h-4 w-4" />
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent mr-2" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    Count me in
+                    <Zap className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
               <p className="text-center text-[11px] text-white/15 font-mono">
                 Nostr-friendly. We respect your sovereignty.
