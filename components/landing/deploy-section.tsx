@@ -1,6 +1,6 @@
 'use client'
 
-import { Terminal } from 'lucide-react'
+import { Terminal, ExternalLink } from 'lucide-react'
 import { useScrollAnimation } from './hooks'
 
 const deployOptions = [
@@ -9,7 +9,7 @@ const deployOptions = [
     title: 'Vercel',
     time: '8 min',
     description: 'One-click deploy. Perfect for communities that want to be live instantly.',
-    command: 'npx vercel deploy'
+    deployUrl: 'https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD'
   },
   {
     logo: '/logos/docker.svg',
@@ -80,10 +80,22 @@ export const DeploySection = () => {
               </div>
               <h3 className="text-lg font-semibold text-white mb-2">{option.title}</h3>
               <p className="text-sm text-white/40 leading-relaxed mb-4">{option.description}</p>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.04] font-mono text-xs text-white/30">
+              {option.command && <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.04] font-mono text-xs text-white/30">
                 <Terminal className="h-3 w-3 text-lw-teal flex-shrink-0" />
                 <span className="text-lw-teal">$</span> {option.command}
-              </div>
+              </div>}
+              {option.deployUrl && (
+                <a
+                  href={option.deployUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 flex items-center justify-center gap-2 w-full h-10 rounded-xl font-semibold text-sm transition-all duration-300 bg-white text-black hover:bg-white/90 shadow-lg shadow-white/5 hover:shadow-white/10"
+                >
+                  <img src={option.logo} alt="" className="h-4 w-auto" />
+                  Deploy on Vercel
+                  <ExternalLink className="h-3.5 w-3.5 opacity-50" />
+                </a>
+              )}
             </div>
           ))}
         </div>
