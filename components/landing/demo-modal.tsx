@@ -65,7 +65,7 @@ export const DemoModal = ({
           <DialogHeader className="text-center sm:text-center relative">
             {/* Nostr ostrich */}
             <div className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-gradient-to-br from-nwc-purple/20 to-nwc-purple/5 border border-nwc-purple/20 flex items-center justify-center">
-              <img src="/logos/nostr-ostrich.svg" alt="Nostr" className="w-10 h-10" />
+              <img src="/logos/lawallet.svg" alt="LaWallet" className="w-10 h-10" />
             </div>
             <DialogTitle className="text-2xl font-bold text-white text-center tracking-tight">
               Be the first to try it out
