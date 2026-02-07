@@ -18,12 +18,12 @@ const protocols = [
 ]
 
 const techStack = [
-  'TypeScript',
-  'Next.js',
-  'React',
-  'Tailwind CSS',
-  'Prisma',
-  'PostgreSQL'
+  { name: 'TypeScript', logo: '/logos/typescript.svg' },
+  { name: 'Next.js', logo: '/logos/nextjs.svg' },
+  { name: 'React', logo: '/logos/react.svg' },
+  { name: 'Tailwind CSS', logo: '/logos/tailwindcss.svg' },
+  { name: 'Prisma', logo: '/logos/prisma.svg' },
+  { name: 'PostgreSQL', logo: '/logos/postgresql.svg' },
 ]
 
 export const OpenSourceSection = () => {
@@ -109,15 +109,13 @@ export const OpenSourceSection = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
               {techStack.map((tech) => (
                 <div
-                  key={tech}
+                  key={tech.name}
                   className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 hover:bg-white/[0.04] hover:border-lw-teal/20 transition-all duration-300"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-lw-teal/10 flex items-center justify-center mx-auto mb-3">
-                    <span className="text-xs font-bold text-lw-teal font-mono">
-                      {tech.slice(0, 2).toUpperCase()}
-                    </span>
+                  <div className="w-10 h-10 rounded-lg bg-white/[0.05] flex items-center justify-center mx-auto mb-3">
+                    <img src={tech.logo} alt={tech.name} className="h-6 w-6 object-contain" />
                   </div>
-                  <p className="text-sm font-semibold text-white/80">{tech}</p>
+                  <p className="text-sm font-semibold text-white/80">{tech.name}</p>
                 </div>
               ))}
             </div>
