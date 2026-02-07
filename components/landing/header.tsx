@@ -2,10 +2,12 @@
 
 import React from 'react'
 import { Button } from '@/components/ui/button'
-import { GithubIcon } from 'lucide-react'
+import { GithubIcon, Zap } from 'lucide-react'
+import { DemoModal } from './demo-modal'
 
 export const Header = () => {
   const [scrolled, setScrolled] = React.useState(false)
+  const [demoModal, setDemoModal] = React.useState(false)
 
   React.useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20)
@@ -22,8 +24,16 @@ export const Header = () => {
       }`}
     >
       <div className="max-w-6xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <img src="/logos/lawallet.svg" alt="LaWallet" className="h-6 w-auto opacity-90" />
+        <div className="flex items-center gap-3">
+          <img
+            src="/logos/lawallet.svg"
+            alt="LaWallet"
+            className="h-6 w-auto opacity-90 cursor-pointer"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          />
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-widest border border-lw-coral/30 text-lw-coral bg-lw-coral/10 animate-pulse">
+            pre-alpha
+          </span>
         </div>
         <nav className="hidden md:flex items-center gap-6">
           <a href="#features" className="text-sm text-white/50 hover:text-lw-gold transition-colors duration-300">
@@ -55,8 +65,22 @@ export const Header = () => {
               <span className="hidden sm:inline">GitHub</span>
             </a>
           </Button>
+          <Button
+            size="sm"
+            className="rounded-full bg-lw-gold hover:bg-lw-gold/90 text-black font-semibold transition-all duration-300 shadow-md shadow-lw-gold/20 hover:shadow-lw-gold/30"
+            onClick={() => setDemoModal(true)}
+          >
+            <Zap className="h-3.5 w-3.5 mr-1.5" />
+            Get Early Access
+          </Button>
         </div>
       </div>
+
+      <DemoModal
+        open={demoModal}
+        onOpenChange={setDemoModal}
+        demoType="admin"
+      />
     </header>
   )
 }
