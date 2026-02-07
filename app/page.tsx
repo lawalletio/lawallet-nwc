@@ -79,8 +79,8 @@ const useScrollProgress = () => {
 // ─── Domain Odometer ─────────────────────────────────────────────────────────
 
 const lnDomains = [
-  'walletofsatoshi.com', 'getalby.com', 'strike.me', 'stacker.news',
-  'blink.sv', 'coinos.io', 'lawallet.ar',
+  'walletofsatoshi.com', 'getalby.com', 'lawallet.ar', 'strike.me', 'primal.net',
+  'blink.sv', 'stacker.news', 'coinos.io',
   'ln.tips', 'bitrefill.me',
 ]
 
@@ -193,7 +193,7 @@ const DemoModal = ({
               Be the first to try it out
             </DialogTitle>
             <DialogDescription className="text-white/40 text-center mt-2 text-sm leading-relaxed">
-              We&apos;re building something special. Drop your email or Nostr address and we&apos;ll let you know when it&apos;s ready.
+              We&apos;re building something special. Drop your email or Nostr address and get early access.
             </DialogDescription>
           </DialogHeader>
 
