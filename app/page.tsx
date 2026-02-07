@@ -544,7 +544,7 @@ const FeaturesSection = () => {
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
             }`}
           >
-            A CRM with Lightning and Nostr
+            A CRM with <span className="text-gradient-lightning">Lightning</span> and <span className="text-gradient-nostr">Nostr</span>
             <br />
             <span className="text-gradient-gold">built in, not bolted on</span>
           </h2>

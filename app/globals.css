@@ -166,6 +166,20 @@
   background-clip: text;
 }
 
+.text-gradient-lightning {
+  background: linear-gradient(135deg, #7DD3FC, #38BDF8, #0EA5E9);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-nostr {
+  background: linear-gradient(135deg, #A78BFA, #8B5CF6, #7C3AED);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 /* Marquee pause on hover */
 .marquee-track:hover {
   animation-play-state: paused;
