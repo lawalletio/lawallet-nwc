@@ -12,6 +12,8 @@ const lnDomains = [
 export const DomainShowcase = ({ isVisible }: { isVisible: boolean }) => {
   const [currentIndex, setCurrentIndex] = React.useState(0)
   const [isAnimating, setIsAnimating] = React.useState(false)
+  const [pillWidth, setPillWidth] = React.useState<number | null>(null)
+  const contentRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     const interval = setInterval(() => {
@@ -24,13 +26,26 @@ export const DomainShowcase = ({ isVisible }: { isVisible: boolean }) => {
     return () => clearInterval(interval)
   }, [])
 
+  React.useEffect(() => {
+    if (contentRef.current) {
+      setPillWidth(contentRef.current.offsetWidth)
+    }
+  }, [currentIndex])
+
   return (
     <div
       className={`mt-12 transition-all duration-1000 delay-700 ${
         isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
       }`}
     >
-      <div className="inline-flex items-center gap-4 px-8 sm:px-10 py-5 sm:py-6 rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm shadow-lg shadow-black/10">
+      <div
+        className="inline-flex justify-start items-center rounded-2xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm shadow-lg shadow-black/10 overflow-hidden"
+        style={{
+          width: pillWidth ?? 'auto',
+          transition: 'width 400ms ease-in-out',
+        }}
+      >
+        <div ref={contentRef} className="inline-flex items-center gap-4 px-8 sm:px-10 py-5 sm:py-6 shrink-0">
         <Zap className="h-5 w-5 sm:h-6 sm:w-6 text-lw-gold/50 shrink-0" />
         <span className="font-mono text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/50 inline-flex items-baseline tracking-tight">
           <span className="text-lw-gold font-semibold">alice</span>
@@ -56,6 +71,7 @@ export const DomainShowcase = ({ isVisible }: { isVisible: boolean }) => {
           </span>
         </span>
         <Zap className="h-5 w-5 sm:h-6 sm:w-6 text-lw-gold/50 shrink-0" />
+        </div>
       </div>
     </div>
   )
