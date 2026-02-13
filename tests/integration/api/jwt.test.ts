@@ -24,7 +24,19 @@ vi.mock('@/lib/middleware/rate-limit', () => ({
 }))
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: {},
+  prisma: {
+    user: {
+      findUnique: vi.fn(),
+    },
+  },
+}))
+
+vi.mock('@/lib/settings', () => ({
+  getSettings: vi.fn(),
+}))
+
+vi.mock('@/lib/nip98', () => ({
+  validateNip98: vi.fn(),
 }))
 
 vi.mock('@/lib/jwt', () => ({
@@ -35,22 +47,31 @@ vi.mock('@/lib/jwt', () => ({
 import { GET, POST } from '@/app/api/jwt/route'
 import { getConfig } from '@/lib/config'
 import { createJwtToken, validateJwtFromRequest } from '@/lib/jwt'
+import { validateNip98 } from '@/lib/nip98'
+import { prisma } from '@/lib/prisma'
+import { getSettings } from '@/lib/settings'
+
+const PUBKEY = 'a'.repeat(64)
 
 beforeEach(() => {
   vi.clearAllMocks()
 })
 
 describe('POST /api/jwt', () => {
-  it('creates JWT token successfully', async () => {
+  it('creates JWT token with NIP-98 authentication', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'test-secret' },
       maintenance: { enabled: false },
     } as any)
+    vi.mocked(validateNip98).mockResolvedValue({ pubkey: PUBKEY, event: {} as any })
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ role: 'ADMIN' } as any)
+    vi.mocked(getSettings).mockResolvedValue({})
     vi.mocked(createJwtToken).mockReturnValue('mock-jwt-token')
 
     const req = createNextRequest('/api/jwt', {
       method: 'POST',
-      body: { userId: 'user-123', expiresIn: '1h' },
+      headers: { authorization: 'Nostr dGVzdA==' },
+      body: { expiresIn: '1h' },
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -60,11 +81,34 @@ describe('POST /api/jwt', () => {
       expiresIn: '1h',
       type: 'Bearer',
     })
+
+    // Verify JWT was created with pubkey, role, and permissions
     expect(createJwtToken).toHaveBeenCalledWith(
-      { sub: 'user-123' },
+      expect.objectContaining({
+        userId: PUBKEY,
+        pubkey: PUBKEY,
+        role: 'ADMIN',
+        permissions: expect.any(Array),
+      }),
       'test-secret',
       expect.objectContaining({ issuer: 'lawallet-nwc' })
     )
+  })
+
+  it('rejects request without NIP-98 auth', async () => {
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'test-secret' },
+      maintenance: { enabled: false },
+    } as any)
+    vi.mocked(validateNip98).mockRejectedValue(new Error('missing auth'))
+
+    const req = createNextRequest('/api/jwt', {
+      method: 'POST',
+      body: { expiresIn: '1h' },
+    })
+    const res = await POST(req)
+
+    expect(res.status).toBe(401)
   })
 
   it('returns error when JWT not configured', async () => {
@@ -72,47 +116,41 @@ describe('POST /api/jwt', () => {
       jwt: { enabled: false, secret: undefined },
       maintenance: { enabled: false },
     } as any)
+    vi.mocked(validateNip98).mockResolvedValue({ pubkey: PUBKEY, event: {} as any })
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ role: 'USER' } as any)
+    vi.mocked(getSettings).mockResolvedValue({})
 
     const req = createNextRequest('/api/jwt', {
       method: 'POST',
-      body: { userId: 'user-123' },
+      headers: { authorization: 'Nostr dGVzdA==' },
     })
     const res = await POST(req)
 
     expect(res.status).toBe(500)
   })
 
-  it('rejects missing userId', async () => {
+  it('defaults to USER role when not found in DB', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'test-secret' },
       maintenance: { enabled: false },
     } as any)
-
-    const req = createNextRequest('/api/jwt', {
-      method: 'POST',
-      body: {},
-    })
-    const res = await POST(req)
-
-    expect(res.status).toBe(400)
-  })
-
-  it('includes additional claims in token', async () => {
-    vi.mocked(getConfig).mockReturnValue({
-      jwt: { enabled: true, secret: 'test-secret' },
-      maintenance: { enabled: false },
-    } as any)
+    vi.mocked(validateNip98).mockResolvedValue({ pubkey: PUBKEY, event: {} as any })
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue({ root: 'different_pubkey' })
     vi.mocked(createJwtToken).mockReturnValue('mock-jwt-token')
 
     const req = createNextRequest('/api/jwt', {
       method: 'POST',
-      body: { userId: 'user-123', additionalClaims: { role: 'admin' } },
+      headers: { authorization: 'Nostr dGVzdA==' },
     })
     const res = await POST(req)
     await assertResponse(res, 200)
 
     expect(createJwtToken).toHaveBeenCalledWith(
-      { sub: 'user-123', role: 'admin' },
+      expect.objectContaining({
+        role: 'USER',
+        permissions: [],
+      }),
       'test-secret',
       expect.anything()
     )
@@ -127,10 +165,12 @@ describe('GET /api/jwt', () => {
     } as any)
     vi.mocked(validateJwtFromRequest).mockResolvedValue({
       payload: {
-        sub: 'user-123',
+        sub: PUBKEY,
+        pubkey: PUBKEY,
+        role: 'ADMIN',
+        permissions: ['settings:read', 'settings:write'],
         iat: 1000000,
         exp: 1003600,
-        role: 'admin',
       },
       header: { alg: 'HS256' },
     } as any)
@@ -142,8 +182,9 @@ describe('GET /api/jwt', () => {
     const body: any = await assertResponse(res, 200)
 
     expect(body.valid).toBe(true)
-    expect(body.userId).toBe('user-123')
-    expect(body.additionalClaims).toEqual({ role: 'admin' })
+    expect(body.pubkey).toBe(PUBKEY)
+    expect(body.role).toBe('ADMIN')
+    expect(body.permissions).toEqual(['settings:read', 'settings:write'])
   })
 
   it('rejects missing authorization header', async () => {

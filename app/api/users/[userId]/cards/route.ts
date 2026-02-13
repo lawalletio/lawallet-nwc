@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
-import { validateNip98 } from '@/lib/nip98'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthorizationError,
@@ -9,10 +8,11 @@ import {
 } from '@/types/server/errors'
 import { userIdParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
+import { authenticate } from '@/lib/auth/unified-auth'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
-    const { pubkey: authenticatedPubkey } = await validateNip98(request)
+    const { pubkey: authenticatedPubkey } = await authenticate(request)
 
     const { userId } = validateParams(await params, userIdParam)
 

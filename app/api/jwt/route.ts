@@ -11,46 +11,78 @@ import { jwtRequestSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
+import { validateNip98 } from '@/lib/nip98'
+import { getRolePermissions } from '@/lib/auth/permissions'
+import { resolveRole } from '@/lib/auth/resolve-role'
 
+/**
+ * POST /api/jwt - Authenticate with NIP-98, receive a JWT session token.
+ *
+ * The client signs a NIP-98 event (kind 27235) targeting this endpoint.
+ * The server validates the Nostr signature, resolves the user's role,
+ * and returns a JWT with pubkey, role, and permissions baked in.
+ */
 export const POST = withErrorHandling(async (request: NextRequest) => {
   await checkRequestLimits(request, 'json')
-  // Apply strict rate limiting for authentication endpoint
   await rateLimit(request, RateLimitPresets.auth)
 
-  const data = await validateBody(request, jwtRequestSchema)
+  // 1. Validate NIP-98 authentication
+  let pubkey: string
+  try {
+    const result = await validateNip98(request)
+    pubkey = result.pubkey
+  } catch (error) {
+    throw new AuthenticationError('Invalid NIP-98 authentication', {
+      details: error instanceof Error ? error.message : 'Invalid or missing Nostr auth',
+    })
+  }
 
-  // Get JWT secret from config
+  // 2. Parse optional body (expiresIn)
+  let expiresIn = '1h'
+  try {
+    const data = await validateBody(request, jwtRequestSchema)
+    expiresIn = data.expiresIn
+  } catch {
+    // Body is optional for this endpoint; default to 1h
+  }
+
+  // 3. Get JWT secret
   const config = getConfig()
-
   if (!config.jwt.enabled || !config.jwt.secret) {
     logger.error('JWT_SECRET environment variable is not set')
     throw new InternalServerError('Server configuration error')
   }
 
-  const jwtSecret = config.jwt.secret
+  // 4. Resolve user role and permissions
+  const role = await resolveRole(pubkey)
+  const permissions = getRolePermissions(role)
 
-  // Create JWT payload
-  const payload = {
-    sub: data.userId,
-    ...data.additionalClaims
-  }
+  // 5. Create JWT with identity and authorization claims
+  const token = createJwtToken(
+    {
+      userId: pubkey,
+      pubkey,
+      role,
+      permissions,
+    },
+    config.jwt.secret,
+    {
+      expiresIn: parseInt(expiresIn) || expiresIn,
+      issuer: 'lawallet-nwc',
+      audience: 'lawallet-users',
+    }
+  )
 
-  // Create JWT token
-  const token = createJwtToken(payload, jwtSecret!, {
-    expiresIn: parseInt(data.expiresIn),
-    issuer: 'lawallet-nwc',
-    audience: 'lawallet-users'
-  })
-
-  // Return the token
   return NextResponse.json({
     token,
-    expiresIn: data.expiresIn,
-    type: 'Bearer'
+    expiresIn,
+    type: 'Bearer',
   })
 })
 
-// GET endpoint to validate a JWT token
+/**
+ * GET /api/jwt - Validate an existing JWT token.
+ */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const authHeader = request.headers.get('authorization')
 
@@ -67,32 +99,26 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const jwtSecret = config.jwt.secret
 
-  // Import the validation function
   const { validateJwtFromRequest } = await import('@/lib/jwt')
 
   try {
-    // Validate the token
     const result = await validateJwtFromRequest(request, jwtSecret!, {
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users'
+      audience: 'lawallet-users',
     })
 
-    // Return token information (without sensitive data)
     return NextResponse.json({
       valid: true,
-      userId: result.payload.sub,
+      pubkey: result.payload.pubkey,
+      role: result.payload.role,
+      permissions: result.payload.permissions,
       issuedAt: new Date(result.payload.iat * 1000).toISOString(),
       expiresAt: new Date(result.payload.exp * 1000).toISOString(),
-      additionalClaims: Object.fromEntries(
-        Object.entries(result.payload).filter(
-          ([key]) => !['sub', 'iat', 'exp'].includes(key)
-        )
-      )
     })
   } catch (error) {
     logger.error({ err: error }, 'JWT validation error')
     throw new AuthenticationError('Invalid or expired token', {
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
     })
   }
 })

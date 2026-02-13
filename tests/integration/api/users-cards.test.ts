@@ -3,6 +3,7 @@ import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createUserFixture, createCardFixture, createCardDesignFixture } from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
+import { AuthenticationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
@@ -17,15 +18,28 @@ vi.mock('@/lib/middleware/maintenance', () => ({
   checkMaintenance: vi.fn(),
 }))
 
-vi.mock('@/lib/nip98', () => ({
-  validateNip98: vi.fn(),
+vi.mock('@/lib/auth/unified-auth', () => ({
+  authenticate: vi.fn(),
 }))
 
 import { GET } from '@/app/api/users/[userId]/cards/route'
-import { validateNip98 } from '@/lib/nip98'
-import { createNip98Result } from '@/tests/helpers/auth-helpers'
+import { authenticate } from '@/lib/auth/unified-auth'
 
 const mockPubkey = 'a'.repeat(64)
+
+function mockAuth(pubkey: string = mockPubkey) {
+  vi.mocked(authenticate).mockResolvedValue({
+    pubkey,
+    role: 'USER' as any,
+    method: 'nip98',
+  })
+}
+
+function mockAuthReject() {
+  vi.mocked(authenticate).mockRejectedValue(
+    new AuthenticationError('no auth')
+  )
+}
 
 beforeEach(() => {
   resetPrismaMock()
@@ -38,7 +52,7 @@ describe('GET /api/users/[userId]/cards', () => {
     const design = createCardDesignFixture()
     const card = createCardFixture({ userId: user.id })
 
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([
       { ...card, design, user: { pubkey: mockPubkey } },
@@ -54,7 +68,7 @@ describe('GET /api/users/[userId]/cards', () => {
 
   it('returns empty array when user has no cards', async () => {
     const user = createUserFixture({ pubkey: mockPubkey })
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([])
 
@@ -67,7 +81,7 @@ describe('GET /api/users/[userId]/cards', () => {
 
   it('rejects when viewing another users cards', async () => {
     const otherUser = createUserFixture({ pubkey: 'b'.repeat(64) })
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(otherUser as any)
 
     const req = createNextRequest(`/api/users/${otherUser.id}/cards`)
@@ -77,7 +91,7 @@ describe('GET /api/users/[userId]/cards', () => {
   })
 
   it('returns 404 for nonexistent user', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/users/nonexistent/cards')
@@ -87,7 +101,7 @@ describe('GET /api/users/[userId]/cards', () => {
   })
 
   it('rejects unauthenticated request', async () => {
-    vi.mocked(validateNip98).mockRejectedValue(new Error('no auth'))
+    mockAuthReject()
 
     const req = createNextRequest('/api/users/some-id/cards')
     const res = await GET(req, createParamsPromise({ userId: 'some-id' }))

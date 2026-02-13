@@ -91,9 +91,7 @@ export const createRemoteCardSchema = z.object({
 // ── JWT ─────────────────────────────────────────────────────────────────────
 
 export const jwtRequestSchema = z.object({
-  userId: z.string().min(1, 'User ID is required'),
   expiresIn: z.string().optional().default('1h'),
-  additionalClaims: z.record(z.any()).optional(),
 })
 
 // ── Waitlist ────────────────────────────────────────────────────────────────

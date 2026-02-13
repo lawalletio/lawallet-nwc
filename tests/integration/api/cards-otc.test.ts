@@ -3,6 +3,7 @@ import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createCardFixture, createCardDesignFixture, createUserFixture } from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
+import { AuthenticationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
@@ -29,8 +30,8 @@ vi.mock('@/lib/middleware/rate-limit', () => ({
   RateLimitPresets: { auth: {}, cardScan: {}, sensitive: {}, default: {} },
 }))
 
-vi.mock('@/lib/nip98', () => ({
-  validateNip98: vi.fn(),
+vi.mock('@/lib/auth/unified-auth', () => ({
+  authenticate: vi.fn(),
 }))
 
 vi.mock('@/lib/user', () => ({
@@ -43,12 +44,25 @@ vi.mock('@/lib/settings', () => ({
 
 import { GET as GetOtc } from '@/app/api/cards/otc/[otc]/route'
 import { POST as ActivateOtc } from '@/app/api/cards/otc/[otc]/activate/route'
-import { validateNip98 } from '@/lib/nip98'
-import { createNip98Result } from '@/tests/helpers/auth-helpers'
+import { authenticate } from '@/lib/auth/unified-auth'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 
 const mockPubkey = 'a'.repeat(64)
+
+function mockAuth(pubkey: string = mockPubkey) {
+  vi.mocked(authenticate).mockResolvedValue({
+    pubkey,
+    role: 'USER' as any,
+    method: 'nip98',
+  })
+}
+
+function mockAuthReject() {
+  vi.mocked(authenticate).mockRejectedValue(
+    new AuthenticationError('no auth')
+  )
+}
 
 beforeEach(() => {
   resetPrismaMock()
@@ -92,7 +106,7 @@ describe('GET /api/cards/otc/[otc]', () => {
 
 describe('POST /api/cards/otc/[otc]/activate', () => {
   it('activates card for authenticated user', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: { username: 'alice' },
@@ -115,7 +129,7 @@ describe('POST /api/cards/otc/[otc]/activate', () => {
   })
 
   it('creates user if not existing', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
     const newUser = createUserFixture({
       pubkey: mockPubkey,
@@ -135,7 +149,7 @@ describe('POST /api/cards/otc/[otc]/activate', () => {
   })
 
   it('rejects unauthenticated request', async () => {
-    vi.mocked(validateNip98).mockRejectedValue(new Error('no auth'))
+    mockAuthReject()
 
     const req = createNextRequest('/api/cards/otc/abc123/activate', { method: 'POST' })
     const res = await ActivateOtc(req, createParamsPromise({ otc: 'abc123' }))
@@ -144,7 +158,7 @@ describe('POST /api/cards/otc/[otc]/activate', () => {
   })
 
   it('succeeds even if card not found for OTC', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: null,

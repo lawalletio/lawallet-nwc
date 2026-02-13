@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createCardFixture, createCardDesignFixture, createNtag424Fixture } from '@/tests/helpers/fixtures'
+import { AuthorizationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
@@ -23,8 +24,8 @@ vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn(),
 }))
 
-vi.mock('@/lib/admin-auth', () => ({
-  validateAdminAuth: vi.fn(),
+vi.mock('@/lib/auth/unified-auth', () => ({
+  authenticateWithRole: vi.fn(),
 }))
 
 vi.mock('@/lib/ntag424', () => ({
@@ -40,19 +41,35 @@ vi.mock('@/lib/ntag424', () => ({
 }))
 
 import { GET, POST } from '@/app/api/cards/route'
-import { validateAdminAuth } from '@/lib/admin-auth'
+import { authenticateWithRole } from '@/lib/auth/unified-auth'
+
+const ADMIN_PUBKEY = 'a'.repeat(64)
 
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
 })
 
+function mockAdminAuth() {
+  vi.mocked(authenticateWithRole).mockResolvedValue({
+    pubkey: ADMIN_PUBKEY,
+    role: 'ADMIN' as any,
+    method: 'nip98',
+  })
+}
+
+function mockAdminAuthReject() {
+  vi.mocked(authenticateWithRole).mockRejectedValue(
+    new AuthorizationError('Not authorized')
+  )
+}
+
 describe('GET /api/cards', () => {
   it('returns all cards for admin', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin-pubkey')
+    mockAdminAuth()
     const design = createCardDesignFixture()
     const ntag424 = createNtag424Fixture()
-    const card = { ...createCardFixture(), design, ntag424, user: { pubkey: 'a'.repeat(64) } }
+    const card = { ...createCardFixture(), design, ntag424, user: { pubkey: ADMIN_PUBKEY } }
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([card] as any)
 
     const req = createNextRequest('/api/cards')
@@ -64,7 +81,7 @@ describe('GET /api/cards', () => {
   })
 
   it('filters by paired=true', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin-pubkey')
+    mockAdminAuth()
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([])
 
     const req = createNextRequest('/api/cards', { searchParams: { paired: 'true' } })
@@ -79,7 +96,7 @@ describe('GET /api/cards', () => {
   })
 
   it('filters by used=false', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin-pubkey')
+    mockAdminAuth()
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([])
 
     const req = createNextRequest('/api/cards', { searchParams: { used: 'false' } })
@@ -94,7 +111,7 @@ describe('GET /api/cards', () => {
   })
 
   it('returns empty array when no cards', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin-pubkey')
+    mockAdminAuth()
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([])
 
     const req = createNextRequest('/api/cards')
@@ -105,7 +122,7 @@ describe('GET /api/cards', () => {
   })
 
   it('rejects non-admin', async () => {
-    vi.mocked(validateAdminAuth).mockRejectedValue(new Error('unauthorized'))
+    mockAdminAuthReject()
 
     const req = createNextRequest('/api/cards')
     const res = await GET(req)
@@ -116,7 +133,7 @@ describe('GET /api/cards', () => {
 
 describe('POST /api/cards', () => {
   it('creates a new card with NTAG424 values', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin-pubkey')
+    mockAdminAuth()
     const ntag = createNtag424Fixture({ cid: 'AABBCCDDEE1122' })
     vi.mocked(prismaMock.ntag424.create).mockResolvedValue(ntag as any)
 
@@ -146,7 +163,7 @@ describe('POST /api/cards', () => {
   })
 
   it('rejects missing designId', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin-pubkey')
+    mockAdminAuth()
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
@@ -158,7 +175,7 @@ describe('POST /api/cards', () => {
   })
 
   it('rejects non-admin', async () => {
-    vi.mocked(validateAdminAuth).mockRejectedValue(new Error('unauthorized'))
+    mockAdminAuthReject()
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
@@ -170,7 +187,7 @@ describe('POST /api/cards', () => {
   })
 
   it('rejects missing card id', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin-pubkey')
+    mockAdminAuth()
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
