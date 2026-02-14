@@ -65,7 +65,7 @@ The admin dashboard already has a functional base (cards, designs, addresses, se
 
 - Detect Nostr extensions (Alby, nos2x, etc.)
 - Sign NIP-98 auth events via `window.nostr.signEvent()`
-- Login flow: detect extension → request pubkey → sign auth event → create session
+- Login flow: detect extension → request pubkey → `jwtClient.setSigner(signer)` → `jwtClient.login()`
 
 ### NIP-46: Remote Signing (Bunker Protocol)
 
@@ -73,10 +73,12 @@ The admin dashboard already has a functional base (cards, designs, addresses, se
 - Remote signing for users without browser extensions
 - Fallback for mobile and extension-less browsers
 
-### Session Management
+### Session Management (Backend Implemented)
 
-- JWT session tokens (backend already supports this)
-- Automatic token refresh
+- NIP-98 login → JWT session flow (`POST /api/jwt` with Nostr auth)
+- JWT tokens contain `pubkey`, `role`, `permissions` claims
+- Automatic token refresh via NIP-98 re-authentication (`jwtClient.refreshToken()`)
+- Unified auth middleware accepts both `Nostr` and `Bearer` authorization headers
 - Unified login modal with method selection
 
 ---
