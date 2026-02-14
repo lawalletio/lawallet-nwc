@@ -65,9 +65,9 @@ The main application serving the frontend, REST API, admin dashboard, user dashb
 
 ### API
 
-- `POST /api/auth/login` — JWT login
-- `POST /api/auth/refresh` — Refresh token
-- `POST /api/auth/nostr` — Nostr login (NIP-07/NIP-46)
+- `POST /api/jwt` — NIP-98 login (exchange Nostr auth event for JWT session token)
+- `GET /api/jwt` — Validate JWT and return claims (pubkey, role, permissions)
+- `GET /api/jwt/protected` — Example JWT-protected endpoint
 - `GET /api/addresses` — List addresses
 - `POST /api/addresses` — Create address
 - `GET /api/addresses/:id` — Get address details

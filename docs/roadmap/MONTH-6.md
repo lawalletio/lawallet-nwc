@@ -23,7 +23,7 @@ Finalize all documentation, configure deployment targets, and prepare the codeba
 
 - OpenAPI/Swagger specification for all 30 API routes
 - Request/response schemas derived from existing Zod validation schemas
-- Authentication requirements per endpoint (NIP-98, JWT, public)
+- Authentication requirements per endpoint (NIP-98 only, unified auth (Nostr + Bearer), JWT only, public)
 - Example payloads for every endpoint
 - Deploy interactive documentation at `/docs/api` (Swagger UI or Redoc)
 
@@ -37,7 +37,7 @@ Finalize all documentation, configure deployment targets, and prepare the codeba
 - Data flow for payments (NWC and alias/redirect)
 - Address resolution priority logic
 - Service communication patterns
-- Auth chain documentation (NIP-98 → admin-auth → permissions)
+- Auth chain documentation (NIP-98 login → JWT session → unified-auth → RBAC permissions)
 
 ### CONTRIBUTING.md
 
