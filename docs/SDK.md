@@ -22,7 +22,7 @@ Two packages provide typed access to the LaWallet NWC backend:
 - **Lightning Address**: create, lookup, update, delete
 - **Alias/Redirect**: set target, remove, get status
 - **NWC Connection**: connect, disconnect, status
-- **Authentication**: JWT login, Nostr login, refresh, revoke
+- **Authentication**: NIP-98 login → JWT session, token refresh, logout
 - **Webhooks**: subscribe, unsubscribe, list
 - **Wallet**: balance, send, receive
 
@@ -53,7 +53,7 @@ Two packages provide typed access to the LaWallet NWC backend:
 | `useAddresses` | List/search/filter with pagination | 2 |
 | `useNWCConnection` | Connect, disconnect, status polling | 2 |
 | `usePayments` | Payment history, real-time updates | 2 |
-| `useAuth` | JWT + Nostr login, session state, logout | 2 |
+| `useAuth` | NIP-98 login → JWT session, session state, logout | 2 |
 | `useWebhooks` | Subscribe, unsubscribe, list active hooks | 2 |
 | `useWallet` | Balance, send, receive, NWC status | 2 |
 | `useCourtesyNWC` | Provision/revoke courtesy NWC from proxy | 3 |

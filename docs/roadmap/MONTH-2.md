@@ -46,7 +46,7 @@ With backend infrastructure, logging, auth, and testing delivered ahead of sched
 - Lightning address operations: create, lookup, delete
 - Card management: CRUD, scan, write, OTC activation
 - User management: profile, role, NWC URI
-- Authentication helpers: JWT creation, NIP-98 signing
+- Authentication helpers: NIP-98 login → JWT session, unified auth (Nostr + Bearer)
 - Admin operations: settings, assign roles
 
 ### Technical
@@ -68,7 +68,7 @@ With backend infrastructure, logging, auth, and testing delivered ahead of sched
 | `useAddresses` | List/search addresses | Pagination, filtering, search |
 | `useNWCConnection` | NWC wallet management | Connect, disconnect, status polling |
 | `usePayments` | Payment history | Real-time updates, filtering |
-| `useAuth` | Authentication | JWT + Nostr login, session state, logout |
+| `useAuth` | Authentication | NIP-98 login → JWT session, session state, logout |
 | `useWebhooks` | Webhook management | Subscribe, unsubscribe, list active |
 | `useWallet` | Wallet operations | Balance, send, receive, NWC status |
 
