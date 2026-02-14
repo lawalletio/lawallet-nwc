@@ -24,14 +24,18 @@ export default defineConfig({
         'mocks',
         '**/*.d.ts',
         '**/*.config.*',
+        '**/*.test.ts',
+        '**/*.test.tsx',
+        '**/*.spec.ts',
+        '**/*.spec.tsx',
         '**/types/**',
         'prisma/**'
       ],
       thresholds: {
-        statements: 2,
-        branches: 25,
-        functions: 20,
-        lines: 2
+        statements: 60,
+        branches: 75,
+        functions: 70,
+        lines: 60
       }
     }
   },

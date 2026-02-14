@@ -35,3 +35,5 @@ next-env.d.ts
 ## database
 /lib/generated/prisma
 /prisma/dev.db
+
+.claude/worktrees
