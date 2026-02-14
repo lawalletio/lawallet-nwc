@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createUserFixture } from '@/tests/helpers/fixtures'
+import { AuthenticationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
@@ -16,8 +17,8 @@ vi.mock('@/lib/middleware/maintenance', () => ({
   checkMaintenance: vi.fn(),
 }))
 
-vi.mock('@/lib/nip98', () => ({
-  validateNip98: vi.fn(),
+vi.mock('@/lib/auth/unified-auth', () => ({
+  authenticate: vi.fn(),
 }))
 
 vi.mock('@/lib/user', () => ({
@@ -29,12 +30,25 @@ vi.mock('@/lib/settings', () => ({
 }))
 
 import { GET } from '@/app/api/users/me/route'
-import { validateNip98 } from '@/lib/nip98'
-import { createNip98Result } from '@/tests/helpers/auth-helpers'
+import { authenticate } from '@/lib/auth/unified-auth'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 
 const mockPubkey = 'a'.repeat(64)
+
+function mockAuth(pubkey: string = mockPubkey) {
+  vi.mocked(authenticate).mockResolvedValue({
+    pubkey,
+    role: 'USER' as any,
+    method: 'nip98',
+  })
+}
+
+function mockAuthReject() {
+  vi.mocked(authenticate).mockRejectedValue(
+    new AuthenticationError('no auth')
+  )
+}
 
 beforeEach(() => {
   resetPrismaMock()
@@ -43,7 +57,7 @@ beforeEach(() => {
 
 describe('GET /api/users/me', () => {
   it('returns existing user data', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: { username: 'alice' },
@@ -63,7 +77,7 @@ describe('GET /api/users/me', () => {
   })
 
   it('creates new user if not existing', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
     const newUser = createUserFixture({
       pubkey: mockPubkey,
@@ -82,7 +96,7 @@ describe('GET /api/users/me', () => {
   })
 
   it('returns null lightning address when user has none', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: null,
@@ -99,7 +113,7 @@ describe('GET /api/users/me', () => {
   })
 
   it('rejects unauthenticated request', async () => {
-    vi.mocked(validateNip98).mockRejectedValue(new Error('no auth'))
+    mockAuthReject()
 
     const req = createNextRequest('/api/users/me')
     const res = await GET(req)
@@ -108,7 +122,7 @@ describe('GET /api/users/me', () => {
   })
 
   it('returns alby sub account data when present', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddress: null,

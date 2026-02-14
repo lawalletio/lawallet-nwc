@@ -197,24 +197,22 @@ describe('Validation Schemas', () => {
   })
 
   describe('jwtRequestSchema', () => {
-    it('accepts valid JWT request', () => {
-      const data = { userId: 'user_1' }
-      const result = jwtRequestSchema.parse(data)
-      expect(result.userId).toBe('user_1')
+    it('accepts empty body with defaults', () => {
+      const result = jwtRequestSchema.parse({})
       expect(result.expiresIn).toBe('1h') // default
     })
 
     it('accepts custom expiresIn', () => {
-      const data = { userId: 'user_1', expiresIn: '24h' }
+      const data = { expiresIn: '24h' }
       expect(jwtRequestSchema.parse(data)).toEqual({
-        userId: 'user_1',
         expiresIn: '24h',
       })
     })
 
-    it('accepts additional claims', () => {
-      const data = { userId: 'user_1', additionalClaims: { role: 'admin' } }
-      expect(jwtRequestSchema.parse(data).additionalClaims).toEqual({ role: 'admin' })
+    it('strips unknown fields', () => {
+      const data = { expiresIn: '2h', userId: 'user_1', additionalClaims: { role: 'admin' } }
+      const result = jwtRequestSchema.parse(data)
+      expect(result).toEqual({ expiresIn: '2h' })
     })
   })
 

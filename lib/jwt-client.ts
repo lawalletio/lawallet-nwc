@@ -1,4 +1,6 @@
 import { JwtPayload } from './jwt'
+import { createNip98Token } from './nip98'
+import type { NostrSigner } from '@nostrify/nostrify'
 
 export interface JwtClientOptions {
   storageKey?: string
@@ -18,6 +20,7 @@ export class JwtClient {
   private baseUrl: string
   private autoRefresh: boolean
   private refreshThreshold: number
+  private signer: NostrSigner | null = null
 
   constructor(options: JwtClientOptions = {}) {
     this.storageKey = options.storageKey || 'jwt_token'
@@ -27,50 +30,66 @@ export class JwtClient {
   }
 
   /**
-   * Request a new JWT token
-   * @param userId - The user ID for the token
-   * @param additionalClaims - Additional claims to include
-   * @param expiresIn - Token expiration time
+   * Set the Nostr signer used for NIP-98 authentication.
+   * Must be called before login() or refreshToken().
+   */
+  setSigner(signer: NostrSigner): void {
+    this.signer = signer
+  }
+
+  /**
+   * Authenticate with NIP-98 and receive a JWT session token.
+   * The signer must be set via setSigner() before calling this.
+   * @param expiresIn - Optional token expiration (default: "1h")
    * @returns Promise<JwtTokenResponse>
    */
-  async requestToken(
-    userId: string,
-    additionalClaims?: Record<string, any>,
-    expiresIn?: string
-  ): Promise<JwtTokenResponse> {
-    try {
-      const response = await fetch(`${this.baseUrl}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          userId,
-          additionalClaims,
-          expiresIn
-        })
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to request token')
-      }
-
-      const tokenData = await response.json()
-
-      // Store the token
-      this.storeToken(tokenData.token)
-
-      return tokenData
-    } catch (error) {
-      console.error('Failed to request JWT token:', error)
-      throw error
+  async login(expiresIn?: string): Promise<JwtTokenResponse> {
+    if (!this.signer) {
+      throw new Error('Nostr signer not set. Call setSigner() first.')
     }
+
+    const url = `${this.baseUrl}`
+    const body = expiresIn ? JSON.stringify({ expiresIn }) : undefined
+    const method = 'POST'
+
+    const requestInit: RequestInit = {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    }
+
+    // Create NIP-98 auth header
+    const absoluteUrl = this.resolveUrl(url)
+    const nostrAuth = await createNip98Token(absoluteUrl, requestInit, this.signer)
+
+    const response = await fetch(url, {
+      ...requestInit,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: nostrAuth,
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Login failed' }))
+      throw new Error(error.error || 'Failed to authenticate')
+    }
+
+    const tokenData: JwtTokenResponse = await response.json()
+    this.storeToken(tokenData.token)
+    return tokenData
+  }
+
+  /**
+   * Refresh the JWT by re-authenticating with NIP-98.
+   * Requires the signer to be set.
+   */
+  async refreshToken(): Promise<JwtTokenResponse> {
+    return this.login()
   }
 
   /**
    * Store JWT token in storage
-   * @param token - The JWT token to store
    */
   storeToken(token: string): void {
     if (typeof window !== 'undefined') {
@@ -80,7 +99,6 @@ export class JwtClient {
 
   /**
    * Get stored JWT token
-   * @returns string | null - The stored token or null if not found
    */
   getStoredToken(): string | null {
     if (typeof window !== 'undefined') {
@@ -100,7 +118,6 @@ export class JwtClient {
 
   /**
    * Check if a token is stored
-   * @returns boolean - True if token exists
    */
   hasStoredToken(): boolean {
     return this.getStoredToken() !== null
@@ -108,7 +125,6 @@ export class JwtClient {
 
   /**
    * Get the Authorization header value for requests
-   * @returns string | null - The Authorization header value or null if no token
    */
   getAuthHeader(): string | null {
     const token = this.getStoredToken()
@@ -117,7 +133,6 @@ export class JwtClient {
 
   /**
    * Validate a stored token
-   * @returns Promise<boolean> - True if token is valid
    */
   async validateStoredToken(): Promise<boolean> {
     try {
@@ -127,8 +142,8 @@ export class JwtClient {
       const response = await fetch(`${this.baseUrl}`, {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${token}`,
+        },
       })
 
       return response.ok
@@ -140,7 +155,6 @@ export class JwtClient {
 
   /**
    * Check if stored token needs refresh
-   * @returns boolean - True if token should be refreshed
    */
   shouldRefreshToken(): boolean {
     if (!this.autoRefresh) return false
@@ -149,7 +163,6 @@ export class JwtClient {
     if (!token) return false
 
     try {
-      // Decode token to check expiration
       const payload = this.decodeToken(token)
       if (!payload) return false
 
@@ -159,14 +172,12 @@ export class JwtClient {
       return timeUntilExpiry <= this.refreshThreshold
     } catch (error) {
       console.error('Error checking token expiry:', error)
-      return true // Refresh if we can't determine expiry
+      return true
     }
   }
 
   /**
    * Decode JWT token without verification (client-side only)
-   * @param token - The JWT token to decode
-   * @returns JwtPayload | null - The decoded payload or null if invalid
    */
   private decodeToken(token: string): JwtPayload | null {
     try {
@@ -187,53 +198,61 @@ export class JwtClient {
   }
 
   /**
-   * Make an authenticated request with automatic token handling
-   * @param url - The URL to request
-   * @param options - Fetch options
-   * @returns Promise<Response>
+   * Make an authenticated request with automatic token refresh.
+   * If the token is near expiry and a signer is set, refreshes automatically.
    */
   async authenticatedRequest(
     url: string,
     options: RequestInit = {}
   ): Promise<Response> {
-    // Check if token needs refresh
+    // Auto-refresh if token is near expiry and signer is available
     if (this.shouldRefreshToken()) {
-      console.log('Token needs refresh, attempting to refresh...')
-      // You might want to implement a refresh token flow here
-      // For now, we'll just remove the expired token
-      this.removeStoredToken()
-      throw new Error('Token expired and refresh not implemented')
+      if (this.signer) {
+        await this.refreshToken()
+      } else {
+        this.removeStoredToken()
+        throw new Error('Token expired. Call login() with a signer to re-authenticate.')
+      }
     }
 
     const token = this.getStoredToken()
     if (!token) {
-      throw new Error('No authentication token available')
+      throw new Error('No authentication token available. Call login() first.')
     }
 
-    // Add Authorization header
     const headers = new Headers(options.headers)
     headers.set('Authorization', `Bearer ${token}`)
 
     return fetch(url, {
       ...options,
-      headers
+      headers,
     })
   }
 
   /**
-   * Logout by removing stored token
+   * Logout by removing stored token and clearing signer
    */
   logout(): void {
     this.removeStoredToken()
+    this.signer = null
+  }
+
+  private resolveUrl(url: string): string {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url
+    }
+    if (typeof window !== 'undefined') {
+      return `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`
+    }
+    throw new Error('Cannot resolve relative URL in server environment')
   }
 }
 
 // Create a default instance
 export const jwtClient = new JwtClient()
 
-// Export convenience functions
+// Export convenience functions (bound to the default instance)
 export const {
-  requestToken,
   storeToken,
   getStoredToken,
   removeStoredToken,
@@ -241,6 +260,5 @@ export const {
   getAuthHeader,
   validateStoredToken,
   authenticatedRequest,
-  logout
+  logout,
 } = jwtClient
-

@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { validateNip98 } from '@/lib/nip98'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
-  AuthenticationError,
   ValidationError
 } from '@/types/server/errors'
 import { otcParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
+import { authenticate } from '@/lib/auth/unified-auth'
 
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
@@ -19,13 +18,7 @@ export const POST = withErrorHandling(
     // Apply strict rate limiting for card activation (sensitive operation)
     await rateLimit(request, RateLimitPresets.sensitive)
 
-    let pubkey: string
-    try {
-      const result = await validateNip98(request)
-      pubkey = result.pubkey
-    } catch (error) {
-      throw new AuthenticationError()
-    }
+    const { pubkey } = await authenticate(request)
     const { otc } = validateParams(await params, otcParam)
 
     if (!pubkey) {

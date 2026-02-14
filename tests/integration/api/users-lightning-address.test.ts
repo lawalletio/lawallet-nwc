@@ -3,6 +3,7 @@ import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createUserFixture, createLightningAddressFixture } from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
+import { AuthenticationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
@@ -24,8 +25,8 @@ vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn(),
 }))
 
-vi.mock('@/lib/nip98', () => ({
-  validateNip98: vi.fn(),
+vi.mock('@/lib/auth/unified-auth', () => ({
+  authenticate: vi.fn(),
 }))
 
 vi.mock('@/lib/settings', () => ({
@@ -33,11 +34,24 @@ vi.mock('@/lib/settings', () => ({
 }))
 
 import { PUT } from '@/app/api/users/[userId]/lightning-address/route'
-import { validateNip98 } from '@/lib/nip98'
-import { createNip98Result } from '@/tests/helpers/auth-helpers'
+import { authenticate } from '@/lib/auth/unified-auth'
 import { getSettings } from '@/lib/settings'
 
 const mockPubkey = 'a'.repeat(64)
+
+function mockAuth(pubkey: string = mockPubkey) {
+  vi.mocked(authenticate).mockResolvedValue({
+    pubkey,
+    role: 'USER' as any,
+    method: 'nip98',
+  })
+}
+
+function mockAuthReject() {
+  vi.mocked(authenticate).mockRejectedValue(
+    new AuthenticationError('no auth')
+  )
+}
 
 beforeEach(() => {
   resetPrismaMock()
@@ -47,7 +61,7 @@ beforeEach(() => {
 describe('PUT /api/users/[userId]/lightning-address', () => {
   it('creates new lightning address for user', async () => {
     const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: null })
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -71,7 +85,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   it('replaces existing lightning address', async () => {
     const oldAddress = createLightningAddressFixture({ username: 'oldalice' })
     const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: oldAddress })
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -95,7 +109,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   it('returns existing when username unchanged', async () => {
     const address = createLightningAddressFixture({ username: 'alice' })
     const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: address })
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
 
@@ -115,7 +129,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
 
   it('rejects duplicate username taken by another user', async () => {
     const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: null })
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
@@ -133,7 +147,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
 
   it('rejects unauthorized user', async () => {
     const otherUser = createUserFixture({ pubkey: 'b'.repeat(64) })
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(otherUser as any)
 
     const req = createNextRequest(`/api/users/${otherUser.id}/lightning-address`, {
@@ -146,7 +160,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   })
 
   it('returns 404 for nonexistent user', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/users/nonexistent/lightning-address', {
@@ -159,7 +173,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   })
 
   it('rejects invalid username format', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
 
     const req = createNextRequest('/api/users/some-id/lightning-address', {
       method: 'PUT',
@@ -171,7 +185,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   })
 
   it('rejects empty username', async () => {
-    vi.mocked(validateNip98).mockResolvedValue(createNip98Result(mockPubkey))
+    mockAuth()
 
     const req = createNextRequest('/api/users/some-id/lightning-address', {
       method: 'PUT',

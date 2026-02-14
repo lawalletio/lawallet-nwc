@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { validateNip98 } from '@/lib/nip98'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
@@ -11,11 +10,12 @@ import {
 import { userIdParam, updateLightningAddressSchema } from '@/lib/validation/schemas'
 import { validateParams, validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { authenticate } from '@/lib/auth/unified-auth'
 
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
     await checkRequestLimits(request, 'json')
-    const { pubkey: authenticatedPubkey } = await validateNip98(request)
+    const { pubkey: authenticatedPubkey } = await authenticate(request)
 
     const { userId } = validateParams(await params, userIdParam)
     const { username } = await validateBody(request, updateLightningAddressSchema)

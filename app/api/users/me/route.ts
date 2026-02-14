@@ -1,21 +1,14 @@
-import { validateNip98 } from '@/lib/nip98'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { AuthenticationError } from '@/types/server/errors'
+import { authenticate } from '@/lib/auth/unified-auth'
 
 export const dynamic = 'force-dynamic'
 
 export const GET = withErrorHandling(async (request: Request) => {
-  let authenticatedPubkey: string
-  try {
-    const { pubkey } = await validateNip98(request)
-    authenticatedPubkey = pubkey
-  } catch (error) {
-    throw new AuthenticationError()
-  }
+  const { pubkey: authenticatedPubkey } = await authenticate(request)
 
     const existingUser = await prisma.user.findUnique({
       where: {
