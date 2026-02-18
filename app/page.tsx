@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  FundedBanner,
   AnimatedBackground,
   Header,
   HeroSection,
@@ -19,6 +20,7 @@ export default function LandingPage() {
     <div className="relative min-h-screen w-full noise-overlay">
       <AnimatedBackground />
       <div className="relative z-10 flex flex-col">
+        <FundedBanner />
         <Header />
         <main>
           <HeroSection />

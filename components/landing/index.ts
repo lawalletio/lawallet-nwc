@@ -1,3 +1,4 @@
+export { FundedBanner } from './funded-banner'
 export { AnimatedBackground } from './animated-background'
 export { Header } from './header'
 export { HeroSection } from './hero-section'
