@@ -1,0 +1,12 @@
+<svg viewBox="0 0 112 92" width="112" height="92" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient xlink:href="#os_a" id="os_b" cx="31.833" cy="29.662" fx="31.833" fy="29.662" r="42.553" gradientTransform="matrix(2 0 0 1.99696 -74.45 12.982)" gradientUnits="userSpaceOnUse"/>
+    <radialGradient xlink:href="#os_a" id="os_c" cx="31.833" cy="29.662" fx="31.833" fy="29.662" r="42.553" gradientTransform="matrix(2 0 0 1.99696 -74.45 12.982)" gradientUnits="userSpaceOnUse"/>
+    <linearGradient id="os_a">
+      <stop style="stop-color:#ffb200;stop-opacity:1" offset="0"/>
+      <stop style="stop-color:#ff6b01;stop-opacity:1" offset="0.493"/>
+    </linearGradient>
+  </defs>
+  <path style="fill:url(#os_b);fill-opacity:1" d="M32.574 39.319v3.81h16.11v-3.81z" transform="translate(-20.344 -25.395) scale(2.39915)"/>
+  <path style="fill:url(#os_c);fill-opacity:1" d="M14.85 16.062v4.551l8.944 5.681v.137l-8.945 5.68v4.551l13.029-8.555v-3.49Z" transform="translate(-20.344 -25.395) scale(2.39915)"/>
+</svg>
