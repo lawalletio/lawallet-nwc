@@ -5,47 +5,47 @@
 @layer base {
   :root {
     --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 100%;
+    --foreground: 0 0% 96.1%;
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 96.1%;
+    --popover: 0 0% 14.9%;
+    --popover-foreground: 0 0% 96.1%;
+    --primary: 0 0% 96.1%;
+    --primary-foreground: 0 0% 3.9%;
     --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary-foreground: 0 0% 96.1%;
     --muted: 0 0% 14.9%;
     --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --accent: 0 0% 9%;
+    --accent-foreground: 0 0% 96.1%;
+    --destructive: 0 72.2% 35.1%;
+    --destructive-foreground: 0 93.3% 94.1%;
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+    --ring: 0 0% 45.1%;
     --radius: 0.75rem;
   }
 
   .dark {
     --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 100%;
+    --foreground: 0 0% 96.1%;
+    --card: 0 0% 9%;
+    --card-foreground: 0 0% 96.1%;
+    --popover: 0 0% 14.9%;
+    --popover-foreground: 0 0% 96.1%;
+    --primary: 0 0% 96.1%;
+    --primary-foreground: 0 0% 3.9%;
     --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary-foreground: 0 0% 96.1%;
     --muted: 0 0% 14.9%;
     --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --accent: 0 0% 9%;
+    --accent-foreground: 0 0% 96.1%;
+    --destructive: 0 72.2% 35.1%;
+    --destructive-foreground: 0 93.3% 94.1%;
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+    --ring: 0 0% 45.1%;
   }
 
   .light {
@@ -122,6 +122,12 @@
 }
 .glow-card:hover::before {
   opacity: 1;
+}
+
+/* Shimmer animation for swipe button */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
 }
 
 /* Infinite card scroll animations */

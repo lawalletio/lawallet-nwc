@@ -1,3 +1,4 @@
+// @figma https://www.figma.com/design/jcjT53BBQ4wx94XwpbEZXl?node-id=3030-644
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 
@@ -9,7 +10,7 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',
+          'border border-neutral-700 bg-gradient-to-b from-neutral-400 to-neutral-100 text-primary-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] hover:opacity-80',
         secondary:
           'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
         destructive:
