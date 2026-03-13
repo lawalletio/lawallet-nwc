@@ -1,39 +1,18 @@
-'use client'
-
-import {
-  FundedBanner,
-  AnimatedBackground,
-  Header,
-  HeroSection,
-  TechStrip,
-  FeaturesSection,
-  DeploySection,
-  FlowSection,
-  OpenSourceSection,
-  RoadmapSection,
-  WaitlistSection,
-  Footer,
-} from '@/components/landing'
+import Image from 'next/image'
 
 export default function LandingPage() {
   return (
-    <div className="relative min-h-screen w-full noise-overlay">
-      <AnimatedBackground />
-      <div className="relative z-10 flex flex-col">
-        <FundedBanner />
-        <Header />
-        <main>
-          <HeroSection />
-          <TechStrip />
-          <FeaturesSection />
-          <DeploySection />
-          <FlowSection />
-          <OpenSourceSection />
-          <RoadmapSection />
-          <WaitlistSection />
-        </main>
-        <Footer />
-      </div>
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-background">
+      <Image
+        src="/logos/lawallet.svg"
+        alt="LaWallet"
+        width={180}
+        height={40}
+        priority
+      />
+      <p className="mt-6 text-muted-foreground">
+        Landing under construction
+      </p>
     </div>
   )
 }
