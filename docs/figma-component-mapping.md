@@ -546,14 +546,90 @@ These require new component files in `components/ui/`.
 - [ ] Responsive Dialog (Dialog + Drawer)
 
 ### Custom (11 components) — New files needed
-- [ ] Topbar (`components/ui/topbar.tsx`)
-- [ ] Topbar Mobile (`components/ui/topbar-mobile.tsx`)
-- [ ] Button Group (`components/ui/button-group.tsx`)
-- [ ] Spinner (`components/ui/spinner.tsx`)
-- [ ] Swipe Button (`components/ui/swipe-button.tsx`)
-- [ ] Kbd (`components/ui/kbd.tsx`)
-- [ ] Input Group (`components/ui/input-group.tsx`)
-- [ ] Field (`components/ui/field.tsx`)
-- [ ] Checkbox Card (`components/ui/checkbox-card.tsx`)
-- [ ] Link Card (`components/ui/link-card.tsx`)
-- [ ] Native Select (`components/ui/native-select.tsx`)
+- [x] Topbar (`components/ui/topbar.tsx`)
+- [x] Topbar Mobile (`components/ui/topbar-mobile.tsx`)
+- [x] Button Group (`components/ui/button-group.tsx`)
+- [x] Spinner (`components/ui/spinner.tsx`)
+- [x] Swipe Button (`components/ui/swipe-button.tsx`)
+- [x] Kbd (`components/ui/kbd.tsx`)
+- [x] Input Group (`components/ui/input-group.tsx`)
+- [x] Field (`components/ui/field.tsx`)
+- [x] Checkbox Card (`components/ui/checkbox-card.tsx`)
+- [x] Link Card (`components/ui/link-card.tsx`)
+- [x] Native Select (`components/ui/native-select.tsx`)
+
+---
+
+## Figma Screens (Pages / Layouts)
+
+Dashboard screens from the Figma file to be implemented as Next.js pages.
+
+> **How to add a screen:** Paste the Figma frame link, extract fileKey and nodeId, and fill in a row below.
+> Format: `https://figma.com/design/:fileKey/:fileName?node-id=:nodeId`
+
+### Admin Dashboard Screens
+
+| # | Screen | Figma Node | Route | Status |
+|---|--------|-----------|-------|--------|
+| 1 | Dashboard Home | — | `/admin` | Placeholder |
+| 2 | Cards List | — | `/admin/cards` | Not started |
+| 3 | Card Detail | — | `/admin/cards/[id]` | Not started |
+| 4 | Create Card | — | `/admin/cards/new` | Not started |
+| 5 | Designs Gallery | — | `/admin/designs` | Not started |
+| 6 | Lightning Addresses | — | `/admin/addresses` | Not started |
+| 7 | Settings | — | `/admin/settings` | Not started |
+| 8 | Login | — | `/admin` (modal) | Not started |
+
+### Wallet Screens
+
+| # | Screen | Figma Node | Route | Status |
+|---|--------|-----------|-------|--------|
+| 1 | Login / Signup | — | `/wallet/login` | Not started |
+| 2 | Wallet Home | — | `/wallet` | Placeholder |
+| 3 | Settings | — | `/wallet/settings` | Not started |
+| 4 | Setup Lightning Address | — | `/wallet/setup/lightning-address` | Not started |
+| 5 | Setup NWC | — | `/wallet/setup/nwc` | Not started |
+| 6 | Card Activation | — | `/wallet/activate/[otc]` | Not started |
+
+### Landing Page Screens
+
+| # | Screen | Figma Node | Route | Status |
+|---|--------|-----------|-------|--------|
+| 1 | Landing Page (Full) | — | `/` | Placeholder |
+
+---
+
+## Figma Subpages (Figma File Structure)
+
+Pages within the Figma file. The "Components" page is already mapped above.
+
+> **How to add a subpage:** Open the Figma file, note the page name, right-click the page in the sidebar → "Copy link to page", extract the node-id.
+
+| # | Figma Page | Node ID | Description | Mapped |
+|---|-----------|---------|-------------|--------|
+| 1 | Components | `3030:135` | Design system components | ✅ Yes |
+| 2 | — | — | *(paste link to add)* | No |
+| 3 | — | — | *(paste link to add)* | No |
+| 4 | — | — | *(paste link to add)* | No |
+
+---
+
+## How to Add New Figma References
+
+### Adding a new component
+1. Find the component frame in Figma → right-click → "Copy link"
+2. Extract `nodeId` from URL: `?node-id=XXXX-YYYY` → `XXXX:YYYY`
+3. Add a row to the appropriate table above
+4. Add `// @figma https://www.figma.com/design/jcjT53BBQ4wx94XwpbEZXl?node-id=XXXX-YYYY` as the first line of the component source file
+
+### Adding a new screen
+1. Find the screen frame in Figma → right-click → "Copy link"
+2. Extract `nodeId` from URL
+3. Add a row to the "Figma Screens" section above
+4. When implementing, use `get_design_context` MCP tool with the nodeId to generate code
+
+### Adding a new Figma page
+1. In Figma sidebar, right-click the page → "Copy link to page"
+2. Extract `nodeId` from URL
+3. Add a row to the "Figma Subpages" section above
+4. Use `get_metadata` MCP tool with the nodeId to explore the page's contents
