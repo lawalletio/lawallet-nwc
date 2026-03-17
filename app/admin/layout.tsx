@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { Metadata } from 'next'
+import { AdminProviders } from '@/components/admin/admin-providers'
 
 export const metadata: Metadata = {
   title: 'Admin Dashboard - LaWallet',
@@ -11,5 +12,5 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <>{children}</>
+  return <AdminProviders>{children}</AdminProviders>
 }
