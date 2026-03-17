@@ -22,13 +22,6 @@ export interface AppConfig {
     enabled: boolean
   }
 
-  // Tally.so (Waitlist)
-  tally: {
-    apiKey: string | undefined
-    formId: string | undefined
-    enabled: boolean
-  }
-
   // Alby Integration
   alby: {
     apiUrl: string | undefined
@@ -105,12 +98,6 @@ export function getConfig(strict: boolean = true): AppConfig {
     jwt: {
       secret: env.JWT_SECRET,
       enabled: !!env.JWT_SECRET
-    },
-
-    tally: {
-      apiKey: env.TALLY_API_KEY,
-      formId: env.TALLY_FORM_ID,
-      enabled: !!(env.TALLY_API_KEY && env.TALLY_FORM_ID)
     },
 
     alby: {
