@@ -19,9 +19,11 @@ export function truncateNpub(pubkey: string, chars: number = 8): string {
  * Formats a date string or Date as relative time.
  * Example: "2 hours ago", "3 days ago", "just now"
  */
-export function formatRelativeTime(date: Date | string): string {
+export function formatRelativeTime(date: Date | string | null | undefined): string {
+  if (!date) return '—'
   const now = new Date()
   const d = typeof date === 'string' ? new Date(date) : date
+  if (isNaN(d.getTime())) return '—'
   const diffMs = now.getTime() - d.getTime()
   const diffSec = Math.floor(diffMs / 1000)
 

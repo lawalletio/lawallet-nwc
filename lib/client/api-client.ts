@@ -44,14 +44,24 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       headers,
     })
 
-    if (response.status === 401) {
-      onUnauthorized?.()
-      throw new Error('Session expired. Please log in again.')
-    }
-
     if (!response.ok) {
       const errorBody = await response.json().catch(() => null)
       const apiError = errorBody?.error as ApiError | undefined
+
+      if (response.status === 401) {
+        // Only logout if there's no valid token (true auth failure).
+        // Permission-denied 401s should not force logout.
+        const token = getToken()
+        if (!token) {
+          onUnauthorized?.()
+        }
+        throw new Error(apiError?.message || 'Unauthorized')
+      }
+
+      if (response.status === 403) {
+        throw new Error(apiError?.message || 'Insufficient permissions')
+      }
+
       throw new Error(apiError?.message || `Request failed (${response.status})`)
     }
 
