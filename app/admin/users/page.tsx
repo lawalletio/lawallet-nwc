@@ -5,6 +5,7 @@ import { Search, MoreHorizontal } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { DataTablePagination } from '@/components/admin/data-table-pagination'
+import { InviteUserDialog } from '@/components/admin/invite-user-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +31,7 @@ export default function UsersPage() {
   const { data: addresses, loading: addressesLoading } = useAddresses()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [inviteOpen, setInviteOpen] = useState(false)
   const pageSize = 10
 
   const filtered = addresses?.filter((a) =>
@@ -49,8 +51,9 @@ export default function UsersPage() {
     <div className="flex flex-col">
       <AdminTopbar
         title="Users"
-        actions={<Button>Invite user</Button>}
+        actions={<Button onClick={() => setInviteOpen(true)}>Invite user</Button>}
       />
+      <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
       <div className="p-6 flex flex-col gap-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
