@@ -2,6 +2,7 @@
 
 import React from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Home,
@@ -46,8 +47,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Permission } from '@/lib/auth/permissions'
 import { useAuth } from '@/components/admin/auth-context'
+import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { truncateNpub } from '@/lib/client/format'
 import { toast } from 'sonner'
@@ -98,6 +101,7 @@ export function AdminSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { pubkey, loginMethod, logout, isAuthorized } = useAuth()
+  const { profile } = useNostrProfile(pubkey)
   const { data: settings } = useSettings()
   const [settingsOpen, setSettingsOpen] = React.useState(
     pathname.startsWith('/admin/settings')
@@ -132,14 +136,20 @@ export function AdminSidebar() {
     ? 'Bunker'
     : ''
 
+  const displayName = profile?.displayName || profile?.name || (pubkey ? truncateNpub(pubkey) : 'Unknown')
+  const avatarFallback = (profile?.name?.[0] || pubkey?.slice(0, 2) || '??').toUpperCase()
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
         <Link href="/admin" className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-bold">
-            LW
-          </div>
-          <span className="text-sm font-semibold">LaWallet Admin</span>
+          <Image
+            src="/logos/lawallet.svg"
+            alt="LaWallet"
+            width={100}
+            height={24}
+            className="h-6 w-auto"
+          />
         </Link>
       </SidebarHeader>
 
@@ -250,12 +260,13 @@ export function AdminSidebar() {
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground">
-              {pubkey ? pubkey.slice(0, 2).toUpperCase() : '??'}
-            </div>
+            <Avatar className="size-8 shrink-0">
+              {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
+              <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+            </Avatar>
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-medium truncate">
-                {pubkey ? truncateNpub(pubkey) : 'Unknown'}
+                {displayName}
               </span>
               {loginMethodLabel && (
                 <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
