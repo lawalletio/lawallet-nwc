@@ -20,6 +20,29 @@ import {
 } from '@/lib/client/nostr-signer'
 
 export function LoginPage() {
+  const [extensionAvailable, setExtensionAvailable] = useState(false)
+
+  useEffect(() => {
+    if (hasBrowserExtension()) {
+      setExtensionAvailable(true)
+      return
+    }
+
+    const interval = setInterval(() => {
+      if (hasBrowserExtension()) {
+        setExtensionAvailable(true)
+        clearInterval(interval)
+      }
+    }, 500)
+
+    const timeout = setTimeout(() => clearInterval(interval), 5000)
+
+    return () => {
+      clearInterval(interval)
+      clearTimeout(timeout)
+    }
+  }, [])
+
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="w-[350px] space-y-6">
@@ -63,20 +86,24 @@ export function LoginPage() {
           </TabsContent>
         </Tabs>
 
-        {/* Separator */}
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <Separator className="w-full" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
-              Or continue with
-            </span>
-          </div>
-        </div>
+        {extensionAvailable && (
+          <>
+            {/* Separator */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or continue with
+                </span>
+              </div>
+            </div>
 
-        {/* Extension button */}
-        <ExtensionButton />
+            {/* Extension button */}
+            <ExtensionButton />
+          </>
+        )}
       </div>
     </div>
   )
@@ -254,28 +281,6 @@ function BunkerForm() {
 function ExtensionButton() {
   const { login } = useAuth()
   const [loading, setLoading] = useState(false)
-  const [available, setAvailable] = useState(false)
-
-  useEffect(() => {
-    if (hasBrowserExtension()) {
-      setAvailable(true)
-      return
-    }
-
-    const interval = setInterval(() => {
-      if (hasBrowserExtension()) {
-        setAvailable(true)
-        clearInterval(interval)
-      }
-    }, 500)
-
-    const timeout = setTimeout(() => clearInterval(interval), 5000)
-
-    return () => {
-      clearInterval(interval)
-      clearTimeout(timeout)
-    }
-  }, [])
 
   async function handleConnect() {
     setLoading(true)
@@ -292,7 +297,7 @@ function ExtensionButton() {
   return (
     <Button
       onClick={handleConnect}
-      disabled={!available || loading}
+      disabled={loading}
       className="w-full h-[52px]"
     >
       {loading ? (
