@@ -1,5 +1,6 @@
 // @figma https://www.figma.com/design/jcjT53BBQ4wx94XwpbEZXl?node-id=3057-11598
 import * as React from 'react'
+import Image from 'next/image'
 import { ChevronLeft } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -84,7 +85,13 @@ const TopbarMobile = React.forwardRef<HTMLDivElement, TopbarMobileProps>(
 
         <div className="flex items-center justify-center">
           {logo ?? (
-            <div className="bg-muted rounded w-[120px] h-[36px]" />
+            <Image
+              src="/logos/lawallet.svg"
+              alt="LaWallet"
+              width={100}
+              height={24}
+              className="h-6 w-auto"
+            />
           )}
         </div>
 
