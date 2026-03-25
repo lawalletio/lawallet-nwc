@@ -1,31 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { ArrowRight, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { LoginModal } from '@/components/admin/login-modal'
 import { useAuth } from '@/components/admin/auth-context'
 
 export default function LandingPage() {
   const { status } = useAuth()
   const router = useRouter()
-  const [showLogin, setShowLogin] = useState(false)
-  const wasLoggingIn = useRef(false)
-
-  // Auto-redirect to /admin after successful login from the modal
-  useEffect(() => {
-    if (showLogin) {
-      wasLoggingIn.current = true
-    }
-    if (wasLoggingIn.current && status === 'authenticated') {
-      wasLoggingIn.current = false
-      setShowLogin(false)
-      router.push('/admin')
-    }
-  }, [status, showLogin, router])
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-4">
@@ -56,7 +40,7 @@ export default function LandingPage() {
         ) : (
           <Button
             size="lg"
-            onClick={() => setShowLogin(true)}
+            onClick={() => router.push('/admin')}
             className="w-full"
           >
             <Zap className="mr-2 size-4" />
@@ -64,11 +48,6 @@ export default function LandingPage() {
           </Button>
         )}
       </div>
-
-      <LoginModal
-        open={showLogin}
-        onOpenChange={setShowLogin}
-      />
     </div>
   )
 }

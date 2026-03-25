@@ -67,7 +67,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     },
     config.jwt.secret,
     {
-      expiresIn: parseInt(expiresIn) || expiresIn,
+      expiresIn,
       issuer: 'lawallet-nwc',
       audience: 'lawallet-users',
     }
