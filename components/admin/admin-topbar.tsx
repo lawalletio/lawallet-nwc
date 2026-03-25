@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { useIsMobile } from '@/components/ui/use-mobile'
-import { Topbar } from '@/components/ui/topbar'
+import { Topbar, type TopbarAlert, type TopbarTab } from '@/components/ui/topbar'
 import { TopbarMobile } from '@/components/ui/topbar-mobile'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
@@ -12,6 +12,8 @@ interface AdminTopbarProps {
   actions?: React.ReactNode
   type?: 'page' | 'subpage'
   onBack?: () => void
+  alert?: TopbarAlert
+  tabs?: TopbarTab[]
 }
 
 export function AdminTopbar({
@@ -20,6 +22,8 @@ export function AdminTopbar({
   actions,
   type = 'page',
   onBack,
+  alert,
+  tabs,
 }: AdminTopbarProps) {
   const isMobile = useIsMobile()
 
@@ -47,6 +51,8 @@ export function AdminTopbar({
       subtitle={subtitle}
       type={type}
       actions={actions}
+      alert={alert}
+      tabs={tabs}
     />
   )
 }

@@ -60,7 +60,7 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
 
-      {type === 'subpage' && tabs && tabs.length > 0 && (
+      {tabs && tabs.length > 0 && (
         <div className="flex items-center gap-1 px-4 py-1 bg-accent border-b border-border">
           {tabs.map((tab) => (
             <button
