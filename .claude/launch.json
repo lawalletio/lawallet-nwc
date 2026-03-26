@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "dev",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "source $HOME/.nvm/nvm.sh && nvm use 22.14.0 > /dev/null && pnpm dev"],
       "port": 3000,
       "autoPort": true
     }
