@@ -24,7 +24,7 @@ export function InfrastructureTab() {
   }
 
   return (
-    <div className="flex flex-col gap-8 p-6">
+    <div className="flex flex-col gap-8 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">
       <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
         <div>
           <h3 className="text-sm font-semibold">Nostr</h3>
