@@ -48,7 +48,7 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
         </div>
       )}
 
-      <div className="flex items-center justify-between px-4 py-2 h-[60px] border-b border-border">
+      <div className="flex items-center justify-between px-4 py-2 min-h-[60px] border-b border-border">
         <div className="flex flex-col">
           <span className="text-base font-semibold text-foreground">
             {title}
@@ -61,13 +61,13 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
       </div>
 
       {tabs && tabs.length > 0 && (
-        <div className="flex items-center gap-1 px-4 py-1 bg-accent border-b border-border">
+        <div className="flex items-center justify-center gap-4 px-4 py-2 bg-accent border-b border-border">
           {tabs.map((tab) => (
             <button
               key={tab.label}
               onClick={tab.onClick}
               className={cn(
-                'px-3 py-1.5 text-sm rounded-md transition-colors',
+                'px-4 py-3 text-sm font-semibold rounded-md transition-colors shadow-sm',
                 tab.active
                   ? 'bg-secondary text-secondary-foreground'
                   : 'text-muted-foreground hover:text-foreground'
