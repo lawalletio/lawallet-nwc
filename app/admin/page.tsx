@@ -21,6 +21,7 @@ import {
 } from '@/lib/client/hooks/use-home-stats'
 import { useAuth } from '@/components/admin/auth-context'
 import { Permission } from '@/lib/auth/permissions'
+import { SetupBanner } from '@/components/admin/setup-banner'
 
 const sourceIcons = {
   App: Monitor,
@@ -43,6 +44,8 @@ export default function AdminDashboardPage() {
       <AdminTopbar title="Home" />
 
       <div className="p-6 flex flex-col gap-6">
+        <SetupBanner />
+
         {!canViewStats ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
             <div className="flex size-16 items-center justify-center rounded-full bg-muted">
