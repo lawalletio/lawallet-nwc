@@ -21,8 +21,7 @@ export default function RootLayout({
       <body className={`min-h-dvh bg-background ${inter.className}`}>
         <Providers
           attribute="class"
-          defaultTheme="dark"
-          enableSystem
+          forcedTheme="dark"
           disableTransitionOnChange
         >
           {children}
