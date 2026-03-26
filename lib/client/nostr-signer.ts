@@ -2,17 +2,17 @@ import type { NostrSigner } from '@nostrify/nostrify'
 import { NSecSigner, NBrowserSigner } from '@nostrify/nostrify'
 import { hexToBytes } from 'nostr-tools/utils'
 import { generateSecretKey } from 'nostr-tools/pure'
-import { nsecToHex, validateNsec, parseBunkerUrl } from '@/lib/nostr'
+import { privateKeyToHex, validatePrivateKey, parseBunkerUrl } from '@/lib/nostr'
 
 /**
- * Creates a NostrSigner from an nsec private key.
+ * Creates a NostrSigner from a private key (nsec or 64-char hex).
  * The key stays in memory only — never sent to the server.
  */
-export function createNsecSigner(nsec: string): NostrSigner {
-  if (!validateNsec(nsec)) {
-    throw new Error('Invalid nsec format')
+export function createNsecSigner(key: string): NostrSigner {
+  if (!validatePrivateKey(key)) {
+    throw new Error('Invalid private key — enter an nsec or 64-char hex key')
   }
-  const hex = nsecToHex(nsec)
+  const hex = privateKeyToHex(key)
   const secretKey = hexToBytes(hex)
   return new NSecSigner(secretKey)
 }

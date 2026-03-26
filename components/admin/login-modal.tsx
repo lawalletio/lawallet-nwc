@@ -200,12 +200,12 @@ function NsecTab() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-4">
       <div className="space-y-2">
-        <Label htmlFor="nsec-input">Private Key (nsec)</Label>
+        <Label htmlFor="nsec-input">Private Key (nsec or hex)</Label>
         <div className="relative">
           <Input
             id="nsec-input"
             type={showKey ? 'text' : 'password'}
-            placeholder="nsec1..."
+            placeholder="nsec or hex private key..."
             value={nsec}
             onChange={(e) => {
               setNsec(e.target.value)

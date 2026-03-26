@@ -141,7 +141,7 @@ function NsecForm() {
         <div className="relative">
           <Input
             type={showKey ? 'text' : 'password'}
-            placeholder="nsec..."
+            placeholder="nsec or hex private key..."
             value={nsec}
             onChange={(e) => {
               setNsec(e.target.value)
