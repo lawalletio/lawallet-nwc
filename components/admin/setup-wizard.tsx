@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
@@ -12,93 +12,222 @@ import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { checkRootStatus, claimRootRole } from '@/lib/client/auth-api'
 
-type WizardStep = 'checking' | 'domain' | 'confirm' | 'claiming' | 'hidden'
+type WizardStep = 'idle' | 'loading' | 'domain' | 'fetching' | 'confirm' | 'claiming' | 'hidden'
+
+interface CommunityData {
+  id: string
+  title: string
+  description?: string
+  avatarImage?: string
+  backgroundImage?: string
+  country?: string
+  city?: string
+  domain?: string
+}
 
 export function SetupWizard() {
   const { status, signer, role, login, loginMethod, apiClient } = useAuth()
-  const [step, setStep] = useState<WizardStep>('checking')
+  const [step, setStep] = useState<WizardStep>('idle')
   const [domain, setDomain] = useState('')
   const [subdomain, setSubdomain] = useState('')
   const [showAdvance, setShowAdvance] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [verified, setVerified] = useState(false)
+  const [loadingProgress, setLoadingProgress] = useState(0)
+  const [fadeOut, setFadeOut] = useState(false)
+  const [community, setCommunity] = useState<CommunityData | null>(null)
+  const checkedRef = useRef(false)
 
+  // When auth becomes ready, check if onboarding is needed
   useEffect(() => {
-    async function check() {
-      if (status !== 'authenticated' || !signer) {
-        setState('hidden')
-        return
-      }
+    if (status !== 'authenticated' || !signer || checkedRef.current) return
+    if (role === 'ADMIN') return
 
-      if (role === 'ADMIN') {
-        setState('hidden')
-        return
-      }
+    checkedRef.current = true
 
+    async function checkOnboarding() {
       try {
-        const rootStatus = await checkRootStatus(signer)
+        const rootStatus = await checkRootStatus(signer!)
         if (!rootStatus.hasRoot && rootStatus.canAssignRoot) {
-          setState('domain')
-        } else {
-          setState('hidden')
+          setStep('loading')
         }
       } catch {
-        setState('hidden')
+        // API error — don't show onboarding
       }
     }
 
-    check()
+    checkOnboarding()
   }, [status, signer, role])
 
-  function setState(s: WizardStep) {
-    setStep(s)
-  }
+  // Reset check when user logs out
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      checkedRef.current = false
+      setStep('idle')
+    }
+  }, [status])
+
+  // Loading screen — preload assets then transition to domain
+  useEffect(() => {
+    if (step !== 'loading') return
+
+    let done = false
+
+    async function preload() {
+      await new Promise<void>((resolve) => {
+        const img = new window.Image()
+        img.src = '/images/onboarding-hero.jpg'
+        img.onload = () => resolve()
+        img.onerror = () => resolve()
+      })
+      setLoadingProgress(70)
+
+      await new Promise<void>((resolve) => {
+        const img = new window.Image()
+        img.src = '/logos/lawallet.svg'
+        img.onload = () => resolve()
+        img.onerror = () => resolve()
+      })
+      setLoadingProgress(100)
+
+      if (done) return
+
+      await new Promise((r) => setTimeout(r, 200))
+
+      setFadeOut(true)
+      setTimeout(() => {
+        setFadeOut(false)
+        setStep('domain')
+      }, 400)
+    }
+
+    setLoadingProgress(20)
+    preload()
+
+    return () => { done = true }
+  }, [step])
 
   async function handleVerify() {
     if (!domain.trim()) return
     setVerifying(true)
-    // Simulate domain verification — in production this would check DNS
     await new Promise((r) => setTimeout(r, 800))
     setVerifying(false)
     setVerified(true)
     toast.success('Domain verified')
   }
 
-  async function handleConfirm() {
+  async function handleNext() {
+    if (!domain.trim()) return
+
+    const cleanDomain = domain.trim().toLowerCase()
+    setStep('fetching')
+    setCommunity(null)
+
+    try {
+      const res = await fetch('https://veintiuno.lat/api/communities')
+      if (res.ok) {
+        const communities: CommunityData[] = await res.json()
+        const match = communities.find(
+          (c) => c.domain === cleanDomain || c.domain === `www.${cleanDomain}`
+        )
+        if (match) {
+          setCommunity(match)
+          // Preload community images
+          if (match.backgroundImage) {
+            const img = new window.Image()
+            img.src = match.backgroundImage
+          }
+          if (match.avatarImage) {
+            const img = new window.Image()
+            img.src = match.avatarImage
+          }
+          setStep('confirm')
+          return
+        }
+      }
+    } catch {
+      // Network error — skip community lookup
+    }
+
+    // No community found — finish setup directly
+    await finishSetup()
+  }
+
+  async function finishSetup() {
     if (!signer || !loginMethod) return
 
-    setState('claiming')
+    setStep('claiming')
     try {
-      // 1. Claim root role
       await claimRootRole(signer)
 
-      // 2. Save domain setting
       try {
         const fullDomain = subdomain ? `${subdomain}.${domain}` : domain
         await apiClient.post('/api/settings', {
-          domain: fullDomain,
-          endpoint: `https://${fullDomain}`,
+          domain: fullDomain.trim().toLowerCase(),
+          endpoint: `https://${fullDomain.trim().toLowerCase()}`,
         })
       } catch {
-        // Domain save is best-effort — root claim is the critical part
+        // Domain save is best-effort
       }
 
-      // 3. Re-login to get updated role
+      // If community was found, save community name
+      if (community) {
+        try {
+          await apiClient.post('/api/settings', {
+            community_name: community.title,
+          })
+        } catch {
+          // Best-effort
+        }
+      }
+
       await login(signer, loginMethod)
 
       toast.success('Setup complete! You are now the root administrator.')
-      setState('hidden')
+      setStep('hidden')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to complete setup')
-      setState('confirm')
+      setStep('confirm')
     }
   }
 
-  if (step === 'hidden' || step === 'checking') return null
+  // Don't render anything if idle or hidden
+  if (step === 'idle' || step === 'hidden') return null
 
-  const communityName = subdomain
+  // Loading screen
+  if (step === 'loading') {
+    return (
+      <div
+        className={`fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background transition-opacity duration-400 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
+      >
+        <Image
+          src="/logos/lawallet.svg"
+          alt="LaWallet"
+          width={140}
+          height={32}
+          className="h-8 w-auto mb-8"
+          priority
+        />
+        <div className="w-48 h-1 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-100 ease-out"
+            style={{
+              width: `${loadingProgress}%`,
+              background: 'linear-gradient(90deg, #3d8a68, #55b68c)',
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  const fullDomain = subdomain
     ? `${subdomain}.${domain}`
     : domain || 'your community'
+
+  const heroImage = community?.backgroundImage || '/images/onboarding-hero.jpg'
+  const avatarImage = community?.avatarImage || '/images/onboarding-hero.jpg'
+  const communityName = community?.title || fullDomain
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-background px-4">
@@ -116,8 +245,9 @@ export function SetupWizard() {
       {step === 'domain' && (
         <div className="w-full max-w-[480px] space-y-4">
           <Card className="overflow-hidden">
-            {/* Illustration placeholder */}
-            <div className="h-[200px] bg-gradient-to-br from-neutral-300 to-neutral-100" />
+            <div className="h-[200px] relative overflow-hidden rounded-t-lg">
+              <Image src="/images/onboarding-hero.jpg" alt="" fill className="object-cover" />
+            </div>
             <CardContent className="p-6 space-y-4">
               <div>
                 <h2 className="text-lg font-semibold">Domain</h2>
@@ -134,13 +264,10 @@ export function SetupWizard() {
                       setDomain(e.target.value)
                       setVerified(false)
                     }}
-                    className="border-0 shadow-none focus-visible:ring-0"
                   />
                 </InputGroup>
                 <Button
                   variant="secondary"
-                  size="sm"
-                  className="shrink-0 self-center"
                   onClick={handleVerify}
                   disabled={!domain.trim() || verifying}
                 >
@@ -148,10 +275,9 @@ export function SetupWizard() {
                 </Button>
               </div>
 
-              {/* Advance section */}
               <button
                 onClick={() => setShowAdvance(!showAdvance)}
-                className="flex items-center gap-1 mx-auto text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mx-auto"
               >
                 Advance
                 {showAdvance ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
@@ -163,11 +289,8 @@ export function SetupWizard() {
                     placeholder="subdomain"
                     value={subdomain}
                     onChange={(e) => setSubdomain(e.target.value)}
-                    className="border-0 shadow-none focus-visible:ring-0"
                   />
-                  <InputGroupText position="suffix">
-                    .{domain || 'domain.com'}
-                  </InputGroupText>
+                  <InputGroupText>.{domain || 'domain.com'}</InputGroupText>
                 </InputGroup>
               )}
             </CardContent>
@@ -175,26 +298,46 @@ export function SetupWizard() {
 
           <Button
             className="w-full"
-            variant="secondary"
             disabled={!domain.trim()}
-            onClick={() => setStep('confirm')}
+            onClick={handleNext}
           >
             Next
           </Button>
+
+          {verified && (
+            <p className="text-center text-sm text-green-500 flex items-center justify-center gap-1">
+              <span>✓</span> Domain verified
+            </p>
+          )}
+        </div>
+      )}
+
+      {step === 'fetching' && (
+        <div className="flex flex-col items-center gap-4">
+          <Spinner size={32} />
+          <p className="text-sm text-muted-foreground">Looking up community...</p>
         </div>
       )}
 
       {(step === 'confirm' || step === 'claiming') && (
         <div className="w-full max-w-[480px] space-y-4">
           <Card className="overflow-hidden">
-            {/* Illustration placeholder */}
-            <div className="h-[200px] bg-gradient-to-br from-neutral-300 to-neutral-100" />
+            <div className="h-[200px] relative overflow-hidden rounded-t-lg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={heroImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            </div>
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
-                <div className="size-12 shrink-0 rounded-md bg-gradient-to-br from-neutral-300 to-neutral-100" />
+                <div className="size-12 shrink-0 rounded-md relative overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={avatarImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Is this your community?</p>
                   <p className="text-base font-semibold">{communityName}</p>
+                  {community?.city && community?.country && (
+                    <p className="text-xs text-muted-foreground">{community.city}, {community.country}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -204,15 +347,19 @@ export function SetupWizard() {
             <Button
               variant="secondary"
               className="flex-1"
+              onClick={() => {
+                setCommunity(null)
+                setStep('domain')
+              }}
               disabled={step === 'claiming'}
-              onClick={() => setStep('domain')}
             >
               Back
             </Button>
             <Button
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+              variant="theme"
+              className="flex-1"
+              onClick={finishSetup}
               disabled={step === 'claiming'}
-              onClick={handleConfirm}
             >
               {step === 'claiming' ? (
                 <>
