@@ -101,8 +101,22 @@ export const THEME_PRESETS: ThemePreset[] = [
   },
 ]
 
-const STORAGE_KEY = 'lawallet-theme-color'
-const DEFAULT_PRESET = THEME_PRESETS[0] // Neutral
+// ─── Rounding presets ─────────────────────────────────────────────────────
+
+export const ROUNDING_OPTIONS = ['None', 'Small', 'Medium', 'Full'] as const
+export type RoundingOption = typeof ROUNDING_OPTIONS[number]
+
+const ROUNDING_VALUES: Record<RoundingOption, string> = {
+  None: '0rem',
+  Small: '0.375rem',
+  Medium: '0.75rem',
+  Full: '1.5rem',
+}
+
+const COLOR_STORAGE_KEY = 'lawallet-theme-color'
+const ROUNDING_STORAGE_KEY = 'lawallet-theme-rounding'
+const DEFAULT_PRESET = THEME_PRESETS[4] // Green (matches Figma design system)
+const DEFAULT_ROUNDING: RoundingOption = 'Medium'
 
 // ─── Context ───────────────────────────────────────────────────────────────
 
@@ -110,6 +124,9 @@ interface ThemeContextValue {
   activePreset: ThemePreset
   setTheme: (preset: ThemePreset) => void
   presets: ThemePreset[]
+  rounding: RoundingOption
+  setRounding: (option: RoundingOption) => void
+  roundingOptions: readonly typeof ROUNDING_OPTIONS[number][]
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
@@ -136,10 +153,14 @@ function applyPreset(preset: ThemePreset) {
   root.style.setProperty('--theme-400', preset.theme400)
 }
 
+function applyRounding(option: RoundingOption) {
+  document.documentElement.style.setProperty('--radius', ROUNDING_VALUES[option])
+}
+
 function loadSavedPreset(): ThemePreset {
   if (typeof window === 'undefined') return DEFAULT_PRESET
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = localStorage.getItem(COLOR_STORAGE_KEY)
     if (saved) {
       const found = THEME_PRESETS.find((p) => p.hex === saved)
       if (found) return found
@@ -148,25 +169,49 @@ function loadSavedPreset(): ThemePreset {
   return DEFAULT_PRESET
 }
 
+function loadSavedRounding(): RoundingOption {
+  if (typeof window === 'undefined') return DEFAULT_ROUNDING
+  try {
+    const saved = localStorage.getItem(ROUNDING_STORAGE_KEY)
+    if (saved && ROUNDING_OPTIONS.includes(saved as RoundingOption)) {
+      return saved as RoundingOption
+    }
+  } catch {}
+  return DEFAULT_ROUNDING
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [activePreset, setActivePreset] = useState<ThemePreset>(DEFAULT_PRESET)
+  const [rounding, setRoundingState] = useState<RoundingOption>(DEFAULT_ROUNDING)
 
   useEffect(() => {
-    const saved = loadSavedPreset()
-    setActivePreset(saved)
-    applyPreset(saved)
+    const savedPreset = loadSavedPreset()
+    setActivePreset(savedPreset)
+    applyPreset(savedPreset)
+
+    const savedRounding = loadSavedRounding()
+    setRoundingState(savedRounding)
+    applyRounding(savedRounding)
   }, [])
 
   const setTheme = useCallback((preset: ThemePreset) => {
     setActivePreset(preset)
     applyPreset(preset)
     try {
-      localStorage.setItem(STORAGE_KEY, preset.hex)
+      localStorage.setItem(COLOR_STORAGE_KEY, preset.hex)
+    } catch {}
+  }, [])
+
+  const setRounding = useCallback((option: RoundingOption) => {
+    setRoundingState(option)
+    applyRounding(option)
+    try {
+      localStorage.setItem(ROUNDING_STORAGE_KEY, option)
     } catch {}
   }, [])
 
   return (
-    <ThemeContext.Provider value={{ activePreset, setTheme, presets: THEME_PRESETS }}>
+    <ThemeContext.Provider value={{ activePreset, setTheme, presets: THEME_PRESETS, rounding, setRounding, roundingOptions: ROUNDING_OPTIONS }}>
       {children}
     </ThemeContext.Provider>
   )
