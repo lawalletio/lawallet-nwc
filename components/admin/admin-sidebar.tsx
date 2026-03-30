@@ -100,7 +100,7 @@ const settingsSubItems = [
 export function AdminSidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const { pubkey, loginMethod, logout, isAuthorized } = useAuth()
+  const { pubkey, role, loginMethod, logout, isAuthorized } = useAuth()
   const { profile } = useNostrProfile(pubkey)
   const { data: settings } = useSettings()
   const [settingsOpen, setSettingsOpen] = React.useState(
@@ -126,7 +126,7 @@ export function AdminSidebar() {
   const visiblePlatform = filterByPermission(platformItems)
   const visibleSystem = filterByPermission(systemItems)
   const showSettings = isAuthorized(Permission.SETTINGS_READ)
-  const needsDomainSetup = !settings?.domain
+  const needsDomainSetup = role === 'ADMIN' && !settings?.domain
 
   const loginMethodLabel = loginMethod === 'extension'
     ? 'Extension'
