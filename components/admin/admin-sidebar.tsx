@@ -301,7 +301,7 @@ export function AdminSidebar() {
                 Configure your domain to enable Lightning Addresses and wallet features.
               </p>
               <Button
-                variant="default"
+                variant="theme"
                 size="sm"
                 className="w-full"
                 onClick={() => router.push('/admin/settings?tab=infrastructure')}
