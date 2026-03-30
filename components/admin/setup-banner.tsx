@@ -5,25 +5,19 @@ import { useRouter } from 'next/navigation'
 import { Sparkles, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSettings } from '@/lib/client/hooks/use-settings'
+import { useAuth } from '@/components/admin/auth-context'
 
 export function SetupBanner() {
   const router = useRouter()
+  const { role } = useAuth()
   const { data: settings, loading } = useSettings()
   const [dismissed, setDismissed] = useState(false)
 
-  if (loading || dismissed || settings?.domain) return null
+  if (loading || dismissed || settings?.domain || role !== 'ADMIN') return null
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-card">
-      {/* Diagonal gradient overlay */}
-      <div
-        className="absolute inset-0 opacity-20"
-        style={{
-          background: 'linear-gradient(135deg, hsl(var(--theme-400, var(--primary))) 0%, transparent 60%)',
-        }}
-      />
-
-      <div className="relative flex items-start gap-4 p-5">
+    <div className="relative bg-card/60 dark:bg-card/40 dark:bg-gradient-to-br dark:from-primary/10 dark:to-transparent backdrop-blur-xl rounded-2xl p-6 border border-primary/20 shadow-xl shadow-black/5 dark:shadow-black/10 transition-all duration-300 ease-out animate-in slide-in-from-top-4">
+      <div className="relative flex items-start gap-4">
         {/* Icon */}
         <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-muted/60">
           <Sparkles className="size-6 text-foreground" />
