@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Check, X as XIcon } from 'lucide-react'
-import { toast } from 'sonner'
+import { Check, X as XIcon } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -14,9 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
-import { Spinner } from '@/components/ui/spinner'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
-import { useAuth } from '@/components/admin/auth-context'
 import { cn } from '@/lib/utils'
 
 interface ClaimDialogProps {
@@ -27,9 +24,8 @@ interface ClaimDialogProps {
 
 export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
   const router = useRouter()
-  const { apiClient } = useAuth()
 
-  const [step, setStep] = useState<'username' | 'connect' | 'claiming' | 'success'>('username')
+  const [step, setStep] = useState<'username' | 'connect'>('username')
   const [username, setUsername] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
@@ -120,28 +116,9 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
     setStep('connect')
   }
 
-  // After login succeeds, claim the address
-  async function handleLoginSuccess() {
-    setStep('claiming')
-
-    // Small delay to ensure auth state propagation
-    await new Promise((r) => setTimeout(r, 200))
-
-    try {
-      const me = await apiClient.get<{ id: string }>('/api/users/me')
-      await apiClient.put(`/api/users/${me.id}/lightning-address`, { username })
-      setStep('success')
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : String(error)
-      if (msg.includes('409') || msg.includes('already')) {
-        setUsernameError('This username is already taken. Try another one.')
-        setAvailable(false)
-        setStep('username')
-      } else {
-        toast.error(msg || 'Failed to claim address')
-        setStep('connect')
-      }
-    }
+  // After login succeeds, redirect to dashboard with claim param
+  function handleLoginSuccess() {
+    router.push(`/admin?claim=${encodeURIComponent(username)}`)
   }
 
   return (
@@ -232,52 +209,6 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
           </>
         )}
 
-        {/* Step 2.5: Claiming */}
-        {step === 'claiming' && (
-          <div className="flex flex-col items-center justify-center py-8 gap-4">
-            <Spinner size={32} />
-            <p className="text-sm text-muted-foreground">Claiming {username}@{displayDomain}...</p>
-          </div>
-        )}
-
-        {/* Step 3: Success */}
-        {step === 'success' && (
-          <>
-            <DialogHeader>
-              <div className="flex size-16 items-center justify-center rounded-full bg-green-500/10 mx-auto mb-4">
-                <CheckCircle2 className="size-8 text-green-500" />
-              </div>
-              <DialogTitle className="text-center">You&apos;re all set!</DialogTitle>
-              <DialogDescription className="text-center">
-                Your Lightning Address is ready
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              <p
-                className="text-lg font-semibold text-center"
-                style={{ color: 'var(--theme-400)' }}
-              >
-                {username}@{displayDomain}
-              </p>
-
-              <Button
-                variant="theme"
-                className="w-full"
-                onClick={() => router.push('/admin')}
-              >
-                Go to Dashboard
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full"
-                onClick={() => handleOpenChange(false)}
-              >
-                Close
-              </Button>
-            </div>
-          </>
-        )}
       </DialogContent>
     </Dialog>
   )

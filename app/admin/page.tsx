@@ -1,6 +1,9 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Monitor, CreditCard, AtSign, ShieldAlert } from 'lucide-react'
+import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { Badge } from '@/components/ui/badge'
@@ -30,7 +33,41 @@ const sourceIcons = {
 } as const
 
 export default function AdminDashboardPage() {
-  const { isAuthorized, role } = useAuth()
+  const { isAuthorized, role, status, apiClient } = useAuth()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const claimAttempted = useRef(false)
+
+  // Handle ?claim=username from landing page registration flow
+  useEffect(() => {
+    if (status !== 'authenticated' || claimAttempted.current) return
+
+    const claimUsername = searchParams.get('claim')
+    if (!claimUsername) return
+
+    claimAttempted.current = true
+
+    async function claimAddress() {
+      try {
+        const me = await apiClient.get<{ id: string }>('/api/users/me')
+        await apiClient.put(`/api/users/${me.id}/lightning-address`, {
+          username: claimUsername,
+        })
+        toast.success(`Lightning Address ${claimUsername} claimed!`)
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error)
+        if (msg.includes('409') || msg.includes('already')) {
+          toast.error(`Username "${claimUsername}" is already taken.`)
+        } else {
+          toast.error(msg || 'Failed to claim address')
+        }
+      }
+      // Remove the ?claim param from URL
+      router.replace('/admin')
+    }
+
+    claimAddress()
+  }, [status, searchParams, apiClient, router])
   const canViewStats = isAuthorized(Permission.ADDRESSES_READ)
 
   const { data: userCounts, loading: usersLoading } = useTotalUsers()
