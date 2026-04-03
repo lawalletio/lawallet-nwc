@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
+import { Spinner } from '@/components/ui/spinner'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
 import { cn } from '@/lib/utils'
 
