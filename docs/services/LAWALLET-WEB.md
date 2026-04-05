@@ -22,13 +22,13 @@ The main application serving the frontend, REST API, admin dashboard, user dashb
 - Wallet interface (payments, NWC connection)
 - Authentication (JWT + Nostr)
 - White-label customization
-- Customizable landing page
+- Redirect root traffic to the dedicated `lawallet-landing` site
 
 ---
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
 - **Frontend**: React + Tailwind CSS + shadcn/ui
 - **Database**: PostgreSQL via Prisma ORM
@@ -44,15 +44,14 @@ The main application serving the frontend, REST API, admin dashboard, user dashb
 |------|---------|
 | `/app` | Next.js App Router pages and API routes |
 | `/app/admin` | Admin dashboard pages |
-| `/app/dashboard` | User dashboard pages |
 | `/app/wallet` | Wallet interface |
 | `/app/.well-known` | LUD-16 + NIP-05 endpoints |
 | `/app/api` | REST API routes |
 | `/components` | Shared React components |
-| `/hooks` | React hooks (consuming SDK) |
 | `/lib` | Shared utilities, types, constants |
-| `/providers` | React context providers |
 | `/prisma` | Database schema, migrations, seeds |
+
+**Note:** the public landing now lives in [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing). `lawallet-web` keeps `/` as a redirect so deployments can share the same domain cleanly.
 
 ---
 

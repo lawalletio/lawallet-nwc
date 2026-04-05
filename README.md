@@ -30,11 +30,11 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 - Manage Boltcard cards (NFC)
 - Setup with NWC
 
-### Landing Page
+### Public Landing
 
-- Fully responsive
-- Instructions
-- Waitlist form (Tally.so integration)
+- Public marketing site lives in the dedicated [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing) repo
+- `lawallet-nwc` now redirects `/` to the landing site
+- Product app entrypoint remains `/admin`
 
 ---
 
@@ -119,7 +119,7 @@ pnpm dev
 
 ### 5. Open your browser
 
-- **App:** [http://localhost:3000](http://localhost:3000)
+- **Landing redirect:** [http://localhost:3000](http://localhost:3000) → `NEXT_PUBLIC_LAWALLET_LANDING_URL` (defaults to `https://lawallet.io`)
 - **Admin Dashboard:** [http://localhost:3000/admin](http://localhost:3000/admin)
 - **Wallet:** [http://localhost:3000/wallet](http://localhost:3000/wallet)
 
@@ -153,6 +153,7 @@ pnpm dev
 | Period | Document |
 |--------|----------|
 | Jan 5 - Feb 5, 2026 | [MONTH-1.md](./docs/changelogs/MONTH-1.md) |
+| Feb 6 - Apr 5, 2026 | [v0.9.0.md](./docs/changelogs/v0.9.0.md) |
 
 ---
 
