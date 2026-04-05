@@ -8,14 +8,21 @@
 
 ## Summary
 
-This report covers **all work since the last reported commit** [`fd2296b`](https://github.com/lawalletio/lawallet-nwc/commit/fd2296b), which closed out the Month 1 report.
+This report covers **all work completed since the last reported commit** [`fd2296b`](https://github.com/lawalletio/lawallet-nwc/commit/fd2296b), which closed out the Month 1 report.
 
-The main theme of this period was turning the project from a hardened backend foundation into a product with a real operator surface and a clearer public-facing architecture. We shipped CI/CD improvements, migrated NIP-98 login into JWT session auth, rebuilt the admin/dashboard experience from Figma, added onboarding/domain setup flows, implemented white-label branding and theme controls, and separated the public `lawallet.io` landing into its own dedicated repository.
+During this reporting period, the project advanced from a hardened backend foundation into a much more complete product surface. Work focused on four major areas:
 
-A major outcome of this period is that the project is no longer only "backend-ready" — it now has a coherent operator experience for managing users, cards, addresses, branding, and setup flows, plus a dedicated public site that can evolve independently from the app. We also delivered substantial Month 3 and Month 4 work ahead of the original roadmap, especially around Figma implementation, configurable branding, and the customizable landing direction.
+1. completing key infrastructure and CI/CD improvements,
+2. migrating authentication from raw NIP-98 flows into a practical JWT session model,
+3. implementing the new Figma-based admin/dashboard experience, and
+4. evolving the public `lawallet.io` presence into a dedicated, separately maintained landing application.
 
-**Main repo stats (`lawallet-nwc`):** 221 files changed, 11,043 insertions, 10,452 deletions — 58 commits across 4 merged PRs.  
-**Landing repo (`lawallet-landing`):** created as a separate repository during this period and used to continue the public `lawallet.io` landing implementation.
+In practical terms, this means LaWallet NWC is no longer only a backend-ready platform. It now includes a coherent operator-facing interface for managing users, cards, addresses, branding, and setup flows, while also establishing a clearer separation between the application itself and the public marketing/onboarding site.
+
+This period also pulled meaningful work forward from later roadmap phases, especially around branding, white-label foundations, configurable UX, and the customizable landing direction.
+
+**Main repository stats (`lawallet-nwc`):** 221 files changed, 11,043 insertions, 10,452 deletions — 58 commits across 4 merged PRs.  
+**Landing repository (`lawallet-landing`):** created as a separate repository during this period and used to continue development of the public `lawallet.io` experience.
 
 ---
 
@@ -23,75 +30,75 @@ A major outcome of this period is that the project is no longer only "backend-re
 
 ### CI/CD & Quality Gates ([PR #183](https://github.com/lawalletio/lawallet-nwc/pull/183))
 
-- GitHub Actions pipeline improvements with build job integration
-- Security scanning added to CI
-- Coverage thresholds configured and test exclusions cleaned up
-- Vercel configuration added with framework detection and security headers
+- Improved GitHub Actions pipeline with build integration
+- Added security scanning in CI
+- Configured coverage thresholds and cleaned up test exclusions
+- Added Vercel configuration with framework detection and security headers
 
-This closes key Month 2 delivery work and makes the project easier to validate and deploy continuously.
+This closes an important part of the originally planned Month 2 work and improves the project’s deployment and verification posture.
 
 ### Authentication Flow Upgrade ([PR #184](https://github.com/lawalletio/lawallet-nwc/pull/184), [PR #185](https://github.com/lawalletio/lawallet-nwc/pull/185))
 
-- NIP-98 authentication flow converted into JWT session auth
-- Auth documentation updated to reflect the new session model
-- Frontend login behavior updated around the JWT-based admin experience
+- Migrated authentication from direct NIP-98 request handling into a JWT session model
+- Updated authentication documentation to reflect the new approach
+- Aligned frontend login behavior with the JWT-based admin experience
 
-This provides a more practical app session model while preserving Nostr-native authentication at the edge.
+This preserves Nostr-native authentication while making the application significantly more usable as an authenticated web product.
 
 ### Figma Implementation, Admin Dashboard Rebuild & Frontend Restructure
 
-- Frontend stripped down and rebuilt against the new dashboard direction
-- Figma dashboard screens were mapped into implementation work and then shipped into the app
-- Admin layout restructured to match the updated Figma navigation
-- New Home, Users, Activity, Cards, and Settings experiences added
-- Full-page login implemented
-- Responsive mobile layout introduced
-- Component preview environment added to speed UI iteration
-- shadcn/ui component library introduced for the new frontend system
+- Stripped down the previous frontend and rebuilt it around the new dashboard direction
+- Mapped updated Figma screens into implementation tasks and shipped them into the product
+- Restructured admin layout to match the new navigation model
+- Added new Home, Users, Activity, Cards, and Settings experiences
+- Implemented a full-page login flow
+- Introduced responsive/mobile layout support
+- Added a component preview environment to speed UI iteration
+- Introduced shadcn/ui as the base component system for the new frontend
 
-This is the first substantial operator-facing interface for the project and represents a major step from prototype infrastructure to usable product.
+This is the first substantial operator-facing interface for the project and marks an important transition from infrastructure work to usable product delivery.
 
 ### Settings, Branding & White-Label Controls
 
-- Multi-tab Settings layout for Branding, Wallet, and Infrastructure
-- Dynamic theme system with 8 presets
-- Theme-aware UI updates across admin flows
-- Image uploads for logotype/isotype branding
-- Border radius presets and branding controls wired into the app
-- Setup banner and domain configuration UX added
-- Core groundwork shipped for a customizable landing/app experience through branding, theming, and domain-oriented onboarding
+- Added multi-tab Settings layout for Branding, Wallet, and Infrastructure
+- Implemented a dynamic theme system with 8 presets
+- Applied theme-aware styling across admin flows
+- Added image uploads for logotype/isotype branding
+- Wired border radius presets and additional branding controls into the application
+- Added setup banner and domain configuration UX
+- Established core groundwork for a customizable landing/app experience through branding, theming, and domain-oriented onboarding
 
-These changes pull forward white-label and customization work that was originally scheduled later in the roadmap.
+These changes move forward part of the white-label and customization work that was originally scheduled for later phases.
 
 ### Onboarding & Domain Claim Flow
 
-- Redesigned onboarding wizard for domain setup
-- Community lookup from veintiuno.lat during onboarding
-- Username availability checks with debounced validation
-- Claim flow that redirects authenticated users into the dashboard
-- Shared NostrConnect form extracted for reuse
-- Improved unsaved-change handling with save/cancel/revert flows in settings
+- Redesigned the onboarding wizard for domain setup
+- Added community lookup from veintiuno.lat during onboarding
+- Implemented debounced username availability checks
+- Added claim flow behavior that redirects authenticated users into the dashboard
+- Extracted a shared NostrConnect form for reuse across flows
+- Improved unsaved-change handling with save/cancel/revert behavior in settings
 
-This makes first-time setup materially smoother for operators and prepares the app for broader real-world usage.
+This work materially improves first-time setup and reduces friction for operators configuring a deployment.
 
 ### New `lawallet.io` Landing, Customizable Landing Direction & Repository Split
 
-- The public `lawallet.io` landing was substantially redesigned during this period
-- The landing was first iterated inside `lawallet-nwc`, then extracted into the dedicated [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing) repository
-- The separate landing repo continued shipping the public experience with waitlist UX, visual improvements, and standalone deployment flow
-- OpenSats attribution/banner was added to the landing
-- Landing design was aligned with the `lawallet.io` direction and the broader brand system
-- The product direction shifted from a fixed marketing page toward a more customizable landing/app setup tied to branding and community/domain onboarding
-- `lawallet-nwc` root path now redirects to the public landing while the product app remains centered on `/admin`
+- Substantially redesigned the public `lawallet.io` landing during this period
+- Iterated on the landing first inside `lawallet-nwc`, then extracted it into the dedicated [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing) repository
+- Continued shipping the public experience in the separate landing repo, including waitlist UX and visual/interaction improvements
+- Added OpenSats attribution/banner to the landing
+- Aligned the landing design with the `lawallet.io` brand direction
+- Shifted the product direction from a fixed marketing page toward a more customizable landing/app setup tied to branding and community/domain onboarding
+- Updated `lawallet-nwc` so the root path redirects to the public landing while the product app remains centered on `/admin`
 
-This separation makes the architecture clearer: the product app and the marketing site can now evolve independently, while also supporting the longer-term goal of customizable public-facing deployments.
+This separation creates a cleaner architecture: the product application and the public-facing site can now evolve independently, while also supporting the longer-term goal of customizable public deployments.
 
 ### Release v0.9.0
 
-- Version bump to `0.9.0`
-- Changelog published for the reporting period
-- Root redirect documented via environment configuration
-- Release published to GitHub
+- Bumped the project version to `0.9.0`
+- Published the changelog for the reporting period
+- Documented the root redirect behavior via environment configuration
+- Published the release to GitHub
 
 ---
 
@@ -108,9 +115,11 @@ This separation makes the architecture clearer: the product app and the marketin
 
 ## Roadmap Impact
 
-The roadmap originally positioned Month 2 around CI/CD, SDK, and React Hooks, and Month 3 around admin dashboard enhancement, frontend cleanup, and Nostr login. During this period, we completed the CI/CD portion and made substantial progress on the Month 3 admin/dashboard work, while also pulling in parts of Month 4 such as white-label customization, onboarding flows, domain configuration UX, and the customizable landing direction.
+The original roadmap positioned Month 2 around CI/CD, SDK, and React Hooks, and Month 3 around admin dashboard enhancement, frontend cleanup, and Nostr login.
 
-What remains from the original next steps is primarily:
+During this period, the project completed the CI/CD portion and made substantial progress on the Month 3 admin/dashboard work. It also pulled forward parts of Month 4, particularly white-label customization, onboarding flows, domain configuration UX, and the broader customizable landing direction.
+
+The most significant remaining items from the previously planned next steps are:
 
 - TypeScript Client SDK packaging and endpoint coverage
 - React Hooks package work
@@ -118,20 +127,20 @@ What remains from the original next steps is primarily:
 - User dashboard completion
 - Courtesy NWC Proxy service
 
-The key difference versus the original plan is that the project now has a significantly stronger product surface earlier than expected.
+The key takeaway is that the project now has a stronger product surface earlier than originally planned.
 
 ---
 
 ## Next Quarter (Apr – Jun 2026)
 
-The next phase should focus on consolidating the new product surface and completing the remaining platform pieces that unlock production readiness:
+The next phase should focus on consolidating the new product surface and completing the remaining platform work needed for production readiness:
 
 - Finish the User Dashboard (profile, address management, NWC connection, preferences)
 - Ship the Courtesy NWC Proxy service
 - Add Playwright E2E coverage for critical onboarding and admin flows
 - Advance LUD-16/21/22 compliance work, redirects, and webhook support
 - Resume SDK and React Hooks work so external apps can consume the platform cleanly
-- Continue deployment/documentation work for self-hosted and managed environments
+- Continue deployment and documentation work for self-hosted and managed environments
 
 See the full [ROADMAP](../ROADMAP.md) for the 6-month plan.
 
