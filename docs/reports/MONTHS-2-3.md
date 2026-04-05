@@ -8,11 +8,14 @@
 
 ## Summary
 
-This reporting period focused on shipping the first full product-facing version of LaWallet NWC. We moved from a hardened backend foundation into a working admin experience, JWT session auth based on NIP-98, frontend restructuring, onboarding/domain configuration flows, white-label theme controls, and a dedicated public landing split.
+This report covers **all work since the last reported commit** [`fd2296b`](https://github.com/lawalletio/lawallet-nwc/commit/fd2296b), which closed out the Month 1 report.
 
-A major outcome of this period is that the project is no longer only "backend-ready" — it now has a coherent operator experience for managing users, cards, addresses, branding, and setup flows. We also completed CI/CD work that was originally planned for Month 2 and delivered a significant amount of Month 3 and Month 4 frontend/admin work ahead of the original roadmap.
+The main theme of this period was turning the project from a hardened backend foundation into a product with a real operator surface and a clearer public-facing architecture. We shipped CI/CD improvements, migrated NIP-98 login into JWT session auth, rebuilt the admin/dashboard experience from Figma, added onboarding/domain setup flows, implemented white-label branding and theme controls, and separated the public `lawallet.io` landing into its own dedicated repository.
 
-**Stats:** 221 files changed, 11,043 insertions, 10,452 deletions — 58 commits across 4 merged PRs.
+A major outcome of this period is that the project is no longer only "backend-ready" — it now has a coherent operator experience for managing users, cards, addresses, branding, and setup flows, plus a dedicated public site that can evolve independently from the app. We also delivered substantial Month 3 and Month 4 work ahead of the original roadmap, especially around Figma implementation, configurable branding, and the customizable landing direction.
+
+**Main repo stats (`lawallet-nwc`):** 221 files changed, 11,043 insertions, 10,452 deletions — 58 commits across 4 merged PRs.  
+**Landing repo (`lawallet-landing`):** created as a separate repository during this period and used to continue the public `lawallet.io` landing implementation.
 
 ---
 
@@ -35,9 +38,10 @@ This closes key Month 2 delivery work and makes the project easier to validate a
 
 This provides a more practical app session model while preserving Nostr-native authentication at the edge.
 
-### Admin Dashboard Rebuild & Frontend Restructure
+### Figma Implementation, Admin Dashboard Rebuild & Frontend Restructure
 
 - Frontend stripped down and rebuilt against the new dashboard direction
+- Figma dashboard screens were mapped into implementation work and then shipped into the app
 - Admin layout restructured to match the updated Figma navigation
 - New Home, Users, Activity, Cards, and Settings experiences added
 - Full-page login implemented
@@ -55,6 +59,7 @@ This is the first substantial operator-facing interface for the project and repr
 - Image uploads for logotype/isotype branding
 - Border radius presets and branding controls wired into the app
 - Setup banner and domain configuration UX added
+- Core groundwork shipped for a customizable landing/app experience through branding, theming, and domain-oriented onboarding
 
 These changes pull forward white-label and customization work that was originally scheduled later in the roadmap.
 
@@ -69,16 +74,17 @@ These changes pull forward white-label and customization work that was originall
 
 This makes first-time setup materially smoother for operators and prepares the app for broader real-world usage.
 
-### Public Landing Evolution & Repository Split
+### New `lawallet.io` Landing, Customizable Landing Direction & Repository Split
 
-- Public landing iterated substantially during the period
-- OpenSats attribution/banner added to the landing
-- Waitlist/Tally logic removed as the product direction evolved
-- Landing design aligned with the lawallet.io direction
-- Public landing responsibilities were split into the dedicated [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing) repository
+- The public `lawallet.io` landing was substantially redesigned during this period
+- The landing was first iterated inside `lawallet-nwc`, then extracted into the dedicated [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing) repository
+- The separate landing repo continued shipping the public experience with waitlist UX, visual improvements, and standalone deployment flow
+- OpenSats attribution/banner was added to the landing
+- Landing design was aligned with the `lawallet.io` direction and the broader brand system
+- The product direction shifted from a fixed marketing page toward a more customizable landing/app setup tied to branding and community/domain onboarding
 - `lawallet-nwc` root path now redirects to the public landing while the product app remains centered on `/admin`
 
-This separation makes the architecture clearer: the product app and the marketing site can now evolve independently.
+This separation makes the architecture clearer: the product app and the marketing site can now evolve independently, while also supporting the longer-term goal of customizable public-facing deployments.
 
 ### Release v0.9.0
 
@@ -102,7 +108,7 @@ This separation makes the architecture clearer: the product app and the marketin
 
 ## Roadmap Impact
 
-The roadmap originally positioned Month 2 around CI/CD, SDK, and React Hooks, and Month 3 around admin dashboard enhancement, frontend cleanup, and Nostr login. During this period, we completed the CI/CD portion and made substantial progress on the Month 3 admin/dashboard work, while also pulling in parts of Month 4 such as white-label customization, onboarding flows, and domain configuration UX.
+The roadmap originally positioned Month 2 around CI/CD, SDK, and React Hooks, and Month 3 around admin dashboard enhancement, frontend cleanup, and Nostr login. During this period, we completed the CI/CD portion and made substantial progress on the Month 3 admin/dashboard work, while also pulling in parts of Month 4 such as white-label customization, onboarding flows, domain configuration UX, and the customizable landing direction.
 
 What remains from the original next steps is primarily:
 
