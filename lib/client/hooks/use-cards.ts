@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 
 export interface CardData {
@@ -45,13 +44,11 @@ export interface CardFilters {
  * Fetch cards list with optional filters.
  */
 export function useCards(filters?: CardFilters) {
-  const queryParams = useMemo(() => {
-    const params = new URLSearchParams()
-    if (filters?.paired !== undefined) params.set('paired', String(filters.paired))
-    if (filters?.used !== undefined) params.set('used', String(filters.used))
-    const qs = params.toString()
-    return qs ? `?${qs}` : ''
-  }, [filters?.paired, filters?.used])
+  const params = new URLSearchParams()
+  if (filters?.paired !== undefined) params.set('paired', String(filters.paired))
+  if (filters?.used !== undefined) params.set('used', String(filters.used))
+  const qs = params.toString()
+  const queryParams = qs ? `?${qs}` : ''
 
   return useApi<CardData[]>(`/api/cards${queryParams}`)
 }

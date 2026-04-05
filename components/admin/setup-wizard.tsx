@@ -61,10 +61,11 @@ export function SetupWizard() {
 
   // Reset check when user logs out
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      checkedRef.current = false
-      setStep('idle')
-    }
+    if (status !== 'unauthenticated') return
+
+    checkedRef.current = false
+    const timeout = setTimeout(() => setStep('idle'), 0)
+    return () => clearTimeout(timeout)
   }, [status])
 
   // Loading screen — preload assets then transition to domain
@@ -72,6 +73,10 @@ export function SetupWizard() {
     if (step !== 'loading') return
 
     let done = false
+    const initialProgressTimer = setTimeout(() => {
+      if (!done) setLoadingProgress(20)
+    }, 0)
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null
 
     async function preload() {
       await new Promise<void>((resolve) => {
@@ -80,6 +85,7 @@ export function SetupWizard() {
         img.onload = () => resolve()
         img.onerror = () => resolve()
       })
+      if (done) return
       setLoadingProgress(70)
 
       await new Promise<void>((resolve) => {
@@ -88,23 +94,26 @@ export function SetupWizard() {
         img.onload = () => resolve()
         img.onerror = () => resolve()
       })
+      if (done) return
       setLoadingProgress(100)
 
+      await new Promise((r) => setTimeout(r, 200))
       if (done) return
 
-      await new Promise((r) => setTimeout(r, 200))
-
       setFadeOut(true)
-      setTimeout(() => {
+      fadeTimer = setTimeout(() => {
         setFadeOut(false)
         setStep('domain')
       }, 400)
     }
 
-    setLoadingProgress(20)
     preload()
 
-    return () => { done = true }
+    return () => {
+      done = true
+      clearTimeout(initialProgressTimer)
+      if (fadeTimer) clearTimeout(fadeTimer)
+    }
   }, [step])
 
   async function handleVerify() {
@@ -160,26 +169,12 @@ export function SetupWizard() {
     try {
       await claimRootRole(signer)
 
-      try {
-        const fullDomain = subdomain ? `${subdomain}.${domain}` : domain
-        await apiClient.post('/api/settings', {
-          domain: fullDomain.trim().toLowerCase(),
-          endpoint: `https://${fullDomain.trim().toLowerCase()}`,
-        })
-      } catch {
-        // Domain save is best-effort
-      }
-
-      // If community was found, save community name
-      if (community) {
-        try {
-          await apiClient.post('/api/settings', {
-            community_name: community.title,
-          })
-        } catch {
-          // Best-effort
-        }
-      }
+      const fullDomain = subdomain ? `${subdomain}.${domain}` : domain
+      await apiClient.post('/api/settings', {
+        domain: fullDomain.trim().toLowerCase(),
+        endpoint: `https://${fullDomain.trim().toLowerCase()}`,
+        ...(community ? { community_name: community.title } : {}),
+      })
 
       await login(signer, loginMethod)
 
@@ -323,13 +318,11 @@ export function SetupWizard() {
         <div className="w-full max-w-[480px] space-y-4">
           <Card className="overflow-hidden">
             <div className="h-[200px] relative overflow-hidden rounded-t-lg">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={heroImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
             </div>
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
                 <div className="size-12 shrink-0 rounded-md relative overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={avatarImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
                 </div>
                 <div>

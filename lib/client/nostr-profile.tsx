@@ -42,25 +42,29 @@ export function useNostrProfile(pubkey: string | null): {
     throw new Error('useNostrProfile must be used within a NostrProfileProvider')
   }
 
-  const [profile, setProfile] = useState<NostrProfile | null>(
-    pubkey ? ctx.getProfile(pubkey) : null
-  )
+  const cachedProfile = pubkey ? ctx.getProfile(pubkey) : null
+  const [profile, setProfile] = useState<NostrProfile | null>(cachedProfile)
   const [loading, setLoading] = useState(false)
 
   // Stale-while-revalidate: show cached immediately, fetch fresh in background
   useEffect(() => {
-    if (!pubkey) {
-      setProfile(null)
-      return
-    }
-
-    const cached = ctx.getProfile(pubkey)
-    if (cached) {
-      setProfile(cached)
-    }
-
     let cancelled = false
-    if (!cached) setLoading(true)
+
+    if (!pubkey) {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setProfile(null)
+          setLoading(false)
+        }
+      })
+      return () => { cancelled = true }
+    }
+
+    if (!cachedProfile) {
+      queueMicrotask(() => {
+        if (!cancelled) setLoading(true)
+      })
+    }
 
     ctx.fetchProfile(pubkey).then((result) => {
       if (!cancelled && result) {
@@ -70,9 +74,9 @@ export function useNostrProfile(pubkey: string | null): {
     })
 
     return () => { cancelled = true }
-  }, [pubkey, ctx])
+  }, [pubkey, cachedProfile, ctx])
 
-  return { profile, loading }
+  return { profile: cachedProfile ?? profile, loading }
 }
 
 export function NostrProfileProvider({ children }: { children: React.ReactNode }) {
@@ -103,7 +107,7 @@ export function NostrProfileProvider({ children }: { children: React.ReactNode }
 
     inflightRef.current.set(pubkey, promise)
     return promise
-  }, [getProfile])
+  }, [])
 
   const value: NostrProfileContextValue = { getProfile, fetchProfile }
 

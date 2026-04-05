@@ -181,18 +181,16 @@ function loadSavedRounding(): RoundingOption {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [activePreset, setActivePreset] = useState<ThemePreset>(DEFAULT_PRESET)
-  const [rounding, setRoundingState] = useState<RoundingOption>(DEFAULT_ROUNDING)
+  const [activePreset, setActivePreset] = useState<ThemePreset>(() => loadSavedPreset())
+  const [rounding, setRoundingState] = useState<RoundingOption>(() => loadSavedRounding())
 
   useEffect(() => {
-    const savedPreset = loadSavedPreset()
-    setActivePreset(savedPreset)
-    applyPreset(savedPreset)
+    applyPreset(activePreset)
+  }, [activePreset])
 
-    const savedRounding = loadSavedRounding()
-    setRoundingState(savedRounding)
-    applyRounding(savedRounding)
-  }, [])
+  useEffect(() => {
+    applyRounding(rounding)
+  }, [rounding])
 
   const setTheme = useCallback((preset: ThemePreset) => {
     setActivePreset(preset)

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Eye, EyeOff, Puzzle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -30,28 +30,7 @@ export function NostrConnectForm({
   submitLabel = 'Login',
   loadingLabel = 'Signing in...',
 }: NostrConnectFormProps) {
-  const [extensionAvailable, setExtensionAvailable] = useState(false)
-
-  useEffect(() => {
-    if (hasBrowserExtension()) {
-      setExtensionAvailable(true)
-      return
-    }
-
-    const interval = setInterval(() => {
-      if (hasBrowserExtension()) {
-        setExtensionAvailable(true)
-        clearInterval(interval)
-      }
-    }, 500)
-
-    const timeout = setTimeout(() => clearInterval(interval), 5000)
-
-    return () => {
-      clearInterval(interval)
-      clearTimeout(timeout)
-    }
-  }, [])
+  const [extensionAvailable] = useState(() => hasBrowserExtension())
 
   return (
     <div className="w-full space-y-6">

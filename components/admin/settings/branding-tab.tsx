@@ -12,31 +12,36 @@ import { cn } from '@/lib/utils'
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-function useImageUpload() {
-  const [preview, setPreview] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      alert('Only JPG, PNG or WebP files are accepted.')
-      return
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      alert('File must be smaller than 2MB.')
-      return
-    }
-    setPreview(URL.createObjectURL(file))
+function validateImageFile(file: File) {
+  if (!ACCEPTED_TYPES.includes(file.type)) {
+    alert('Only JPG, PNG or WebP files are accepted.')
+    return false
   }
-
-  return { preview, inputRef, handleChange, trigger: () => inputRef.current?.click() }
+  if (file.size > MAX_FILE_SIZE) {
+    alert('File must be smaller than 2MB.')
+    return false
+  }
+  return true
 }
 
 export function BrandingTab() {
   const { activePreset, setTheme, presets, rounding, setRounding, roundingOptions } = useTheme()
-  const logotype = useImageUpload()
-  const isotypo = useImageUpload()
+  const [logotypePreview, setLogotypePreview] = useState<string | null>(null)
+  const [isotypoPreview, setIsotypoPreview] = useState<string | null>(null)
+  const logotypeInputRef = useRef<HTMLInputElement>(null)
+  const isotypoInputRef = useRef<HTMLInputElement>(null)
+
+  function handleLogotypeChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !validateImageFile(file)) return
+    setLogotypePreview(URL.createObjectURL(file))
+  }
+
+  function handleIsotypoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !validateImageFile(file)) return
+    setIsotypoPreview(URL.createObjectURL(file))
+  }
 
   return (
     <div className="flex flex-col gap-6 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">
@@ -55,20 +60,20 @@ export function BrandingTab() {
             <p className="text-sm text-foreground">Logotype</p>
             <div className="flex items-center gap-4 max-w-[320px]">
               <div className="w-32 h-12 shrink-0 rounded-md bg-muted relative overflow-hidden">
-                {logotype.preview && (
-                  <Image src={logotype.preview} alt="Logotype" fill className="object-contain" />
+                {logotypePreview && (
+                  <Image src={logotypePreview} alt="Logotype" fill className="object-contain" />
                 )}
               </div>
               <div className="flex flex-col gap-2 items-start">
                 <input
-                  ref={logotype.inputRef}
+                  ref={logotypeInputRef}
                   type="file"
                   accept=".jpg,.jpeg,.png,.webp"
                   className="hidden"
-                  onChange={logotype.handleChange}
+                  onChange={handleLogotypeChange}
                   data-track-change
                 />
-                <Button variant="secondary" size="sm" className="text-xs w-auto" onClick={logotype.trigger}>
+                <Button variant="secondary" size="sm" className="text-xs w-auto" onClick={() => logotypeInputRef.current?.click()}>
                   Change
                 </Button>
                 <p className="text-sm text-muted-foreground">
@@ -83,20 +88,20 @@ export function BrandingTab() {
             <p className="text-sm text-foreground">Isotypo</p>
             <div className="flex items-center gap-4 max-w-[320px]">
               <div className="size-16 shrink-0 rounded-md bg-muted relative overflow-hidden">
-                {isotypo.preview && (
-                  <Image src={isotypo.preview} alt="Isotypo" fill className="object-cover" />
+                {isotypoPreview && (
+                  <Image src={isotypoPreview} alt="Isotypo" fill className="object-cover" />
                 )}
               </div>
               <div className="flex flex-col gap-2 items-start">
                 <input
-                  ref={isotypo.inputRef}
+                  ref={isotypoInputRef}
                   type="file"
                   accept=".jpg,.jpeg,.png,.webp"
                   className="hidden"
-                  onChange={isotypo.handleChange}
+                  onChange={handleIsotypoChange}
                   data-track-change
                 />
-                <Button variant="secondary" size="sm" className="text-xs w-auto" onClick={isotypo.trigger}>
+                <Button variant="secondary" size="sm" className="text-xs w-auto" onClick={() => isotypoInputRef.current?.click()}>
                   Change
                 </Button>
                 <p className="text-sm text-muted-foreground">
