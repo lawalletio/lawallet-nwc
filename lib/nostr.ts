@@ -34,6 +34,21 @@ export function validateNsec(nsec: string): boolean {
   }
 }
 
+export function validateHexPrivateKey(hex: string): boolean {
+  return /^[0-9a-f]{64}$/.test(hex)
+}
+
+export function validatePrivateKey(key: string): boolean {
+  return validateNsec(key) || validateHexPrivateKey(key)
+}
+
+export function privateKeyToHex(key: string): string {
+  if (validateHexPrivateKey(key)) {
+    return key
+  }
+  return nsecToHex(key)
+}
+
 export function parseBunkerUrl(url: string) {
   const u = new URL(url)
   const remoteUserPubkey = u.hostname // hex

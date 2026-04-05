@@ -1,3 +1,4 @@
+// @figma https://www.figma.com/design/jcjT53BBQ4wx94XwpbEZXl?node-id=3030-4690
 import * as React from 'react'
 import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react'
 

@@ -1,81 +1,318 @@
 'use client'
 
-import { CreditCard, Palette, Zap, Settings, Home, X } from 'lucide-react'
+import React from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import Image from 'next/image'
+import { usePathname, useRouter } from 'next/navigation'
+import {
+  Home,
+  Users,
+  CreditCard,
+  Activity,
+  Settings,
+  HelpCircle,
+  MoreVertical,
+  Copy,
+  LogOut,
+  ChevronRight,
+  ExternalLink,
+} from 'lucide-react'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarSeparator,
+} from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { useEffect } from 'react'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Permission } from '@/lib/auth/permissions'
+import { useAuth } from '@/components/admin/auth-context'
+import { useNostrProfile } from '@/lib/client/nostr-profile'
+import { useSettings } from '@/lib/client/hooks/use-settings'
+import { truncateNpub } from '@/lib/client/format'
+import { toast } from 'sonner'
 
-const menuItems = [
-  { title: 'Dashboard', url: '/admin', icon: Home },
-  { title: 'Cards', url: '/admin/cards', icon: CreditCard },
-  { title: 'Designs', url: '/admin/designs', icon: Palette },
-  { title: 'Lightning Addresses', url: '/admin/addresses', icon: Zap },
-  { title: 'Settings', url: '/admin/settings', icon: Settings }
-]
-
-interface AdminSidebarProps {
-  isOpen: boolean
-  onClose: () => void
+interface NavItem {
+  title: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  permission?: Permission
 }
 
-export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
+const platformItems: NavItem[] = [
+  {
+    title: 'Home',
+    href: '/admin',
+    icon: Home,
+  },
+  {
+    title: 'Users',
+    href: '/admin/users',
+    icon: Users,
+    permission: Permission.ADDRESSES_READ,
+  },
+  {
+    title: 'Cards',
+    href: '/admin/cards',
+    icon: CreditCard,
+    permission: Permission.CARDS_READ,
+  },
+]
+
+const systemItems: NavItem[] = [
+  {
+    title: 'Activity',
+    href: '/admin/activity',
+    icon: Activity,
+    permission: Permission.SETTINGS_READ,
+  },
+]
+
+const settingsSubItems = [
+  { title: 'Wallet', tab: 'wallet' },
+  { title: 'Branding', tab: 'branding' },
+  { title: 'Infrastructure', tab: 'infrastructure' },
+]
+
+export function AdminSidebar() {
   const pathname = usePathname()
-  const isMobile = useIsMobile()
+  const router = useRouter()
+  const { pubkey, role, loginMethod, logout, isAuthorized } = useAuth()
+  const { profile } = useNostrProfile(pubkey)
+  const { data: settings } = useSettings()
+  const [settingsOpen, setSettingsOpen] = React.useState(
+    pathname.startsWith('/admin/settings')
+  )
 
-  // Prevent body scroll when mobile sidebar is open
-  useEffect(() => {
-    if (isMobile && isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
-    }
-    return () => {
-      document.body.style.overflow = 'unset'
-    }
-  }, [isOpen, isMobile])
+  function isActive(href: string): boolean {
+    if (href === '/admin') return pathname === '/admin'
+    return pathname.startsWith(href)
+  }
 
-  // Always show sidebar on desktop
-  const sidebarClass = isMobile
-    ? `fixed inset-0 left-0 z-50 w-4/5 max-w-xs lg:w-64 border-r bg-card h-full p-4 transform transition-transform duration-200 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`
-    : 'hidden lg:block sticky top-16 z-40 w-64 border-r bg-card h-[calc(100vh-4rem)] p-4'
+  function filterByPermission(items: NavItem[]): NavItem[] {
+    return items.filter((item) => !item.permission || isAuthorized(item.permission))
+  }
+
+  function copyPubkey() {
+    if (pubkey) {
+      navigator.clipboard.writeText(pubkey)
+      toast.success('Public key copied')
+    }
+  }
+
+  const visiblePlatform = filterByPermission(platformItems)
+  const visibleSystem = filterByPermission(systemItems)
+  const showSettings = isAuthorized(Permission.SETTINGS_READ)
+  const needsDomainSetup = role === 'ADMIN' && !settings?.domain
+
+  const loginMethodLabel = loginMethod === 'extension'
+    ? 'Extension'
+    : loginMethod === 'nsec'
+    ? 'Private key'
+    : loginMethod === 'bunker'
+    ? 'Bunker'
+    : ''
+
+  const displayName = profile?.displayName || profile?.name || (pubkey ? truncateNpub(pubkey) : 'Unknown')
+  const avatarFallback = (profile?.name?.[0] || pubkey?.slice(0, 2) || '??').toUpperCase()
 
   return (
-    <>
-      {/* Mobile overlay */}
-      {isMobile && isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
-      )}
+    <Sidebar>
+      <SidebarHeader className="p-4">
+        <Link href="/admin" className="flex items-center gap-2">
+          <Image
+            src="/logos/lawallet.svg"
+            alt="LaWallet"
+            width={100}
+            height={24}
+            className="h-6 w-auto"
+          />
+        </Link>
+      </SidebarHeader>
 
-      {/* Sidebar */}
-      <nav className={sidebarClass}>
-        {/* Close button (mobile only) */}
-        {isMobile && (
-          <div className="flex justify-end mb-4">
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+      <SidebarContent>
+        {visiblePlatform.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Platform</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visiblePlatform.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={isActive(item.href)}>
+                      <Link href={item.href}>
+                        <item.icon className="size-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         )}
-        <div className="space-y-1">
-          {menuItems.map(item => (
-            <Link
-              key={item.title}
-              href={item.url}
-              onClick={() => isMobile && onClose()}
-              className={`flex items-center gap-3 px-3 py-3 rounded-md text-lg font-semibold transition-colors hover:bg-accent hover:text-accent-foreground ${
-                pathname === item.url
-                  ? 'bg-primary/10 text-primary font-bold'
-                  : 'text-muted-foreground'
-              }`}
-            >
-              <item.icon className="h-5 w-5" />
-              <span>{item.title}</span>
-            </Link>
-          ))}
+
+        {(visibleSystem.length > 0 || showSettings) && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel>System</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {visibleSystem.map((item) => (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton asChild isActive={isActive(item.href)}>
+                        <Link href={item.href}>
+                          <item.icon className="size-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+
+                  {showSettings && (
+                    <Collapsible
+                      open={settingsOpen}
+                      onOpenChange={setSettingsOpen}
+                      asChild
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton
+                            isActive={isActive('/admin/settings')}
+                            onClick={() => {
+                              if (!settingsOpen) {
+                                router.push('/admin/settings')
+                              }
+                            }}
+                          >
+                            <Settings className="size-4" />
+                            <span>Settings</span>
+                            <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {settingsSubItems.map((sub) => (
+                              <SidebarMenuSubItem key={sub.tab}>
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={
+                                    pathname === '/admin/settings' &&
+                                    typeof window !== 'undefined' &&
+                                    new URLSearchParams(window.location.search).get('tab') === sub.tab
+                                  }
+                                >
+                                  <Link href={`/admin/settings?tab=${sub.tab}`}>
+                                    {sub.title}
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
+      </SidebarContent>
+
+      <SidebarFooter className="p-4 space-y-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <a href="https://docs.lawallet.io" target="_blank" rel="noopener noreferrer">
+                <HelpCircle className="size-4" />
+                <span>Get Help</span>
+                <ExternalLink className="ml-auto size-3 text-muted-foreground" />
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+
+        <SidebarSeparator />
+
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Avatar className="size-8 shrink-0">
+              {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
+              <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-medium truncate">
+                {displayName}
+              </span>
+              {loginMethodLabel && (
+                <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
+              )}
+            </div>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="shrink-0 size-8">
+                <MoreVertical className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top">
+              <DropdownMenuItem onClick={copyPubkey}>
+                <Copy className="size-4 mr-2" />
+                Copy public key
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={logout}>
+                <LogOut className="size-4 mr-2" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </nav>
-    </>
+
+        {needsDomainSetup && (
+          <Card className="bg-sidebar-accent border-sidebar-border">
+            <CardContent className="p-4 space-y-2">
+              <p className="text-sm font-semibold">Setup Domain</p>
+              <p className="text-xs text-muted-foreground line-clamp-2">
+                Configure your domain to enable Lightning Addresses and wallet features.
+              </p>
+              <Button
+                variant="theme"
+                size="sm"
+                className="w-full"
+                onClick={() => router.push('/admin/settings?tab=infrastructure')}
+              >
+                Configure now
+                <ExternalLink className="ml-1 size-3" />
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </SidebarFooter>
+    </Sidebar>
   )
 }

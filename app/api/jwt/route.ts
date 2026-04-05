@@ -38,10 +38,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // 2. Parse optional body (expiresIn)
-  let expiresIn = '1h'
+  let expiresIn: string | number = '1h'
   try {
     const data = await validateBody(request, jwtRequestSchema)
-    expiresIn = data.expiresIn
+    expiresIn = /^\d+$/.test(data.expiresIn) ? Number(data.expiresIn) : data.expiresIn
   } catch {
     // Body is optional for this endpoint; default to 1h
   }
@@ -67,7 +67,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     },
     config.jwt.secret,
     {
-      expiresIn: parseInt(expiresIn) || expiresIn,
+      expiresIn,
       issuer: 'lawallet-nwc',
       audience: 'lawallet-users',
     }

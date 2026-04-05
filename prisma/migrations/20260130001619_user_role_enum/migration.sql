@@ -9,11 +9,16 @@ UPDATE "public"."User" SET "role" = 'VIEWER' WHERE "role" = 'viewer';
 UPDATE "public"."User" SET "role" = 'USER' WHERE "role" = 'user';
 UPDATE "public"."User" SET "role" = 'USER' WHERE "role" IS NULL OR "role" NOT IN ('ADMIN', 'OPERATOR', 'VIEWER', 'USER');
 
--- AlterTable: convert column type using the migrated values
+-- AlterTable: drop old default, convert type, then set new default
 ALTER TABLE "public"."User"
-  ALTER COLUMN "role" SET DEFAULT 'USER',
+  ALTER COLUMN "role" DROP DEFAULT;
+
+ALTER TABLE "public"."User"
   ALTER COLUMN "role" SET NOT NULL,
   ALTER COLUMN "role" TYPE "public"."UserRole" USING "role"::"public"."UserRole";
+
+ALTER TABLE "public"."User"
+  ALTER COLUMN "role" SET DEFAULT 'USER'::"public"."UserRole";
 
 -- CreateIndex
 CREATE INDEX "User_role_idx" ON "public"."User"("role");

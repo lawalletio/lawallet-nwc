@@ -1,3 +1,4 @@
+// @figma https://www.figma.com/design/jcjT53BBQ4wx94XwpbEZXl?node-id=3030-510
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 

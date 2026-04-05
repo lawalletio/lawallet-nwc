@@ -24,19 +24,6 @@ const envSchema = z.object({
     .optional()
     .describe('Secret key for JWT token signing and verification'),
 
-  // Tally.so (Waitlist)
-  TALLY_API_KEY: z
-    .string()
-    .min(1, 'TALLY_API_KEY must not be empty')
-    .optional()
-    .describe('Tally.so API key for waitlist form submissions'),
-
-  TALLY_FORM_ID: z
-    .string()
-    .min(1, 'TALLY_FORM_ID must not be empty')
-    .optional()
-    .describe('Tally.so form ID for waitlist submissions'),
-
   // Alby Integration
   ALBY_API_URL: z
     .string()

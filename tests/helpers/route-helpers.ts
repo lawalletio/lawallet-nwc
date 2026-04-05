@@ -15,7 +15,6 @@ export function createDefaultConfig(overrides: Partial<AppConfig> = {}): AppConf
     logPretty: false,
     database: { url: 'postgresql://test' },
     jwt: { secret: 'test-jwt-secret', enabled: true },
-    tally: { apiKey: 'test-tally-key', formId: 'test-form-id', enabled: true },
     alby: { apiUrl: undefined, bearerToken: undefined, autoGenerateSubAccounts: false, enabled: false },
     server: { port: 3000 },
     github: { token: undefined, projectNumber: undefined, enabled: false },

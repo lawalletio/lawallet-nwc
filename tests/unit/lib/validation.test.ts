@@ -14,7 +14,6 @@ import {
   externalDeviceKeyParam,
   createRemoteCardSchema,
   jwtRequestSchema,
-  waitlistSchema,
 } from '@/lib/validation/schemas'
 
 describe('Validation Schemas', () => {
@@ -213,23 +212,6 @@ describe('Validation Schemas', () => {
       const data = { expiresIn: '2h', userId: 'user_1', additionalClaims: { role: 'admin' } }
       const result = jwtRequestSchema.parse(data)
       expect(result).toEqual({ expiresIn: '2h' })
-    })
-  })
-
-  describe('waitlistSchema', () => {
-    it('accepts valid email', () => {
-      expect(waitlistSchema.parse({ email: 'alice@example.com' })).toEqual({
-        email: 'alice@example.com',
-      })
-    })
-
-    it('accepts email with name', () => {
-      const data = { email: 'alice@example.com', name: 'Alice' }
-      expect(waitlistSchema.parse(data)).toEqual(data)
-    })
-
-    it('rejects invalid email', () => {
-      expect(() => waitlistSchema.parse({ email: 'not-email' })).toThrow()
     })
   })
 

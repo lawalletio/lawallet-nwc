@@ -1,3 +1,4 @@
+// @figma https://www.figma.com/design/jcjT53BBQ4wx94XwpbEZXl?node-id=3030-869
 import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
@@ -10,14 +11,17 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-blue-600 text-primary-foreground disabled:bg-blue-600/10 disabled:text-blue-400',
+          'bg-gradient-to-b from-neutral-400 to-neutral-100 text-[#0a0a0a] border border-neutral-700 shadow-[inset_0_2px_2px_rgba(255,255,255,0.4)] disabled:opacity-40',
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         outline:
           'border border-input bg-background hover:bg-accent hover:text-accent-foreground disabled:bg-background/10',
-        secondary: 'bg-gray-900 text-white hover:text-blue-300',
+        secondary:
+          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline'
+        link: 'text-primary underline-offset-4 hover:underline',
+        theme:
+          'bg-gradient-to-b from-[var(--theme-200)] to-[var(--theme-400)] text-foreground border border-[var(--theme-300)] shadow-[inset_0_2px_2px_var(--theme-400)]',
       },
       size: {
         default: 'h-10 px-4 py-2',

@@ -1,113 +1,222 @@
 'use client'
 
-import React from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import Image from 'next/image'
+import { Zap, Hash, Radio, CreditCard, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, PanelTopDashed, Wallet, Zap, Hash, Radio, Nfc } from 'lucide-react'
-import { useScrollAnimation } from './hooks'
-import { DomainShowcase } from './domain-showcase'
-import { DemoModal } from './demo-modal'
 
-export const HeroSection = () => {
-  const { ref, isVisible } = useScrollAnimation()
-  const [demoModal, setDemoModal] = React.useState<{ open: boolean; type: 'admin' | 'wallet' }>({ open: false, type: 'admin' })
+interface HeroSectionProps {
+  onClaim: () => void
+  domain: string
+  loading: boolean
+}
+
+const badges = [
+  { icon: Zap, label: 'Lightning' },
+  { icon: Hash, label: 'Nostr' },
+  { icon: Radio, label: 'NWC' },
+  { icon: CreditCard, label: 'BoltCard' },
+]
+
+const usernames = ['user', 'agent', 'bot', 'member', 'volunteer', 'friend', 'father', 'brother']
+const SCRAMBLE_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%&*'
+
+const techItems = [
+  'Lightning Network',
+  'LNURL',
+  'Nostr',
+  'NWC',
+  'BoltCard',
+  'NTAG424',
+  'NIP-05',
+  'NIP-57',
+  'NIP-98',
+  'NIP-47',
+  'WebLN',
+  'LND',
+  'PostgreSQL',
+  'Next.js',
+]
+
+function useScrambleText(words: string[], interval = 3000) {
+  const [display, setDisplay] = useState(words[0])
+  const indexRef = useRef(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      indexRef.current = (indexRef.current + 1) % words.length
+      const target = words[indexRef.current]
+      const maxLen = Math.max(display.length, target.length)
+      let iteration = 0
+      const totalSteps = maxLen + 6
+
+      const scramble = setInterval(() => {
+        const result = target.split('').map((char, i) => {
+          if (i < iteration - 3) return char
+          return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)]
+        })
+
+        // Trim or pad to animate length transition
+        const currentLen = Math.round(
+          display.length + (target.length - display.length) * (iteration / totalSteps)
+        )
+        setDisplay(result.slice(0, Math.max(currentLen, 1)).join(''))
+
+        iteration++
+        if (iteration > totalSteps) {
+          setDisplay(target)
+          clearInterval(scramble)
+        }
+      }, 35)
+    }, interval)
+
+    return () => clearInterval(timer)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return display
+}
+
+export function HeroSection({ onClaim, domain, loading }: HeroSectionProps) {
+  const scrambledUser = useScrambleText(usernames, 3000)
+  const displayDomain = domain || 'domain.com'
 
   return (
-    <section className="relative pt-16 pb-8 sm:pt-28 sm:pb-16 overflow-hidden">
-      <div ref={ref} className="max-w-5xl mx-auto px-4 text-center relative z-10">
-        {/* Protocol badges */}
-        <div
-          className={`flex flex-wrap justify-center gap-2 mb-8 transition-all duration-700 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-          }`}
+    <section className="relative flex min-h-[90vh] items-center justify-center px-4 pt-16 overflow-hidden">
+      {/* Double gradient background */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `
+            radial-gradient(ellipse 80% 60% at 50% 0%, var(--theme-200) 0%, transparent 60%),
+            radial-gradient(ellipse 60% 50% at 80% 100%, var(--theme-400) 0%, transparent 50%)
+          `,
+          opacity: 0.08,
+        }}
+      />
+
+      {/* Grid pattern overlay */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.04]"
+        style={{
+          backgroundImage: `linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)`,
+          backgroundSize: '60px 60px',
+          color: 'var(--theme-400)',
+        }}
+      />
+
+      {/* Background @ symbol */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden select-none">
+        <span
+          className="text-[30rem] md:text-[50rem] font-black leading-none opacity-[0.02]"
+          style={{
+            background: `linear-gradient(180deg, var(--theme-400) 0%, transparent 80%)`,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
         >
-          {([
-            { label: 'Lightning', icon: Zap },
-            { label: 'Nostr', icon: Hash },
-            { label: 'NWC', icon: Radio },
-            { label: 'BoltCard', icon: Nfc },
-          ] as const).map(({ label, icon: Icon }) => (
+          @
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 flex flex-col items-center gap-8 max-w-3xl mx-auto text-center">
+        {/* Badge pills */}
+        <div className="flex items-center gap-3 justify-center flex-wrap">
+          {badges.map((b) => (
             <span
-              key={label}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono border border-lw-gold/20 text-lw-gold/70 bg-lw-gold/5"
+              key={b.label}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 text-sm text-muted-foreground"
             >
-              <Icon className="h-3 w-3" />
-              {label}
+              <b.icon className="size-3.5" />
+              {b.label}
             </span>
           ))}
         </div>
 
-        {/* Main headline */}
-        <h1
-          className={`text-5xl sm:text-7xl md:text-8xl font-black tracking-tight leading-[0.9] transition-all duration-1000 delay-200 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
-          }`}
-        >
-          <span className="text-gradient-gold">Lightning addresses</span>
+        {/* Headline */}
+        <h1 className="text-6xl md:text-8xl lg:text-[96px] font-black tracking-[-0.025em] leading-none">
+          <span
+            style={{
+              background: 'linear-gradient(180deg, #ffffff 0%, #a3a3a3 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            Lightning Addresses
+          </span>
           <br />
-          <span className="text-white">for everyone.</span>
+          <span
+            style={{
+              background: `linear-gradient(135deg, var(--theme-400), var(--theme-200), var(--theme-400))`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            for Everyone.
+          </span>
         </h1>
 
-        {/* Subheadline */}
-        <p
-          className={`mt-8 max-w-2xl mx-auto text-lg sm:text-xl text-white/50 leading-relaxed font-light transition-all duration-1000 delay-400 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          The open-source{' '}
-          <span className="text-lw-gold font-medium">Lightning + Nostr CRM</span>{' '}
-          for communities and companies.
-          <br className="hidden sm:block" />
-          Connect your domain. Deploy in minutes. Your users get{' '}
-          <span className="text-lw-teal font-medium">addresses, wallets, and identity</span> — instantly.
+        {/* Subtitle */}
+        <p className="text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
+          Get your own{' '}
+          <span className="font-mono font-semibold" style={{ color: 'var(--theme-400)' }}>
+            your-name@{displayDomain}
+          </span>.
+          <br />
+          Setup a{' '}
+          <span style={{ color: 'var(--theme-400)' }}>lightning web wallet</span>{' '}
+          and spend with{' '}
+          <span style={{ color: 'var(--theme-400)' }}>nfc cards</span>.
         </p>
 
-        {/* Animated domain example */}
-        <DomainShowcase isVisible={isVisible} />
-
-        {/* CTA Buttons */}
-        <div
-          className={`mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center transition-all duration-1000 delay-600 ${
-            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
-          }`}
-        >
-          <Button
-            size="lg"
-            className="group px-8 py-5 rounded-full bg-lw-gold hover:bg-lw-gold/90 text-black font-semibold transition-all duration-300 shadow-lg shadow-lw-gold/20 hover:shadow-lw-gold/30 hover:scale-105"
-            onClick={() =>
-              document.getElementById('waitlist-section')?.scrollIntoView({ behavior: 'smooth' })
-            }
-          >
-            Get Early Access
-            <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-          </Button>
-          <div className="flex gap-3">
-              <Button
-                size="lg"
-                variant="outline"
-                className="px-6 py-5 rounded-full bg-transparent border-white/10 text-white/70 hover:text-white hover:bg-white/5 hover:border-lw-teal/30 transition-all duration-300"
-                onClick={() => setDemoModal({ open: true, type: 'admin' })}
-              >
-                <PanelTopDashed className="mr-2 h-4 w-4" />
-                Admin Demo
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="px-6 py-5 rounded-full bg-transparent border-white/10 text-white/70 hover:text-white hover:bg-white/5 hover:border-lw-gold/30 transition-all duration-300"
-                onClick={() => setDemoModal({ open: true, type: 'wallet' })}
-              >
-                <Wallet className="mr-2 h-4 w-4" />
-                Wallet Demo
-              </Button>
-          </div>
+        {/* Address display */}
+        <div className="relative rounded-2xl border border-white/[0.08] bg-[rgba(10,10,15,0.6)] px-8 py-4 backdrop-blur-sm">
+          <div
+            className="pointer-events-none absolute inset-0 rounded-2xl"
+            style={{
+              background: `linear-gradient(135deg, rgba(var(--theme-400), 0.05), transparent 60%)`,
+            }}
+          />
+          <span className="relative z-10 font-mono text-xl md:text-2xl tracking-wide text-muted-foreground">
+            <span style={{ color: 'var(--theme-400)' }}>&#9889;</span>
+            {' '}<span className="text-foreground">{scrambledUser}</span>@{displayDomain}{' '}
+            <span style={{ color: 'var(--theme-400)' }}>&#9889;</span>
+          </span>
         </div>
 
-        <DemoModal
-          open={demoModal.open}
-          onOpenChange={(open) => setDemoModal((prev) => ({ ...prev, open }))}
-          demoType={demoModal.type}
-        />
+        {/* CTA */}
+        <Button
+          variant="theme"
+          className="px-8 h-12 text-base"
+          onClick={onClaim}
+          disabled={loading}
+        >
+          Get Started
+          <ArrowRight className="size-4 ml-1" />
+        </Button>
       </div>
+
+      {/* Tech marquee */}
+      <div className="absolute bottom-0 left-0 right-0 w-full overflow-hidden border-y border-white/[0.06] py-3">
+        <div className="flex marquee-scroll whitespace-nowrap gap-8 text-xs font-mono text-muted-foreground/50">
+          {[...techItems, ...techItems].map((item, i) => (
+            <span key={i} className="flex items-center gap-2">
+              <Zap className="size-3" style={{ color: 'var(--theme-400)' }} />
+              {item}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .marquee-scroll {
+          animation: marquee 30s linear infinite;
+        }
+      `}</style>
     </section>
   )
 }

@@ -1,266 +1,219 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { Monitor, CreditCard, AtSign, ShieldAlert } from 'lucide-react'
+import { toast } from 'sonner'
+import { AdminTopbar } from '@/components/admin/admin-topbar'
+import { StatCard } from '@/components/admin/stat-card'
+import { Badge } from '@/components/ui/badge'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { CreditCard, Palette, Zap, Activity, Plus, Clock } from 'lucide-react'
-import Link from 'next/link'
-import { useCards } from '@/providers/card'
-import { useLightningAddresses } from '@/providers/lightning-addresses'
-import { useCardDesigns } from '@/providers/card-designs'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import type { Card as CardType } from '@/types/card'
-import { useAPI } from '@/providers/api'
-import { useSettings } from '@/hooks/use-settings'
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  useTotalUsers,
+  useVolume,
+  useSystemStatus,
+  useRecentOnboarding,
+  useRecentTransactions,
+} from '@/lib/client/hooks/use-home-stats'
+import { useAuth } from '@/components/admin/auth-context'
+import { Permission } from '@/lib/auth/permissions'
+import { SetupBanner } from '@/components/admin/setup-banner'
 
-export default function AdminPage() {
-  const { signer } = useAPI()
-  const { list, count, getStatusCounts } = useCards()
-  const { count: countCardDesign } = useCardDesigns()
-  const { settings } = useSettings()
-  const { list: listAddresses, count: countAddresses } = useLightningAddresses()
+const sourceIcons = {
+  App: Monitor,
+  Card: CreditCard,
+  Address: AtSign,
+} as const
+
+export default function AdminDashboardPage() {
+  const { isAuthorized, role, status, apiClient } = useAuth()
+  const searchParams = useSearchParams()
   const router = useRouter()
+  const claimAttempted = useRef(false)
 
-  // State for async data
-  const [cardCount, setCardCount] = useState<number>(0)
-  const [lightningAddressCount, setLightningAddressCount] = useState<number>(0)
-  const [cardDesignCount, setCardDesignCount] = useState<number>(0)
-  const [statusCounts, setStatusCounts] = useState({
-    paired: 0,
-    unpaired: 0,
-    used: 0,
-    unused: 0
-  })
-  const [recentCards, setRecentCards] = useState<CardType[]>([])
-  const [recentAddresses, setRecentAddresses] = useState<any[]>([])
-
-  // Fetch data on component mount
+  // Handle ?claim=username from landing page registration flow
   useEffect(() => {
-    const fetchData = async () => {
+    if (status !== 'authenticated' || claimAttempted.current) return
+
+    const claimUsername = searchParams.get('claim')
+    if (!claimUsername) return
+
+    claimAttempted.current = true
+
+    async function claimAddress() {
       try {
-        const [
-          totalCount,
-          counts,
-          cards,
-          addresses,
-          cardDesignCount,
-          lightningAddressCount
-        ] = await Promise.all([
-          count(),
-          getStatusCounts(),
-          list(),
-          listAddresses(),
-          countCardDesign(),
-          countAddresses()
-        ])
-
-        setCardCount(totalCount)
-        setCardDesignCount(cardDesignCount)
-        setStatusCounts(counts)
-        setLightningAddressCount(lightningAddressCount)
-        setRecentCards(cards.slice(0, 5))
-        setRecentAddresses(addresses.slice(0, 3))
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error)
+        const me = await apiClient.get<{ id: string }>('/api/users/me')
+        await apiClient.put(`/api/users/${me.id}/lightning-address`, {
+          username: claimUsername,
+        })
+        toast.success(`Lightning Address ${claimUsername} claimed!`)
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error)
+        if (msg.includes('409') || msg.includes('already')) {
+          toast.error(`Username "${claimUsername}" is already taken.`)
+        } else {
+          toast.error(msg || 'Failed to claim address')
+        }
       }
+      // Remove the ?claim param from URL
+      router.replace('/admin')
     }
 
-    fetchData()
-  }, [
-    cardDesignCount,
-    count,
-    getStatusCounts,
-    list,
-    listAddresses,
-    countCardDesign,
-    countAddresses
-  ])
+    claimAddress()
+  }, [status, searchParams, apiClient, router])
+  const canViewStats = isAuthorized(Permission.ADDRESSES_READ)
 
-  if (!signer) return null
-
-  const stats = [
-    {
-      title: 'Total Cards',
-      value: cardCount,
-      description: 'Active payment cards',
-      icon: CreditCard
-    },
-    {
-      title: 'Designs',
-      value: cardDesignCount,
-      description: 'Available card designs',
-      icon: Palette
-    },
-    {
-      title: 'Lightning Addresses',
-      value: lightningAddressCount,
-      description: 'Configured addresses',
-      icon: Zap
-    },
-    {
-      title: 'Active Cards',
-      value: statusCounts.paired,
-      description: 'Currently paired',
-      icon: Activity
-    }
-  ]
+  const { data: userCounts, loading: usersLoading } = useTotalUsers()
+  const { data: volume, loading: volumeLoading } = useVolume()
+  const { data: systemStatus, loading: systemLoading } = useSystemStatus()
+  const { data: onboarding } = useRecentOnboarding()
+  const { data: transactions } = useRecentTransactions()
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            Welcome back! Here&apos;s an overview of your BoltCard system.
-          </p>
-        </div>
-        <Button
-          onClick={() => {
-            router.push('/admin/cards/new')
-          }}
-          className="text-white"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Card
-        </Button>
-      </div>
+    <div className="flex flex-col">
+      <AdminTopbar title="Home" />
 
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(stat => (
-          <Card
-            key={stat.title}
-            className="bg-card border transition-all hover:shadow-lg hover:-translate-y-1"
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-foreground">
-                {stat.value}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {stat.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <div className="p-6 flex flex-col gap-6">
+        <SetupBanner />
 
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-foreground">Recent Cards</CardTitle>
-                <CardDescription>
-                  Latest cards created in your system
-                </CardDescription>
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/admin/cards">View All</Link>
-              </Button>
+        {!canViewStats ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+            <div className="flex size-16 items-center justify-center rounded-full bg-muted">
+              <ShieldAlert className="size-8 text-muted-foreground" />
             </div>
-          </CardHeader>
-          <CardContent>
-            {recentCards.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No cards created yet.
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold">No access</h2>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Your account doesn&apos;t have permission to view dashboard statistics.
+                Contact an administrator to request access.
               </p>
-            ) : (
-              <div className="space-y-3">
-                {recentCards.map(card => (
-                  <div
-                    key={card.id}
-                    className="flex items-center justify-between p-3 bg-muted/50 rounded-md"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {card.username || card.pubkey || 'Unpaired'}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <p className="text-xs text-muted-foreground truncate">
-                          {card.design.description}
-                        </p>
-                        <div className="flex items-center text-xs text-muted-foreground/70">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {card.createdAt.toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-2 ${card.otc ? 'bg-blue-100 text-blue-800' : 'bg-secondary text-secondary-foreground'}`}
-                    >
-                      {card.otc ? 'Paired' : 'Unpaired'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-foreground">
-                  Lightning Addresses
-                </CardTitle>
-                <CardDescription>Recent address configurations</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/admin/addresses">View All</Link>
-              </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            {recentAddresses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No addresses configured yet.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {recentAddresses.map(address => (
-                  <div
-                    key={address.username}
-                    className="flex items-center justify-between p-3 bg-muted/50 rounded-md"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground">
-                        {address.username}@{settings.domain}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <p className="text-xs text-muted-foreground font-mono truncate">
-                          {address.pubkey.slice(0, 16)}...
-                        </p>
-                        <div className="flex items-center text-xs text-muted-foreground/70">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {address.createdAt.toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-2 ${address.nwc ? 'bg-green-100 text-green-800' : 'bg-secondary text-secondary-foreground'}`}
-                    >
-                      {address.nwc ? 'NWC Connected' : 'No NWC'}
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {role && (
+              <Badge variant="secondary" className="text-xs">
+                Role: {role}
+              </Badge>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <StatCard
+                title="Total users"
+                value={userCounts?.total}
+                description="The number of registered users."
+                loading={usersLoading}
+              />
+              <StatCard
+                title="Volume"
+                value={volume?.total?.toLocaleString()}
+                unit="SATs"
+                badge={{ label: 'Estimated' }}
+                description="Economic activity, not confirmed."
+                loading={volumeLoading}
+              />
+              <StatCard
+                title="System"
+                value={systemStatus?.status}
+                badge={{ label: 'Stable' }}
+                description={systemStatus?.lastIncident}
+                loading={systemLoading}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <h3 className="text-lg font-semibold">Recent Onboarding</h3>
+                <p className="text-sm text-muted-foreground">
+                  Latest user registrations and card pairings.
+                </p>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Identity</TableHead>
+                        <TableHead>Method</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {onboarding.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={2} className="text-center text-muted-foreground py-8">
+                            No data available
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        onboarding.map((item, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-sm">{item.identity}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{item.method}</Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <h3 className="text-lg font-semibold">Recent Transactions</h3>
+                <p className="text-sm text-muted-foreground">
+                  Latest economic activity across the platform.
+                </p>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Source</TableHead>
+                        <TableHead>Identity</TableHead>
+                        <TableHead>Method</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {transactions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                            No data available
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        transactions.map((tx, i) => {
+                          const SourceIcon = sourceIcons[tx.source]
+                          return (
+                            <TableRow key={i}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <SourceIcon className="size-4 text-muted-foreground" />
+                                  <span className="text-sm">{tx.source}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-sm">{tx.identity}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary">{tx.method}</Badge>
+                              </TableCell>
+                              <TableCell className="text-right text-sm">
+                                {tx.amount.toLocaleString()} SATs
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
