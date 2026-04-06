@@ -4,12 +4,12 @@
 
 | Month | Phase | Status | Key Deliverables |
 |-------|-------|--------|------------------|
-| 1 | Foundation | **Completed** | Testing infra, error handling, config, logging, auth (JWT+RBAC), security middleware, validation, Next.js 16 |
-| 2 | Foundation | **In Progress** | GitHub Actions CI/CD, TypeScript Client SDK, React Hooks package, hook tests |
-| 3 | Enhancement | Planned | Admin Dashboard enhancement, NIP-07/NIP-46 Nostr login, frontend cleanup, Playwright E2E |
-| 4 | Enhancement | Planned | **User Dashboard** (profile, npub/NIP-05, preferences), Courtesy NWC Proxy (new container), wallet polish, white-label |
-| 5 | Expansion | Planned | LUD-16/21/22, NIP-57 zaps, NWC Payment Listener (new container), alias/redirect, SDK update |
-| 6 | Expansion | Planned | Documentation, deployment (Vercel/Netlify/Umbrel/Start9/Docker), security prep |
+| 1 | Foundation | **Completed** | Full backend testing infrastructure, error handling, config, logging, auth (JWT+RBAC), security middleware, validation, Next.js 16 |
+| 2 | Foundation | **In Progress** | GitHub Actions CI/CD, React components and hooks, TypeScript SDK, hook tests, backend coverage ramp toward 95% |
+| 3 | Enhancement | **In Progress** | Full frontend dashboard implementation, Figma implementation, NIP-07/NIP-46 Nostr login, frontend cleanup, Playwright E2E testing |
+| 4 | Enhancement | Planned | **User Dashboard** (profile, npub/NIP-05, preferences), Courtesy NWC Proxy (new container), wallet polish, white-label, customizable landing |
+| 5 | Expansion | Planned | Lightning compliance (LUD-16, NIP-57, LUD-21, LUD-22/webhooks), NWC Payment Listener (new container), alias/redirect, SDK + Hooks update |
+| 6 | Expansion | Planned | Full backend documentation, API documentation (OpenAPI/Swagger), deployment configs (Vercel/Netlify/Umbrel/Start9/Docker), Umbrel + Start9 deployment, security preparation and audit readiness |
 
 ---
 
@@ -28,28 +28,29 @@ Exceeded original scope. Delivered 90% of the backend infrastructure:
 - Zod validation for all API inputs
 - Next.js 16 + ESLint 9 upgrade
 
-### Month 2: CI/CD + Client SDK + React Hooks (IN PROGRESS)
+### Month 2: CI/CD + SDK + React Components/Hooks (IN PROGRESS)
 
 With logging, auth, and integration tests done early:
 
 - GitHub Actions CI/CD pipeline (carried from Month 1)
 - TypeScript Client SDK (npm package, all 30 endpoints)
-- React Hooks package (`@lawallet-nwc/react`, 7 hooks)
-- Hook unit tests for existing 9 hooks
-- Coverage improvement to 60%+
+- React Hooks package (`@lawallet-nwc/react`) and reusable React component foundations
+- Hook unit tests and broader frontend integration coverage
+- Backend coverage ramp toward 95%
 
 ---
 
 ## Phase 2: Enhancement (Months 3-4)
 
-### Month 3: Admin Dashboard Enhancement + Nostr Login + E2E
+### Month 3: Full Frontend Dashboard + Figma Implementation + E2E
 
 Backend auth already complete; focus on frontend:
 
-- Admin Dashboard: user management, activity monitor, logs panel, address enhancements
+- Full frontend dashboard implementation: user management, activity monitor, logs panel, address enhancements
+- Figma implementation across the admin/dashboard experience
 - NIP-07 browser extension login + NIP-46 remote signing
-- Frontend component cleanup and SDK hook consumption
-- Playwright multi-browser E2E testing
+- Frontend component cleanup and SDK/hook consumption
+- Playwright multi-browser E2E testing and coverage
 
 ### Month 4: User Dashboard + Courtesy NWC Proxy + Wallet Polish
 
@@ -57,7 +58,7 @@ Backend auth already complete; focus on frontend:
 - Courtesy NWC Proxy service (new container, 5 provider adapters)
 - Wallet polish: payment history, receive interface, improved NWC flow
 - White-label customization + customizable landing page
-- E2E continued
+- Continued E2E coverage expansion
 
 ---
 
@@ -71,12 +72,14 @@ Backend auth already complete; focus on frontend:
 - LUD-22 webhooks
 - NWC Payment Listener service (new container)
 - SDK + Hooks update
+- Consolidated Lightning compliance milestone for LUD-16, NIP-57, LUD-21, and webhooks
 
 ### Month 6: Docs + Deployment
 
 - API documentation (OpenAPI/Swagger for 30 routes)
-- Codebase documentation (expand ARCHITECTURE.md, CONTRIBUTING.md)
+- Full backend documentation (expand ARCHITECTURE.md, CONTRIBUTING.md, service docs)
 - Deployment configs (Vercel, Netlify, Umbrel, Start9, Docker)
+- Umbrel + Start9 deployment support
 - Security preparation and audit readiness
 
 ---
@@ -98,7 +101,7 @@ Understanding the current state helps contextualize the roadmap:
 | Wallet UI | Functional (login, balance, send, NWC setup, settings) |
 | Landing Page | Full page with waitlist, roadmap, supporters |
 | Auth Backend | JWT + NIP-98 + RBAC (4 roles) + maintenance mode |
-| Testing | 14 unit + 21 integration test files (154 tests) |
+| Testing | Strong backend test foundation in place; roadmap target is full backend coverage toward 95% plus Playwright E2E coverage |
 | Database | 6 models (User, Card, CardDesign, Ntag424, LightningAddress, AlbySubAccount, Settings) |
 | NFC Cards | Full NTAG424 encryption, scan, write, OTC activation |
 | Alby Integration | Sub-account management via `@getalby/sdk` v7 |
