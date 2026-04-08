@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Eye, EyeOff, Puzzle } from 'lucide-react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { Eye, EyeOff, Puzzle, QrCode, Copy, Link, RefreshCw } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -14,6 +15,7 @@ import {
   createNsecSigner,
   createBrowserSigner,
   createBunkerSigner,
+  createNostrConnectSigner,
   hasBrowserExtension,
 } from '@/lib/client/nostr-signer'
 
@@ -189,6 +191,173 @@ function BunkerForm({
   submitLabel: string
   loadingLabel: string
 }) {
+  const [mode, setMode] = useState<'qr' | 'paste'>('qr')
+
+  return (
+    <div className="flex flex-col gap-4 pt-4">
+      <div className="flex gap-1 rounded-lg bg-muted p-1">
+        <button
+          type="button"
+          onClick={() => setMode('qr')}
+          className={cn(
+            'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+            mode === 'qr'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <QrCode className="mr-1.5 inline size-3.5" />
+          Show QR
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('paste')}
+          className={cn(
+            'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+            mode === 'paste'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Link className="mr-1.5 inline size-3.5" />
+          Paste URL
+        </button>
+      </div>
+
+      {mode === 'qr' ? (
+        <BunkerQRMode onSuccess={onSuccess} />
+      ) : (
+        <BunkerPasteMode onSuccess={onSuccess} submitLabel={submitLabel} loadingLabel={loadingLabel} />
+      )}
+    </div>
+  )
+}
+
+// ─── Bunker QR Mode (nostrconnect://) ─────────────────────────────────────
+
+function BunkerQRMode({ onSuccess }: { onSuccess?: () => void }) {
+  const { login } = useAuth()
+  const [uri, setUri] = useState<string | null>(null)
+  const [status, setStatus] = useState<'generating' | 'waiting' | 'connecting' | 'error'>('generating')
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const startConnection = useCallback(async () => {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    setUri(null)
+    setError(null)
+    setStatus('generating')
+    setCopied(false)
+
+    try {
+      const signer = await createNostrConnectSigner({
+        timeout: 60_000,
+        signal: controller.signal,
+        onURI: (generatedUri) => {
+          setUri(generatedUri)
+          setStatus('waiting')
+        },
+      })
+
+      if (controller.signal.aborted) return
+
+      setStatus('connecting')
+      await login(signer, 'bunker')
+      onSuccess?.()
+    } catch (err) {
+      if (controller.signal.aborted) return
+      const message = err instanceof Error ? err.message : 'Failed to connect'
+      setError(message.includes('timed out') || message.includes('abort')
+        ? 'Connection timed out. Make sure your signer app scanned the QR code.'
+        : message)
+      setStatus('error')
+    }
+  }, [login, onSuccess])
+
+  useEffect(() => {
+    startConnection()
+    return () => { abortRef.current?.abort() }
+  }, [startConnection])
+
+  async function handleCopy() {
+    if (!uri) return
+    await navigator.clipboard.writeText(uri)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  if (status === 'generating') {
+    return (
+      <div className="flex flex-col items-center gap-3 py-6">
+        <Spinner size={24} />
+        <p className="text-sm text-muted-foreground">Generating connection...</p>
+      </div>
+    )
+  }
+
+  if (status === 'connecting') {
+    return (
+      <div className="flex flex-col items-center gap-3 py-6">
+        <Spinner size={24} />
+        <p className="text-sm text-muted-foreground">Signer connected, logging in...</p>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="flex flex-col items-center gap-3 py-6">
+        <p className="text-sm text-destructive text-center">{error}</p>
+        <Button variant="outline" size="sm" onClick={startConnection}>
+          <RefreshCw className="mr-2 size-3.5" />
+          Try Again
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="rounded-lg bg-white p-3">
+        <QRCodeSVG value={uri!} size={200} />
+      </div>
+
+      <Button variant="ghost" size="sm" onClick={handleCopy} className="text-xs">
+        <Copy className="mr-1.5 size-3.5" />
+        {copied ? 'Copied!' : 'Copy URI'}
+      </Button>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Spinner size={12} />
+        Waiting for signer to connect...
+      </div>
+
+      <p className="text-xs text-muted-foreground text-center">
+        Scan with your signer app (
+        <a href="https://nsec.app" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+          nsec.app
+        </a>
+        , Amber, etc.)
+      </p>
+    </div>
+  )
+}
+
+// ─── Bunker Paste Mode (bunker://) ────────────────────────────────────────
+
+function BunkerPasteMode({
+  onSuccess,
+  submitLabel,
+  loadingLabel,
+}: {
+  onSuccess?: () => void
+  submitLabel: string
+  loadingLabel: string
+}) {
   const { login } = useAuth()
   const [bunkerUrl, setBunkerUrl] = useState('')
   const [showUrl, setShowUrl] = useState(false)
@@ -220,7 +389,7 @@ function BunkerForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6 pt-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <div className="space-y-2">
         <div className="relative">
           <Input

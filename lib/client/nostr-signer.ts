@@ -1,8 +1,14 @@
 import type { NostrSigner } from '@nostrify/nostrify'
 import { NSecSigner, NBrowserSigner } from '@nostrify/nostrify'
-import { hexToBytes } from 'nostr-tools/utils'
-import { generateSecretKey } from 'nostr-tools/pure'
+import { hexToBytes, bytesToHex } from 'nostr-tools/utils'
+import { generateSecretKey, getPublicKey } from 'nostr-tools/pure'
 import { privateKeyToHex, validatePrivateKey, parseBunkerUrl } from '@/lib/nostr'
+import type { BunkerSigner } from 'nostr-tools/nip46'
+
+export const DEFAULT_NOSTR_CONNECT_RELAYS = [
+  'wss://relay.nsec.app',
+  'wss://relay.damus.io',
+]
 
 /**
  * Creates a NostrSigner from a private key (nsec or 64-char hex).
@@ -65,7 +71,44 @@ export async function createBunkerSigner(
     clearTimeout(timer)
   }
 
-  // Wrap BunkerSigner to satisfy NostrSigner interface from @nostrify/nostrify
+  return wrapBunkerSigner(bunker)
+}
+
+/**
+ * Creates a NostrSigner via nostrconnect:// URI (NIP-46 reverse flow).
+ * Generates a URI for display as QR code, then waits for the remote signer to connect.
+ */
+export async function createNostrConnectSigner(opts: {
+  relays?: string[]
+  appName?: string
+  timeout?: number
+  onURI?: (uri: string) => void
+  signal?: AbortSignal
+}): Promise<NostrSigner> {
+  const { BunkerSigner: BS, createNostrConnectURI } = await import('nostr-tools/nip46')
+
+  const clientSecretKey = generateSecretKey()
+  const clientPubkey = getPublicKey(clientSecretKey)
+  const secret = bytesToHex(generateSecretKey()).slice(0, 16)
+  const relays = opts.relays ?? DEFAULT_NOSTR_CONNECT_RELAYS
+
+  const uri = createNostrConnectURI({
+    clientPubkey,
+    relays,
+    secret,
+    name: opts.appName ?? 'LaWallet',
+  })
+
+  opts.onURI?.(uri)
+
+  const maxWaitOrAbort = opts.signal ?? opts.timeout ?? 60_000
+  const bunker = await BS.fromURI(clientSecretKey, uri, {}, maxWaitOrAbort)
+
+  return wrapBunkerSigner(bunker)
+}
+
+/** Wraps nostr-tools BunkerSigner to satisfy @nostrify NostrSigner interface */
+function wrapBunkerSigner(bunker: BunkerSigner): NostrSigner {
   return {
     getPublicKey: () => bunker.getPublicKey(),
     signEvent: (event) => bunker.signEvent(event),
