@@ -343,8 +343,8 @@ function BunkerQRMode() {
   }, [login])
 
   useEffect(() => {
-    startConnection()
-    return () => { abortRef.current?.abort() }
+    const id = requestAnimationFrame(() => startConnection())
+    return () => { cancelAnimationFrame(id); abortRef.current?.abort() }
   }, [startConnection])
 
   async function handleCopy() {
