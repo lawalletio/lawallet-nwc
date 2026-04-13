@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "dev": "node --watch src/index.ts",
-    "typecheck": "tsc --noEmit",
+    "build": "echo '⚠️  @lawallet-nwc/listener is not yet implemented'",
+    "dev": "echo '⚠️  @lawallet-nwc/listener is not yet implemented'",
+    "typecheck": "echo '⚠️  @lawallet-nwc/listener is not yet implemented'",
     "clean": "rm -rf dist"
   },
   "devDependencies": {

@@ -6,8 +6,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "build": "echo '⚠️  @lawallet-nwc/shared is not yet implemented'",
+    "typecheck": "echo '⚠️  @lawallet-nwc/shared is not yet implemented'",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
