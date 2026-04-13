@@ -1,0 +1,141 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/* ─── LaWallet Brand Overrides ─────────────────────────────── */
+
+:root {
+  --lw-gold: #F5A623;
+  --lw-gold-light: #FFD580;
+  --lw-teal: #26A69A;
+  --lw-teal-light: #4DB6AC;
+  --lw-coral: #E53935;
+  --lw-dark: #0A0A0F;
+  --lw-dark-card: #111118;
+  --lw-dark-border: #1e1e2a;
+}
+
+/* Force dark mode as default — matches lawallet-nwc dark-first design */
+:root, .dark, [data-theme="dark"] {
+  --fd-background: var(--lw-dark);
+  --fd-foreground: 240 5% 92%;
+  --fd-muted: 240 4% 12%;
+  --fd-muted-foreground: 240 4% 60%;
+  --fd-card: 240 6% 7%;
+  --fd-card-foreground: 240 5% 92%;
+  --fd-border: 240 4% 14%;
+  --fd-primary: 36 91% 55%;
+  --fd-primary-foreground: 0 0% 5%;
+  --fd-accent: 240 4% 12%;
+  --fd-accent-foreground: 36 91% 55%;
+  --fd-ring: 36 91% 55%;
+
+  /* Sidebar */
+  --fd-sidebar-background: 240 6% 5%;
+  --fd-sidebar-foreground: 240 5% 82%;
+  --fd-sidebar-border: 240 4% 12%;
+  --fd-sidebar-primary: 36 91% 55%;
+  --fd-sidebar-primary-foreground: 0 0% 5%;
+  --fd-sidebar-accent: 240 4% 10%;
+  --fd-sidebar-accent-foreground: 36 91% 55%;
+}
+
+/* Light mode overrides */
+.light, [data-theme="light"] {
+  --fd-primary: 36 91% 45%;
+  --fd-primary-foreground: 0 0% 100%;
+  --fd-accent-foreground: 36 91% 40%;
+  --fd-ring: 36 91% 45%;
+  --fd-sidebar-primary: 36 91% 45%;
+  --fd-sidebar-primary-foreground: 0 0% 100%;
+  --fd-sidebar-accent-foreground: 36 91% 40%;
+}
+
+/* ─── Custom Scrollbar (matching lawallet-nwc) ────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--lw-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--lw-teal);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--lw-teal-light);
+}
+
+/* ─── Brand Gradient Utilities ────────────────────────────── */
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, #F5A623, #FFD580, #F5A623);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-teal {
+  background: linear-gradient(135deg, #26A69A, #4DB6AC, #80CBC4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-brand {
+  background: linear-gradient(135deg, #F5A623, #26A69A);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Glow Card Effect ────────────────────────────────────── */
+
+.glow-card {
+  position: relative;
+}
+
+.glow-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #F5A623 30%, #26A69A 30%, #E53935 10%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: -1;
+}
+
+.glow-card:hover::before {
+  opacity: 1;
+}
+
+/* ─── Grid Pattern Background ─────────────────────────────── */
+
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(245, 166, 35, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 166, 35, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* ─── Animations ──────────────────────────────────────────── */
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  25% { transform: translateY(-20px) translateX(10px); }
+  50% { transform: translateY(10px) translateX(-15px); }
+  75% { transform: translateY(-10px) translateX(20px); }
+}
+
+/* ─── Selection Color ─────────────────────────────────────── */
+
+::selection {
+  background: rgba(245, 166, 35, 0.3);
+  color: white;
+}

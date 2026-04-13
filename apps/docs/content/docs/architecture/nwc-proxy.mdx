@@ -1,0 +1,70 @@
+---
+title: "Courtesy NWC via lncurl"
+description: "Planned courtesy-wallet provisioning flow using lncurl."
+---
+
+## Overview
+
+This page describes a planned integration, not a currently implemented flow in the `lawallet-nwc` repository.
+
+Today, the repo stores NWC URIs directly on the user record and can optionally provision Alby Hub sub-accounts during user creation. It does not currently call `lncurl`, expose courtesy-wallet APIs, or ship a `useCourtesyNWC` hook.
+
+## Planned Goal
+
+Courtesy NWC connections would be provisioned via [**lncurl**](https://github.com/rolznz/lncurl) ([lncurl.lol](https://lncurl.lol)). A single HTTP call would create a wallet and return a Nostr Wallet Connect connection string.
+
+---
+
+## Why This Page Exists
+
+The roadmap uses this page to document the intended courtesy-wallet architecture so it can be implemented later without losing the target design.
+
+---
+
+## Planned Flow
+
+1. User requests a courtesy NWC wallet from the platform
+2. Platform calls `POST https://lncurl.lol` to provision a new wallet
+3. lncurl returns an NWC connection string
+4. Connection string is linked to the user's lightning address
+5. User can later replace the courtesy NWC with their own wallet
+
+---
+
+## Current Alternative
+
+The only automated provisioning currently present in the repo is Alby Hub sub-account creation during `GET /api/users/me`, when that behavior is enabled in settings.
+
+---
+
+## Planned Integration Sketch
+
+```bash
+curl -X POST https://lncurl.lol
+```
+
+```json
+{
+  "connectionString": "nostr+walletconnect://...",
+  "balance": 0
+}
+```
+
+The future `lawallet-web` integration would look roughly like this:
+
+```typescript
+const response = await fetch('https://lncurl.lol', { method: 'POST' });
+const { connectionString } = await response.json();
+
+// Planned future step
+await linkNWCConnection(userId, connectionString);
+```
+
+---
+
+## Planned Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LNCURL_URL` | Planned lncurl instance URL | `https://lncurl.lol` |
+| `COURTESY_NWC_ENABLED` | Planned feature flag | `true` |

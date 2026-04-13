@@ -24,7 +24,7 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
+      - run: pnpm turbo run lint
 
   typecheck:
     name: Type Check
@@ -39,7 +39,7 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
+      - run: pnpm turbo run typecheck
 
   test:
     name: Test
@@ -54,13 +54,13 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:coverage
+      - run: pnpm turbo run test:coverage
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: coverage/
+          path: apps/web/coverage/
           retention-days: 30
 
   build:
@@ -77,6 +77,6 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm turbo run build
         env:
           DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'

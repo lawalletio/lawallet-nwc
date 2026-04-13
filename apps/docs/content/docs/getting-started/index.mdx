@@ -1,0 +1,165 @@
+---
+title: Getting Started
+description: Quick start guide for running the current LaWallet NWC repository locally.
+---
+
+## Prerequisites
+
+- Node.js 20+
+- pnpm
+- PostgreSQL database
+
+## Quick Start
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/lawalletio/lawallet-nwc.git
+cd lawallet-nwc
+```
+
+2. Install dependencies:
+
+```bash
+pnpm install
+```
+
+3. Configure environment:
+
+```bash
+cp .env.example .env
+```
+
+4. Set up the database:
+
+```bash
+pnpm prisma generate
+pnpm prisma migrate deploy
+pnpm prisma db seed
+```
+
+5. Start the development server:
+
+```bash
+pnpm dev
+```
+
+## Current App Surface
+
+The local repo currently exposes:
+
+- A landing page placeholder
+- An admin page placeholder
+- A wallet page placeholder
+- A larger REST API surface under `/api/*`
+- LUD-16 responses under `/api/lud16/[username]`
+
+Roadmap docs describe additional UI, `.well-known` endpoints, courtesy wallets, and webhook flows that are not implemented in this repo yet.
+
+## Deployment Options
+
+| Option | Best for | Setup time |
+|--------|----------|-----------|
+| **Vercel** | Communities that want instant deploy | 2 minutes |
+| **Docker** | Servers and VPS | 5 minutes |
+| **Umbrel / Start9** | Node runners | 5 minutes |
+
+See the [Docker guide](./docker) for container-based deployment.
+
+## Try It: Lightning Address Resolution
+
+Explore how LUD-16 lightning address resolution works interactively:
+
+<SandpackLive
+  template="react-ts"
+  files={{
+    "/App.tsx": `import { useState } from "react";
+
+// Simulates LUD-16 lightning address resolution
+async function resolveLightningAddress(address: string) {
+  const [username, domain] = address.split("@");
+  if (!username || !domain) throw new Error("Invalid address format");
+
+  // Simulates GET /api/lud16/{username}
+  await new Promise(r => setTimeout(r, 600));
+
+  return {
+    status: "OK",
+    tag: "payRequest",
+    callback: "https://" + domain + "/api/lud16/" + username + "/cb",
+    minSendable: 1000,
+    maxSendable: 1000000000,
+    metadata: JSON.stringify([
+      ["text/plain", "Payment to @" + username + " on " + domain],
+    ]),
+    commentAllowed: 200,
+    payerData: {
+      name: { mandatory: false },
+      email: { mandatory: false },
+    },
+  };
+}
+
+export default function App() {
+  const [address, setAddress] = useState("alice@yourdomain.com");
+  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const resolve = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await resolveLightningAddress(address);
+      setResult(data);
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ fontFamily: "system-ui", padding: 20 }}>
+      <h3>LUD-16 Address Resolution</h3>
+      <p style={{ color: "#6b7280", fontSize: 14 }}>
+        Enter a lightning address to see the LNURL-pay response.
+      </p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input
+          value={address}
+          onChange={e => setAddress(e.target.value)}
+          placeholder="user@domain.com"
+          style={{
+            flex: 1, padding: "8px 12px", borderRadius: 6,
+            border: "1px solid #d1d5db", fontSize: 14,
+          }}
+        />
+        <button onClick={resolve} disabled={loading} style={{
+          padding: "8px 16px", borderRadius: 6,
+          background: "#f97316", color: "white",
+          border: "none", cursor: loading ? "wait" : "pointer",
+        }}>
+          {loading ? "Resolving..." : "Resolve"}
+        </button>
+      </div>
+      {error && <div style={{ color: "#ef4444", marginBottom: 8 }}>{error}</div>}
+      {result && (
+        <pre style={{
+          background: "#1e1e2e", color: "#a6e3a1",
+          padding: 16, borderRadius: 8, fontSize: 12,
+          overflow: "auto",
+        }}>
+{JSON.stringify(result, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}`,
+  }}
+/>
+
+## Next Steps
+
+- Read the [Vision](./vision) to understand the project philosophy
+- Understand the [Onboarding model](./onboarding) for the current flow and the longer-term target
+- Explore the [Architecture](../architecture) for current implementation details

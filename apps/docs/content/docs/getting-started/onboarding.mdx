@@ -1,0 +1,136 @@
+---
+title: "User Onboarding"
+description: "Current onboarding flow in the repo, plus the longer-term progressive self-custody model."
+---
+
+## Current Status
+
+The current `lawallet-nwc` repository implements a narrower onboarding flow than the full product vision.
+
+Implemented today:
+
+- User creation/loading through `GET /api/users/me`
+- Optional automatic Alby Hub sub-account provisioning when auto-generation is enabled
+- User-managed lightning address assignment via `PUT /api/users/[userId]/lightning-address`
+- User-managed NWC URI updates via `PUT /api/users/[userId]/nwc`
+- LUD-16 pay responses for users that already have an NWC URI configured
+
+Not implemented in this repo yet:
+
+- Alias or redirect-based lightning address routing
+- Courtesy NWC provisioning via `lncurl`
+- NIP-05 verification at `.well-known/nostr.json`
+- Multi-stage onboarding UI in the frontend
+
+---
+
+## Current Flow
+
+1. Authenticate with NIP-98 and exchange that request for a JWT at `POST /api/jwt`.
+2. Call `GET /api/users/me` to load the user. If Alby auto-generation is enabled, the server may provision an Alby sub-account and store its NWC connection.
+3. Set a username with `PUT /api/users/[userId]/lightning-address`.
+4. If needed, set or replace the user's NWC URI with `PUT /api/users/[userId]/nwc`.
+5. Once the user has an NWC URI, the lightning address can resolve through `GET /api/lud16/[username]`.
+
+## Current Resolution Rule
+
+Today, LUD-16 resolution succeeds only when the user already has an NWC URI stored on their account. If no NWC URI is present, the lookup returns an error instead of falling back to redirect behavior.
+
+---
+
+## Target Progressive Self-Custody Model
+
+The roadmap still aims for a broader progressive self-custody model. The stages below describe that target state, not the currently shipped repo behavior.
+
+## Stage 1: Alias / Redirect (Planned)
+
+**Friction: Zero**
+
+The long-term goal is for a user to sign up and get a lightning address (for example, `alice@domain.com`) that can redirect to an existing wallet.
+
+- User provides an existing lightning address
+- Platform stores a redirect target
+- Sender resolves `alice@domain.com` and the platform proxies the LNURL-pay request
+- No NWC connection is required
+
+---
+
+## Stage 2: Courtesy NWC via lncurl (Planned)
+
+**Friction: Low**
+
+The roadmap also includes a temporary courtesy NWC flow provisioned via [**lncurl**](https://github.com/rolznz/lncurl).
+
+- User requests a courtesy NWC wallet from the platform
+- Platform calls [lncurl](https://lncurl.lol) to provision a new wallet (single HTTP POST)
+- lncurl returns an NWC connection string
+- Connection string is linked to the user's lightning address
+- User can later replace it with their own wallet
+
+---
+
+## Stage 3: Own NWC Wallet (Partially Supported Today)
+
+**Friction: Medium**
+
+This is the stage closest to the current implementation.
+
+- User provides their own NWC connection string
+- Platform links the string to their lightning address
+- Full control over wallet and funds
+
+---
+
+## Stage 4: Self-Hosted LaWallet (Planned)
+
+**Friction: High (one-time setup)**
+
+The user runs their own LaWallet instance on their own hardware, achieving full sovereignty.
+
+- Deploy on Umbrel, Start9, or Docker
+- Run both containers (web, listener) or just the web container
+- Own domain, own database, own infrastructure
+- Full control over everything
+
+**User controls:** Full sovereignty
+
+---
+
+## Planned Onboarding UX Flow
+
+```
+Sign Up
+  │
+  ├─→ "I have a lightning address" → Enter existing address → Stage 1 (Alias)
+  │     │
+  │     └─→ "Upgrade to NWC" → Select provider → Stage 2 (Courtesy NWC)
+  │           │
+  │           └─→ "Use my own wallet" → Paste NWC string → Stage 3 (Own NWC)
+  │
+  └─→ "Get me started" → Auto-provision courtesy NWC → Stage 2
+        │
+        └─→ Same upgrade path as above
+```
+
+---
+
+## Planned Nostr Identity Integration
+
+The roadmap also includes Nostr identity features that are not implemented in this repo yet:
+
+- Set their npub (Nostr public key)
+- Use NIP-05 to resolve their npub from an existing Nostr identity
+- Get NIP-05 verification served by the platform (`alice@domain.com` → npub)
+- Unify their lightning address and Nostr identity under one domain
+
+---
+
+## Planned Resolution Priority
+
+In the target model, lightning address resolution would check in this order:
+
+| Priority | Method | Description |
+|----------|--------|-------------|
+| 1 | Own NWC Connection | User connected their own NWC wallet |
+| 2 | Courtesy NWC | Temporary wallet via [lncurl](https://github.com/rolznz/lncurl) |
+| 3 | Alias / Redirect | Redirects to external lightning address |
