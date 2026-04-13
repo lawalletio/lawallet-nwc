@@ -6,9 +6,9 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "build": "echo '⚠️  @lawallet-nwc/sdk is not yet implemented'",
+    "typecheck": "echo '⚠️  @lawallet-nwc/sdk is not yet implemented'",
+    "test": "echo '⚠️  @lawallet-nwc/sdk is not yet implemented'",
     "clean": "rm -rf dist"
   },
   "devDependencies": {

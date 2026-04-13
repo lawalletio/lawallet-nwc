@@ -87,12 +87,6 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  apps/proxy:
-    devDependencies:
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
   apps/web:
     dependencies:
       '@babel/runtime':
