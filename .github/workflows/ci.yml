@@ -72,3 +72,4 @@ jobs:
       - run: pnpm turbo run build --filter=@lawallet-nwc/web
         env:
           DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
+          JWT_SECRET: 'ci-build-secret-minimum-32-characters-long'
