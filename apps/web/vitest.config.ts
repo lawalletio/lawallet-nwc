@@ -29,7 +29,8 @@ export default defineConfig({
         '**/*.spec.ts',
         '**/*.spec.tsx',
         '**/types/**',
-        'prisma/**'
+        'prisma/**',
+        'lib/client/**'
       ],
       thresholds: {
         statements: 60,

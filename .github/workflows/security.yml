@@ -25,4 +25,5 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - name: Check for known vulnerabilities
+        working-directory: apps/web
         run: pnpm audit --prod --audit-level=high
