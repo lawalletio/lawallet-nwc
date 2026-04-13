@@ -1,0 +1,215 @@
+---
+title: "JWT Authentication"
+description: "Current JWT flow in LaWallet NWC, including NIP-98 exchange and server-side helpers."
+---
+
+This document explains the JWT flow that currently exists in `lawallet-nwc`.
+
+## Overview
+
+The current auth flow works like this:
+
+- **Server-side JWT library** (`lib/jwt.ts`) - Core JWT functions
+- **JWT route helpers** (`lib/jwt-auth.ts`) - Route protection utilities for JWT-only routes
+- **Unified auth helpers** (`lib/auth/unified-auth.ts`) - Accept either NIP-98 or JWT
+- **API endpoints** (`/api/jwt` and `/api/jwt/protected`) - Token creation, validation, and protected examples
+
+There is no `lib/jwt-client.ts` helper in the current repo. Frontend callers should manage token storage themselves.
+
+## Setup
+
+### 1. Environment Variables
+
+Add the following to your `.env` file:
+
+```bash
+JWT_SECRET=your-super-secret-jwt-key-here
+```
+
+**Important**: Use a strong, random secret key in production.
+
+### 2. Dependencies
+
+The required packages are already installed:
+
+- `jsonwebtoken` - JWT creation and verification
+- `@types/jsonwebtoken` - TypeScript types
+
+## Server-Side Usage
+
+### Creating JWT Tokens
+
+```typescript
+import { createJwtToken } from '@/lib/jwt'
+
+const token = createJwtToken(
+  {
+    userId: 'user123',
+    role: 'admin',
+    permissions: ['read', 'write']
+  },
+  process.env.JWT_SECRET!,
+  {
+    expiresIn: '24h',
+    issuer: 'lawallet-nwc',
+    audience: 'lawallet-users'
+  }
+)
+```
+
+### Verifying JWT Tokens
+
+```typescript
+import { verifyJwtToken } from '@/lib/jwt'
+
+try {
+  const result = verifyJwtToken(token, process.env.JWT_SECRET!)
+  console.log('User ID:', result.payload.userId)
+  console.log('Role:', result.payload.role)
+} catch (error) {
+  console.error('Token verification failed:', error.message)
+}
+```
+
+### Protecting API Routes
+
+#### Option 1: JWT-only protection
+
+```typescript
+import { authenticateJwt } from '@/lib/jwt-auth'
+import { NextRequest, NextResponse } from 'next/server'
+
+export async function GET(request: NextRequest) {
+  const auth = await authenticateJwt(request, {
+    requiredClaims: ['role'],
+  })
+
+  return NextResponse.json({
+    userId: auth.payload.userId,
+    role: auth.payload.role,
+  })
+}
+```
+
+#### Option 2: Higher-order JWT wrapper
+
+```typescript
+import { withJwtAuth, getUserIdFromRequest } from '@/lib/jwt-auth'
+import { NextResponse } from 'next/server'
+import type { AuthenticatedRequest } from '@/lib/jwt-auth'
+
+async function protectedHandler(request: AuthenticatedRequest) {
+  const userId = getUserIdFromRequest(request)
+
+  return NextResponse.json({
+    message: `Hello user ${userId}`,
+    timestamp: new Date().toISOString()
+  })
+}
+
+export const GET = withJwtAuth(protectedHandler, {
+  requiredClaims: ['role', 'permissions']
+})
+```
+
+#### Option 3: Accept NIP-98 or JWT
+
+```typescript
+import { withAuth } from '@/lib/auth/unified-auth'
+import { NextResponse } from 'next/server'
+
+export const GET = withAuth(async (_request, auth) => {
+  return NextResponse.json({
+    pubkey: auth.pubkey,
+    role: auth.role,
+    method: auth.method,
+  })
+})
+```
+
+### Working with Authenticated JWT Requests
+
+```typescript
+import {
+  getUserIdFromRequest,
+  getClaimFromRequest,
+  hasClaim,
+} from '@/lib/jwt-auth'
+
+async function handler(request: AuthenticatedRequest) {
+  const userId = getUserIdFromRequest(request)
+  const role = getClaimFromRequest<string>(request, 'role')
+  const permissions = getClaimFromRequest<string[]>(request, 'permissions')
+
+  if (hasClaim(request, 'role', 'admin')) {
+    // Admin-only logic
+  }
+
+  if (hasClaim(request, 'permissions', 'write')) {
+    // Write permission logic
+  }
+}
+```
+
+## Current API Contract
+
+### POST /api/jwt
+
+Exchange a NIP-98 signed request for a JWT session token.
+
+**Request Body:**
+
+```json
+{
+  "expiresIn": "24h"
+}
+```
+
+**Headers:**
+
+```text
+Authorization: Nostr <base64-encoded-nip98-event>
+```
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "expiresIn": "24h",
+  "type": "Bearer"
+}
+```
+
+### GET /api/jwt
+
+Validate an existing JWT token.
+
+**Headers:**
+
+```text
+Authorization: Bearer <token>
+```
+
+**Response:**
+
+```json
+{
+  "valid": true,
+  "pubkey": "npub-or-hex-pubkey",
+  "role": "USER",
+  "permissions": ["read"],
+  "issuedAt": "2024-01-01T00:00:00.000Z",
+  "expiresAt": "2024-01-02T00:00:00.000Z"
+}
+```
+
+## Frontend Note
+
+If you are building a frontend against this repo today, store the JWT however your app prefers and send it as a standard bearer token:
+
+```text
+Authorization: Bearer <token>
+```
+
+There is no first-party browser token manager or refresh flow in the current repository.

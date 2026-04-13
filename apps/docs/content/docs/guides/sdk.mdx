@@ -1,0 +1,61 @@
+---
+title: "Client SDK & React Hooks"
+description: "Roadmap notes for the planned SDK and React Hooks packages."
+---
+
+## Overview
+
+The current `lawallet-nwc` repository does not contain a published client SDK or React Hooks package.
+
+This page documents the intended SDK and hooks direction described in the roadmap so the planned API surface stays visible while implementation catches up.
+
+---
+
+## Current Reality
+
+If you are integrating with the repo today:
+
+- Call the REST API directly
+- Use the server-side helpers already present in `lib/`
+- Refer to the [API Reference](/docs/api-reference) for the routes that currently exist
+- Treat everything below as planned work, not shipped packages
+
+---
+
+## Planned TypeScript Client SDK
+
+The roadmap calls for a standalone client package that would eventually cover:
+
+- Authentication helpers around the current JWT flow
+- Lightning address management
+- NWC connection management
+- Card and card-design operations
+- Later roadmap additions such as redirects, webhooks, and payment verification
+
+---
+
+## Planned React Hooks Package
+
+The roadmap also calls for a React hooks package built on top of that SDK.
+
+Planned hook areas:
+
+| Hook | Purpose | Month |
+|------|---------|-------|
+| `useAddress` | CRUD single lightning address | 2 |
+| `useAddresses` | List/search/filter with pagination | 2 |
+| `useNWCConnection` | Connect, disconnect, status polling | 2 |
+| `useAuth` | NIP-98 to JWT session flow | 2 |
+| `useWallet` | Wallet status and NWC state | 2 |
+| `useCourtesyNWC` | Courtesy NWC via [lncurl](https://github.com/rolznz/lncurl) | 3 |
+| `useWebhooks` | Webhook management | 5 |
+| `useRedirect` | Redirect configuration | 5 |
+
+## Lifecycle
+
+| Month | SDK Milestone | Hooks Milestone |
+|-------|---------------|-----------------|
+| 2 | Core auth, address, and NWC coverage. | Base hooks for auth and address flows. |
+| 3 | Frontend adoption and courtesy-NWC support. | Add `useCourtesyNWC`. |
+| 5 | Redirect, webhook, and verification methods. | Expand hooks to match the newer API surface. |
+| 6 | Full docs + API reference. | Full docs + usage examples. |

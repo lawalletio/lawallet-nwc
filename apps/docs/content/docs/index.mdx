@@ -1,0 +1,42 @@
+---
+title: LaWallet NWC
+description: Current implementation, setup, and roadmap for LaWallet NWC.
+---
+
+## Welcome
+
+LaWallet NWC is a pre-alpha Next.js application for Lightning Address management, NFC card flows, and Nostr Wallet Connect.
+
+The current repository is focused on:
+
+- JWT session issuance backed by NIP-98 authentication
+- Lightning address assignment and LUD-16 pay responses for NWC-backed users
+- Card, card-design, settings, and remote-connection APIs
+- Optional Alby Hub sub-account provisioning during user creation
+
+The broader product vision in the roadmap still includes redirect-based onboarding, courtesy NWC provisioning, NIP-05, webhook delivery, and additional service containers. Those items are documented as planned work, not current behavior.
+
+## Quick Links
+
+- [Getting Started](/docs/getting-started) — Local setup and current app surface
+- [Architecture](/docs/architecture) — Current implementation and target topology
+- [Guides](/docs/guides) — Current auth/testing docs and SDK roadmap notes
+- [API Reference](/docs/api-reference) — Current REST endpoints in `lawallet-nwc`
+- [Plugins](/docs/plugins) — Events, Badges, Commerce proposals
+- [Roadmap](/docs/roadmap) — 6-month development timeline
+
+## Open Standards
+
+| Protocol | Status | Usage |
+|----------|--------|-------|
+| NIP-47 (NWC) | Current | Wallet connection stored on the user record and used for payment flows |
+| NIP-98 | Current | Signed requests exchanged for JWT sessions |
+| LUD-16 | Current | `/api/lud16/[username]` pay-request responses for users with NWC configured |
+| NIP-05 | Planned | Nostr identity verification endpoint is not implemented in this repo yet |
+| NIP-57 | Planned | Zap support is roadmap work |
+| LUD-21 | Planned | Payment verification is roadmap work |
+| LUD-22 | Planned | Webhook delivery is roadmap work |
+
+## Funded by
+
+[OpenSats](https://opensats.org) — Fifteenth Wave of Bitcoin Grants (December 2025).

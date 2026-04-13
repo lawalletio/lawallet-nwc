@@ -1,0 +1,118 @@
+---
+title: "Architecture"
+description: "Current implementation in the repo, plus the target multi-service architecture described in the roadmap."
+---
+
+## Overview
+
+The current `lawallet-nwc` repository is centered around a single Next.js application backed by PostgreSQL. It also integrates with external services when configured, most notably Alby Hub for optional sub-account provisioning.
+
+The roadmap describes a larger multi-service topology with a payment listener and courtesy-wallet provisioning flows. Those pieces are documented here as target architecture, not as currently shipped code in this repo.
+
+---
+
+## Current Topology
+
+| Container | Service | Ports | Storage |
+|-----------|---------|-------|---------|
+| `lawallet-web` | Next.js application in this repo | 3000 | PostgreSQL via Prisma |
+| External | Alby Hub (optional) | — | Managed externally |
+
+## Roadmap Topology
+
+| Service | Status | Notes |
+|---------|--------|-------|
+| `lawallet-web` | Current | Main application and API surface in this repo |
+| `lawallet-listener` | Planned | Roadmap service for payment event ingestion and webhook delivery |
+| Courtesy NWC via `lncurl` | Planned | External courtesy-wallet provisioning flow described in roadmap docs |
+
+---
+
+## Current Implementation Notes
+
+- One Next.js app serves the frontend and REST API
+- PostgreSQL is the primary application datastore
+- LUD-16 responses are served from `/api/lud16/[username]`
+- JWT sessions are issued from `POST /api/jwt` after NIP-98 validation
+- The app can optionally create Alby Hub sub-accounts during user creation
+- Redirect resolution, NIP-05, webhook delivery, and listener-driven real-time updates are not implemented in this repo yet
+
+---
+
+## lawallet-web (Next.js Application)
+
+The main application serving the frontend, API, and lightning address resolution for the current repo.
+
+- App Router (Next.js 16) serving frontend and API routes
+- JWT issuance and validation
+- Card, card-design, user, settings, and remote-connection APIs
+- `/api/lud16/[username]` endpoint for LUD-16 pay requests
+- Admin and wallet pages are present but still under construction
+- Own PostgreSQL database via Prisma ORM
+
+See: [lawallet-web](./lawallet-web)
+
+---
+
+## lawallet-listener (NWC Payment Listener)
+
+This is a planned service, not part of the current repo.
+
+- Roadmap service for payment events and webhook delivery
+- Not implemented in `lawallet-nwc` today
+
+See: [NWC Payment Listener](./nwc-listener)
+
+---
+
+## Courtesy NWC via lncurl
+
+This is a planned integration, not a current flow in the repo.
+
+- Documented as the roadmap direction for courtesy wallet provisioning
+- Current repo behavior uses direct NWC values on the user record and optional Alby Hub sub-account creation
+
+See: [Courtesy NWC via lncurl](./nwc-proxy)
+
+---
+
+## Current Data Flow
+
+### Authenticated User Setup
+
+1. Client signs a NIP-98 request and exchanges it for a JWT at `POST /api/jwt`
+2. Client loads or creates the user at `GET /api/users/me`
+3. If Alby auto-generation is enabled, the server may provision an Alby sub-account
+4. Client assigns a lightning address and/or sets an NWC URI on the user
+5. LUD-16 resolution can then succeed for that username
+
+### LUD-16 Resolution
+
+1. Sender resolves `alice@domain.com` via LUD-16
+2. The app looks up the username in `LightningAddress`
+3. If the linked user has an NWC URI, the app returns a payRequest response
+4. If the user has no NWC URI, the lookup fails
+
+## Target Data Flow
+
+Roadmap documents still cover a broader future flow with courtesy wallets, redirect handling, and a listener service.
+
+### Address Resolution Priority
+
+| Priority | Method | Description |
+|----------|--------|-------------|
+| Current | NWC Connection | Required today for successful LUD-16 resolution |
+| Planned | Courtesy NWC | Temporary wallet via [lncurl](https://github.com/rolznz/lncurl) |
+| Planned | Alias / Redirect | Redirects to external lightning address |
+
+---
+
+## Deployment Options
+
+| Platform | Containers | Notes |
+|----------|------------|-------|
+| Vercel | web only | Best fit for the current repo state |
+| Netlify | web only | Similar constraints to Vercel |
+| Umbrel | planned web + listener | Depends on roadmap services |
+| Start9 | planned web + listener | Depends on roadmap services |
+| Docker Compose | current web, planned extra services | Current repo includes web app deployment support |

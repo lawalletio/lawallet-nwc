@@ -1,0 +1,89 @@
+---
+title: API Reference
+description: Current REST endpoints implemented in the LaWallet NWC repository.
+---
+
+## Status
+
+The full OpenAPI/Swagger reference is still planned for the roadmap. Until then, this page documents the routes that currently exist in `lawallet-nwc`.
+
+## Authentication
+
+- `POST /api/jwt` — Exchange a NIP-98 signed request for a JWT
+- `GET /api/jwt` — Validate a JWT
+- `GET /api/jwt/protected` — Example protected route
+- `POST /api/jwt/protected` — Example protected route
+
+## Users and Lightning Addresses
+
+- `GET /api/users/me` — Load or create the current user
+- `GET /api/users/[userId]/cards` — List a user's cards
+- `GET /api/users/[userId]/role` — Read a user's role
+- `PUT /api/users/[userId]/role` — Update a user's role
+- `PUT /api/users/[userId]/lightning-address` — Assign or replace a lightning username
+- `PUT /api/users/[userId]/nwc` — Store or replace an NWC URI
+- `GET /api/lightning-addresses` — Admin list of lightning addresses
+- `GET /api/lightning-addresses/counts` — Admin summary counts
+- `GET /api/lightning-addresses/check?username=` — Check username availability (public, no auth)
+- `GET /api/lightning-addresses/relays` — Relay information
+- `GET /api/lud16/[username]` — LUD-16 payRequest response
+- `GET /api/lud16/[username]/cb` — LUD-16 callback
+
+## Cards
+
+- `GET /api/cards` — List cards
+- `POST /api/cards` — Create a card
+- `GET /api/cards/counts` — Card counts
+- `GET /api/cards/[id]` — Card detail
+- `DELETE /api/cards/[id]` — Delete a card
+- `GET /api/cards/[id]/write` — Card write payload (NTAG424 keys and endpoint for NFC programming)
+- `OPTIONS /api/cards/[id]/write` — CORS preflight for card write
+- `GET /api/cards/[id]/scan` — Card scan response
+- `OPTIONS /api/cards/[id]/scan` — CORS preflight for card scan
+- `GET /api/cards/[id]/scan/cb` — Card scan callback
+- `OPTIONS /api/cards/[id]/scan/cb` — CORS preflight for scan callback
+- `GET /api/cards/otc/[otc]` — Resolve OTC value
+- `POST /api/cards/otc/[otc]/activate` — Activate OTC flow
+
+## Card Designs
+
+- `GET /api/card-designs/list` — List card designs
+- `GET /api/card-designs/count` — Count card designs
+- `GET /api/card-designs/get/[id]` — Card-design detail
+- `POST /api/card-designs/import` — Import card designs
+
+## Settings and Administration
+
+- `GET /api/settings` — Read settings
+- `POST /api/settings` — Update settings
+- `GET /api/admin/assign` — Read admin-assignment status
+- `POST /api/admin/assign` — Assign admin role
+- `GET /api/root/assign` — Read root-assignment status
+- `POST /api/root/assign` — Assign root/admin bootstrap role
+
+## Remote Connections
+
+- `GET /api/remote-connections/[externalDeviceKey]` — Remote device bootstrap metadata
+- `POST /api/remote-connections/[externalDeviceKey]/cards` — Initialize a remote card
+
+## Not Yet Implemented in This Repo
+
+The following routes and features are mentioned elsewhere in roadmap docs, but they are not part of the current API surface:
+
+- `/api/auth/login`
+- `/api/auth/refresh`
+- `/api/auth/nostr`
+- `/api/addresses/*`
+- Redirect-management endpoints
+- `/api/webhooks/*`
+- `/api/payments`
+- `.well-known/nostr.json`
+
+## Auth Notes
+
+Protected routes use either:
+
+- `Authorization: Nostr <base64>` for direct NIP-98 authentication
+- `Authorization: Bearer <jwt>` for JWT-backed access after exchanging a NIP-98 request at `POST /api/jwt`
+
+See the [JWT Authentication guide](/docs/guides/jwt-authentication) for the current auth flow.

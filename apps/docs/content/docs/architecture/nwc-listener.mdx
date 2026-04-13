@@ -1,0 +1,78 @@
+---
+title: "NWC Payment Listener"
+description: "Planned microservice for monitoring NWC relays and dispatching webhook notifications."
+---
+
+## Overview
+
+This page describes a planned service, not code that exists in the current `lawallet-nwc` repository.
+
+The repo does not currently include a `lawallet-listener` process, webhook-delivery models, or payment-history APIs. LUD-22 delivery and relay monitoring remain roadmap work.
+
+---
+
+## Planned Responsibilities
+
+- Subscribe to NWC relays for NIP-47 `payment_received` events
+- Match incoming payments to registered lightning addresses
+- Dispatch LUD-22 webhooks with HMAC-signed payloads
+- Emit real-time events via WebSocket to lawallet-web
+- Track delivery status and manage retries
+
+---
+
+## Why This Page Exists
+
+The roadmap includes this service as the event-processing companion to `lawallet-web`. Keeping the design notes here is useful, but it should be read as target architecture rather than current implementation.
+
+---
+
+## Planned Payment Detection Flow
+
+1. Subscribe to NWC relays listed in configuration
+2. Monitor NIP-47 `payment_received` events per connected wallet
+3. Match payment to registered lightning address via invoice/preimage
+4. Record event in own storage (amount, timestamp, sender, address)
+5. Look up registered LUD-22 webhooks for the address
+6. POST signed JSON payload to each webhook URL
+7. Emit WebSocket event to lawallet-web for real-time display
+
+---
+
+## Planned Webhook Delivery
+
+- **Method**: POST
+- **Content-Type**: `application/json`
+- **Signature**: `X-Signature` header with HMAC-SHA256 of payload using webhook secret
+- **Retry**: Exponential backoff — 3 attempts (1s, 4s, 16s)
+- **Dead letter queue**: Permanently failed deliveries stored for manual inspection
+- **Delivery status**: Logged and queryable
+
+---
+
+## Planned Runtime Behavior
+
+- Auto-reconnection on relay disconnection with exponential backoff
+- Graceful shutdown on SIGTERM/SIGINT
+- Health check endpoint at `/health` (port 3002)
+- Multi-relay subscription for redundancy
+- Stateless design: restart without data loss
+
+---
+
+## Planned Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NWC_RELAY_URLS` | Comma-separated NWC relay URLs | `wss://relay.getalby.com/v1` |
+| `WEBHOOK_RETRY_ATTEMPTS` | Retry attempts per delivery | `3` |
+| `WEBHOOK_RETRY_BASE_DELAY` | Base delay (ms) for exponential backoff | `1000` |
+| `WEBSOCKET_PORT` | Port for WebSocket event emission | `3001` |
+| `HEALTH_CHECK_PORT` | Health check endpoint port | `3002` |
+| `LOG_LEVEL` | Minimum log level | `info` |
+
+---
+
+## Current Repo Note
+
+The current repo only contains the Next.js application. There are no listener-specific source files, tests, or deployment artifacts yet.

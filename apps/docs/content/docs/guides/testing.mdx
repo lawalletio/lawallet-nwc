@@ -1,0 +1,72 @@
+---
+title: "Testing Strategy"
+description: "Current testing setup in LaWallet NWC, plus planned E2E expansion."
+---
+
+## Current Status
+
+The current repo already has a solid Vitest-based test suite, but it is narrower than the full roadmap testing story.
+
+| Layer | Current Tooling | Status |
+|-------|------------------|--------|
+| Unit | Vitest | Current |
+| Component | React Testing Library + happy-dom | Current |
+| API | Vitest + MSW + route-level tests | Current |
+| Integration | Vitest + Prisma test utilities | Current |
+| Coverage | `vitest --coverage` | Current |
+| E2E | Playwright | Planned, not present in this repo yet |
+
+---
+
+## Unit Testing (Vitest)
+
+- Primary test runner for unit and integration tests
+- Used for auth helpers, validation, middleware, config, utilities, and logger behavior
+- Coverage reporting is available through `pnpm test:coverage`
+
+---
+
+## Component Testing (React Testing Library + Vitest)
+
+- Available through React Testing Library with `happy-dom`
+- Best suited for isolated UI and interaction tests
+- The current repo is backend/API-heavy, so component coverage is lighter than the roadmap vision
+
+---
+
+## API and Integration Testing
+
+- API routes are exercised with Vitest-based integration tests
+- MSW is available for mocking network interactions
+- Prisma test helpers support repeatable database-backed test flows
+- Current integration coverage includes auth, lightning addresses, cards, settings, remote connections, and related business logic
+
+---
+
+## Useful Commands
+
+```bash
+pnpm test
+pnpm test:coverage
+pnpm lint
+pnpm typecheck
+```
+
+---
+
+## Planned E2E Work
+
+Playwright is still a roadmap item. When it lands, the expected focus areas are:
+
+- Admin and wallet smoke tests
+- User onboarding and NWC management flows
+- Visual regression on the eventual frontend surfaces
+- Deployment smoke coverage for the broader multi-service architecture
+
+---
+
+## CI/CD Integration
+
+- The repo already advertises CI in its README
+- The local script flow is centered on `lint`, `typecheck`, and `test`
+- E2E-specific CI steps should be added only once Playwright is actually introduced
