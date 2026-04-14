@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validateNip98Auth } from '@/lib/admin-auth'
+import { eventBus } from '@/lib/events/event-bus'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   Role,
@@ -118,6 +119,8 @@ export const PUT = withErrorHandling(
       data: { role: targetRole },
       select: { id: true, role: true },
     })
+
+    eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
 
     return NextResponse.json({
       userId: updated.id,

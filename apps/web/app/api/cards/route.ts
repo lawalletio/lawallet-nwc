@@ -9,6 +9,7 @@ import { validateBody, validateQuery } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticateWithRole } from '@/lib/auth/unified-auth'
 import { Role } from '@/lib/auth/permissions'
+import { eventBus } from '@/lib/events/event-bus'
 
 interface CardFilters {
   paired?: boolean
@@ -185,6 +186,8 @@ export const POST = withErrorHandling(async (request: Request) => {
       username: card.username || undefined,
       otc: card.otc || undefined
     }
+
+  eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
 
   return NextResponse.json(transformedCard)
 })

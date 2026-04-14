@@ -611,6 +611,50 @@ See: [ONBOARDING.md](./ONBOARDING.md)
 
 ---
 
+## Real-Time Updates (SSE)
+
+Server-Sent Events provide real-time push notifications to the admin dashboard. The architecture uses a notification-only pattern: SSE events signal that data changed, and the client refetches via existing API endpoints.
+
+### Event Bus
+
+In-memory singleton (`lib/events/event-bus.ts`) using the same `globalThis` pattern as Prisma. Mutation API routes call `eventBus.emit()` after successful database writes.
+
+### SSE Endpoint
+
+`GET /api/events?token=<jwt>` — Long-lived streaming connection.
+
+1. Validates JWT from query parameter (EventSource API doesn't support headers)
+2. Resolves permissions from the JWT role claim
+3. Streams events filtered by permission
+4. Sends heartbeat every 30 seconds
+5. Cleans up on disconnect
+
+### Event Types
+
+| Event | Permission Required | Triggered By |
+|-------|-------------------|-------------|
+| `addresses:updated` | `ADDRESSES_READ` | Lightning address create/update |
+| `cards:updated` | `CARDS_READ` | Card create/activate |
+| `designs:updated` | `CARD_DESIGNS_READ` | Design import |
+| `settings:updated` | `SETTINGS_READ` | Settings update |
+| `invoices:updated` | Any authenticated | Invoice create/claim |
+| `users:updated` | `USERS_READ` | User role change |
+
+### Client Integration
+
+The `SSEProvider` (in `app/providers.tsx`) manages the EventSource connection and exposes version counters per event type. The `useApi()` hook maps API paths to event types and includes the SSE version in its effect dependencies — when a version bumps, the hook refetches automatically. This is transparent to all consumers (`useAddresses()`, `useCards()`, etc.).
+
+```
+SSEProvider (connects on auth, reconnects with backoff)
+  → increments version counter per event type
+  → useApi(path) observes version via useSSEVersion()
+  → version bump triggers refetch
+```
+
+**Files:** `lib/events/event-bus.ts`, `app/api/events/route.ts`, `lib/client/hooks/use-sse.ts`
+
+---
+
 ## Logging
 
 Pino-based structured logging with AsyncLocalStorage for request ID correlation.
@@ -707,6 +751,12 @@ Pino-based structured logging with AsyncLocalStorage for request ID correlation.
 |--------|------|------|---------|
 | GET | `/api/remote-connections/[key]` | Auth | Get remote device info |
 | POST | `/api/remote-connections/[key]/cards` | Auth | Remote card creation |
+
+### Events (SSE)
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| GET | `/api/events?token=<jwt>` | JWT (query) | SSE stream for real-time updates |
 
 ---
 

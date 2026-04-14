@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/components/admin/auth-context'
+import { useSSEVersion, type SSEEventType } from '@/lib/client/hooks/use-sse'
 
 export interface UseApiResult<T> {
   data: T | null
@@ -11,8 +12,22 @@ export interface UseApiResult<T> {
 }
 
 /**
+ * Maps an API path to its corresponding SSE event type for auto-refresh.
+ */
+function getEventTypeForPath(path: string): SSEEventType | null {
+  if (path.startsWith('/api/lightning-addresses')) return 'addresses:updated'
+  if (path.startsWith('/api/cards') || path.startsWith('/api/card-designs')) return 'cards:updated'
+  if (path.startsWith('/api/settings')) return 'settings:updated'
+  if (path.startsWith('/api/invoices')) return 'invoices:updated'
+  if (path.startsWith('/api/users')) return 'users:updated'
+  return null
+}
+
+/**
  * Generic hook for fetching data from authenticated API endpoints.
- * Automatically refetches when the path changes.
+ * Automatically refetches when:
+ * - The path changes
+ * - An SSE event invalidates the data (real-time updates)
  */
 export function useApi<T>(path: string | null): UseApiResult<T> {
   const { apiClient, status } = useAuth()
@@ -20,6 +35,10 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const fetchIdRef = useRef(0)
+
+  // SSE invalidation: version bumps trigger refetch
+  const eventType = path ? getEventTypeForPath(path) : null
+  const sseVersion = useSSEVersion(eventType)
 
   const fetchData = useCallback(async () => {
     if (!path || status !== 'authenticated') {
@@ -50,7 +69,7 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
 
   useEffect(() => {
     fetchData()
-  }, [fetchData])
+  }, [fetchData, sseVersion])
 
   return { data, loading, error, refetch: fetchData }
 }

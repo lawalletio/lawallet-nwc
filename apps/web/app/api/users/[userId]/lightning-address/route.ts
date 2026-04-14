@@ -11,6 +11,7 @@ import { userIdParam, updateLightningAddressSchema } from '@/lib/validation/sche
 import { validateParams, validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { eventBus } from '@/lib/events/event-bus'
 
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
@@ -77,6 +78,8 @@ export const PUT = withErrorHandling(
         where: { username: oldLightningAddress.username }
       })
     }
+
+    eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
 
     // Return the complete lightning address string
     const completeAddress = `${username}@${domain}`

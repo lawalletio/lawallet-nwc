@@ -7,6 +7,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { InternalServerError, ValidationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { eventBus } from '@/lib/events/event-bus'
 
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'large')
@@ -88,6 +89,8 @@ export const POST = withErrorHandling(async (request: Request) => {
   )
 
   logger.info({ count: importedDesigns.length }, 'Imported card designs successfully')
+
+  eventBus.emit({ type: 'designs:updated', timestamp: Date.now() })
 
   return NextResponse.json({
     success: true,

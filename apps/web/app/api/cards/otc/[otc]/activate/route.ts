@@ -10,6 +10,7 @@ import { otcParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
+import { eventBus } from '@/lib/events/event-bus'
 import { authenticate } from '@/lib/auth/unified-auth'
 
 export const POST = withErrorHandling(
@@ -52,6 +53,8 @@ export const POST = withErrorHandling(
         })
       }
     }
+
+    eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
 
     const { domain } = await getSettings(['domain'])
     const lightningAddress = user.lightningAddress?.username
