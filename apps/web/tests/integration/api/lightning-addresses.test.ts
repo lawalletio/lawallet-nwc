@@ -20,6 +20,12 @@ vi.mock('@/lib/admin-auth', () => ({
   validateAdminAuth: vi.fn(),
 }))
 
+vi.mock('@/lib/auth/unified-auth', () => ({
+  authenticate: vi.fn().mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'ADMIN', method: 'jwt' }),
+  authenticateWithRole: vi.fn().mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'ADMIN', method: 'jwt' }),
+  authenticateWithPermission: vi.fn().mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'ADMIN', method: 'jwt' }),
+}))
+
 vi.mock('@/mocks/lightning-address', () => ({
   mockLightningAddressData: [
     {
@@ -40,6 +46,7 @@ import { GET as ListGet } from '@/app/api/lightning-addresses/route'
 import { GET as CountsGet } from '@/app/api/lightning-addresses/counts/route'
 import { GET as RelaysGet } from '@/app/api/lightning-addresses/relays/route'
 import { validateAdminAuth } from '@/lib/admin-auth'
+import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 
 beforeEach(() => {
   resetPrismaMock()
@@ -47,8 +54,7 @@ beforeEach(() => {
 })
 
 describe('GET /api/lightning-addresses', () => {
-  it('returns all lightning addresses for admin', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+  it('returns all lightning addresses for authorized user', async () => {
     vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([
       {
         username: 'alice',
@@ -66,7 +72,6 @@ describe('GET /api/lightning-addresses', () => {
   })
 
   it('returns empty array when no addresses', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
     vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([])
 
     const req = createNextRequest('/api/lightning-addresses')
@@ -76,8 +81,8 @@ describe('GET /api/lightning-addresses', () => {
     expect(body).toEqual([])
   })
 
-  it('rejects non-admin', async () => {
-    vi.mocked(validateAdminAuth).mockRejectedValue(new Error('unauthorized'))
+  it('rejects unauthorized user', async () => {
+    vi.mocked(authenticateWithPermission).mockRejectedValueOnce(new Error('unauthorized'))
 
     const req = createNextRequest('/api/lightning-addresses')
     const res = await ListGet(req)
@@ -87,8 +92,7 @@ describe('GET /api/lightning-addresses', () => {
 })
 
 describe('GET /api/lightning-addresses/counts', () => {
-  it('returns counts for admin', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+  it('returns counts for authorized user', async () => {
     vi.mocked(prismaMock.lightningAddress.count)
       .mockResolvedValueOnce(10) // total
       .mockResolvedValueOnce(7)  // withNWC
@@ -102,7 +106,6 @@ describe('GET /api/lightning-addresses/counts', () => {
   })
 
   it('returns zero counts', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
     vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
 
     const req = createNextRequest('/api/lightning-addresses/counts')
@@ -112,8 +115,8 @@ describe('GET /api/lightning-addresses/counts', () => {
     expect(body).toEqual({ total: 0, withNWC: 0, withoutNWC: 0 })
   })
 
-  it('rejects non-admin', async () => {
-    vi.mocked(validateAdminAuth).mockRejectedValue(new Error('unauthorized'))
+  it('rejects unauthorized user', async () => {
+    vi.mocked(authenticateWithPermission).mockRejectedValueOnce(new Error('unauthorized'))
 
     const req = createNextRequest('/api/lightning-addresses/counts')
     const res = await CountsGet(req)
