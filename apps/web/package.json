@@ -64,6 +64,7 @@
     "html5-qrcode": "^2.3.8",
     "input-otp": "latest",
     "jsonwebtoken": "^9.0.3",
+    "light-bolt11-decoder": "^3.2.0",
     "lucide-react": "^0.563.0",
     "next": "^16.2.3",
     "next-themes": "latest",

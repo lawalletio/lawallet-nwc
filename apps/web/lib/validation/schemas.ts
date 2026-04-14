@@ -88,6 +88,29 @@ export const createRemoteCardSchema = z.object({
   cardUID: z.string().min(1, 'cardUID is required'),
 })
 
+// ── Invoices ───────────────────────────────────────────────────────────────
+
+export const createInvoiceSchema = z.object({
+  purpose: z.enum(['registration']),
+  metadata: z
+    .object({
+      username: z
+        .string()
+        .min(1, 'Username is required')
+        .max(16, 'Username must be 16 characters or less')
+        .regex(/^[a-z0-9]+$/, 'Username must contain only lowercase letters and numbers')
+        .optional(),
+    })
+    .optional(),
+})
+
+export const claimInvoiceSchema = z.object({
+  preimage: z
+    .string()
+    .min(1, 'Preimage is required')
+    .regex(/^[a-f0-9]+$/i, 'Preimage must be a hex string'),
+})
+
 // ── JWT ─────────────────────────────────────────────────────────────────────
 
 export const jwtRequestSchema = z.object({

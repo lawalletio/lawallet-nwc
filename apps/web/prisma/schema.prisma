@@ -16,6 +16,16 @@ enum UserRole {
   USER
 }
 
+enum InvoicePurpose {
+  REGISTRATION
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  EXPIRED
+}
+
 model User {
   id               String            @id
   pubkey           String            @unique
@@ -25,6 +35,7 @@ model User {
   ntag424s         Ntag424[]
   lightningAddress LightningAddress?
   cards            Card[]
+  invoices         Invoice[]
   albySubAccount   AlbySubAccount?
   albyEnabled      Boolean           @default(false)
   role             UserRole          @default(USER)
@@ -102,4 +113,25 @@ model Settings {
   updatedAt DateTime @updatedAt
 
   @@index([name])
+}
+
+model Invoice {
+  id          String         @id @default(uuid())
+  bolt11      String
+  paymentHash String         @unique
+  amountSats  Int
+  description String
+  purpose     InvoicePurpose
+  metadata    Json?
+  status      InvoiceStatus  @default(PENDING)
+  preimage    String?
+  userId      String?
+  user        User?          @relation(fields: [userId], references: [id])
+  expiresAt   DateTime
+  paidAt      DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([purpose, status])
 }

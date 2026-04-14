@@ -2,11 +2,12 @@
 
 import { useEffect, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Monitor, CreditCard, AtSign, ShieldAlert } from 'lucide-react'
+import { Monitor, CreditCard, AtSign, ShieldAlert, Zap, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -25,6 +26,8 @@ import {
 import { useAuth } from '@/components/admin/auth-context'
 import { Permission } from '@/lib/auth/permissions'
 import { SetupBanner } from '@/components/admin/setup-banner'
+import { AddressBanner } from '@/components/admin/address-banner'
+import { useApi } from '@/lib/client/hooks/use-api'
 
 const sourceIcons = {
   App: Monitor,
@@ -68,6 +71,9 @@ export default function AdminDashboardPage() {
 
     claimAddress()
   }, [status, searchParams, apiClient, router])
+  const { data: me } = useApi<{ userId: string; lightningAddress: string | null }>(
+    status === 'authenticated' ? '/api/users/me' : null
+  )
   const canViewStats = isAuthorized(Permission.ADDRESSES_READ)
 
   const { data: userCounts, loading: usersLoading } = useTotalUsers()
@@ -82,6 +88,46 @@ export default function AdminDashboardPage() {
 
       <div className="p-6 flex flex-col gap-6">
         <SetupBanner />
+        <AddressBanner />
+
+        {me?.lightningAddress && (
+          <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-yellow-500/10">
+              <Zap className="size-5 text-yellow-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Your Lightning Address</p>
+              <p className="text-sm font-medium truncate">{me.lightningAddress}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                const text = me.lightningAddress!
+                if (navigator.clipboard?.writeText) {
+                  navigator.clipboard.writeText(text).then(
+                    () => toast.success('Copied to clipboard'),
+                    () => {
+                      // Fallback for non-secure contexts
+                      const ta = document.createElement('textarea')
+                      ta.value = text
+                      ta.style.position = 'fixed'
+                      ta.style.opacity = '0'
+                      document.body.appendChild(ta)
+                      ta.select()
+                      document.execCommand('copy')
+                      document.body.removeChild(ta)
+                      toast.success('Copied to clipboard')
+                    }
+                  )
+                }
+              }}
+            >
+              <Copy className="size-3.5" />
+            </Button>
+          </div>
+        )}
 
         {!canViewStats ? (
           <div className="flex flex-col items-center justify-center py-24 text-center gap-4">

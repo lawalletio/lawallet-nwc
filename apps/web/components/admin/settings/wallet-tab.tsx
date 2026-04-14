@@ -1,13 +1,59 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
+import { Spinner } from '@/components/ui/spinner'
+import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
 
 export function WalletTab() {
+  const { data: settings, loading: settingsLoading } = useSettings()
+  const { updateSettings, loading: saving } = useUpdateSettings()
+
+  const [registrationLnAddress, setRegistrationLnAddress] = useState('')
+  const [registrationPrice, setRegistrationPrice] = useState('21')
+  const [registrationEnabled, setRegistrationEnabled] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+
+  // Load settings into state
+  useEffect(() => {
+    if (!settings) return
+    setRegistrationLnAddress(settings.registration_ln_address ?? '')
+    setRegistrationPrice(settings.registration_price ?? '21')
+    setRegistrationEnabled(settings.registration_ln_enabled === 'true')
+  }, [settings])
+
+  function markChanged() {
+    setHasChanges(true)
+  }
+
+  async function handleSave() {
+    try {
+      await updateSettings({
+        registration_ln_address: registrationLnAddress.trim(),
+        registration_price: registrationPrice || '21',
+        registration_ln_enabled: registrationEnabled ? 'true' : 'false',
+      })
+      setHasChanges(false)
+      toast.success('Settings saved')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save settings')
+    }
+  }
+
+  if (settingsLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Spinner size={24} />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-8 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">
       <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
@@ -93,7 +139,7 @@ export function WalletTab() {
         <div>
           <h3 className="text-sm font-semibold">Lightning Address</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Configure Lightning Address settings and pricing.
+            Configure Lightning Address registration and pricing.
           </p>
         </div>
         <div className="flex flex-col gap-4">
@@ -101,19 +147,57 @@ export function WalletTab() {
             <div>
               <p className="text-sm font-medium">Enabled Mode</p>
               <p className="text-sm text-muted-foreground">
-                Activate or deactivate Lightning Address service.
+                Enable paid registration for Lightning Addresses.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={registrationEnabled}
+              onCheckedChange={v => { setRegistrationEnabled(v); markChanged() }}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Payment Address</Label>
+            <Input
+              type="text"
+              placeholder="admin@getalby.com"
+              value={registrationLnAddress}
+              onChange={e => { setRegistrationLnAddress(e.target.value); markChanged() }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Lightning address where registration payments will be sent.
+            </p>
           </div>
           <div className="space-y-1">
             <Label>Price</Label>
             <InputGroup>
-              <InputGroupText>$</InputGroupText>
-              <Input type="number" placeholder="0" className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0" />
+              <Input
+                type="number"
+                placeholder="21"
+                min={1}
+                value={registrationPrice}
+                onChange={e => { setRegistrationPrice(e.target.value); markChanged() }}
+                className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+              <InputGroupText>sats</InputGroupText>
             </InputGroup>
           </div>
         </div>
+      </div>
+
+      <div className="flex justify-end pt-4">
+        <Button
+          onClick={handleSave}
+          disabled={!hasChanges || saving}
+        >
+          {saving ? (
+            <>
+              <Spinner size={16} className="mr-2" />
+              Saving...
+            </>
+          ) : (
+            'Save changes'
+          )}
+        </Button>
       </div>
     </div>
   )
