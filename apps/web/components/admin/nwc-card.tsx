@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Plug, Check, Pencil, X } from 'lucide-react'
+import { Plug, Check, Pencil, X, Radio, Key, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -58,14 +58,29 @@ export function NwcCard() {
     setValue('')
   }
 
-  function maskedNwc(nwc: string): string {
-    // Show prefix + truncated middle + last 4 chars
+  /**
+   * Parses an NWC URI and extracts public (non-sensitive) details.
+   * Format: nostr+walletconnect://<pubkey>?relay=wss://...&secret=...&lud16=...
+   * The `secret` is intentionally NOT returned.
+   */
+  function parseNwc(nwc: string) {
     try {
       const url = new URL(nwc.replace('nostr+walletconnect://', 'https://'))
-      return `…${url.host.slice(-12)}`
+      const pubkey = url.host
+      const relays = url.searchParams.getAll('relay')
+      const name =
+        url.searchParams.get('name') ||
+        url.searchParams.get('lud16') ||
+        null
+      return { pubkey, relays, name }
     } catch {
-      return `…${nwc.slice(-8)}`
+      return null
     }
+  }
+
+  function truncatePubkey(pubkey: string): string {
+    if (pubkey.length <= 16) return pubkey
+    return `${pubkey.slice(0, 8)}…${pubkey.slice(-8)}`
   }
 
   return (
@@ -97,14 +112,64 @@ export function NwcCard() {
         )}
       </div>
 
-      {hasNwc && !editing && (
-        <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2">
-          <Check className="size-3.5 text-green-500 shrink-0" />
-          <span className="text-xs font-mono text-muted-foreground truncate">
-            nostr+walletconnect://{maskedNwc(me.nwcString)}
-          </span>
-        </div>
-      )}
+      {hasNwc && !editing && (() => {
+        const parsed = parseNwc(me.nwcString)
+        if (!parsed) {
+          return (
+            <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2">
+              <Check className="size-3.5 text-green-500 shrink-0" />
+              <span className="text-xs font-mono text-muted-foreground truncate">
+                Connected (unable to parse details)
+              </span>
+            </div>
+          )
+        }
+        return (
+          <div className="flex flex-col gap-2 rounded-md bg-muted/40 px-3 py-3">
+            <div className="flex items-center gap-2 text-xs">
+              <Check className="size-3.5 text-green-500 shrink-0" />
+              <span className="text-foreground font-medium">Connected</span>
+            </div>
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs pl-5">
+              {parsed.name && (
+                <>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Tag className="size-3" />
+                    Name
+                  </div>
+                  <span className="text-foreground truncate">{parsed.name}</span>
+                </>
+              )}
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Key className="size-3" />
+                Pubkey
+              </div>
+              <span className="text-foreground font-mono truncate" title={parsed.pubkey}>
+                {truncatePubkey(parsed.pubkey)}
+              </span>
+              <div className="flex items-start gap-1.5 text-muted-foreground">
+                <Radio className="size-3 mt-0.5" />
+                Relay{parsed.relays.length > 1 ? 's' : ''}
+              </div>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                {parsed.relays.length === 0 ? (
+                  <span className="text-muted-foreground">None</span>
+                ) : (
+                  parsed.relays.map((relay, i) => (
+                    <span
+                      key={i}
+                      className="text-foreground font-mono truncate"
+                      title={relay}
+                    >
+                      {relay}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {showForm && (
         <div className="space-y-2">
