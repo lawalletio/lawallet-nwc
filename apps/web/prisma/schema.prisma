@@ -32,6 +32,7 @@ model User {
   pubkey           String            @unique
   createdAt        DateTime          @default(now())
   nwc              String?
+  nwcUpdatedAt     DateTime?
   cardDesigns      CardDesign[]
   ntag424s         Ntag424[]
   lightningAddress LightningAddress?

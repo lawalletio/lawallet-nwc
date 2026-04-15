@@ -28,6 +28,13 @@ export const GET = withErrorHandling(async (request: Request) => {
       ? `${user.lightningAddress.username}@${host}`
       : null
 
+  // Prefer user-set NWC (via PUT /api/users/[id]/nwc), fall back to
+  // auto-provisioned Alby sub-account if available.
+  const nwcString = user.nwc ?? user.albySubAccount?.nwcUri ?? ''
+  const nwcUpdatedAt = user.nwc
+    ? user.nwcUpdatedAt?.toISOString() ?? null
+    : user.albySubAccount?.createdAt?.toISOString() ?? null
+
   return NextResponse.json({
     userId: user.id,
     lightningAddress,
@@ -38,6 +45,7 @@ export const GET = withErrorHandling(async (request: Request) => {
           username: user.albySubAccount.username
         }
       : null,
-    nwcString: user.albySubAccount ? user.albySubAccount.nwcUri : ''
+    nwcString,
+    nwcUpdatedAt,
   })
 })
