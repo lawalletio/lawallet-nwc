@@ -18,8 +18,16 @@ export function InfrastructureTab() {
 
   const [domain, setDomain] = useState('')
   const [subdomain, setSubdomain] = useState('')
+  const [currentOrigin, setCurrentOrigin] = useState('')
 
   const [relays, setRelays] = useState<string[]>([''])
+
+  // Capture the current browser origin once on mount for the endpoint placeholder
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentOrigin(window.location.origin)
+    }
+  }, [])
 
   // Load settings into state
   useEffect(() => {
@@ -28,11 +36,12 @@ export function InfrastructureTab() {
     setSubdomain(settings.subdomain ?? settings.endpoint ?? '')
   }, [settings])
 
-  // Register save handler with the page-level Save Changes button
+  // Register save handler with the page-level Save Changes button.
+  // Endpoint: trim whitespace and any trailing slashes before persisting.
   const save = useCallback(async () => {
     await updateSettings({
       domain: domain.trim().toLowerCase(),
-      endpoint: subdomain.trim().toLowerCase(),
+      endpoint: subdomain.trim().replace(/\/+$/, '').toLowerCase(),
     })
   }, [updateSettings, domain, subdomain])
 
@@ -90,21 +99,18 @@ export function InfrastructureTab() {
           </div>
 
           <div className="space-y-1">
-            <Label>Subdomain</Label>
-            <InputGroup>
-              <Input
-                placeholder="app"
-                value={subdomain}
-                onChange={e => {
-                  setSubdomain(e.target.value)
-                  markChanged()
-                }}
-                className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
-              <InputGroupText>.{domain.trim().toLowerCase() || 'domain.com'}</InputGroupText>
-            </InputGroup>
+            <Label>Endpoint</Label>
+            <Input
+              placeholder={currentOrigin || 'https://app.domain.com'}
+              value={subdomain}
+              onChange={e => {
+                setSubdomain(e.target.value)
+                markChanged()
+              }}
+            />
             <p className="text-xs text-muted-foreground">
-              Optional. Leave empty to use the root domain.
+              Full public URL for this instance. Defaults to the current browser URL.
+              Leading/trailing whitespace and trailing slashes are trimmed on save.
             </p>
           </div>
 
