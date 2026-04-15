@@ -21,13 +21,25 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn(),
 }))
 
+const requestPaymentMock = vi.fn().mockResolvedValue({
+  invoice: { paymentRequest: 'lnbc100n1test' },
+})
+
 vi.mock('@getalby/sdk', () => ({
   LN: vi.fn().mockImplementation(() => ({
-    requestPayment: vi.fn().mockResolvedValue({
-      invoice: { paymentRequest: 'lnbc100n1test' },
-    }),
+    requestPayment: requestPaymentMock,
   })),
   SATS: vi.fn((v: number) => v),
+}))
+
+vi.mock('light-bolt11-decoder', () => ({
+  decode: vi.fn().mockReturnValue({
+    sections: [
+      { name: 'timestamp', value: 1_700_000_000 },
+      { name: 'expiry', value: 600 },
+      { name: 'payment_hash', value: 'a'.repeat(64) },
+    ],
+  }),
 }))
 
 import { GET as Lud16Get } from '@/app/api/lud16/[username]/route'
@@ -45,7 +57,7 @@ describe('GET /api/lud16/[username]', () => {
       username: 'alice',
       user: { id: 'user-1', nwc: 'nostr+walletconnect://test' },
     } as any)
-    vi.mocked(getSettings).mockResolvedValue({ endpoint: 'https://test.com' })
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'app' })
 
     const req = createNextRequest('/api/lud16/alice')
     const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
@@ -85,7 +97,7 @@ describe('GET /api/lud16/[username]', () => {
       username: 'alice',
       user: { id: 'user-1', nwc: 'nostr+walletconnect://test' },
     } as any)
-    vi.mocked(getSettings).mockResolvedValue({ endpoint: 'https://test.com' })
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'app' })
 
     const req = createNextRequest('/api/lud16/Alice')
     const res = await Lud16Get(req, createParamsPromise({ username: 'Alice' }))
@@ -98,10 +110,18 @@ describe('GET /api/lud16/[username]', () => {
 })
 
 describe('GET /api/lud16/[username]/cb', () => {
+  beforeEach(() => {
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'app' })
+  })
+
   it('creates invoice and returns payment request', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
       user: { id: 'user-1', nwc: 'nostr+walletconnect://test' },
+    } as any)
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64),
     } as any)
 
     const req = createNextRequest('/api/lud16/alice/cb', {
@@ -112,6 +132,41 @@ describe('GET /api/lud16/[username]/cb', () => {
 
     expect(body.pr).toBe('lnbc100n1test')
     expect(body.routes).toEqual([])
+    expect(body.verify).toBe(
+      `https://app.test.com/api/lud16/alice/verify/${'a'.repeat(64)}`
+    )
+  })
+
+  it('persists invoice to DB with LUD16_PAYMENT purpose', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      user: { id: 'user-1', nwc: 'nostr+walletconnect://test' },
+    } as any)
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64),
+    } as any)
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000' },
+    })
+    await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
+
+    expect(prismaMock.invoice.upsert).toHaveBeenCalledTimes(1)
+    expect(prismaMock.invoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { paymentHash: 'a'.repeat(64) },
+        create: expect.objectContaining({
+          bolt11: 'lnbc100n1test',
+          paymentHash: 'a'.repeat(64),
+          amountSats: 10,
+          purpose: 'LUD16_PAYMENT',
+          status: 'PENDING',
+          userId: 'user-1',
+          metadata: { username: 'alice' },
+        }),
+      })
+    )
   })
 
   it('returns 404 for nonexistent username', async () => {
@@ -123,6 +178,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     const res = await Lud16CbGet(req, createParamsPromise({ username: 'nonexistent' }))
 
     expect(res.status).toBe(404)
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
   })
 
   it('rejects missing amount parameter', async () => {
@@ -144,5 +200,85 @@ describe('GET /api/lud16/[username]/cb', () => {
     const res = await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
 
     expect(res.status).toBe(404)
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  // ─── LUD-12 (comment) ─────────────────────────────────────────────────
+
+  it('includes LUD-12 comment in invoice description and metadata', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      user: { id: 'user-1', nwc: 'nostr+walletconnect://test' },
+    } as any)
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64),
+    } as any)
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000', comment: 'Thanks for the coffee!' },
+    })
+    await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
+
+    // Description passed to NWC includes the comment
+    expect(requestPaymentMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        description: 'Payment to @alice: Thanks for the coffee!',
+      })
+    )
+
+    // Metadata persisted with comment
+    expect(prismaMock.invoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          description: 'Payment to @alice: Thanks for the coffee!',
+          metadata: { username: 'alice', comment: 'Thanks for the coffee!' },
+        }),
+      })
+    )
+  })
+
+  it('rejects comment longer than 200 chars', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      user: { id: 'user-1', nwc: 'nostr+walletconnect://test' },
+    } as any)
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000', comment: 'x'.repeat(201) },
+    })
+    const res = await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('omits comment from description when not provided', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      user: { id: 'user-1', nwc: 'nostr+walletconnect://test' },
+    } as any)
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64),
+    } as any)
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000' },
+    })
+    await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
+
+    expect(requestPaymentMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ description: 'Payment to @alice' })
+    )
+    expect(prismaMock.invoice.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          metadata: { username: 'alice' },
+        }),
+      })
+    )
   })
 })

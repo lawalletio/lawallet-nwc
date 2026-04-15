@@ -41,8 +41,18 @@ export const lud16UsernameParam = z.object({
   username: z.string().min(1),
 })
 
+/**
+ * Maximum comment length allowed on LUD-16 callbacks (LUD-12).
+ * Kept in sync with `commentAllowed` declared on the pay request.
+ */
+export const LUD12_MAX_COMMENT_LENGTH = 200
+
 export const lud16CallbackQuerySchema = z.object({
   amount: z.string().min(1, 'Missing amount'),
+  comment: z
+    .string()
+    .max(LUD12_MAX_COMMENT_LENGTH, `Comment exceeds ${LUD12_MAX_COMMENT_LENGTH} characters`)
+    .optional(),
 })
 
 export const updateLightningAddressSchema = z.object({
