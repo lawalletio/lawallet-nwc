@@ -1,19 +1,8 @@
 import { Permission } from '@/lib/auth/permissions'
+import type { SSEEvent, SSEEventType } from '@/lib/events/event-types'
 
-// ─── Types ────────────────────────────────────────────────────────────────
-
-export type SSEEventType =
-  | 'addresses:updated'
-  | 'cards:updated'
-  | 'designs:updated'
-  | 'settings:updated'
-  | 'invoices:updated'
-  | 'users:updated'
-
-export interface SSEEvent {
-  type: SSEEventType
-  timestamp: number
-}
+// Re-export shared types so existing imports continue to work
+export type { SSEEvent, SSEEventType }
 
 export interface SSEClient {
   id: string

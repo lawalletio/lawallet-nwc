@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { decode } from 'light-bolt11-decoder'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -9,6 +8,7 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { extractPaymentHash } from '@/lib/invoice-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,20 +75,6 @@ async function resolveInvoice(
   }
 }
 
-/**
- * Extracts the payment hash from a bolt11 invoice string.
- */
-function extractPaymentHash(bolt11: string): string {
-  const decoded = decode(bolt11)
-  const hashSection = decoded.sections.find(
-    (s) => s.name === 'payment_hash'
-  )
-  if (!hashSection || !('value' in hashSection)) {
-    throw new ValidationError('Could not extract payment hash from invoice')
-  }
-  return hashSection.value as string
-}
-
 export const POST = withErrorHandling(async (request: NextRequest) => {
   await checkRequestLimits(request, 'json')
   const { pubkey } = await authenticate(request)
@@ -139,6 +125,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const { bolt11, verify } = await resolveInvoice(lnAddress, price, description)
   const paymentHash = extractPaymentHash(bolt11)
+  if (!paymentHash) {
+    throw new ValidationError('Could not extract payment hash from invoice')
+  }
 
   // Default expiry: 10 minutes
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000)

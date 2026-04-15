@@ -14,6 +14,7 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { claimInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import type { InvoiceMetadata } from '@/lib/invoice-utils'
 
 /**
  * Verifies that SHA256(preimage) === paymentHash.
@@ -78,7 +79,7 @@ export const POST = withErrorHandling(
     let result: Record<string, unknown> = { success: true }
 
     if (invoice.purpose === 'REGISTRATION') {
-      const metadata = invoice.metadata as { username?: string } | null
+      const metadata = invoice.metadata as InvoiceMetadata | null
       const username = metadata?.username
       if (!username) {
         throw new ValidationError('Invoice metadata missing username')

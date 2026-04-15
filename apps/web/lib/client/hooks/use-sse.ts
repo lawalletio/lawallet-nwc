@@ -2,30 +2,16 @@
 
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { useAuth } from '@/components/admin/auth-context'
+import { ALL_SSE_EVENT_TYPES, type SSEEventType } from '@/lib/events/event-types'
 
-// ─── Types ────────────────────────────────────────────────────────────────
-
-export type SSEEventType =
-  | 'addresses:updated'
-  | 'cards:updated'
-  | 'designs:updated'
-  | 'settings:updated'
-  | 'invoices:updated'
-  | 'users:updated'
+export type { SSEEventType }
 
 interface SSEContextValue {
   connected: boolean
   versions: Record<SSEEventType, number>
 }
 
-const ALL_EVENT_TYPES: SSEEventType[] = [
-  'addresses:updated',
-  'cards:updated',
-  'designs:updated',
-  'settings:updated',
-  'invoices:updated',
-  'users:updated',
-]
+const ALL_EVENT_TYPES = ALL_SSE_EVENT_TYPES
 
 function initialVersions(): Record<SSEEventType, number> {
   return Object.fromEntries(ALL_EVENT_TYPES.map(t => [t, 0])) as Record<SSEEventType, number>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Plug, Check, Pencil, X, Radio, Key, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 import { useAuth } from '@/components/admin/auth-context'
+import { parseNwc, truncatePubkey } from '@/lib/client/nwc'
 
 interface UserMe {
   userId: string
@@ -58,30 +59,11 @@ export function NwcCard() {
     setValue('')
   }
 
-  /**
-   * Parses an NWC URI and extracts public (non-sensitive) details.
-   * Format: nostr+walletconnect://<pubkey>?relay=wss://...&secret=...&lud16=...
-   * The `secret` is intentionally NOT returned.
-   */
-  function parseNwc(nwc: string) {
-    try {
-      const url = new URL(nwc.replace('nostr+walletconnect://', 'https://'))
-      const pubkey = url.host
-      const relays = url.searchParams.getAll('relay')
-      const name =
-        url.searchParams.get('name') ||
-        url.searchParams.get('lud16') ||
-        null
-      return { pubkey, relays, name }
-    } catch {
-      return null
-    }
-  }
-
-  function truncatePubkey(pubkey: string): string {
-    if (pubkey.length <= 16) return pubkey
-    return `${pubkey.slice(0, 8)}…${pubkey.slice(-8)}`
-  }
+  // Parse the NWC URI once per value change instead of on every render
+  const parsedNwc = useMemo(
+    () => (me?.nwcString ? parseNwc(me.nwcString) : null),
+    [me?.nwcString]
+  )
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
@@ -112,64 +94,60 @@ export function NwcCard() {
         )}
       </div>
 
-      {hasNwc && !editing && (() => {
-        const parsed = parseNwc(me.nwcString)
-        if (!parsed) {
-          return (
-            <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2">
-              <Check className="size-3.5 text-green-500 shrink-0" />
-              <span className="text-xs font-mono text-muted-foreground truncate">
-                Connected (unable to parse details)
-              </span>
+      {hasNwc && !editing && !parsedNwc && (
+        <div className="flex items-center gap-2 rounded-md bg-muted/40 px-3 py-2">
+          <Check className="size-3.5 text-green-500 shrink-0" />
+          <span className="text-xs font-mono text-muted-foreground truncate">
+            Connected (unable to parse details)
+          </span>
+        </div>
+      )}
+
+      {hasNwc && !editing && parsedNwc && (
+        <div className="flex flex-col gap-2 rounded-md bg-muted/40 px-3 py-3">
+          <div className="flex items-center gap-2 text-xs">
+            <Check className="size-3.5 text-green-500 shrink-0" />
+            <span className="text-foreground font-medium">Connected</span>
+          </div>
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs pl-5">
+            {parsedNwc.name && (
+              <>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Tag className="size-3" />
+                  Name
+                </div>
+                <span className="text-foreground truncate">{parsedNwc.name}</span>
+              </>
+            )}
+            <div className="flex items-center gap-1.5 text-muted-foreground">
+              <Key className="size-3" />
+              Pubkey
             </div>
-          )
-        }
-        return (
-          <div className="flex flex-col gap-2 rounded-md bg-muted/40 px-3 py-3">
-            <div className="flex items-center gap-2 text-xs">
-              <Check className="size-3.5 text-green-500 shrink-0" />
-              <span className="text-foreground font-medium">Connected</span>
+            <span className="text-foreground font-mono truncate" title={parsedNwc.pubkey}>
+              {truncatePubkey(parsedNwc.pubkey)}
+            </span>
+            <div className="flex items-start gap-1.5 text-muted-foreground">
+              <Radio className="size-3 mt-0.5" />
+              Relay{parsedNwc.relays.length > 1 ? 's' : ''}
             </div>
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs pl-5">
-              {parsed.name && (
-                <>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Tag className="size-3" />
-                    Name
-                  </div>
-                  <span className="text-foreground truncate">{parsed.name}</span>
-                </>
+            <div className="flex flex-col gap-0.5 min-w-0">
+              {parsedNwc.relays.length === 0 ? (
+                <span className="text-muted-foreground">None</span>
+              ) : (
+                parsedNwc.relays.map((relay, i) => (
+                  <span
+                    key={i}
+                    className="text-foreground font-mono truncate"
+                    title={relay}
+                  >
+                    {relay}
+                  </span>
+                ))
               )}
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Key className="size-3" />
-                Pubkey
-              </div>
-              <span className="text-foreground font-mono truncate" title={parsed.pubkey}>
-                {truncatePubkey(parsed.pubkey)}
-              </span>
-              <div className="flex items-start gap-1.5 text-muted-foreground">
-                <Radio className="size-3 mt-0.5" />
-                Relay{parsed.relays.length > 1 ? 's' : ''}
-              </div>
-              <div className="flex flex-col gap-0.5 min-w-0">
-                {parsed.relays.length === 0 ? (
-                  <span className="text-muted-foreground">None</span>
-                ) : (
-                  parsed.relays.map((relay, i) => (
-                    <span
-                      key={i}
-                      className="text-foreground font-mono truncate"
-                      title={relay}
-                    >
-                      {relay}
-                    </span>
-                  ))
-                )}
-              </div>
             </div>
           </div>
-        )
-      })()}
+        </div>
+      )}
 
       {showForm && (
         <div className="space-y-2">
