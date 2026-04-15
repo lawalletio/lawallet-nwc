@@ -1,15 +1,41 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Plus, Minus } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
+import { Spinner } from '@/components/ui/spinner'
+import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
+import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
 
 export function InfrastructureTab() {
+  const { data: settings, loading: settingsLoading } = useSettings()
+  const { updateSettings } = useUpdateSettings()
+
+  const [domain, setDomain] = useState('')
+  const [subdomain, setSubdomain] = useState('')
+
   const [relays, setRelays] = useState<string[]>([''])
+
+  // Load settings into state
+  useEffect(() => {
+    if (!settings) return
+    setDomain(settings.domain ?? '')
+    setSubdomain(settings.subdomain ?? '')
+  }, [settings])
+
+  // Register save handler with the page-level Save Changes button
+  const save = useCallback(async () => {
+    await updateSettings({
+      domain: domain.trim().toLowerCase(),
+      subdomain: subdomain.trim().toLowerCase(),
+    })
+  }, [updateSettings, domain, subdomain])
+
+  const { markChanged } = useSettingsForm('infrastructure', save)
 
   function addRelay() {
     setRelays((prev) => [...prev, ''])
@@ -23,8 +49,75 @@ export function InfrastructureTab() {
     setRelays((prev) => prev.map((r, i) => (i === index ? value : r)))
   }
 
+  if (settingsLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Spinner size={24} />
+      </div>
+    )
+  }
+
+  const previewDomain = domain.trim().toLowerCase() || 'your-domain.com'
+
   return (
     <div className="flex flex-col gap-8 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
+        <div>
+          <h3 className="text-sm font-semibold">Domain</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Configure the domain and optional subdomain for your instance.
+          </p>
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="space-y-1">
+            <Label>Domain</Label>
+            <InputGroup>
+              <InputGroupText>https://</InputGroupText>
+              <Input
+                placeholder="example.com"
+                value={domain}
+                onChange={e => {
+                  setDomain(e.target.value)
+                  markChanged()
+                }}
+                className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+            </InputGroup>
+            <p className="text-xs text-muted-foreground">
+              The root domain where your instance is hosted.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Subdomain</Label>
+            <InputGroup>
+              <Input
+                placeholder="app"
+                value={subdomain}
+                onChange={e => {
+                  setSubdomain(e.target.value)
+                  markChanged()
+                }}
+                className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+              <InputGroupText>.{domain.trim().toLowerCase() || 'domain.com'}</InputGroupText>
+            </InputGroup>
+            <p className="text-xs text-muted-foreground">
+              Optional. Leave empty to use the root domain.
+            </p>
+          </div>
+
+          <div className="rounded-md bg-muted/40 px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Lightning addresses will resolve as{' '}
+              <span className="font-mono text-foreground">username@{previewDomain}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
       <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
         <div>
           <h3 className="text-sm font-semibold">Nostr</h3>

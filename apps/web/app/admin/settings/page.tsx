@@ -9,6 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { BrandingTab } from '@/components/admin/settings/branding-tab'
 import { WalletTab } from '@/components/admin/settings/wallet-tab'
 import { InfrastructureTab } from '@/components/admin/settings/infrastructure-tab'
+import { SettingsFormProvider } from '@/components/admin/settings/settings-form-context'
 import { useTheme, type ThemePreset, type RoundingOption } from '@/lib/client/theme-context'
 
 function SettingsContent() {
@@ -23,6 +24,9 @@ function SettingsContent() {
   // Track the "saved" (committed) state of theme and rounding
   const savedThemeRef = useRef<ThemePreset>(activePreset)
   const savedRoundingRef = useRef<RoundingOption>(rounding)
+
+  // Populated by SettingsFormProvider — calls all registered tab save handlers
+  const saveAllRef = useRef<(() => Promise<void>) | null>(null)
 
   // Warn on browser navigation (close tab, back button, external link)
   useEffect(() => {
@@ -64,13 +68,15 @@ function SettingsContent() {
       savedThemeRef.current = activePreset
       savedRoundingRef.current = rounding
 
-      // TODO: Persist settings to backend via POST /api/settings
-      // await apiClient.post('/api/settings', { theme: activePreset.hex, rounding })
+      // Invoke all registered tab save handlers
+      if (saveAllRef.current) {
+        await saveAllRef.current()
+      }
 
       setHasChanges(false)
       toast.success('Settings saved')
     } catch (error) {
-      toast.error('Failed to save settings')
+      toast.error(error instanceof Error ? error.message : 'Failed to save settings')
     } finally {
       setSaving(false)
     }
@@ -125,9 +131,14 @@ function SettingsContent() {
           }
         }}
       >
-        {activeTab === 'branding' && <BrandingTab />}
-        {activeTab === 'wallet' && <WalletTab />}
-        {activeTab === 'infrastructure' && <InfrastructureTab />}
+        <SettingsFormProvider
+          onChange={() => setHasChanges(true)}
+          registerRef={saveAllRef}
+        >
+          {activeTab === 'branding' && <BrandingTab />}
+          {activeTab === 'wallet' && <WalletTab />}
+          {activeTab === 'infrastructure' && <InfrastructureTab />}
+        </SettingsFormProvider>
       </div>
     </div>
   )

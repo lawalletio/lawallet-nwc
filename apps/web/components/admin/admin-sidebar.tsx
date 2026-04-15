@@ -32,6 +32,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarSeparator,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -103,9 +104,15 @@ export function AdminSidebar() {
   const { pubkey, role, loginMethod, logout, isAuthorized } = useAuth()
   const { profile } = useNostrProfile(pubkey)
   const { data: settings } = useSettings()
+  const { isMobile, setOpenMobile } = useSidebar()
   const [settingsOpen, setSettingsOpen] = React.useState(
     pathname.startsWith('/admin/settings')
   )
+
+  // Close the mobile drawer after navigation
+  function closeMobile() {
+    if (isMobile) setOpenMobile(false)
+  }
 
   function isActive(href: string): boolean {
     if (href === '/admin') return pathname === '/admin'
@@ -142,7 +149,7 @@ export function AdminSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
-        <Link href="/admin" className="flex items-center gap-2">
+        <Link href="/admin" className="flex items-center gap-2" onClick={closeMobile}>
           <Image
             src="/logos/lawallet.svg"
             alt="LaWallet"
@@ -162,7 +169,7 @@ export function AdminSidebar() {
                 {visiblePlatform.map((item) => (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton asChild isActive={isActive(item.href)}>
-                      <Link href={item.href}>
+                      <Link href={item.href} onClick={closeMobile}>
                         <item.icon className="size-4" />
                         <span>{item.title}</span>
                       </Link>
@@ -184,7 +191,7 @@ export function AdminSidebar() {
                   {visibleSystem.map((item) => (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton asChild isActive={isActive(item.href)}>
-                        <Link href={item.href}>
+                        <Link href={item.href} onClick={closeMobile}>
                           <item.icon className="size-4" />
                           <span>{item.title}</span>
                         </Link>
@@ -205,6 +212,7 @@ export function AdminSidebar() {
                             onClick={() => {
                               if (!settingsOpen) {
                                 router.push('/admin/settings')
+                                closeMobile()
                               }
                             }}
                           >
@@ -225,7 +233,10 @@ export function AdminSidebar() {
                                     new URLSearchParams(window.location.search).get('tab') === sub.tab
                                   }
                                 >
-                                  <Link href={`/admin/settings?tab=${sub.tab}`}>
+                                  <Link
+                                    href={`/admin/settings?tab=${sub.tab}`}
+                                    onClick={closeMobile}
+                                  >
                                     {sub.title}
                                   </Link>
                                 </SidebarMenuSubButton>
@@ -304,7 +315,10 @@ export function AdminSidebar() {
                 variant="theme"
                 size="sm"
                 className="w-full"
-                onClick={() => router.push('/admin/settings?tab=infrastructure')}
+                onClick={() => {
+                  router.push('/admin/settings?tab=infrastructure')
+                  closeMobile()
+                }}
               >
                 Configure now
                 <ExternalLink className="ml-1 size-3" />

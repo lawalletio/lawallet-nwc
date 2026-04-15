@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Monitor, CreditCard, AtSign, ShieldAlert, Zap, Copy } from 'lucide-react'
+import { Monitor, CreditCard, AtSign, ShieldAlert, Zap, Copy, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
@@ -27,6 +27,7 @@ import { useAuth } from '@/components/admin/auth-context'
 import { Permission } from '@/lib/auth/permissions'
 import { SetupBanner } from '@/components/admin/setup-banner'
 import { AddressBanner } from '@/components/admin/address-banner'
+import { NwcCard } from '@/components/admin/nwc-card'
 import { useApi } from '@/lib/client/hooks/use-api'
 
 const sourceIcons = {
@@ -90,14 +91,30 @@ export default function AdminDashboardPage() {
         <SetupBanner />
         <AddressBanner />
 
-        {me?.lightningAddress && (
+        {me?.lightningAddress && (() => {
+          const needsDomainSetup = me.lightningAddress.endsWith('@undefined')
+          const displayAddress = needsDomainSetup
+            ? me.lightningAddress.replace(/@undefined$/, '@…')
+            : me.lightningAddress
+          return (
           <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-yellow-500/10">
               <Zap className="size-5 text-yellow-500" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground">Your Lightning Address</p>
-              <p className="text-sm font-medium truncate">{me.lightningAddress}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium truncate">{displayAddress}</p>
+                {needsDomainSetup && (
+                  <Badge
+                    variant="secondary"
+                    className="text-xs bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border border-yellow-500/20 hover:bg-yellow-500/15"
+                  >
+                    <AlertTriangle className="size-3 mr-1" />
+                    Needs Domain setup
+                  </Badge>
+                )}
+              </div>
             </div>
             <Button
               variant="ghost"
@@ -127,26 +144,32 @@ export default function AdminDashboardPage() {
               <Copy className="size-3.5" />
             </Button>
           </div>
-        )}
+          )
+        })()}
+
+        <NwcCard />
 
         {!canViewStats ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-            <div className="flex size-16 items-center justify-center rounded-full bg-muted">
-              <ShieldAlert className="size-8 text-muted-foreground" />
+          !me?.lightningAddress ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+              <div className="flex size-16 items-center justify-center rounded-full bg-yellow-500/10">
+                <Zap className="size-8 text-yellow-500" />
+              </div>
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold">Set up your Lightning Address</h2>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  You need to configure a Lightning Address to get started
+                  receiving payments on this platform.
+                </p>
+              </div>
+              <Button
+                variant="theme"
+                onClick={() => router.push('/admin/addresses/register')}
+              >
+                Register now
+              </Button>
             </div>
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold">No access</h2>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Your account doesn&apos;t have permission to view dashboard statistics.
-                Contact an administrator to request access.
-              </p>
-            </div>
-            {role && (
-              <Badge variant="secondary" className="text-xs">
-                Role: {role}
-              </Badge>
-            )}
-          </div>
+          ) : null
         ) : (
           <>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

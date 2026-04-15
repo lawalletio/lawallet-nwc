@@ -1,24 +1,22 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { toast } from 'sonner'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { Button } from '@/components/ui/button'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
+import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
 
 export function WalletTab() {
   const { data: settings, loading: settingsLoading } = useSettings()
-  const { updateSettings, loading: saving } = useUpdateSettings()
+  const { updateSettings } = useUpdateSettings()
 
   const [registrationLnAddress, setRegistrationLnAddress] = useState('')
   const [registrationPrice, setRegistrationPrice] = useState('21')
   const [registrationEnabled, setRegistrationEnabled] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
 
   // Load settings into state
   useEffect(() => {
@@ -28,23 +26,16 @@ export function WalletTab() {
     setRegistrationEnabled(settings.registration_ln_enabled === 'true')
   }, [settings])
 
-  function markChanged() {
-    setHasChanges(true)
-  }
+  // Register save handler with the page-level Save Changes button
+  const save = useCallback(async () => {
+    await updateSettings({
+      registration_ln_address: registrationLnAddress.trim(),
+      registration_price: registrationPrice || '21',
+      registration_ln_enabled: registrationEnabled ? 'true' : 'false',
+    })
+  }, [updateSettings, registrationLnAddress, registrationPrice, registrationEnabled])
 
-  async function handleSave() {
-    try {
-      await updateSettings({
-        registration_ln_address: registrationLnAddress.trim(),
-        registration_price: registrationPrice || '21',
-        registration_ln_enabled: registrationEnabled ? 'true' : 'false',
-      })
-      setHasChanges(false)
-      toast.success('Settings saved')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save settings')
-    }
-  }
+  const { markChanged } = useSettingsForm('wallet', save)
 
   if (settingsLoading) {
     return (
@@ -182,22 +173,6 @@ export function WalletTab() {
             </InputGroup>
           </div>
         </div>
-      </div>
-
-      <div className="flex justify-end pt-4">
-        <Button
-          onClick={handleSave}
-          disabled={!hasChanges || saving}
-        >
-          {saving ? (
-            <>
-              <Spinner size={16} className="mr-2" />
-              Saving...
-            </>
-          ) : (
-            'Save changes'
-          )}
-        </Button>
       </div>
     </div>
   )
