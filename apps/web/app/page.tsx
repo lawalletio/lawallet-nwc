@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { LandingNavbar } from '@/components/landing/landing-navbar'
 import { HeroSection } from '@/components/landing/hero-section'
 import { FeaturesSection } from '@/components/landing/features-section'
 import { ShowcaseSection } from '@/components/landing/showcase-section'
@@ -31,6 +32,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
+      <LandingNavbar />
       <HeroSection onClaim={() => setClaimOpen(true)} domain={domain} loading={loading} />
       <FeaturesSection />
       <ShowcaseSection />
