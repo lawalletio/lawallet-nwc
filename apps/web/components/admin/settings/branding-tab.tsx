@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { Check } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { useTheme } from '@/lib/client/theme-context'
 import { cn } from '@/lib/utils'
+import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
+import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -26,10 +28,33 @@ function validateImageFile(file: File) {
 
 export function BrandingTab() {
   const { activePreset, setTheme, presets, rounding, setRounding, roundingOptions } = useTheme()
+  const { data: settings } = useSettings()
+  const { updateSettings } = useUpdateSettings()
   const [logotypePreview, setLogotypePreview] = useState<string | null>(null)
   const [isotypoPreview, setIsotypoPreview] = useState<string | null>(null)
+  const [communityName, setCommunityName] = useState('')
   const logotypeInputRef = useRef<HTMLInputElement>(null)
   const isotypoInputRef = useRef<HTMLInputElement>(null)
+
+  // Hydrate community name from server
+  useEffect(() => {
+    if (settings?.community_name !== undefined) {
+      setCommunityName(settings.community_name ?? '')
+    }
+  }, [settings?.community_name])
+
+  // Persist branding to the Settings table when the page-level Save Changes
+  // button is pressed. Theme and rounding come from useTheme; community name
+  // lives in local state.
+  const save = useCallback(async () => {
+    await updateSettings({
+      brand_theme: activePreset.hex,
+      brand_rounding: rounding,
+      community_name: communityName.trim(),
+    })
+  }, [updateSettings, activePreset.hex, rounding, communityName])
+
+  const { markChanged } = useSettingsForm('branding', save)
 
   function handleLogotypeChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -114,7 +139,14 @@ export function BrandingTab() {
           {/* Community Name */}
           <div className="flex flex-col gap-4 max-w-[320px]">
             <p className="text-sm text-foreground">Community Name</p>
-            <Input placeholder="eg: My Community" />
+            <Input
+              placeholder="eg: My Community"
+              value={communityName}
+              onChange={e => {
+                setCommunityName(e.target.value)
+                markChanged()
+              }}
+            />
           </div>
 
           {/* Rounded */}
@@ -125,7 +157,7 @@ export function BrandingTab() {
                 <button
                   key={opt}
                   data-track-change
-                  onClick={() => setRounding(opt)}
+                  onClick={() => { setRounding(opt); markChanged() }}
                   className={cn(
                     'px-3 py-2.5 text-xs font-semibold rounded-md transition-colors shadow-sm',
                     rounding === opt
@@ -149,7 +181,7 @@ export function BrandingTab() {
                   <button
                     key={preset.hex}
                     data-track-change
-                    onClick={() => setTheme(preset)}
+                    onClick={() => { setTheme(preset); markChanged() }}
                     className={cn(
                       'flex items-center justify-center p-2 rounded-md shadow-sm transition-colors',
                       isActive ? 'bg-secondary' : 'hover:bg-secondary/50'

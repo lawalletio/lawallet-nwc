@@ -40,10 +40,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   if (!authenticatedPubkey || authenticatedPubkey !== settings.root) {
+    // Public fields: domain/endpoint for lightning address resolution,
+    // branding for a consistent look across all visitors.
     return NextResponse.json({
       domain: settings.domain,
       endpoint,
       subdomain: endpoint,
+      brand_theme: settings.brand_theme,
+      brand_rounding: settings.brand_rounding,
+      community_name: settings.community_name,
     })
   }
 

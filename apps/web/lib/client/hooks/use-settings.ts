@@ -9,6 +9,11 @@ export interface SettingsData {
   root?: string
   is_community?: string
   community_id?: string
+  community_name?: string
+  /** Brand theme color hex (matches one of THEME_PRESETS). */
+  brand_theme?: string
+  /** Brand rounding option: 'None' | 'Small' | 'Medium' | 'Full'. */
+  brand_rounding?: string
   [key: string]: string | undefined
 }
 
