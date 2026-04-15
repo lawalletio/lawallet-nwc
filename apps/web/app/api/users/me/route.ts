@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
-import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolvePublicEndpoint } from '@/lib/public-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,10 +22,10 @@ export const GET = withErrorHandling(async (request: Request) => {
 
     const user = existingUser || (await createNewUser(authenticatedPubkey))
 
-    // Get domain from environment or use default
-    const { domain } = await getSettings(['domain'])
+    // Resolve host with subdomain fallback (subdomain empty → use domain)
+    const { host } = await resolvePublicEndpoint(request)
     const lightningAddress = user.lightningAddress?.username
-      ? `${user.lightningAddress.username}@${domain}`
+      ? `${user.lightningAddress.username}@${host}`
       : null
 
   return NextResponse.json({

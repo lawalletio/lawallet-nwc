@@ -50,7 +50,7 @@ describe('GET /api/cards/[id]/write', () => {
     const design = createCardDesignFixture()
     const card = { ...createCardFixture(), design, ntag424 }
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
-    vi.mocked(getSettings).mockResolvedValue({ endpoint: 'https://test.com' })
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: '' })
     vi.mocked(cardToNtag424WriteData).mockReturnValue({
       card_name: 'Test Card',
       id: ntag424.cid,
@@ -92,11 +92,11 @@ describe('GET /api/cards/[id]/write', () => {
     expect(res.status).toBe(400)
   })
 
-  it('strips protocol from endpoint for lnurlw_base', async () => {
+  it('uses domain setting for lnurlw_base host', async () => {
     const ntag424 = createNtag424Fixture()
     const card = { ...createCardFixture(), design: createCardDesignFixture(), ntag424 }
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
-    vi.mocked(getSettings).mockResolvedValue({ endpoint: 'https://example.com' })
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'example.com', endpoint: '' })
     vi.mocked(cardToNtag424WriteData).mockReturnValue({ lnurlw_base: 'test' } as any)
 
     const req = createNextRequest(`/api/cards/${card.id}/write`)
@@ -105,6 +105,22 @@ describe('GET /api/cards/[id]/write', () => {
     expect(cardToNtag424WriteData).toHaveBeenCalledWith(
       expect.anything(),
       'example.com'
+    )
+  })
+
+  it('combines endpoint and domain for lnurlw_base host', async () => {
+    const ntag424 = createNtag424Fixture()
+    const card = { ...createCardFixture(), design: createCardDesignFixture(), ntag424 }
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'example.com', endpoint: 'app' })
+    vi.mocked(cardToNtag424WriteData).mockReturnValue({ lnurlw_base: 'test' } as any)
+
+    const req = createNextRequest(`/api/cards/${card.id}/write`)
+    await GET(req, createParamsPromise({ id: card.id }))
+
+    expect(cardToNtag424WriteData).toHaveBeenCalledWith(
+      expect.anything(),
+      'app.example.com'
     )
   })
 })

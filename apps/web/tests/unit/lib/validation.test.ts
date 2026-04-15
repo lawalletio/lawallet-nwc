@@ -154,7 +154,7 @@ describe('Validation Schemas', () => {
 
   describe('settingsBodySchema', () => {
     it('accepts valid settings', () => {
-      const data = { endpoint: 'https://example.com', theme: 'dark' }
+      const data = { endpoint: 'app', theme: 'dark' }
       expect(settingsBodySchema.parse(data)).toEqual(data)
     })
 

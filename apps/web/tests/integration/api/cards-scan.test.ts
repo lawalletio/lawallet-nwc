@@ -57,7 +57,7 @@ describe('GET /api/cards/[id]/scan', () => {
     const design = createCardDesignFixture()
     const card = { ...createCardFixture(), design, user }
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
-    vi.mocked(getSettings).mockResolvedValue({ endpoint: 'https://test.com' })
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'app' })
 
     const req = createNextRequest(`/api/cards/${card.id}/scan`, {
       searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) },

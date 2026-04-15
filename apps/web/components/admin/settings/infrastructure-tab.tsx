@@ -10,6 +10,7 @@ import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
 import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
+import { buildPublicHost } from '@/lib/public-url-utils'
 
 export function InfrastructureTab() {
   const { data: settings, loading: settingsLoading } = useSettings()
@@ -24,14 +25,14 @@ export function InfrastructureTab() {
   useEffect(() => {
     if (!settings) return
     setDomain(settings.domain ?? '')
-    setSubdomain(settings.subdomain ?? '')
+    setSubdomain(settings.subdomain ?? settings.endpoint ?? '')
   }, [settings])
 
   // Register save handler with the page-level Save Changes button
   const save = useCallback(async () => {
     await updateSettings({
       domain: domain.trim().toLowerCase(),
-      subdomain: subdomain.trim().toLowerCase(),
+      endpoint: subdomain.trim().toLowerCase(),
     })
   }, [updateSettings, domain, subdomain])
 
@@ -57,7 +58,7 @@ export function InfrastructureTab() {
     )
   }
 
-  const previewDomain = domain.trim().toLowerCase() || 'your-domain.com'
+  const previewDomain = buildPublicHost(domain, subdomain) || 'your-domain.com'
 
   return (
     <div className="flex flex-col gap-8 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">

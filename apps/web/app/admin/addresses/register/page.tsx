@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { pollVerifyUrl } from '@/lib/client/lnurl'
+import { buildPublicHost } from '@/lib/public-url-utils'
 
 type Step = 'username' | 'payment' | 'claiming' | 'success'
 
@@ -49,7 +50,9 @@ export default function RegisterAddressPage() {
   // Success state
   const [claimedAddress, setClaimedAddress] = useState<string | null>(null)
 
-  const domain = settings?.domain || 'domain.com'
+  const domain =
+    buildPublicHost(settings?.domain, settings?.subdomain ?? settings?.endpoint) ||
+    'domain.com'
 
   // ─── Username check ─────────────────────────────────────────────────
 

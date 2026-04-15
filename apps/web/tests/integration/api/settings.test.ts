@@ -54,7 +54,7 @@ describe('GET /api/settings', () => {
     vi.mocked(getSettings).mockResolvedValue({
       root: mockPubkey,
       domain: 'test.com',
-      endpoint: 'https://test.com',
+      endpoint: 'app',
     })
 
     const req = createNextRequest('/api/settings')
@@ -64,7 +64,8 @@ describe('GET /api/settings', () => {
     expect(body).toEqual({
       root: mockPubkey,
       domain: 'test.com',
-      endpoint: 'https://test.com',
+      endpoint: 'app',
+      subdomain: 'app',
     })
   })
 
@@ -73,14 +74,14 @@ describe('GET /api/settings', () => {
     vi.mocked(getSettings).mockResolvedValue({
       root: mockPubkey,
       domain: 'test.com',
-      endpoint: 'https://test.com',
+      endpoint: 'app',
     })
 
     const req = createNextRequest('/api/settings')
     const res = await GET(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ domain: 'test.com', endpoint: 'https://test.com' })
+    expect(body).toEqual({ domain: 'test.com', endpoint: 'app', subdomain: 'app' })
   })
 
   it('returns minimal settings when authenticated as non-root', async () => {
@@ -89,14 +90,28 @@ describe('GET /api/settings', () => {
     vi.mocked(getSettings).mockResolvedValue({
       root: mockPubkey,
       domain: 'test.com',
-      endpoint: 'https://test.com',
+      endpoint: 'app',
     })
 
     const req = createNextRequest('/api/settings')
     const res = await GET(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ domain: 'test.com', endpoint: 'https://test.com' })
+    expect(body).toEqual({ domain: 'test.com', endpoint: 'app', subdomain: 'app' })
+  })
+
+  it('falls back to legacy subdomain setting when endpoint is missing', async () => {
+    vi.mocked(validateNip98Auth).mockRejectedValue(new Error('no auth'))
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      subdomain: 'wallet',
+    })
+
+    const req = createNextRequest('/api/settings')
+    const res = await GET(req)
+    const body = await assertResponse(res, 200)
+
+    expect(body).toEqual({ domain: 'test.com', endpoint: 'wallet', subdomain: 'wallet' })
   })
 })
 
@@ -155,13 +170,33 @@ describe('POST /api/settings', () => {
 
     const req = createNextRequest('/api/settings', {
       method: 'POST',
-      body: { domain: 'new.com', endpoint: 'https://new.com' },
+      body: { domain: 'new.com', endpoint: 'app' },
     })
     const res = await POST(req)
     const body = await assertResponse(res, 200)
 
     expect(body).toEqual({ message: 'Settings updated successfully', count: 2 })
     expect(prismaMock.settings.upsert).toHaveBeenCalledTimes(2)
+  })
+
+  it('maps subdomain updates to the endpoint setting', async () => {
+    vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+    vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
+
+    const req = createNextRequest('/api/settings', {
+      method: 'POST',
+      body: { subdomain: 'wallet' },
+    })
+    const res = await POST(req)
+    const body = await assertResponse(res, 200)
+
+    expect(body).toEqual({ message: 'Settings updated successfully', count: 1 })
+    expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
+      where: { name: 'endpoint' },
+      update: { value: 'wallet' },
+      create: { name: 'endpoint', value: 'wallet' },
+    })
   })
 
   it('rejects unauthenticated request', async () => {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
+import { resolvePublicEndpoint } from '@/lib/public-url'
 import type { LoginResponse, Skin } from '@/types/remote-connections'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
@@ -48,8 +49,8 @@ export const GET = withErrorHandling(
     }))
 
     // Get the lnurlw base URL from settings
-    const lnurlwSettings = await getSettings(['endpoint'])
-    const lnurlwBase = `${lnurlwSettings.endpoint}/api/`
+    const { url } = await resolvePublicEndpoint(request)
+    const lnurlwBase = `${url}/api/`
 
     const response: LoginResponse = {
       lnurlwBase,

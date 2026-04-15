@@ -55,7 +55,7 @@ describe('GET /api/remote-connections/[externalDeviceKey]', () => {
   it('returns login response for valid key', async () => {
     vi.mocked(getSettings)
       .mockResolvedValueOnce({ external_device_key: validKey })
-      .mockResolvedValueOnce({ endpoint: 'https://test.com' })
+      .mockResolvedValueOnce({ domain: 'test.com', endpoint: '' })
 
     const design = createCardDesignFixture()
     vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([design] as any)
@@ -94,7 +94,7 @@ describe('GET /api/remote-connections/[externalDeviceKey]', () => {
   it('returns empty skins when no designs', async () => {
     vi.mocked(getSettings)
       .mockResolvedValueOnce({ external_device_key: validKey })
-      .mockResolvedValueOnce({ endpoint: 'https://test.com' })
+      .mockResolvedValueOnce({ domain: 'test.com', endpoint: '' })
     vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([])
 
     const req = createNextRequest(`/api/remote-connections/${validKey}`)

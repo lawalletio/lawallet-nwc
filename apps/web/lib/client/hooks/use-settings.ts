@@ -5,6 +5,7 @@ import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 export interface SettingsData {
   domain?: string
   endpoint?: string
+  subdomain?: string
   root?: string
   is_community?: string
   community_id?: string

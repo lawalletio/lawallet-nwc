@@ -24,6 +24,12 @@ async function authenticateSettingsRequest(request: NextRequest): Promise<string
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch all settings records from the database
   const settings = await getSettings()
+  const endpoint = settings.endpoint ?? settings.subdomain
+  const responseSettings = {
+    ...settings,
+    endpoint,
+    subdomain: endpoint,
+  }
 
   // Validate authentication (JWT or NIP-98). Unauthenticated users only get public settings.
   let authenticatedPubkey = ''
@@ -36,11 +42,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   if (!authenticatedPubkey || authenticatedPubkey !== settings.root) {
     return NextResponse.json({
       domain: settings.domain,
-      endpoint: settings.endpoint,
+      endpoint,
+      subdomain: endpoint,
     })
   }
 
-  return NextResponse.json(settings)
+  return NextResponse.json(responseSettings)
 })
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
@@ -58,10 +65,17 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const body = await validateBody(request, settingsBodySchema)
 
-  const processedSettings = Object.entries(body).map(([name, value]) => ({
-    name: name.trim().toLowerCase(),
-    value,
-  }))
+  const processedSettings = Object.values(
+    Object.entries(body).reduce(
+      (acc, [name, value]) => {
+        const normalizedName = name.trim().toLowerCase()
+        const key = normalizedName === 'subdomain' ? 'endpoint' : normalizedName
+        acc[key] = { name: key, value }
+        return acc
+      },
+      {} as Record<string, { name: string; value: string }>
+    )
+  )
 
   // Upsert each setting
   const upsertPromises = processedSettings.map(({ name, value }) =>
