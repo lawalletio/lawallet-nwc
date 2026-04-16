@@ -136,9 +136,9 @@ export function WalletTab() {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Enabled Mode</p>
+              <p className="text-sm font-medium">Paid Registration</p>
               <p className="text-sm text-muted-foreground">
-                Enable paid registration for Lightning Addresses.
+                Charge users a fee to register a Lightning Address.
               </p>
             </div>
             <Switch
@@ -146,32 +146,36 @@ export function WalletTab() {
               onCheckedChange={v => { setRegistrationEnabled(v); markChanged() }}
             />
           </div>
-          <div className="space-y-1">
-            <Label>Payment Address</Label>
-            <Input
-              type="text"
-              placeholder="admin@getalby.com"
-              value={registrationLnAddress}
-              onChange={e => { setRegistrationLnAddress(e.target.value); markChanged() }}
-            />
-            <p className="text-xs text-muted-foreground">
-              Lightning address where registration payments will be sent.
-            </p>
-          </div>
-          <div className="space-y-1">
-            <Label>Price</Label>
-            <InputGroup>
-              <Input
-                type="number"
-                placeholder="21"
-                min={1}
-                value={registrationPrice}
-                onChange={e => { setRegistrationPrice(e.target.value); markChanged() }}
-                className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
-              <InputGroupText>sats</InputGroupText>
-            </InputGroup>
-          </div>
+          {registrationEnabled && (
+            <>
+              <div className="space-y-1">
+                <Label>Payment Address</Label>
+                <Input
+                  type="text"
+                  placeholder="admin@getalby.com"
+                  value={registrationLnAddress}
+                  onChange={e => { setRegistrationLnAddress(e.target.value); markChanged() }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Lightning address where registration payments will be sent.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label>Price</Label>
+                <InputGroup>
+                  <Input
+                    type="number"
+                    placeholder="21"
+                    min={1}
+                    value={registrationPrice}
+                    onChange={e => { setRegistrationPrice(e.target.value); markChanged() }}
+                    className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                  <InputGroupText>sats</InputGroupText>
+                </InputGroup>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

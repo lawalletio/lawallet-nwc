@@ -75,7 +75,7 @@ export function BrandingTab() {
         <div className="w-full lg:w-[420px] lg:shrink-0">
           <h3 className="text-lg font-medium">Customization</h3>
           <p className="text-sm text-muted-foreground">
-            Lorem ipsum dolor sit amet.
+            Customize your branding
           </p>
         </div>
 
