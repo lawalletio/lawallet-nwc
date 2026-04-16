@@ -49,6 +49,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       brand_theme: settings.brand_theme,
       brand_rounding: settings.brand_rounding,
       community_name: settings.community_name,
+      logotype_url: settings.logotype_url,
+      isotypo_url: settings.isotypo_url,
     })
   }
 

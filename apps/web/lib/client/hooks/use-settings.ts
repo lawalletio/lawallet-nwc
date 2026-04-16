@@ -18,6 +18,10 @@ export interface SettingsData {
   relays?: string
   /** JSON-stringified array of Blossom media server URLs. */
   blossom_servers?: string
+  /** Absolute URL to the Blossom-hosted logotype (wide brand mark). */
+  logotype_url?: string
+  /** Absolute URL to the Blossom-hosted isotypo (square icon). */
+  isotypo_url?: string
   /** SMTP server hostname (no protocol, e.g. `smtp.example.com`). */
   smtp_host?: string
   [key: string]: string | undefined

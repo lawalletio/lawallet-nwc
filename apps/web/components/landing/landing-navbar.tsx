@@ -8,11 +8,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { LoginModal } from '@/components/admin/login-modal'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
+import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
 
 export function LandingNavbar() {
   const router = useRouter()
   const { status, pubkey } = useAuth()
   const { profile } = useNostrProfile(pubkey)
+  const { logotype } = useBrandLogotypes()
   const [loginOpen, setLoginOpen] = useState(false)
 
   const isAuthenticated = status === 'authenticated'
@@ -30,10 +32,11 @@ export function LandingNavbar() {
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
             <Image
-              src="/logos/lawallet.svg"
+              src={logotype}
               alt="LaWallet"
               width={110}
               height={26}
+              unoptimized
               className="h-6 w-auto"
               priority
             />

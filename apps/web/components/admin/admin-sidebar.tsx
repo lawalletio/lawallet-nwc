@@ -49,10 +49,11 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Permission } from '@/lib/auth/permissions'
+import { Permission, Role } from '@/lib/auth/permissions'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { useSettings } from '@/lib/client/hooks/use-settings'
+import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
 import { truncateNpub } from '@/lib/client/format'
 import { toast } from 'sonner'
 
@@ -104,6 +105,7 @@ export function AdminSidebar() {
   const { pubkey, role, loginMethod, logout, isAuthorized } = useAuth()
   const { profile } = useNostrProfile(pubkey)
   const { data: settings } = useSettings()
+  const { logotype } = useBrandLogotypes()
   const { isMobile, setOpenMobile } = useSidebar()
   const [settingsOpen, setSettingsOpen] = React.useState(
     pathname.startsWith('/admin/settings')
@@ -132,8 +134,11 @@ export function AdminSidebar() {
 
   const visiblePlatform = filterByPermission(platformItems)
   const visibleSystem = filterByPermission(systemItems)
-  const showSettings = isAuthorized(Permission.SETTINGS_READ)
-  const needsDomainSetup = role === 'ADMIN' && !settings?.domain
+  // Settings is ADMIN-only. VIEWER has SETTINGS_READ for API reads (public
+  // settings hydrate branding for all authed users) but must not see the
+  // settings UI in the nav.
+  const showSettings = role === Role.ADMIN
+  const needsDomainSetup = role === Role.ADMIN && !settings?.domain
 
   const loginMethodLabel = loginMethod === 'extension'
     ? 'Extension'
@@ -151,10 +156,11 @@ export function AdminSidebar() {
       <SidebarHeader className="p-4">
         <Link href="/admin" className="flex items-center gap-2" onClick={closeMobile}>
           <Image
-            src="/logos/lawallet.svg"
+            src={logotype}
             alt="LaWallet"
             width={100}
             height={24}
+            unoptimized
             className="h-6 w-auto"
           />
         </Link>

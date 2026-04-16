@@ -3,24 +3,28 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { Check } from 'lucide-react'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
+import { Progress } from '@/components/ui/progress'
+import { Spinner } from '@/components/ui/spinner'
 import { useTheme } from '@/lib/client/theme-context'
 import { cn } from '@/lib/utils'
 import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
 import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
+import { useBlossomUpload } from '@/lib/client/hooks/use-blossom-upload'
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 function validateImageFile(file: File) {
   if (!ACCEPTED_TYPES.includes(file.type)) {
-    alert('Only JPG, PNG or WebP files are accepted.')
+    toast.error('Only JPG, PNG or WebP files are accepted.')
     return false
   }
   if (file.size > MAX_FILE_SIZE) {
-    alert('File must be smaller than 2MB.')
+    toast.error('File must be smaller than 2MB.')
     return false
   }
   return true
@@ -35,17 +39,37 @@ export function BrandingTab() {
   const [communityName, setCommunityName] = useState('')
   const logotypeInputRef = useRef<HTMLInputElement>(null)
   const isotypoInputRef = useRef<HTMLInputElement>(null)
+  const logo = useBlossomUpload()
+  const iso = useBlossomUpload()
 
-  // Hydrate community name from server
+  // Hydrate community name and persisted logo URLs from server settings.
   useEffect(() => {
     if (settings?.community_name !== undefined) {
       setCommunityName(settings.community_name ?? '')
     }
   }, [settings?.community_name])
 
+  useEffect(() => {
+    if (settings?.logotype_url) setLogotypePreview(settings.logotype_url)
+  }, [settings?.logotype_url])
+
+  useEffect(() => {
+    if (settings?.isotypo_url) setIsotypoPreview(settings.isotypo_url)
+  }, [settings?.isotypo_url])
+
+  // Revoke blob: object URLs on unmount to avoid memory leaks.
+  useEffect(() => {
+    return () => {
+      if (logotypePreview?.startsWith('blob:')) URL.revokeObjectURL(logotypePreview)
+      if (isotypoPreview?.startsWith('blob:')) URL.revokeObjectURL(isotypoPreview)
+    }
+    // Cleanup only on unmount — we intentionally don't re-run when previews change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Persist branding to the Settings table when the page-level Save Changes
   // button is pressed. Theme and rounding come from useTheme; community name
-  // lives in local state.
+  // lives in local state. Logo URLs are persisted inline on upload success.
   const save = useCallback(async () => {
     await updateSettings({
       brand_theme: activePreset.hex,
@@ -56,16 +80,55 @@ export function BrandingTab() {
 
   const { markChanged } = useSettingsForm('branding', save)
 
-  function handleLogotypeChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleLogotypeChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
+    // Reset the input so selecting the same file again re-fires onChange.
+    e.target.value = ''
     if (!file || !validateImageFile(file)) return
-    setLogotypePreview(URL.createObjectURL(file))
+    if (logo.uploading) return
+
+    const previous = logotypePreview
+    const localUrl = URL.createObjectURL(file)
+    setLogotypePreview(localUrl)
+
+    try {
+      const { url } = await logo.upload(file)
+      setLogotypePreview(url)
+      if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
+      await updateSettings({ logotype_url: url })
+      toast.success('Logotype updated')
+    } catch (err) {
+      // Restore the previous preview on failure; keep the blob around briefly
+      // so the user sees what they picked.
+      setLogotypePreview(previous)
+      if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
+      const message = err instanceof Error ? err.message : 'Upload failed'
+      if (message !== 'Upload aborted') toast.error(message)
+    }
   }
 
-  function handleIsotypoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleIsotypoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file || !validateImageFile(file)) return
-    setIsotypoPreview(URL.createObjectURL(file))
+    if (iso.uploading) return
+
+    const previous = isotypoPreview
+    const localUrl = URL.createObjectURL(file)
+    setIsotypoPreview(localUrl)
+
+    try {
+      const { url } = await iso.upload(file)
+      setIsotypoPreview(url)
+      if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
+      await updateSettings({ isotypo_url: url })
+      toast.success('Isotypo updated')
+    } catch (err) {
+      setIsotypoPreview(previous)
+      if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
+      const message = err instanceof Error ? err.message : 'Upload failed'
+      if (message !== 'Upload aborted') toast.error(message)
+    }
   }
 
   return (
@@ -86,7 +149,24 @@ export function BrandingTab() {
             <div className="flex items-center gap-4 max-w-[320px]">
               <div className="w-32 h-12 shrink-0 rounded-md bg-muted relative overflow-hidden">
                 {logotypePreview && (
-                  <Image src={logotypePreview} alt="Logotype" fill className="object-contain" />
+                  <Image
+                    src={logotypePreview}
+                    alt="Logotype"
+                    fill
+                    unoptimized
+                    className="object-contain"
+                  />
+                )}
+                {logo.uploading && (
+                  <>
+                    <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                      <Spinner size={16} />
+                    </div>
+                    <Progress
+                      value={logo.progress}
+                      className="absolute bottom-0 left-0 right-0 h-1 rounded-none"
+                    />
+                  </>
                 )}
               </div>
               <div className="flex flex-col gap-2 items-start">
@@ -98,8 +178,14 @@ export function BrandingTab() {
                   onChange={handleLogotypeChange}
                   data-track-change
                 />
-                <Button variant="secondary" size="sm" className="text-xs w-auto" onClick={() => logotypeInputRef.current?.click()}>
-                  Change
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="text-xs w-auto"
+                  disabled={logo.uploading}
+                  onClick={() => logotypeInputRef.current?.click()}
+                >
+                  {logo.uploading ? `Uploading… ${logo.progress}%` : 'Change'}
                 </Button>
                 <p className="text-sm text-muted-foreground">
                   JPG, PNG or WebP. 400x100px. Max 2mb.
@@ -114,7 +200,24 @@ export function BrandingTab() {
             <div className="flex items-center gap-4 max-w-[320px]">
               <div className="size-16 shrink-0 rounded-md bg-muted relative overflow-hidden">
                 {isotypoPreview && (
-                  <Image src={isotypoPreview} alt="Isotypo" fill className="object-cover" />
+                  <Image
+                    src={isotypoPreview}
+                    alt="Isotypo"
+                    fill
+                    unoptimized
+                    className="object-cover"
+                  />
+                )}
+                {iso.uploading && (
+                  <>
+                    <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                      <Spinner size={16} />
+                    </div>
+                    <Progress
+                      value={iso.progress}
+                      className="absolute bottom-0 left-0 right-0 h-1 rounded-none"
+                    />
+                  </>
                 )}
               </div>
               <div className="flex flex-col gap-2 items-start">
@@ -126,8 +229,14 @@ export function BrandingTab() {
                   onChange={handleIsotypoChange}
                   data-track-change
                 />
-                <Button variant="secondary" size="sm" className="text-xs w-auto" onClick={() => isotypoInputRef.current?.click()}>
-                  Change
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="text-xs w-auto"
+                  disabled={iso.uploading}
+                  onClick={() => isotypoInputRef.current?.click()}
+                >
+                  {iso.uploading ? `Uploading… ${iso.progress}%` : 'Change'}
                 </Button>
                 <p className="text-sm text-muted-foreground">
                   JPG, PNG or WebP. 200x200px. Max 2mb.
