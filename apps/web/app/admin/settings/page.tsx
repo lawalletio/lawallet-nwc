@@ -19,6 +19,7 @@ function SettingsContent() {
   const { activePreset, setTheme, rounding, setRounding } = useTheme()
 
   const [hasChanges, setHasChanges] = useState(false)
+  const [hasInvalid, setHasInvalid] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // Track the "saved" (committed) state of theme and rounding
@@ -27,6 +28,8 @@ function SettingsContent() {
 
   // Populated by SettingsFormProvider — calls all registered tab save handlers
   const saveAllRef = useRef<(() => Promise<void>) | null>(null)
+  // Populated by SettingsFormProvider — calls all registered tab reset handlers
+  const resetAllRef = useRef<(() => void) | null>(null)
 
   // Warn on browser navigation (close tab, back button, external link)
   useEffect(() => {
@@ -57,6 +60,8 @@ function SettingsContent() {
     // Revert theme and rounding to last saved state
     setTheme(savedThemeRef.current)
     setRounding(savedRoundingRef.current)
+    // Reset each registered tab's local form state to the currently stored settings
+    resetAllRef.current?.()
     setHasChanges(false)
     toast.info('Changes reverted')
   }
@@ -98,7 +103,7 @@ function SettingsContent() {
             </Button>
             <Button
               variant="theme"
-              disabled={!hasChanges || saving}
+              disabled={!hasChanges || saving || hasInvalid}
               onClick={handleSave}
             >
               {saving ? (
@@ -133,7 +138,9 @@ function SettingsContent() {
       >
         <SettingsFormProvider
           onChange={() => setHasChanges(true)}
+          onInvalidChange={setHasInvalid}
           registerRef={saveAllRef}
+          resetRef={resetAllRef}
         >
           {activeTab === 'branding' && <BrandingTab />}
           {activeTab === 'wallet' && <WalletTab />}

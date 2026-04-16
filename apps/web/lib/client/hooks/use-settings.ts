@@ -14,6 +14,12 @@ export interface SettingsData {
   brand_theme?: string
   /** Brand rounding option: 'None' | 'Small' | 'Medium' | 'Full'. */
   brand_rounding?: string
+  /** JSON-stringified array of Nostr relay URLs (e.g. `["wss://relay.damus.io"]`). */
+  relays?: string
+  /** JSON-stringified array of Blossom media server URLs. */
+  blossom_servers?: string
+  /** SMTP server hostname (no protocol, e.g. `smtp.example.com`). */
+  smtp_host?: string
   [key: string]: string | undefined
 }
 
