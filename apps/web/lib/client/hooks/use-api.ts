@@ -16,6 +16,7 @@ export interface UseApiResult<T> {
  */
 function getEventTypeForPath(path: string): SSEEventType | null {
   if (path.startsWith('/api/lightning-addresses')) return 'addresses:updated'
+  if (path.startsWith('/api/wallet/addresses')) return 'addresses:updated'
   if (path.startsWith('/api/cards') || path.startsWith('/api/card-designs')) return 'cards:updated'
   if (path.startsWith('/api/settings')) return 'settings:updated'
   if (path.startsWith('/api/invoices')) return 'invoices:updated'
