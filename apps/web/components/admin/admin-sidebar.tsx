@@ -8,6 +8,7 @@ import {
   Home,
   Users,
   CreditCard,
+  AtSign,
   Activity,
   Settings,
   HelpCircle,
@@ -81,6 +82,14 @@ const platformItems: NavItem[] = [
     href: '/admin/cards',
     icon: CreditCard,
     permission: Permission.CARDS_READ,
+  },
+  // Addresses is shown to every authenticated user — no `permission` set.
+  // The page itself is per-user (driven by the caller's pubkey via
+  // /api/wallet/addresses), so even plain USERs see their own rows here.
+  {
+    title: 'Addresses',
+    href: '/admin/addresses',
+    icon: AtSign,
   },
 ]
 
