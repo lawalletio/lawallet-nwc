@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { Check, RefreshCw, X, Radio, Key, Tag, Calendar, ArrowDownLeft, ArrowUpRight, WifiOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { InputWithQrScanner } from '@/components/ui/input-with-qr-scanner'
 import { Spinner } from '@/components/ui/spinner'
 import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 import { useAuth } from '@/components/admin/auth-context'
@@ -287,11 +287,17 @@ export function NwcCard() {
 
       {showForm && (
         <div className="space-y-2">
-          <Input
+          <InputWithQrScanner
+            // Keep `type="password"` so the connection string (which carries
+            // a secret) is masked on screen. Browsers also skip autofill
+            // suggestions on password inputs, which is what we want here.
             type="password"
             placeholder="nostr+walletconnect://..."
             value={value}
-            onChange={e => setValue(e.target.value)}
+            onChange={setValue}
+            onScan={text => setValue(text.trim())}
+            onScanError={err => toast.error(err)}
+            scanLabel="Scan NWC QR code"
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
