@@ -43,7 +43,7 @@ const baseInvoice = {
   user: {
     id: 'user-1',
     nwc: 'nostr+walletconnect://abc',
-    lightningAddress: { username: 'alice' },
+    lightningAddresses: [{ username: 'alice' }],
   },
 }
 
@@ -81,7 +81,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
   it('returns 404 when username does not match invoice owner', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      user: { ...baseInvoice.user, lightningAddress: { username: 'bob' } },
+      user: { ...baseInvoice.user, lightningAddresses: [{ username: 'bob' }] },
     } as any)
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)

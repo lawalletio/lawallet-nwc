@@ -30,7 +30,8 @@ export const POST = withErrorHandling(
     const existingUser = await prisma.user.findUnique({
       where: { pubkey },
       include: {
-        lightningAddress: true,
+        // Primary address (at most one) — see addresses_nwc_connection migration.
+        lightningAddresses: { where: { isPrimary: true }, take: 1 },
         albySubAccount: true
       }
     })
@@ -57,8 +58,9 @@ export const POST = withErrorHandling(
     eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
 
     const { domain } = await getSettings(['domain'])
-    const lightningAddress = user.lightningAddress?.username
-      ? `${user.lightningAddress.username}@${domain}`
+    const primaryAddress = user.lightningAddresses[0]
+    const lightningAddress = primaryAddress?.username
+      ? `${primaryAddress.username}@${domain}`
       : null
 
     return NextResponse.json({

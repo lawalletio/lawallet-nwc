@@ -63,6 +63,74 @@ export const updateLightningAddressSchema = z.object({
     .regex(/^[a-z0-9]+$/, 'Username must contain only lowercase letters and numbers'),
 })
 
+// ── Wallet Addresses (per-user, multi-address) ──────────────────────────────
+
+/** URL parameter `username` for /api/wallet/addresses/[username] routes. */
+export const walletAddressUsernameParam = z.object({
+  username: z
+    .string()
+    .min(1)
+    .max(16)
+    .regex(/^[a-z0-9]+$/, 'Invalid username'),
+})
+
+export const lightningAddressModeSchema = z.enum([
+  'IDLE',
+  'ALIAS',
+  'CUSTOM_NWC',
+  'DEFAULT_NWC',
+])
+
+/** Body for POST /api/wallet/addresses (create). */
+export const createWalletAddressSchema = z.object({
+  username: z
+    .string()
+    .min(1, 'Username is required')
+    .max(16, 'Username must be 16 characters or less')
+    .regex(/^[a-z0-9]+$/, 'Username must contain only lowercase letters and numbers'),
+  mode: lightningAddressModeSchema.optional(),
+})
+
+/**
+ * Body for PATCH /api/wallet/addresses/[username] (update).
+ *
+ * Cross-field rules (validated server-side, not via refine, so the route can
+ * use the existing `validateBody` middleware without bespoke shapes):
+ *   - mode === 'ALIAS'      → `redirect` is required and must look like an LN
+ *                             address ("user@host").
+ *   - mode === 'CUSTOM_NWC' → `nwcConnectionId` is required and must reference
+ *                             a connection owned by the caller.
+ *   - mode === 'IDLE' or 'DEFAULT_NWC' → both fields are ignored / cleared.
+ */
+export const updateWalletAddressSchema = z.object({
+  mode: lightningAddressModeSchema,
+  redirect: z
+    .string()
+    .max(254)
+    .regex(/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i, 'Must be a valid LN address')
+    .nullish(),
+  nwcConnectionId: z.string().min(1).nullish(),
+})
+
+export const nwcModeSchema = z.enum(['RECEIVE', 'SEND_RECEIVE'])
+
+/**
+ * Body for POST /api/wallet/nwc-connections.
+ *
+ * `connectionString` must look like a Nostr Wallet Connect URI so we reject
+ * pasted garbage before reaching the DB. We don't verify the relays are
+ * reachable here — that's the listener's job at runtime.
+ */
+export const createNwcConnectionSchema = z.object({
+  connectionString: z
+    .string()
+    .min(1, 'Connection string is required')
+    .max(2048, 'Connection string is too long')
+    .regex(/^nostr\+walletconnect:\/\//i, 'Must start with nostr+walletconnect://'),
+  mode: nwcModeSchema.optional(),
+  isPrimary: z.boolean().optional(),
+})
+
 // ── Users ───────────────────────────────────────────────────────────────────
 
 export const updateNwcSchema = z.object({

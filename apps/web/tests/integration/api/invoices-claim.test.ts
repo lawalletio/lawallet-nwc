@@ -158,6 +158,7 @@ describe('POST /api/invoices/[id]/claim', () => {
   it('marks invoice PAID and creates lightning address on REGISTRATION', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
@@ -180,10 +181,10 @@ describe('POST /api/invoices/[id]/claim', () => {
         }),
       })
     )
-    // Lightning address created for the claiming user
+    // Lightning address created as the user's primary
     expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { username: 'alice', userId: 'user-1' },
+        data: { username: 'alice', userId: 'user-1', isPrimary: true },
       })
     )
   })
@@ -208,16 +209,13 @@ describe('POST /api/invoices/[id]/claim', () => {
 
   it('deletes the old lightning address before creating the new one', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
-    // Username free globally but user already has a different address
-    ;(prismaMock.lightningAddress.findUnique as any).mockImplementation(
-      async ({ where }: any) => {
-        if (where.username === 'alice') return null
-        if (where.userId === 'user-1') {
-          return { username: 'old-name', userId: 'user-1' } as any
-        }
-        return null
-      }
-    )
+    // Username free globally but user already has a primary address.
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      username: 'old-name',
+      userId: 'user-1',
+      isPrimary: true,
+    } as any)
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
@@ -226,12 +224,14 @@ describe('POST /api/invoices/[id]/claim', () => {
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
     await assertResponse(res, 200)
 
+    // Delete the existing primary address by its `username` (its real PK),
+    // then recreate the new one as primary.
     expect(prismaMock.lightningAddress.delete).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: 'user-1' } })
+      expect.objectContaining({ where: { username: 'old-name' } })
     )
     expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { username: 'alice', userId: 'user-1' },
+        data: { username: 'alice', userId: 'user-1', isPrimary: true },
       })
     )
   })

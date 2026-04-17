@@ -60,7 +60,7 @@ beforeEach(() => {
 
 describe('PUT /api/users/[userId]/lightning-address', () => {
   it('creates new lightning address for user', async () => {
-    const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: null })
+    const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
@@ -84,7 +84,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
 
   it('replaces existing lightning address', async () => {
     const oldAddress = createLightningAddressFixture({ username: 'oldalice' })
-    const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: oldAddress })
+    const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [oldAddress] })
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
@@ -108,7 +108,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
 
   it('returns existing when username unchanged', async () => {
     const address = createLightningAddressFixture({ username: 'alice' })
-    const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: address })
+    const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [address] })
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -128,7 +128,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   })
 
   it('rejects duplicate username taken by another user', async () => {
-    const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: null })
+    const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({

@@ -93,21 +93,25 @@ export const POST = withErrorHandling(
         throw new ConflictError('Username was taken while payment was pending')
       }
 
-      // Check if user already has an address — delete old one if so
-      const existingAddress = await prisma.lightningAddress.findUnique({
-        where: { userId: user.id },
+      // Check if user already has a primary address — replace it.
+      // (`userId` is no longer unique on LightningAddress; we explicitly
+      // target the primary row to maintain backward-compatible behavior:
+      // a registration claim swaps in the new address as the user's primary.)
+      const existingPrimary = await prisma.lightningAddress.findFirst({
+        where: { userId: user.id, isPrimary: true },
       })
-      if (existingAddress) {
+      if (existingPrimary) {
         await prisma.lightningAddress.delete({
-          where: { userId: user.id },
+          where: { username: existingPrimary.username },
         })
       }
 
-      // Create the lightning address
+      // Create the lightning address as the user's primary.
       await prisma.lightningAddress.create({
         data: {
           username,
           userId: user.id,
+          isPrimary: true,
         },
       })
 

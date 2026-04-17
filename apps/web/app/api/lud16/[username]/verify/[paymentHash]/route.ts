@@ -40,7 +40,9 @@ export const GET = withErrorHandling(
       return NextResponse.json(error, { status: 400 })
     }
 
-    // Find the stored invoice
+    // Find the stored invoice. We need to confirm the payment hash actually
+    // belongs to the lightning address being queried — pull the user's
+    // addresses scoped to the matching username (cheap by-PK lookup).
     const invoice = await prisma.invoice.findUnique({
       where: { paymentHash },
       include: {
@@ -48,8 +50,10 @@ export const GET = withErrorHandling(
           select: {
             id: true,
             nwc: true,
-            lightningAddress: {
+            lightningAddresses: {
+              where: { username },
               select: { username: true },
+              take: 1,
             },
           },
         },
@@ -61,7 +65,7 @@ export const GET = withErrorHandling(
     }
 
     // Ensure the payment hash belongs to this username (prevent cross-user lookups)
-    if (invoice.user.lightningAddress?.username !== username) {
+    if (invoice.user.lightningAddresses[0]?.username !== username) {
       throw new NotFoundError('Invoice not found for this username')
     }
 

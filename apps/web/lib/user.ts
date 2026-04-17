@@ -38,7 +38,10 @@ export async function createNewUser(pubkey: string) {
         : undefined
     },
     include: {
-      lightningAddress: true,
+      // Pull only the primary address (at most one). All call sites that
+      // historically read `user.lightningAddress` now read
+      // `user.lightningAddresses[0]`.
+      lightningAddresses: { where: { isPrimary: true }, take: 1 },
       albySubAccount: true
     }
   })

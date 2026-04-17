@@ -21,10 +21,12 @@ export const PUT = withErrorHandling(
     const { userId } = validateParams(await params, userIdParam)
     const { username } = await validateBody(request, updateLightningAddressSchema)
 
-    // Check if user exists
+    // Check if user exists. Pull the user's primary address (at most one) —
+    // this endpoint preserves the legacy "one primary lightning address per
+    // user" semantics; multi-address management lives under /api/wallet/*.
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { lightningAddress: true }
+      include: { lightningAddresses: { where: { isPrimary: true }, take: 1 } }
     })
 
     if (!user) {
@@ -35,11 +37,8 @@ export const PUT = withErrorHandling(
       throw new AuthorizationError('Not authorized to update this user')
     }
 
-    // Check if user already has a lightning address
-    let oldLightningAddress = null
-    if (user.lightningAddress) {
-      oldLightningAddress = user.lightningAddress
-    }
+    // The user's existing primary address, if any.
+    const oldLightningAddress = user.lightningAddresses[0] ?? null
 
     // Check if username is already taken by another user
     const existingAddress = await prisma.lightningAddress.findUnique({
@@ -64,20 +63,21 @@ export const PUT = withErrorHandling(
       })
     }
 
-    // Create the lightning address
-    await prisma.lightningAddress.create({
-      data: {
-        username,
-        userId
-      }
-    })
-
-    // If there was an old lightning address, remove it
+    // Replace the primary address atomically: delete the old primary first
+    // (if any) so the partial-unique-on-(userId) WHERE isPrimary=true index
+    // doesn't conflict, then create the new primary.
     if (oldLightningAddress) {
       await prisma.lightningAddress.delete({
         where: { username: oldLightningAddress.username }
       })
     }
+    await prisma.lightningAddress.create({
+      data: {
+        username,
+        userId,
+        isPrimary: true,
+      }
+    })
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
 

@@ -15,7 +15,10 @@ export const GET = withErrorHandling(async (request: Request) => {
         pubkey: authenticatedPubkey
       },
       include: {
-        lightningAddress: true,
+        // The user's "primary" address (at most one). Existing rows were
+        // back-filled with isPrimary=true in the addresses_nwc_connection
+        // migration, so behavior is preserved for legacy clients.
+        lightningAddresses: { where: { isPrimary: true }, take: 1 },
         albySubAccount: true
       }
     })
@@ -24,8 +27,9 @@ export const GET = withErrorHandling(async (request: Request) => {
 
     // Resolve host with subdomain fallback (subdomain empty → use domain)
     const { host } = await resolvePublicEndpoint(request)
-    const lightningAddress = user.lightningAddress?.username
-      ? `${user.lightningAddress.username}@${host}`
+    const primaryAddress = user.lightningAddresses[0]
+    const lightningAddress = primaryAddress?.username
+      ? `${primaryAddress.username}@${host}`
       : null
 
   // Prefer user-set NWC (via PUT /api/users/[id]/nwc), fall back to

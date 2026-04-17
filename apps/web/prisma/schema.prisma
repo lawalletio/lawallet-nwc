@@ -6,6 +6,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -26,20 +27,33 @@ enum InvoiceStatus {
   EXPIRED
 }
 
+enum LightningAddressMode {
+  IDLE          // address exists but does nothing (disabled)
+  ALIAS         // forwards to another LN address via `redirect`
+  CUSTOM_NWC    // uses the NWCConnection referenced by nwcConnectionId
+  DEFAULT_NWC   // uses the user's primary NWCConnection
+}
+
+enum NwcMode {
+  RECEIVE
+  SEND_RECEIVE
+}
+
 model User {
-  id               String            @id
-  pubkey           String            @unique
-  createdAt        DateTime          @default(now())
-  nwc              String?
-  nwcUpdatedAt     DateTime?
-  cardDesigns      CardDesign[]
-  ntag424s         Ntag424[]
-  lightningAddress LightningAddress?
-  cards            Card[]
-  invoices         Invoice[]
-  albySubAccount   AlbySubAccount?
-  albyEnabled      Boolean           @default(false)
-  role             UserRole          @default(USER)
+  id                 String             @id
+  pubkey             String             @unique
+  createdAt          DateTime           @default(now())
+  nwc                String?
+  nwcUpdatedAt       DateTime?
+  cardDesigns        CardDesign[]
+  ntag424s           Ntag424[]
+  lightningAddresses LightningAddress[]
+  nwcConnections     NWCConnection[]
+  cards              Card[]
+  invoices           Invoice[]
+  albySubAccount     AlbySubAccount?
+  albyEnabled        Boolean            @default(false)
+  role               UserRole           @default(USER)
 
   @@index([role])
 }
@@ -73,10 +87,33 @@ model Ntag424 {
 }
 
 model LightningAddress {
-  username  String   @id
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
+  username        String               @id
+  userId          String
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode            LightningAddressMode @default(DEFAULT_NWC)
+  redirect        String?
+  nwcConnectionId String?
+  nwcConnection   NWCConnection?       @relation(fields: [nwcConnectionId], references: [id], onDelete: SetNull)
+  isPrimary       Boolean              @default(false)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([userId])
+  @@index([nwcConnectionId])
+}
+
+model NWCConnection {
+  id                 String             @id @default(cuid())
+  userId             String
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connectionString   String
+  mode               NwcMode            @default(RECEIVE)
+  isPrimary          Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  lightningAddresses LightningAddress[]
+
+  @@index([userId])
 }
 
 model Card {
