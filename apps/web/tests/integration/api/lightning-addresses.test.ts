@@ -59,7 +59,17 @@ describe('GET /api/lightning-addresses', () => {
       {
         username: 'alice',
         createdAt: new Date('2024-01-01'),
-        user: { pubkey: 'a'.repeat(64), nwc: 'nostr+walletconnect://test' },
+        updatedAt: new Date('2024-01-01'),
+        mode: 'DEFAULT_NWC',
+        redirect: null,
+        nwcConnectionId: null,
+        isPrimary: true,
+        nwcConnection: null,
+        user: {
+          pubkey: 'a'.repeat(64),
+          nwc: 'nostr+walletconnect://test',
+          nwcConnections: [],
+        },
       },
     ] as any)
 

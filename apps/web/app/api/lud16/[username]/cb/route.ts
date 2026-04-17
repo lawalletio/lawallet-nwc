@@ -20,6 +20,7 @@ import {
 } from '@/lib/invoice-utils'
 import type { Prisma } from '@/lib/generated/prisma'
 import { logger } from '@/lib/logger'
+import { resolvePaymentRoute } from '@/lib/wallet/resolve-payment-route'
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
@@ -35,14 +36,26 @@ export const GET = withErrorHandling(
       .slice(0, LUD12_MAX_COMMENT_LENGTH)
       || undefined
 
-    // Look for the user with that lightning address
+    // Same shape as the metadata route — pull every piece resolvePaymentRoute
+    // needs so /cb stays in lockstep with the LUD-16 lookup. Wallets only hit
+    // /cb after our metadata route promised them a callback URL, so we
+    // expect the resolved route to be `nwc`. ALIAS addresses returned the
+    // remote callback URL during step one, so /cb here is unreachable for
+    // them — but if a stale link or hand-crafted request still lands here we
+    // surface a clean 404 instead of crashing.
     const lightningAddress = await prisma.lightningAddress.findUnique({
       where: { username },
       include: {
+        nwcConnection: { select: { connectionString: true } },
         user: {
           select: {
             id: true,
             nwc: true,
+            nwcConnections: {
+              where: { isPrimary: true },
+              select: { connectionString: true },
+              take: 1,
+            },
           },
         },
       },
@@ -51,7 +64,20 @@ export const GET = withErrorHandling(
     if (!lightningAddress) {
       throw new NotFoundError('Lightning address not found')
     }
-    if (!lightningAddress.user.nwc) {
+
+    const route = resolvePaymentRoute({
+      mode: lightningAddress.mode,
+      redirect: lightningAddress.redirect,
+      nwcConnection: lightningAddress.nwcConnection,
+      primaryNwcConnection: lightningAddress.user.nwcConnections[0] ?? null,
+      userNwc: lightningAddress.user.nwc,
+    })
+
+    if (route.kind !== 'nwc') {
+      logger.info(
+        { username, mode: lightningAddress.mode, reason: route.kind },
+        'LUD16 callback rejected',
+      )
       throw new NotFoundError('User not configured for payments')
     }
 
@@ -62,8 +88,10 @@ export const GET = withErrorHandling(
       ? `${baseDescription}: ${sanitizedComment}`
       : baseDescription
 
-    // Generate invoice via NWC
-    const ln = new LN(lightningAddress.user.nwc)
+    // Generate invoice via NWC — connection string comes from the resolver,
+    // so CUSTOM_NWC uses the address's linked connection and DEFAULT_NWC
+    // uses the user's primary (or legacy `User.nwc` fallback).
+    const ln = new LN(route.connectionString)
     const amountSats = Math.floor(Number(amount) / 1000)
     const invoiceObj = await ln.requestPayment(SATS(amountSats), {
       description,
