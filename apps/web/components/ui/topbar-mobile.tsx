@@ -2,12 +2,11 @@
 'use client'
 
 import * as React from 'react'
-import Image from 'next/image'
 import { ChevronLeft } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
+import { BrandLogotype } from '@/components/ui/brand-logotype'
 
 interface TopbarMobileProps extends React.HTMLAttributes<HTMLDivElement> {
   type?: 'page' | 'subpage'
@@ -32,7 +31,6 @@ const TopbarMobile = React.forwardRef<HTMLDivElement, TopbarMobileProps>(
     },
     ref
   ) => {
-    const { logotype } = useBrandLogotypes()
     if (type === 'subpage') {
       return (
         <div
@@ -89,14 +87,7 @@ const TopbarMobile = React.forwardRef<HTMLDivElement, TopbarMobileProps>(
 
         <div className="flex items-center justify-center">
           {logo ?? (
-            <Image
-              src={logotype}
-              alt="LaWallet"
-              width={100}
-              height={24}
-              unoptimized
-              className="h-6 w-auto"
-            />
+            <BrandLogotype width={100} height={24} className="h-6 w-auto" />
           )}
         </div>
 

@@ -1,16 +1,14 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
-import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
+import { BrandLogotype } from '@/components/ui/brand-logotype'
 
 export function LoginPage() {
   const router = useRouter()
-  const { logotype } = useBrandLogotypes()
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -32,14 +30,7 @@ export function LoginPage() {
       <div className="w-[350px] space-y-6">
         {/* Logo */}
         <div className="flex flex-col items-center gap-2">
-          <Image
-            src={logotype}
-            alt="LaWallet"
-            width={120}
-            height={36}
-            unoptimized
-            priority
-          />
+          <BrandLogotype width={120} height={36} priority />
           <h1 className="text-2xl font-semibold">Admin login</h1>
           <p className="text-sm text-muted-foreground">
             Access your community control panel.

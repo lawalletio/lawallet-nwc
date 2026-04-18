@@ -2,7 +2,6 @@
 
 import React from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Home,
@@ -54,7 +53,7 @@ import { Permission, Role } from '@/lib/auth/permissions'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { useSettings } from '@/lib/client/hooks/use-settings'
-import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
+import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { truncateNpub } from '@/lib/client/format'
 import { toast } from 'sonner'
 
@@ -114,7 +113,6 @@ export function AdminSidebar() {
   const { pubkey, role, loginMethod, logout, isAuthorized } = useAuth()
   const { profile } = useNostrProfile(pubkey)
   const { data: settings } = useSettings()
-  const { logotype } = useBrandLogotypes()
   const { isMobile, setOpenMobile } = useSidebar()
   const [settingsOpen, setSettingsOpen] = React.useState(
     pathname.startsWith('/admin/settings')
@@ -164,14 +162,7 @@ export function AdminSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <Link href="/admin" className="flex items-center gap-2" onClick={closeMobile}>
-          <Image
-            src={logotype}
-            alt="LaWallet"
-            width={100}
-            height={24}
-            unoptimized
-            className="h-6 w-auto"
-          />
+          <BrandLogotype width={100} height={24} className="h-6 w-auto" />
         </Link>
       </SidebarHeader>
 

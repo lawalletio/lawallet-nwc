@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
+import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -9,13 +9,11 @@ import { Spinner } from '@/components/ui/spinner'
 import { LoginModal } from '@/components/admin/login-modal'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
-import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
 
 export function LandingNavbar() {
   const router = useRouter()
   const { status, pubkey } = useAuth()
   const { profile } = useNostrProfile(pubkey)
-  const { logotype } = useBrandLogotypes()
   const [loginOpen, setLoginOpen] = useState(false)
   // True from the moment the user *initiates* a login through this modal
   // until the redirect to /admin completes. Distinct from `loginOpen` so the
@@ -49,15 +47,7 @@ export function LandingNavbar() {
       <nav className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/70 backdrop-blur-xl">
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
-            <Image
-              src={logotype}
-              alt="LaWallet"
-              width={110}
-              height={26}
-              unoptimized
-              className="h-6 w-auto"
-              priority
-            />
+            <BrandLogotype width={110} height={26} className="h-6 w-auto" priority />
           </div>
 
           <div className="flex items-center gap-3">
