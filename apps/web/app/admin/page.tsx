@@ -8,6 +8,7 @@ import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Table,
   TableBody,
@@ -27,7 +28,9 @@ import { useAuth } from '@/components/admin/auth-context'
 import { Permission } from '@/lib/auth/permissions'
 import { SetupBanner } from '@/components/admin/setup-banner'
 import { AddressBanner } from '@/components/admin/address-banner'
+import { EndpointError } from '@/components/admin/endpoint-error'
 import { NwcCard } from '@/components/admin/nwc-card'
+import { ForwardingCard } from '@/components/admin/forwarding-card'
 import { useApi } from '@/lib/client/hooks/use-api'
 
 const sourceIcons = {
@@ -72,9 +75,30 @@ export default function AdminDashboardPage() {
 
     claimAddress()
   }, [status, searchParams, apiClient, router])
-  const { data: me } = useApi<{ userId: string; lightningAddress: string | null }>(
-    status === 'authenticated' ? '/api/users/me' : null
-  )
+  // Track loading + error too. If `/api/users/me` (our core identity call)
+  // fails or is still in flight, we hide every downstream card/banner so we
+  // don't render UI built on assumptions about data we never successfully
+  // loaded (wrong "no lightning address" CTAs, stat-cards with `null`, etc.).
+  const {
+    data: me,
+    error: meError,
+    loading: meLoading,
+    refetch: refetchMe,
+  } = useApi<{
+    userId: string
+    lightningAddress: string | null
+    // The primary address's configured mode drives which card renders
+    // below — NwcCard for NWC-ish modes, ForwardingCard for IDLE/ALIAS.
+    // Null when the user has no primary address yet.
+    primaryAddressMode:
+      | 'IDLE'
+      | 'ALIAS'
+      | 'CUSTOM_NWC'
+      | 'DEFAULT_NWC'
+      | null
+    primaryUsername: string | null
+    primaryRedirect: string | null
+  }>(status === 'authenticated' ? '/api/users/me' : null)
   const canViewStats = isAuthorized(Permission.ADDRESSES_READ)
 
   const { data: userCounts, loading: usersLoading } = useTotalUsers()
@@ -88,6 +112,23 @@ export default function AdminDashboardPage() {
       <AdminTopbar title="Home" />
 
       <div className="p-6 flex flex-col gap-6">
+        {/* Hard gate: render nothing downstream until `/api/users/me`
+            resolves successfully. Prevents flashing wrong empty states and
+            stat cards full of `null` when the API / DB is unreachable. The
+            error and loading branches live in their own short-circuit so
+            the happy-path markup below can keep assuming `me` is available. */}
+        {meError ? (
+          <EndpointError
+            error={meError}
+            label="Couldn't load your account"
+            onRetry={refetchMe}
+          />
+        ) : meLoading || !me ? (
+          <div className="flex items-center justify-center py-24">
+            <Spinner size={24} />
+          </div>
+        ) : (
+          <>
         <SetupBanner />
         <AddressBanner />
 
@@ -147,10 +188,32 @@ export default function AdminDashboardPage() {
           )
         })()}
 
-        <NwcCard />
+        {/* IDLE / ALIAS primary addresses don't use NWC — swap the
+            balance-and-wallet card for a purpose-built forwarding card.
+            NwcCard stays for CUSTOM_NWC / DEFAULT_NWC (and legacy users
+            with no primary address mode recorded), preserving the
+            "set up your NWC wallet" flow it ships. */}
+        {me?.primaryAddressMode === 'IDLE' ||
+        me?.primaryAddressMode === 'ALIAS' ? (
+          me.primaryUsername ? (
+            <ForwardingCard
+              username={me.primaryUsername}
+              mode={me.primaryAddressMode}
+              redirect={me.primaryRedirect}
+              onUpdated={refetchMe}
+            />
+          ) : null
+        ) : (
+          <NwcCard />
+        )}
 
         {!canViewStats ? (
-          !me?.lightningAddress ? (
+          // Only promote the "register your address" empty state when we
+          // actually got a response back and it said the user has none.
+          // An endpoint error (DB down, network, 5xx) is handled by the
+          // EndpointError banner above; showing this below it would
+          // contradict the true problem.
+          !meError && !me?.lightningAddress ? (
             <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
               <div className="flex size-16 items-center justify-center rounded-full bg-yellow-500/10">
                 <Zap className="size-8 text-yellow-500" />
@@ -281,6 +344,8 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             </div>
+          </>
+        )}
           </>
         )}
       </div>
