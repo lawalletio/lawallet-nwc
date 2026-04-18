@@ -35,7 +35,13 @@ import {
   useAddressMutations,
   type WalletAddress,
 } from '@/lib/client/hooks/use-wallet-addresses'
+import { useAddresses, type AddressData } from '@/lib/client/hooks/use-addresses'
 import { NewAddressDialog } from '@/components/wallet/new-address-dialog'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { useAuth } from '@/components/admin/auth-context'
+import { Role } from '@/lib/auth/permissions'
+import { truncateNpub } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
 
 const NWC_LABEL: Record<WalletAddress['nwcMode'], string> = {
@@ -68,7 +74,15 @@ const MODE_LABEL: Record<WalletAddress['mode'], string> = {
 export default function AdminAddressesPage() {
   const router = useRouter()
   const { data: settings } = useSettings()
-  const { data: addresses, loading, refetch } = useMyAddresses()
+  const { role } = useAuth()
+  const isAdmin = role === Role.ADMIN
+  const [showAllUsers, setShowAllUsers] = useState(false)
+  const adminView = isAdmin && showAllUsers
+
+  const mine = useMyAddresses()
+  const all = useAddresses()
+  const { data, loading, refetch } = adminView ? all : mine
+
   const { setAsPrimary, settingPrimary } = useAddressMutations()
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -100,11 +114,14 @@ export default function AdminAddressesPage() {
   // Apply the optimistic override on top of the server data. When active,
   // exactly one row is primary (the one the user just clicked) and every
   // other row is non-primary, even if the server hasn't confirmed yet.
-  const displayedAddresses = addresses?.map(a =>
-    optimisticPrimary !== null
-      ? { ...a, isPrimary: a.username === optimisticPrimary }
-      : a,
-  )
+  // In admin-view (all users) the override is inert — we never flip primary
+  // there — so the cast to the shared read-only shape is safe.
+  const displayedAddresses: Array<WalletAddress | AddressData> | undefined =
+    data?.map(a =>
+      !adminView && optimisticPrimary !== null
+        ? { ...a, isPrimary: a.username === optimisticPrimary }
+        : a,
+    )
 
   /**
    * Copy the full lightning address (username@domain) to the clipboard.
@@ -136,12 +153,35 @@ export default function AdminAddressesPage() {
     <div className="flex flex-col">
       <AdminTopbar
         title="Addresses"
-        subtitle="Manage your lightning addresses."
+        subtitle={
+          adminView
+            ? 'Viewing all users’ lightning addresses.'
+            : 'Manage your lightning addresses.'
+        }
         actions={
-          <Button variant="theme" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            New address
-          </Button>
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="admin-all-users"
+                  checked={showAllUsers}
+                  onCheckedChange={setShowAllUsers}
+                />
+                <Label
+                  htmlFor="admin-all-users"
+                  className="text-sm text-muted-foreground"
+                >
+                  All users
+                </Label>
+              </div>
+            )}
+            {!adminView && (
+              <Button variant="theme" onClick={() => setCreateOpen(true)}>
+                <Plus className="size-4" />
+                New address
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -157,6 +197,7 @@ export default function AdminAddressesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Address</TableHead>
+                {adminView && <TableHead>Owner</TableHead>}
                 <TableHead>Mode</TableHead>
                 <TableHead className="w-12 text-right">Actions</TableHead>
               </TableRow>
@@ -164,25 +205,34 @@ export default function AdminAddressesPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="py-12 text-center">
+                  <TableCell
+                    colSpan={adminView ? 4 : 3}
+                    className="py-12 text-center"
+                  >
                     <Spinner size={24} />
                   </TableCell>
                 </TableRow>
               ) : !displayedAddresses || displayedAddresses.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={3}
+                    colSpan={adminView ? 4 : 3}
                     className="py-12 text-center text-sm text-muted-foreground"
                   >
-                    You don&rsquo;t have any addresses yet.{' '}
-                    <button
-                      type="button"
-                      onClick={() => setCreateOpen(true)}
-                      className="text-foreground underline-offset-4 hover:underline"
-                    >
-                      Create your first one
-                    </button>
-                    .
+                    {adminView ? (
+                      <>No lightning addresses exist yet.</>
+                    ) : (
+                      <>
+                        You don&rsquo;t have any addresses yet.{' '}
+                        <button
+                          type="button"
+                          onClick={() => setCreateOpen(true)}
+                          className="text-foreground underline-offset-4 hover:underline"
+                        >
+                          Create your first one
+                        </button>
+                        .
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -249,6 +299,16 @@ export default function AdminAddressesPage() {
                         )}
                       </div>
                     </TableCell>
+                    {adminView && (
+                      <TableCell>
+                        <span
+                          className="font-mono text-xs text-muted-foreground"
+                          title={'pubkey' in addr ? addr.pubkey : undefined}
+                        >
+                          {'pubkey' in addr ? truncateNpub(addr.pubkey) : '—'}
+                        </span>
+                      </TableCell>
+                    )}
                     <TableCell>
                       <div className="flex flex-col gap-0.5">
                         {/* Column shows the *configured* LightningAddress
@@ -321,12 +381,14 @@ export default function AdminAddressesPage() {
                           >
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            disabled={addr.isPrimary || settingPrimary}
-                            onClick={() => handleSetPrimary(addr.username)}
-                          >
-                            Set as primary
-                          </DropdownMenuItem>
+                          {!adminView && (
+                            <DropdownMenuItem
+                              disabled={addr.isPrimary || settingPrimary}
+                              onClick={() => handleSetPrimary(addr.username)}
+                            >
+                              Set as primary
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
