@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, MoreHorizontal } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Search } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { DataTablePagination } from '@/components/admin/data-table-pagination'
-import { InviteUserDialog } from '@/components/admin/invite-user-dialog'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   Table,
   TableBody,
@@ -17,87 +17,88 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { useAddresses, useAddressCounts } from '@/lib/client/hooks/use-addresses'
+import { useUsers, type AdminUser } from '@/lib/client/hooks/use-users'
+import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { truncateNpub, formatRelativeTime } from '@/lib/client/format'
+import { Role } from '@/lib/auth/permissions'
+
+const ROLE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
+  ADMIN: 'default',
+  OPERATOR: 'secondary',
+  VIEWER: 'secondary',
+  USER: 'outline',
+}
 
 export default function UsersPage() {
-  const { data: counts, loading: countsLoading } = useAddressCounts()
-  const { data: addresses, loading: addressesLoading } = useAddresses()
+  const router = useRouter()
+  const { data: users, loading } = useUsers()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [inviteOpen, setInviteOpen] = useState(false)
   const pageSize = 10
 
-  const filtered = addresses?.filter((a) =>
-    a.username.toLowerCase().includes(search.toLowerCase()) ||
-    a.pubkey.toLowerCase().includes(search.toLowerCase())
-  ) ?? []
+  const filtered =
+    users?.filter(u => {
+      const q = search.toLowerCase()
+      return (
+        u.pubkey.toLowerCase().includes(q) ||
+        (u.primaryAddress?.toLowerCase().includes(q) ?? false)
+      )
+    }) ?? []
 
-  const totalPages = Math.ceil(filtered.length / pageSize)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize)
 
-  const handleSearch = (value: string) => {
+  const totals = {
+    total: users?.length ?? 0,
+    admins: users?.filter(u => u.role === Role.ADMIN).length ?? 0,
+    withNwc: users?.filter(u => u.hasNwc).length ?? 0,
+    withAddress: users?.filter(u => u.addressCount > 0).length ?? 0,
+  }
+
+  function handleSearch(value: string) {
     setSearch(value)
     setPage(1)
   }
 
   return (
     <div className="flex flex-col">
-      <AdminTopbar
-        title="Users"
-        actions={<Button onClick={() => setInviteOpen(true)}>Invite user</Button>}
-      />
-      <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      <AdminTopbar title="Users" subtitle="Everyone who has signed in." />
 
-      <div className="p-6 flex flex-col gap-6">
+      <div className="flex flex-col gap-6 p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            title="Total users / address"
-            value={counts?.total}
-            secondary={`/ ${counts?.total ?? 0}`}
-            description="Total number of registered."
-            loading={countsLoading}
+            title="Total users"
+            value={totals.total}
+            description="Signed-in pubkeys."
+            loading={loading}
           />
           <StatCard
-            title="Redirect Address"
-            value={counts?.total}
-            description="Lightning Addresses conf..."
-            loading={countsLoading}
+            title="With address"
+            value={totals.withAddress}
+            description="Own at least one lightning address."
+            loading={loading}
           />
           <StatCard
-            title="NWC Hosted"
-            value={counts?.withNWC}
-            description="Users operating with host..."
-            loading={countsLoading}
+            title="With NWC"
+            value={totals.withNwc}
+            description="Have an NWC wallet configured."
+            loading={loading}
           />
           <StatCard
-            title="NWC Configured"
-            value={counts?.withoutNWC}
-            description="Users who have successf..."
-            loading={countsLoading}
+            title="Admins"
+            value={totals.admins}
+            description="Users with ADMIN role."
+            loading={loading}
           />
         </div>
 
         <div className="flex flex-col gap-4">
-          <div>
-            <h3 className="text-lg font-semibold">Lightning Address</h3>
-            <p className="text-sm text-muted-foreground">
-              Total Lightning Addresses issued within this community domain.
-            </p>
-          </div>
-
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by username or pubkey..."
+              placeholder="Search by pubkey or address..."
               value={search}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={e => handleSearch(e.target.value)}
               className="pl-9"
             />
           </div>
@@ -106,55 +107,38 @@ export default function UsersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Identity</TableHead>
-                  <TableHead>Pubkey</TableHead>
-                  <TableHead>Last used</TableHead>
-                  <TableHead className="w-[50px]" />
+                  <TableHead>User</TableHead>
+                  <TableHead>Primary address</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Joined</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {addressesLoading ? (
+                {loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                    <TableCell
+                      colSpan={4}
+                      className="py-8 text-center text-muted-foreground"
+                    >
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : paginated.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                      No data available
+                    <TableCell
+                      colSpan={4}
+                      className="py-8 text-center text-muted-foreground"
+                    >
+                      No users found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginated.map((address) => (
-                    <TableRow key={address.username}>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{address.username}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatRelativeTime(address.createdAt)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm text-muted-foreground">
-                        {truncateNpub(address.pubkey)}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatRelativeTime(address.updatedAt)}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="size-8">
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>View details</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
+                  paginated.map(user => (
+                    <UserRow
+                      key={user.id}
+                      user={user}
+                      onClick={() => router.push(`/admin/users/${user.id}`)}
+                    />
                   ))
                 )}
               </TableBody>
@@ -169,5 +153,66 @@ export default function UsersPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Row-level component so each user's kind-0 profile is fetched in its own
+ * hook instance — keeping the table parent re-render free when a single
+ * profile resolves. Avatar falls back to the first 2 chars of the npub.
+ */
+function UserRow({ user, onClick }: { user: AdminUser; onClick: () => void }) {
+  const { profile } = useNostrProfile(user.pubkey)
+  const displayName =
+    profile?.displayName || profile?.name || truncateNpub(user.pubkey)
+  const fallback = (profile?.name || profile?.displayName || user.pubkey)
+    .slice(0, 2)
+    .toUpperCase()
+
+  return (
+    <TableRow
+      onClick={onClick}
+      className="cursor-pointer hover:bg-muted/50"
+    >
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <Avatar className="size-8 shrink-0">
+            {profile?.picture && (
+              <AvatarImage src={profile.picture} alt={displayName} />
+            )}
+            <AvatarFallback className="text-xs">{fallback}</AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium">{displayName}</span>
+            <span
+              className="truncate font-mono text-[10px] text-muted-foreground"
+              title={user.pubkey}
+            >
+              {truncateNpub(user.pubkey)}
+            </span>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        {user.primaryAddress ? (
+          <span className="text-sm">{user.primaryAddress}</span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+        {user.addressCount > 1 && (
+          <span className="ml-2 text-xs text-muted-foreground">
+            +{user.addressCount - 1} more
+          </span>
+        )}
+      </TableCell>
+      <TableCell>
+        <Badge variant={ROLE_VARIANT[user.role]} className="text-xs">
+          {user.role}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">
+        {formatRelativeTime(user.createdAt)}
+      </TableCell>
+    </TableRow>
   )
 }
