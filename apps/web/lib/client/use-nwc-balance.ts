@@ -26,6 +26,25 @@ export interface NwcTransactionEvent {
  */
 export type NwcStatus = 'idle' | 'connecting' | 'connected' | 'disconnected'
 
+/**
+ * Human label for an NwcStatus, matching the copy every card in the app
+ * uses ("Connected" / "Disconnected" / "Connecting…"). Centralised here
+ * so BalanceCard, NwcCard and any future surface stay in sync if we ever
+ * rephrase these states. `idle` maps to "Connecting…" for parity with
+ * the hook's very first tick before the initial `getBalance()` resolves.
+ */
+export function nwcStatusLabel(status: NwcStatus): string {
+  switch (status) {
+    case 'connected':
+      return 'Connected'
+    case 'disconnected':
+      return 'Disconnected'
+    case 'connecting':
+    case 'idle':
+      return 'Connecting…'
+  }
+}
+
 interface BalanceState {
   /** Current balance in sats. Null while loading or on error. */
   sats: number | null

@@ -28,6 +28,27 @@ export interface WalletAddressDetail {
   address: WalletAddress
   /** All NWCConnections owned by the caller, useful for the CUSTOM_NWC picker. */
   connections: WalletNwcConnectionSummary[]
+  /**
+   * Pre-resolved NWC URI this address currently routes to, matching the
+   * server-side `resolvePaymentRoute` output. `null` for IDLE / ALIAS /
+   * unconfigured. Includes the legacy `User.nwc` fallback for
+   * DEFAULT_NWC so un-migrated accounts still get a balance.
+   */
+  effectiveConnectionString: string | null
+}
+
+export type AddressInvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED'
+
+export interface AddressInvoice {
+  id: string
+  amountSats: number
+  description: string
+  status: AddressInvoiceStatus
+  comment: string | null
+  paymentHash: string
+  createdAt: string
+  paidAt: string | null
+  expiresAt: string
 }
 
 export interface CreateWalletAddressInput {
@@ -64,6 +85,19 @@ export function useMyAddresses() {
 export function useMyAddress(username: string | null) {
   return useApi<WalletAddressDetail>(
     username ? `/api/wallet/addresses/${encodeURIComponent(username)}` : null,
+  )
+}
+
+/**
+ * GET /api/wallet/addresses/[username]/invoices — recent LUD-16 invoices
+ * minted for this address. Auto-refreshes via the `invoices:updated` SSE
+ * event (wired in `getEventTypeForPath`).
+ */
+export function useAddressInvoices(username: string | null) {
+  return useApi<{ invoices: AddressInvoice[] }>(
+    username
+      ? `/api/wallet/addresses/${encodeURIComponent(username)}/invoices`
+      : null,
   )
 }
 
