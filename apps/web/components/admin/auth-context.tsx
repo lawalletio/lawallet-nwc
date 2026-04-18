@@ -6,6 +6,7 @@ import { Role, Permission, hasPermission as checkPermission } from '@/lib/auth/p
 import { exchangeNip98ForJwt, validateJwt } from '@/lib/client/auth-api'
 import { createApiClient, type ApiClient } from '@/lib/client/api-client'
 import { createBrowserSigner, hasBrowserExtension } from '@/lib/client/nostr-signer'
+import { clearApiCache } from '@/lib/client/hooks/use-api'
 
 const JWT_STORAGE_KEY = 'lawallet-jwt'
 const LOGIN_METHOD_KEY = 'lawallet-login-method'
@@ -64,6 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     localStorage.removeItem(JWT_STORAGE_KEY)
     localStorage.removeItem(LOGIN_METHOD_KEY)
+    // Wipe the module-level cache from `useApi` so the next user doesn't
+    // see the previous user's data on the first frame after login.
+    clearApiCache()
     setState({
       status: 'unauthenticated',
       jwt: null,
