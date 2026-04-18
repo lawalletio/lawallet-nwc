@@ -40,9 +40,19 @@ export async function createNewUser(pubkey: string) {
     include: {
       // Pull only the primary address (at most one). All call sites that
       // historically read `user.lightningAddress` now read
-      // `user.lightningAddresses[0]`.
-      lightningAddresses: { where: { isPrimary: true }, take: 1 },
-      albySubAccount: true
+      // `user.lightningAddresses[0]`. Include the linked nwcConnection
+      // too so the return shape matches the `findUnique` path that feeds
+      // `resolvePaymentRoute` — otherwise TS narrows the union to the
+      // intersection and drops the field.
+      lightningAddresses: {
+        where: { isPrimary: true },
+        take: 1,
+        include: { nwcConnection: true },
+      },
+      albySubAccount: true,
+      // Same shape as `findUnique` callers rely on — safe to include here
+      // since a brand-new user has no connections; the array is just `[]`.
+      nwcConnections: { where: { isPrimary: true }, take: 1 },
     }
   })
 
