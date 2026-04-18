@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronDown, Forward } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { InputWithQrScanner } from '@/components/ui/input-with-qr-scanner'
+import { BalanceCard } from '@/components/wallet/balance-card'
+import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import {
   useMyAddress,
@@ -24,6 +32,7 @@ import {
   type LightningAddressMode,
   type WalletNwcConnectionSummary,
 } from '@/lib/client/hooks/use-wallet-addresses'
+import { isLightningAddress } from '@/lib/ln-address'
 import { cn } from '@/lib/utils'
 
 /**
@@ -32,8 +41,6 @@ import { cn } from '@/lib/utils'
  * the "Add connection" button without a round-trip.
  */
 const NWC_URI_RE = /^nostr\+walletconnect:\/\//i
-
-const LN_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i
 
 const MODE_DESCRIPTIONS: Record<
   LightningAddressMode,
@@ -75,6 +82,18 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   // connections still see a usable form, and users with some still get a
   // clear path to add another.
   const [newConnectionUri, setNewConnectionUri] = useState('')
+  // Combined busy flag held across the full save flow: mutation + refetch.
+  // `updating` alone drops to false as soon as the PUT resolves, but the
+  // form's `isDirty` hasn't re-synced until refetch finishes — that gap
+  // made the Save button flicker enabled for one frame. Everything on the
+  // page disables on this flag (Cancel, Add connection, Save, mode picker)
+  // so the user can't double-submit or mutate the form mid-flight.
+  const [saving, setSaving] = useState(false)
+  // Mode section starts collapsed and shows just a summary of the current
+  // mode — balance and transactions are the primary content on this page.
+  // Successful save collapses it again so the user returns to a glanceable
+  // summary without an extra click.
+  const [modeOpen, setModeOpen] = useState(false)
 
   // Sync local form state once the address loads. Re-running on `data` covers
   // SSE-driven refetches: we only reset when the loaded record actually
@@ -90,12 +109,13 @@ export default function AdminAddressEditPage({ params }: PageProps) {
 
   const domain = settings?.domain || 'your-domain'
   const fullAddress = `${username}@${domain}`
-  const aliasInvalid = mode === 'ALIAS' && redirect.length > 0 && !LN_RE.test(redirect)
+  const aliasInvalid = mode === 'ALIAS' && redirect.length > 0 && !isLightningAddress(redirect)
   const aliasMissing = mode === 'ALIAS' && redirect.length === 0
   const customMissing = mode === 'CUSTOM_NWC' && !nwcConnectionId
   const newUriInvalid =
     newConnectionUri.trim().length > 0 && !NWC_URI_RE.test(newConnectionUri.trim())
   const canAddConnection =
+    !saving &&
     !creatingConnection &&
     newConnectionUri.trim().length > 0 &&
     !newUriInvalid
@@ -114,7 +134,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
       (nwcConnectionId ?? '') !== (baseline.nwcConnectionId ?? ''))
 
   const saveDisabled =
-    updating || !isDirty || aliasInvalid || aliasMissing || customMissing
+    saving || updating || !isDirty || aliasInvalid || aliasMissing || customMissing
 
   /**
    * Create a new NWCConnection for the caller and select it as the current
@@ -140,16 +160,23 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   }
 
   async function handleSave() {
+    setSaving(true)
     try {
       await updateAddress(username, {
         mode,
         redirect: mode === 'ALIAS' ? redirect : null,
         nwcConnectionId: mode === 'CUSTOM_NWC' ? nwcConnectionId : null,
       })
+      // Wait for the refetch to land too — this is what prevents the
+      // Save button from briefly un-disabling between "mutation done"
+      // and "form reset to clean".
+      await refetch()
+      setModeOpen(false)
       toast.success('Saved')
-      refetch()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -173,49 +200,115 @@ export default function AdminAddressEditPage({ params }: PageProps) {
             Back to addresses
           </Button>
         </div>
-      ) : (
-        <div className="space-y-6 px-4 py-6 sm:px-6">
-          <section className="space-y-4 rounded-lg border border-border bg-card p-6">
-            <div className="space-y-1">
-              <h2 className="text-base font-medium">Mode</h2>
-              <p className="text-xs text-muted-foreground">
-                Pick what happens when someone sends to {fullAddress}.
-              </p>
-            </div>
+      ) : (() => {
+        // `effectiveConnectionString` is resolved server-side by
+        // `resolvePaymentRoute`, so it already handles the full fallback
+        // chain (CUSTOM_NWC link → DEFAULT_NWC primary → legacy
+        // `User.nwc` for un-migrated accounts) without duplicating the
+        // logic here. Null for IDLE / ALIAS / unconfigured — the widgets
+        // below render an empty state in those cases.
+        const persistedMode = data.address.mode
+        const primaryConnection = data.connections.find(c => c.isPrimary) ?? null
 
-            <RadioGroup
-              value={mode}
-              onValueChange={value => setMode(value as LightningAddressMode)}
-              className="grid gap-2"
+        const emptyReason =
+          persistedMode === 'IDLE'
+            ? 'This address is disabled.'
+          : persistedMode === 'ALIAS'
+            ? `Forwards to ${data.address.redirect ?? 'another address'}.`
+          : persistedMode === 'CUSTOM_NWC'
+            ? 'No NWC connection is linked to this address yet.'
+          : 'Set up a primary NWC connection to enable payments.'
+
+        return (
+        <div className="space-y-6 px-4 py-6 sm:px-6">
+          {/* Layout order: balance first (glanceable hero), then Mode so the
+              configuration is reachable without scrolling past the whole
+              transaction list, then the transactions feed at the bottom. */}
+          <BalanceCard
+            connectionString={data.effectiveConnectionString}
+            emptyReason={emptyReason}
+            // ALIAS addresses forward payments — render a forward arrow
+            // in the empty-state tile so the visual signals "redirect"
+            // instead of the generic NWC-logo used for other empty states.
+            emptyIcon={
+              persistedMode === 'ALIAS' ? (
+                <Forward className="size-5 text-muted-foreground" aria-hidden />
+              ) : undefined
+            }
+          />
+
+          {/* Configuration lives in a collapsed section — the summary row
+              shows the current mode at a glance; the full picker + inputs
+              appear on click. Controlled open state so a successful Save
+              re-collapses it. */}
+          <Collapsible
+            open={modeOpen}
+            onOpenChange={setModeOpen}
+            className="rounded-lg border border-border bg-card"
+          >
+            <CollapsibleTrigger
+              className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/40"
             >
-              {(Object.keys(MODE_DESCRIPTIONS) as LightningAddressMode[]).map(option => {
-                const isActive = mode === option
-                return (
-                  <Label
-                    key={option}
-                    htmlFor={`mode-${option}`}
-                    className={cn(
-                      'flex cursor-pointer items-start gap-3 rounded-md border border-input p-3 transition-colors',
-                      isActive && 'border-primary bg-primary/5',
-                    )}
-                  >
-                    <RadioGroupItem
-                      id={`mode-${option}`}
-                      value={option}
-                      className="mt-0.5"
-                    />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium">
-                        {MODE_DESCRIPTIONS[option].label}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {MODE_DESCRIPTIONS[option].help}
-                      </span>
-                    </div>
-                  </Label>
-                )
-              })}
-            </RadioGroup>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Mode
+                </span>
+                <span className="truncate text-sm font-medium">
+                  {MODE_DESCRIPTIONS[data.address.mode].label}
+                  {data.address.mode === 'ALIAS' && data.address.redirect && (
+                    <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+                      → {data.address.redirect}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <ChevronDown
+                className={cn(
+                  'size-4 shrink-0 text-muted-foreground transition-transform',
+                  modeOpen && 'rotate-180',
+                )}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="border-t border-border/60">
+              <div className="space-y-4 p-5">
+                <p className="text-xs text-muted-foreground">
+                  Pick what happens when someone sends to {fullAddress}.
+                </p>
+
+                <RadioGroup
+                  value={mode}
+                  onValueChange={value => setMode(value as LightningAddressMode)}
+                  disabled={saving}
+                  className="grid gap-2"
+                >
+                  {(Object.keys(MODE_DESCRIPTIONS) as LightningAddressMode[]).map(option => {
+                    const isActive = mode === option
+                    return (
+                      <Label
+                        key={option}
+                        htmlFor={`mode-${option}`}
+                        className={cn(
+                          'flex cursor-pointer items-start gap-3 rounded-md border border-input p-3 transition-colors',
+                          isActive && 'border-primary bg-primary/5',
+                        )}
+                      >
+                        <RadioGroupItem
+                          id={`mode-${option}`}
+                          value={option}
+                          className="mt-0.5"
+                        />
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-medium">
+                            {MODE_DESCRIPTIONS[option].label}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {MODE_DESCRIPTIONS[option].help}
+                          </span>
+                        </div>
+                      </Label>
+                    )
+                  })}
+                </RadioGroup>
 
             {mode === 'ALIAS' && (
               <div className="space-y-2">
@@ -224,6 +317,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                   id="redirect"
                   placeholder="someone@example.com"
                   value={redirect}
+                  disabled={saving}
                   onChange={e => setRedirect(e.target.value.toLowerCase())}
                   className={cn(aliasInvalid && 'border-destructive')}
                 />
@@ -244,7 +338,11 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                 {data.connections.length > 0 && (
                   <div className="space-y-2">
                     <Label htmlFor="nwc-connection">Use existing connection</Label>
-                    <Select value={nwcConnectionId} onValueChange={setNwcConnectionId}>
+                    <Select
+                      value={nwcConnectionId}
+                      onValueChange={setNwcConnectionId}
+                      disabled={saving}
+                    >
                       <SelectTrigger id="nwc-connection">
                         <SelectValue placeholder="Pick a connection" />
                       </SelectTrigger>
@@ -282,6 +380,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                       spellCheck={false}
                       autoCapitalize="off"
                       autoCorrect="off"
+                      disabled={saving || creatingConnection}
                     />
                     <Button
                       type="button"
@@ -311,30 +410,56 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               </div>
             )}
 
-            {mode === 'DEFAULT_NWC' && (
-              <p className="text-xs text-muted-foreground">
-                {data.connections.find(c => c.isPrimary)
-                  ? `Will use your primary connection (${
-                      data.connections.find(c => c.isPrimary)!.mode === 'SEND_RECEIVE'
-                        ? 'Send & Receive'
-                        : 'Receive'
-                    }).`
-                  : 'You haven\u2019t set up a primary NWC connection yet.'}
-              </p>
-            )}
-          </section>
+                {mode === 'DEFAULT_NWC' && (
+                  <p className="text-xs text-muted-foreground">
+                    {primaryConnection
+                      ? `Will use your primary connection (${
+                          primaryConnection.mode === 'SEND_RECEIVE'
+                            ? 'Send & Receive'
+                            : 'Receive'
+                        }).`
+                      : 'You haven\u2019t set up a primary NWC connection yet.'}
+                  </p>
+                )}
 
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={() => router.push('/admin/addresses')}>
-              Cancel
-            </Button>
-            <Button variant="theme" disabled={saveDisabled} onClick={handleSave}>
-              {updating && <Spinner size={16} className="mr-2" />}
-              Save
-            </Button>
-          </div>
+                {/* Save/Cancel live inside the collapsible — once the user
+                    expands Mode and makes changes, the actions are right
+                    there with the form; the rest of the page stays calm.
+                    Cancel reverts local form state back to the loaded
+                    baseline and collapses, so re-opening shows a clean
+                    form instead of stale uncommitted edits. */}
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Button
+                    variant="secondary"
+                    disabled={saving}
+                    onClick={() => {
+                      setMode(data.address.mode)
+                      setRedirect(data.address.redirect ?? '')
+                      setNwcConnectionId(data.address.nwcConnectionId ?? '')
+                      setNewConnectionUri('')
+                      setModeOpen(false)
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button variant="theme" disabled={saveDisabled} onClick={handleSave}>
+                    {saving && <Spinner size={16} className="mr-2" />}
+                    Save
+                  </Button>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Invoices are the authoritative per-address activity feed —
+              they're minted by our own LUD-16 cb route with the username
+              stamped on the metadata, so they filter cleanly by address.
+              NWC `list_transactions` can't give us per-address scoping
+              and is blocked by several wallet providers anyway. */}
+          <AddressInvoicesCard username={username} />
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

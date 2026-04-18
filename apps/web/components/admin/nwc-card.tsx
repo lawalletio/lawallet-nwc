@@ -10,8 +10,9 @@ import { Spinner } from '@/components/ui/spinner'
 import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 import { useAuth } from '@/components/admin/auth-context'
 import { parseNwc, truncatePubkey } from '@/lib/client/nwc'
-import { useNwcBalance } from '@/lib/client/use-nwc-balance'
+import { useNwcBalance, nwcStatusLabel } from '@/lib/client/use-nwc-balance'
 import { formatRelativeTime } from '@/lib/client/format'
+
 
 interface UserMe {
   userId: string
@@ -135,11 +136,7 @@ export function NwcCard() {
             <Loader2 className="size-3.5 text-muted-foreground shrink-0 animate-spin" />
           )}
           <span className="text-xs text-muted-foreground truncate">
-            {balance.status === 'connected'
-              ? 'Connected'
-              : balance.status === 'disconnected'
-                ? 'Disconnected'
-                : 'Connecting…'}
+            {nwcStatusLabel(balance.status)}
             {me.nwcUpdatedAt ? ` · added ${formatRelativeTime(me.nwcUpdatedAt)}` : ''}
           </span>
         </div>
