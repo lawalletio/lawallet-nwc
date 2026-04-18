@@ -21,6 +21,7 @@ import {
 import type { Prisma } from '@/lib/generated/prisma'
 import { logger } from '@/lib/logger'
 import { resolvePaymentRoute } from '@/lib/wallet/resolve-payment-route'
+import { eventBus } from '@/lib/events/event-bus'
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
@@ -149,6 +150,12 @@ export const GET = withErrorHandling(
       },
       'LUD-16 invoice created'
     )
+
+    // Fan out to any SSE-connected clients (e.g. the owner's
+    // /admin/addresses/[username] page) so their invoice feed refetches
+    // without a manual refresh — same event used by `/api/invoices` so
+    // the dashboard / wallet surfaces stay in sync too.
+    eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
 
     // Build LUD-21 verify URL
     const { url } = await resolvePublicEndpoint(req)

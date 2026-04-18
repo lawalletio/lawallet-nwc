@@ -16,6 +16,10 @@ vi.mock('@/lib/middleware/maintenance', () => ({
   checkMaintenance: vi.fn(),
 }))
 
+vi.mock('@/lib/events/event-bus', () => ({
+  eventBus: { emit: vi.fn() },
+}))
+
 const lookupInvoiceMock = vi.fn()
 const nwcCloseMock = vi.fn()
 
@@ -166,7 +170,37 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
         }),
       })
     )
+    // The PENDING → PAID transition must fire `invoices:updated` so the
+    // payee's address-detail feed (and other live consumers) flip the row
+    // without requiring a manual refresh. Guarded inside the status
+    // change — re-verifying an already-paid invoice must NOT re-emit.
+    const { eventBus } = await import('@/lib/events/event-bus')
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'invoices:updated' }),
+    )
     expect(nwcCloseMock).toHaveBeenCalled()
+  })
+
+  it('does not emit invoices:updated on repeat verify of an already-paid invoice', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      status: 'PAID',
+      preimage: 'c'.repeat(64),
+    } as any)
+
+    const { eventBus } = await import('@/lib/events/event-bus')
+    vi.mocked(eventBus.emit).mockClear()
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+
+    // Early-return path: no DB update, no bus event. Avoids spamming
+    // clients every time a sender polls an already-settled invoice.
+    expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+    expect(eventBus.emit).not.toHaveBeenCalled()
   })
 
   it('returns unsettled without preimage when NWC says pending', async () => {

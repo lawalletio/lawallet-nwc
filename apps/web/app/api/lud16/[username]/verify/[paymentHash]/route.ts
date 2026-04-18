@@ -5,6 +5,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import type { LUD21VerifySuccess, LUD21VerifyError } from '@/types/lnurl'
+import { eventBus } from '@/lib/events/event-bus'
 
 /**
  * LUD-21 (LNURL verify) endpoint.
@@ -120,6 +121,11 @@ export const GET = withErrorHandling(
             paidAt: new Date(tx.settled_at ? tx.settled_at * 1000 : Date.now()),
           },
         })
+        // Broadcast the PENDING → PAID flip so the owner's address invoice
+        // feed flips without requiring a manual refresh. Only emit on the
+        // transition (we're already inside the `status !== 'PAID'` guard)
+        // to avoid spamming the bus on every verify poll of a settled tx.
+        eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
       }
 
       const response: LUD21VerifySuccess = {

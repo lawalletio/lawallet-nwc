@@ -21,6 +21,10 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn(),
 }))
 
+vi.mock('@/lib/events/event-bus', () => ({
+  eventBus: { emit: vi.fn() },
+}))
+
 const requestPaymentMock = vi.fn().mockResolvedValue({
   invoice: { paymentRequest: 'lnbc100n1test' },
 })
@@ -232,6 +236,9 @@ describe('GET /api/lud16/[username]/cb', () => {
       paymentHash: 'a'.repeat(64),
     } as any)
 
+    const { eventBus } = await import('@/lib/events/event-bus')
+    vi.mocked(eventBus.emit).mockClear()
+
     const req = createNextRequest('/api/lud16/alice/cb', {
       searchParams: { amount: '10000' },
     })
@@ -242,6 +249,12 @@ describe('GET /api/lud16/[username]/cb', () => {
     expect(body.routes).toEqual([])
     expect(body.verify).toBe(
       `https://app.test.com/api/lud16/alice/verify/${'a'.repeat(64)}`
+    )
+    // A fresh invoice must announce itself on the bus so any connected
+    // dashboard (address detail / admin home / invoices feed) refetches
+    // without a manual reload.
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'invoices:updated' }),
     )
   })
 
