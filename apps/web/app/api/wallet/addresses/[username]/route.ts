@@ -15,6 +15,7 @@ import {
 } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
 import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
+import { resolvePaymentRoute } from '@/lib/wallet/resolve-payment-route'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -31,9 +32,12 @@ export const GET = withErrorHandling(
     const { pubkey } = await authenticate(request)
     const { username } = validateParams(await params, walletAddressUsernameParam)
 
+    // Pull the legacy `User.nwc` URI too so DEFAULT_NWC addresses on
+    // accounts that haven't migrated to NWCConnection still get a balance
+    // on the client. Matches the server-side LUD-16 fallback order.
     const user = await prisma.user.findUnique({
       where: { pubkey },
-      select: { id: true },
+      select: { id: true, nwc: true },
     })
     if (!user) throw new AuthenticationError('User not found')
 
@@ -52,6 +56,20 @@ export const GET = withErrorHandling(
     })
     const primaryNwc = connections.find(c => c.isPrimary) ?? null
 
+    // Ship the already-resolved NWC URI so the balance / transactions
+    // widgets don't have to duplicate (and potentially drift from) the
+    // server's `resolvePaymentRoute` logic. Null for IDLE / ALIAS /
+    // unconfigured — the UI renders an empty state in those cases.
+    const route = resolvePaymentRoute({
+      mode: address.mode,
+      redirect: address.redirect,
+      nwcConnection: address.nwcConnection,
+      primaryNwcConnection: primaryNwc,
+      userNwc: user.nwc,
+    })
+    const effectiveConnectionString =
+      route.kind === 'nwc' ? route.connectionString : null
+
     return NextResponse.json({
       address: toWalletAddressDto(address, primaryNwc),
       connections: connections.map(c => ({
@@ -60,6 +78,7 @@ export const GET = withErrorHandling(
         mode: c.mode,
         isPrimary: c.isPrimary,
       })),
+      effectiveConnectionString,
     })
   },
 )
