@@ -35,7 +35,10 @@ import {
   PUT as DetailPut,
 } from '@/app/api/wallet/addresses/[username]/route'
 import { POST as PrimaryPost } from '@/app/api/wallet/addresses/[username]/primary/route'
+import { GET as InvoicesGet } from '@/app/api/wallet/addresses/[username]/invoices/route'
+import { POST as NwcConnectionsPost } from '@/app/api/wallet/nwc-connections/route'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { eventBus } from '@/lib/events/event-bus'
 
 const mockPubkey = 'a'.repeat(64)
 const otherPubkey = 'b'.repeat(64)
@@ -432,6 +435,215 @@ describe('POST /api/wallet/addresses/[username]/primary', () => {
     const res = await PrimaryPost(
       createNextRequest('/api/wallet/addresses/alice/primary', { method: 'POST' }),
       createParamsPromise({ username: 'alice' }),
+    )
+    expect(res.status).toBe(401)
+  })
+})
+
+// ── GET /api/wallet/addresses/[username]/invoices ───────────────────────────
+
+describe('GET /api/wallet/addresses/[username]/invoices', () => {
+  function makeInvoice(overrides: Partial<any> = {}) {
+    return {
+      id: 'inv-1',
+      amountSats: 1000,
+      description: 'Payment to @alice',
+      status: 'PENDING',
+      metadata: { username: 'alice' },
+      paymentHash: 'c'.repeat(64),
+      createdAt: new Date('2026-02-01T00:00:00Z'),
+      paidAt: null,
+      expiresAt: new Date('2026-02-01T01:00:00Z'),
+      ...overrides,
+    }
+  }
+
+  it('returns the caller-owned address invoices, newest first', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      userId: 'user-1',
+    } as any)
+    vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([
+      makeInvoice({ id: 'inv-paid', status: 'PAID', paidAt: new Date('2026-02-05') }),
+      makeInvoice({ id: 'inv-pending', metadata: { username: 'alice', comment: 'thanks' } }),
+    ] as any)
+
+    const res = await InvoicesGet(
+      createNextRequest('/api/wallet/addresses/alice/invoices'),
+      createParamsPromise({ username: 'alice' }),
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.invoices).toHaveLength(2)
+    expect(body.invoices[0].id).toBe('inv-paid')
+    expect(body.invoices[1].comment).toBe('thanks')
+    // Confirm the Postgres-side scoping is applied — userId + purpose +
+    // JSON-path filter on metadata.username — so users can't read another
+    // address's invoices by swapping the URL segment.
+    expect(prismaMock.invoice.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'user-1',
+          purpose: 'LUD16_PAYMENT',
+          metadata: { path: ['username'], equals: 'alice' },
+        },
+        orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
+        take: 20,
+      }),
+    )
+  })
+
+  it('returns an empty list when the address has no invoices yet', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      userId: 'user-1',
+    } as any)
+    vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([])
+
+    const res = await InvoicesGet(
+      createNextRequest('/api/wallet/addresses/alice/invoices'),
+      createParamsPromise({ username: 'alice' }),
+    )
+    const body: any = await assertResponse(res, 200)
+    expect(body).toEqual({ invoices: [] })
+  })
+
+  it('404s when the address is owned by another user', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      // Address belongs to a different user — same opaque 404 as the
+      // detail route so we don't leak address existence.
+      userId: 'user-2',
+    } as any)
+
+    const res = await InvoicesGet(
+      createNextRequest('/api/wallet/addresses/alice/invoices'),
+      createParamsPromise({ username: 'alice' }),
+    )
+    expect(res.status).toBe(404)
+    expect(prismaMock.invoice.findMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects unauthenticated callers', async () => {
+    mockAuthReject()
+    const res = await InvoicesGet(
+      createNextRequest('/api/wallet/addresses/alice/invoices'),
+      createParamsPromise({ username: 'alice' }),
+    )
+    expect(res.status).toBe(401)
+  })
+})
+
+// ── POST /api/wallet/nwc-connections ────────────────────────────────────────
+
+describe('POST /api/wallet/nwc-connections', () => {
+  const validUri =
+    'nostr+walletconnect://abcdef0123456789?relay=wss%3A%2F%2Frelay.example&secret=deadbeef'
+
+  it('creates a new connection for the caller', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.nWCConnection.findFirst).mockResolvedValue(null)
+    // `$transaction(cb)` hands our callback a pseudo-tx; the real route
+    // only uses it for the isPrimary-flip + create in one atomic step.
+    // Short-circuit with a direct create path for the test.
+    vi.mocked(prismaMock.$transaction).mockImplementation(async (cb: any) =>
+      cb(prismaMock),
+    )
+    vi.mocked(prismaMock.nWCConnection.create).mockResolvedValue({
+      id: 'conn-new',
+      userId: 'user-1',
+      connectionString: validUri,
+      mode: 'RECEIVE',
+      isPrimary: false,
+      createdAt: new Date('2026-02-10'),
+      updatedAt: new Date('2026-02-10'),
+    } as any)
+
+    const res = await NwcConnectionsPost(
+      createNextRequest('/api/wallet/nwc-connections', {
+        method: 'POST',
+        body: { connectionString: validUri },
+      }),
+    )
+    const body: any = await assertResponse(res, 201)
+
+    expect(body).toMatchObject({
+      id: 'conn-new',
+      mode: 'RECEIVE',
+      isPrimary: false,
+    })
+    // Bus event is emitted so the address list (whose derived `nwcMode`
+    // depends on the primary connection) revalidates.
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'addresses:updated' }),
+    )
+  })
+
+  it('is idempotent — same (userId, connectionString) returns the existing row with 200', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.nWCConnection.findFirst).mockResolvedValue({
+      id: 'conn-existing',
+      userId: 'user-1',
+      connectionString: validUri,
+      mode: 'RECEIVE',
+      isPrimary: true,
+      createdAt: new Date('2026-02-01'),
+      updatedAt: new Date('2026-02-01'),
+    } as any)
+
+    const res = await NwcConnectionsPost(
+      createNextRequest('/api/wallet/nwc-connections', {
+        method: 'POST',
+        body: { connectionString: validUri },
+      }),
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.id).toBe('conn-existing')
+    // No write should happen — retries after a flaky network don't
+    // fabricate duplicate rows.
+    expect(prismaMock.nWCConnection.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects payloads that parseNwc cannot interpret', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+
+    const res = await NwcConnectionsPost(
+      createNextRequest('/api/wallet/nwc-connections', {
+        method: 'POST',
+        // Correct prefix but missing pubkey + relays → parseNwc returns
+        // with empty relays → route returns 409 via ConflictError.
+        body: { connectionString: 'nostr+walletconnect://' },
+      }),
+    )
+    expect(res.status).toBe(409)
+  })
+
+  it('rejects bodies that don\u2019t pass the Zod regex', async () => {
+    mockAuth()
+
+    const res = await NwcConnectionsPost(
+      createNextRequest('/api/wallet/nwc-connections', {
+        method: 'POST',
+        body: { connectionString: 'https://not-an-nwc-uri' },
+      }),
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('rejects unauthenticated callers', async () => {
+    mockAuthReject()
+    const res = await NwcConnectionsPost(
+      createNextRequest('/api/wallet/nwc-connections', {
+        method: 'POST',
+        body: { connectionString: validUri },
+      }),
     )
     expect(res.status).toBe(401)
   })
