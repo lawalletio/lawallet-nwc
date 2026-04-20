@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { mockCardDesignData } from '@/mocks/card-design'
 import { getSettings } from '@/lib/settings'
-import { validateAdminAuth } from '@/lib/admin-auth'
+import { authenticateWithPermission } from '@/lib/auth/unified-auth'
+import { Permission } from '@/lib/auth/permissions'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { InternalServerError, ValidationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
@@ -11,7 +12,7 @@ import { eventBus } from '@/lib/events/event-bus'
 
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'large')
-  await validateAdminAuth(request)
+  await authenticateWithPermission(request, Permission.CARD_DESIGNS_WRITE)
   logger.info('Starting card design import')
 
   const { is_community, community_id } = await getSettings([

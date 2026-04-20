@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 
 export interface CardData {
@@ -40,6 +41,76 @@ export interface CardFilters {
   used?: boolean
 }
 
+// ── API → client transforms ─────────────────────────────────────────────────
+// The /api/cards and /api/cards/[id] endpoints emit the legacy `types/card.ts`
+// shape (flat `pubkey`/`username`, `design.imageUrl`, card-level `otc`). The
+// admin dashboard reads a slightly different shape — `design.image`, a nested
+// `lightningAddress`, `ntag424.otc`, a top-level `designId` and `updatedAt`.
+// Rather than changing every consumer of the server type, we reshape once here.
+
+interface ApiCardDesign {
+  id: string
+  description: string | null
+  imageUrl: string | null
+  createdAt: string
+}
+
+interface ApiCardNtag424 {
+  cid: string
+  k0: string
+  k1: string
+  k2: string
+  k3: string
+  k4: string
+  ctr: number
+  createdAt: string
+}
+
+interface ApiCard {
+  id: string
+  design: ApiCardDesign | null
+  ntag424: ApiCardNtag424 | null
+  createdAt: string
+  title?: string
+  lastUsedAt?: string | null
+  pubkey?: string
+  username?: string
+  otc?: string | null
+}
+
+function toCardData(c: ApiCard): CardData {
+  return {
+    id: c.id,
+    designId: c.design?.id ?? null,
+    design: c.design
+      ? {
+          id: c.design.id,
+          description: c.design.description,
+          image: c.design.imageUrl,
+        }
+      : null,
+    ntag424: c.ntag424
+      ? {
+          k0: c.ntag424.k0,
+          k1: c.ntag424.k1,
+          k2: c.ntag424.k2,
+          k3: c.ntag424.k3,
+          k4: c.ntag424.k4,
+          ctr: c.ntag424.ctr,
+          otc: c.otc ?? null,
+        }
+      : null,
+    lightningAddress:
+      c.username && c.pubkey
+        ? { username: c.username, pubkey: c.pubkey }
+        : null,
+    createdAt: c.createdAt,
+    // Legacy API has no `updatedAt` — fall back to lastUsedAt/createdAt so
+    // the "Last used" column still shows something sensible.
+    updatedAt: c.lastUsedAt ?? c.createdAt,
+  }
+}
+
 /**
  * Fetch cards list with optional filters.
  */
@@ -50,7 +121,12 @@ export function useCards(filters?: CardFilters) {
   const qs = params.toString()
   const queryParams = qs ? `?${qs}` : ''
 
-  return useApi<CardData[]>(`/api/cards${queryParams}`)
+  const result = useApi<ApiCard[]>(`/api/cards${queryParams}`)
+  const data = useMemo(
+    () => (result.data ? result.data.map(toCardData) : null),
+    [result.data],
+  )
+  return { ...result, data }
 }
 
 /**
@@ -64,7 +140,12 @@ export function useCardCounts() {
  * Fetch a single card by ID.
  */
 export function useCard(id: string | null) {
-  return useApi<CardData>(id ? `/api/cards/${id}` : null)
+  const result = useApi<ApiCard>(id ? `/api/cards/${id}` : null)
+  const data = useMemo(
+    () => (result.data ? toCardData(result.data) : null),
+    [result.data],
+  )
+  return { ...result, data }
 }
 
 /**

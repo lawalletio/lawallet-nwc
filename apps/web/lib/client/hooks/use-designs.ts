@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 
 export interface DesignData {
@@ -14,11 +15,36 @@ export interface DesignCount {
   count: number
 }
 
+// The server emits `imageUrl` and has no `updatedAt`; the admin UI uses
+// `image` and expects `updatedAt`. Reshape once here so every consumer
+// downstream sees the dashboard-native shape.
+interface ApiDesign {
+  id: string
+  description: string | null
+  imageUrl: string | null
+  createdAt: string
+}
+
+function toDesignData(d: ApiDesign): DesignData {
+  return {
+    id: d.id,
+    description: d.description,
+    image: d.imageUrl,
+    createdAt: d.createdAt,
+    updatedAt: d.createdAt,
+  }
+}
+
 /**
  * Fetch all card designs.
  */
 export function useDesigns() {
-  return useApi<DesignData[]>('/api/card-designs/list')
+  const result = useApi<ApiDesign[]>('/api/card-designs/list')
+  const data = useMemo(
+    () => (result.data ? result.data.map(toDesignData) : null),
+    [result.data],
+  )
+  return { ...result, data }
 }
 
 /**
