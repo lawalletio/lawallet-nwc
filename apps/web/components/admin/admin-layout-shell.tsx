@@ -10,6 +10,7 @@ import { useAuth } from '@/components/admin/auth-context'
 import { AdminSidebar } from '@/components/admin/admin-sidebar'
 import { MobileTabBar } from '@/components/admin/mobile-tab-bar'
 import { LoginPage } from '@/components/admin/login-page'
+import { MaintenanceGate } from '@/components/admin/maintenance-gate'
 
 export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
@@ -47,14 +48,18 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     return <LoginPage />
   }
 
-  // Authenticated - render full layout
+  // Authenticated - render full layout. MaintenanceGate wraps children so
+  // non-admin users see the maintenance screen while admins keep a banner
+  // at the top and can still toggle the flag.
   return (
-    <SidebarProvider>
-      <AdminSidebar />
-      <SidebarInset>
-        <main className="flex flex-1 flex-col pb-16 md:pb-0">{children}</main>
-      </SidebarInset>
-      <MobileTabBar />
-    </SidebarProvider>
+    <MaintenanceGate>
+      <SidebarProvider>
+        <AdminSidebar />
+        <SidebarInset>
+          <main className="flex flex-1 flex-col pb-16 md:pb-0">{children}</main>
+        </SidebarInset>
+        <MobileTabBar />
+      </SidebarProvider>
+    </MaintenanceGate>
   )
 }

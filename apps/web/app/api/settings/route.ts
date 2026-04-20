@@ -41,7 +41,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (!authenticatedPubkey || authenticatedPubkey !== settings.root) {
     // Public fields: domain/endpoint for lightning address resolution,
-    // branding for a consistent look across all visitors.
+    // branding for a consistent look across all visitors, and the
+    // maintenance flag so clients can render the maintenance banner
+    // without first being blocked by the maintenance middleware.
     return NextResponse.json({
       domain: settings.domain,
       endpoint,
@@ -51,6 +53,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       community_name: settings.community_name,
       logotype_url: settings.logotype_url,
       isotypo_url: settings.isotypo_url,
+      maintenance_enabled: settings.maintenance_enabled,
     })
   }
 
