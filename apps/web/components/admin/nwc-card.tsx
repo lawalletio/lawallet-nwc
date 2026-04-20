@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react'
 import Image from 'next/image'
-import { Check, RefreshCw, X, Radio, Key, Tag, Calendar, ArrowDownLeft, ArrowUpRight, WifiOff, Loader2 } from 'lucide-react'
+import { Check, ChevronDown, RefreshCw, X, Radio, Key, Tag, Calendar, ArrowDownLeft, ArrowUpRight, WifiOff, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { InputWithQrScanner } from '@/components/ui/input-with-qr-scanner'
@@ -30,6 +30,10 @@ export function NwcCard() {
 
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
+  // Collapsed by default — only the Balance block is shown. Expanding reveals
+  // the connection metadata (status, pubkey, relays, added) and the Replace
+  // affordance. Users rarely need those details once the wallet is set up.
+  const [expanded, setExpanded] = useState(false)
 
   // Parse the NWC URI once per value change instead of on every render.
   // NOTE: hooks must be called unconditionally on every render — keep these
@@ -89,7 +93,7 @@ export function NwcCard() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+    <div className="space-y-4">
       {/* Header: shown whenever the input form is visible (empty state OR editing). */}
       {showForm && (
         <div className="flex items-start gap-3">
@@ -176,23 +180,25 @@ export function NwcCard() {
             ) : (
               <Spinner size={24} className="text-muted-foreground" />
             )}
-            <button
-              type="button"
-              onClick={balance.refetch}
-              disabled={balance.loading}
-              aria-label="Refresh balance"
-              title="Refresh balance"
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw
-                className={`size-4 ${balance.loading ? 'animate-spin' : ''}`}
-              />
-            </button>
+            {parsedNwc && (
+              <button
+                type="button"
+                onClick={() => setExpanded(v => !v)}
+                aria-label={expanded ? 'Hide connection details' : 'Show connection details'}
+                aria-expanded={expanded}
+                title={expanded ? 'Hide connection details' : 'Show connection details'}
+                className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              >
+                <ChevronDown
+                  className={`size-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+                />
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {hasNwc && !editing && parsedNwc && (
+      {hasNwc && !editing && parsedNwc && expanded && (
         <div className="flex flex-col gap-2 rounded-md bg-muted/40 px-3 py-3">
           <div className="flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2">
