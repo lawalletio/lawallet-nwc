@@ -99,7 +99,14 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
   const sseVersion = useSSEVersion(eventType)
 
   const fetchData = useCallback(async () => {
-    if (!path || status !== 'authenticated') {
+    // Wait until auth has settled — firing during the `loading` window would
+    // race with the JWT becoming available and trigger a spurious no-auth
+    // request. `unauthenticated` is fine: the api-client sends no
+    // Authorization header, so endpoints that expose a public subset (notably
+    // `/api/settings` with the community branding) can still hydrate the UI
+    // shown before sign-in (e.g. the login page logo). Protected endpoints
+    // simply return 401 — same behavior as before.
+    if (!path || status === 'loading') {
       setLoading(false)
       return
     }

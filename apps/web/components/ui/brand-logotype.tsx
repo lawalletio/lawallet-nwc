@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import Image from 'next/image'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
 import { cn } from '@/lib/utils'
@@ -13,17 +12,20 @@ import { cn } from '@/lib/utils'
  * landing nav, wallet shell) can't accidentally flash the static LaWallet
  * fallback for communities that *do* have a custom logo uploaded.
  *
- * Props mirror the relevant subset of next/image: caller supplies the
- * container dimensions (width/height) used for both the skeleton and the
- * image. Any extra className is forwarded to the image (useful for things
- * like `h-6 w-auto` that Next.js warns about unless the aspect-ratio is
- * managed by the caller).
+ * Props mirror the legacy next/image callsites: `width`/`height` size the
+ * skeleton and cap the rendered image. We render a plain `<img>` because the
+ * actual source is an external Blossom URL — next/image's optimizer is
+ * bypassed anyway (we were passing `unoptimized`) and its aspect-ratio check
+ * fires a console warning when the declared props don't match the uploaded
+ * asset's real ratio. A plain `<img>` with `object-contain` sizes correctly
+ * regardless of the underlying PNG's dimensions.
  */
 export interface BrandLogotypeProps {
   width: number
   height: number
   alt?: string
   className?: string
+  /** Retained for API parity with prior call-sites; no-op with a plain img. */
   priority?: boolean
 }
 
@@ -32,7 +34,6 @@ export function BrandLogotype({
   height,
   alt = 'LaWallet',
   className,
-  priority,
 }: BrandLogotypeProps) {
   const { logotype, loading } = useBrandLogotypes()
 
@@ -46,14 +47,12 @@ export function BrandLogotype({
   }
 
   return (
-    <Image
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
       src={logotype}
       alt={alt}
-      width={width}
-      height={height}
-      unoptimized
-      priority={priority}
-      className={cn(className)}
+      style={{ maxWidth: width, maxHeight: height }}
+      className={cn('object-contain', className)}
     />
   )
 }
