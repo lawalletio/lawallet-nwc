@@ -14,28 +14,58 @@ export function WalletTab() {
   const { data: settings, loading: settingsLoading } = useSettings()
   const { updateSettings } = useUpdateSettings()
 
+  const [walletEnabled, setWalletEnabled] = useState(false)
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false)
+  const [disableTransfers, setDisableTransfers] = useState(false)
+  const [disableRegisters, setDisableRegisters] = useState(false)
+  const [disableAddress, setDisableAddress] = useState(false)
   const [registrationLnAddress, setRegistrationLnAddress] = useState('')
   const [registrationPrice, setRegistrationPrice] = useState('21')
   const [registrationEnabled, setRegistrationEnabled] = useState(false)
 
-  // Load settings into state
-  useEffect(() => {
+  // Restore all local form state from the currently stored settings. Called on
+  // initial load and whenever the page-level Cancel button is clicked.
+  const loadFromSettings = useCallback(() => {
     if (!settings) return
+    setWalletEnabled(settings.wallet_enabled === 'true')
+    setMaintenanceEnabled(settings.maintenance_enabled === 'true')
+    setDisableTransfers(settings.disable_transfers === 'true')
+    setDisableRegisters(settings.disable_registers === 'true')
+    setDisableAddress(settings.disable_address === 'true')
     setRegistrationLnAddress(settings.registration_ln_address ?? '')
     setRegistrationPrice(settings.registration_price ?? '21')
     setRegistrationEnabled(settings.registration_ln_enabled === 'true')
   }, [settings])
 
+  useEffect(() => {
+    loadFromSettings()
+  }, [loadFromSettings])
+
   // Register save handler with the page-level Save Changes button
   const save = useCallback(async () => {
     await updateSettings({
+      wallet_enabled: walletEnabled ? 'true' : 'false',
+      maintenance_enabled: maintenanceEnabled ? 'true' : 'false',
+      disable_transfers: disableTransfers ? 'true' : 'false',
+      disable_registers: disableRegisters ? 'true' : 'false',
+      disable_address: disableAddress ? 'true' : 'false',
       registration_ln_address: registrationLnAddress.trim(),
       registration_price: registrationPrice || '21',
       registration_ln_enabled: registrationEnabled ? 'true' : 'false',
     })
-  }, [updateSettings, registrationLnAddress, registrationPrice, registrationEnabled])
+  }, [
+    updateSettings,
+    walletEnabled,
+    maintenanceEnabled,
+    disableTransfers,
+    disableRegisters,
+    disableAddress,
+    registrationLnAddress,
+    registrationPrice,
+    registrationEnabled,
+  ])
 
-  const { markChanged } = useSettingsForm('wallet', save)
+  const { markChanged } = useSettingsForm('wallet', save, loadFromSettings)
 
   if (settingsLoading) {
     return (
@@ -62,7 +92,10 @@ export function WalletTab() {
                 Activate or deactivate the digital wallet.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={walletEnabled}
+              onCheckedChange={v => { setWalletEnabled(v); markChanged() }}
+            />
           </div>
         </div>
       </div>
@@ -84,7 +117,10 @@ export function WalletTab() {
                 Enable maintenance mode for all services.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={maintenanceEnabled}
+              onCheckedChange={v => { setMaintenanceEnabled(v); markChanged() }}
+            />
           </div>
         </div>
       </div>
@@ -101,7 +137,10 @@ export function WalletTab() {
                 Prevent users from sending and receiving transfers.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={disableTransfers}
+              onCheckedChange={v => { setDisableTransfers(v); markChanged() }}
+            />
           </div>
           <div className="flex items-center justify-between">
             <div>
@@ -110,7 +149,10 @@ export function WalletTab() {
                 Prevent new user registrations.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={disableRegisters}
+              onCheckedChange={v => { setDisableRegisters(v); markChanged() }}
+            />
           </div>
           <div className="flex items-center justify-between">
             <div>
@@ -119,7 +161,10 @@ export function WalletTab() {
                 Disable Lightning Address functionality.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={disableAddress}
+              onCheckedChange={v => { setDisableAddress(v); markChanged() }}
+            />
           </div>
         </div>
       </div>

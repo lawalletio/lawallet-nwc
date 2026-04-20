@@ -37,25 +37,37 @@ export function BrandingTab() {
   const [logotypePreview, setLogotypePreview] = useState<string | null>(null)
   const [isotypoPreview, setIsotypoPreview] = useState<string | null>(null)
   const [communityName, setCommunityName] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [telegram, setTelegram] = useState('')
+  const [discord, setDiscord] = useState('')
+  const [twitter, setTwitter] = useState('')
+  const [website, setWebsite] = useState('')
+  const [nostr, setNostr] = useState('')
+  const [email, setEmail] = useState('')
   const logotypeInputRef = useRef<HTMLInputElement>(null)
   const isotypoInputRef = useRef<HTMLInputElement>(null)
   const logo = useBlossomUpload()
   const iso = useBlossomUpload()
 
-  // Hydrate community name and persisted logo URLs from server settings.
-  useEffect(() => {
-    if (settings?.community_name !== undefined) {
-      setCommunityName(settings.community_name ?? '')
-    }
-  }, [settings?.community_name])
+  // Restore local form state from the currently stored settings. Runs on
+  // initial load and again when the page-level Cancel button is pressed.
+  const loadFromSettings = useCallback(() => {
+    if (!settings) return
+    setCommunityName(settings.community_name ?? '')
+    if (settings.logotype_url) setLogotypePreview(settings.logotype_url)
+    if (settings.isotypo_url) setIsotypoPreview(settings.isotypo_url)
+    setWhatsapp(settings.social_whatsapp ?? '')
+    setTelegram(settings.social_telegram ?? '')
+    setDiscord(settings.social_discord ?? '')
+    setTwitter(settings.social_twitter ?? '')
+    setWebsite(settings.social_website ?? '')
+    setNostr(settings.social_nostr ?? '')
+    setEmail(settings.social_email ?? '')
+  }, [settings])
 
   useEffect(() => {
-    if (settings?.logotype_url) setLogotypePreview(settings.logotype_url)
-  }, [settings?.logotype_url])
-
-  useEffect(() => {
-    if (settings?.isotypo_url) setIsotypoPreview(settings.isotypo_url)
-  }, [settings?.isotypo_url])
+    loadFromSettings()
+  }, [loadFromSettings])
 
   // Revoke blob: object URLs on unmount to avoid memory leaks.
   useEffect(() => {
@@ -75,10 +87,29 @@ export function BrandingTab() {
       brand_theme: activePreset.hex,
       brand_rounding: rounding,
       community_name: communityName.trim(),
+      social_whatsapp: whatsapp.trim(),
+      social_telegram: telegram.trim(),
+      social_discord: discord.trim(),
+      social_twitter: twitter.trim(),
+      social_website: website.trim(),
+      social_nostr: nostr.trim(),
+      social_email: email.trim(),
     })
-  }, [updateSettings, activePreset.hex, rounding, communityName])
+  }, [
+    updateSettings,
+    activePreset.hex,
+    rounding,
+    communityName,
+    whatsapp,
+    telegram,
+    discord,
+    twitter,
+    website,
+    nostr,
+    email,
+  ])
 
-  const { markChanged } = useSettingsForm('branding', save)
+  const { markChanged } = useSettingsForm('branding', save, loadFromSettings)
 
   async function handleLogotypeChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -331,20 +362,59 @@ export function BrandingTab() {
         </div>
 
         <div className="flex flex-col gap-6 flex-1 min-w-0">
-          <SocialField label="WhatsApp" prefix="wa.me/" placeholder="+1 555 000 0000" />
-          <SocialField label="Telegram" prefix="t.me/" placeholder="you-handle" />
-          <SocialField label="Discord" prefix="discord.gg/" placeholder="invite-code" />
-          <SocialField label="X/Twitter" prefix="twitter.com/" placeholder="you-handle" />
-          <SocialField label="Website" prefix="https://" placeholder="domain.com" />
+          <SocialField
+            label="WhatsApp"
+            prefix="wa.me/"
+            placeholder="+1 555 000 0000"
+            value={whatsapp}
+            onChange={v => { setWhatsapp(v); markChanged() }}
+          />
+          <SocialField
+            label="Telegram"
+            prefix="t.me/"
+            placeholder="you-handle"
+            value={telegram}
+            onChange={v => { setTelegram(v); markChanged() }}
+          />
+          <SocialField
+            label="Discord"
+            prefix="discord.gg/"
+            placeholder="invite-code"
+            value={discord}
+            onChange={v => { setDiscord(v); markChanged() }}
+          />
+          <SocialField
+            label="X/Twitter"
+            prefix="twitter.com/"
+            placeholder="you-handle"
+            value={twitter}
+            onChange={v => { setTwitter(v); markChanged() }}
+          />
+          <SocialField
+            label="Website"
+            prefix="https://"
+            placeholder="domain.com"
+            value={website}
+            onChange={v => { setWebsite(v); markChanged() }}
+          />
 
           <div className="flex flex-col gap-4 max-w-[320px]">
             <p className="text-sm text-foreground">Nostr</p>
-            <Input placeholder="npub..." />
+            <Input
+              placeholder="npub..."
+              value={nostr}
+              onChange={e => { setNostr(e.target.value); markChanged() }}
+            />
           </div>
 
           <div className="flex flex-col gap-4 max-w-[320px]">
             <p className="text-sm text-foreground">Email</p>
-            <Input type="email" placeholder="you@email.com" />
+            <Input
+              type="email"
+              placeholder="you@email.com"
+              value={email}
+              onChange={e => { setEmail(e.target.value); markChanged() }}
+            />
           </div>
         </div>
       </div>
@@ -356,10 +426,14 @@ function SocialField({
   label,
   prefix,
   placeholder,
+  value,
+  onChange,
 }: {
   label: string
   prefix: string
   placeholder: string
+  value: string
+  onChange: (value: string) => void
 }) {
   return (
     <div className="flex flex-col gap-4 max-w-[320px]">
@@ -368,6 +442,8 @@ function SocialField({
         <InputGroupText>{prefix}</InputGroupText>
         <Input
           placeholder={placeholder}
+          value={value}
+          onChange={e => onChange(e.target.value)}
           className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </InputGroup>

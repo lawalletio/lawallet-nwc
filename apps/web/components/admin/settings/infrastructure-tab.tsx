@@ -65,6 +65,9 @@ export function InfrastructureTab() {
   const [relays, setRelays] = useState<string[]>([''])
   const [blossomServers, setBlossomServers] = useState<string[]>([''])
   const [smtpHost, setSmtpHost] = useState('')
+  const [smtpPort, setSmtpPort] = useState('')
+  const [smtpUsername, setSmtpUsername] = useState('')
+  const [smtpPassword, setSmtpPassword] = useState('')
 
   // Capture the current browser origin once on mount for the endpoint placeholder
   useEffect(() => {
@@ -82,6 +85,9 @@ export function InfrastructureTab() {
     setRelays(parseStringArray(settings.relays))
     setBlossomServers(parseStringArray(settings.blossom_servers))
     setSmtpHost(settings.smtp_host ?? '')
+    setSmtpPort(settings.smtp_port ?? '')
+    setSmtpUsername(settings.smtp_username ?? '')
+    setSmtpPassword(settings.smtp_password ?? '')
   }, [settings])
 
   useEffect(() => {
@@ -98,8 +104,21 @@ export function InfrastructureTab() {
       relays: JSON.stringify(relays.map(r => r.trim()).filter(Boolean)),
       blossom_servers: JSON.stringify(blossomServers.map(s => s.trim()).filter(Boolean)),
       smtp_host: smtpHost.trim().toLowerCase(),
+      smtp_port: smtpPort.trim(),
+      smtp_username: smtpUsername.trim(),
+      smtp_password: smtpPassword,
     })
-  }, [updateSettings, domain, subdomain, relays, blossomServers, smtpHost])
+  }, [
+    updateSettings,
+    domain,
+    subdomain,
+    relays,
+    blossomServers,
+    smtpHost,
+    smtpPort,
+    smtpUsername,
+    smtpPassword,
+  ])
 
   const { markChanged, setInvalid } = useSettingsForm('infrastructure', save, loadFromSettings)
 
@@ -339,15 +358,29 @@ export function InfrastructureTab() {
           </div>
           <div className="space-y-1">
             <Label>Port</Label>
-            <Input placeholder="587" />
+            <Input
+              placeholder="587"
+              inputMode="numeric"
+              value={smtpPort}
+              onChange={e => { setSmtpPort(e.target.value); markChanged() }}
+            />
           </div>
           <div className="space-y-1">
             <Label>Username</Label>
-            <Input placeholder="user@example.com" />
+            <Input
+              placeholder="user@example.com"
+              value={smtpUsername}
+              onChange={e => { setSmtpUsername(e.target.value); markChanged() }}
+            />
           </div>
           <div className="space-y-1">
             <Label>Password</Label>
-            <Input type="password" placeholder="••••••••" />
+            <Input
+              type="password"
+              placeholder="••••••••"
+              value={smtpPassword}
+              onChange={e => { setSmtpPassword(e.target.value); markChanged() }}
+            />
           </div>
         </div>
       </div>

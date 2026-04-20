@@ -24,6 +24,23 @@ export interface SettingsData {
   isotypo_url?: string
   /** SMTP server hostname (no protocol, e.g. `smtp.example.com`). */
   smtp_host?: string
+  smtp_port?: string
+  smtp_username?: string
+  smtp_password?: string
+  /** Social media handles / URLs surfaced on the branding tab. */
+  social_whatsapp?: string
+  social_telegram?: string
+  social_discord?: string
+  social_twitter?: string
+  social_website?: string
+  social_nostr?: string
+  social_email?: string
+  /** Feature toggles persisted as the strings 'true' / 'false'. */
+  wallet_enabled?: string
+  maintenance_enabled?: string
+  disable_transfers?: string
+  disable_registers?: string
+  disable_address?: string
   [key: string]: string | undefined
 }
 
