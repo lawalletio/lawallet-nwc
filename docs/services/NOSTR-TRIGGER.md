@@ -67,6 +67,59 @@ State split: configs, audit log, and zap ledger live in the shared Postgres (via
         configured webhooks                 fan-out relays
 ```
 
+## Module layout
+
+Every source file has one job. The tree reads top-down from network edge down to effect handlers:
+
+```
+apps/nostr-trigger/src/
+├── index.ts                         bootstrap: env → prisma → redis → pool → pg listener → http
+├── config/
+│   ├── env.ts                       Zod schema + cached getEnv(). Fails fast on missing secrets.
+│   └── index.ts                     getConfig() — typed AppConfig surface on top of env.
+├── logger.ts                        pino + AsyncLocalStorage request id. createChildLogger({module}).
+├── security/
+│   └── crypto.ts                    AES-256-GCM envelope for NwcConnection.clientSecret / WebhookEndpoint.secret.
+├── redis/
+│   ├── client.ts                    ioredis singleton + dedicated BullMQ blocking connection.
+│   └── keys.ts                      namespaced key builders: nt:dedup:*, nt:cursor:*, nt:relay:*
+├── db/
+│   ├── prisma.ts                    re-exports @lawallet-nwc/prisma — shared schema, shared client.
+│   └── change-listener.ts           pg.Client LISTEN loop for nwc_connection_change, reconcile dispatch.
+├── nostr/
+│   ├── nwc.ts                       Parse nostr+walletconnect:// URIs. derivePubkey. normalizeRelayUrl.
+│   ├── encryption.ts                decryptWithFallback (NIP-44 → NIP-04); encryptNip04 / encryptNip44.
+│   ├── pool.ts                      RelayPool — wraps nostr-tools SimplePool, refcounts subs per relay.
+│   ├── info.ts                      fetchWalletInfo — one-shot kind-13194 query for capability probe.
+│   ├── subscription-manager.ts      ConnectionManager — reconciles NwcConnection rows ↔ REQ subs.
+│   ├── nwc-client.ts                nwcRequest — sign kind-23194, wait for matching kind-23195 (NIP-04).
+│   ├── zap-publisher.ts             Sign + fan-out kind-9735 zap receipts (NIP-57).
+│   └── control-plane.ts             Encrypted kind-4 DM listener. Dispatches to command handlers.
+├── ingest/
+│   ├── dedup.ts                     SET NX on event id + on (nwc, notif_type, payment_hash).
+│   ├── cursor.ts                    Redis per-(nwc, relay) since cursor, monotonic advance.
+│   └── handler.ts                   Verify → dedup → decrypt → audit → cursor → fan-out → dashboard bus.
+├── webhooks/
+│   ├── dispatcher.ts                fetch POST + HMAC + Idempotency-Key; classify 2xx/4xx/retryable.
+│   ├── retry-policy.ts              Exponential backoff + ±20% jitter, capped.
+│   └── queue.ts                     BullMQ queue + worker + audit-on-failure.
+├── events/
+│   └── bus.ts                       In-process pub/sub consumed by the SSE stream.
+├── commands/
+│   ├── types.ts                     Zod discriminated union of every command (HTTP and Nostr share it).
+│   └── handlers.ts                  createNwc / deleteNwc / makeInvoice / publishZap / …
+├── http/
+│   ├── server.ts                    Hono app + error middleware.
+│   ├── auth.ts                      Constant-time Bearer token check, bypassed by DANGEROUSLY_FREE.
+│   ├── validate.ts                  parseJson<Schema> wrapper for Zod validation.
+│   ├── errors.ts                    ApiError hierarchy — 400/401/403/404/409/500.
+│   └── routes/                      connections, webhooks, admins, audit, relays, status, zap, dashboard.
+└── dashboard/
+    └── html.ts                      Self-contained single-page dashboard (no build step).
+```
+
+---
+
 ## Responsibilities
 
 - Subscribe to NIP-47 (NWC) notification events for every enabled `NwcConnection`, multiplexing over shared relay sockets.
@@ -117,6 +170,121 @@ State split: configs, audit log, and zap ledger live in the shared Postgres (via
    - 4xx except 408/429 → terminal, no retry, audit row written.
    - 5xx / 408 / 429 / network / timeout → retryable.
 10. Retries: exponential (base 2) starting at `NT_WEBHOOK_INITIAL_DELAY_MS`, capped at `NT_WEBHOOK_MAX_DELAY_MS`, with ±20% jitter. Up to `NT_WEBHOOK_MAX_ATTEMPTS` attempts (default 12, ~24h). Exhaustion writes a `webhook_exhausted` audit row.
+
+---
+
+## End-to-end sequence diagrams
+
+### 1. Service boot
+
+```
+bootstrap (src/index.ts)
+  │
+  ├── getConfig()                           Zod-validate NT_* + DATABASE_URL
+  ├── logger()                              pino with pretty transport in dev
+  ├── prisma.$connect()                     Postgres reachable
+  ├── getRedis().ping()                     Redis reachable
+  ├── new RelayPool()                       wraps SimplePool
+  ├── new ZapReceiptPublisher(pool)
+  ├── new ConnectionManager(pool)
+  ├── createHandlers({ pool, connectionManager, zapPublisher })
+  ├── startWebhookWorker()                  BullMQ worker starts draining nt-webhooks
+  ├── await connectionManager.start()       SELECT enabled=true; open REQ per row
+  ├── new NwcChangeListener(connectionManager).start()
+  │                                         pg.Client LISTEN nwc_connection_change + 5-min reconcile
+  ├── new NostrControlPlane(pool, handlers).start()
+  │                                         REQ kind-4 #p=servicePubkey on NT_CONTROL_RELAYS
+  └── Bun.serve({ fetch: app.fetch, port }) HTTP listening
+```
+
+### 2. Payment received → webhook dispatched
+
+```
+ Wallet service                Relay                Nostr-trigger              Consumer
+      │                          │                        │                       │
+      │  publish kind-23197       │                        │                       │
+      │─────────────────────────►│                        │                       │
+      │                          │  forward to REQ        │                       │
+      │                          │───────────────────────►│  RelayPool.onEvent    │
+      │                          │                        │                       │
+      │                          │                        │  verifyEvent()        │
+      │                          │                        │  SET NX nt:dedup:<id> │
+      │                          │                        │  decrypt NIP-04/44    │
+      │                          │                        │  SET NX pmt dedup     │
+      │                          │                        │  audit: nwc_notification
+      │                          │                        │  advance cursor       │
+      │                          │                        │  emit dashboardBus    │
+      │                          │                        │  enqueueWebhook(ep)   │
+      │                          │                        │                       │
+      │                          │                        │  BullMQ worker pulls  │
+      │                          │                        │  POST with HMAC + IK  │
+      │                          │                        │──────────────────────►│
+      │                          │                        │                       │
+      │                          │                        │               2xx / 4xx / 5xx
+      │                          │                        │◄──────────────────────│
+      │                          │                        │                       │
+      │                          │                        │  bus.emit webhook evt │
+      │                          │                        │  (retry or audit)     │
+```
+
+### 3. Make invoice (client-initiated request)
+
+```
+ Dashboard / Caller         nostr-trigger                  Wallet service          Relay
+       │                         │                                │                  │
+       │  POST /.../make-invoice │                                │                  │
+       │────────────────────────►│  handlers.makeInvoice(id, ...) │                  │
+       │                         │  nwcRequest(pool, conn, ...)   │                  │
+       │                         │                                │                  │
+       │                         │  encryptNip04(req-body)        │                  │
+       │                         │  sign kind-23194               │                  │
+       │                         │  subscribe #e=req.id           │                  │
+       │                         │──────────────────────────────────────────────────►│
+       │                         │                                │  kind-23194      │
+       │                         │                                │◄─────────────────│
+       │                         │                                │  make invoice    │
+       │                         │                                │  sign 23195 #e   │
+       │                         │                                │─────────────────►│
+       │                         │  kind-23195 #e=req.id          │                  │
+       │                         │◄──────────────────────────────────────────────────│
+       │                         │  decrypt + parse result        │                  │
+       │                         │  QRCode.toString(invoice)      │                  │
+       │  {invoice, qrSvg, ...}  │                                │                  │
+       │◄────────────────────────│                                │                  │
+```
+
+### 4. DB change → subscription reconcile
+
+```
+ Any writer (web, psql)   Postgres               nostr-trigger (change-listener)    ConnectionManager
+       │                     │                          │                                   │
+       │  UPDATE NwcConnection│                         │                                   │
+       │────────────────────►│                         │                                   │
+       │                     │  AFTER trigger          │                                   │
+       │                     │  pg_notify(channel, j)  │                                   │
+       │                     │────────────────────────►│  pg.Client 'notification' event   │
+       │                     │                         │  parse {op, id, enabled}          │
+       │                     │                         │──────────────────────────────────►│  open/reload/close(id)
+       │                     │                         │                                   │  → RelayPool
+```
+
+### 5. SSE event stream (dashboard)
+
+```
+ Dashboard                            nostr-trigger
+    │                                      │
+    │ new EventSource('/…/stream?token=')  │
+    │─────────────────────────────────────►│ sseAuth
+    │                                      │ dashboardBus.subscribe(writeSSE)
+    │◄─ event: hello                       │
+    │                                      │
+    │    ◄── (quiet until ingest/webhook emits) ──
+    │                                      │
+    │◄─ event: notification data:{…}       │  EventIngest dashboardBus.emit
+    │◄─ event: webhook      data:{…}       │  BullMQ worker outcomes
+    │◄─ event: zap          data:{…}       │  ZapReceiptPublisher.publish
+    │◄─ event: ping 30s                    │  heartbeat
+```
 
 ---
 
@@ -277,6 +445,81 @@ Payload example:
 
 ---
 
+## Dashboard
+
+Served at `/dashboard` (and `/` redirects to it). A single HTML file emitted by [src/dashboard/html.ts](../../apps/nostr-trigger/src/dashboard/html.ts) — no build step, no external CDN, no framework, ~800 lines of vanilla JS + CSS. Designed for ops at a laptop, not public consumption.
+
+**Header**
+- ⚡ logo + live service-up badge
+- Admin bearer token input persisted in `localStorage` so subsequent sessions don't re-prompt. Ignored when `DANGEROUSLY_FREE=true`.
+
+**Tabs**
+
+| Tab | Contents |
+|---|---|
+| **Status** | `GET /api/v1/status` every 3s. Cards for uptime, active subs, relays connected, BullMQ queue depth (waiting / active / delayed / failed). Relay detail table with per-relay connected state and last error. |
+| **Connections** | `GET /api/v1/nwc-connections` every 7s. Per-row buttons: **invoice** (opens the make-invoice modal), **info** (probes the wallet's kind-13194 info event), **delete**. |
+| **Add NWC** | Form for `label` + `nwcUri` + `enabled`. Calls `POST /api/v1/nwc-connections`; the service parses, derives `clientPubkey`, encrypts the secret, and opens the subscription. |
+| **Live Events** | Connects an `EventSource` to `/api/v1/events/stream`. Renders `notification` / `webhook` / `zap` events as rows with time · type · subtype · inline summary. **Click a row** to expand the full payload JSON. Green live-dot in the tab name while the stream is healthy. |
+| **Settings** | Global webhook management — `GET /api/v1/webhooks` joined with connection labels. "Apply to all connections" option on the add-webhook form iterates `POST /api/v1/webhooks` once per NWC. |
+
+**Invoice modal** (triggered from the Connections tab): amount-in-sats + optional description → `POST /api/v1/nwc-connections/:id/make-invoice` → renders the returned bolt11 alongside a server-rendered QR SVG; a copy button hits the clipboard.
+
+---
+
+## NIP-47 outbound requests
+
+The service is primarily a *listener* for NWC notifications but also initiates requests of its own via [src/nostr/nwc-client.ts](../../apps/nostr-trigger/src/nostr/nwc-client.ts). Every outbound request:
+
+1. Encrypts the body with **NIP-04** (widest compatibility — most wallets, including Coinos, advertise no `encryption` tag on kind-13194 which per spec defaults to NIP-04 only).
+2. Signs as kind-23194 with the per-connection `clientSecret`.
+3. Opens a response sub filtered on `kinds=[23195]`, `authors=[walletPubkey]`, `#e=[request.id]` on the NWC's relays.
+4. Publishes the request.
+5. Waits up to 15s. On response, decrypts (NIP-44 → NIP-04 fallback), resolves with the parsed JSON-RPC-style `{ result_type, result }` or `{ error }`.
+6. Closes the response sub regardless of outcome.
+
+### `get_info` probe
+
+`fetchWalletInfo` in [src/nostr/info.ts](../../apps/nostr-trigger/src/nostr/info.ts) is a lighter shape that *doesn't* need a request — it issues `SimplePool.get({ kinds:[13194], authors:[walletPubkey] })` to grab the replaceable wallet-info event directly. Exposed as `GET /api/v1/nwc-connections/:id/info`; runs automatically at subscription-open time so the log line "wallet info probed — notifications supported/NOT advertised" is the first-line diagnostic for any "live events not arriving" ticket.
+
+Returned shape:
+
+```json
+{
+  "found": true,
+  "eventId": "29d24...e394",
+  "createdAt": 1776786384,
+  "supportedMethods": ["pay_invoice", "make_invoice", "lookup_invoice", ...],
+  "notifications": ["payment_received payment_sent"],
+  "encryption": ["nip44_v2", "nip04"],
+  "raw": { /* the unmodified kind-13194 event */ }
+}
+```
+
+### `make_invoice`
+
+`POST /api/v1/nwc-connections/:id/make-invoice`:
+
+```json
+{ "amountSats": 500, "description": "coffee", "expirySeconds": 3600 }
+```
+
+Response (200):
+
+```json
+{
+  "invoice": "lnbc5u1p5…",
+  "amountSats": 500,
+  "expiresAt": 1776890004,
+  "paymentHash": "…",
+  "qrSvg": "<svg xmlns=…>…</svg>"
+}
+```
+
+The `qrSvg` is a full `<svg>` document safe to inject directly into a page — dark-panel colors matching the dashboard.
+
+---
+
 ## Resilience guarantees
 
 | Failure mode | Mitigation |
@@ -299,6 +542,8 @@ All endpoints under `/api/v1/` require `Authorization: Bearer $NT_ADMIN_SECRET`.
 
 | Method | Path | Purpose |
 |---|---|---|
+| GET | `/` | 302 → `/dashboard` |
+| GET | `/dashboard` | single-page ops UI (HTML) |
 | GET | `/health` | liveness — returns 200 immediately |
 | GET | `/ready` | readiness — 200 only if DB + Redis + pool reachable |
 
@@ -313,6 +558,9 @@ All endpoints under `/api/v1/` require `Authorization: Bearer $NT_ADMIN_SECRET`.
 | PATCH | `/api/v1/nwc-connections/:id` | `{ label?, enabled?, relays? }` | Update; reloads subscription if relays/enabled changed |
 | DELETE | `/api/v1/nwc-connections/:id` | — | Delete + tear down sub |
 | GET | `/api/v1/nwc-connections/:id/webhooks` | — | List webhooks for an NWC |
+| GET | `/api/v1/nwc-connections/:id/info` | — | Probe the wallet's kind-13194 info event (capabilities + notifications + encryption) |
+| POST | `/api/v1/nwc-connections/:id/make-invoice` | `{ amountSats, description?, expirySeconds? }` | Sign + publish a kind-23194 `make_invoice` request, wait for the matching 23195 response, return `{ invoice, amountSats, expiresAt, paymentHash, qrSvg }` |
+| GET | `/api/v1/webhooks` | — | List **every** webhook across all NWCs, joined with the connection label. Secret omitted. |
 | POST | `/api/v1/webhooks` | `{ nwcConnectionId, url, secret?, eventKinds?, enabled? }` | Create; returns plaintext `secret` once |
 | DELETE | `/api/v1/webhooks/:id` | — | Delete |
 | POST | `/api/v1/webhooks/:id/test` | — | Enqueue a synthetic event to verify the endpoint |
@@ -323,6 +571,7 @@ All endpoints under `/api/v1/` require `Authorization: Bearer $NT_ADMIN_SECRET`.
 | DELETE | `/api/v1/admins/:id` | — | Remove |
 | GET | `/api/v1/audit?limit=100` | — | Most recent `AuditEvent` rows |
 | POST | `/api/v1/zap/publish` | `{ bolt11, preimage?, zapRequest, recipientPubkey, extraRelays? }` | Sign + publish a NIP-57 kind-9735 receipt |
+| GET | `/api/v1/events/stream` | query: `token=<adminSecret>` | Server-Sent Events. Emits `notification` / `webhook` / `zap` / `ping` events from the in-process bus. Auth accepts either `Authorization: Bearer` header or `?token=` query param because `EventSource` can't set headers. |
 
 ### Error codes
 
@@ -374,6 +623,22 @@ Every successful Nostr command writes an `AuditEvent` row with `source:"nostr"`,
 
 ---
 
+## Data model
+
+Five Prisma models in [packages/prisma/schema.prisma](../../packages/prisma/schema.prisma) are owned by this service:
+
+| Model | Purpose | Notes |
+|---|---|---|
+| `NwcConnection` | One row per wallet connection the service tracks. | `clientSecret` and `walletPubkey` are both hex. `clientSecret` is AES-256-GCM encrypted at rest with `NT_MASTER_KEY` before insert; decrypted only in memory. `relays` is `text[]`. Optional FK to `User` as `ownerUserId`. |
+| `WebhookEndpoint` | Per-NWC HTTP delivery target. | `secret` stores an AES-encrypted HMAC key used to sign the body of each delivery. `eventKinds` filters which Nostr event kinds trigger a POST. `ON DELETE CASCADE` of the parent connection. |
+| `NostrTriggerAdmin` | Pubkey allowlist for the Nostr control plane. | Consulted alongside `User.role = 'ADMIN'` in `NostrControlPlane.authorize`. |
+| `AuditEvent` | Append-only log of every state change + every notification processed. | `source = 'http' \| 'nostr' \| 'runtime'`; `actor` is the sender pubkey (or `system`). Payload is a free-form JSONB blob — the ingest handler stores the decrypted NIP-47 notification here. |
+| `ZapReceiptLedger` | NIP-57 kind-9735 events this service has signed. | `eventId` is `UNIQUE` so re-publish attempts are idempotent at the data layer. |
+
+A single migration ([20260421120000_nostr_trigger](../../packages/prisma/migrations/20260421120000_nostr_trigger/migration.sql)) adds all five. A second migration ([20260421180000_nwc_change_notify](../../packages/prisma/migrations/20260421180000_nwc_change_notify/migration.sql)) installs the trigger described under **Database change propagation**.
+
+---
+
 ## Environment variables
 
 | Var | Required | Default | Purpose |
@@ -414,6 +679,31 @@ Intended use cases: local development, CI smoke tests, integration fixtures. **N
 ---
 
 ## Operational runbook
+
+### From-zero quick start
+
+```bash
+# 1. Dependencies up
+docker compose up -d postgres redis
+
+# 2. Apply migrations (installs models + the NOTIFY trigger)
+pnpm --filter @lawallet-nwc/prisma run db:migrate:deploy
+
+# 3. Fill env
+cp apps/nostr-trigger/.env.example apps/nostr-trigger/.env
+# Generate the two required secrets and paste them into .env:
+openssl rand -base64 32    # → NT_MASTER_KEY
+openssl rand -hex 32       # → NT_ADMIN_SECRET
+# Paste or generate a service nsec (bun -e "console.log(require('nostr-tools/nip19').nsecEncode(require('nostr-tools/pure').generateSecretKey()))")
+# If running locally without TLS/tokens, set DANGEROUSLY_FREE=true instead of an admin secret.
+
+# 4. Run
+pnpm --filter @lawallet-nwc/nostr-trigger dev
+
+# 5. Open http://localhost:3010/dashboard
+```
+
+You should see **service up** in the header, the Status tab cards all populated, and a green dot next to "Live Events". Add an NWC URI under **Add NWC**, and the Connections tab will show a row within ~1s.
 
 ### Start locally
 
@@ -472,6 +762,22 @@ curl -sS -X POST http://localhost:3010/api/v1/relays/reload \
 redis-cli --scan --pattern 'nt:dedup:*' | xargs -n 100 redis-cli del
 ```
 Only do this if you've verified nothing currently depends on dedup persistence; any in-flight events will be reprocessed.
+
+---
+
+### Diagnose "live events not arriving"
+
+Three layers to check, in order:
+
+1. **Did the wallet advertise notifications?** Click **info** on the Connections row (or `GET /api/v1/nwc-connections/:id/info`). The returned `notifications` array should include `payment_received` (or the wallet's own space-separated form of it). If empty, the wallet doesn't push — nothing the service can do.
+2. **Did the relay connection open?** `GET /api/v1/status` → `relays[]` should list the NWC's relays with `connected: true`.
+3. **Did events actually arrive?** Tail logs for `relay event received`. If yes but Live Events tab is empty, the handler dropped them — check for `duplicate event`, `decryption failed`, or `ingest handler failed` log lines.
+
+### Diagnose "webhook not firing"
+
+1. **Did the enqueue succeed?** Fire **test** on the webhook row. If the response is `{ enqueued: true }`, the queue is happy.
+2. **Is the worker consuming?** `GET /status` → `queue.active` should go 0 → 1 → 0 within a couple of seconds.
+3. **What was the outcome?** `GET /api/v1/audit?limit=50` — the worker writes `webhook_terminal_failure` or `webhook_exhausted` rows on non-success. Success produces no audit row (only a log line `webhook delivered`).
 
 ---
 
