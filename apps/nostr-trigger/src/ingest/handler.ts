@@ -2,7 +2,7 @@ import { verifyEvent, type Event } from 'nostr-tools'
 import type { NwcConnection, WebhookEndpoint } from '@lawallet-nwc/prisma'
 import { prisma } from '../db/prisma.js'
 import { createChildLogger } from '../logger.js'
-import { claimEventId } from './dedup.js'
+import { claimEventId, claimPaymentNotification } from './dedup.js'
 import { advanceCursor } from './cursor.js'
 import { decryptWithFallback } from '../nostr/encryption.js'
 import { decryptSecret } from '../security/crypto.js'
@@ -60,6 +60,38 @@ export async function handleNwcNotification(input: IngestInput): Promise<void> {
     payload = { raw: decrypted }
   }
 
+  // NIP-47 notification envelope:
+  //   { "notification_type": "payment_received",
+  //     "notification": { "payment_hash": "...", "amount": msats, ... } }
+  const payloadObj = (payload ?? {}) as Record<string, unknown>
+  const inner = (payloadObj['notification'] ?? {}) as Record<string, unknown>
+  const notificationType =
+    typeof payloadObj['notification_type'] === 'string'
+      ? (payloadObj['notification_type'] as string)
+      : null
+  const paymentHash =
+    typeof inner['payment_hash'] === 'string' ? (inner['payment_hash'] as string) : null
+  const amount = typeof inner['amount'] === 'number' ? (inner['amount'] as number) : null
+  const description =
+    typeof inner['description'] === 'string' ? (inner['description'] as string) : null
+
+  // Dedup the dual-kind case (some wallets publish the same payment notice
+  // as both kind-23196 AND kind-23197). Only possible once we've decrypted.
+  if (notificationType && paymentHash) {
+    const firstSeen = await claimPaymentNotification(
+      nwcConnection.id,
+      notificationType,
+      paymentHash
+    )
+    if (!firstSeen) {
+      log.debug(
+        { id: event.id, paymentHash, notificationType },
+        'duplicate payment notification across encryption variants — skipping'
+      )
+      return
+    }
+  }
+
   await prisma.auditEvent.create({
     data: {
       source: 'runtime',
@@ -71,6 +103,10 @@ export async function handleNwcNotification(input: IngestInput): Promise<void> {
         kind: event.kind,
         relayUrl,
         createdAt: event.created_at,
+        notificationType,
+        paymentHash,
+        amount,
+        description,
         payload: payload as object
       } as object
     }
@@ -116,6 +152,10 @@ export async function handleNwcNotification(input: IngestInput): Promise<void> {
     eventKind: event.kind,
     relayUrl,
     createdAt: event.created_at,
+    notificationType,
+    paymentHash,
+    amount,
+    description,
     payload,
     ts: Date.now()
   })

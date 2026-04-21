@@ -100,5 +100,35 @@ export function dashboardRoutes(): Hono {
     })
   })
 
+  // Dev-only: synthesise a notification event straight into the bus.
+  // Useful for dashboard UX development without waiting for a real payment.
+  app.post('/api/v1/events/test', sseAuth, async c => {
+    const body = await c.req.json().catch(() => ({}))
+    const type = (body as { type?: string }).type ?? 'payment_received'
+    dashboardBus.emit({
+      type: 'notification',
+      nwcConnectionId: 'test-nwc-id',
+      eventId: 'test-' + Math.random().toString(36).slice(2, 10),
+      eventKind: type === 'payment_sent' ? 23196 : 23197,
+      relayUrl: 'wss://test.example',
+      createdAt: Math.floor(Date.now() / 1000),
+      notificationType: type,
+      paymentHash: 'abcd1234ef567890' + Math.random().toString(36).slice(2, 18),
+      amount: 21000,
+      description: 'Synthetic ' + type + ' event',
+      payload: {
+        notification_type: type,
+        notification: {
+          type: type === 'payment_sent' ? 'outgoing' : 'incoming',
+          invoice: 'lnbc21n...',
+          amount: 21000,
+          payment_hash: 'abcd1234'
+        }
+      },
+      ts: Date.now()
+    })
+    return c.json({ success: true, data: { emitted: true } })
+  })
+
   return app
 }

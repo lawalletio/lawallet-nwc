@@ -11,6 +11,14 @@ export type NotificationEvent = {
   eventKind: number
   relayUrl: string
   createdAt: number
+  /** e.g. "payment_received", "payment_sent" — from decrypted payload */
+  notificationType: string | null
+  /** hex, from the inner notification body */
+  paymentHash: string | null
+  /** amount in msats (NIP-47 reports msats) */
+  amount: number | null
+  /** optional memo / description */
+  description: string | null
   payload: unknown
   ts: number
 }

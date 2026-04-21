@@ -112,14 +112,30 @@ export function dashboardHtml(): string {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 12px; line-height: 1.6;
   }
-  .events .row { padding: 6px 12px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 80px 110px 1fr; gap: 10px; align-items: baseline; }
+  .events .row { padding: 6px 12px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 80px 100px 150px 1fr; gap: 10px; align-items: baseline; cursor: pointer; }
+  .events .row:hover { background: var(--panel-2); }
   .events .row:last-child { border-bottom: none; }
   .events .ts { color: var(--muted); }
   .events .type { font-weight: 600; }
   .events .type.notification { color: var(--accent-2); }
   .events .type.webhook { color: var(--accent); }
   .events .type.zap { color: var(--warn); }
-  .events .body { overflow-x: auto; white-space: nowrap; text-overflow: ellipsis; }
+  .events .subtype { color: var(--text); font-weight: 500; font-size: 11px; }
+  .events .subtype.payment_received { color: var(--ok); }
+  .events .subtype.payment_sent { color: var(--warn); }
+  .events .subtype.success { color: var(--ok); }
+  .events .subtype.retry, .events .subtype.terminal, .events .subtype.exhausted { color: var(--danger); }
+  .events .body { overflow-x: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); }
+  .events .detail {
+    border-bottom: 1px solid var(--border);
+    background: #0a0c10;
+    padding: 10px 16px 14px;
+    font-size: 11px;
+    color: var(--text);
+    max-height: 320px;
+    overflow: auto;
+  }
+  .events .detail pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
   .muted { color: var(--muted); }
   .error { color: var(--danger); padding: 10px 0; font-size: 12px; }
   .empty { color: var(--muted); padding: 20px; text-align: center; }
@@ -183,6 +199,7 @@ export function dashboardHtml(): string {
     <button data-tab="connections">Connections</button>
     <button data-tab="add">Add NWC</button>
     <button data-tab="events"><span class="live-dot" id="live-dot"></span>Live Events</button>
+    <button data-tab="settings">Settings</button>
   </nav>
   <main>
     <section class="tab active" data-tab="status">
@@ -231,6 +248,33 @@ export function dashboardHtml(): string {
         streaming <code>/api/v1/events/stream</code> — keep this tab open to watch incoming payments.
       </div>
       <div class="events" id="events-log"><div class="empty">no events yet</div></div>
+    </section>
+
+    <section class="tab" data-tab="settings">
+      <h3 style="margin: 0 0 10px; font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted);">Webhook notifications</h3>
+      <div class="muted" style="margin-bottom: 12px; max-width: 720px;">
+        Every NWC notification received by this service is POSTed to its configured webhook URLs with an <code>Idempotency-Key</code> header and an HMAC-SHA256 signature (<code>X-LaWallet-Signature</code>) of the body.
+      </div>
+      <div class="card" style="padding: 0; margin-bottom: 16px;">
+        <table>
+          <thead><tr><th>URL</th><th>Connection</th><th>Kinds</th><th>State</th><th>Created</th><th style="min-width:160px"></th></tr></thead>
+          <tbody id="hook-rows"><tr><td colspan="6" class="empty">loading…</td></tr></tbody>
+        </table>
+      </div>
+      <h3 style="margin: 18px 0 10px; font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted);">Add webhook</h3>
+      <form class="stack" id="hook-form">
+        <label>URL
+          <input type="url" name="url" placeholder="https://example.com/webhook" required />
+        </label>
+        <label>NWC connection
+          <select name="nwcConnectionId" id="hook-nwc-select" required>
+            <option value="">loading…</option>
+          </select>
+        </label>
+        <button type="submit">Create webhook</button>
+      </form>
+      <div class="error" id="hook-error"></div>
+      <div class="muted" id="hook-ok" style="margin-top: 12px;"></div>
     </section>
   </main>
 
@@ -450,29 +494,62 @@ export function dashboardHtml(): string {
         qs('#live-dot').classList.remove('on');
       }
     };
+    const expandedIdx = new Set();
     const renderEvents = () => {
       if (eventLog.length === 0) {
         qs('#events-log').innerHTML = '<div class="empty">no events yet</div>';
         return;
       }
-      qs('#events-log').innerHTML = eventLog.map(e => {
+      qs('#events-log').innerHTML = eventLog.map((e, idx) => {
         const ts = new Date(e.ts || Date.now()).toLocaleTimeString();
         const type = escape(e.type || 'event');
+        const subtypeRaw = subtypeOf(e);
+        const subtypeCls = subtypeRaw ? escape(subtypeRaw) : '';
+        const subtype = subtypeRaw ? '<span class="subtype ' + subtypeCls + '">' + escape(subtypeRaw) + '</span>' : '<span class="subtype"></span>';
         const summary = summarize(e);
-        return '<div class="row">' +
+        const expanded = expandedIdx.has(idx);
+        const row = '<div class="row" data-idx="' + idx + '">' +
           '<span class="ts">' + ts + '</span>' +
           '<span class="type ' + type + '">' + type + '</span>' +
+          subtype +
           '<span class="body">' + summary + '</span>' +
         '</div>';
+        const detail = expanded
+          ? '<div class="detail"><pre>' + escape(JSON.stringify(e, null, 2)) + '</pre></div>'
+          : '';
+        return row + detail;
       }).join('');
+      qsa('#events-log .row').forEach(r => {
+        r.onclick = () => {
+          const idx = parseInt(r.dataset.idx, 10);
+          if (expandedIdx.has(idx)) expandedIdx.delete(idx);
+          else expandedIdx.add(idx);
+          renderEvents();
+        };
+      });
+    };
+    const subtypeOf = e => {
+      if (e.type === 'notification') return e.notificationType || '';
+      if (e.type === 'webhook') return e.outcome || '';
+      return '';
+    };
+    const fmtSats = msats => {
+      if (msats == null) return null;
+      const sats = Math.floor(msats / 1000);
+      return sats.toLocaleString() + ' sats';
     };
     const summarize = e => {
       if (e.type === 'notification') {
-        return 'nwc=' + shortId(e.nwcConnectionId) + ' · kind=' + e.eventKind +
-          ' · id=' + shortHex(e.eventId) + ' · ' + escape(e.relayUrl || '');
+        const bits = [];
+        const sats = fmtSats(e.amount);
+        if (sats) bits.push(sats);
+        if (e.paymentHash) bits.push('hash ' + shortHex(e.paymentHash));
+        if (e.description) bits.push('“' + escape(e.description.slice(0, 40)) + (e.description.length > 40 ? '…' : '') + '”');
+        bits.push('kind ' + e.eventKind);
+        return bits.join(' · ');
       }
       if (e.type === 'webhook') {
-        return e.outcome + ' · ep=' + shortId(e.webhookEndpointId) +
+        return 'ep=' + shortId(e.webhookEndpointId) +
           ' · eid=' + shortHex(e.eventId) +
           (e.status != null ? ' · status=' + e.status : '') +
           (e.reason ? ' · ' + escape(e.reason) : '');
@@ -482,6 +559,101 @@ export function dashboardHtml(): string {
           ' · relays=' + (e.relays || []).length;
       }
       return escape(JSON.stringify(e));
+    };
+
+    // --- settings (webhooks) ---
+    const refreshWebhooks = async () => {
+      qs('#hook-error').textContent = '';
+      try {
+        const [hooks, conns] = await Promise.all([
+          api('/api/v1/webhooks'),
+          api('/api/v1/nwc-connections')
+        ]);
+        // populate NWC select
+        const select = qs('#hook-nwc-select');
+        const currentValue = select.value;
+        select.innerHTML = '<option value="__ALL__">— apply to all connections —</option>' +
+          conns.map(c => '<option value="' + escape(c.id) + '">' + escape(c.label) + '</option>').join('');
+        if (currentValue) select.value = currentValue;
+
+        qs('#hook-rows').innerHTML = hooks.length === 0
+          ? '<tr><td colspan="6" class="empty">no webhooks configured</td></tr>'
+          : hooks.map(h => {
+            const label = h.nwcConnection?.label ?? shortId(h.nwcConnectionId);
+            return '<tr>' +
+              '<td class="mono" style="max-width: 320px; overflow: hidden; text-overflow: ellipsis;">' + escape(h.url) + '</td>' +
+              '<td>' + escape(label) + '</td>' +
+              '<td class="mono muted">' + (h.eventKinds || []).join(',') + '</td>' +
+              '<td>' + (h.enabled ? '<span class="pill ok">enabled</span>' : '<span class="pill warn">disabled</span>') + '</td>' +
+              '<td class="muted">' + new Date(h.createdAt).toLocaleString() + '</td>' +
+              '<td>' +
+                '<button class="btn-small" data-hook-test="' + h.id + '">test</button> ' +
+                '<button class="btn-small danger" data-hook-delete="' + h.id + '">delete</button>' +
+              '</td>' +
+            '</tr>';
+          }).join('');
+        qsa('[data-hook-test]').forEach(b => {
+          b.onclick = async () => {
+            const prev = b.textContent; b.textContent = 'firing…'; b.disabled = true;
+            try {
+              await api('/api/v1/webhooks/' + b.dataset.hookTest + '/test', { method: 'POST' });
+              b.textContent = 'sent';
+              setTimeout(() => { b.textContent = prev; b.disabled = false; }, 1200);
+            } catch (err) {
+              qs('#hook-error').textContent = err.message;
+              b.textContent = prev; b.disabled = false;
+            }
+          };
+        });
+        qsa('[data-hook-delete]').forEach(b => {
+          b.onclick = async () => {
+            if (!confirm('Delete this webhook?')) return;
+            try {
+              await api('/api/v1/webhooks/' + b.dataset.hookDelete, { method: 'DELETE' });
+              refreshWebhooks();
+            } catch (err) { qs('#hook-error').textContent = err.message; }
+          };
+        });
+      } catch (err) {
+        qs('#hook-error').textContent = err.message;
+      }
+    };
+    qs('#hook-form').onsubmit = async ev => {
+      ev.preventDefault();
+      qs('#hook-error').textContent = '';
+      qs('#hook-ok').textContent = '';
+      const btn = qs('#hook-form button[type=submit]');
+      btn.disabled = true;
+      const form = new FormData(ev.target);
+      const url = form.get('url');
+      const nwcChoice = form.get('nwcConnectionId');
+      try {
+        if (nwcChoice === '__ALL__') {
+          const conns = await api('/api/v1/nwc-connections');
+          if (conns.length === 0) throw new Error('No NWC connections to attach to');
+          let created = 0;
+          for (const c of conns) {
+            await api('/api/v1/webhooks', {
+              method: 'POST',
+              body: JSON.stringify({ nwcConnectionId: c.id, url })
+            });
+            created++;
+          }
+          qs('#hook-ok').textContent = 'created ' + created + ' webhook' + (created === 1 ? '' : 's');
+        } else {
+          const w = await api('/api/v1/webhooks', {
+            method: 'POST',
+            body: JSON.stringify({ nwcConnectionId: nwcChoice, url })
+          });
+          qs('#hook-ok').textContent = 'created webhook ' + w.id;
+        }
+        ev.target.reset();
+        refreshWebhooks();
+      } catch (err) {
+        qs('#hook-error').textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
     };
 
     // --- invoice modal ---
@@ -582,6 +754,7 @@ export function dashboardHtml(): string {
       refreshMode();
       refreshStatus();
       refreshConnections();
+      refreshWebhooks();
     };
 
     refreshAll();
