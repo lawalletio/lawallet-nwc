@@ -14,6 +14,13 @@
       "runtimeArgs": ["-c", "source $HOME/.nvm/nvm.sh && nvm use 22.14.0 > /dev/null && pnpm --filter @lawallet-nwc/docs dev"],
       "port": 3001,
       "autoPort": true
+    },
+    {
+      "name": "nostr-trigger",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-c", "source $HOME/.nvm/nvm.sh && nvm use 22.14.0 > /dev/null && pnpm --filter @lawallet-nwc/nostr-trigger dev"],
+      "port": 3010,
+      "autoPort": true
     }
   ]
 }

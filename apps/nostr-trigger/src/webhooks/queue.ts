@@ -4,10 +4,11 @@ import { createChildLogger } from '../logger.js'
 import { prisma } from '../db/prisma.js'
 import { dispatchWebhook, type WebhookJobData } from './dispatcher.js'
 import { computeDelayMs, buildRetryPolicy } from './retry-policy.js'
+import { dashboardBus } from '../events/bus.js'
 
 const log = createChildLogger({ module: 'webhook-queue' })
 
-const QUEUE_NAME = 'nt:webhooks'
+const QUEUE_NAME = 'nt-webhooks'
 
 let queue: Queue<WebhookJobData> | null = null
 let worker: Worker<WebhookJobData> | null = null
@@ -45,6 +46,14 @@ export function startWebhookWorker(): Worker<WebhookJobData> {
           { jobId: job.id, status: result.status },
           'webhook delivered'
         )
+        dashboardBus.emit({
+          type: 'webhook',
+          outcome: 'success',
+          webhookEndpointId: job.data.webhookEndpointId,
+          eventId: job.data.eventId,
+          status: result.status,
+          ts: Date.now()
+        })
         return result
       }
       if (result.kind === 'terminal') {
@@ -65,9 +74,27 @@ export function startWebhookWorker(): Worker<WebhookJobData> {
           { jobId: job.id, reason: result.reason },
           'webhook terminal failure — not retrying'
         )
+        dashboardBus.emit({
+          type: 'webhook',
+          outcome: 'terminal',
+          webhookEndpointId: job.data.webhookEndpointId,
+          eventId: job.data.eventId,
+          status: result.status,
+          reason: result.reason,
+          ts: Date.now()
+        })
         await job.discard()
         return result
       }
+      dashboardBus.emit({
+        type: 'webhook',
+        outcome: 'retry',
+        webhookEndpointId: job.data.webhookEndpointId,
+        eventId: job.data.eventId,
+        status: result.status,
+        reason: result.reason,
+        ts: Date.now()
+      })
       throw new Error(`retryable: ${result.reason} (status=${result.status})`)
     },
     {
@@ -99,6 +126,14 @@ export function startWebhookWorker(): Worker<WebhookJobData> {
         { jobId: job.id, attempts: job.attemptsMade, err: err.message },
         'webhook exhausted all retries'
       )
+      dashboardBus.emit({
+        type: 'webhook',
+        outcome: 'exhausted',
+        webhookEndpointId: job.data.webhookEndpointId,
+        eventId: job.data.eventId,
+        reason: err.message,
+        ts: Date.now()
+      })
     }
   })
 

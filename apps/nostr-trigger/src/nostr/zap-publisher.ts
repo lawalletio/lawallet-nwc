@@ -5,6 +5,7 @@ import { createChildLogger } from '../logger.js'
 import { prisma } from '../db/prisma.js'
 import { nsecToHex } from './nwc.js'
 import type { RelayPool } from './pool.js'
+import { dashboardBus } from '../events/bus.js'
 
 const log = createChildLogger({ module: 'zap-publisher' })
 
@@ -88,6 +89,14 @@ export class ZapReceiptPublisher {
         zapRequest: input.zapRequest as unknown as object,
         relays: accepted
       }
+    })
+
+    dashboardBus.emit({
+      type: 'zap',
+      eventId: receipt.id,
+      recipient: input.recipientPubkey,
+      relays: accepted,
+      ts: Date.now()
     })
 
     return { eventId: receipt.id, relays: accepted }

@@ -10,6 +10,7 @@ import { relayRoutes } from './routes/relays.js'
 import { adminRoutes } from './routes/admins.js'
 import { auditRoutes } from './routes/audit.js'
 import { zapRoutes } from './routes/zap.js'
+import { dashboardRoutes } from './routes/dashboard.js'
 
 const log = createChildLogger({ module: 'http' })
 
@@ -22,6 +23,9 @@ export function buildServer(handlers: Handlers): Hono {
       log.info({ extra: rest }, message)
     })
   )
+
+  // Dashboard (HTML) + SSE — mounted at root; the SSE endpoint has its own auth
+  app.route('/', dashboardRoutes())
 
   // public liveness/readiness — no auth
   app.get('/health', c =>

@@ -7,6 +7,7 @@ import { advanceCursor } from './cursor.js'
 import { decryptWithFallback } from '../nostr/encryption.js'
 import { decryptSecret } from '../security/crypto.js'
 import { enqueueWebhook } from '../webhooks/queue.js'
+import { dashboardBus } from '../events/bus.js'
 
 const log = createChildLogger({ module: 'ingest' })
 
@@ -107,4 +108,15 @@ export async function handleNwcNotification(input: IngestInput): Promise<void> {
     },
     'nwc notification ingested'
   )
+
+  dashboardBus.emit({
+    type: 'notification',
+    nwcConnectionId: nwcConnection.id,
+    eventId: event.id,
+    eventKind: event.kind,
+    relayUrl,
+    createdAt: event.created_at,
+    payload,
+    ts: Date.now()
+  })
 }

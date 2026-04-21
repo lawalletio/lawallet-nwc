@@ -41,6 +41,7 @@ export type Handlers = ReturnType<typeof createHandlers>
 export function createHandlers(deps: CommandDeps) {
   return {
     status: async () => ({
+      uptimeSeconds: Math.floor(process.uptime()),
       relays: deps.relayPool.status(),
       activeSubs: deps.connectionManager.activeSubCount(),
       queue: await queueDepth()
