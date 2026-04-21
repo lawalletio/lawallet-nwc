@@ -8,6 +8,10 @@ export function webhookRoutes(handlers: Handlers): Hono {
   const app = new Hono()
   app.use('*', bearerAuth)
 
+  app.get('/webhooks', async c => {
+    return c.json({ success: true, data: await handlers.listAllWebhooks() })
+  })
+
   app.post('/webhooks', async c => {
     const input = await parseJson(c, createWebhookSchema)
     const created = await handlers.createWebhook(input, { source: 'http' })

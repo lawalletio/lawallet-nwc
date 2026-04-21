@@ -195,6 +195,15 @@ export function createHandlers(deps: CommandDeps) {
         orderBy: { createdAt: 'desc' }
       }),
 
+    listAllWebhooks: async () => {
+      const rows = await prisma.webhookEndpoint.findMany({
+        include: { nwcConnection: { select: { id: true, label: true } } },
+        orderBy: { createdAt: 'desc' }
+      })
+      // never expose the (even encrypted) secret to the dashboard
+      return rows.map(({ secret: _s, ...rest }) => rest)
+    },
+
     createWebhook: async (
       input: CreateWebhookInput,
       actor: Actor
