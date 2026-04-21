@@ -1,15 +1,14 @@
-import { PrismaClient } from '../lib/generated/prisma'
-import { mockUserData } from '../mocks/user'
-import { mockLightningAddressData } from '../mocks/lightning-address'
-import { mockNtag424Data } from '../mocks/ntag424'
-import { mockCardDesignData } from '../mocks/card-design'
+import { PrismaClient } from './generated/index.js'
+import { mockUserData } from '../../../apps/web/mocks/user'
+import { mockLightningAddressData } from '../../../apps/web/mocks/lightning-address'
+import { mockNtag424Data } from '../../../apps/web/mocks/ntag424'
+import { mockCardDesignData } from '../../../apps/web/mocks/card-design'
 
 const prisma = new PrismaClient()
 
 async function main() {
   console.log('🌱 Starting seeding...')
 
-  // Create users first since they are referenced by other entities
   console.log('Creating users...')
   const users = await Promise.all(
     mockUserData.map(user =>
@@ -25,7 +24,6 @@ async function main() {
   )
   console.log(`Created ${users.length} users`)
 
-  // Create lightning addresses with their user relationships
   console.log('Creating lightning addresses...')
   await Promise.all(
     mockLightningAddressData.map((la, index) =>
@@ -33,7 +31,6 @@ async function main() {
         data: {
           username: la.username,
           createdAt: la.createdAt,
-          // Each lightning address belongs to a user with matching pubkey
           userId:
             mockUserData.find(u => u.pubkey === la.pubkey)?.id ||
             users[index].id
@@ -43,7 +40,6 @@ async function main() {
   )
   console.log(`Created ${mockLightningAddressData.length} lightning addresses`)
 
-  // Create card designs
   console.log('Creating card designs...')
   const cardDesigns = await Promise.all(
     mockCardDesignData.map((design, index) =>
@@ -53,7 +49,6 @@ async function main() {
           imageUrl: design.imageUrl,
           description: design.description,
           createdAt: design.createdAt,
-          // Distribute designs among users
           userId: users[index % users.length].id
         }
       })
@@ -61,7 +56,6 @@ async function main() {
   )
   console.log(`Created ${cardDesigns.length} card designs`)
 
-  // Create Ntag424 entries and their associated cards
   console.log('Creating Ntag424 entries and cards...')
   await Promise.all(
     mockNtag424Data.map((ntag, index) =>

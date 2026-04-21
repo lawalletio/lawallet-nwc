@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import type { PrismaClient } from '@/lib/generated/prisma'
+import type { PrismaClient } from '@lawallet-nwc/prisma'
 
 // Deep mock of PrismaClient for unit tests
 // Each model gets its own set of mock methods
@@ -40,7 +40,7 @@ function createPrismaMock(): PrismaClient {
   } as unknown as PrismaClient
 }
 
-export const prismaMock = createPrismaMock()
+export const prismaMock: PrismaClient = createPrismaMock()
 
 // Mock the prisma import
 vi.mock('@/lib/prisma', () => ({
