@@ -39,6 +39,7 @@ model User {
   albySubAccount   AlbySubAccount?
   albyEnabled      Boolean           @default(false)
   role             UserRole          @default(USER)
+  nwcConnections   NwcConnection[]
 
   @@index([role])
 }
@@ -134,4 +135,74 @@ model Invoice {
   @@index([userId])
   @@index([status])
   @@index([purpose, status])
+}
+
+// ============================================================================
+// nostr-trigger service models
+// ============================================================================
+
+model NwcConnection {
+  id           String            @id @default(cuid())
+  label        String
+  walletPubkey String
+  clientPubkey String
+  clientSecret String
+  relays       String[]
+  enabled      Boolean           @default(true)
+  ownerUserId  String?
+  owner        User?             @relation(fields: [ownerUserId], references: [id])
+  webhooks     WebhookEndpoint[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([walletPubkey])
+  @@index([ownerUserId])
+  @@index([enabled])
+}
+
+model WebhookEndpoint {
+  id              String        @id @default(cuid())
+  nwcConnectionId String
+  nwcConnection   NwcConnection @relation(fields: [nwcConnectionId], references: [id], onDelete: Cascade)
+  url             String
+  secret          String
+  eventKinds      Int[]         @default([23196, 23197])
+  enabled         Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+
+  @@index([nwcConnectionId])
+}
+
+model NostrTriggerAdmin {
+  id        String   @id @default(cuid())
+  pubkey    String   @unique
+  label     String?
+  addedBy   String?
+  createdAt DateTime @default(now())
+}
+
+model AuditEvent {
+  id      String   @id @default(cuid())
+  ts      DateTime @default(now())
+  source  String
+  actor   String?
+  action  String
+  target  String?
+  payload Json?
+
+  @@index([ts])
+  @@index([actor])
+  @@index([action])
+}
+
+model ZapReceiptLedger {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  bolt11      String
+  recipient   String
+  zapRequest  Json
+  publishedAt DateTime @default(now())
+  relays      String[]
+
+  @@index([recipient])
 }
