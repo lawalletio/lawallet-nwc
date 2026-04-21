@@ -47,6 +47,15 @@ export class RelayPool {
 
     const sub = this.pool.subscribeMany(relays, opts.filter, {
       onevent: (ev: Event) => {
+        log.info(
+          {
+            subId: opts.subId,
+            eventId: ev.id,
+            kind: ev.kind,
+            from: ev.pubkey
+          },
+          'relay event received'
+        )
         try {
           opts.onEvent(ev, relays[0] ?? '')
         } catch (err) {
@@ -85,6 +94,24 @@ export class RelayPool {
       'subscription opened'
     )
     return handle
+  }
+
+  /**
+   * Fetches a single event matching `filter` from the union of `relays`.
+   * Resolves null if no event is returned within `timeoutMs`.
+   */
+  async fetchOne(
+    relays: string[],
+    filter: Filter,
+    timeoutMs = 5000
+  ): Promise<Event | null> {
+    const normalized = relays.map(normalizeRelayUrl)
+    try {
+      return await this.pool.get(normalized, filter, { maxWait: timeoutMs })
+    } catch (err) {
+      log.warn({ err, filter }, 'fetchOne failed')
+      return null
+    }
   }
 
   async publish(relays: string[], event: Event): Promise<{

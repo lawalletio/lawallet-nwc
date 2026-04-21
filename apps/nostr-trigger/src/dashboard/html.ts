@@ -132,6 +132,41 @@ export function dashboardHtml(): string {
   .btn-small:hover { border-color: var(--accent); }
   .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-right: 6px; vertical-align: middle; }
   .live-dot.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; width: 420px; max-width: 92vw;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+  .modal .close-x {
+    float: right; background: none; border: none; color: var(--muted);
+    font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1;
+  }
+  .modal .qr-wrap {
+    display: flex; justify-content: center; padding: 10px 0;
+    background: var(--panel-2); border-radius: 8px; border: 1px solid var(--border);
+  }
+  .modal .qr-wrap svg { display: block; max-width: 100%; height: auto; }
+  .modal .invoice-box {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; margin-top: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px; line-height: 1.4; word-break: break-all; color: var(--text);
+    cursor: pointer; user-select: all;
+  }
+  .modal .invoice-box:hover { border-color: var(--accent); }
+  .modal .meta { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .modal .meta b { color: var(--text); font-weight: 500; }
+  .modal .copied-flash {
+    display: inline-block; margin-left: 8px; color: var(--ok); font-size: 11px;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .modal .copied-flash.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -171,7 +206,7 @@ export function dashboardHtml(): string {
     <section class="tab" data-tab="connections">
       <div class="card" style="padding: 0;">
         <table>
-          <thead><tr><th>Label</th><th>Wallet pubkey</th><th>Relays</th><th>State</th><th>Created</th><th></th></tr></thead>
+          <thead><tr><th>Label</th><th>Wallet pubkey</th><th>Relays</th><th>State</th><th>Created</th><th style="min-width:160px"></th></tr></thead>
           <tbody id="conn-rows"><tr><td colspan="6" class="empty">loading…</td></tr></tbody>
         </table>
       </div>
@@ -198,6 +233,30 @@ export function dashboardHtml(): string {
       <div class="events" id="events-log"><div class="empty">no events yet</div></div>
     </section>
   </main>
+
+  <div class="modal-backdrop" id="invoice-modal">
+    <div class="modal">
+      <button class="close-x" id="invoice-close">×</button>
+      <h2 id="invoice-title">Generate invoice</h2>
+      <form class="stack" id="invoice-form">
+        <label>Amount (sats)
+          <input type="number" name="amountSats" min="1" step="1" placeholder="1000" required />
+        </label>
+        <label>Description (optional)
+          <input type="text" name="description" placeholder="memo" maxlength="500" />
+        </label>
+        <button type="submit">Generate</button>
+      </form>
+      <div class="error" id="invoice-error"></div>
+      <div id="invoice-result" style="display:none;">
+        <div class="qr-wrap" id="invoice-qr"></div>
+        <div class="invoice-box" id="invoice-bolt11" title="click to select, then copy"></div>
+        <button class="btn-small" id="invoice-copy" style="margin-top:8px;">copy</button>
+        <span class="copied-flash" id="invoice-copied">copied</span>
+        <div class="meta" id="invoice-meta"></div>
+      </div>
+    </div>
+  </div>
   <script>
   (() => {
     const qs = s => document.querySelector(s);
@@ -299,7 +358,11 @@ export function dashboardHtml(): string {
             '<td class="mono muted">' + c.relays.join(', ') + '</td>' +
             '<td>' + (c.enabled ? '<span class="pill ok">enabled</span>' : '<span class="pill warn">disabled</span>') + '</td>' +
             '<td class="muted">' + new Date(c.createdAt).toLocaleString() + '</td>' +
-            '<td><button class="btn-small danger" data-delete="' + c.id + '">delete</button></td>' +
+            '<td>' +
+              '<button class="btn-small" data-invoice="' + c.id + '" data-label="' + escape(c.label) + '">invoice</button> ' +
+              '<button class="btn-small" data-info="' + c.id + '">info</button> ' +
+              '<button class="btn-small danger" data-delete="' + c.id + '">delete</button>' +
+            '</td>' +
             '</tr>'
           ).join('');
         qsa('[data-delete]').forEach(b => {
@@ -309,6 +372,25 @@ export function dashboardHtml(): string {
               await api('/api/v1/nwc-connections/' + b.dataset.delete, { method: 'DELETE' });
               refreshConnections();
             } catch (err) { qs('#conn-error').textContent = err.message; }
+          };
+        });
+        qsa('[data-invoice]').forEach(b => {
+          b.onclick = () => openInvoiceModal(b.dataset.invoice, b.dataset.label);
+        });
+        qsa('[data-info]').forEach(b => {
+          b.onclick = async () => {
+            qs('#conn-error').textContent = '';
+            b.textContent = 'probing…';
+            b.disabled = true;
+            try {
+              const info = await api('/api/v1/nwc-connections/' + b.dataset.info + '/info');
+              alert(renderInfoText(info));
+            } catch (err) {
+              qs('#conn-error').textContent = 'probe failed: ' + err.message;
+            } finally {
+              b.textContent = 'info';
+              b.disabled = false;
+            }
           };
         });
       } catch (err) {
@@ -402,6 +484,96 @@ export function dashboardHtml(): string {
       return escape(JSON.stringify(e));
     };
 
+    // --- invoice modal ---
+    let currentInvoiceNwcId = null;
+    const openInvoiceModal = (nwcId, label) => {
+      currentInvoiceNwcId = nwcId;
+      qs('#invoice-title').textContent = 'Generate invoice · ' + (label || '');
+      qs('#invoice-form').style.display = 'flex';
+      qs('#invoice-form').reset();
+      qs('#invoice-error').textContent = '';
+      qs('#invoice-result').style.display = 'none';
+      qs('#invoice-modal').classList.add('open');
+      qs('#invoice-form [name=amountSats]').focus();
+    };
+    const closeInvoiceModal = () => {
+      qs('#invoice-modal').classList.remove('open');
+      currentInvoiceNwcId = null;
+    };
+    qs('#invoice-close').onclick = closeInvoiceModal;
+    qs('#invoice-modal').addEventListener('click', ev => {
+      if (ev.target === qs('#invoice-modal')) closeInvoiceModal();
+    });
+    qs('#invoice-form').onsubmit = async ev => {
+      ev.preventDefault();
+      qs('#invoice-error').textContent = '';
+      const btn = qs('#invoice-form button[type=submit]');
+      btn.disabled = true;
+      btn.textContent = 'generating…';
+      const form = new FormData(ev.target);
+      try {
+        const result = await api('/api/v1/nwc-connections/' + currentInvoiceNwcId + '/make-invoice', {
+          method: 'POST',
+          body: JSON.stringify({
+            amountSats: parseInt(form.get('amountSats'), 10),
+            description: form.get('description') || undefined
+          })
+        });
+        qs('#invoice-form').style.display = 'none';
+        qs('#invoice-qr').innerHTML = result.qrSvg;
+        qs('#invoice-bolt11').textContent = result.invoice;
+        const metaParts = [
+          '<b>' + result.amountSats.toLocaleString() + '</b> sats'
+        ];
+        if (result.expiresAt) {
+          metaParts.push('expires ' + new Date(result.expiresAt * 1000).toLocaleTimeString());
+        }
+        if (result.paymentHash) {
+          metaParts.push('hash ' + shortHex(result.paymentHash));
+        }
+        qs('#invoice-meta').innerHTML = metaParts.join(' · ');
+        qs('#invoice-result').style.display = 'block';
+      } catch (err) {
+        qs('#invoice-error').textContent = err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate';
+      }
+    };
+    qs('#invoice-copy').onclick = async () => {
+      const text = qs('#invoice-bolt11').textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        const f = qs('#invoice-copied');
+        f.classList.add('show');
+        setTimeout(() => f.classList.remove('show'), 1200);
+      } catch {}
+    };
+
+    const renderInfoText = info => {
+      if (!info.found) {
+        return 'No kind-13194 info event was returned by any of the wallet\\'s relays.\\n\\n' +
+          'Possible causes:\\n' +
+          '  • The wallet is offline\\n' +
+          '  • The wallet\\'s pubkey or relay URL in the NWC URI is wrong\\n' +
+          '  • The wallet never publishes a NIP-47 info event';
+      }
+      const lines = [
+        'Wallet info — kind-13194',
+        '',
+        'Supported methods:',
+        info.supportedMethods.length ? '  ' + info.supportedMethods.join(', ') : '  (none listed)',
+        '',
+        'Notifications advertised:',
+        info.notifications.length ? '  ' + info.notifications.join(', ') : '  ⚠ NONE — this wallet will not push live events',
+        '',
+        'Encryption:',
+        '  ' + (info.encryption.length ? info.encryption.join(', ') : '(not specified → NIP-04 only)'),
+        '',
+        'Published ' + (info.createdAt ? new Date(info.createdAt * 1000).toLocaleString() : '—')
+      ];
+      return lines.join('\\n');
+    };
     const shortHex = s => typeof s === 'string' && s.length > 12 ? s.slice(0, 8) + '…' + s.slice(-4) : (s || '');
     const shortId = s => typeof s === 'string' && s.length > 10 ? s.slice(0, 6) + '…' : (s || '');
     const escape = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

@@ -15,6 +15,9 @@ import type { ZapReceiptPublisher } from '../nostr/zap-publisher.js'
 import type { RelayPool } from '../nostr/pool.js'
 import type { RelayStatus } from '../nostr/pool.js'
 import { queueDepth, enqueueWebhook } from '../webhooks/queue.js'
+import { fetchWalletInfo, type WalletInfo } from '../nostr/info.js'
+import { nwcRequest, type MakeInvoiceResult } from '../nostr/nwc-client.js'
+import QRCode from 'qrcode'
 import type {
   AddAdminInput,
   CreateNwcInput,
@@ -56,6 +59,73 @@ export function createHandlers(deps: CommandDeps) {
       const c = await prisma.nwcConnection.findUnique({ where: { id } })
       if (!c) throw new NotFoundError('NWC connection not found')
       return c
+    },
+
+    probeNwcInfo: async (id: string): Promise<WalletInfo> => {
+      const c = await prisma.nwcConnection.findUnique({ where: { id } })
+      if (!c) throw new NotFoundError('NWC connection not found')
+      return fetchWalletInfo(deps.relayPool, c.walletPubkey, c.relays)
+    },
+
+    makeInvoice: async (
+      id: string,
+      input: { amountSats: number; description?: string; expirySeconds?: number },
+      actor: Actor
+    ): Promise<{
+      invoice: string
+      amountSats: number
+      expiresAt: number | null
+      qrSvg: string
+      paymentHash: string | null
+    }> => {
+      if (!Number.isInteger(input.amountSats) || input.amountSats <= 0) {
+        throw new ValidationError('amountSats must be a positive integer')
+      }
+      const c = await prisma.nwcConnection.findUnique({ where: { id } })
+      if (!c) throw new NotFoundError('NWC connection not found')
+
+      const response = await nwcRequest<MakeInvoiceResult>(
+        deps.relayPool,
+        c,
+        'make_invoice',
+        {
+          amount: input.amountSats * 1000,
+          description: input.description ?? '',
+          ...(input.expirySeconds ? { expiry: input.expirySeconds } : {})
+        }
+      )
+
+      if (!response.ok) {
+        throw new ValidationError(
+          `wallet rejected make_invoice: ${response.error.code} — ${response.error.message}`
+        )
+      }
+
+      const invoice = response.result?.invoice
+      if (!invoice) {
+        throw new ValidationError('wallet returned no invoice')
+      }
+
+      const qrSvg = await QRCode.toString(invoice.toUpperCase(), {
+        type: 'svg',
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 320,
+        color: { dark: '#e6e8ec', light: '#15181d' }
+      })
+
+      await audit('make_invoice', c.id, actor, {
+        amountSats: input.amountSats,
+        paymentHash: response.result?.payment_hash
+      })
+
+      return {
+        invoice,
+        amountSats: input.amountSats,
+        expiresAt: response.result?.expires_at ?? null,
+        paymentHash: response.result?.payment_hash ?? null,
+        qrSvg
+      }
     },
 
     createNwc: async (

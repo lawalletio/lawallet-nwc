@@ -5,6 +5,7 @@ import { RelayPool } from './pool.js'
 import { getCursor } from '../ingest/cursor.js'
 import { handleNwcNotification } from '../ingest/handler.js'
 import { getConfig } from '../config/index.js'
+import { fetchWalletInfo } from './info.js'
 
 const log = createChildLogger({ module: 'subscription-manager' })
 
@@ -49,13 +50,17 @@ export class ConnectionManager {
       ? Math.max(0, cursor - cursorOverlapSeconds)
       : nowSec - cursorOverlapSeconds
 
+    // Filter: kinds 23196/23197 authored by the wallet service, tagged to
+    // our client pubkey. Some wallets (Coinos at time of writing) do not
+    // emit the `#p` tag at all on notifications — so we omit it from the
+    // subscription filter and do the p-tag check ourselves in the handler.
+    // The author filter still scopes this to our wallet only.
     this.pool.subscribe({
       subId,
       relays: conn.relays,
       filter: {
         kinds: NWC_KINDS,
         authors: [conn.walletPubkey],
-        '#p': [conn.clientPubkey],
         since
       },
       onEvent: (event: Event, relayUrl: string) => {
@@ -68,6 +73,31 @@ export class ConnectionManager {
     })
 
     log.info({ nwcId, relays: conn.relays, since }, 'subscription opened')
+
+    // Probe the wallet's info event so we can tell immediately whether it
+    // advertises notification support. Non-blocking; just logged.
+    void fetchWalletInfo(this.pool, conn.walletPubkey, conn.relays).then(info => {
+      if (!info.found) {
+        log.warn(
+          { nwcId, walletPubkey: conn.walletPubkey },
+          'no kind-13194 info event from wallet — relay may be wrong or wallet offline'
+        )
+        return
+      }
+      const supportsNotifications = info.notifications.length > 0
+      log.info(
+        {
+          nwcId,
+          supportedMethods: info.supportedMethods,
+          notifications: info.notifications,
+          encryption: info.encryption,
+          supportsNotifications
+        },
+        supportsNotifications
+          ? 'wallet info probed — notifications supported'
+          : 'wallet info probed — notifications NOT advertised; this wallet will not push live events'
+      )
+    })
   }
 
   async close(nwcId: string): Promise<void> {

@@ -2,7 +2,14 @@ import { Hono } from 'hono'
 import { bearerAuth } from '../auth.js'
 import { parseJson } from '../validate.js'
 import type { Handlers } from '../../commands/handlers.js'
+import { z } from 'zod'
 import { createNwcSchema, updateNwcSchema } from '../../commands/types.js'
+
+const makeInvoiceSchema = z.object({
+  amountSats: z.number().int().positive(),
+  description: z.string().max(500).optional(),
+  expirySeconds: z.number().int().positive().max(86400).optional()
+})
 
 export function connectionRoutes(handlers: Handlers): Hono {
   const app = new Hono()
@@ -21,6 +28,18 @@ export function connectionRoutes(handlers: Handlers): Hono {
   app.get('/nwc-connections/:id', async c => {
     const id = c.req.param('id')
     return c.json({ success: true, data: await handlers.getNwc(id) })
+  })
+
+  app.get('/nwc-connections/:id/info', async c => {
+    const id = c.req.param('id')
+    return c.json({ success: true, data: await handlers.probeNwcInfo(id) })
+  })
+
+  app.post('/nwc-connections/:id/make-invoice', async c => {
+    const id = c.req.param('id')
+    const input = await parseJson(c, makeInvoiceSchema)
+    const result = await handlers.makeInvoice(id, input, { source: 'http' })
+    return c.json({ success: true, data: result })
   })
 
   app.patch('/nwc-connections/:id', async c => {
