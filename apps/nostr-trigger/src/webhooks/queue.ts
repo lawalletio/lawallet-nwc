@@ -29,8 +29,10 @@ export function getQueue(): Queue<WebhookJobData> {
 
 export async function enqueueWebhook(data: WebhookJobData): Promise<void> {
   const q = getQueue()
-  await q.add(`evt:${data.eventId}:${data.webhookEndpointId}`, data, {
-    jobId: `${data.webhookEndpointId}:${data.eventId}` // also serves as an extra idempotency guard
+  // BullMQ forbids ":" in custom job ids (it's reserved as a key separator
+  // in Redis). Use "-" so the id is still a unique idempotency guard.
+  await q.add(`evt-${data.eventId}-${data.webhookEndpointId}`, data, {
+    jobId: `${data.webhookEndpointId}-${data.eventId}`
   })
 }
 
