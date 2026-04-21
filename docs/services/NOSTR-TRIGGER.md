@@ -248,6 +248,35 @@ Verify against the **raw request body** — re-serialising JSON before hashing w
 
 ---
 
+## Database change propagation
+
+`nostr-trigger` reacts in real time to any `INSERT` / `UPDATE` / `DELETE` on the `NwcConnection` table — regardless of which process did the mutation (this service's own HTTP/Nostr command path, `apps/web`, a manual `psql` statement, a future migration, etc.). It does this by consuming Postgres `LISTEN`/`NOTIFY` rather than polling.
+
+**Setup (installed by migration [20260421180000_nwc_change_notify](../../packages/prisma/migrations/20260421180000_nwc_change_notify/migration.sql)):**
+
+- A PL/pgSQL trigger function `notify_nwc_connection_change()` emits `pg_notify('nwc_connection_change', json)` with `{ op, id, enabled }`.
+- Row-level trigger `nwc_connection_change_trigger` fires `AFTER INSERT OR UPDATE OR DELETE` on `"NwcConnection"`.
+
+**Listener ([src/db/change-listener.ts](../../apps/nostr-trigger/src/db/change-listener.ts)):**
+
+- Dedicated `pg.Client` (not Prisma — Prisma's pooled client does not expose `LISTEN`).
+- On each notification dispatches to `ConnectionManager`:
+  - `INSERT` → `open(id)`
+  - `UPDATE` → `reload(id)` (close + re-open with fresh state; `open` itself skips disabled rows)
+  - `DELETE` → `close(id)`
+- **Reconnect:** if the LISTEN socket drops (pg restart, network hiccup), reconnect with exponential backoff (3s → 30s cap). On successful reconnect, runs a full `reloadAll()` to catch up any missed mutations.
+- **Safety net:** every 5 minutes runs `reloadAll()` regardless. Cheap insurance against silent notification loss (network partitions, pgbouncer quirks, etc.).
+
+**Minimal payload, deliberately:** only `id` + `enabled` + `op` go through NOTIFY — the listener re-queries the full row via Prisma. Keeps payloads far below the 8 KB pg_notify limit and avoids leaking encrypted secrets through the notification channel.
+
+Payload example:
+
+```json
+{ "op": "UPDATE", "id": "cmo91z0y900044yugbrddk3qq", "enabled": true }
+```
+
+---
+
 ## Resilience guarantees
 
 | Failure mode | Mitigation |
