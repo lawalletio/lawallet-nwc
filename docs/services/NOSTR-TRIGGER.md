@@ -120,6 +120,134 @@ State split: configs, audit log, and zap ledger live in the shared Postgres (via
 
 ---
 
+## Webhook payload contract
+
+### Request
+
+- **Method:** `POST`
+- **Content-Type:** `application/json; charset=utf-8`
+- **Body encoding:** UTF-8 JSON, no trailing newline
+- **Timeout:** `NT_WEBHOOK_TIMEOUT_MS` (default 10s)
+
+### Headers
+
+| Header | Value | Notes |
+|---|---|---|
+| `Content-Type` | `application/json` | always |
+| `User-Agent` | `lawallet-nostr-trigger/<version>` | semver from the service package |
+| `Idempotency-Key` | `<event_id>` | the Nostr event id from the wallet; dedup key if the consumer also dedups |
+| `X-LaWallet-Signature` | `sha256=<hex>` | HMAC-SHA256 of the **raw body** using the endpoint's secret. Verify server-side before trusting any field. |
+| `X-LaWallet-Event-Kind` | `23196` or `23197` | shortcut for the Nostr event kind in the body |
+| `X-LaWallet-Nwc-Id` | `<nwc_connection_id>` | shortcut for the connection id in the body |
+
+### Body schema
+
+Top-level envelope emitted by this service (same shape for every notification kind):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `event_id` | `string` (64-hex) | id of the underlying Nostr event (kind-23196 or 23197) as published by the wallet |
+| `event_kind` | `number` | `23196` (legacy, NIP-04) or `23197` (current, NIP-44). Dual-publish wallets (Alby) already deduped before delivery — each `payment_hash` is POSTed once. |
+| `nwc_connection_id` | `string` (cuid) | the `NwcConnection.id` this notification belongs to. Stable across webhook deliveries for the same wallet. |
+| `payload` | `object` | the decrypted NIP-47 notification — pass-through of what the wallet sent |
+| `payload.notification_type` | `string` | `"payment_received"` or `"payment_sent"` (per NIP-47). Also available as a top-level class of event. |
+| `payload.notification` | `object` | the NIP-47 notification body (per NIP-47 §notifications) — fields below |
+| `ts` | `string` | ISO-8601 timestamp of when **nostr-trigger dispatched** the webhook (not when the wallet received the payment — see `payload.notification.settled_at` for that) |
+
+The `payload.notification` object's fields match the NIP-47 spec verbatim:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `type` | `string` | `"incoming"` or `"outgoing"` |
+| `state` | `string` | `"settled"` / `"pending"` / `"failed"` (wallet-dependent) |
+| `invoice` | `string` | bolt11 invoice |
+| `description` | `string` | memo (may be empty) |
+| `description_hash` | `string` | 64-hex or empty |
+| `preimage` | `string` | 64-hex payment preimage (present once settled) |
+| `payment_hash` | `string` | 64-hex — the natural idempotency key for the underlying payment |
+| `amount` | `number` | amount in **millisats** |
+| `fees_paid` | `number` | fees in millisats (typically 0 for incoming) |
+| `created_at` | `number` | unix seconds (invoice creation time) |
+| `expires_at` | `number` | unix seconds |
+| `settled_at` | `number \| null` | unix seconds (set once settled) |
+| `settle_deadline` | `number \| null` | unix seconds, held invoices only |
+| `metadata` | `object \| null` | wallet-supplied extras (free-form) |
+
+### Example
+
+Real `payment_received` notification as POSTed by the service:
+
+```http
+POST /your-webhook HTTP/1.1
+Host: example.com
+Content-Type: application/json; charset=utf-8
+User-Agent: lawallet-nostr-trigger/0.9.0
+Idempotency-Key: 2042f60ac83f7e3fb3b99b25d97d4c962908bbf6529df7bfcea35836992cee39
+X-LaWallet-Signature: sha256=0a1b2c…
+X-LaWallet-Event-Kind: 23196
+X-LaWallet-Nwc-Id: cmo91z0y900044yugbrddk3qq
+```
+
+```json
+{
+  "event_id": "2042f60ac83f7e3fb3b99b25d97d4c962908bbf6529df7bfcea35836992cee39",
+  "event_kind": 23196,
+  "nwc_connection_id": "cmo91z0y900044yugbrddk3qq",
+  "payload": {
+    "notification_type": "payment_received",
+    "notification": {
+      "type": "incoming",
+      "state": "settled",
+      "invoice": "lnbc100n1p570hc5pp5phwj6xvlc7cqtxteq8nusv72z0xzt8x95204eu88grkp6m8znphqdqqcqzzsxqyz5vqsp5wrt0z77attdepdzfymxz0u79hg0nygj0pkdum2dh7jpra4vwj8yq9qxpqysgqayjfyw26t6fwvrqusskgsuq9nx3n773phlqva4e9nsjd4rw80f75qe3xtftn4d3kguckulplckmfpk7dtmv7sh7k7tmj60e339ra5jsqr3d5zg",
+      "description": "",
+      "description_hash": "",
+      "preimage": "ad0732fdb4318b6425aefdb3b3443723339488f9b03ca8497cd65abe85b025d9",
+      "payment_hash": "0ddd2d199fc7b005997901e7c833ca13cc259cc5a29f5cf0e740ec1d6ce2986e",
+      "amount": 10000,
+      "fees_paid": 0,
+      "created_at": 1776803604,
+      "expires_at": 1776890004,
+      "settled_at": 1776803611,
+      "settle_deadline": null,
+      "metadata": null
+    }
+  },
+  "ts": "2026-04-21T20:33:32.159Z"
+}
+```
+
+### Response contract (what consumers should return)
+
+| Status | Treated as | Retry? |
+|---|---|---|
+| `2xx` | success | no |
+| `4xx` except 408/429 | terminal failure | no — audit entry written |
+| `408`, `429`, `5xx`, network error, timeout | retryable | yes — exponential backoff + jitter |
+
+Consumers should finish processing and respond within 10 seconds. Longer processing belongs in the consumer's own background queue; do not hold the connection open.
+
+### Signature verification
+
+```ts
+import { createHmac, timingSafeEqual } from 'node:crypto'
+
+function verify(rawBody: string, signatureHeader: string, secret: string): boolean {
+  const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex')
+  const a = Buffer.from(signatureHeader)
+  const b = Buffer.from(expected)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+```
+
+Verify against the **raw request body** — re-serialising JSON before hashing will break the check.
+
+### Idempotency guidance
+
+- The same `payment_hash` will not be POSTed twice to the same endpoint — `nostr-trigger` dedups both at event-id and at `(nwc_id, notification_type, payment_hash)` before enqueuing.
+- But a webhook **can** be delivered more than once if the consumer returns a retryable status and the next attempt succeeds. Treat `Idempotency-Key` (= `event_id`) as the dedup key on the consumer side if "exactly-once" effects are required.
+
+---
+
 ## Resilience guarantees
 
 | Failure mode | Mitigation |
