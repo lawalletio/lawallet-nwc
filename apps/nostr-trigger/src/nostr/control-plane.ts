@@ -131,6 +131,7 @@ export class NostrControlPlane {
   }
 
   private async authorize(pubkey: string): Promise<boolean> {
+    if (getConfig().security.dangerouslyFree) return true
     const admin = await prisma.nostrTriggerAdmin.findUnique({
       where: { pubkey }
     })

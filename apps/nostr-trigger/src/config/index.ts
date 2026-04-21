@@ -8,7 +8,7 @@ export interface AppConfig {
 
   http: {
     port: number
-    adminSecret: string
+    adminSecret: string | undefined
   }
 
   log: {
@@ -18,6 +18,12 @@ export interface AppConfig {
 
   security: {
     masterKeyBase64: string
+    /**
+     * When true, every authorization check in the service becomes a no-op —
+     * HTTP Bearer validation AND Nostr admin-role checks are skipped. For
+     * local development only. NEVER enable in production.
+     */
+    dangerouslyFree: boolean
   }
 
   nostr: {
@@ -52,6 +58,13 @@ export function getConfig(): AppConfig {
 
   const env = getEnv()
 
+  if (!env.DANGEROUSLY_FREE && !env.NT_ADMIN_SECRET) {
+    throw new Error(
+      'NT_ADMIN_SECRET is required unless DANGEROUSLY_FREE=true is set.\n' +
+        'Generate one with: openssl rand -hex 32'
+    )
+  }
+
   cachedConfig = {
     env: env.NODE_ENV,
     isDevelopment: env.NODE_ENV === 'development',
@@ -69,7 +82,8 @@ export function getConfig(): AppConfig {
     },
 
     security: {
-      masterKeyBase64: env.NT_MASTER_KEY
+      masterKeyBase64: env.NT_MASTER_KEY,
+      dangerouslyFree: env.DANGEROUSLY_FREE
     },
 
     nostr: {

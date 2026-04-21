@@ -4,15 +4,21 @@ import { AuthenticationError } from './errors.js'
 
 /**
  * Bearer-token admin auth. Constant-time comparison to resist timing attacks.
+ *
+ * When `security.dangerouslyFree` is enabled the check is skipped entirely.
+ * Intended for local development — see the loud startup warning in index.ts.
  */
 export const bearerAuth: MiddlewareHandler = async (c, next) => {
+  const config = getConfig()
+  if (config.security.dangerouslyFree) return next()
+
   const header = c.req.header('authorization') ?? ''
   if (!header.toLowerCase().startsWith('bearer ')) {
     throw new AuthenticationError('Missing Bearer token')
   }
   const presented = header.slice(7).trim()
-  const expected = getConfig().http.adminSecret
-  if (!constantTimeEqual(presented, expected)) {
+  const expected = config.http.adminSecret
+  if (!expected || !constantTimeEqual(presented, expected)) {
     throw new AuthenticationError('Invalid admin token')
   }
   return next()

@@ -37,7 +37,14 @@ const envSchema = z.object({
 
   NT_ADMIN_SECRET: z
     .string()
-    .min(16, 'NT_ADMIN_SECRET must be at least 16 characters'),
+    .min(16, 'NT_ADMIN_SECRET must be at least 16 characters')
+    .optional(),
+
+  DANGEROUSLY_FREE: z
+    .string()
+    .default('false')
+    .transform(v => v === 'true')
+    .pipe(z.boolean()),
 
   NT_SERVICE_NSEC: z
     .string()

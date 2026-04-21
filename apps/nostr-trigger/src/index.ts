@@ -17,6 +17,24 @@ async function main(): Promise<void> {
   logger() // triggers logger init so config errors surface
   log.info({ env: config.env, port: config.http.port }, 'starting nostr-trigger')
 
+  if (config.security.dangerouslyFree) {
+    log.warn(
+      '================================================================'
+    )
+    log.warn(
+      'DANGEROUSLY_FREE=true — HTTP Bearer auth and Nostr admin checks'
+    )
+    log.warn(
+      'are DISABLED. Anyone who can reach the HTTP port or the Nostr'
+    )
+    log.warn(
+      'service pubkey can run any command. Do NOT use in production.'
+    )
+    log.warn(
+      '================================================================'
+    )
+  }
+
   // DB
   await prisma.$connect()
   log.info('postgres connected')

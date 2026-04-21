@@ -226,7 +226,8 @@ Every successful Nostr command writes an `AuditEvent` row with `source:"nostr"`,
 | `NT_LOG_LEVEL` | no | `info` | pino level |
 | `NT_LOG_PRETTY` | no | `false` | pino-pretty transport (dev only) |
 | `NT_MASTER_KEY` | **yes** | — | Base64-encoded 32 bytes. AES-GCM key for secret fields. Generate with `openssl rand -base64 32` |
-| `NT_ADMIN_SECRET` | **yes** | — | Bearer token for HTTP admin API. Generate with `openssl rand -hex 32` |
+| `NT_ADMIN_SECRET` | **yes** (unless `DANGEROUSLY_FREE=true`) | — | Bearer token for HTTP admin API. Generate with `openssl rand -hex 32` |
+| `DANGEROUSLY_FREE` | no | `false` | **Dev only.** When `true`, disables **every** authorization check: HTTP Bearer validation AND Nostr admin allowlist/role checks. Any caller can run any command. See warning below. |
 | `NT_SERVICE_NSEC` | **yes** | — | Nostr key for the control plane (receives DMs + signs replies) |
 | `NT_CONTROL_RELAYS` | no | — | Comma-separated relays the control plane listens on |
 | `NT_LNURL_NSEC` | no | — | Nostr key that signs NIP-57 zap receipts; required to use `/zap/publish` |
@@ -239,6 +240,19 @@ Every successful Nostr command writes an `AuditEvent` row with `source:"nostr"`,
 | `NT_WEBHOOK_TIMEOUT_MS` | no | `10000` | Per-request fetch timeout |
 | `NT_DEDUP_TTL_SECONDS` | no | `259200` | `nt:dedup:*` TTL (72h) |
 | `NT_CURSOR_OVERLAP_SECONDS` | no | `60` | How far before the persisted cursor we subscribe on restart |
+
+---
+
+## ⚠️ DANGEROUSLY_FREE mode
+
+Setting `DANGEROUSLY_FREE=true` turns every authorization check in the service into a no-op:
+
+- HTTP requests to `/api/v1/*` are accepted **without** a `Bearer` token.
+- Nostr control-plane DMs are treated as authorized regardless of sender pubkey (the `User.role=ADMIN` and `NostrTriggerAdmin` allowlist checks are skipped).
+
+Audit rows are still written with the real sender pubkey on the Nostr side, and with `actor: null` on the HTTP side (since there is no caller identity). The service logs a loud `WARN` block at startup whenever this flag is on.
+
+Intended use cases: local development, CI smoke tests, integration fixtures. **Never set this in production, staging, or any environment reachable from untrusted networks.** Anyone who can reach the HTTP port or the service's Nostr pubkey can create/delete NWC connections, fire test webhooks, and publish zaps.
 
 ---
 
