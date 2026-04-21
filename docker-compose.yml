@@ -18,6 +18,28 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--save',
+        '60',
+        '1000'
+      ]
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   web:
     build:
       context: .
@@ -40,5 +62,38 @@ services:
       retries: 3
       start_period: 40s
 
+  nostr-trigger:
+    build:
+      context: .
+      dockerfile: apps/nostr-trigger/Dockerfile
+    ports:
+      - '3010:3010'
+    environment:
+      - NODE_ENV=production
+      - NT_PORT=3010
+      - NT_LOG_LEVEL=info
+      - NT_LOG_PRETTY=false
+      - DATABASE_URL=postgresql://lawallet:lawallet_password@postgres:5432/lawallet
+      - REDIS_URL=redis://redis:6379/0
+      # - NT_MASTER_KEY=            # openssl rand -base64 32
+      # - NT_ADMIN_SECRET=          # openssl rand -hex 32
+      # - NT_SERVICE_NSEC=nsec1...
+      # - NT_CONTROL_RELAYS=wss://relay.damus.io,wss://relay.nostr.band
+      # - NT_LNURL_NSEC=nsec1...
+      # - NT_ZAP_DEFAULT_RELAYS=wss://relay.damus.io,wss://relay.nostr.band
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3010/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
 volumes:
   postgres_data:
+  redis_data:
