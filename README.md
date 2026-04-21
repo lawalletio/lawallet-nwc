@@ -40,13 +40,14 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 
 ## Architecture
 
-Three independent containerized services with no shared infrastructure:
+Four independent containerized services:
 
 | Service | Container | Description |
 |---------|-----------|-------------|
 | [Web Application](./docs/services/LAWALLET-WEB.md) | `lawallet-web` | Next.js app: frontend, REST API, lightning address resolution |
 | [NWC Proxy](./docs/services/NWC-PROXY.md) | `lawallet-nwc-proxy` | Provisions courtesy NWC connections from external providers |
 | [Payment Listener](./docs/services/NWC-LISTENER.md) | `lawallet-listener` | Monitors NWC relays, dispatches webhooks on payments |
+| [Nostr Trigger](./docs/services/NOSTR-TRIGGER.md) | `nostr-trigger` | Bun runtime holding persistent relay subscriptions; multiplexes NWC notifications, fires webhooks, publishes NIP-57 zap receipts |
 
 ---
 
@@ -105,10 +106,12 @@ Edit `.env` with your own values.
 
 ### 3. Generate Prisma client and run migrations
 
+Prisma lives in the shared `@lawallet-nwc/prisma` workspace package (used by `apps/web` and `apps/nostr-trigger`):
+
 ```bash
-pnpm prisma generate
-pnpm prisma migrate deploy
-pnpm prisma db seed
+pnpm --filter @lawallet-nwc/prisma run build            # prisma generate
+pnpm --filter @lawallet-nwc/prisma run db:migrate:deploy
+pnpm --filter @lawallet-nwc/prisma run db:seed
 ```
 
 ### 4. Run the development server

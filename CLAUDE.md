@@ -14,13 +14,15 @@ pnpm workspaces + Turborepo. Node v22.14.0 (see `.nvmrc`).
 
 ```
 apps/
-  web/          Next.js 16 — frontend, REST API, LUD-16 resolution (main app)
-  docs/         Fumadocs + Next.js — documentation site
-  proxy/        NWC Proxy — provisions courtesy NWC connections (stub, Month 4)
-  listener/     NWC Payment Listener — monitors relays, dispatches webhooks (stub, Month 5)
+  web/            Next.js 16 — frontend, REST API, LUD-16 resolution (main app)
+  docs/           Fumadocs + Next.js — documentation site
+  proxy/          NWC Proxy — provisions courtesy NWC connections (stub, Month 4)
+  listener/       NWC Payment Listener — monitors relays, dispatches webhooks (stub, Month 5)
+  nostr-trigger/  Bun runtime — persistent NWC relay subscriptions, webhook + NIP-57 pipelines, dual HTTP/Nostr control plane
 packages/
-  sdk/          TypeScript SDK client for the API (stub, Month 2)
-  shared/       Shared types and utilities between services (stub)
+  prisma/         Shared Prisma schema + generated client (used by web and nostr-trigger)
+  sdk/            TypeScript SDK client for the API (stub, Month 2)
+  shared/         Shared types and utilities between services (stub)
 ```
 
 ## Commands
@@ -47,23 +49,23 @@ pnpm --filter @lawallet-nwc/web typecheck    # Type check web only
 pnpm --filter @lawallet-nwc/docs dev         # Docs dev server
 ```
 
-### Database (run from apps/web/)
+### Database (from root — schema lives in packages/prisma)
 ```bash
-cd apps/web
-pnpm exec prisma generate        # Generate Prisma client
-pnpm exec prisma migrate deploy  # Run pending migrations
-pnpm exec prisma migrate dev     # Create new migration
-pnpm exec prisma db seed         # Seed with mock data
-pnpm exec prisma studio          # Visual DB browser
+pnpm --filter @lawallet-nwc/prisma run build                  # prisma generate
+pnpm --filter @lawallet-nwc/prisma run db:migrate:deploy      # Run pending migrations
+pnpm --filter @lawallet-nwc/prisma run db:migrate:dev         # Create new migration
+pnpm --filter @lawallet-nwc/prisma run db:seed                # Seed with mock data
+pnpm --filter @lawallet-nwc/prisma run db:studio              # Visual DB browser
 ```
 
 ## Web App Architecture (apps/web/)
 
-### Three-Service Design
-The platform consists of 3 independent containerized services with no shared infrastructure:
+### Four-Service Design
+The platform consists of 4 independent containerized services:
 1. **lawallet-web** (this repo) — Next.js: frontend + REST API + LUD-16
-2. **lawallet-nwc-proxy** — Provisions courtesy NWC connections (separate container)
-3. **lawallet-listener** — Monitors NWC relays, dispatches LUD-22 webhooks (separate container)
+2. **lawallet-nwc-proxy** — Provisions courtesy NWC connections (separate container, stub)
+3. **lawallet-listener** — Webhook-focused NWC payment listener (stub, Month 5)
+4. **nostr-trigger** — Bun runtime that holds persistent Nostr relay subscriptions for every NWC, fires webhooks (BullMQ), publishes NIP-57 zap receipts, exposes dual HTTP + encrypted-Nostr control planes. Uses the shared Postgres (`@lawallet-nwc/prisma`) and its own Redis.
 
 ### Auth System (Dual Method)
 - **NIP-98**: `Authorization: Nostr <base64-event>` — Nostr protocol native auth

@@ -2,22 +2,24 @@
 
 ## Overview
 
-LaWallet NWC is composed of **three fully independent, containerized services**. Each runs in its own Docker container with its own database/storage. There is no shared infrastructure between services. They communicate exclusively via HTTP APIs and WebSocket events.
+LaWallet NWC is composed of **four independently deployable services**. Each runs in its own Docker container. Services communicate via HTTP APIs, WebSocket events, and — in the case of `nostr-trigger` — encrypted Nostr DMs.
 
-The monorepo uses pnpm workspaces + Turborepo. Node v22.14.0 (see `.nvmrc`).
+The monorepo uses pnpm workspaces + Turborepo. Node v22.14.0 (see `.nvmrc`). The `nostr-trigger` service runs on Bun.
 
 ```
 lawallet-nwc/
 ├── apps/
-│   ├── web/           Next.js 16 — frontend, REST API, LUD-16 resolution
-│   ├── docs/          Fumadocs + Next.js — documentation site
-│   ├── proxy/         NWC Proxy — provisions courtesy NWC connections (stub)
-│   └── listener/      NWC Listener — monitors relays, dispatches webhooks (stub)
+│   ├── web/             Next.js 16 — frontend, REST API, LUD-16 resolution
+│   ├── docs/            Fumadocs + Next.js — documentation site
+│   ├── proxy/           NWC Proxy — provisions courtesy NWC connections (stub)
+│   ├── listener/        NWC Listener — webhook-centric payment listener (stub)
+│   └── nostr-trigger/   Bun runtime — persistent relay subscriptions, webhook fan-out, NIP-57 publishing, dual HTTP + Nostr control plane
 ├── packages/
-│   ├── sdk/           TypeScript SDK client (stub)
-│   └── shared/        Shared types & utilities (stub)
-├── docker-compose.yml PostgreSQL + web service
-├── turbo.json         Build pipeline configuration
+│   ├── prisma/          Shared Prisma schema + generated client (web + nostr-trigger)
+│   ├── sdk/             TypeScript SDK client (stub)
+│   └── shared/          Shared types & utilities (stub)
+├── docker-compose.yml   PostgreSQL + Redis + web + nostr-trigger
+├── turbo.json           Build pipeline configuration
 └── pnpm-workspace.yaml
 ```
 
@@ -27,21 +29,22 @@ lawallet-nwc/
 
 | Container | Service | Ports | Storage |
 |-----------|---------|-------|---------|
-| `lawallet-web` | Next.js Application | 3000 (dev), 2288 (prod) | Own PostgreSQL (Prisma) |
-| `lawallet-listener` | NWC Payment Listener | 3001 (WS), 3002 (health) | Own storage |
-| `lawallet-nwc-proxy` | Courtesy NWC Proxy | 3003, 3004 (health) | Own storage |
+| `lawallet-web` | Next.js Application | 3000 (dev), 2288 (prod) | Shared Postgres via `@lawallet-nwc/prisma` |
+| `lawallet-listener` | NWC Payment Listener (webhook-only, stub) | 3001 (WS), 3002 (health) | Own storage |
+| `lawallet-nwc-proxy` | Courtesy NWC Proxy (stub) | 3003, 3004 (health) | Own storage |
+| `nostr-trigger` | Bun — persistent NWC subs + webhook/zap pipelines | 3010 | Shared Postgres (`@lawallet-nwc/prisma`) + dedicated Redis |
 
 ---
 
 ## Independence Principles
 
-- No shared database between any services
-- No shared file system or volumes
-- Communication strictly via HTTP APIs and WebSocket events
-- Each service can be deployed, scaled, and updated independently
-- Each service has its own health check endpoint
-- Each service manages its own configuration via environment variables
-- Any service can be replaced or restarted without affecting others
+- Each service can be deployed, scaled, and updated independently.
+- Each service has its own health check endpoint.
+- Each service manages its own configuration via environment variables.
+- Any service can be replaced or restarted without affecting others.
+- Services communicate via HTTP APIs, WebSocket events, and — for `nostr-trigger` — encrypted Nostr DMs.
+- **Postgres is shared** between `web` and `nostr-trigger` via `@lawallet-nwc/prisma` because `nostr-trigger` references `User.pubkey` / `User.role` for Nostr admin auth. The shared schema is the only coupling between the two.
+- `nostr-trigger` owns its Redis instance outright — it is not reused by `web`.
 
 ---
 
