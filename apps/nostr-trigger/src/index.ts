@@ -9,6 +9,7 @@ import { NostrControlPlane } from './nostr/control-plane.js'
 import { createHandlers } from './commands/handlers.js'
 import { buildServer } from './http/server.js'
 import { startWebhookWorker, closeQueue } from './webhooks/queue.js'
+import { NwcChangeListener } from './db/change-listener.js'
 
 const log = createChildLogger({ module: 'bootstrap' })
 
@@ -63,6 +64,11 @@ async function main(): Promise<void> {
   // Load persisted NWC subs
   await connectionManager.start()
 
+  // Postgres LISTEN — react to out-of-band NwcConnection row changes
+  const changeListener = new NwcChangeListener(connectionManager)
+  await changeListener.start()
+  log.info('pg change listener running')
+
   // Nostr control plane (DMs)
   const controlPlane = new NostrControlPlane(pool, handlers)
   controlPlane.start()
@@ -79,6 +85,7 @@ async function main(): Promise<void> {
     try {
       server.stop(true)
       pool.closeAll()
+      await changeListener.stop()
       await closeQueue()
       await closeRedis()
       await prisma.$disconnect()
