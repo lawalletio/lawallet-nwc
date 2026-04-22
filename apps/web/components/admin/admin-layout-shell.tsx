@@ -55,8 +55,15 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     <MaintenanceGate>
       <SidebarProvider>
         <AdminSidebar />
-        <SidebarInset>
-          <main className="flex flex-1 flex-col pb-16 md:pb-0">{children}</main>
+        {/* `min-w-0` on the SidebarInset main prevents flex children
+            (wide tables, long URLs, stat cards) from expanding the layout
+            past the viewport on narrow screens. Without it, a table's
+            internal overflow:auto has nothing to clip against and the
+            whole admin shell scrolls horizontally. */}
+        <SidebarInset className="min-w-0">
+          <main className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
+            {children}
+          </main>
         </SidebarInset>
         <MobileTabBar />
       </SidebarProvider>
