@@ -5,20 +5,50 @@ import React, { createContext, useContext, useCallback, useRef, useState, useEff
 const CACHE_KEY = 'lawallet-nostr-profiles'
 const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 
-const DEFAULT_RELAYS = [
+export const DEFAULT_NOSTR_RELAYS = [
   'wss://relay.damus.io',
   'wss://relay.nostr.band',
   'wss://nos.lol',
   'wss://relay.lawallet.ar',
 ]
 
+const DEFAULT_RELAYS = DEFAULT_NOSTR_RELAYS
+
+/**
+ * Parse a kind-0 JSON content string into the fields this app cares about.
+ * Exported so the publish helper can round-trip a signed event straight
+ * back into the cache without duplicating the field mapping.
+ */
+export function parseKind0Content(pubkey: string, content: string): NostrProfile | null {
+  try {
+    const meta = JSON.parse(content)
+    return {
+      pubkey,
+      name: meta.name || meta.username,
+      displayName: meta.display_name || meta.displayName,
+      picture: meta.picture,
+      banner: meta.banner,
+      about: meta.about,
+      nip05: meta.nip05,
+      lud16: meta.lud16,
+      website: meta.website,
+      fetchedAt: Date.now(),
+    }
+  } catch {
+    return null
+  }
+}
+
 export interface NostrProfile {
   pubkey: string
   name?: string
   displayName?: string
   picture?: string
+  banner?: string
   about?: string
   nip05?: string
+  lud16?: string
+  website?: string
   fetchedAt: number
 }
 
@@ -29,6 +59,12 @@ interface ProfileCache {
 interface NostrProfileContextValue {
   getProfile: (pubkey: string) => NostrProfile | null
   fetchProfile: (pubkey: string) => Promise<NostrProfile | null>
+  /**
+   * Seed a freshly-signed kind-0 straight into the cache. Used after the
+   * user publishes their own profile so the UI reflects the change
+   * immediately without waiting on the relay round-trip.
+   */
+  updateProfile: (pubkey: string, profile: NostrProfile) => void
 }
 
 const NostrProfileContext = createContext<NostrProfileContextValue | null>(null)
@@ -36,6 +72,12 @@ const NostrProfileContext = createContext<NostrProfileContextValue | null>(null)
 export function useNostrProfile(pubkey: string | null): {
   profile: NostrProfile | null
   loading: boolean
+  /**
+   * Replace the cached profile for this pubkey (and rerender). Used after
+   * the authenticated user publishes a kind-0 so the avatar/banner/name/
+   * about swap locally without waiting for the relay to echo back.
+   */
+  updateProfile: (next: NostrProfile) => void
 } {
   const ctx = useContext(NostrProfileContext)
   if (!ctx) {
@@ -76,7 +118,16 @@ export function useNostrProfile(pubkey: string | null): {
     return () => { cancelled = true }
   }, [pubkey, cachedProfile, ctx])
 
-  return { profile: cachedProfile ?? profile, loading }
+  const updateProfile = useCallback(
+    (next: NostrProfile) => {
+      if (!pubkey) return
+      ctx.updateProfile(pubkey, next)
+      setProfile(next)
+    },
+    [ctx, pubkey],
+  )
+
+  return { profile: cachedProfile ?? profile, loading, updateProfile }
 }
 
 export function NostrProfileProvider({ children }: { children: React.ReactNode }) {
@@ -109,7 +160,15 @@ export function NostrProfileProvider({ children }: { children: React.ReactNode }
     return promise
   }, [])
 
-  const value: NostrProfileContextValue = { getProfile, fetchProfile }
+  const updateProfile = useCallback(
+    (pubkey: string, profile: NostrProfile) => {
+      cacheRef.current[pubkey] = profile
+      saveCache(cacheRef.current)
+    },
+    [],
+  )
+
+  const value: NostrProfileContextValue = { getProfile, fetchProfile, updateProfile }
 
   return (
     <NostrProfileContext.Provider value={value}>
@@ -134,17 +193,7 @@ async function fetchFromRelays(pubkey: string): Promise<NostrProfile | null> {
 
     if (!event?.content) return null
 
-    const meta = JSON.parse(event.content)
-
-    return {
-      pubkey,
-      name: meta.name || meta.username,
-      displayName: meta.display_name || meta.displayName,
-      picture: meta.picture,
-      about: meta.about,
-      nip05: meta.nip05,
-      fetchedAt: Date.now(),
-    }
+    return parseKind0Content(pubkey, event.content)
   } catch {
     return null
   }

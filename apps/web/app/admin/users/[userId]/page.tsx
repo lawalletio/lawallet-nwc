@@ -1,8 +1,8 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Copy, Forward, Star } from 'lucide-react'
+import { ArrowLeft, Copy, Forward, Pencil, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
@@ -28,6 +28,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { useUser, useUserMutations } from '@/lib/client/hooks/use-users'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
+import { EditProfileDialog } from '@/components/admin/edit-profile-dialog'
 import { useAuth } from '@/components/admin/auth-context'
 import { truncateNpub, formatRelativeTime } from '@/lib/client/format'
 import { Role, Permission } from '@/lib/auth/permissions'
@@ -63,9 +64,10 @@ export default function UserDetailPage({
   const { userId } = use(params)
   const { data: user, loading, refetch } = useUser(userId)
   const { data: settings } = useSettings()
-  const { profile } = useNostrProfile(user?.pubkey ?? null)
+  const { profile, updateProfile } = useNostrProfile(user?.pubkey ?? null)
   const { pubkey: callerPubkey, role: callerRole, isAuthorized } = useAuth()
   const { updateUserRole, loading: roleUpdating } = useUserMutations()
+  const [editingProfile, setEditingProfile] = useState(false)
 
   const canManageRoles = isAuthorized(Permission.USERS_MANAGE_ROLES)
   const isSelf = user?.pubkey === callerPubkey
@@ -138,92 +140,122 @@ export default function UserDetailPage({
           </div>
         ) : (
           <>
-            <div className="flex flex-col gap-4 rounded-lg border bg-card p-6 sm:flex-row sm:items-center">
-              <Avatar className="size-16 shrink-0">
-                {profile?.picture && (
-                  <AvatarImage src={profile.picture} alt={displayName} />
-                )}
-                <AvatarFallback>{fallback}</AvatarFallback>
-              </Avatar>
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="truncate text-xl font-semibold">
-                    {displayName}
-                  </h2>
-                  {canManageRoles ? (
-                    <Select
-                      value={user.role}
-                      onValueChange={v => handleRoleChange(v as Role)}
-                      // Disable self-demotion client-side; the server
-                      // rejects it too, but hiding the affordance avoids
-                      // a confusing toast.
-                      disabled={roleUpdating || isSelf}
+            <div className="overflow-hidden rounded-lg border bg-card">
+              {/* Cover / banner. Uses the kind-0 banner if present;
+                  otherwise a subtle gradient fallback so the layout doesn't
+                  collapse for users who haven't set one. */}
+              <div
+                className="relative h-32 w-full bg-gradient-to-br from-primary/30 via-primary/10 to-muted sm:h-48"
+                style={
+                  profile?.banner
+                    ? {
+                        backgroundImage: `url("${profile.banner}")`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }
+                    : undefined
+                }
+              />
+
+              <div className="relative px-4 pb-4 pt-0 sm:px-6 sm:pb-6">
+                {/* Avatar overlaps the cover/body boundary. The ring creates
+                    a clean cutout against the card bg, matching the common
+                    social-media treatment. */}
+                <Avatar className="absolute -top-10 left-4 size-20 shrink-0 ring-4 ring-card sm:-top-12 sm:left-6 sm:size-24">
+                  {profile?.picture && (
+                    <AvatarImage src={profile.picture} alt={displayName} />
+                  )}
+                  <AvatarFallback className="text-lg">{fallback}</AvatarFallback>
+                </Avatar>
+
+                {/* Action row sits to the right of the avatar so the
+                    overlap doesn't steal space from the edit/role button. */}
+                <div className="flex min-h-10 items-start justify-end gap-2 pt-3 sm:pt-4">
+                  {isSelf && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingProfile(true)}
                     >
-                      <SelectTrigger
-                        aria-label="Change role"
-                        className="h-7 w-auto gap-1.5 rounded-full border-input bg-secondary px-2.5 py-0 text-xs font-semibold"
-                      >
-                        <SelectValue>{user.role}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLE_OPTIONS.map(role => {
-                          // Disable unassignable options, but keep the
-                          // target's *current* role enabled so the
-                          // Select's selection can render correctly even
-                          // when the caller can't re-assign it.
-                          const disabled =
-                            !isAssignable(role) && role !== user.role
-                          return (
-                            <SelectItem
-                              key={role}
-                              value={role}
-                              disabled={disabled}
-                            >
-                              {role}
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge
-                      variant={ROLE_VARIANT[user.role]}
-                      className="text-xs"
-                    >
-                      {user.role}
-                    </Badge>
+                      <Pencil className="size-3.5" />
+                      Edit profile
+                    </Button>
                   )}
                 </div>
-                {profile?.nip05 && (
-                  <span className="truncate text-sm text-muted-foreground">
-                    {profile.nip05}
+
+                <div className="mt-1 flex min-w-0 flex-col gap-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="truncate text-xl font-semibold sm:text-2xl">
+                      {displayName}
+                    </h2>
+                    {canManageRoles ? (
+                      <Select
+                        value={user.role}
+                        onValueChange={v => handleRoleChange(v as Role)}
+                        disabled={roleUpdating || isSelf}
+                      >
+                        <SelectTrigger
+                          aria-label="Change role"
+                          className="h-7 w-auto gap-1.5 rounded-full border-input bg-secondary px-2.5 py-0 text-xs font-semibold"
+                        >
+                          <SelectValue>{user.role}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ROLE_OPTIONS.map(role => {
+                            const disabled =
+                              !isAssignable(role) && role !== user.role
+                            return (
+                              <SelectItem
+                                key={role}
+                                value={role}
+                                disabled={disabled}
+                              >
+                                {role}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge
+                        variant={ROLE_VARIANT[user.role]}
+                        className="text-xs"
+                      >
+                        {user.role}
+                      </Badge>
+                    )}
+                  </div>
+                  {profile?.nip05 && (
+                    <span className="truncate text-sm text-muted-foreground">
+                      {profile.nip05}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <span
+                      className="truncate font-mono text-xs text-muted-foreground"
+                      title={user.pubkey}
+                    >
+                      {truncateNpub(user.pubkey, 12)}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 text-muted-foreground hover:text-foreground"
+                      onClick={handleCopyPubkey}
+                      aria-label="Copy pubkey"
+                    >
+                      <Copy className="size-3" />
+                    </Button>
+                  </div>
+                  {profile?.about && (
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
+                      {profile.about}
+                    </p>
+                  )}
+                  <span className="mt-2 text-xs text-muted-foreground">
+                    Joined {formatRelativeTime(user.createdAt)}
                   </span>
-                )}
-                <div className="flex items-center gap-1">
-                  <span
-                    className="truncate font-mono text-xs text-muted-foreground"
-                    title={user.pubkey}
-                  >
-                    {truncateNpub(user.pubkey, 12)}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-6 text-muted-foreground hover:text-foreground"
-                    onClick={handleCopyPubkey}
-                    aria-label="Copy pubkey"
-                  >
-                    <Copy className="size-3" />
-                  </Button>
                 </div>
-                {profile?.about && (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {profile.about}
-                  </p>
-                )}
-                <span className="mt-1 text-xs text-muted-foreground">
-                  Joined {formatRelativeTime(user.createdAt)}
-                </span>
               </div>
             </div>
 
@@ -348,6 +380,16 @@ export default function UserDetailPage({
           </>
         )}
       </div>
+
+      {isSelf && user && (
+        <EditProfileDialog
+          open={editingProfile}
+          onOpenChange={setEditingProfile}
+          profile={profile}
+          pubkey={user.pubkey}
+          onPublished={next => updateProfile(next)}
+        />
+      )}
     </div>
   )
 }
