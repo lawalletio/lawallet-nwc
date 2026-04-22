@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { useAuth, type LoginMethod } from '@/components/admin/auth-context'
+import type { NostrSigner } from '@nostrify/nostrify'
 import {
   createNsecSigner,
   createBrowserSigner,
@@ -19,20 +20,53 @@ import {
   hasBrowserExtension,
 } from '@/lib/client/nostr-signer'
 
+/**
+ * Callback signature for consumers that want to reuse the NIP-07/nsec/bunker
+ * inputs without triggering a full NIP-98 → JWT exchange. The default handler
+ * (when `handleSigner` is omitted) calls `useAuth().login`, preserving the
+ * original login-flow behaviour.
+ */
+export type NostrSignerHandler = (
+  signer: NostrSigner,
+  method: LoginMethod,
+) => Promise<void>
+
 interface NostrConnectFormProps {
-  /** Called after successful login */
+  /** Called after successful login/unlock */
   onSuccess?: () => void
   /** Button labels */
   submitLabel?: string
   loadingLabel?: string
+  /**
+   * Optional override for what to do with the signer once obtained. Defaults
+   * to `useAuth().login(signer, method)` — the full NIP-98 → JWT exchange.
+   * The signer-unlock flow passes a handler that only sets the signer in
+   * memory, keeping the existing JWT session intact.
+   */
+  handleSigner?: NostrSignerHandler
+  /**
+   * Whether to render the "Or continue with extension" section. Defaults to
+   * `true` in login flows; unlock callers hide it because an extension
+   * signer would already have been rehydrated automatically.
+   */
+  showExtension?: boolean
+}
+
+function useDefaultLoginHandler(): NostrSignerHandler {
+  const { login } = useAuth()
+  return login
 }
 
 export function NostrConnectForm({
   onSuccess,
   submitLabel = 'Login',
   loadingLabel = 'Signing in...',
+  handleSigner,
+  showExtension = true,
 }: NostrConnectFormProps) {
   const [extensionAvailable] = useState(() => hasBrowserExtension())
+  const defaultHandler = useDefaultLoginHandler()
+  const onSigner = handleSigner ?? defaultHandler
 
   return (
     <div className="w-full space-y-6">
@@ -54,14 +88,24 @@ export function NostrConnectForm({
         </TabsList>
 
         <TabsContent value="nsec">
-          <NsecForm onSuccess={onSuccess} submitLabel={submitLabel} loadingLabel={loadingLabel} />
+          <NsecForm
+            onSuccess={onSuccess}
+            submitLabel={submitLabel}
+            loadingLabel={loadingLabel}
+            onSigner={onSigner}
+          />
         </TabsContent>
         <TabsContent value="bunker">
-          <BunkerForm onSuccess={onSuccess} submitLabel={submitLabel} loadingLabel={loadingLabel} />
+          <BunkerForm
+            onSuccess={onSuccess}
+            submitLabel={submitLabel}
+            loadingLabel={loadingLabel}
+            onSigner={onSigner}
+          />
         </TabsContent>
       </Tabs>
 
-      {extensionAvailable && (
+      {showExtension && extensionAvailable && (
         <>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -74,7 +118,7 @@ export function NostrConnectForm({
             </div>
           </div>
 
-          <ExtensionButton onSuccess={onSuccess} />
+          <ExtensionButton onSuccess={onSuccess} onSigner={onSigner} />
         </>
       )}
     </div>
@@ -87,12 +131,13 @@ function NsecForm({
   onSuccess,
   submitLabel,
   loadingLabel,
+  onSigner,
 }: {
   onSuccess?: () => void
   submitLabel: string
   loadingLabel: string
+  onSigner: NostrSignerHandler
 }) {
-  const { login } = useAuth()
   const [nsec, setNsec] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -105,7 +150,7 @@ function NsecForm({
 
     try {
       const signer = createNsecSigner(nsec)
-      await login(signer, 'nsec')
+      await onSigner(signer, 'nsec')
       onSuccess?.()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to login'
@@ -186,10 +231,12 @@ function BunkerForm({
   onSuccess,
   submitLabel,
   loadingLabel,
+  onSigner,
 }: {
   onSuccess?: () => void
   submitLabel: string
   loadingLabel: string
+  onSigner: NostrSignerHandler
 }) {
   const [mode, setMode] = useState<'qr' | 'paste'>('qr')
 
@@ -225,9 +272,14 @@ function BunkerForm({
       </div>
 
       {mode === 'qr' ? (
-        <BunkerQRMode onSuccess={onSuccess} />
+        <BunkerQRMode onSuccess={onSuccess} onSigner={onSigner} />
       ) : (
-        <BunkerPasteMode onSuccess={onSuccess} submitLabel={submitLabel} loadingLabel={loadingLabel} />
+        <BunkerPasteMode
+          onSuccess={onSuccess}
+          submitLabel={submitLabel}
+          loadingLabel={loadingLabel}
+          onSigner={onSigner}
+        />
       )}
     </div>
   )
@@ -235,8 +287,13 @@ function BunkerForm({
 
 // ─── Bunker QR Mode (nostrconnect://) ─────────────────────────────────────
 
-function BunkerQRMode({ onSuccess }: { onSuccess?: () => void }) {
-  const { login } = useAuth()
+function BunkerQRMode({
+  onSuccess,
+  onSigner,
+}: {
+  onSuccess?: () => void
+  onSigner: NostrSignerHandler
+}) {
   const [uri, setUri] = useState<string | null>(null)
   const [status, setStatus] = useState<'generating' | 'waiting' | 'connecting' | 'error'>('generating')
   const [error, setError] = useState<string | null>(null)
@@ -266,7 +323,7 @@ function BunkerQRMode({ onSuccess }: { onSuccess?: () => void }) {
       if (controller.signal.aborted) return
 
       setStatus('connecting')
-      await login(signer, 'bunker')
+      await onSigner(signer, 'bunker')
       onSuccess?.()
     } catch (err) {
       if (controller.signal.aborted) return
@@ -276,7 +333,7 @@ function BunkerQRMode({ onSuccess }: { onSuccess?: () => void }) {
         : message)
       setStatus('error')
     }
-  }, [login, onSuccess])
+  }, [onSigner, onSuccess])
 
   useEffect(() => {
     const id = requestAnimationFrame(() => startConnection())
@@ -353,12 +410,13 @@ function BunkerPasteMode({
   onSuccess,
   submitLabel,
   loadingLabel,
+  onSigner,
 }: {
   onSuccess?: () => void
   submitLabel: string
   loadingLabel: string
+  onSigner: NostrSignerHandler
 }) {
-  const { login } = useAuth()
   const [bunkerUrl, setBunkerUrl] = useState('')
   const [showUrl, setShowUrl] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -377,7 +435,7 @@ function BunkerPasteMode({
     setLoading(true)
     try {
       const signer = await createBunkerSigner(bunkerUrl, { timeout: 30_000 })
-      await login(signer, 'bunker')
+      await onSigner(signer, 'bunker')
       onSuccess?.()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to connect to bunker'
@@ -435,15 +493,20 @@ function BunkerPasteMode({
 
 // ─── Extension Button ──────────────────────────────────────────────────────
 
-function ExtensionButton({ onSuccess }: { onSuccess?: () => void }) {
-  const { login } = useAuth()
+function ExtensionButton({
+  onSuccess,
+  onSigner,
+}: {
+  onSuccess?: () => void
+  onSigner: NostrSignerHandler
+}) {
   const [loading, setLoading] = useState(false)
 
   async function handleConnect() {
     setLoading(true)
     try {
       const signer = createBrowserSigner()
-      await login(signer, 'extension')
+      await onSigner(signer, 'extension')
       onSuccess?.()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to connect with extension')

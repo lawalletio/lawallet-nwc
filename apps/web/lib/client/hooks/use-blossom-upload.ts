@@ -1,11 +1,31 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createUploadAuth, encodeAuthorizationHeader } from 'blossom-client-sdk'
-import type { BlobDescriptor } from 'blossom-client-sdk'
+import { createUploadAuth } from 'blossom-client-sdk'
+import type { BlobDescriptor, SignedEvent } from 'blossom-client-sdk'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { toBlossomSigner } from '@/lib/client/blossom-signer'
+
+/**
+ * Unicode-safe replacement for `blossom-client-sdk`'s
+ * `encodeAuthorizationHeader`, which calls `btoa(JSON.stringify(event))`.
+ * `btoa` rejects any codepoint > 0xFF, so if the signed event's content
+ * (e.g. "Upload ${file.name}") contains accents, emoji, or any non-Latin1
+ * character the upload fails with "Failed to execute btoa". We encode the
+ * JSON to UTF-8 bytes first, then base64 those bytes — preserving the
+ * exact wire format the Blossom server expects.
+ */
+function encodeAuthHeader(event: SignedEvent): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(event))
+  let binary = ''
+  // Chunk to avoid `Maximum call stack size exceeded` on very large events.
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return 'Nostr ' + btoa(binary)
+}
 
 export interface BlossomUploadResult {
   /** Absolute URL returned by the first successful server. */
@@ -106,7 +126,7 @@ function putViaXhr(
  */
 export function useBlossomUpload() {
   const { data: settings } = useSettings()
-  const { signer } = useAuth()
+  const { signer, requestSigner } = useAuth()
 
   const [state, setState] = useState<UploadState>({
     progress: 0,
@@ -123,9 +143,11 @@ export function useBlossomUpload() {
 
   const upload = useCallback(
     async (file: File): Promise<BlossomUploadResult> => {
-      if (!signer) {
-        throw new Error('Sign in again to upload media (signer unavailable)')
-      }
+      // Lazily rehydrate the signer: non-extension login methods (nsec,
+      // bunker) lose their signer on reload. Rather than forcing a full
+      // re-login, the AuthProvider opens a narrow "Unlock signer" dialog
+      // on demand so the user can supply a fresh one and continue.
+      const activeSigner = signer ?? (await requestSigner())
       if (servers.length === 0) {
         throw new Error('No Blossom servers configured. Add one in Infrastructure settings.')
       }
@@ -143,13 +165,13 @@ export function useBlossomUpload() {
         // interface. The helper validates the returned event's shape at
         // runtime so a broken signer fails loudly instead of silently
         // producing an invalid auth header.
-        const signFn = toBlossomSigner(signer)
+        const signFn = toBlossomSigner(activeSigner)
 
         // Create a single BUD-02 auth event; reuse across all target servers.
         const authEvent = await createUploadAuth(signFn, file, {
           message: `Upload ${file.name}`,
         })
-        const authHeader = encodeAuthorizationHeader(authEvent)
+        const authHeader = encodeAuthHeader(authEvent)
 
         // Track per-server progress so aggregate reflects real bandwidth.
         const loaded = new Array(servers.length).fill(0)
@@ -208,7 +230,7 @@ export function useBlossomUpload() {
         throw error
       }
     },
-    [signer, servers],
+    [signer, requestSigner, servers],
   )
 
   const reset = useCallback(() => {
