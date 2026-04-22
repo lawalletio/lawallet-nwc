@@ -28,7 +28,13 @@ function getEventTypeForPath(path: string): SSEEventType | null {
   // be tied to the `addresses:updated` event instead of `invoices:updated`.
   if (/^\/api\/wallet\/addresses\/[^/]+\/invoices/.test(path)) return 'invoices:updated'
   if (path.startsWith('/api/wallet/addresses')) return 'addresses:updated'
-  if (path.startsWith('/api/cards') || path.startsWith('/api/card-designs')) return 'cards:updated'
+  // `/api/card-designs` must come *before* the `/api/cards` rule because
+  // `cards`.startsWith test would otherwise claim it. Designs emit their
+  // own `designs:updated` bus event; wiring them to `cards:updated` meant
+  // the designs grid and the Create-Card design picker never refetched
+  // after a new design was uploaded.
+  if (path.startsWith('/api/card-designs')) return 'designs:updated'
+  if (path.startsWith('/api/cards')) return 'cards:updated'
   if (path.startsWith('/api/settings')) return 'settings:updated'
   if (path.startsWith('/api/invoices')) return 'invoices:updated'
   if (path.startsWith('/api/users')) return 'users:updated'

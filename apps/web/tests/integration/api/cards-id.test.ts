@@ -17,12 +17,20 @@ vi.mock('@/lib/middleware/maintenance', () => ({
   checkMaintenance: vi.fn(),
 }))
 
-vi.mock('@/lib/admin-auth', () => ({
-  validateAdminAuth: vi.fn(),
+vi.mock('@/lib/auth/unified-auth', () => ({
+  authenticateWithPermission: vi.fn(),
 }))
 
 import { GET, DELETE } from '@/app/api/cards/[id]/route'
-import { validateAdminAuth } from '@/lib/admin-auth'
+import { authenticateWithPermission } from '@/lib/auth/unified-auth'
+import { Role } from '@/lib/auth/permissions'
+
+const mockAdmin = () =>
+  vi.mocked(authenticateWithPermission).mockResolvedValue({
+    pubkey: 'admin',
+    role: Role.ADMIN,
+    method: 'jwt',
+  })
 
 beforeEach(() => {
   resetPrismaMock()
@@ -31,7 +39,7 @@ beforeEach(() => {
 
 describe('GET /api/cards/[id]', () => {
   it('returns card details for admin', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     const design = createCardDesignFixture()
     const ntag424 = createNtag424Fixture()
     const card = { ...createCardFixture(), design, ntag424, user: { pubkey: 'a'.repeat(64) } }
@@ -46,7 +54,7 @@ describe('GET /api/cards/[id]', () => {
   })
 
   it('returns 404 for nonexistent card', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/cards/nonexistent')
@@ -56,7 +64,7 @@ describe('GET /api/cards/[id]', () => {
   })
 
   it('rejects non-admin', async () => {
-    vi.mocked(validateAdminAuth).mockRejectedValue(new Error('unauthorized'))
+    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
 
     const req = createNextRequest('/api/cards/some-id')
     const res = await GET(req, createParamsPromise({ id: 'some-id' }))
@@ -67,7 +75,7 @@ describe('GET /api/cards/[id]', () => {
 
 describe('DELETE /api/cards/[id]', () => {
   it('deletes card and NTAG424 in transaction', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     const card = createCardFixture({ ntag424Cid: 'ntag-cid-123' })
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
 
@@ -83,7 +91,7 @@ describe('DELETE /api/cards/[id]', () => {
   })
 
   it('returns 404 for nonexistent card', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/cards/nonexistent', { method: 'DELETE' })
@@ -93,7 +101,7 @@ describe('DELETE /api/cards/[id]', () => {
   })
 
   it('handles card without NTAG424', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     const card = createCardFixture({ ntag424Cid: null })
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
 
@@ -105,7 +113,7 @@ describe('DELETE /api/cards/[id]', () => {
   })
 
   it('rejects non-admin', async () => {
-    vi.mocked(validateAdminAuth).mockRejectedValue(new Error('unauthorized'))
+    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
 
     const req = createNextRequest('/api/cards/some-id', { method: 'DELETE' })
     const res = await DELETE(req, createParamsPromise({ id: 'some-id' }))

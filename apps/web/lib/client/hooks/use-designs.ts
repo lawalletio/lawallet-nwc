@@ -9,6 +9,8 @@ export interface DesignData {
   image: string | null
   createdAt: string
   updatedAt: string
+  /** Non-null when the design has been archived. */
+  archivedAt: string | null
 }
 
 export interface DesignCount {
@@ -23,6 +25,7 @@ interface ApiDesign {
   description: string | null
   imageUrl: string | null
   createdAt: string
+  archivedAt?: string | null
 }
 
 function toDesignData(d: ApiDesign): DesignData {
@@ -32,6 +35,7 @@ function toDesignData(d: ApiDesign): DesignData {
     image: d.imageUrl,
     createdAt: d.createdAt,
     updatedAt: d.createdAt,
+    archivedAt: d.archivedAt ?? null,
   }
 }
 
@@ -54,15 +58,42 @@ export function useDesignCount() {
   return useApi<DesignCount>('/api/card-designs/count')
 }
 
+export interface CreateDesignInput {
+  description: string
+  imageUrl: string
+}
+
+export interface UpdateDesignInput {
+  description?: string
+  imageUrl?: string
+  /** Toggle the archive state. Server stamps `archivedAt` accordingly. */
+  archived?: boolean
+}
+
 /**
- * Mutation hook for importing designs.
+ * Mutation hook for importing, creating, and updating designs.
  */
 export function useDesignMutations() {
-  const { mutate, loading, error } = useMutation()
+  const importMut = useMutation()
+  const createMut = useMutation<CreateDesignInput, ApiDesign>()
+  const updateMut = useMutation<UpdateDesignInput, ApiDesign>()
 
   return {
-    importDesigns: () => mutate('post', '/api/card-designs/import'),
-    loading,
-    error,
+    importDesigns: () => importMut.mutate('post', '/api/card-designs/import'),
+    createDesign: (input: CreateDesignInput) =>
+      createMut.mutate('post', '/api/card-designs', input).then(toDesignData),
+    updateDesign: (id: string, input: UpdateDesignInput) =>
+      updateMut
+        .mutate(
+          'put',
+          `/api/card-designs/${encodeURIComponent(id)}`,
+          input,
+        )
+        .then(toDesignData),
+    loading: importMut.loading || createMut.loading || updateMut.loading,
+    importing: importMut.loading,
+    creating: createMut.loading,
+    updating: updateMut.loading,
+    error: importMut.error ?? createMut.error ?? updateMut.error,
   }
 }

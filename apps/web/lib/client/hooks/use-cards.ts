@@ -152,7 +152,11 @@ export function useCard(id: string | null) {
  * Mutation hook for creating/deleting cards.
  */
 export function useCardMutations() {
-  const { mutate, loading, error } = useMutation<{ id: string; designId?: string }>()
+  // TOutput intentionally left loose — the create endpoint returns the
+  // legacy `Card` shape from `types/card.ts` (flat pubkey/username etc.);
+  // consumers here only need `id` to route to the new card's page.
+  const { mutate, loading, error } =
+    useMutation<{ id: string; designId?: string }, { id: string }>()
 
   return {
     createCard: (data: { id: string; designId?: string }) =>

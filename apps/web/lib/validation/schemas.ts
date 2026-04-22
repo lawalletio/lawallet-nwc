@@ -22,6 +22,53 @@ export const cardListQuerySchema = z.object({
   used: z.enum(['true', 'false']).optional(),
 })
 
+export const createCardDesignSchema = z.object({
+  description: z
+    .string()
+    .trim()
+    .min(1, 'Design name is required')
+    .max(120, 'Design name must be 120 characters or less'),
+  imageUrl: z
+    .string()
+    .trim()
+    .url('Image URL must be a valid URL')
+    .max(2048, 'Image URL too long'),
+})
+
+/**
+ * Partial update for a card design. At least one field must be present —
+ * the route handler rejects an empty payload so a no-op PATCH returns 400
+ * rather than silently doing nothing.
+ */
+export const updateCardDesignSchema = z
+  .object({
+    description: z
+      .string()
+      .trim()
+      .min(1, 'Design name is required')
+      .max(120, 'Design name must be 120 characters or less')
+      .optional(),
+    imageUrl: z
+      .string()
+      .trim()
+      .url('Image URL must be a valid URL')
+      .max(2048, 'Image URL too long')
+      .optional(),
+    /**
+     * Archive toggle. `true` stamps `archivedAt = now()`, `false` clears it.
+     * The wire stays as a simple boolean so the client doesn't have to know
+     * about the timestamp representation.
+     */
+    archived: z.boolean().optional(),
+  })
+  .refine(
+    v =>
+      v.description !== undefined ||
+      v.imageUrl !== undefined ||
+      v.archived !== undefined,
+    { message: 'No fields to update' },
+  )
+
 export const scanCardQuerySchema = z.object({
   p: z.string().min(1, 'Parameter p is required'),
   c: z.string().min(1, 'Parameter c is required'),

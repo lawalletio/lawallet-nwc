@@ -1,10 +1,12 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Trash2 } from 'lucide-react'
+import { QrCode, Trash2 } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
+import { DesignImage } from '@/components/admin/design-image'
+import { BoltcardQrDialog } from '@/components/admin/boltcard-qr-dialog'
 import { PermissionGuard } from '@/components/admin/permission-guard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -39,6 +41,7 @@ export default function CardDetailPage({
   const router = useRouter()
   const { data: card, loading } = useCard(id)
   const { deleteCard, loading: deleteLoading } = useCardMutations()
+  const [qrOpen, setQrOpen] = useState(false)
 
   async function handleDelete() {
     try {
@@ -56,14 +59,18 @@ export default function CardDetailPage({
   return (
     <div className="flex flex-col">
       <AdminTopbar
-        title={loading ? 'Loading...' : `Card ${card?.id ?? id}`}
+        title="Single Card"
         type="subpage"
         onBack={() => router.push('/admin/cards')}
         actions={
           <PermissionGuard permission={Permission.CARDS_WRITE}>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" disabled={deleteLoading}>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={deleteLoading}
+                >
                   <Trash2 className="mr-2 size-4" />
                   Delete
                 </Button>
@@ -72,7 +79,8 @@ export default function CardDetailPage({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete this card?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. The card and its associated NTAG424 keys will be permanently removed.
+                    This action cannot be undone. The card and its
+                    associated NTAG424 keys will be permanently removed.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -85,6 +93,12 @@ export default function CardDetailPage({
             </AlertDialog>
           </PermissionGuard>
         }
+      />
+
+      <BoltcardQrDialog
+        cardId={id}
+        open={qrOpen}
+        onOpenChange={setQrOpen}
       />
 
       <div className="p-6 flex flex-col gap-6">
@@ -105,6 +119,17 @@ export default function CardDetailPage({
                 <CardTitle className="text-base">Card Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Design preview — skeleton → fade-in via the shared
+                    `DesignImage`. Rendered only when the card has an
+                    associated design so unassigned cards don't show a
+                    permanent "No image" block. */}
+                {card.design && (
+                  <DesignImage
+                    src={card.design.image}
+                    alt={card.design.description || 'Card design'}
+                    className="max-w-sm"
+                  />
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <InfoField label="Card ID" value={card.id} mono />
                   <InfoField label="Design" value={card.design?.description || 'None'} />
@@ -129,17 +154,32 @@ export default function CardDetailPage({
               </CardContent>
             </Card>
 
-            {/* NTAG424 Keys (collapsible, sensitive) */}
+            {/* NTAG424 Keys (collapsible, sensitive). The BoltCard QR
+                belongs here rather than on the topbar — it's the
+                hardware-programming affordance paired directly with the
+                keys it would write. */}
             {card.ntag424 && (
               <Collapsible>
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
+                  <CardHeader className="flex flex-row items-center justify-between gap-2">
                     <CardTitle className="text-base">NTAG424 Keys</CardTitle>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        Show/Hide
-                      </Button>
-                    </CollapsibleTrigger>
+                    <div className="flex items-center gap-2">
+                      <PermissionGuard permission={Permission.CARDS_WRITE}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setQrOpen(true)}
+                        >
+                          <QrCode className="mr-2 size-4" />
+                          BoltCard QR
+                        </Button>
+                      </PermissionGuard>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          Show/Hide
+                        </Button>
+                      </CollapsibleTrigger>
+                    </div>
                   </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="space-y-4">

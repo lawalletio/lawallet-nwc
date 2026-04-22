@@ -59,15 +59,20 @@ model User {
 }
 
 model CardDesign {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   imageUrl    String
   description String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+  /// Non-null timestamp means the design has been archived and should be
+  /// hidden from the default "Active" tab. Using a timestamp instead of a
+  /// boolean so we can order archived designs by when they were archived.
+  archivedAt  DateTime?
   cards       Card[]
   userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
+  user        User?     @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([archivedAt])
 }
 
 model Ntag424 {
