@@ -16,6 +16,7 @@ import {
 import { updateRoleSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 const ROLE_HIERARCHY: Role[] = [Role.USER, Role.VIEWER, Role.OPERATOR, Role.ADMIN]
 
@@ -114,6 +115,18 @@ export const PUT = withErrorHandling(
     })
 
     eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+
+    logActivity.fireAndForget({
+      category: 'USER',
+      event: ActivityEvent.USER_ROLE_CHANGED,
+      message: `Role changed for user ${updated.id}: ${targetUser.role} → ${updated.role}`,
+      userId: updated.id,
+      metadata: {
+        previousRole: targetUser.role,
+        newRole: updated.role,
+        changedBy: pubkey,
+      },
+    })
 
     return NextResponse.json({
       userId: updated.id,

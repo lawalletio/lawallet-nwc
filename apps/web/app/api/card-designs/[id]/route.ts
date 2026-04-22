@@ -8,6 +8,7 @@ import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { idParam, updateCardDesignSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -66,6 +67,16 @@ export const PUT = withErrorHandling(
     })
 
     eventBus.emit({ type: 'designs:updated', timestamp: Date.now() })
+
+    logActivity.fireAndForget({
+      category: 'CARD',
+      event: ActivityEvent.CARD_DESIGN_UPDATED,
+      message: `Card design updated: ${updated.description}`,
+      metadata: {
+        designId: updated.id,
+        archived: !!updated.archivedAt,
+      },
+    })
 
     return NextResponse.json(updated)
   },

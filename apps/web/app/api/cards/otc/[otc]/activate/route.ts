@@ -12,6 +12,7 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { eventBus } from '@/lib/events/event-bus'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
@@ -51,6 +52,13 @@ export const POST = withErrorHandling(
         await prisma.card.update({
           where: { id: card.id },
           data: { userId: user.id }
+        })
+        logActivity.fireAndForget({
+          category: 'CARD',
+          event: ActivityEvent.CARD_PAIRED,
+          message: `Card paired to user`,
+          userId: user.id,
+          metadata: { cardId: card.id, pubkey },
         })
       }
     }

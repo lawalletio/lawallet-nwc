@@ -6,6 +6,7 @@ import { NotFoundError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import type { LUD21VerifySuccess, LUD21VerifyError } from '@/types/lnurl'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
 
 /**
  * LUD-21 (LNURL verify) endpoint.
@@ -126,6 +127,21 @@ export const GET = withErrorHandling(
         // transition (we're already inside the `status !== 'PAID'` guard)
         // to avoid spamming the bus on every verify poll of a settled tx.
         eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
+        logActivity.fireAndForget({
+          category: 'INVOICE',
+          event: ActivityEvent.INVOICE_PAID,
+          message: `Invoice paid via LUD-21 verify (${invoice.amountSats} sats)`,
+          userId: invoice.user.id,
+          metadata: {
+            ...invoiceLogMetadata({
+              ...invoice,
+              status: 'PAID',
+              preimage,
+              paidAt: new Date(tx.settled_at ? tx.settled_at * 1000 : Date.now()),
+            }),
+            source: 'lud21_verify',
+          },
+        })
       }
 
       const response: LUD21VerifySuccess = {
@@ -140,6 +156,20 @@ export const GET = withErrorHandling(
         { paymentHash, error: error instanceof Error ? error.message : String(error) },
         'NWC lookup_invoice failed'
       )
+      const msg = error instanceof Error ? error.message : String(error)
+      const isTimeout = /timeout|timed out|timed-out/i.test(msg)
+      logActivity.fireAndForget({
+        category: 'NWC',
+        event: isTimeout
+          ? ActivityEvent.NWC_RELAY_TIMEOUT
+          : ActivityEvent.NWC_CONNECTION_ERROR,
+        level: 'WARN',
+        message: isTimeout
+          ? 'NWC relay timed out during invoice lookup'
+          : 'NWC lookup_invoice failed',
+        userId: invoice.user.id,
+        metadata: { paymentHash, error: msg },
+      })
       // On NWC failure, return unsettled (client can retry later)
       const response: LUD21VerifySuccess = {
         status: 'OK',

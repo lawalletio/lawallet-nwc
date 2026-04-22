@@ -14,6 +14,7 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { claimInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
 import type { InvoiceMetadata } from '@/lib/invoice-utils'
 
 /**
@@ -57,6 +58,27 @@ export const POST = withErrorHandling(
       throw new ConflictError('Invoice has already been claimed')
     }
     if (invoice.status === 'EXPIRED' || invoice.expiresAt < new Date()) {
+      // Opportunistic sweeper: if the row is still PENDING but past its
+      // expiry, flip it now so the admin log reflects reality and the
+      // invoices list stops showing it as "pending payment".
+      if (invoice.status === 'PENDING') {
+        try {
+          await prisma.invoice.update({
+            where: { id },
+            data: { status: 'EXPIRED' },
+          })
+        } catch {
+          // Best-effort sweep — never block the expiry response on it.
+        }
+        logActivity.fireAndForget({
+          category: 'INVOICE',
+          event: ActivityEvent.INVOICE_EXPIRED,
+          level: 'WARN',
+          message: `Invoice expired before claim (${invoice.amountSats} sats)`,
+          userId: user.id,
+          metadata: invoiceLogMetadata({ ...invoice, status: 'EXPIRED' }),
+        })
+      }
       throw new ValidationError('Invoice has expired')
     }
 
@@ -134,6 +156,36 @@ export const POST = withErrorHandling(
     eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
     if (createsAddress) {
       eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+    }
+
+    logActivity.fireAndForget({
+      category: 'INVOICE',
+      event: ActivityEvent.INVOICE_PAID,
+      message: `Invoice paid (${invoice.amountSats} sats, ${invoice.purpose})`,
+      userId: user.id,
+      // Reflect the post-update state so the log row is an accurate snapshot
+      // of the invoice at the moment it flipped to PAID — `invoice` was
+      // fetched pre-update and still has status=PENDING / paidAt=null.
+      metadata: invoiceLogMetadata({
+        ...invoice,
+        status: 'PAID',
+        preimage: body.preimage,
+        paidAt: new Date(),
+      }),
+    })
+
+    if (createsAddress && typeof result.username === 'string') {
+      logActivity.fireAndForget({
+        category: 'ADDRESS',
+        event: ActivityEvent.ADDRESS_CREATED,
+        message: `Lightning address claimed: ${result.username}`,
+        userId: user.id,
+        metadata: {
+          username: result.username,
+          via: 'invoice_claim',
+          invoiceId: invoice.id,
+        },
+      })
     }
 
     return NextResponse.json(result)

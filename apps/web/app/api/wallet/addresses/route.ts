@@ -12,6 +12,7 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createWalletAddressSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import {
   toWalletAddressDto,
   type WalletAddressDto,
@@ -89,5 +90,12 @@ export const POST = withErrorHandling(async (request: Request) => {
   })
 
   eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+  logActivity.fireAndForget({
+    category: 'ADDRESS',
+    event: ActivityEvent.ADDRESS_CREATED,
+    message: `Lightning address created: ${created.username}`,
+    userId: user.id,
+    metadata: { username: created.username, mode: created.mode },
+  })
   return NextResponse.json(toWalletAddressDto(created, primaryNwc), { status: 201 })
 })

@@ -8,6 +8,7 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
 import { extractPaymentHash } from '@/lib/invoice-utils'
 import { resolveInvoice } from '@/lib/lnurl-probe'
 
@@ -106,6 +107,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   })
 
   eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
+
+  logActivity.fireAndForget({
+    category: 'INVOICE',
+    event: ActivityEvent.INVOICE_GENERATED,
+    message: `Invoice generated (${invoice.amountSats} sats, ${invoice.purpose})`,
+    userId: user.id,
+    metadata: invoiceLogMetadata(invoice),
+  })
 
   return NextResponse.json({
     id: invoice.id,

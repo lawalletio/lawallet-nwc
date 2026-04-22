@@ -14,6 +14,7 @@ import {
   updateWalletAddressSchema,
 } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
 import { resolvePaymentRoute } from '@/lib/wallet/resolve-payment-route'
 
@@ -146,6 +147,41 @@ export const PUT = withErrorHandling(
     })
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+
+    logActivity.fireAndForget({
+      category: 'ADDRESS',
+      event: ActivityEvent.ADDRESS_UPDATED,
+      message: `Address ${updated.username} settings updated (mode=${updated.mode})`,
+      userId: user.id,
+      metadata: {
+        username: updated.username,
+        previousMode: existing.mode,
+        mode: updated.mode,
+        nwcConnectionId: updated.nwcConnectionId ?? null,
+      },
+    })
+
+    // If the update assigned a custom NWC to this address, emit a dedicated
+    // NWC-category entry too — the admin panel filters by category, and the
+    // "custom NWC assigned" action is useful to see under NWC, not only
+    // under ADDRESS.
+    if (
+      body.mode === 'CUSTOM_NWC' &&
+      updated.nwcConnectionId &&
+      updated.nwcConnectionId !== existing.nwcConnectionId
+    ) {
+      logActivity.fireAndForget({
+        category: 'NWC',
+        event: ActivityEvent.NWC_ASSIGNED_TO_ADDRESS,
+        message: `Custom NWC assigned to ${updated.username}`,
+        userId: user.id,
+        metadata: {
+          username: updated.username,
+          nwcConnectionId: updated.nwcConnectionId,
+        },
+      })
+    }
+
     return NextResponse.json(toWalletAddressDto(updated, primaryNwc))
   },
 )

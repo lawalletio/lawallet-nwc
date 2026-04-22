@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { AlbyHub } from './albyhub'
 import { prisma } from './prisma'
 import { getSettings } from './settings'
+import { ActivityEvent, logActivity } from './activity-log'
 
 export async function createNewUser(pubkey: string) {
   const { alby_api_url, alby_bearer_token, alby_auto_generate } =
@@ -54,6 +55,14 @@ export async function createNewUser(pubkey: string) {
       // since a brand-new user has no connections; the array is just `[]`.
       nwcConnections: { where: { isPrimary: true }, take: 1 },
     }
+  })
+
+  logActivity.fireAndForget({
+    category: 'USER',
+    event: ActivityEvent.USER_SIGNUP,
+    message: `New user signed up (${pubkey.slice(0, 8)}…)`,
+    userId: user.id,
+    metadata: { pubkey, albyEnabled: user.albyEnabled },
   })
 
   return user

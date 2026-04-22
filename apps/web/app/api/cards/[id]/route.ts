@@ -7,6 +7,8 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
+import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -107,6 +109,15 @@ export const DELETE = withErrorHandling(
           where: { cid: card.ntag424Cid }
         })
       }
+    })
+
+    eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
+
+    logActivity.fireAndForget({
+      category: 'CARD',
+      event: ActivityEvent.CARD_DELETED,
+      message: `Card deleted (${id})`,
+      metadata: { cardId: id, ntag424Cid: card.ntag424Cid },
     })
 
     return NextResponse.json({

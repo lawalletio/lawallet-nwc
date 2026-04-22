@@ -7,6 +7,7 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createCardDesignSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -56,6 +57,14 @@ export const POST = withErrorHandling(async (request: Request) => {
   })
 
   eventBus.emit({ type: 'designs:updated', timestamp: Date.now() })
+
+  logActivity.fireAndForget({
+    category: 'CARD',
+    event: ActivityEvent.CARD_DESIGN_CREATED,
+    message: `Card design created: ${design.description}`,
+    userId: user?.id ?? null,
+    metadata: { designId: design.id, description: design.description },
+  })
 
   return NextResponse.json(design)
 })

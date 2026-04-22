@@ -10,6 +10,7 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { eventBus } from '@/lib/events/event-bus'
 import { probeLud21Support } from '@/lib/lnurl-probe'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 async function authenticateSettingsRequest(request: NextRequest): Promise<string> {
   const authHeader = request.headers.get('authorization')
@@ -73,6 +74,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'registration_ln_address',
     'registration_price',
     'registration_ln_enabled',
+    'maintenance_enabled',
   ])
 
   if (authenticatedPubkey !== settings.root) {
@@ -143,6 +145,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   await Promise.all(upsertPromises)
 
   eventBus.emit({ type: 'settings:updated', timestamp: Date.now() })
+
+  const changedKeys = processedSettings.map(s => s.name)
+  logActivity.fireAndForget({
+    category: 'SERVER',
+    event: ActivityEvent.SERVER_SETTINGS_UPDATED,
+    message: `Settings updated: ${changedKeys.join(', ')}`,
+    metadata: { keys: changedKeys, changedBy: authenticatedPubkey },
+  })
+
+  // Detect a maintenance toggle flip and surface it distinctly — it's a
+  // high-signal event operators want to see even when scrolling past the
+  // general settings updates.
+  const nextMaintenance = body.maintenance_enabled
+  if (
+    nextMaintenance !== undefined &&
+    nextMaintenance !== settings.maintenance_enabled
+  ) {
+    logActivity.fireAndForget({
+      category: 'SERVER',
+      event: ActivityEvent.SERVER_MAINTENANCE_TOGGLED,
+      level: 'WARN',
+      message: `Maintenance mode ${nextMaintenance === 'true' ? 'ENABLED' : 'DISABLED'}`,
+      metadata: {
+        previous: settings.maintenance_enabled,
+        next: nextMaintenance,
+        changedBy: authenticatedPubkey,
+      },
+    })
+  }
 
   return NextResponse.json({
     message: 'Settings updated successfully',

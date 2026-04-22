@@ -13,6 +13,7 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { requirePaidRegistration } from '@/lib/auth/paid-registration-guard'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
@@ -89,6 +90,27 @@ export const PUT = withErrorHandling(
     })
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+
+    if (oldLightningAddress) {
+      logActivity.fireAndForget({
+        category: 'ADDRESS',
+        event: ActivityEvent.ADDRESS_DELETED,
+        message: `Primary address replaced: ${oldLightningAddress.username} → ${username}`,
+        userId,
+        metadata: {
+          previousUsername: oldLightningAddress.username,
+          newUsername: username,
+        },
+      })
+    }
+
+    logActivity.fireAndForget({
+      category: 'ADDRESS',
+      event: ActivityEvent.ADDRESS_CREATED,
+      message: `Primary lightning address set: ${username}`,
+      userId,
+      metadata: { username, isPrimary: true },
+    })
 
     // Return the complete lightning address string
     const completeAddress = `${username}@${domain}`

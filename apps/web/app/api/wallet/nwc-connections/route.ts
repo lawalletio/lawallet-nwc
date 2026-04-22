@@ -8,6 +8,7 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createNwcConnectionSchema } from '@/lib/validation/schemas'
 import { parseNwc } from '@/lib/client/nwc'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -98,6 +99,24 @@ export const POST = withErrorHandling(async (request: Request) => {
   })
 
   eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+
+  logActivity.fireAndForget({
+    category: 'NWC',
+    event: ActivityEvent.NWC_CONNECTION_CREATED,
+    message: `NWC connection added (mode=${created.mode}${created.isPrimary ? ', primary' : ''})`,
+    userId: user.id,
+    metadata: { connectionId: created.id, mode: created.mode, isPrimary: created.isPrimary },
+  })
+
+  if (created.isPrimary) {
+    logActivity.fireAndForget({
+      category: 'NWC',
+      event: ActivityEvent.NWC_DEFAULT_CHANGED,
+      message: `Default NWC connection changed`,
+      userId: user.id,
+      metadata: { connectionId: created.id },
+    })
+  }
 
   return NextResponse.json<WalletNwcConnectionSummaryDto>(
     {
