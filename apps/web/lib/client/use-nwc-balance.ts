@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 /**
  * Minimal shape of a NIP-47 transaction that we care about for UI.
@@ -61,6 +62,32 @@ interface BalanceState {
 const DEFAULT_POLL_MS = 30_000
 
 /**
+ * `@getalby/sdk` calls `console.error('Failed to request …', err)`
+ * before rejecting every NIP-47 request that times out, which floods
+ * the devtools console on every poll tick when the relay is down.
+ * Our hook already catches the rejection and drives the UI status —
+ * suppress the redundant SDK log exactly once per app load so we
+ * don't silence unrelated errors and don't re-patch on every render.
+ */
+let sdkConsolePatchInstalled = false
+function installSdkConsolePatch() {
+  if (sdkConsolePatchInstalled) return
+  sdkConsolePatchInstalled = true
+  if (typeof window === 'undefined') return
+  const orig = console.error
+  console.error = (...args: unknown[]) => {
+    const first = args[0]
+    if (
+      typeof first === 'string' &&
+      first.startsWith('Failed to request')
+    ) {
+      return
+    }
+    orig.apply(console, args as [])
+  }
+}
+
+/**
  * Connects to a NWC wallet via the Alby SDK and reads the balance.
  * Polls on an interval to keep the value fresh. Cleans up the underlying
  * relay connection when the NWC string changes or the component unmounts.
@@ -96,15 +123,22 @@ export function useNwcBalance(
     onTransactionRef.current = opts?.onTransaction
   }, [opts?.onTransaction])
 
+  // Track the last announced status so we only toast on transitions.
+  // Initially `null` so the very first tick doesn't flash a disconnect
+  // toast while we're still establishing the subscription.
+  const lastAnnouncedRef = useRef<NwcStatus | null>(null)
+
   useEffect(() => {
     if (!nwcString) {
       setSats(null)
       setError(null)
       setLoading(false)
       setStatus('idle')
+      lastAnnouncedRef.current = null
       return
     }
 
+    installSdkConsolePatch()
     setStatus('connecting')
 
     let cancelled = false
@@ -136,10 +170,27 @@ export function useNwcBalance(
           setError(null)
           setUpdatedAt(Date.now())
           setStatus('connected')
+          if (lastAnnouncedRef.current === 'disconnected') {
+            toast.success('Wallet reconnected')
+          }
+          lastAnnouncedRef.current = 'connected'
         } catch (err) {
           if (cancelled) return
-          setError(err instanceof Error ? err : new Error(String(err)))
+          const e = err instanceof Error ? err : new Error(String(err))
+          setError(e)
           setStatus('disconnected')
+          // Only announce the transition once per disconnection. Subsequent
+          // poll ticks while still down stay silent so we don't spam a
+          // toast every 30 s on a flaky relay.
+          if (lastAnnouncedRef.current !== 'disconnected') {
+            const isTimeout = /reply timeout/i.test(e.message)
+            toast.error(
+              isTimeout
+                ? 'Wallet relay timed out. Retrying in the background…'
+                : 'Wallet disconnected. Retrying in the background…',
+            )
+            lastAnnouncedRef.current = 'disconnected'
+          }
         } finally {
           if (!cancelled) setLoading(false)
         }
