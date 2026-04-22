@@ -48,6 +48,10 @@ function getReqIdFromContext(): string | undefined {
   return requestContext.getStore()?.reqId
 }
 
+export function getCurrentReqId(): string | undefined {
+  return getReqIdFromContext()
+}
+
 function reqSummary(req: unknown): {
   method?: string
   path?: string

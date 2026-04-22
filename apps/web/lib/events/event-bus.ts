@@ -20,6 +20,7 @@ const EVENT_PERMISSION_MAP: Record<SSEEventType, Permission | null> = {
   'settings:updated': Permission.SETTINGS_READ,
   'invoices:updated': null, // any authenticated user (own invoices)
   'users:updated': Permission.USERS_READ,
+  'activity:new': Permission.ACTIVITY_READ,
 }
 
 // ─── Event Bus ────────────────────────────────────────────────────────────

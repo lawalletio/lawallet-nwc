@@ -11,10 +11,14 @@ export type SSEEventType =
   | 'settings:updated'
   | 'invoices:updated'
   | 'users:updated'
+  | 'activity:new'
 
 export interface SSEEvent {
   type: SSEEventType
   timestamp: number
+  // `activity:new` carries the new log row so subscribers can prepend it
+  // without a round-trip to the API.
+  log?: unknown
 }
 
 export const ALL_SSE_EVENT_TYPES: readonly SSEEventType[] = [
@@ -24,4 +28,5 @@ export const ALL_SSE_EVENT_TYPES: readonly SSEEventType[] = [
   'settings:updated',
   'invoices:updated',
   'users:updated',
+  'activity:new',
 ] as const

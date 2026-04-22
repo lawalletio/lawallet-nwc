@@ -40,6 +40,21 @@ enum NwcMode {
   SEND_RECEIVE
 }
 
+enum ActivityCategory {
+  USER
+  ADDRESS
+  NWC
+  INVOICE
+  CARD
+  SERVER
+}
+
+enum ActivityLevel {
+  INFO
+  WARN
+  ERROR
+}
+
 model User {
   id                 String             @id
   pubkey             String             @unique
@@ -55,6 +70,7 @@ model User {
   albySubAccount     AlbySubAccount?
   albyEnabled        Boolean            @default(false)
   role               UserRole           @default(USER)
+  activityLogs       ActivityLog[]
 
   @@index([role])
 }
@@ -178,4 +194,23 @@ model Invoice {
   @@index([userId])
   @@index([status])
   @@index([purpose, status])
+}
+
+model ActivityLog {
+  id        String           @id @default(cuid())
+  createdAt DateTime         @default(now())
+  category  ActivityCategory
+  level     ActivityLevel    @default(INFO)
+  event     String
+  message   String
+  reqId     String?
+  userId    String?
+  user      User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  metadata  Json?
+
+  @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([level, createdAt])
+  @@index([userId, createdAt])
+  @@index([reqId])
 }
