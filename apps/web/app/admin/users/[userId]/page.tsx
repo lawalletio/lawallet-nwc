@@ -10,6 +10,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -18,13 +25,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Spinner } from '@/components/ui/spinner'
-import { useUser } from '@/lib/client/hooks/use-users'
+import { useUser, useUserMutations } from '@/lib/client/hooks/use-users'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
+import { useAuth } from '@/components/admin/auth-context'
 import { truncateNpub, formatRelativeTime } from '@/lib/client/format'
-import { Role } from '@/lib/auth/permissions'
+import { Role, Permission } from '@/lib/auth/permissions'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import { cn } from '@/lib/utils'
+
+const ROLE_OPTIONS: Role[] = [Role.ADMIN, Role.OPERATOR, Role.VIEWER, Role.USER]
 
 const ROLE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
   ADMIN: 'default',
@@ -51,9 +61,42 @@ export default function UserDetailPage({
   params: Promise<{ userId: string }>
 }) {
   const { userId } = use(params)
-  const { data: user, loading } = useUser(userId)
+  const { data: user, loading, refetch } = useUser(userId)
   const { data: settings } = useSettings()
   const { profile } = useNostrProfile(user?.pubkey ?? null)
+  const { pubkey: callerPubkey, role: callerRole, isAuthorized } = useAuth()
+  const { updateUserRole, loading: roleUpdating } = useUserMutations()
+
+  const canManageRoles = isAuthorized(Permission.USERS_MANAGE_ROLES)
+  const isSelf = user?.pubkey === callerPubkey
+
+  // ROLE_OPTIONS is ordered highest → lowest. Roles strictly "below" the
+  // caller in the hierarchy sit at a higher index. Mirroring the server
+  // guard here means admins never see (and therefore can't pick) ADMIN as
+  // a target, so a failed round-trip doesn't leave the picker stuck on
+  // a rejected value.
+  const callerIndex = callerRole ? ROLE_OPTIONS.indexOf(callerRole) : -1
+  function isAssignable(role: Role): boolean {
+    if (callerIndex < 0) return false
+    return ROLE_OPTIONS.indexOf(role) > callerIndex
+  }
+
+  async function handleRoleChange(next: Role) {
+    if (!user || next === user.role) return
+    try {
+      await updateUserRole(user.id, next)
+      toast.success(`Role updated to ${next}`)
+      await refetch()
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update role',
+      )
+      // Roll the Radix Select back to the server's truth — its internal
+      // state already flipped to the rejected option and would otherwise
+      // stay divergent until the user navigated away.
+      await refetch()
+    }
+  }
 
   const domain = settings?.domain || 'your-domain'
   const displayName =
@@ -107,9 +150,49 @@ export default function UserDetailPage({
                   <h2 className="truncate text-xl font-semibold">
                     {displayName}
                   </h2>
-                  <Badge variant={ROLE_VARIANT[user.role]} className="text-xs">
-                    {user.role}
-                  </Badge>
+                  {canManageRoles ? (
+                    <Select
+                      value={user.role}
+                      onValueChange={v => handleRoleChange(v as Role)}
+                      // Disable self-demotion client-side; the server
+                      // rejects it too, but hiding the affordance avoids
+                      // a confusing toast.
+                      disabled={roleUpdating || isSelf}
+                    >
+                      <SelectTrigger
+                        aria-label="Change role"
+                        className="h-7 w-auto gap-1.5 rounded-full border-input bg-secondary px-2.5 py-0 text-xs font-semibold"
+                      >
+                        <SelectValue>{user.role}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLE_OPTIONS.map(role => {
+                          // Disable unassignable options, but keep the
+                          // target's *current* role enabled so the
+                          // Select's selection can render correctly even
+                          // when the caller can't re-assign it.
+                          const disabled =
+                            !isAssignable(role) && role !== user.role
+                          return (
+                            <SelectItem
+                              key={role}
+                              value={role}
+                              disabled={disabled}
+                            >
+                              {role}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge
+                      variant={ROLE_VARIANT[user.role]}
+                      className="text-xs"
+                    >
+                      {user.role}
+                    </Badge>
+                  )}
                 </div>
                 {profile?.nip05 && (
                   <span className="truncate text-sm text-muted-foreground">
@@ -190,7 +273,12 @@ export default function UserDetailPage({
                             <div className="flex items-center gap-2">
                               <span className="font-medium">
                                 {addr.username}
-                                <span className="text-muted-foreground">
+                                {/* Domain is implied once you're on the
+                                    user detail page — drop it on phones so
+                                    the Address + Mode + Created columns
+                                    have enough room without horizontal
+                                    scroll. */}
+                                <span className="hidden text-muted-foreground sm:inline">
                                   @{domain}
                                 </span>
                               </span>
@@ -210,15 +298,23 @@ export default function UserDetailPage({
                           </TableCell>
                           <TableCell>
                             {addr.mode === 'ALIAS' && addr.redirect ? (
+                              // Cap the badge width and truncate long
+                              // redirect targets with an ellipsis —
+                              // `break-all` alone wraps character-by-
+                              // character in a narrow column and balloons
+                              // the row to ~6 lines tall on phones. The
+                              // full address still shows on hover via
+                              // `title`.
                               <Badge
                                 variant="outline"
-                                className="items-center gap-1 font-mono text-xs font-normal"
+                                title={addr.redirect}
+                                className="inline-flex max-w-[160px] items-center gap-1 font-mono text-xs font-normal"
                               >
                                 <Forward
                                   className="size-3 shrink-0"
                                   aria-hidden
                                 />
-                                <span className="break-all">
+                                <span className="truncate">
                                   {addr.redirect}
                                 </span>
                               </Badge>

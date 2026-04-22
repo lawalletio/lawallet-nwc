@@ -1,6 +1,6 @@
 'use client'
 
-import { useApi } from '@/lib/client/hooks/use-api'
+import { useApi, useMutation as useApiMutation } from '@/lib/client/hooks/use-api'
 import type { Role } from '@/lib/auth/permissions'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 
@@ -40,4 +40,18 @@ export function useUser(userId: string | null) {
   return useApi<AdminUserDetail>(
     userId ? `/api/users/${encodeURIComponent(userId)}` : null,
   )
+}
+
+/**
+ * Mutation hooks for user administration. Currently just role changes; more
+ * can be added alongside without churning the import surface.
+ */
+export function useUserMutations() {
+  const { mutate, loading, error } = useApiMutation<{ role: Role }, { userId: string; role: Role }>()
+  return {
+    updateUserRole: (userId: string, role: Role) =>
+      mutate('put', `/api/users/${encodeURIComponent(userId)}/role`, { role }),
+    loading,
+    error,
+  }
 }

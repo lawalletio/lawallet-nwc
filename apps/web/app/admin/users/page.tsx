@@ -92,7 +92,11 @@ export default function UsersPage() {
           />
         </div>
 
-        <div className="flex flex-col gap-4">
+        {/* min-w-0 lets the table's internal overflow:auto actually kick in
+            inside this flex column — without it the section expands to fit
+            the table's natural width and pushes the whole page past the
+            viewport on mobile. */}
+        <div className="flex min-w-0 flex-col gap-4">
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -110,7 +114,12 @@ export default function UsersPage() {
                   <TableHead>User</TableHead>
                   <TableHead>Primary address</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Joined</TableHead>
+                  {/* Joined column is low-priority metadata; drop it on
+                      narrow screens so the higher-signal columns (avatar,
+                      address, role) can keep their own widths. */}
+                  <TableHead className="hidden sm:table-cell">
+                    Joined
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -184,8 +193,18 @@ function UserRow({ user, onClick }: { user: AdminUser; onClick: () => void }) {
           </Avatar>
           <div className="flex min-w-0 flex-col">
             <span className="truncate text-sm font-medium">{displayName}</span>
+            {/* Two variants so we don't need a runtime media query: the
+                short 4-char truncation renders on phones, the more
+                readable 8-char version kicks in from `sm` up. Both carry
+                the full pubkey in `title` for hover. */}
             <span
-              className="truncate font-mono text-[10px] text-muted-foreground"
+              className="truncate font-mono text-[10px] text-muted-foreground sm:hidden"
+              title={user.pubkey}
+            >
+              {truncateNpub(user.pubkey, 4)}
+            </span>
+            <span
+              className="hidden truncate font-mono text-[10px] text-muted-foreground sm:inline"
               title={user.pubkey}
             >
               {truncateNpub(user.pubkey)}
@@ -210,7 +229,7 @@ function UserRow({ user, onClick }: { user: AdminUser; onClick: () => void }) {
           {user.role}
         </Badge>
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
+      <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
         {formatRelativeTime(user.createdAt)}
       </TableCell>
     </TableRow>

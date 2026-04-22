@@ -3,6 +3,7 @@ import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createUserFixture, createAdminUserFixture } from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
+import { Role } from '@/lib/auth/permissions'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
@@ -24,15 +25,21 @@ vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn(),
 }))
 
-vi.mock('@/lib/admin-auth', () => ({
-  validateNip98Auth: vi.fn(),
+// Route now uses unified `authenticate()` so the dashboard's JWT is accepted
+// alongside NIP-98. The AuthResult already carries role+pubkey, so there's
+// no separate caller-role DB lookup to mock anymore.
+vi.mock('@/lib/auth/unified-auth', () => ({
+  authenticate: vi.fn(),
 }))
 
 import { GET, PUT } from '@/app/api/users/[userId]/role/route'
-import { validateNip98Auth } from '@/lib/admin-auth'
+import { authenticate } from '@/lib/auth/unified-auth'
 
 const adminPubkey = 'a'.repeat(64)
 const userPubkey = 'b'.repeat(64)
+
+const mockAuth = (role: Role, pubkey: string) =>
+  vi.mocked(authenticate).mockResolvedValue({ role, pubkey, method: 'jwt' })
 
 beforeEach(() => {
   resetPrismaMock()
@@ -42,11 +49,8 @@ beforeEach(() => {
 describe('GET /api/users/[userId]/role', () => {
   it('allows user to view their own role', async () => {
     const user = createUserFixture({ pubkey: userPubkey, role: 'USER' })
-    vi.mocked(validateNip98Auth).mockResolvedValue(userPubkey)
-    // First call: find target user; second call: find caller for resolveCallerRole
-    vi.mocked(prismaMock.user.findUnique)
-      .mockResolvedValueOnce(user as any) // target user
-      .mockResolvedValueOnce({ role: 'USER' } as any) // caller role
+    mockAuth(Role.USER, userPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
 
     const req = createNextRequest(`/api/users/${user.id}/role`)
     const res = await GET(req, createParamsPromise({ userId: user.id }))
@@ -57,10 +61,8 @@ describe('GET /api/users/[userId]/role', () => {
 
   it('allows admin to view any user role', async () => {
     const target = createUserFixture({ pubkey: userPubkey, role: 'VIEWER' })
-    vi.mocked(validateNip98Auth).mockResolvedValue(adminPubkey)
-    vi.mocked(prismaMock.user.findUnique)
-      .mockResolvedValueOnce(target as any)
-      .mockResolvedValueOnce({ role: 'ADMIN' } as any)
+    mockAuth(Role.ADMIN, adminPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
 
     const req = createNextRequest(`/api/users/${target.id}/role`)
     const res = await GET(req, createParamsPromise({ userId: target.id }))
@@ -71,10 +73,8 @@ describe('GET /api/users/[userId]/role', () => {
 
   it('rejects non-admin viewing another user role', async () => {
     const target = createUserFixture({ pubkey: 'c'.repeat(64), role: 'USER' })
-    vi.mocked(validateNip98Auth).mockResolvedValue(userPubkey)
-    vi.mocked(prismaMock.user.findUnique)
-      .mockResolvedValueOnce(target as any)
-      .mockResolvedValueOnce({ role: 'USER' } as any)
+    mockAuth(Role.USER, userPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
 
     const req = createNextRequest(`/api/users/${target.id}/role`)
     const res = await GET(req, createParamsPromise({ userId: target.id }))
@@ -83,7 +83,7 @@ describe('GET /api/users/[userId]/role', () => {
   })
 
   it('returns 404 for nonexistent user', async () => {
-    vi.mocked(validateNip98Auth).mockResolvedValue(adminPubkey)
+    mockAuth(Role.ADMIN, adminPubkey)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/users/nonexistent/role')
@@ -96,10 +96,8 @@ describe('GET /api/users/[userId]/role', () => {
 describe('PUT /api/users/[userId]/role', () => {
   it('allows admin to promote user to OPERATOR', async () => {
     const target = createUserFixture({ pubkey: userPubkey, role: 'USER' })
-    vi.mocked(validateNip98Auth).mockResolvedValue(adminPubkey)
-    vi.mocked(prismaMock.user.findUnique)
-      .mockResolvedValueOnce({ role: 'ADMIN' } as any) // caller
-      .mockResolvedValueOnce(target as any) // target
+    mockAuth(Role.ADMIN, adminPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({
       id: target.id,
       role: 'OPERATOR',
@@ -117,10 +115,8 @@ describe('PUT /api/users/[userId]/role', () => {
 
   it('allows admin to demote user to USER', async () => {
     const target = createUserFixture({ pubkey: userPubkey, role: 'OPERATOR' })
-    vi.mocked(validateNip98Auth).mockResolvedValue(adminPubkey)
-    vi.mocked(prismaMock.user.findUnique)
-      .mockResolvedValueOnce({ role: 'ADMIN' } as any)
-      .mockResolvedValueOnce(target as any)
+    mockAuth(Role.ADMIN, adminPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({
       id: target.id,
       role: 'USER',
@@ -138,8 +134,7 @@ describe('PUT /api/users/[userId]/role', () => {
 
   it('rejects non-admin from managing roles', async () => {
     const target = createUserFixture({ pubkey: 'c'.repeat(64), role: 'USER' })
-    vi.mocked(validateNip98Auth).mockResolvedValue(userPubkey)
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ role: 'USER' } as any)
+    mockAuth(Role.USER, userPubkey)
 
     const req = createNextRequest(`/api/users/${target.id}/role`, {
       method: 'PUT',
@@ -152,10 +147,10 @@ describe('PUT /api/users/[userId]/role', () => {
 
   it('prevents assigning role equal to or higher than own', async () => {
     const target = createUserFixture({ pubkey: userPubkey, role: 'USER' })
-    vi.mocked(validateNip98Auth).mockResolvedValue(adminPubkey)
-    vi.mocked(prismaMock.user.findUnique)
-      .mockResolvedValueOnce({ role: 'OPERATOR' } as any) // caller is OPERATOR
-      .mockResolvedValueOnce(target as any)
+    // OPERATOR has USERS_MANAGE_ROLES? No — only ADMIN does per the permissions
+    // matrix. Use ADMIN here and try to assign ADMIN (equal rank).
+    mockAuth(Role.ADMIN, adminPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
 
     const req = createNextRequest(`/api/users/${target.id}/role`, {
       method: 'PUT',
@@ -168,10 +163,8 @@ describe('PUT /api/users/[userId]/role', () => {
 
   it('prevents self-demotion', async () => {
     const admin = createAdminUserFixture({ pubkey: adminPubkey })
-    vi.mocked(validateNip98Auth).mockResolvedValue(adminPubkey)
-    vi.mocked(prismaMock.user.findUnique)
-      .mockResolvedValueOnce({ role: 'ADMIN' } as any)
-      .mockResolvedValueOnce(admin as any)
+    mockAuth(Role.ADMIN, adminPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(admin as any)
 
     const req = createNextRequest(`/api/users/${admin.id}/role`, {
       method: 'PUT',
@@ -184,11 +177,13 @@ describe('PUT /api/users/[userId]/role', () => {
 
   it('prevents removing last admin', async () => {
     const target = createAdminUserFixture({ pubkey: userPubkey })
-    vi.mocked(validateNip98Auth).mockResolvedValue(adminPubkey)
-    vi.mocked(prismaMock.user.findUnique)
-      .mockResolvedValueOnce({ role: 'ADMIN', pubkey: adminPubkey } as any) // caller
-      .mockResolvedValueOnce({ id: target.id, role: 'ADMIN', pubkey: userPubkey } as any) // target is different ADMIN
-    vi.mocked(prismaMock.user.count).mockResolvedValue(1) // only 1 admin
+    mockAuth(Role.ADMIN, adminPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: target.id,
+      role: 'ADMIN',
+      pubkey: userPubkey,
+    } as any)
+    vi.mocked(prismaMock.user.count).mockResolvedValue(1)
 
     const req = createNextRequest(`/api/users/${target.id}/role`, {
       method: 'PUT',
@@ -197,19 +192,13 @@ describe('PUT /api/users/[userId]/role', () => {
     const res = await PUT(req, createParamsPromise({ userId: target.id }))
     const body: any = await res.json()
 
-    // Route checks hierarchy: ADMIN cannot assign VIEWER (equal rank - fails)
-    // The hierarchy check: getRoleLevel(ADMIN)=3 <= getRoleLevel(VIEWER)=1 is false, so passes
-    // Self-demotion: target.pubkey !== caller.pubkey, so passes
-    // Last admin: target.role ADMIN, targetRole VIEWER, count=1 → error
     expect(res.status).toBe(400)
     expect(body.error.message).toBe('Cannot remove the last admin')
   })
 
   it('returns 404 for nonexistent target user', async () => {
-    vi.mocked(validateNip98Auth).mockResolvedValue(adminPubkey)
-    vi.mocked(prismaMock.user.findUnique)
-      .mockResolvedValueOnce({ role: 'ADMIN', pubkey: adminPubkey } as any) // caller
-      .mockResolvedValueOnce(null) // target doesn't exist
+    mockAuth(Role.ADMIN, adminPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/users/some-user-id/role', {
       method: 'PUT',
@@ -221,8 +210,7 @@ describe('PUT /api/users/[userId]/role', () => {
   })
 
   it('rejects invalid role value', async () => {
-    vi.mocked(validateNip98Auth).mockResolvedValue(adminPubkey)
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ role: 'ADMIN' } as any)
+    mockAuth(Role.ADMIN, adminPubkey)
 
     const req = createNextRequest('/api/users/some-id/role', {
       method: 'PUT',

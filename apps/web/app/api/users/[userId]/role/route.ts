@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { validateNip98Auth } from '@/lib/admin-auth'
+import { authenticate } from '@/lib/auth/unified-auth'
 import { eventBus } from '@/lib/events/event-bus'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
@@ -23,20 +23,12 @@ function getRoleLevel(role: Role): number {
   return ROLE_HIERARCHY.indexOf(role)
 }
 
-async function resolveCallerRole(pubkey: string): Promise<Role> {
-  const user = await prisma.user.findUnique({
-    where: { pubkey },
-    select: { role: true },
-  })
-  return (user?.role as Role) ?? Role.USER
-}
-
 export const GET = withErrorHandling(
   async (
     request: Request,
     { params }: { params: Promise<{ userId: string }> }
   ) => {
-    const pubkey = await validateNip98Auth(request)
+    const auth = await authenticate(request)
     const { userId } = await params
 
     const targetUser = await prisma.user.findUnique({
@@ -49,9 +41,8 @@ export const GET = withErrorHandling(
     }
 
     // Allow if caller is the target user or has USERS_READ permission
-    const callerRole = await resolveCallerRole(pubkey)
-    const isSelf = targetUser.pubkey === pubkey
-    if (!isSelf && !hasPermission(callerRole, Permission.USERS_READ)) {
+    const isSelf = targetUser.pubkey === auth.pubkey
+    if (!isSelf && !hasPermission(auth.role, Permission.USERS_READ)) {
       throw new AuthorizationError('Not authorized to view this user\'s role')
     }
 
@@ -68,13 +59,15 @@ export const PUT = withErrorHandling(
     { params }: { params: Promise<{ userId: string }> }
   ) => {
     await checkRequestLimits(request, 'json')
-    const pubkey = await validateNip98Auth(request)
+    const auth = await authenticate(request)
     const { userId } = await params
 
-    const callerRole = await resolveCallerRole(pubkey)
-    if (!hasPermission(callerRole, Permission.USERS_MANAGE_ROLES)) {
+    if (!hasPermission(auth.role, Permission.USERS_MANAGE_ROLES)) {
       throw new AuthorizationError('Not authorized to manage roles')
     }
+
+    const callerRole = auth.role
+    const pubkey = auth.pubkey
 
     const parsed = await validateBody(request, updateRoleSchema)
 
