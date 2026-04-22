@@ -41,7 +41,7 @@ const TopbarMobile = React.forwardRef<HTMLDivElement, TopbarMobileProps>(
           )}
           {...props}
         >
-          <div className="flex items-center">
+          <div className="flex items-center shrink-0">
             <Button
               variant="secondary"
               size="sm"
@@ -53,11 +53,18 @@ const TopbarMobile = React.forwardRef<HTMLDivElement, TopbarMobileProps>(
             </Button>
           </div>
 
-          <span className="text-base font-semibold text-foreground absolute left-1/2 -translate-x-1/2">
+          {/* Title is right-aligned between the Back button and the
+              right-action slot. The font-size scales fluidly with the
+              viewport so long lightning addresses shrink instead of
+              overflowing; `truncate` is the last-resort safety net. */}
+          <span
+            className="min-w-0 flex-1 truncate pl-3 text-right font-semibold text-foreground text-[clamp(0.75rem,3.2vw,1rem)]"
+            title={title}
+          >
             {title}
           </span>
 
-          <div className="flex items-center min-w-[71px] justify-end">
+          <div className="flex items-center shrink-0 justify-end">
             {rightAction}
           </div>
         </div>
