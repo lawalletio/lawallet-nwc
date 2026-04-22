@@ -227,9 +227,10 @@ export default function UserDetailPage({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <StatCard
                 title="Lightning addresses"
+                titleMobile="Addresses"
                 value={user.addresses.length}
                 description="Owned by this user."
               />
@@ -241,6 +242,7 @@ export default function UserDetailPage({
               <StatCard
                 title="Paid volume"
                 value={user.transactions.paidSats.toLocaleString()}
+                prefix="⚡"
                 description="Sats received in paid invoices."
               />
             </div>
