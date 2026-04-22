@@ -10,13 +10,13 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { useBlossomUpload } from '@/lib/client/hooks/use-blossom-upload'
 import type { NostrProfile } from '@/lib/client/nostr-profile'
@@ -46,13 +46,16 @@ export function EditProfileDialog({
   onPublished,
 }: EditProfileDialogProps) {
   const { signer, requestSigner } = useAuth()
-  const { upload, uploading, hasServers } = useBlossomUpload()
+  const { upload, uploading, progress, hasServers } = useBlossomUpload()
 
   const [displayName, setDisplayName] = useState('')
   const [about, setAbout] = useState('')
   const [picture, setPicture] = useState('')
   const [banner, setBanner] = useState('')
   const [saving, setSaving] = useState(false)
+  // Track which image is currently uploading so the progress overlay
+  // only shows on the one the user is actually replacing (not both).
+  const [uploadingKind, setUploadingKind] = useState<CropKind | null>(null)
 
   // Crop pipeline state. `sourceImage` is the data URL from the file
   // picker; `cropKind` tells the modal which aspect ratio + output size
@@ -108,6 +111,13 @@ export function EditProfileDialog({
     setCropKind(null)
     setSourceImage(null)
     if (!kind) return
+    // Optimistically swap the displayed image to the freshly-cropped blob
+    // so the user sees the new composition immediately instead of staring
+    // at the old image while the upload runs.
+    const objectUrl = URL.createObjectURL(blob)
+    if (kind === 'banner') setBanner(objectUrl)
+    else setPicture(objectUrl)
+    setUploadingKind(kind)
     try {
       const filename = `${kind}-${Date.now()}.jpg`
       const file = new File([blob], filename, { type: 'image/jpeg' })
@@ -118,6 +128,9 @@ export function EditProfileDialog({
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Upload failed'
       toast.error(msg)
+    } finally {
+      setUploadingKind(null)
+      URL.revokeObjectURL(objectUrl)
     }
   }
 
@@ -153,10 +166,6 @@ export function EditProfileDialog({
         <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle>Edit profile</DialogTitle>
-            <DialogDescription>
-              Publishes a signed kind-0 event to the default relays. It may
-              take a few seconds for other clients to see the changes.
-            </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto">
@@ -181,9 +190,22 @@ export function EditProfileDialog({
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-200 group-hover:bg-black/50 group-hover:opacity-100 group-focus-visible:bg-black/50 group-focus-visible:opacity-100">
                 <span className="flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white">
                   <Camera className="size-4" />
-                  {uploading ? 'Uploading…' : 'Change cover'}
+                  Change cover
                 </span>
               </span>
+
+              {/* Upload progress overlay — fades in while the banner is
+                  being PUT to Blossom so the user has a clear signal the
+                  new image is on its way rather than staring at the
+                  freshly-cropped blob with no feedback. */}
+              {uploadingKind === 'banner' && (
+                <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 opacity-100 transition-opacity duration-200 animate-in fade-in">
+                  <span className="text-xs font-medium text-white">
+                    Uploading cover… {progress}%
+                  </span>
+                  <Progress value={progress} className="h-1.5 w-2/3 bg-white/20" />
+                </span>
+              )}
             </button>
             <input
               ref={coverInputRef}
@@ -212,6 +234,16 @@ export function EditProfileDialog({
                 <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-200 group-hover:bg-black/50 group-hover:opacity-100 group-focus-visible:bg-black/50 group-focus-visible:opacity-100">
                   <Camera className="size-5 text-white" />
                 </span>
+
+                {/* Circular progress overlay mirroring the banner's
+                    treatment so both upload paths give the same affordance. */}
+                {uploadingKind === 'avatar' && (
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 animate-in fade-in">
+                    <span className="text-[10px] font-semibold text-white tabular-nums">
+                      {progress}%
+                    </span>
+                  </span>
+                )}
               </button>
               <input
                 ref={avatarInputRef}

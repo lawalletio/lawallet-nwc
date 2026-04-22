@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
 export interface ImageCropDialogProps {
   open: boolean
@@ -60,14 +61,51 @@ export function ImageCropDialog({
   const [crop, setCrop] = useState<Crop | undefined>()
   const [completed, setCompleted] = useState<PixelCrop | undefined>()
   const imgRef = useRef<HTMLImageElement | null>(null)
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const [busy, setBusy] = useState(false)
+  const [previewReady, setPreviewReady] = useState(false)
 
   // Reset selection whenever a new source image appears.
   useEffect(() => {
     if (!open) return
     setCrop(undefined)
     setCompleted(undefined)
+    setPreviewReady(false)
   }, [open, image])
+
+  // Keep the preview canvas in sync with the selection. Using an effect +
+  // canvas (instead of re-rendering a scaled `<img>`) lets us avoid the
+  // blurry half-pixel interpolation you'd get from CSS object-fit and
+  // matches what the final encode will produce.
+  useEffect(() => {
+    const canvas = previewCanvasRef.current
+    const img = imgRef.current
+    if (!canvas || !img || !completed || completed.width === 0 || completed.height === 0) {
+      return
+    }
+    const PREVIEW_W = kind === 'avatar' ? 120 : 240
+    const PREVIEW_H = Math.round(PREVIEW_W / aspect)
+    canvas.width = PREVIEW_W
+    canvas.height = PREVIEW_H
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const scaleX = img.naturalWidth / img.width
+    const scaleY = img.naturalHeight / img.height
+    ctx.imageSmoothingQuality = 'high'
+    ctx.clearRect(0, 0, PREVIEW_W, PREVIEW_H)
+    ctx.drawImage(
+      img,
+      completed.x * scaleX,
+      completed.y * scaleY,
+      completed.width * scaleX,
+      completed.height * scaleY,
+      0,
+      0,
+      PREVIEW_W,
+      PREVIEW_H,
+    )
+    setPreviewReady(true)
+  }, [completed, aspect, kind])
 
   function handleImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const { naturalWidth, naturalHeight } = e.currentTarget
@@ -144,7 +182,7 @@ export function ImageCropDialog({
               aspect={aspect}
               circularCrop={kind === 'avatar'}
               keepSelection
-              className="mx-auto max-h-[60vh]"
+              className="mx-auto max-h-[55vh]"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -152,11 +190,34 @@ export function ImageCropDialog({
                 src={image}
                 alt=""
                 onLoad={handleImageLoad}
-                className="max-h-[60vh] w-auto"
+                className="max-h-[55vh] w-auto"
               />
             </ReactCrop>
           )}
         </div>
+
+        {image && (
+          <div className="flex items-center gap-3 rounded-md border bg-muted/20 p-3">
+            <span className="text-xs text-muted-foreground">Preview</span>
+            <canvas
+              ref={previewCanvasRef}
+              className={cn(
+                'border bg-background shadow-sm transition-all duration-300',
+                kind === 'avatar' ? 'rounded-full' : 'rounded-md',
+                previewReady
+                  ? 'scale-100 opacity-100'
+                  : 'scale-95 opacity-0',
+              )}
+              style={{
+                width: kind === 'avatar' ? 56 : 120,
+                height: kind === 'avatar' ? 56 : 40,
+              }}
+            />
+            <span className="ml-auto text-xs text-muted-foreground">
+              {outputWidth}×{outputHeight}
+            </span>
+          </div>
+        )}
 
         <DialogFooter>
           <Button
