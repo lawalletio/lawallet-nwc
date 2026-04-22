@@ -38,6 +38,31 @@ const AVATAR_OUTPUT = { width: 512, height: 512, aspect: 1 }
 
 type CropKind = 'banner' | 'avatar'
 
+/**
+ * Resolves once the browser has loaded the image at `url`, or rejects on
+ * error / timeout. Used to hold the cropped-blob preview on screen until
+ * the uploaded Blossom URL is actually decodable, avoiding a brief empty
+ * flash when the remote GET is slower than the state update.
+ */
+function preloadImage(url: string, timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    let done = false
+    const finish = (ok: boolean) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      img.onload = null
+      img.onerror = null
+      ok ? resolve() : reject(new Error(`preload failed: ${url}`))
+    }
+    const timer = setTimeout(() => finish(false), timeoutMs)
+    img.onload = () => finish(true)
+    img.onerror = () => finish(false)
+    img.src = url
+  })
+}
+
 export function EditProfileDialog({
   open,
   onOpenChange,
@@ -122,6 +147,17 @@ export function EditProfileDialog({
       const filename = `${kind}-${Date.now()}.jpg`
       const file = new File([blob], filename, { type: 'image/jpeg' })
       const { url } = await upload(file)
+
+      // Preload the remote image before swapping the src and revoking the
+      // blob URL — otherwise the <img>/background would briefly flash empty
+      // while the network fetch races the state update. Keep a timeout so
+      // a Blossom server that serves the 2xx response but stalls on the
+      // GET doesn't strand us on the blob forever.
+      await preloadImage(url, 8000).catch(() => {
+        // Preload failed or timed out — swap anyway; the image tag's own
+        // loader will take over and the user at worst sees a blank frame.
+      })
+
       if (kind === 'banner') setBanner(url)
       else setPicture(url)
       toast.success(kind === 'banner' ? 'Cover uploaded' : 'Avatar uploaded')
@@ -130,7 +166,10 @@ export function EditProfileDialog({
       toast.error(msg)
     } finally {
       setUploadingKind(null)
-      URL.revokeObjectURL(objectUrl)
+      // Revoke only after the swap has been applied so React has already
+      // painted the new remote URL. A microtask is enough to guarantee
+      // the commit has run.
+      queueMicrotask(() => URL.revokeObjectURL(objectUrl))
     }
   }
 
