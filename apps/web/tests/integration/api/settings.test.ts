@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 
@@ -209,5 +209,128 @@ describe('POST /api/settings', () => {
     const res = await POST(req)
 
     expect(res.status).toBeGreaterThanOrEqual(400)
+  })
+
+  describe('paid registration precondition', () => {
+    const originalFetch = global.fetch
+    afterEach(() => {
+      global.fetch = originalFetch
+    })
+
+    it('rejects when enabling paid registration with an empty LN address', async () => {
+      vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+      vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+
+      const req = createNextRequest('/api/settings', {
+        method: 'POST',
+        body: {
+          registration_ln_enabled: 'true',
+          registration_ln_address: '',
+          registration_price: '21',
+        },
+      })
+      const res = await POST(req)
+
+      expect(res.status).toBe(400)
+      expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+    })
+
+    it('rejects when the configured LN address does not expose LUD-21 verify', async () => {
+      vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+      vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+      global.fetch = vi.fn(async (input: string | URL | Request) => {
+        const url = typeof input === 'string' ? input : input.toString()
+        if (url.includes('/.well-known/lnurlp/')) {
+          return {
+            ok: true,
+            json: async () => ({
+              tag: 'payRequest',
+              callback: 'https://provider.com/cb',
+              minSendable: 1000,
+              maxSendable: 1_000_000_000,
+            }),
+          } as any
+        }
+        return {
+          ok: true,
+          json: async () => ({ pr: 'lnbc...' }), // no verify
+        } as any
+      }) as any
+
+      const req = createNextRequest('/api/settings', {
+        method: 'POST',
+        body: {
+          registration_ln_enabled: 'true',
+          registration_ln_address: 'admin@provider.com',
+          registration_price: '21',
+        },
+      })
+      const res = await POST(req)
+
+      expect(res.status).toBe(400)
+      const body: any = await res.json()
+      expect(body.error.message).toMatch(/LUD-21/)
+      expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+    })
+
+    it('accepts when the configured LN address supports LUD-21 verify', async () => {
+      vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+      vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+      vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
+      global.fetch = vi.fn(async (input: string | URL | Request) => {
+        const url = typeof input === 'string' ? input : input.toString()
+        if (url.includes('/.well-known/lnurlp/')) {
+          return {
+            ok: true,
+            json: async () => ({
+              tag: 'payRequest',
+              callback: 'https://provider.com/cb',
+              minSendable: 1000,
+              maxSendable: 1_000_000_000,
+            }),
+          } as any
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            pr: 'lnbc...',
+            verify: 'https://provider.com/verify/xyz',
+          }),
+        } as any
+      }) as any
+
+      const req = createNextRequest('/api/settings', {
+        method: 'POST',
+        body: {
+          registration_ln_enabled: 'true',
+          registration_ln_address: 'admin@provider.com',
+          registration_price: '21',
+        },
+      })
+      const res = await POST(req)
+
+      await assertResponse(res, 200)
+      expect(prismaMock.settings.upsert).toHaveBeenCalled()
+    })
+
+    it('does not probe when only non-registration settings change', async () => {
+      vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+      vi.mocked(getSettings).mockResolvedValue({
+        root: mockPubkey,
+        registration_ln_enabled: 'false',
+      })
+      vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
+      const fetchSpy = vi.fn()
+      global.fetch = fetchSpy as any
+
+      const req = createNextRequest('/api/settings', {
+        method: 'POST',
+        body: { domain: 'new.com' },
+      })
+      const res = await POST(req)
+
+      await assertResponse(res, 200)
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
   })
 })

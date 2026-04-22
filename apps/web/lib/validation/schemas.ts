@@ -216,7 +216,7 @@ export const createRemoteCardSchema = z.object({
 // ── Invoices ───────────────────────────────────────────────────────────────
 
 export const createInvoiceSchema = z.object({
-  purpose: z.enum(['registration']),
+  purpose: z.enum(['registration', 'wallet-address']),
   metadata: z
     .object({
       username: z

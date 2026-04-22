@@ -11,12 +11,13 @@ import { userIdParam, updateLightningAddressSchema } from '@/lib/validation/sche
 import { validateParams, validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { requirePaidRegistration } from '@/lib/auth/paid-registration-guard'
 import { eventBus } from '@/lib/events/event-bus'
 
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
     await checkRequestLimits(request, 'json')
-    const { pubkey: authenticatedPubkey } = await authenticate(request)
+    const { pubkey: authenticatedPubkey, role: actorRole } = await authenticate(request)
 
     const { userId } = validateParams(await params, userIdParam)
     const { username } = await validateBody(request, updateLightningAddressSchema)
@@ -48,6 +49,14 @@ export const PUT = withErrorHandling(
     if (existingAddress && existingAddress.userId !== userId) {
       throw new ConflictError('Username is already taken by another user')
     }
+
+    // Enforce paid registration on every new-username request. Swapping
+    // from `alice` to `bob` is effectively registering `bob`, so it also
+    // costs. The no-op branch above ("exact same username") has already
+    // short-circuited without writing. Paying users go through
+    // /api/invoices + claim instead, which handles the primary swap
+    // itself after verifying the preimage.
+    await requirePaidRegistration(actorRole)
 
     const { domain } = await getSettings(['domain'])
 

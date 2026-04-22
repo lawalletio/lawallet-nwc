@@ -239,4 +239,100 @@ describe('POST /api/invoices', () => {
 
     expect(res.status).toBe(400)
   })
+
+  it('mints an invoice with purpose WALLET_ADDRESS for secondary-address flow', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      registration_ln_address: 'admin@provider.com',
+      registration_price: '21',
+      registration_ln_enabled: 'true',
+    })
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.invoice.create).mockResolvedValue({
+      id: 'inv-w-1',
+      bolt11: 'lnbc210n1test',
+      paymentHash: 'c'.repeat(64),
+      amountSats: 21,
+      expiresAt: new Date('2026-04-22T00:00:00Z'),
+    } as any)
+
+    global.fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/.well-known/lnurlp/')) {
+        return {
+          ok: true,
+          json: async () => ({
+            tag: 'payRequest',
+            callback: 'https://provider.com/cb',
+            minSendable: 1000,
+            maxSendable: 1_000_000_000,
+          }),
+        } as any
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          pr: 'lnbc210n1test',
+          verify: 'https://provider.com/verify/xyz',
+        }),
+      } as any
+    })
+
+    const req = createNextRequest('/api/invoices', {
+      method: 'POST',
+      body: {
+        purpose: 'wallet-address',
+        metadata: { username: 'secondary1' },
+      },
+    })
+    const res = await POST(req)
+    await assertResponse(res, 200)
+
+    expect(prismaMock.invoice.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          purpose: 'WALLET_ADDRESS',
+          metadata: { username: 'secondary1' },
+        }),
+      })
+    )
+  })
+
+  it('rejects (400) and does not persist when provider omits LUD-21 verify', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      registration_ln_address: 'admin@regressed-provider.com',
+      registration_price: '21',
+      registration_ln_enabled: 'true',
+    })
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+
+    global.fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/.well-known/lnurlp/')) {
+        return {
+          ok: true,
+          json: async () => ({
+            tag: 'payRequest',
+            callback: 'https://regressed-provider.com/cb',
+            minSendable: 1000,
+            maxSendable: 1_000_000_000,
+          }),
+        } as any
+      }
+      return {
+        ok: true,
+        json: async () => ({ pr: 'lnbc210n1test' }), // no verify
+      } as any
+    })
+
+    const req = createNextRequest('/api/invoices', {
+      method: 'POST',
+      body: { purpose: 'registration', metadata: { username: 'alice' } },
+    })
+    const res = await POST(req)
+
+    expect(res.status).toBe(400)
+    const body: any = await res.json()
+    expect(body.error.message).toMatch(/LUD-21/)
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
+  })
 })

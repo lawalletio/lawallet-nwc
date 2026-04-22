@@ -29,6 +29,10 @@ vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() },
 }))
 
+vi.mock('@/lib/settings', () => ({
+  getSettings: vi.fn(async () => ({})),
+}))
+
 import { GET as ListGet, POST as ListPost } from '@/app/api/wallet/addresses/route'
 import {
   GET as DetailGet,
@@ -223,6 +227,58 @@ describe('POST /api/wallet/addresses', () => {
         }),
       }),
     )
+  })
+
+  it('rejects with 402 when paid registration is on and caller is USER', async () => {
+    const { getSettings } = await import('@/lib/settings')
+    vi.mocked(getSettings).mockResolvedValueOnce({
+      registration_ln_enabled: 'true',
+      registration_ln_address: 'admin@provider.com',
+      registration_admin_bypass: 'true',
+    })
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob' },
+      })
+    )
+
+    expect(res.status).toBe(402)
+    expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
+  })
+
+  it('lets ADMIN bypass payment when admin bypass toggle is on', async () => {
+    const { getSettings } = await import('@/lib/settings')
+    vi.mocked(getSettings).mockResolvedValueOnce({
+      registration_ln_enabled: 'true',
+      registration_ln_address: 'admin@provider.com',
+      registration_admin_bypass: 'true',
+    })
+    vi.mocked(authenticate).mockResolvedValue({
+      pubkey: mockPubkey,
+      role: 'ADMIN' as any,
+      method: 'jwt',
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+      makeAddress({ username: 'bob', isPrimary: false }) as any,
+    )
+    vi.mocked(prismaMock.nWCConnection.findFirst).mockResolvedValue(null)
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob' },
+      })
+    )
+
+    expect(res.status).toBe(201)
+    expect(prismaMock.lightningAddress.create).toHaveBeenCalled()
   })
 })
 

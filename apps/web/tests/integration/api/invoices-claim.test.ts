@@ -250,4 +250,54 @@ describe('POST /api/invoices/[id]/claim', () => {
 
     expect(res.status).toBe(400)
   })
+
+  describe('WALLET_ADDRESS purpose', () => {
+    it('creates a non-primary address and does not touch the existing primary', async () => {
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+        ...baseInvoice,
+        purpose: 'WALLET_ADDRESS',
+        metadata: { username: 'secondary1' },
+      } as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue({} as any)
+
+      const req = createNextRequest('/api/invoices/inv-1/claim', {
+        method: 'POST',
+        body: { preimage: PREIMAGE },
+      })
+      const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
+      await assertResponse(res, 200)
+
+      // Must NOT delete the existing primary — this is an "add secondary"
+      // operation, not a swap.
+      expect(prismaMock.lightningAddress.delete).not.toHaveBeenCalled()
+      expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
+      expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { username: 'secondary1', userId: 'user-1', isPrimary: false },
+        })
+      )
+    })
+
+    it('returns 409 when the username was taken between invoice + claim', async () => {
+      vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+        ...baseInvoice,
+        purpose: 'WALLET_ADDRESS',
+        metadata: { username: 'secondary1' },
+      } as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+        username: 'secondary1',
+        userId: 'someone-else',
+      } as any)
+
+      const req = createNextRequest('/api/invoices/inv-1/claim', {
+        method: 'POST',
+        body: { preimage: PREIMAGE },
+      })
+      const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
+
+      expect(res.status).toBe(409)
+      expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
+    })
+  })
 })

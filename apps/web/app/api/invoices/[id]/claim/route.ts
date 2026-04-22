@@ -60,7 +60,11 @@ export const POST = withErrorHandling(
       throw new ValidationError('Invoice has expired')
     }
 
-    // Verify preimage
+    // Verify preimage. A valid preimage proves the bolt11 was paid; the
+    // invoice itself was only minted while paid registration was enabled.
+    // We intentionally do NOT re-check `registration_ln_enabled` here — if
+    // an operator toggles paid mode off after the invoice was issued, the
+    // user already paid and is entitled to their address.
     if (!verifyPreimage(body.preimage, invoice.paymentHash)) {
       throw new ValidationError('Invalid preimage — does not match payment hash')
     }
@@ -78,14 +82,18 @@ export const POST = withErrorHandling(
     // Execute purpose-specific action
     let result: Record<string, unknown> = { success: true }
 
-    if (invoice.purpose === 'REGISTRATION') {
+    const createsAddress =
+      invoice.purpose === 'REGISTRATION' || invoice.purpose === 'WALLET_ADDRESS'
+
+    if (createsAddress) {
       const metadata = invoice.metadata as InvoiceMetadata | null
       const username = metadata?.username
       if (!username) {
         throw new ValidationError('Invoice metadata missing username')
       }
 
-      // Check username availability (might have been taken since invoice was created)
+      // Re-check availability — the username may have been taken
+      // between invoice mint and claim.
       const existing = await prisma.lightningAddress.findUnique({
         where: { username },
       })
@@ -93,27 +101,27 @@ export const POST = withErrorHandling(
         throw new ConflictError('Username was taken while payment was pending')
       }
 
-      // Check if user already has a primary address — replace it.
-      // (`userId` is no longer unique on LightningAddress; we explicitly
-      // target the primary row to maintain backward-compatible behavior:
-      // a registration claim swaps in the new address as the user's primary.)
-      const existingPrimary = await prisma.lightningAddress.findFirst({
-        where: { userId: user.id, isPrimary: true },
-      })
-      if (existingPrimary) {
-        await prisma.lightningAddress.delete({
-          where: { username: existingPrimary.username },
+      if (invoice.purpose === 'REGISTRATION') {
+        // Primary swap: delete the existing primary first so the
+        // partial-unique index on (userId) WHERE isPrimary=true
+        // doesn't conflict, then insert the new primary row.
+        const existingPrimary = await prisma.lightningAddress.findFirst({
+          where: { userId: user.id, isPrimary: true },
+        })
+        if (existingPrimary) {
+          await prisma.lightningAddress.delete({
+            where: { username: existingPrimary.username },
+          })
+        }
+        await prisma.lightningAddress.create({
+          data: { username, userId: user.id, isPrimary: true },
+        })
+      } else {
+        // Secondary add: never touches the existing primary.
+        await prisma.lightningAddress.create({
+          data: { username, userId: user.id, isPrimary: false },
         })
       }
-
-      // Create the lightning address as the user's primary.
-      await prisma.lightningAddress.create({
-        data: {
-          username,
-          userId: user.id,
-          isPrimary: true,
-        },
-      })
 
       const { domain } = await getSettings(['domain'])
       result = {
@@ -124,7 +132,7 @@ export const POST = withErrorHandling(
     }
 
     eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
-    if (invoice.purpose === 'REGISTRATION') {
+    if (createsAddress) {
       eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
     }
 

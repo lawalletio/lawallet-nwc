@@ -72,6 +72,16 @@ export class ConflictError extends ApiError {
   }
 }
 
+export class PaymentRequiredError extends ApiError {
+  constructor(message = 'Payment required', details?: unknown) {
+    super(message, {
+      statusCode: 402,
+      code: 'PAYMENT_REQUIRED',
+      details
+    })
+  }
+}
+
 export class PayloadTooLargeError extends ApiError {
   constructor(message = 'Payload too large', details?: unknown) {
     super(message, {

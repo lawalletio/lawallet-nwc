@@ -7,6 +7,7 @@ import {
   NotFoundError,
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { requirePaidRegistration } from '@/lib/auth/paid-registration-guard'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createWalletAddressSchema } from '@/lib/validation/schemas'
@@ -58,7 +59,7 @@ export const GET = withErrorHandling(async (request: Request) => {
  */
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'json')
-  const { pubkey } = await authenticate(request)
+  const { pubkey, role } = await authenticate(request)
   const { username, mode } = await validateBody(request, createWalletAddressSchema)
 
   const user = await prisma.user.findUnique({ where: { pubkey } })
@@ -66,6 +67,12 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const existing = await prisma.lightningAddress.findUnique({ where: { username } })
   if (existing) throw new ConflictError('Username is already taken')
+
+  // Gate secondary-address creation behind paid registration. Without this
+  // an authenticated user could mint unlimited free addresses via this
+  // endpoint even when the operator has paid mode enabled, completely
+  // bypassing the /api/invoices + preimage flow used for primary claims.
+  await requirePaidRegistration(role)
 
   const created = await prisma.lightningAddress.create({
     data: {

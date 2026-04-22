@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { AuthorizationError } from '@/types/server/errors'
+import { AuthorizationError, ValidationError } from '@/types/server/errors'
 import { settingsBodySchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { eventBus } from '@/lib/events/event-bus'
+import { probeLud21Support } from '@/lib/lnurl-probe'
 
 async function authenticateSettingsRequest(request: NextRequest): Promise<string> {
   const authHeader = request.headers.get('authorization')
@@ -67,13 +68,56 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const authenticatedPubkey = await authenticateSettingsRequest(request)
 
   // Fetch all settings records from the database
-  const settings = await getSettings(['root'])
+  const settings = await getSettings([
+    'root',
+    'registration_ln_address',
+    'registration_price',
+    'registration_ln_enabled',
+  ])
 
   if (authenticatedPubkey !== settings.root) {
     throw new AuthorizationError('Not authorized to update settings')
   }
 
   const body = await validateBody(request, settingsBodySchema)
+
+  // Precondition check: if paid registration is enabled after this save,
+  // the configured LN address must be reachable, in-range for the price,
+  // and expose LUD-21 `verify`. Probe when the address/price is changing
+  // or when paid mode is being flipped on — otherwise we don't hit the
+  // provider on unrelated setting updates.
+  const effective = {
+    enabled:
+      (body.registration_ln_enabled ?? settings.registration_ln_enabled) === 'true',
+    address:
+      body.registration_ln_address ?? settings.registration_ln_address ?? '',
+    price: body.registration_price ?? settings.registration_price ?? '21',
+  }
+
+  if (effective.enabled) {
+    if (!effective.address.trim()) {
+      throw new ValidationError(
+        'Paid registration requires a payment LN address'
+      )
+    }
+
+    const prevEnabled = settings.registration_ln_enabled === 'true'
+    const addressChanged =
+      body.registration_ln_address !== undefined &&
+      body.registration_ln_address !== settings.registration_ln_address
+    const priceChanged =
+      body.registration_price !== undefined &&
+      body.registration_price !== settings.registration_price
+    const enablingNow = !prevEnabled
+
+    if (enablingNow || addressChanged || priceChanged) {
+      const priceSats = parseInt(effective.price, 10)
+      if (!Number.isFinite(priceSats) || priceSats < 1) {
+        throw new ValidationError('Registration price must be a positive integer (sats)')
+      }
+      await probeLud21Support(effective.address.trim(), priceSats)
+    }
+  }
 
   const processedSettings = Object.values(
     Object.entries(body).reduce(
