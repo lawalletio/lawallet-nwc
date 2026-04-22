@@ -25,8 +25,12 @@ export const GET = withErrorHandling(
 
     const { userId } = await params
 
+    // Accept either the internal UUID id or a 64-char hex pubkey so the
+    // sidebar's "go to my profile" shortcut (which only has a pubkey in
+    // auth context) can hit this route without a prior id lookup.
+    const isHexPubkey = /^[0-9a-f]{64}$/i.test(userId)
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: isHexPubkey ? { pubkey: userId.toLowerCase() } : { id: userId },
       include: {
         lightningAddresses: {
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
@@ -43,9 +47,9 @@ export const GET = withErrorHandling(
     const primaryNwc = user.nwcConnections[0] ?? null
 
     const [transactionCount, paidInvoices] = await Promise.all([
-      prisma.invoice.count({ where: { userId } }),
+      prisma.invoice.count({ where: { userId: user.id } }),
       prisma.invoice.aggregate({
-        where: { userId, status: 'PAID' },
+        where: { userId: user.id, status: 'PAID' },
         _sum: { amountSats: true },
         _count: true,
       }),

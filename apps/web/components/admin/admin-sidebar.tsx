@@ -276,20 +276,42 @@ export function AdminSidebar() {
         <SidebarSeparator />
 
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Avatar className="size-8 shrink-0">
-              {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
-              <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col min-w-0">
-              <span className="text-sm font-medium truncate">
-                {displayName}
-              </span>
-              {loginMethodLabel && (
-                <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
-              )}
+          {pubkey ? (
+            <Link
+              href={`/admin/users/${pubkey}`}
+              className="flex items-center gap-2 min-w-0 rounded-md -m-1 p-1 hover:bg-sidebar-accent transition-colors"
+              aria-label="View my profile"
+              onClick={() => setOpenMobile(false)}
+            >
+              <Avatar className="size-8 shrink-0">
+                {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
+                <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium truncate">
+                  {displayName}
+                </span>
+                {loginMethodLabel && (
+                  <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
+                )}
+              </div>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0">
+              <Avatar className="size-8 shrink-0">
+                {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
+                <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium truncate">
+                  {displayName}
+                </span>
+                {loginMethodLabel && (
+                  <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
+                )}
+              </div>
             </div>
-          </div>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="shrink-0 size-8">
