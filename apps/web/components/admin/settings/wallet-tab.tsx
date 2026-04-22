@@ -22,6 +22,7 @@ export function WalletTab() {
   const [registrationLnAddress, setRegistrationLnAddress] = useState('')
   const [registrationPrice, setRegistrationPrice] = useState('21')
   const [registrationEnabled, setRegistrationEnabled] = useState(false)
+  const [registrationAdminBypass, setRegistrationAdminBypass] = useState(true)
 
   // Restore all local form state from the currently stored settings. Called on
   // initial load and whenever the page-level Cancel button is clicked.
@@ -35,6 +36,9 @@ export function WalletTab() {
     setRegistrationLnAddress(settings.registration_ln_address ?? '')
     setRegistrationPrice(settings.registration_price ?? '21')
     setRegistrationEnabled(settings.registration_ln_enabled === 'true')
+    setRegistrationAdminBypass(
+      (settings.registration_admin_bypass ?? 'true') === 'true'
+    )
   }, [settings])
 
   useEffect(() => {
@@ -52,6 +56,7 @@ export function WalletTab() {
       registration_ln_address: registrationLnAddress.trim(),
       registration_price: registrationPrice || '21',
       registration_ln_enabled: registrationEnabled ? 'true' : 'false',
+      registration_admin_bypass: registrationAdminBypass ? 'true' : 'false',
     })
   }, [
     updateSettings,
@@ -63,6 +68,7 @@ export function WalletTab() {
     registrationLnAddress,
     registrationPrice,
     registrationEnabled,
+    registrationAdminBypass,
   ])
 
   const { markChanged } = useSettingsForm('wallet', save, loadFromSettings)
@@ -218,6 +224,18 @@ export function WalletTab() {
                   />
                   <InputGroupText>sats</InputGroupText>
                 </InputGroup>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Admins & operators bypass payment</p>
+                  <p className="text-sm text-muted-foreground">
+                    When an admin or operator creates an address, skip the registration fee.
+                  </p>
+                </div>
+                <Switch
+                  checked={registrationAdminBypass}
+                  onCheckedChange={v => { setRegistrationAdminBypass(v); markChanged() }}
+                />
               </div>
             </>
           )}

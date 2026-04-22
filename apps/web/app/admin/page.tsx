@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Monitor, CreditCard, AtSign, ShieldAlert, Zap, Copy, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
@@ -40,41 +39,9 @@ const sourceIcons = {
 } as const
 
 export default function AdminDashboardPage() {
-  const { isAuthorized, role, status, apiClient } = useAuth()
-  const searchParams = useSearchParams()
+  const { isAuthorized, role, status } = useAuth()
   const router = useRouter()
-  const claimAttempted = useRef(false)
 
-  // Handle ?claim=username from landing page registration flow
-  useEffect(() => {
-    if (status !== 'authenticated' || claimAttempted.current) return
-
-    const claimUsername = searchParams.get('claim')
-    if (!claimUsername) return
-
-    claimAttempted.current = true
-
-    async function claimAddress() {
-      try {
-        const me = await apiClient.get<{ id: string }>('/api/users/me')
-        await apiClient.put(`/api/users/${me.id}/lightning-address`, {
-          username: claimUsername,
-        })
-        toast.success(`Lightning Address ${claimUsername} claimed!`)
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error)
-        if (msg.includes('409') || msg.includes('already')) {
-          toast.error(`Username "${claimUsername}" is already taken.`)
-        } else {
-          toast.error(msg || 'Failed to claim address')
-        }
-      }
-      // Remove the ?claim param from URL
-      router.replace('/admin')
-    }
-
-    claimAddress()
-  }, [status, searchParams, apiClient, router])
   // Track loading + error too. If `/api/users/me` (our core identity call)
   // fails or is still in flight, we hide every downstream card/banner so we
   // don't render UI built on assumptions about data we never successfully

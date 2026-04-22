@@ -4,6 +4,27 @@ export interface ApiError {
   details?: unknown
 }
 
+/**
+ * Thrown by the API client for non-2xx responses. Carries the HTTP
+ * status and the server-side error code so callers can branch on
+ * specific cases (e.g. 402 PAYMENT_REQUIRED) without resorting to
+ * brittle message parsing.
+ */
+export class ApiClientError extends Error {
+  public readonly status: number
+  public readonly code?: string
+  public readonly details?: unknown
+
+  constructor(status: number, message: string, code?: string, details?: unknown) {
+    super(message)
+    this.name = 'ApiClientError'
+    this.status = status
+    this.code = code
+    this.details = details
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+}
+
 export interface ApiClientOptions {
   getToken: () => string | null
   onUnauthorized?: () => void
@@ -55,14 +76,20 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         if (!token) {
           onUnauthorized?.()
         }
-        throw new Error(apiError?.message || 'Unauthorized')
       }
 
-      if (response.status === 403) {
-        throw new Error(apiError?.message || 'Insufficient permissions')
-      }
-
-      throw new Error(apiError?.message || `Request failed (${response.status})`)
+      const defaultMessage =
+        response.status === 401
+          ? 'Unauthorized'
+          : response.status === 403
+            ? 'Insufficient permissions'
+            : `Request failed (${response.status})`
+      throw new ApiClientError(
+        response.status,
+        apiError?.message || defaultMessage,
+        apiError?.code,
+        apiError?.details,
+      )
     }
 
     // Handle empty responses (204 No Content, etc.)
