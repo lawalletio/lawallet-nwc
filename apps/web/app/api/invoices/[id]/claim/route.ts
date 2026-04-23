@@ -14,6 +14,8 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { claimInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
+import type { InvoiceMetadata } from '@/lib/invoice-utils'
 
 /**
  * Verifies that SHA256(preimage) === paymentHash.
@@ -56,10 +58,35 @@ export const POST = withErrorHandling(
       throw new ConflictError('Invoice has already been claimed')
     }
     if (invoice.status === 'EXPIRED' || invoice.expiresAt < new Date()) {
+      // Opportunistic sweeper: if the row is still PENDING but past its
+      // expiry, flip it now so the admin log reflects reality and the
+      // invoices list stops showing it as "pending payment".
+      if (invoice.status === 'PENDING') {
+        try {
+          await prisma.invoice.update({
+            where: { id },
+            data: { status: 'EXPIRED' },
+          })
+        } catch {
+          // Best-effort sweep — never block the expiry response on it.
+        }
+        logActivity.fireAndForget({
+          category: 'INVOICE',
+          event: ActivityEvent.INVOICE_EXPIRED,
+          level: 'WARN',
+          message: `Invoice expired before claim (${invoice.amountSats} sats)`,
+          userId: user.id,
+          metadata: invoiceLogMetadata({ ...invoice, status: 'EXPIRED' }),
+        })
+      }
       throw new ValidationError('Invoice has expired')
     }
 
-    // Verify preimage
+    // Verify preimage. A valid preimage proves the bolt11 was paid; the
+    // invoice itself was only minted while paid registration was enabled.
+    // We intentionally do NOT re-check `registration_ln_enabled` here — if
+    // an operator toggles paid mode off after the invoice was issued, the
+    // user already paid and is entitled to their address.
     if (!verifyPreimage(body.preimage, invoice.paymentHash)) {
       throw new ValidationError('Invalid preimage — does not match payment hash')
     }
@@ -77,14 +104,18 @@ export const POST = withErrorHandling(
     // Execute purpose-specific action
     let result: Record<string, unknown> = { success: true }
 
-    if (invoice.purpose === 'REGISTRATION') {
-      const metadata = invoice.metadata as { username?: string } | null
+    const createsAddress =
+      invoice.purpose === 'REGISTRATION' || invoice.purpose === 'WALLET_ADDRESS'
+
+    if (createsAddress) {
+      const metadata = invoice.metadata as InvoiceMetadata | null
       const username = metadata?.username
       if (!username) {
         throw new ValidationError('Invoice metadata missing username')
       }
 
-      // Check username availability (might have been taken since invoice was created)
+      // Re-check availability — the username may have been taken
+      // between invoice mint and claim.
       const existing = await prisma.lightningAddress.findUnique({
         where: { username },
       })
@@ -92,23 +123,27 @@ export const POST = withErrorHandling(
         throw new ConflictError('Username was taken while payment was pending')
       }
 
-      // Check if user already has an address — delete old one if so
-      const existingAddress = await prisma.lightningAddress.findUnique({
-        where: { userId: user.id },
-      })
-      if (existingAddress) {
-        await prisma.lightningAddress.delete({
-          where: { userId: user.id },
+      if (invoice.purpose === 'REGISTRATION') {
+        // Primary swap: delete the existing primary first so the
+        // partial-unique index on (userId) WHERE isPrimary=true
+        // doesn't conflict, then insert the new primary row.
+        const existingPrimary = await prisma.lightningAddress.findFirst({
+          where: { userId: user.id, isPrimary: true },
+        })
+        if (existingPrimary) {
+          await prisma.lightningAddress.delete({
+            where: { username: existingPrimary.username },
+          })
+        }
+        await prisma.lightningAddress.create({
+          data: { username, userId: user.id, isPrimary: true },
+        })
+      } else {
+        // Secondary add: never touches the existing primary.
+        await prisma.lightningAddress.create({
+          data: { username, userId: user.id, isPrimary: false },
         })
       }
-
-      // Create the lightning address
-      await prisma.lightningAddress.create({
-        data: {
-          username,
-          userId: user.id,
-        },
-      })
 
       const { domain } = await getSettings(['domain'])
       result = {
@@ -119,8 +154,38 @@ export const POST = withErrorHandling(
     }
 
     eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
-    if (invoice.purpose === 'REGISTRATION') {
+    if (createsAddress) {
       eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+    }
+
+    logActivity.fireAndForget({
+      category: 'INVOICE',
+      event: ActivityEvent.INVOICE_PAID,
+      message: `Invoice paid (${invoice.amountSats} sats, ${invoice.purpose})`,
+      userId: user.id,
+      // Reflect the post-update state so the log row is an accurate snapshot
+      // of the invoice at the moment it flipped to PAID — `invoice` was
+      // fetched pre-update and still has status=PENDING / paidAt=null.
+      metadata: invoiceLogMetadata({
+        ...invoice,
+        status: 'PAID',
+        preimage: body.preimage,
+        paidAt: new Date(),
+      }),
+    })
+
+    if (createsAddress && typeof result.username === 'string') {
+      logActivity.fireAndForget({
+        category: 'ADDRESS',
+        event: ActivityEvent.ADDRESS_CREATED,
+        message: `Lightning address claimed: ${result.username}`,
+        userId: user.id,
+        metadata: {
+          username: result.username,
+          via: 'invoice_claim',
+          invoiceId: invoice.id,
+        },
+      })
     }
 
     return NextResponse.json(result)

@@ -14,6 +14,8 @@ import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { validateNip98 } from '@/lib/nip98'
 import { getRolePermissions } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import { prisma } from '@/lib/prisma'
 
 /**
  * POST /api/jwt - Authenticate with NIP-98, receive a JWT session token.
@@ -32,6 +34,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     const result = await validateNip98(request)
     pubkey = result.pubkey
   } catch (error) {
+    logActivity.fireAndForget({
+      category: 'USER',
+      event: ActivityEvent.USER_AUTH_FAILED,
+      level: 'WARN',
+      message: 'NIP-98 authentication failed on /api/jwt',
+      metadata: { reason: error instanceof Error ? error.message : 'unknown' },
+    })
     throw new AuthenticationError('Invalid NIP-98 authentication', {
       details: error instanceof Error ? error.message : 'Invalid or missing Nostr auth',
     })
@@ -72,6 +81,20 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       audience: 'lawallet-users',
     }
   )
+
+  // Best-effort resolve of userId for attribution; pubkey is the stable id,
+  // but the ActivityLog.userId column FKs to User.id so we look it up.
+  const userRecord = await prisma.user
+    .findUnique({ where: { pubkey }, select: { id: true } })
+    .catch(() => null)
+
+  logActivity.fireAndForget({
+    category: 'USER',
+    event: ActivityEvent.USER_JWT_ISSUED,
+    message: `JWT issued for ${pubkey.slice(0, 8)}… (role=${role})`,
+    userId: userRecord?.id ?? null,
+    metadata: { pubkey, role, expiresIn },
+  })
 
   return NextResponse.json({
     token,

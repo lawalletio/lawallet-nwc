@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
-import { Monitor, CreditCard, AtSign, ShieldAlert, Zap, Copy } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Monitor, CreditCard, AtSign, ShieldAlert, Zap, Copy, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Table,
   TableBody,
@@ -27,6 +27,10 @@ import { useAuth } from '@/components/admin/auth-context'
 import { Permission } from '@/lib/auth/permissions'
 import { SetupBanner } from '@/components/admin/setup-banner'
 import { AddressBanner } from '@/components/admin/address-banner'
+import { EndpointError } from '@/components/admin/endpoint-error'
+import { IdentityCircles } from '@/components/admin/identity-circles'
+import { NwcCard } from '@/components/admin/nwc-card'
+import { ForwardingCard } from '@/components/admin/forwarding-card'
 import { useApi } from '@/lib/client/hooks/use-api'
 
 const sourceIcons = {
@@ -36,44 +40,33 @@ const sourceIcons = {
 } as const
 
 export default function AdminDashboardPage() {
-  const { isAuthorized, role, status, apiClient } = useAuth()
-  const searchParams = useSearchParams()
+  const { isAuthorized, role, status } = useAuth()
   const router = useRouter()
-  const claimAttempted = useRef(false)
 
-  // Handle ?claim=username from landing page registration flow
-  useEffect(() => {
-    if (status !== 'authenticated' || claimAttempted.current) return
-
-    const claimUsername = searchParams.get('claim')
-    if (!claimUsername) return
-
-    claimAttempted.current = true
-
-    async function claimAddress() {
-      try {
-        const me = await apiClient.get<{ id: string }>('/api/users/me')
-        await apiClient.put(`/api/users/${me.id}/lightning-address`, {
-          username: claimUsername,
-        })
-        toast.success(`Lightning Address ${claimUsername} claimed!`)
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error)
-        if (msg.includes('409') || msg.includes('already')) {
-          toast.error(`Username "${claimUsername}" is already taken.`)
-        } else {
-          toast.error(msg || 'Failed to claim address')
-        }
-      }
-      // Remove the ?claim param from URL
-      router.replace('/admin')
-    }
-
-    claimAddress()
-  }, [status, searchParams, apiClient, router])
-  const { data: me } = useApi<{ userId: string; lightningAddress: string | null }>(
-    status === 'authenticated' ? '/api/users/me' : null
-  )
+  // Track loading + error too. If `/api/users/me` (our core identity call)
+  // fails or is still in flight, we hide every downstream card/banner so we
+  // don't render UI built on assumptions about data we never successfully
+  // loaded (wrong "no lightning address" CTAs, stat-cards with `null`, etc.).
+  const {
+    data: me,
+    error: meError,
+    loading: meLoading,
+    refetch: refetchMe,
+  } = useApi<{
+    userId: string
+    lightningAddress: string | null
+    // The primary address's configured mode drives which card renders
+    // below — NwcCard for NWC-ish modes, ForwardingCard for IDLE/ALIAS.
+    // Null when the user has no primary address yet.
+    primaryAddressMode:
+      | 'IDLE'
+      | 'ALIAS'
+      | 'CUSTOM_NWC'
+      | 'DEFAULT_NWC'
+      | null
+    primaryUsername: string | null
+    primaryRedirect: string | null
+  }>(status === 'authenticated' ? '/api/users/me' : null)
   const canViewStats = isAuthorized(Permission.ADDRESSES_READ)
 
   const { data: userCounts, loading: usersLoading } = useTotalUsers()
@@ -87,17 +80,52 @@ export default function AdminDashboardPage() {
       <AdminTopbar title="Home" />
 
       <div className="p-6 flex flex-col gap-6">
+        {/* Hard gate: render nothing downstream until `/api/users/me`
+            resolves successfully. Prevents flashing wrong empty states and
+            stat cards full of `null` when the API / DB is unreachable. The
+            error and loading branches live in their own short-circuit so
+            the happy-path markup below can keep assuming `me` is available. */}
+        {meError ? (
+          <EndpointError
+            error={meError}
+            label="Couldn't load your account"
+            onRetry={refetchMe}
+          />
+        ) : meLoading || !me ? (
+          <div className="flex items-center justify-center py-24">
+            <Spinner size={24} />
+          </div>
+        ) : (
+          <>
         <SetupBanner />
         <AddressBanner />
 
-        {me?.lightningAddress && (
+        <IdentityCircles className="py-2" />
+
+        {me?.lightningAddress && (() => {
+          const needsDomainSetup = me.lightningAddress.endsWith('@undefined')
+          const displayAddress = needsDomainSetup
+            ? me.lightningAddress.replace(/@undefined$/, '@…')
+            : me.lightningAddress
+          return (
           <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-yellow-500/10">
               <Zap className="size-5 text-yellow-500" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground">Your Lightning Address</p>
-              <p className="text-sm font-medium truncate">{me.lightningAddress}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium truncate">{displayAddress}</p>
+                {needsDomainSetup && (
+                  <Badge
+                    variant="secondary"
+                    className="text-xs bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border border-yellow-500/20 hover:bg-yellow-500/15"
+                  >
+                    <AlertTriangle className="size-3 mr-1" />
+                    Needs Domain setup
+                  </Badge>
+                )}
+              </div>
             </div>
             <Button
               variant="ghost"
@@ -127,34 +155,63 @@ export default function AdminDashboardPage() {
               <Copy className="size-3.5" />
             </Button>
           </div>
+          )
+        })()}
+
+        {/* IDLE / ALIAS primary addresses don't use NWC — swap the
+            balance-and-wallet card for a purpose-built forwarding card.
+            NwcCard stays for CUSTOM_NWC / DEFAULT_NWC (and legacy users
+            with no primary address mode recorded), preserving the
+            "set up your NWC wallet" flow it ships. */}
+        {me?.primaryAddressMode === 'IDLE' ||
+        me?.primaryAddressMode === 'ALIAS' ? (
+          me.primaryUsername ? (
+            <ForwardingCard
+              username={me.primaryUsername}
+              mode={me.primaryAddressMode}
+              redirect={me.primaryRedirect}
+              onUpdated={refetchMe}
+            />
+          ) : null
+        ) : (
+          <NwcCard />
         )}
 
         {!canViewStats ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-            <div className="flex size-16 items-center justify-center rounded-full bg-muted">
-              <ShieldAlert className="size-8 text-muted-foreground" />
+          // Only promote the "register your address" empty state when we
+          // actually got a response back and it said the user has none.
+          // An endpoint error (DB down, network, 5xx) is handled by the
+          // EndpointError banner above; showing this below it would
+          // contradict the true problem.
+          !meError && !me?.lightningAddress ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+              <div className="flex size-16 items-center justify-center rounded-full bg-yellow-500/10">
+                <Zap className="size-8 text-yellow-500" />
+              </div>
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold">Set up your Lightning Address</h2>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  You need to configure a Lightning Address to get started
+                  receiving payments on this platform.
+                </p>
+              </div>
+              <Button
+                variant="theme"
+                onClick={() => router.push('/admin/addresses/register')}
+              >
+                Register now
+              </Button>
             </div>
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold">No access</h2>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Your account doesn&apos;t have permission to view dashboard statistics.
-                Contact an administrator to request access.
-              </p>
-            </div>
-            {role && (
-              <Badge variant="secondary" className="text-xs">
-                Role: {role}
-              </Badge>
-            )}
-          </div>
+          ) : null
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <StatCard
                 title="Total users"
                 value={userCounts?.total}
                 description="The number of registered users."
                 loading={usersLoading}
+                href="/admin/users"
               />
               <StatCard
                 title="Volume"
@@ -258,6 +315,8 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             </div>
+          </>
+        )}
           </>
         )}
       </div>

@@ -40,7 +40,10 @@ const AvatarFallback = React.forwardRef<
   <AvatarPrimitive.Fallback
     ref={ref}
     className={cn(
-      'flex h-full w-full items-center justify-center rounded-full bg-muted',
+      // `select-none` keeps the initials/placeholder non-selectable so
+      // dragging the cursor across an avatar doesn't highlight "DB" /
+      // "82" / etc. — they're decorative, not content.
+      'flex h-full w-full items-center justify-center rounded-full bg-muted select-none',
       className
     )}
     {...props}

@@ -1,4 +1,4 @@
-import { getSettings } from '@/lib/settings'
+import { resolvePublicEndpoint } from '@/lib/public-url'
 import { Card } from '@/types'
 import { User } from '@/types/user'
 import { NextRequest, NextResponse } from 'next/server'
@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 
 export default async function newOTC(
-  _req: NextRequest,
+  req: NextRequest,
   card: Card & { user?: User }
 ) {
   // Generate random 16-byte OTC
@@ -19,14 +19,14 @@ export default async function newOTC(
     data: { otc }
   })
 
-  const { endpoint } = await getSettings(['endpoint'])
+  const { url } = await resolvePublicEndpoint(req)
 
   logger.info({ cardId: card.id, otc }, 'Generated new OTC for card')
 
   return NextResponse.json(
     {
       otc,
-      url: `${endpoint}/wallet/activate/${otc}/`
+      url: `${url}/wallet/activate/${otc}/`
     },
     {
       headers: {

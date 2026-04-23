@@ -45,3 +45,19 @@ export interface LUD06CallbackSuccess {
   routes: []
   verify?: string
 }
+
+/**
+ * LUD-21 verify response.
+ * See: https://github.com/lnurl/luds/blob/luds/21.md
+ */
+export interface LUD21VerifySuccess {
+  status: 'OK'
+  settled: boolean
+  preimage: string | null
+  pr: string
+}
+
+export interface LUD21VerifyError {
+  status: 'ERROR'
+  reason: string
+}

@@ -3,7 +3,7 @@ import type { Ntag424WriteData } from '@/types/ntag424'
 
 import { prisma } from '@/lib/prisma'
 import { cardToNtag424WriteData } from '@/lib/ntag424'
-import { getSettings } from '@/lib/settings'
+import { resolvePublicEndpoint } from '@/lib/public-url'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, ValidationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
@@ -55,10 +55,10 @@ export const GET = withErrorHandling(
       otc: card.otc || undefined
     }
 
-    const settings = await getSettings(['endpoint'])
+    const { host } = await resolvePublicEndpoint(req)
     const writeData: Ntag424WriteData = cardToNtag424WriteData(
       cardData,
-      settings.endpoint.replace(/^https?:\/\//, '')
+      host
     )
 
     return NextResponse.json(writeData, {

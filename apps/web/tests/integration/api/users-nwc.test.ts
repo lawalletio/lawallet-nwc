@@ -70,11 +70,13 @@ describe('PUT /api/users/[userId]/nwc', () => {
     const res = await PUT(req, createParamsPromise({ userId: user.id }))
     const body: any = await assertResponse(res, 200)
 
-    expect(body).toEqual({
+    expect(body).toMatchObject({
       userId: user.id,
       nwcUri: 'nostr+walletconnect://test',
       updated: true,
     })
+    // New field: server stamps when the NWC was set
+    expect(body).toHaveProperty('nwcUpdatedAt')
   })
 
   it('rejects unauthorized user', async () => {

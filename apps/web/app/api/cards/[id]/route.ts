@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
-import { validateAdminAuth } from '@/lib/admin-auth'
+import { authenticateWithPermission } from '@/lib/auth/unified-auth'
+import { Permission } from '@/lib/auth/permissions'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
+import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    await validateAdminAuth(request)
+    await authenticateWithPermission(request, Permission.CARDS_READ)
     const { id } = validateParams(await params, idParam)
 
     const card = await prisma.card.findUnique({
@@ -77,7 +80,7 @@ export const GET = withErrorHandling(
 
 export const DELETE = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    await validateAdminAuth(request)
+    await authenticateWithPermission(request, Permission.CARDS_WRITE)
     const { id } = validateParams(await params, idParam)
 
     // Find the card first to check if it exists and get ntag424 info
@@ -106,6 +109,15 @@ export const DELETE = withErrorHandling(
           where: { cid: card.ntag424Cid }
         })
       }
+    })
+
+    eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
+
+    logActivity.fireAndForget({
+      category: 'CARD',
+      event: ActivityEvent.CARD_DELETED,
+      message: `Card deleted (${id})`,
+      metadata: { cardId: id, ntag424Cid: card.ntag424Cid },
     })
 
     return NextResponse.json({

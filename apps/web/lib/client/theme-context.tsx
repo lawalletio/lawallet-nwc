@@ -192,6 +192,48 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyRounding(rounding)
   }, [rounding])
 
+  // Hydrate from server settings once on mount so the branding is global
+  // across all visitors (not just the admin who set it).
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/settings')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (cancelled || !data) return
+        if (typeof data.brand_theme === 'string') {
+          const preset = THEME_PRESETS.find(p => p.hex === data.brand_theme)
+          if (preset && preset.hex !== activePreset.hex) {
+            setActivePreset(preset)
+            applyPreset(preset)
+            try {
+              localStorage.setItem(COLOR_STORAGE_KEY, preset.hex)
+            } catch {}
+          }
+        }
+        if (
+          typeof data.brand_rounding === 'string' &&
+          (ROUNDING_OPTIONS as readonly string[]).includes(data.brand_rounding)
+        ) {
+          const next = data.brand_rounding as RoundingOption
+          if (next !== rounding) {
+            setRoundingState(next)
+            applyRounding(next)
+            try {
+              localStorage.setItem(ROUNDING_STORAGE_KEY, next)
+            } catch {}
+          }
+        }
+      })
+      .catch(() => {
+        // Ignore — client keeps whatever it loaded from localStorage / defaults.
+      })
+    return () => {
+      cancelled = true
+    }
+    // Run once on mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const setTheme = useCallback((preset: ThemePreset) => {
     setActivePreset(preset)
     applyPreset(preset)

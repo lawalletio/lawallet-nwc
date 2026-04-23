@@ -31,16 +31,20 @@ export const PUT = withErrorHandling(
       throw new AuthorizationError('Not authorized to update this user')
     }
 
-    // Update the user's NWC URI
+    // Update the user's NWC URI and mark when it was set
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: { nwc: nwcUri }
+      data: {
+        nwc: nwcUri,
+        nwcUpdatedAt: new Date(),
+      },
     })
 
     return NextResponse.json({
       userId: updatedUser.id,
       nwcUri: updatedUser.nwc,
-      updated: true
+      nwcUpdatedAt: updatedUser.nwcUpdatedAt?.toISOString() ?? null,
+      updated: true,
     })
   }
 )

@@ -11,27 +11,39 @@ import {
   Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/components/admin/auth-context'
+import { Permission } from '@/lib/auth/permissions'
 
-const tabs = [
+interface Tab {
+  title: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  permission?: Permission
+}
+
+const tabs: Tab[] = [
   { title: 'Home', href: '/admin', icon: Home },
-  { title: 'Users', href: '/admin/users', icon: Users },
-  { title: 'Cards', href: '/admin/cards', icon: CreditCard },
-  { title: 'Activity', href: '/admin/activity', icon: Activity },
-  { title: 'Settings', href: '/admin/settings', icon: Settings },
+  { title: 'Users', href: '/admin/users', icon: Users, permission: Permission.ADDRESSES_READ },
+  { title: 'Cards', href: '/admin/cards', icon: CreditCard, permission: Permission.CARDS_READ },
+  { title: 'Activity', href: '/admin/activity', icon: Activity, permission: Permission.SETTINGS_READ },
+  { title: 'Settings', href: '/admin/settings', icon: Settings, permission: Permission.SETTINGS_READ },
 ]
 
 export function MobileTabBar() {
   const pathname = usePathname()
+  const { isAuthorized } = useAuth()
 
   function isActive(href: string): boolean {
     if (href === '/admin') return pathname === '/admin'
     return pathname.startsWith(href)
   }
 
+  const visibleTabs = tabs.filter(tab => !tab.permission || isAuthorized(tab.permission))
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background md:hidden">
       <div className="flex items-center justify-around h-14">
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const active = isActive(tab.href)
           return (
             <Link

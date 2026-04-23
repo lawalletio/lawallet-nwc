@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { Search } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Input } from '@/components/ui/input'
@@ -21,7 +22,19 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useActivity, type ActivityCategory } from '@/lib/client/hooks/use-activity'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  useActivity,
+  type ActivityCategory,
+  type ActivityLevel,
+  type ActivityLogView,
+} from '@/lib/client/hooks/use-activity'
 
 const CATEGORY_COLORS: Record<ActivityCategory, string> = {
   USER: '#ef4444',
@@ -41,26 +54,42 @@ const CATEGORY_TEXT_CLASSES: Record<ActivityCategory, string> = {
   SERVER: 'text-red-500',
 }
 
+const LEVEL_CLASSES: Record<ActivityLevel, string> = {
+  INFO: 'text-muted-foreground',
+  WARN: 'text-yellow-500',
+  ERROR: 'text-red-500',
+}
+
+const ALL = 'all' as const
+
 function formatTimestamp(ts: string) {
   const d = new Date(ts)
   return d.toLocaleString()
 }
 
 export default function ActivityPage() {
-  const { data: logs } = useActivity()
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(0)
-  const pageSize = 20
+  const [categoryFilter, setCategoryFilter] = useState<ActivityCategory | typeof ALL>(ALL)
+  const [levelFilter, setLevelFilter] = useState<ActivityLevel | typeof ALL>(ALL)
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [selected, setSelected] = useState<ActivityLogView | null>(null)
 
-  const filtered = logs.filter((log) => {
-    if (search && !log.message.toLowerCase().includes(search.toLowerCase())) {
-      return false
-    }
-    return true
-  })
+  // Debounce the search input so we don't hammer the API on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchInput])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const paged = filtered.slice(page * pageSize, (page + 1) * pageSize)
+  const filters = useMemo(
+    () => ({
+      category: categoryFilter === ALL ? undefined : categoryFilter,
+      level: levelFilter === ALL ? undefined : levelFilter,
+      q: debouncedSearch || undefined,
+    }),
+    [categoryFilter, levelFilter, debouncedSearch]
+  )
+
+  const { data: logs, loading, error, hasMore, loadMore } = useActivity(filters)
 
   return (
     <div className="flex flex-col">
@@ -79,20 +108,20 @@ export default function ActivityPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
               placeholder="Search logs..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(0)
-              }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="pl-9"
             />
           </div>
-          <Select disabled>
+          <Select
+            value={categoryFilter}
+            onValueChange={(v) => setCategoryFilter(v as ActivityCategory | typeof ALL)}
+          >
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="All category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All category</SelectItem>
+              <SelectItem value={ALL}>All category</SelectItem>
               <SelectItem value="USER">User</SelectItem>
               <SelectItem value="ADDRESS">Address</SelectItem>
               <SelectItem value="NWC">NWC</SelectItem>
@@ -101,37 +130,51 @@ export default function ActivityPage() {
               <SelectItem value="SERVER">Server</SelectItem>
             </SelectContent>
           </Select>
-          <Select disabled>
+          <Select
+            value={levelFilter}
+            onValueChange={(v) => setLevelFilter(v as ActivityLevel | typeof ALL)}
+          >
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="All status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All status</SelectItem>
+              <SelectItem value={ALL}>All status</SelectItem>
+              <SelectItem value="INFO">Info</SelectItem>
+              <SelectItem value="WARN">Warn</SelectItem>
+              <SelectItem value="ERROR">Error</SelectItem>
             </SelectContent>
           </Select>
         </div>
+
+        {error && (
+          <div className="text-sm text-red-500">
+            Failed to load activity: {error.message}
+          </div>
+        )}
 
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Time</TableHead>
               <TableHead>Category</TableHead>
+              <TableHead>Level</TableHead>
               <TableHead>Message</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paged.length === 0 ? (
+            {logs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-12">
-                  No activity logs available
+                <TableCell colSpan={4} className="text-center text-muted-foreground py-12">
+                  {loading ? 'Loading...' : 'No activity logs available'}
                 </TableCell>
               </TableRow>
             ) : (
-              paged.map((log) => (
+              logs.map((log) => (
                 <TableRow
                   key={log.id}
-                  className="border-l-[3px]"
+                  className="border-l-[3px] cursor-pointer hover:bg-muted/40"
                   style={{ borderLeftColor: CATEGORY_COLORS[log.category] }}
+                  onClick={() => setSelected(log)}
                 >
                   <TableCell className="whitespace-nowrap text-muted-foreground">
                     {formatTimestamp(log.timestamp)}
@@ -140,6 +183,9 @@ export default function ActivityPage() {
                     <Badge variant="outline" className={CATEGORY_TEXT_CLASSES[log.category]}>
                       {log.category}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className={LEVEL_CLASSES[log.level]}>{log.level}</span>
                   </TableCell>
                   <TableCell className="max-w-md truncate">
                     {log.message}
@@ -150,30 +196,107 @@ export default function ActivityPage() {
           </TableBody>
         </Table>
 
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Page {page + 1} of {totalPages}
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 0}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages - 1}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
+        <div className="flex items-center justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasMore || loading}
+            onClick={() => loadMore()}
+          >
+            {loading ? 'Loading...' : hasMore ? 'Load older' : 'No more entries'}
+          </Button>
         </div>
       </div>
+
+      <ActivityDetailsDialog
+        log={selected}
+        onOpenChange={(open) => !open && setSelected(null)}
+      />
     </div>
+  )
+}
+
+function ActivityDetailsDialog({
+  log,
+  onOpenChange,
+}: {
+  log: ActivityLogView | null
+  onOpenChange: (open: boolean) => void
+}) {
+  return (
+    <Dialog open={!!log} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-4 sm:p-6 gap-3 sm:gap-4">
+        {log && (
+          <>
+            <DialogHeader className="shrink-0">
+              <DialogTitle className="flex flex-wrap items-center gap-2 pr-6">
+                <Badge variant="outline" className={CATEGORY_TEXT_CLASSES[log.category]}>
+                  {log.category}
+                </Badge>
+                <span className={LEVEL_CLASSES[log.level]}>{log.level}</span>
+                <span className="font-mono text-xs text-muted-foreground break-all">
+                  {log.event}
+                </span>
+              </DialogTitle>
+              <DialogDescription className="pt-2 text-foreground text-left">
+                {log.message}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto -mx-4 sm:-mx-6 px-4 sm:px-6 space-y-4">
+              <dl className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-x-4 gap-y-1 sm:gap-y-2 text-sm">
+                <dt className="text-muted-foreground">Time</dt>
+                <dd>{new Date(log.timestamp).toLocaleString()}</dd>
+
+                {log.category === 'INVOICE' && typeof (log.metadata as { amountSats?: unknown })?.amountSats === 'number' && (
+                  <>
+                    <dt className="text-muted-foreground">Amount</dt>
+                    <dd>
+                      {(log.metadata as { amountSats: number }).amountSats.toLocaleString()} sats
+                    </dd>
+                  </>
+                )}
+
+                <dt className="text-muted-foreground">Log ID</dt>
+                <dd className="font-mono text-xs break-all">{log.id}</dd>
+
+                {log.reqId && (
+                  <>
+                    <dt className="text-muted-foreground">Request ID</dt>
+                    <dd className="font-mono text-xs break-all" title="Matches reqId in Pino logs">
+                      {log.reqId}
+                    </dd>
+                  </>
+                )}
+
+                {log.userId && (
+                  <>
+                    <dt className="text-muted-foreground">User ID</dt>
+                    <dd className="font-mono text-xs break-all">
+                      <Link
+                        href={`/admin/users/${log.userId}`}
+                        className="text-primary underline-offset-2 hover:underline"
+                        onClick={() => onOpenChange(false)}
+                      >
+                        {log.userId}
+                      </Link>
+                    </dd>
+                  </>
+                )}
+              </dl>
+
+              {log.metadata && Object.keys(log.metadata).length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">Metadata</div>
+                  <pre className="rounded-md border bg-muted/30 p-3 text-xs font-mono whitespace-pre-wrap break-all">
+                    {JSON.stringify(log.metadata, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

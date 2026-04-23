@@ -16,12 +16,13 @@ pnpm workspaces + Turborepo. Node v22.14.0 (see `.nvmrc`).
 apps/
   web/          Next.js 16 — frontend, REST API, LUD-16 resolution (main app)
   docs/         Fumadocs + Next.js — documentation site
-  proxy/        NWC Proxy — provisions courtesy NWC connections (stub, Month 4)
-  listener/     NWC Payment Listener — monitors relays, dispatches webhooks (stub, Month 5)
+  listener/     NWC Payment Listener — monitors relays, dispatches webhooks (stub with echo warnings; see docs/services/NWC-LISTENER.md)
 packages/
-  sdk/          TypeScript SDK client for the API (stub, Month 2)
+  sdk/          TypeScript SDK client for the API (stub with echo warnings)
   shared/       Shared types and utilities between services (stub)
 ```
+
+The NWC Proxy is no longer vendored here — it will be provisioned as an **external** service via LNURL (see `docs/services/NWC-PROXY.md`).
 
 ## Commands
 
@@ -60,10 +61,10 @@ pnpm exec prisma studio          # Visual DB browser
 ## Web App Architecture (apps/web/)
 
 ### Three-Service Design
-The platform consists of 3 independent containerized services with no shared infrastructure:
+The platform consists of 3 independent services with no shared infrastructure:
 1. **lawallet-web** (this repo) — Next.js: frontend + REST API + LUD-16
-2. **lawallet-nwc-proxy** — Provisions courtesy NWC connections (separate container)
-3. **lawallet-listener** — Monitors NWC relays, dispatches LUD-22 webhooks (separate container)
+2. **lawallet-nwc-proxy** — External service that provisions courtesy NWC connections via LNURL (not vendored here; see `docs/services/NWC-PROXY.md`)
+3. **lawallet-listener** — Monitors NWC relays, dispatches LUD-22 webhooks (stub in `apps/listener/`; see `docs/services/NWC-LISTENER.md`)
 
 ### Auth System (Dual Method)
 - **NIP-98**: `Authorization: Nostr <base64-event>` — Nostr protocol native auth
@@ -73,7 +74,7 @@ The platform consists of 3 independent containerized services with no shared inf
 - **Admin wrappers**: `lib/admin-auth.ts` provides `withAdminAuth()` HOF for route handlers
 
 ### API Routes (apps/web/app/api/)
-30 route handlers organized by resource: cards, card-designs, lightning-addresses, users, settings, jwt, lud16, admin, remote-connections. All wrapped with `withErrorHandling()` from `types/server/error-handler.ts`.
+34 route handlers organized by resource: `cards`, `card-designs`, `lightning-addresses`, `users`, `settings`, `jwt`, `lud16`, `admin`, `root`, `remote-connections`, `invoices`, `events` (SSE). All wrapped with `withErrorHandling()` from `types/server/error-handler.ts`. The public `lud16/` endpoints support **LUD-12** (payer comments) and **LUD-21** (payment verification).
 
 ### Middleware Stack
 - **Error handling**: `types/server/error-handler.ts` — catches errors, returns structured JSON
@@ -87,15 +88,21 @@ All errors extend `ApiError` in `types/server/errors.ts`:
 ValidationError(400), AuthenticationError(401), AuthorizationError(403), NotFoundError(404), ConflictError(409), PayloadTooLargeError(413), TooManyRequestsError(429), ServiceUnavailableError(503)
 
 ### Database
-PostgreSQL via Prisma. Schema at `apps/web/prisma/schema.prisma`. 7 models: User, Card, CardDesign, Ntag424, LightningAddress, AlbySubAccount, Settings. Generated client at `apps/web/lib/generated/prisma`.
+PostgreSQL via Prisma. Schema at `apps/web/prisma/schema.prisma`. 8 models: User, Card, CardDesign, Ntag424, LightningAddress, AlbySubAccount, Settings, Invoice. Generated client at `apps/web/lib/generated/prisma`.
 
 ### Frontend
 - shadcn/ui + Radix UI + Tailwind CSS 3.4
 - React Hook Form + Zod for forms
 - Provider hierarchy: ThemeProvider → AuthProvider → NostrProfileProvider → Toaster
 - Auth context at `components/admin/auth-context.tsx` — JWT management, Nostr signer integration
-- Custom hooks in `lib/client/hooks/` — useApi, useCards, useAddresses, useDesigns, useSettings
+- Custom hooks in `lib/client/hooks/` — `useApi`, `useCards`, `useAddresses`, `useDesigns`, `useSettings`, `useActivity`, `useHomeStats`, `useSse`; plus `useNwcBalance` in `lib/client/`
+- Admin Settings page is split into tabs: `wallet-tab`, `branding-tab`, `infrastructure-tab`. Branding/theme tokens are persisted globally via `/api/settings` and applied platform-wide.
 - `@/*` path alias maps to `apps/web/` root
+
+### Real-time (SSE)
+- `app/api/events/` emits server-sent event streams for live updates
+- `lib/client/hooks/use-sse.ts` is the generic SSE client hook
+- `lib/client/use-nwc-balance.ts` demonstrates the pattern — powers the dashboard NWC card's real-time balance and status
 
 ### Open Standards
 NIP-47 (NWC), NIP-05 (Nostr ID), NIP-07/46 (Nostr signing), NIP-57 (Zaps), NIP-98 (HTTP Auth), LUD-16 (Lightning Address), LUD-21/22 (Payment verification/webhooks), BoltCard (NFC)
@@ -104,8 +111,8 @@ NIP-47 (NWC), NIP-05 (Nostr ID), NIP-07/46 (Nostr signing), NIP-57 (Zaps), NIP-9
 
 Vitest 3.2 + MSW + happy-dom. Config at `apps/web/vitest.config.ts`.
 
-- **Unit tests**: `tests/unit/lib/` — jwt, nostr, ntag424, errors, validation
-- **Integration tests**: `tests/integration/api/` — all API routes with MSW
+- **Unit tests**: 16 files in `tests/unit/lib/` — auth, config, env, errors, jwt, logger, maintenance, nip98, nostr, permissions, rate-limit, unified-auth, utils, validation, public-URL
+- **Integration tests**: 24 files in `tests/integration/api/` — all API routes (cards, card-designs, users, addresses, settings, invoices, remote-connections, lud16, lud21-verify, jwt, admin-assign, root-assign) with MSW
 - **Setup**: `tests/setup.ts` starts MSW server
 - **Helpers**: `tests/helpers/` — auth-helpers, api-helpers, fixtures, route-helpers
 

@@ -25,7 +25,10 @@ async function main() {
   )
   console.log(`Created ${users.length} users`)
 
-  // Create lightning addresses with their user relationships
+  // Create lightning addresses with their user relationships.
+  // Each user gets exactly one address from the seed, so every seeded address
+  // is its owner's primary — matches the back-fill behavior of the
+  // addresses_nwc_connection migration for legacy rows.
   console.log('Creating lightning addresses...')
   await Promise.all(
     mockLightningAddressData.map((la, index) =>
@@ -33,7 +36,7 @@ async function main() {
         data: {
           username: la.username,
           createdAt: la.createdAt,
-          // Each lightning address belongs to a user with matching pubkey
+          isPrimary: true,
           userId:
             mockUserData.find(u => u.pubkey === la.pubkey)?.id ||
             users[index].id

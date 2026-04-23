@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library'
 import { Button } from './button'
-import { Dialog, DialogContent } from './dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from './dialog'
 import { Camera, X, AlertCircle } from 'lucide-react'
 
 interface QRScannerProps {
@@ -150,9 +150,20 @@ export function QRScanner({ onScan, onError, children }: QRScannerProps) {
 
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="max-w-none w-screen h-screen p-0 m-0 bg-black">
+          {/* Radix requires a DialogTitle+DialogDescription to be associated
+              with every DialogContent; otherwise screen readers can't
+              announce the dialog and Radix logs a runtime warning. The
+              description is visually hidden because the camera view +
+              scanning frame convey the purpose visually. */}
+          <DialogDescription className="sr-only">
+            Use your device camera to scan a QR code.
+          </DialogDescription>
+
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-black/50">
-            <h2 className="text-white text-lg font-semibold">Scan QR Code</h2>
+            <DialogTitle className="text-white text-lg font-semibold">
+              Scan QR Code
+            </DialogTitle>
             <Button
               variant="ghost"
               size="sm"

@@ -109,7 +109,7 @@ describe('POST /api/cards/otc/[otc]/activate', () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddress: { username: 'alice' },
+      lightningAddresses: [{ username: 'alice', isPrimary: true }],
       albySubAccount: null,
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
@@ -133,7 +133,7 @@ describe('POST /api/cards/otc/[otc]/activate', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
     const newUser = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddress: null,
+      lightningAddresses: [],
       albySubAccount: null,
     })
     vi.mocked(createNewUser).mockResolvedValue(newUser as any)
@@ -161,7 +161,7 @@ describe('POST /api/cards/otc/[otc]/activate', () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddress: null,
+      lightningAddresses: [],
       albySubAccount: null,
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)

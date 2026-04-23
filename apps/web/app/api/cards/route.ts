@@ -10,6 +10,7 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticateWithRole } from '@/lib/auth/unified-auth'
 import { Role } from '@/lib/auth/permissions'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 interface CardFilters {
   paired?: boolean
@@ -188,6 +189,13 @@ export const POST = withErrorHandling(async (request: Request) => {
     }
 
   eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
+
+  logActivity.fireAndForget({
+    category: 'CARD',
+    event: ActivityEvent.CARD_CREATED,
+    message: `New card created (design ${card.design.id})`,
+    metadata: { cardId: card.id, designId: card.design.id },
+  })
 
   return NextResponse.json(transformedCard)
 })

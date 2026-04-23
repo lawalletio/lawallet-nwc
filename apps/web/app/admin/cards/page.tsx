@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -9,12 +9,18 @@ import {
   RefreshCw,
   Upload,
   Archive,
+  ArchiveRestore,
   Trash2,
   RotateCcw,
+  Pencil,
+  Check,
+  X as XIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { CreateCardDialog } from '@/components/admin/create-card-dialog'
+import { UploadDesignDialog } from '@/components/admin/upload-design-dialog'
+import { DesignImage } from '@/components/admin/design-image'
 import { PermissionGuard } from '@/components/admin/permission-guard'
 import { StatCard } from '@/components/admin/stat-card'
 import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
@@ -48,9 +54,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Permission } from '@/lib/auth/permissions'
 import { useCards, useCardCounts } from '@/lib/client/hooks/use-cards'
-import { useDesigns, useDesignMutations } from '@/lib/client/hooks/use-designs'
+import {
+  useDesigns,
+  useDesignMutations,
+  type DesignData,
+} from '@/lib/client/hooks/use-designs'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { truncateNpub, formatRelativeTime, truncateHex } from '@/lib/client/format'
+import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 10
 
@@ -66,6 +77,7 @@ export default function CardsPage() {
   const [designFilter, setDesignFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [designTab, setDesignTab] = useState('active')
+  const [uploadDesignOpen, setUploadDesignOpen] = useState(false)
 
   const filtered = useMemo(() => {
     if (!cards) return []
@@ -112,6 +124,12 @@ export default function CardsPage() {
   }
 
   const showDomainAlert = settings && !settings.domain
+  // The Sync button calls /api/card-designs/import, which pulls designs from
+  // veintiuno.lat filtered by `community_id`. It rejects with a 400 when the
+  // community isn't configured, so hide the button entirely until both
+  // `is_community` and `community_id` are set.
+  const hasCommunity =
+    settings?.is_community === 'true' && !!settings?.community_id?.trim()
 
   return (
     <div className="flex flex-col">
@@ -136,7 +154,7 @@ export default function CardsPage() {
 
       <div className="p-6 flex flex-col gap-6">
         {/* Stats */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <StatCard
             title="Total cards"
             value={counts?.total}
@@ -327,20 +345,26 @@ export default function CardsPage() {
             </div>
             <div className="flex items-center gap-2">
               <PermissionGuard permission={Permission.CARD_DESIGNS_WRITE}>
+                {hasCommunity && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncDesigns}
+                    disabled={importing}
+                  >
+                    {importing ? (
+                      <Spinner size={16} className="mr-2" />
+                    ) : (
+                      <RefreshCw className="mr-2 size-4" />
+                    )}
+                    Sync
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleSyncDesigns}
-                  disabled={importing}
+                  onClick={() => setUploadDesignOpen(true)}
                 >
-                  {importing ? (
-                    <Spinner size={16} className="mr-2" />
-                  ) : (
-                    <RefreshCw className="mr-2 size-4" />
-                  )}
-                  Sync
-                </Button>
-                <Button variant="outline" size="sm">
                   <Upload className="mr-2 size-4" />
                   Upload design
                 </Button>
@@ -355,61 +379,218 @@ export default function CardsPage() {
             </TabsList>
           </Tabs>
 
-          {designsLoading ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-56 w-full rounded-lg" />
-              ))}
-            </div>
-          ) : designTab === 'archived' ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <p className="text-sm text-muted-foreground">No archived designs</p>
-            </div>
-          ) : !designs?.length ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <p className="text-sm text-muted-foreground">No designs found</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {designs.map((design) => (
-                <Card key={design.id} className="overflow-hidden">
-                  <CardHeader className="flex flex-row items-center justify-between p-4 pb-0">
-                    <div className="flex flex-col gap-0.5">
-                      <CardTitle className="text-sm font-medium">
-                        {design.description || 'Untitled'}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground">
-                        {formatRelativeTime(design.createdAt)}
-                      </p>
-                    </div>
-                    <PermissionGuard permission={Permission.CARD_DESIGNS_WRITE}>
-                      <Button variant="ghost" size="sm">
-                        <Archive className="mr-2 size-4" />
-                        Archive
-                      </Button>
-                    </PermissionGuard>
-                  </CardHeader>
-                  <CardContent className="p-4">
-                    {design.image ? (
-                      <div className="aspect-video rounded-md overflow-hidden bg-muted">
-                        <img
-                          src={design.image}
-                          alt={design.description || 'Card design'}
-                          className="size-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="aspect-video rounded-md bg-muted flex items-center justify-center">
-                        <span className="text-sm text-muted-foreground">No image</span>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+          {(() => {
+            // Split the designs list by archive state. The server returns
+            // every design; filtering client-side keeps one fetch per page
+            // load and lets the SSE `designs:updated` event refresh both
+            // tabs at once.
+            const visibleDesigns = designs?.filter(d =>
+              designTab === 'archived' ? !!d.archivedAt : !d.archivedAt,
+            ) ?? []
+
+            if (designsLoading) {
+              return (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <Skeleton key={i} className="h-56 w-full rounded-lg" />
+                  ))}
+                </div>
+              )
+            }
+            if (visibleDesigns.length === 0) {
+              return (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {designTab === 'archived'
+                      ? 'No archived designs'
+                      : 'No designs found'}
+                  </p>
+                </div>
+              )
+            }
+            return (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {visibleDesigns.map(design => (
+                  <Card key={design.id} className="overflow-hidden">
+                    <DesignCardHeader design={design} onUpdated={refetchDesigns} />
+                    <CardContent className="p-4">
+                      <DesignImage
+                        src={design.image}
+                        alt={design.description || 'Card design'}
+                      />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       </div>
+
+      <UploadDesignDialog
+        open={uploadDesignOpen}
+        onOpenChange={setUploadDesignOpen}
+        onCreated={refetchDesigns}
+      />
     </div>
+  )
+}
+
+/**
+ * Header row for a single design card. Shows the design's name + created
+ * timestamp, an inline "Edit" affordance that swaps to an input on click,
+ * and the existing Archive placeholder. Saves via PUT /api/card-designs/:id;
+ * Enter commits, Escape cancels, and blur acts as Save so the user can
+ * just click away.
+ */
+function DesignCardHeader({
+  design,
+  onUpdated,
+}: {
+  design: DesignData
+  onUpdated: () => void
+}) {
+  const { updateDesign, updating } = useDesignMutations()
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(design.description ?? '')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Keep the local value in sync when the design refetches from the server.
+  useEffect(() => {
+    if (!editing) setValue(design.description ?? '')
+  }, [design.description, editing])
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus()
+  }, [editing])
+
+  async function commit() {
+    const next = value.trim()
+    if (!next) {
+      toast.error('Design name cannot be empty')
+      return
+    }
+    if (next === (design.description ?? '').trim()) {
+      setEditing(false)
+      return
+    }
+    try {
+      await updateDesign(design.id, { description: next })
+      toast.success('Design updated')
+      setEditing(false)
+      onUpdated()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update design')
+    }
+  }
+
+  function cancel() {
+    setValue(design.description ?? '')
+    setEditing(false)
+  }
+
+  const isArchived = !!design.archivedAt
+
+  async function toggleArchive() {
+    try {
+      await updateDesign(design.id, { archived: !isArchived })
+      toast.success(isArchived ? 'Design restored' : 'Design archived')
+      onUpdated()
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update design',
+      )
+    }
+  }
+
+  return (
+    <CardHeader className="flex flex-row items-start justify-between p-4 pb-0">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        {editing ? (
+          <div className="flex items-center gap-1">
+            <Input
+              ref={inputRef}
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  commit()
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  cancel()
+                }
+              }}
+              onBlur={commit}
+              disabled={updating}
+              className="h-8 text-sm"
+              maxLength={120}
+              placeholder="Design name"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onMouseDown={e => e.preventDefault()}
+              onClick={commit}
+              disabled={updating}
+              aria-label="Save"
+            >
+              <Check className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onMouseDown={e => e.preventDefault()}
+              onClick={cancel}
+              disabled={updating}
+              aria-label="Cancel"
+            >
+              <XIcon className="size-4" />
+            </Button>
+          </div>
+        ) : (
+          <CardTitle className="flex items-center gap-1.5 truncate text-sm font-medium">
+            <span className="truncate">{design.description || 'Untitled'}</span>
+            <PermissionGuard permission={Permission.CARD_DESIGNS_WRITE}>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                aria-label="Edit design name"
+                className="flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+            </PermissionGuard>
+          </CardTitle>
+        )}
+        <p className="text-xs text-muted-foreground">
+          {formatRelativeTime(design.createdAt)}
+        </p>
+      </div>
+      <PermissionGuard permission={Permission.CARD_DESIGNS_WRITE}>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={editing || updating}
+          onClick={toggleArchive}
+        >
+          {isArchived ? (
+            <>
+              <ArchiveRestore className="mr-2 size-4" />
+              Restore
+            </>
+          ) : (
+            <>
+              <Archive className="mr-2 size-4" />
+              Archive
+            </>
+          )}
+        </Button>
+      </PermissionGuard>
+    </CardHeader>
   )
 }

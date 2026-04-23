@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { LUD03Request } from '@/types/lnurl'
-import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { idParam, scanCardQuerySchema } from '@/lib/validation/schemas'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
+import { resolvePublicEndpoint } from '@/lib/public-url'
 
 export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
   return new NextResponse(null, {
@@ -40,7 +40,7 @@ export const GET = withErrorHandling(
     throw new NotFoundError('Card not found')
   }
 
-  const { endpoint } = await getSettings(['endpoint'])
+  const { url } = await resolvePublicEndpoint(req)
 
   const response = {
     tag: 'withdrawRequest',
@@ -48,7 +48,7 @@ export const GET = withErrorHandling(
     minWithdrawable: 1,
     maxWithdrawable: 10000000,
     defaultDescription: 'Boltcard + NWC',
-    callback: `${endpoint}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
+    callback: `${url}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
   } as LUD03Request
 
   console.dir(response)

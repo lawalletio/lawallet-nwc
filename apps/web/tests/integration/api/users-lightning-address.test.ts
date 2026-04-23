@@ -60,7 +60,7 @@ beforeEach(() => {
 
 describe('PUT /api/users/[userId]/lightning-address', () => {
   it('creates new lightning address for user', async () => {
-    const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: null })
+    const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
@@ -84,7 +84,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
 
   it('replaces existing lightning address', async () => {
     const oldAddress = createLightningAddressFixture({ username: 'oldalice' })
-    const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: oldAddress })
+    const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [oldAddress] })
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
@@ -108,7 +108,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
 
   it('returns existing when username unchanged', async () => {
     const address = createLightningAddressFixture({ username: 'alice' })
-    const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: address })
+    const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [address] })
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -128,7 +128,7 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   })
 
   it('rejects duplicate username taken by another user', async () => {
-    const user = createUserFixture({ pubkey: mockPubkey, lightningAddress: null })
+    const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
@@ -194,5 +194,136 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
     const res = await PUT(req, createParamsPromise({ userId: 'some-id' }))
 
     expect(res.status).toBe(400)
+  })
+
+  describe('paid registration enforcement', () => {
+    it('rejects first-time registration with 402 when paid mode is on and actor is USER', async () => {
+      const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
+      mockAuth()
+      vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(getSettings).mockResolvedValue({
+        domain: 'test.com',
+        registration_ln_enabled: 'true',
+        registration_ln_address: 'admin@provider.com',
+        registration_admin_bypass: 'true',
+      })
+
+      const req = createNextRequest(`/api/users/${user.id}/lightning-address`, {
+        method: 'PUT',
+        body: { username: 'alice' },
+      })
+      const res = await PUT(req, createParamsPromise({ userId: user.id }))
+
+      expect(res.status).toBe(402)
+      expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
+    })
+
+    it('lets ADMIN bypass payment when registration_admin_bypass is true', async () => {
+      const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
+      vi.mocked(authenticate).mockResolvedValue({
+        pubkey: mockPubkey,
+        role: 'ADMIN' as any,
+        method: 'jwt',
+      })
+      vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(getSettings).mockResolvedValue({
+        domain: 'test.com',
+        registration_ln_enabled: 'true',
+        registration_ln_address: 'admin@provider.com',
+        registration_admin_bypass: 'true',
+      })
+      vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue({} as any)
+
+      const req = createNextRequest(`/api/users/${user.id}/lightning-address`, {
+        method: 'PUT',
+        body: { username: 'alice' },
+      })
+      const res = await PUT(req, createParamsPromise({ userId: user.id }))
+
+      expect(res.status).toBe(200)
+      expect(prismaMock.lightningAddress.create).toHaveBeenCalled()
+    })
+
+    it('rejects ADMIN when registration_admin_bypass is false', async () => {
+      const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
+      vi.mocked(authenticate).mockResolvedValue({
+        pubkey: mockPubkey,
+        role: 'ADMIN' as any,
+        method: 'jwt',
+      })
+      vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(getSettings).mockResolvedValue({
+        domain: 'test.com',
+        registration_ln_enabled: 'true',
+        registration_ln_address: 'admin@provider.com',
+        registration_admin_bypass: 'false',
+      })
+
+      const req = createNextRequest(`/api/users/${user.id}/lightning-address`, {
+        method: 'PUT',
+        body: { username: 'alice' },
+      })
+      const res = await PUT(req, createParamsPromise({ userId: user.id }))
+
+      expect(res.status).toBe(402)
+    })
+
+    it('rejects swap of an existing primary address when paid mode is on and actor is USER', async () => {
+      // A swap from `oldalice` → `newalice` is still a new-username
+      // registration: in paid mode, the user must pay via /api/invoices.
+      // The no-op branch (same username) short-circuits earlier and is
+      // covered by the "returns existing when username unchanged" test.
+      const oldAddress = createLightningAddressFixture({ username: 'oldalice' })
+      const user = createUserFixture({
+        pubkey: mockPubkey,
+        lightningAddresses: [oldAddress],
+      })
+      mockAuth()
+      vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(getSettings).mockResolvedValue({
+        domain: 'test.com',
+        registration_ln_enabled: 'true',
+        registration_ln_address: 'admin@provider.com',
+        registration_admin_bypass: 'true',
+      })
+
+      const req = createNextRequest(`/api/users/${user.id}/lightning-address`, {
+        method: 'PUT',
+        body: { username: 'newalice' },
+      })
+      const res = await PUT(req, createParamsPromise({ userId: user.id }))
+
+      expect(res.status).toBe(402)
+      expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
+    })
+
+    it('allows USER swap for free when paid mode is off', async () => {
+      const oldAddress = createLightningAddressFixture({ username: 'oldalice' })
+      const user = createUserFixture({
+        pubkey: mockPubkey,
+        lightningAddresses: [oldAddress],
+      })
+      mockAuth()
+      vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(getSettings).mockResolvedValue({
+        domain: 'test.com',
+        registration_ln_enabled: 'false',
+      })
+      vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue({} as any)
+      vi.mocked(prismaMock.lightningAddress.delete).mockResolvedValue({} as any)
+
+      const req = createNextRequest(`/api/users/${user.id}/lightning-address`, {
+        method: 'PUT',
+        body: { username: 'newalice' },
+      })
+      const res = await PUT(req, createParamsPromise({ userId: user.id }))
+
+      expect(res.status).toBe(200)
+    })
   })
 })

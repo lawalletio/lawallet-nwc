@@ -9,6 +9,11 @@ export function createUserFixture(overrides: Record<string, unknown> = {}) {
     nwc: null,
     role: 'USER' as const,
     createdAt: faker.date.past(),
+    // Default to "no primary NWC connection" so callers of /api/users/me and
+    // similar routes that now `include: { nwcConnections: { where: { isPrimary: true } } }`
+    // don't crash with `user.nwcConnections is undefined`. Tests that care
+    // about a present primary connection override this explicitly.
+    nwcConnections: [],
     ...overrides,
   }
 }

@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { checkRootStatus, claimRootRole } from '@/lib/client/auth-api'
+import { buildPublicHost } from '@/lib/public-url-utils'
 
 type WizardStep = 'idle' | 'loading' | 'domain' | 'fetching' | 'confirm' | 'claiming' | 'hidden'
 
@@ -169,10 +170,11 @@ export function SetupWizard() {
     try {
       await claimRootRole(signer)
 
-      const fullDomain = subdomain ? `${subdomain}.${domain}` : domain
+      const cleanDomain = domain.trim().toLowerCase()
+      const cleanSubdomain = subdomain.trim().toLowerCase()
       await apiClient.post('/api/settings', {
-        domain: fullDomain.trim().toLowerCase(),
-        endpoint: `https://${fullDomain.trim().toLowerCase()}`,
+        domain: cleanDomain,
+        endpoint: cleanSubdomain,
         ...(community ? { community_name: community.title } : {}),
       })
 
@@ -216,9 +218,7 @@ export function SetupWizard() {
     )
   }
 
-  const fullDomain = subdomain
-    ? `${subdomain}.${domain}`
-    : domain || 'your community'
+  const fullDomain = buildPublicHost(domain, subdomain) || domain || 'your community'
 
   const heroImage = community?.backgroundImage || '/images/onboarding-hero.jpg'
   const avatarImage = community?.avatarImage || '/images/onboarding-hero.jpg'

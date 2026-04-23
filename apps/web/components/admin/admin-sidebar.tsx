@@ -2,12 +2,12 @@
 
 import React from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Home,
   Users,
   CreditCard,
+  AtSign,
   Activity,
   Settings,
   HelpCircle,
@@ -32,6 +32,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarSeparator,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -48,10 +49,11 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Permission } from '@/lib/auth/permissions'
+import { Permission, Role } from '@/lib/auth/permissions'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { useSettings } from '@/lib/client/hooks/use-settings'
+import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { truncateNpub } from '@/lib/client/format'
 import { toast } from 'sonner'
 
@@ -80,6 +82,14 @@ const platformItems: NavItem[] = [
     icon: CreditCard,
     permission: Permission.CARDS_READ,
   },
+  // Addresses is shown to every authenticated user — no `permission` set.
+  // The page itself is per-user (driven by the caller's pubkey via
+  // /api/wallet/addresses), so even plain USERs see their own rows here.
+  {
+    title: 'Addresses',
+    href: '/admin/addresses',
+    icon: AtSign,
+  },
 ]
 
 const systemItems: NavItem[] = [
@@ -103,9 +113,15 @@ export function AdminSidebar() {
   const { pubkey, role, loginMethod, logout, isAuthorized } = useAuth()
   const { profile } = useNostrProfile(pubkey)
   const { data: settings } = useSettings()
+  const { isMobile, setOpenMobile } = useSidebar()
   const [settingsOpen, setSettingsOpen] = React.useState(
     pathname.startsWith('/admin/settings')
   )
+
+  // Close the mobile drawer after navigation
+  function closeMobile() {
+    if (isMobile) setOpenMobile(false)
+  }
 
   function isActive(href: string): boolean {
     if (href === '/admin') return pathname === '/admin'
@@ -125,8 +141,11 @@ export function AdminSidebar() {
 
   const visiblePlatform = filterByPermission(platformItems)
   const visibleSystem = filterByPermission(systemItems)
-  const showSettings = isAuthorized(Permission.SETTINGS_READ)
-  const needsDomainSetup = role === 'ADMIN' && !settings?.domain
+  // Settings is ADMIN-only. VIEWER has SETTINGS_READ for API reads (public
+  // settings hydrate branding for all authed users) but must not see the
+  // settings UI in the nav.
+  const showSettings = role === Role.ADMIN
+  const needsDomainSetup = role === Role.ADMIN && !settings?.domain
 
   const loginMethodLabel = loginMethod === 'extension'
     ? 'Extension'
@@ -142,14 +161,8 @@ export function AdminSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
-        <Link href="/admin" className="flex items-center gap-2">
-          <Image
-            src="/logos/lawallet.svg"
-            alt="LaWallet"
-            width={100}
-            height={24}
-            className="h-6 w-auto"
-          />
+        <Link href="/admin" className="flex items-center gap-2" onClick={closeMobile}>
+          <BrandLogotype width={100} height={24} className="h-6 w-auto" />
         </Link>
       </SidebarHeader>
 
@@ -162,7 +175,7 @@ export function AdminSidebar() {
                 {visiblePlatform.map((item) => (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton asChild isActive={isActive(item.href)}>
-                      <Link href={item.href}>
+                      <Link href={item.href} onClick={closeMobile}>
                         <item.icon className="size-4" />
                         <span>{item.title}</span>
                       </Link>
@@ -184,7 +197,7 @@ export function AdminSidebar() {
                   {visibleSystem.map((item) => (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton asChild isActive={isActive(item.href)}>
-                        <Link href={item.href}>
+                        <Link href={item.href} onClick={closeMobile}>
                           <item.icon className="size-4" />
                           <span>{item.title}</span>
                         </Link>
@@ -205,6 +218,7 @@ export function AdminSidebar() {
                             onClick={() => {
                               if (!settingsOpen) {
                                 router.push('/admin/settings')
+                                closeMobile()
                               }
                             }}
                           >
@@ -225,7 +239,10 @@ export function AdminSidebar() {
                                     new URLSearchParams(window.location.search).get('tab') === sub.tab
                                   }
                                 >
-                                  <Link href={`/admin/settings?tab=${sub.tab}`}>
+                                  <Link
+                                    href={`/admin/settings?tab=${sub.tab}`}
+                                    onClick={closeMobile}
+                                  >
                                     {sub.title}
                                   </Link>
                                 </SidebarMenuSubButton>
@@ -259,20 +276,42 @@ export function AdminSidebar() {
         <SidebarSeparator />
 
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <Avatar className="size-8 shrink-0">
-              {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
-              <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col min-w-0">
-              <span className="text-sm font-medium truncate">
-                {displayName}
-              </span>
-              {loginMethodLabel && (
-                <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
-              )}
+          {pubkey ? (
+            <Link
+              href={`/admin/users/${pubkey}`}
+              className="flex flex-1 min-w-0 items-center gap-2 rounded-md -m-1 p-1 hover:bg-sidebar-accent transition-colors"
+              aria-label="View my profile"
+              onClick={() => setOpenMobile(false)}
+            >
+              <Avatar className="size-8 shrink-0">
+                {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
+                <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium truncate">
+                  {displayName}
+                </span>
+                {loginMethodLabel && (
+                  <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
+                )}
+              </div>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0">
+              <Avatar className="size-8 shrink-0">
+                {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
+                <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium truncate">
+                  {displayName}
+                </span>
+                {loginMethodLabel && (
+                  <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
+                )}
+              </div>
             </div>
-          </div>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="shrink-0 size-8">
@@ -304,7 +343,10 @@ export function AdminSidebar() {
                 variant="theme"
                 size="sm"
                 className="w-full"
-                onClick={() => router.push('/admin/settings?tab=infrastructure')}
+                onClick={() => {
+                  router.push('/admin/settings?tab=infrastructure')
+                  closeMobile()
+                }}
               >
                 Configure now
                 <ExternalLink className="ml-1 size-3" />

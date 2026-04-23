@@ -30,7 +30,7 @@ export function useRecentTransactions() {
 
 export function useSystemStatus() {
   return {
-    data: { status: 'No critical errors.', lastIncident: 'No recent incidents' },
+    data: { status: 'OK', lastIncident: 'No recent incidents' },
     loading: false,
     error: null,
   }

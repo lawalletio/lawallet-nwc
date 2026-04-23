@@ -6,6 +6,8 @@ import { Role, Permission, hasPermission as checkPermission } from '@/lib/auth/p
 import { exchangeNip98ForJwt, validateJwt } from '@/lib/client/auth-api'
 import { createApiClient, type ApiClient } from '@/lib/client/api-client'
 import { createBrowserSigner, hasBrowserExtension } from '@/lib/client/nostr-signer'
+import { clearApiCache } from '@/lib/client/hooks/use-api'
+import { SignerUnlockDialog } from '@/components/admin/signer-unlock-dialog'
 
 const JWT_STORAGE_KEY = 'lawallet-jwt'
 const LOGIN_METHOD_KEY = 'lawallet-login-method'
@@ -31,6 +33,13 @@ export interface AuthContextValue extends AuthState {
   logout: () => void
   isAuthorized: (permission: Permission) => boolean
   apiClient: ApiClient
+  /**
+   * Returns the current signer if one is in memory, otherwise opens the
+   * unlock dialog so the user can re-supply a nsec / bunker / extension
+   * signer without going through a full JWT re-exchange. Rejects if the
+   * user dismisses the dialog.
+   */
+  requestSigner: () => Promise<NostrSigner>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -56,6 +65,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Pending signer-unlock request. When set, the SignerUnlockDialog is
+  // open and a previous `requestSigner()` caller is waiting on this
+  // promise; resolved when the user supplies a new signer, rejected when
+  // they dismiss the dialog.
+  const [unlockOpen, setUnlockOpen] = useState(false)
+  const unlockPromiseRef = useRef<{
+    resolve: (signer: NostrSigner) => void
+    reject: (err: Error) => void
+  } | null>(null)
+
   // Logout - clear everything
   const logout = useCallback(() => {
     if (refreshTimerRef.current) {
@@ -64,6 +83,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     localStorage.removeItem(JWT_STORAGE_KEY)
     localStorage.removeItem(LOGIN_METHOD_KEY)
+    // Wipe the module-level cache from `useApi` so the next user doesn't
+    // see the previous user's data on the first frame after login.
+    clearApiCache()
     setState({
       status: 'unauthenticated',
       jwt: null,
@@ -206,6 +228,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [state.role]
   )
 
+  const requestSigner = useCallback((): Promise<NostrSigner> => {
+    if (state.signer) return Promise.resolve(state.signer)
+    return new Promise<NostrSigner>((resolve, reject) => {
+      unlockPromiseRef.current = { resolve, reject }
+      setUnlockOpen(true)
+    })
+  }, [state.signer])
+
+  const handleUnlock = useCallback(
+    (signer: NostrSigner, method: LoginMethod) => {
+      // Keep localStorage aligned so future reloads pick the same method.
+      localStorage.setItem(LOGIN_METHOD_KEY, method)
+      setState(prev => ({ ...prev, signer, loginMethod: method }))
+      unlockPromiseRef.current?.resolve(signer)
+      unlockPromiseRef.current = null
+      setUnlockOpen(false)
+    },
+    [],
+  )
+
+  const handleUnlockCancel = useCallback(() => {
+    unlockPromiseRef.current?.reject(new Error('Signer unlock cancelled'))
+    unlockPromiseRef.current = null
+    setUnlockOpen(false)
+  }, [])
+
   // API client bound to current JWT
   const apiClient = React.useMemo(
     () =>
@@ -222,7 +270,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     isAuthorized,
     apiClient,
+    requestSigner,
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <SignerUnlockDialog
+        open={unlockOpen}
+        onCancel={handleUnlockCancel}
+        onUnlock={handleUnlock}
+      />
+    </AuthContext.Provider>
+  )
 }

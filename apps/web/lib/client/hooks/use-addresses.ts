@@ -1,11 +1,22 @@
 'use client'
 
 import { useApi } from '@/lib/client/hooks/use-api'
+import type {
+  EffectiveNwcMode,
+  LightningAddressMode,
+} from '@/lib/client/hooks/use-wallet-addresses'
 
 export interface AddressData {
   username: string
   pubkey: string
+  /** Legacy single-NWC string on the owning User; kept for back-compat. */
   nwcString: string | null
+  mode: LightningAddressMode
+  redirect: string | null
+  nwcConnectionId: string | null
+  isPrimary: boolean
+  /** Server-derived effective NWC capability for this address. */
+  nwcMode: EffectiveNwcMode
   createdAt: string
   updatedAt: string
 }

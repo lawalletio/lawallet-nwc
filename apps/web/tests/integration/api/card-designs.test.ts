@@ -3,6 +3,7 @@ import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createCardDesignFixture } from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
+import { Role } from '@/lib/auth/permissions'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
@@ -24,6 +25,13 @@ vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn(),
 }))
 
+// `/list`, `/count` and `/import` use the unified permission helper so that
+// JWT-authenticated admin clients (the dashboard) can hit them. `/get/[id]`
+// still runs through the legacy NIP-98 wrapper.
+vi.mock('@/lib/auth/unified-auth', () => ({
+  authenticateWithPermission: vi.fn(),
+}))
+
 vi.mock('@/lib/admin-auth', () => ({
   validateAdminAuth: vi.fn(),
 }))
@@ -40,8 +48,16 @@ import { GET as ListGet } from '@/app/api/card-designs/list/route'
 import { GET as CountGet } from '@/app/api/card-designs/count/route'
 import { GET as GetById } from '@/app/api/card-designs/get/[id]/route'
 import { POST as ImportPost } from '@/app/api/card-designs/import/route'
+import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { getSettings } from '@/lib/settings'
+
+const mockAdmin = () =>
+  vi.mocked(authenticateWithPermission).mockResolvedValue({
+    pubkey: 'admin',
+    role: Role.ADMIN,
+    method: 'jwt',
+  })
 
 beforeEach(() => {
   resetPrismaMock()
@@ -50,7 +66,7 @@ beforeEach(() => {
 
 describe('GET /api/card-designs/list', () => {
   it('returns all card designs for admin', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     const design = createCardDesignFixture()
     vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([design] as any)
 
@@ -63,7 +79,7 @@ describe('GET /api/card-designs/list', () => {
   })
 
   it('returns empty array when no designs', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([])
 
     const req = createNextRequest('/api/card-designs/list')
@@ -73,8 +89,8 @@ describe('GET /api/card-designs/list', () => {
     expect(body).toEqual([])
   })
 
-  it('rejects non-admin', async () => {
-    vi.mocked(validateAdminAuth).mockRejectedValue(new Error('unauthorized'))
+  it('rejects callers without CARD_DESIGNS_READ', async () => {
+    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
 
     const req = createNextRequest('/api/card-designs/list')
     const res = await ListGet(req)
@@ -85,7 +101,7 @@ describe('GET /api/card-designs/list', () => {
 
 describe('GET /api/card-designs/count', () => {
   it('returns count for admin', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     vi.mocked(prismaMock.cardDesign.count).mockResolvedValue(42)
 
     const req = createNextRequest('/api/card-designs/count')
@@ -95,8 +111,8 @@ describe('GET /api/card-designs/count', () => {
     expect(body).toEqual({ count: 42 })
   })
 
-  it('rejects non-admin', async () => {
-    vi.mocked(validateAdminAuth).mockRejectedValue(new Error('unauthorized'))
+  it('rejects callers without CARD_DESIGNS_READ', async () => {
+    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
 
     const req = createNextRequest('/api/card-designs/count')
     const res = await CountGet(req)
@@ -140,7 +156,7 @@ describe('GET /api/card-designs/get/[id]', () => {
 
 describe('POST /api/card-designs/import', () => {
   it('imports new designs from veintiuno.lat', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     vi.mocked(getSettings).mockResolvedValue({
       is_community: 'true',
       community_id: 'comm-1',
@@ -173,7 +189,7 @@ describe('POST /api/card-designs/import', () => {
   })
 
   it('skips already existing designs', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     vi.mocked(getSettings).mockResolvedValue({
       is_community: 'true',
       community_id: 'comm-1',
@@ -198,7 +214,7 @@ describe('POST /api/card-designs/import', () => {
   })
 
   it('rejects when community_id not set', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     vi.mocked(getSettings).mockResolvedValue({})
 
     const req = createNextRequest('/api/card-designs/import', { method: 'POST' })
@@ -208,7 +224,7 @@ describe('POST /api/card-designs/import', () => {
   })
 
   it('handles veintiuno.lat fetch failure', async () => {
-    vi.mocked(validateAdminAuth).mockResolvedValue('admin')
+    mockAdmin()
     vi.mocked(getSettings).mockResolvedValue({
       is_community: 'true',
       community_id: 'comm-1',
@@ -224,8 +240,8 @@ describe('POST /api/card-designs/import', () => {
     expect(res.status).toBe(500)
   })
 
-  it('rejects non-admin', async () => {
-    vi.mocked(validateAdminAuth).mockRejectedValue(new Error('unauthorized'))
+  it('rejects callers without CARD_DESIGNS_WRITE', async () => {
+    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
 
     const req = createNextRequest('/api/card-designs/import', { method: 'POST' })
     const res = await ImportPost(req)

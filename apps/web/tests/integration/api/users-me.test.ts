@@ -60,7 +60,16 @@ describe('GET /api/users/me', () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddress: { username: 'alice' },
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'DEFAULT_NWC',
+          redirect: null,
+          nwcConnectionId: null,
+          nwcConnection: null,
+        },
+      ],
       albySubAccount: null,
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
@@ -81,7 +90,7 @@ describe('GET /api/users/me', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
     const newUser = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddress: null,
+      lightningAddresses: [],
       albySubAccount: null,
     })
     vi.mocked(createNewUser).mockResolvedValue(newUser as any)
@@ -99,7 +108,7 @@ describe('GET /api/users/me', () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddress: null,
+      lightningAddresses: [],
       albySubAccount: null,
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
@@ -125,7 +134,7 @@ describe('GET /api/users/me', () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddress: null,
+      lightningAddresses: [],
       albySubAccount: {
         appId: 'app123',
         nwcUri: 'nostr+walletconnect://test',
@@ -145,5 +154,188 @@ describe('GET /api/users/me', () => {
       username: 'alice',
     })
     expect(body.nwcString).toBe('nostr+walletconnect://test')
+  })
+
+  // ── primary-address driven fields ───────────────────────────────────────
+  // The response grew `effectiveNwcString` + `primaryAddressMode` +
+  // `primaryUsername` + `primaryRedirect` so the dashboard can decide
+  // between NwcCard and ForwardingCard without a second round-trip, and
+  // NwcCard can scope its balance widget to the address's actual route.
+
+  const primaryConnUri = 'nostr+walletconnect://primary-conn'
+  const addressConnUri = 'nostr+walletconnect://address-conn'
+
+  it('DEFAULT_NWC primary address: effectiveNwcString = primary NWCConnection', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      nwc: 'nostr+walletconnect://legacy',
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'DEFAULT_NWC',
+          redirect: null,
+          nwcConnectionId: null,
+          nwcConnection: null,
+        },
+      ],
+      albySubAccount: null,
+      nwcConnections: [
+        { connectionString: primaryConnUri, isPrimary: true, updatedAt: new Date() },
+      ],
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.primaryAddressMode).toBe('DEFAULT_NWC')
+    expect(body.primaryUsername).toBe('alice')
+    expect(body.primaryRedirect).toBeNull()
+    expect(body.effectiveNwcString).toBe(primaryConnUri)
+  })
+
+  it('DEFAULT_NWC primary with no NWCConnection falls back to legacy User.nwc', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      nwc: 'nostr+walletconnect://legacy',
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'DEFAULT_NWC',
+          redirect: null,
+          nwcConnectionId: null,
+          nwcConnection: null,
+        },
+      ],
+      albySubAccount: null,
+      nwcConnections: [], // migration hasn't happened for this user
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.effectiveNwcString).toBe('nostr+walletconnect://legacy')
+  })
+
+  it('CUSTOM_NWC primary: effectiveNwcString = the address-linked connection, not the primary', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      nwc: null,
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'CUSTOM_NWC',
+          redirect: null,
+          nwcConnectionId: 'conn-custom',
+          // The address's *own* link — must win over the user primary.
+          nwcConnection: { connectionString: addressConnUri },
+        },
+      ],
+      albySubAccount: null,
+      nwcConnections: [
+        { connectionString: primaryConnUri, isPrimary: true, updatedAt: new Date() },
+      ],
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.primaryAddressMode).toBe('CUSTOM_NWC')
+    expect(body.effectiveNwcString).toBe(addressConnUri)
+  })
+
+  it('ALIAS primary: effectiveNwcString is null and redirect is surfaced', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      nwc: 'nostr+walletconnect://legacy',
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'ALIAS',
+          redirect: 'bob@other.com',
+          nwcConnectionId: null,
+          nwcConnection: null,
+        },
+      ],
+      albySubAccount: null,
+      nwcConnections: [
+        { connectionString: primaryConnUri, isPrimary: true, updatedAt: new Date() },
+      ],
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.primaryAddressMode).toBe('ALIAS')
+    expect(body.primaryRedirect).toBe('bob@other.com')
+    // ALIAS addresses don't use NWC even if one is configured — resolver
+    // returns `{ kind: 'alias' }` which the route maps to null here.
+    expect(body.effectiveNwcString).toBeNull()
+  })
+
+  it('IDLE primary: effectiveNwcString is null regardless of available connections', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      nwc: 'nostr+walletconnect://legacy',
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'IDLE',
+          redirect: null,
+          nwcConnectionId: null,
+          nwcConnection: null,
+        },
+      ],
+      albySubAccount: null,
+      nwcConnections: [
+        { connectionString: primaryConnUri, isPrimary: true, updatedAt: new Date() },
+      ],
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.primaryAddressMode).toBe('IDLE')
+    expect(body.effectiveNwcString).toBeNull()
+  })
+
+  it('no primary address: every primary* field is null', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      nwc: null,
+      lightningAddresses: [],
+      albySubAccount: null,
+      nwcConnections: [],
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const res = await GET(createNextRequest('/api/users/me'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.primaryAddressMode).toBeNull()
+    expect(body.primaryUsername).toBeNull()
+    expect(body.primaryRedirect).toBeNull()
+    expect(body.effectiveNwcString).toBeNull()
   })
 })

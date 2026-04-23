@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { decode } from 'light-bolt11-decoder'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -9,85 +8,11 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
+import { extractPaymentHash } from '@/lib/invoice-utils'
+import { resolveInvoice } from '@/lib/lnurl-probe'
 
 export const dynamic = 'force-dynamic'
-
-/**
- * Resolves a Lightning Address via LUD-16 and generates an invoice.
- * Returns the bolt11 invoice string and optional LUD-21 verify URL.
- */
-async function resolveInvoice(
-  lightningAddress: string,
-  amountSats: number,
-  description: string
-): Promise<{ bolt11: string; verify?: string }> {
-  const [username, domain] = lightningAddress.split('@')
-  if (!username || !domain) {
-    throw new ValidationError('Invalid lightning address format')
-  }
-
-  // Step 1: Fetch LUD-16 metadata
-  const metadataUrl = `https://${domain}/.well-known/lnurlp/${username}`
-  const metadataRes = await fetch(metadataUrl)
-  if (!metadataRes.ok) {
-    throw new ValidationError(
-      `Failed to resolve lightning address: ${metadataRes.status}`
-    )
-  }
-
-  const metadata = await metadataRes.json()
-  if (metadata.tag !== 'payRequest' || !metadata.callback) {
-    throw new ValidationError('Invalid LUD-16 response from lightning address')
-  }
-
-  // Step 2: Validate amount
-  const amountMsats = amountSats * 1000
-  if (amountMsats < metadata.minSendable || amountMsats > metadata.maxSendable) {
-    throw new ValidationError(
-      `Amount ${amountSats} sats is outside the allowed range`
-    )
-  }
-
-  // Step 3: Call the callback to get an invoice
-  const separator = metadata.callback.includes('?') ? '&' : '?'
-  const callbackUrl = `${metadata.callback}${separator}amount=${amountMsats}&comment=${encodeURIComponent(description)}`
-  const callbackRes = await fetch(callbackUrl)
-  if (!callbackRes.ok) {
-    throw new ValidationError(
-      `Failed to generate invoice: ${callbackRes.status}`
-    )
-  }
-
-  const callbackData = await callbackRes.json()
-  if (callbackData.status === 'ERROR') {
-    throw new ValidationError(
-      `Invoice generation failed: ${callbackData.reason}`
-    )
-  }
-
-  if (!callbackData.pr) {
-    throw new ValidationError('No payment request returned')
-  }
-
-  return {
-    bolt11: callbackData.pr,
-    verify: callbackData.verify,
-  }
-}
-
-/**
- * Extracts the payment hash from a bolt11 invoice string.
- */
-function extractPaymentHash(bolt11: string): string {
-  const decoded = decode(bolt11)
-  const hashSection = decoded.sections.find(
-    (s) => s.name === 'payment_hash'
-  )
-  if (!hashSection || !('value' in hashSection)) {
-    throw new ValidationError('Could not extract payment hash from invoice')
-  }
-  return hashSection.value as string
-}
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   await checkRequestLimits(request, 'json')
@@ -116,11 +41,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ free: true })
   }
 
-  // Purpose-specific validation
-  if (body.purpose === 'registration') {
+  // Purpose-specific validation. Both registration (primary claim) and
+  // wallet-address (secondary claim) mint a bolt11 for a requested username
+  // and must fail fast if it's already taken before we hit the provider.
+  const mintsAddress =
+    body.purpose === 'registration' || body.purpose === 'wallet-address'
+  if (mintsAddress) {
     const username = body.metadata?.username
     if (!username) {
-      throw new ValidationError('Username is required for registration')
+      throw new ValidationError('Username is required')
     }
 
     // Check username availability
@@ -133,24 +62,43 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Generate invoice from the platform's lightning address
-  const description = body.purpose === 'registration'
-    ? `LaWallet registration: ${body.metadata?.username}`
+  const description = mintsAddress
+    ? `LaWallet ${body.purpose === 'registration' ? 'registration' : 'address'}: ${body.metadata?.username}`
     : `LaWallet invoice`
 
   const { bolt11, verify } = await resolveInvoice(lnAddress, price, description)
+
+  // Defense in depth: the save-time probe asserted LUD-21 support, but an
+  // upstream provider can regress. Fail closed here instead of letting the
+  // client advance to a payment screen that can't detect settlement.
+  if (!verify) {
+    throw new ValidationError(
+      'Payment provider no longer supports LUD-21 verify; registration temporarily unavailable — contact the operator.'
+    )
+  }
+
   const paymentHash = extractPaymentHash(bolt11)
+  if (!paymentHash) {
+    throw new ValidationError('Could not extract payment hash from invoice')
+  }
 
   // Default expiry: 10 minutes
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
 
-  // Store in database
+  // Store in database. The Prisma enum uses SCREAMING_SNAKE_CASE
+  // (`REGISTRATION`, `WALLET_ADDRESS`); map the client's kebab-case
+  // string once here rather than scattering the conversion around.
+  const purposeToEnum = {
+    registration: 'REGISTRATION',
+    'wallet-address': 'WALLET_ADDRESS',
+  } as const
   const invoice = await prisma.invoice.create({
     data: {
       bolt11,
       paymentHash,
       amountSats: price,
       description,
-      purpose: body.purpose.toUpperCase() as 'REGISTRATION',
+      purpose: purposeToEnum[body.purpose],
       metadata: body.metadata ?? undefined,
       status: 'PENDING',
       userId: user.id,
@@ -159,6 +107,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   })
 
   eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
+
+  logActivity.fireAndForget({
+    category: 'INVOICE',
+    event: ActivityEvent.INVOICE_GENERATED,
+    message: `Invoice generated (${invoice.amountSats} sats, ${invoice.purpose})`,
+    userId: user.id,
+    metadata: invoiceLogMetadata(invoice),
+  })
 
   return NextResponse.json({
     id: invoice.id,

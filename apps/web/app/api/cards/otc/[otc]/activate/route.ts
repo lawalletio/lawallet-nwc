@@ -12,6 +12,7 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { eventBus } from '@/lib/events/event-bus'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
@@ -30,7 +31,8 @@ export const POST = withErrorHandling(
     const existingUser = await prisma.user.findUnique({
       where: { pubkey },
       include: {
-        lightningAddress: true,
+        // Primary address (at most one) — see addresses_nwc_connection migration.
+        lightningAddresses: { where: { isPrimary: true }, take: 1 },
         albySubAccount: true
       }
     })
@@ -51,14 +53,22 @@ export const POST = withErrorHandling(
           where: { id: card.id },
           data: { userId: user.id }
         })
+        logActivity.fireAndForget({
+          category: 'CARD',
+          event: ActivityEvent.CARD_PAIRED,
+          message: `Card paired to user`,
+          userId: user.id,
+          metadata: { cardId: card.id, pubkey },
+        })
       }
     }
 
     eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
 
     const { domain } = await getSettings(['domain'])
-    const lightningAddress = user.lightningAddress?.username
-      ? `${user.lightningAddress.username}@${domain}`
+    const primaryAddress = user.lightningAddresses[0]
+    const lightningAddress = primaryAddress?.username
+      ? `${primaryAddress.username}@${domain}`
       : null
 
     return NextResponse.json({

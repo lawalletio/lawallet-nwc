@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { AlbyHub } from './albyhub'
 import { prisma } from './prisma'
 import { getSettings } from './settings'
+import { ActivityEvent, logActivity } from './activity-log'
 
 export async function createNewUser(pubkey: string) {
   const { alby_api_url, alby_bearer_token, alby_auto_generate } =
@@ -38,9 +39,30 @@ export async function createNewUser(pubkey: string) {
         : undefined
     },
     include: {
-      lightningAddress: true,
-      albySubAccount: true
+      // Pull only the primary address (at most one). All call sites that
+      // historically read `user.lightningAddress` now read
+      // `user.lightningAddresses[0]`. Include the linked nwcConnection
+      // too so the return shape matches the `findUnique` path that feeds
+      // `resolvePaymentRoute` — otherwise TS narrows the union to the
+      // intersection and drops the field.
+      lightningAddresses: {
+        where: { isPrimary: true },
+        take: 1,
+        include: { nwcConnection: true },
+      },
+      albySubAccount: true,
+      // Same shape as `findUnique` callers rely on — safe to include here
+      // since a brand-new user has no connections; the array is just `[]`.
+      nwcConnections: { where: { isPrimary: true }, take: 1 },
     }
+  })
+
+  logActivity.fireAndForget({
+    category: 'USER',
+    event: ActivityEvent.USER_SIGNUP,
+    message: `New user signed up (${pubkey.slice(0, 8)}…)`,
+    userId: user.id,
+    metadata: { pubkey, albyEnabled: user.albyEnabled },
   })
 
   return user

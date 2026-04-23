@@ -1,10 +1,12 @@
 // @figma https://www.figma.com/design/jcjT53BBQ4wx94XwpbEZXl?node-id=3057-11598
+'use client'
+
 import * as React from 'react'
-import Image from 'next/image'
 import { ChevronLeft } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { BrandLogotype } from '@/components/ui/brand-logotype'
 
 interface TopbarMobileProps extends React.HTMLAttributes<HTMLDivElement> {
   type?: 'page' | 'subpage'
@@ -39,7 +41,7 @@ const TopbarMobile = React.forwardRef<HTMLDivElement, TopbarMobileProps>(
           )}
           {...props}
         >
-          <div className="flex items-center">
+          <div className="flex items-center shrink-0">
             <Button
               variant="secondary"
               size="sm"
@@ -51,11 +53,18 @@ const TopbarMobile = React.forwardRef<HTMLDivElement, TopbarMobileProps>(
             </Button>
           </div>
 
-          <span className="text-base font-semibold text-foreground absolute left-1/2 -translate-x-1/2">
+          {/* Title is right-aligned between the Back button and the
+              right-action slot. The font-size scales fluidly with the
+              viewport so long lightning addresses shrink instead of
+              overflowing; `truncate` is the last-resort safety net. */}
+          <span
+            className="min-w-0 flex-1 truncate pl-3 text-right font-semibold text-foreground text-[clamp(0.75rem,3.2vw,1rem)]"
+            title={title}
+          >
             {title}
           </span>
 
-          <div className="flex items-center min-w-[71px] justify-end">
+          <div className="flex items-center shrink-0 justify-end">
             {rightAction}
           </div>
         </div>
@@ -85,13 +94,7 @@ const TopbarMobile = React.forwardRef<HTMLDivElement, TopbarMobileProps>(
 
         <div className="flex items-center justify-center">
           {logo ?? (
-            <Image
-              src="/logos/lawallet.svg"
-              alt="LaWallet"
-              width={100}
-              height={24}
-              className="h-6 w-auto"
-            />
+            <BrandLogotype width={100} height={24} className="h-6 w-auto" />
           )}
         </div>
 

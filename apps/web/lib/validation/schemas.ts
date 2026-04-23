@@ -22,6 +22,53 @@ export const cardListQuerySchema = z.object({
   used: z.enum(['true', 'false']).optional(),
 })
 
+export const createCardDesignSchema = z.object({
+  description: z
+    .string()
+    .trim()
+    .min(1, 'Design name is required')
+    .max(120, 'Design name must be 120 characters or less'),
+  imageUrl: z
+    .string()
+    .trim()
+    .url('Image URL must be a valid URL')
+    .max(2048, 'Image URL too long'),
+})
+
+/**
+ * Partial update for a card design. At least one field must be present —
+ * the route handler rejects an empty payload so a no-op PATCH returns 400
+ * rather than silently doing nothing.
+ */
+export const updateCardDesignSchema = z
+  .object({
+    description: z
+      .string()
+      .trim()
+      .min(1, 'Design name is required')
+      .max(120, 'Design name must be 120 characters or less')
+      .optional(),
+    imageUrl: z
+      .string()
+      .trim()
+      .url('Image URL must be a valid URL')
+      .max(2048, 'Image URL too long')
+      .optional(),
+    /**
+     * Archive toggle. `true` stamps `archivedAt = now()`, `false` clears it.
+     * The wire stays as a simple boolean so the client doesn't have to know
+     * about the timestamp representation.
+     */
+    archived: z.boolean().optional(),
+  })
+  .refine(
+    v =>
+      v.description !== undefined ||
+      v.imageUrl !== undefined ||
+      v.archived !== undefined,
+    { message: 'No fields to update' },
+  )
+
 export const scanCardQuerySchema = z.object({
   p: z.string().min(1, 'Parameter p is required'),
   c: z.string().min(1, 'Parameter c is required'),
@@ -41,8 +88,18 @@ export const lud16UsernameParam = z.object({
   username: z.string().min(1),
 })
 
+/**
+ * Maximum comment length allowed on LUD-16 callbacks (LUD-12).
+ * Kept in sync with `commentAllowed` declared on the pay request.
+ */
+export const LUD12_MAX_COMMENT_LENGTH = 200
+
 export const lud16CallbackQuerySchema = z.object({
   amount: z.string().min(1, 'Missing amount'),
+  comment: z
+    .string()
+    .max(LUD12_MAX_COMMENT_LENGTH, `Comment exceeds ${LUD12_MAX_COMMENT_LENGTH} characters`)
+    .optional(),
 })
 
 export const updateLightningAddressSchema = z.object({
@@ -51,6 +108,74 @@ export const updateLightningAddressSchema = z.object({
     .min(1, 'Username is required')
     .max(16, 'Username must be 16 characters or less')
     .regex(/^[a-z0-9]+$/, 'Username must contain only lowercase letters and numbers'),
+})
+
+// ── Wallet Addresses (per-user, multi-address) ──────────────────────────────
+
+/** URL parameter `username` for /api/wallet/addresses/[username] routes. */
+export const walletAddressUsernameParam = z.object({
+  username: z
+    .string()
+    .min(1)
+    .max(16)
+    .regex(/^[a-z0-9]+$/, 'Invalid username'),
+})
+
+export const lightningAddressModeSchema = z.enum([
+  'IDLE',
+  'ALIAS',
+  'CUSTOM_NWC',
+  'DEFAULT_NWC',
+])
+
+/** Body for POST /api/wallet/addresses (create). */
+export const createWalletAddressSchema = z.object({
+  username: z
+    .string()
+    .min(1, 'Username is required')
+    .max(16, 'Username must be 16 characters or less')
+    .regex(/^[a-z0-9]+$/, 'Username must contain only lowercase letters and numbers'),
+  mode: lightningAddressModeSchema.optional(),
+})
+
+/**
+ * Body for PATCH /api/wallet/addresses/[username] (update).
+ *
+ * Cross-field rules (validated server-side, not via refine, so the route can
+ * use the existing `validateBody` middleware without bespoke shapes):
+ *   - mode === 'ALIAS'      → `redirect` is required and must look like an LN
+ *                             address ("user@host").
+ *   - mode === 'CUSTOM_NWC' → `nwcConnectionId` is required and must reference
+ *                             a connection owned by the caller.
+ *   - mode === 'IDLE' or 'DEFAULT_NWC' → both fields are ignored / cleared.
+ */
+export const updateWalletAddressSchema = z.object({
+  mode: lightningAddressModeSchema,
+  redirect: z
+    .string()
+    .max(254)
+    .regex(/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i, 'Must be a valid LN address')
+    .nullish(),
+  nwcConnectionId: z.string().min(1).nullish(),
+})
+
+export const nwcModeSchema = z.enum(['RECEIVE', 'SEND_RECEIVE'])
+
+/**
+ * Body for POST /api/wallet/nwc-connections.
+ *
+ * `connectionString` must look like a Nostr Wallet Connect URI so we reject
+ * pasted garbage before reaching the DB. We don't verify the relays are
+ * reachable here — that's the listener's job at runtime.
+ */
+export const createNwcConnectionSchema = z.object({
+  connectionString: z
+    .string()
+    .min(1, 'Connection string is required')
+    .max(2048, 'Connection string is too long')
+    .regex(/^nostr\+walletconnect:\/\//i, 'Must start with nostr+walletconnect://'),
+  mode: nwcModeSchema.optional(),
+  isPrimary: z.boolean().optional(),
 })
 
 // ── Users ───────────────────────────────────────────────────────────────────
@@ -91,7 +216,7 @@ export const createRemoteCardSchema = z.object({
 // ── Invoices ───────────────────────────────────────────────────────────────
 
 export const createInvoiceSchema = z.object({
-  purpose: z.enum(['registration']),
+  purpose: z.enum(['registration', 'wallet-address']),
   metadata: z
     .object({
       username: z

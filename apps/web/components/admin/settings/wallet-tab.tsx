@@ -1,50 +1,77 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { toast } from 'sonner'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { Button } from '@/components/ui/button'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
+import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
 
 export function WalletTab() {
   const { data: settings, loading: settingsLoading } = useSettings()
-  const { updateSettings, loading: saving } = useUpdateSettings()
+  const { updateSettings } = useUpdateSettings()
 
+  const [walletEnabled, setWalletEnabled] = useState(false)
+  const [maintenanceEnabled, setMaintenanceEnabled] = useState(false)
+  const [disableTransfers, setDisableTransfers] = useState(false)
+  const [disableRegisters, setDisableRegisters] = useState(false)
+  const [disableAddress, setDisableAddress] = useState(false)
   const [registrationLnAddress, setRegistrationLnAddress] = useState('')
   const [registrationPrice, setRegistrationPrice] = useState('21')
   const [registrationEnabled, setRegistrationEnabled] = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
+  const [registrationAdminBypass, setRegistrationAdminBypass] = useState(true)
 
-  // Load settings into state
-  useEffect(() => {
+  // Restore all local form state from the currently stored settings. Called on
+  // initial load and whenever the page-level Cancel button is clicked.
+  const loadFromSettings = useCallback(() => {
     if (!settings) return
+    setWalletEnabled(settings.wallet_enabled === 'true')
+    setMaintenanceEnabled(settings.maintenance_enabled === 'true')
+    setDisableTransfers(settings.disable_transfers === 'true')
+    setDisableRegisters(settings.disable_registers === 'true')
+    setDisableAddress(settings.disable_address === 'true')
     setRegistrationLnAddress(settings.registration_ln_address ?? '')
     setRegistrationPrice(settings.registration_price ?? '21')
     setRegistrationEnabled(settings.registration_ln_enabled === 'true')
+    setRegistrationAdminBypass(
+      (settings.registration_admin_bypass ?? 'true') === 'true'
+    )
   }, [settings])
 
-  function markChanged() {
-    setHasChanges(true)
-  }
+  useEffect(() => {
+    loadFromSettings()
+  }, [loadFromSettings])
 
-  async function handleSave() {
-    try {
-      await updateSettings({
-        registration_ln_address: registrationLnAddress.trim(),
-        registration_price: registrationPrice || '21',
-        registration_ln_enabled: registrationEnabled ? 'true' : 'false',
-      })
-      setHasChanges(false)
-      toast.success('Settings saved')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save settings')
-    }
-  }
+  // Register save handler with the page-level Save Changes button
+  const save = useCallback(async () => {
+    await updateSettings({
+      wallet_enabled: walletEnabled ? 'true' : 'false',
+      maintenance_enabled: maintenanceEnabled ? 'true' : 'false',
+      disable_transfers: disableTransfers ? 'true' : 'false',
+      disable_registers: disableRegisters ? 'true' : 'false',
+      disable_address: disableAddress ? 'true' : 'false',
+      registration_ln_address: registrationLnAddress.trim(),
+      registration_price: registrationPrice || '21',
+      registration_ln_enabled: registrationEnabled ? 'true' : 'false',
+      registration_admin_bypass: registrationAdminBypass ? 'true' : 'false',
+    })
+  }, [
+    updateSettings,
+    walletEnabled,
+    maintenanceEnabled,
+    disableTransfers,
+    disableRegisters,
+    disableAddress,
+    registrationLnAddress,
+    registrationPrice,
+    registrationEnabled,
+    registrationAdminBypass,
+  ])
+
+  const { markChanged } = useSettingsForm('wallet', save, loadFromSettings)
 
   if (settingsLoading) {
     return (
@@ -71,7 +98,10 @@ export function WalletTab() {
                 Activate or deactivate the digital wallet.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={walletEnabled}
+              onCheckedChange={v => { setWalletEnabled(v); markChanged() }}
+            />
           </div>
         </div>
       </div>
@@ -93,7 +123,10 @@ export function WalletTab() {
                 Enable maintenance mode for all services.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={maintenanceEnabled}
+              onCheckedChange={v => { setMaintenanceEnabled(v); markChanged() }}
+            />
           </div>
         </div>
       </div>
@@ -110,7 +143,10 @@ export function WalletTab() {
                 Prevent users from sending and receiving transfers.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={disableTransfers}
+              onCheckedChange={v => { setDisableTransfers(v); markChanged() }}
+            />
           </div>
           <div className="flex items-center justify-between">
             <div>
@@ -119,7 +155,10 @@ export function WalletTab() {
                 Prevent new user registrations.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={disableRegisters}
+              onCheckedChange={v => { setDisableRegisters(v); markChanged() }}
+            />
           </div>
           <div className="flex items-center justify-between">
             <div>
@@ -128,7 +167,10 @@ export function WalletTab() {
                 Disable Lightning Address functionality.
               </p>
             </div>
-            <Switch />
+            <Switch
+              checked={disableAddress}
+              onCheckedChange={v => { setDisableAddress(v); markChanged() }}
+            />
           </div>
         </div>
       </div>
@@ -145,9 +187,9 @@ export function WalletTab() {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Enabled Mode</p>
+              <p className="text-sm font-medium">Paid Registration</p>
               <p className="text-sm text-muted-foreground">
-                Enable paid registration for Lightning Addresses.
+                Charge users a fee to register a Lightning Address.
               </p>
             </div>
             <Switch
@@ -155,49 +197,49 @@ export function WalletTab() {
               onCheckedChange={v => { setRegistrationEnabled(v); markChanged() }}
             />
           </div>
-          <div className="space-y-1">
-            <Label>Payment Address</Label>
-            <Input
-              type="text"
-              placeholder="admin@getalby.com"
-              value={registrationLnAddress}
-              onChange={e => { setRegistrationLnAddress(e.target.value); markChanged() }}
-            />
-            <p className="text-xs text-muted-foreground">
-              Lightning address where registration payments will be sent.
-            </p>
-          </div>
-          <div className="space-y-1">
-            <Label>Price</Label>
-            <InputGroup>
-              <Input
-                type="number"
-                placeholder="21"
-                min={1}
-                value={registrationPrice}
-                onChange={e => { setRegistrationPrice(e.target.value); markChanged() }}
-                className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
-              <InputGroupText>sats</InputGroupText>
-            </InputGroup>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex justify-end pt-4">
-        <Button
-          onClick={handleSave}
-          disabled={!hasChanges || saving}
-        >
-          {saving ? (
+          {registrationEnabled && (
             <>
-              <Spinner size={16} className="mr-2" />
-              Saving...
+              <div className="space-y-1">
+                <Label>Payment Address</Label>
+                <Input
+                  type="text"
+                  placeholder="admin@getalby.com"
+                  value={registrationLnAddress}
+                  onChange={e => { setRegistrationLnAddress(e.target.value); markChanged() }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Lightning address where registration payments will be sent.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label>Price</Label>
+                <InputGroup>
+                  <Input
+                    type="number"
+                    placeholder="21"
+                    min={1}
+                    value={registrationPrice}
+                    onChange={e => { setRegistrationPrice(e.target.value); markChanged() }}
+                    className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                  <InputGroupText>sats</InputGroupText>
+                </InputGroup>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Admins & operators bypass payment</p>
+                  <p className="text-sm text-muted-foreground">
+                    When an admin or operator creates an address, skip the registration fee.
+                  </p>
+                </div>
+                <Switch
+                  checked={registrationAdminBypass}
+                  onCheckedChange={v => { setRegistrationAdminBypass(v); markChanged() }}
+                />
+              </div>
             </>
-          ) : (
-            'Save changes'
           )}
-        </Button>
+        </div>
       </div>
     </div>
   )
