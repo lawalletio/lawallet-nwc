@@ -279,7 +279,7 @@ export function AdminSidebar() {
           {pubkey ? (
             <Link
               href={`/admin/users/${pubkey}`}
-              className="flex items-center gap-2 min-w-0 rounded-md -m-1 p-1 hover:bg-sidebar-accent transition-colors"
+              className="flex flex-1 min-w-0 items-center gap-2 rounded-md -m-1 p-1 hover:bg-sidebar-accent transition-colors"
               aria-label="View my profile"
               onClick={() => setOpenMobile(false)}
             >
