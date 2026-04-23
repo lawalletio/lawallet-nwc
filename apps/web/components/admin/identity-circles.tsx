@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { AtSign } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/components/admin/auth-context'
@@ -64,12 +65,33 @@ export function IdentityCircles({
   const sizeClass = SIZE_CLASSES[size]
   const connectorSizeClass = CONNECTOR_SIZE_CLASSES[size]
 
+  const avatar = (
+    <Avatar
+      className={cn(
+        sizeClass,
+        'ring-2 ring-border',
+        pubkey &&
+          'transition-transform hover:scale-105 hover:ring-ring focus-visible:outline-none focus-visible:ring-ring',
+      )}
+    >
+      {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
+      <AvatarFallback>{avatarFallback}</AvatarFallback>
+    </Avatar>
+  )
+
   return (
     <div className={cn('flex items-center justify-center gap-4 sm:gap-5', className)}>
-      <Avatar className={cn(sizeClass, 'ring-2 ring-border')}>
-        {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
-        <AvatarFallback>{avatarFallback}</AvatarFallback>
-      </Avatar>
+      {pubkey ? (
+        <Link
+          href={`/admin/users/${pubkey}`}
+          aria-label="View my profile"
+          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          {avatar}
+        </Link>
+      ) : (
+        avatar
+      )}
 
       <div
         className={cn(
