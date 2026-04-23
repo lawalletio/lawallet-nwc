@@ -181,7 +181,6 @@ export default function UserDetailPage({
   return (
     <div className="flex flex-col">
       <AdminTopbar
-        title="User"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/admin/users">
@@ -192,7 +191,7 @@ export default function UserDetailPage({
         }
       />
 
-      <div className="flex flex-col gap-6 p-6">
+      <div className="flex flex-col gap-6 px-6 pb-6">
         {loading || !user ? (
           <div className="flex h-48 items-center justify-center">
             <Spinner size={24} />
