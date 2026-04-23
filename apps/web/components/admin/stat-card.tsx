@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -27,6 +28,13 @@ interface StatCardProps {
   secondary?: string
   loading?: boolean
   className?: string
+  /**
+   * If set, the card renders as a Link to this path and gets a subtle
+   * hover affordance so admins can drill into the full-page view of
+   * whatever the stat summarizes (e.g. the users list behind the
+   * "Total users" card).
+   */
+  href?: string
 }
 
 export function StatCard({
@@ -40,9 +48,17 @@ export function StatCard({
   secondary,
   loading,
   className,
+  href,
 }: StatCardProps) {
-  return (
-    <Card className={cn('', className)}>
+  const card = (
+    <Card
+      className={cn(
+        '',
+        href &&
+          'transition-colors cursor-pointer hover:bg-accent/40 focus-within:ring-2 focus-within:ring-ring',
+        className,
+      )}
+    >
       <CardContent className="p-3 sm:p-6">
         <div className="flex flex-col gap-1 sm:gap-2">
           <div className="flex items-center justify-between gap-2">
@@ -93,4 +109,16 @@ export function StatCard({
       </CardContent>
     </Card>
   )
+
+  // When href is provided, wrap the whole card in a Link so the entire
+  // surface is clickable (not just an inner chevron). The `block` class
+  // keeps the card filling the grid cell the way it did before.
+  if (href) {
+    return (
+      <Link href={href} className="block focus-visible:outline-none">
+        {card}
+      </Link>
+    )
+  }
+  return card
 }

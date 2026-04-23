@@ -208,6 +208,7 @@ export default function AdminDashboardPage() {
                 value={userCounts?.total}
                 description="The number of registered users."
                 loading={usersLoading}
+                href="/admin/users"
               />
               <StatCard
                 title="Volume"
