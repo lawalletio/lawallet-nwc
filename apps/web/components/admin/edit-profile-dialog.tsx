@@ -71,7 +71,7 @@ export function EditProfileDialog({
   onPublished,
 }: EditProfileDialogProps) {
   const { signer, requestSigner } = useAuth()
-  const { upload, uploading, progress, hasServers } = useBlossomUpload()
+  const { upload, progress: uploadProgress, hasServers } = useBlossomUpload()
 
   const [displayName, setDisplayName] = useState('')
   const [about, setAbout] = useState('')
@@ -81,6 +81,12 @@ export function EditProfileDialog({
   // Track which image is currently uploading so the progress overlay
   // only shows on the one the user is actually replacing (not both).
   const [uploadingKind, setUploadingKind] = useState<CropKind | null>(null)
+  // Composite 0–100 for the overlay: the PUT to Blossom drives 0→75 and
+  // the preload of the remote URL fills the rest. Keeping it as its own
+  // state (rather than deriving from `uploadProgress` on every render)
+  // lets us tick smoothly through the preload phase even though the
+  // upload hook stops reporting once the PUT resolves.
+  const [phaseProgress, setPhaseProgress] = useState(0)
 
   // Crop pipeline state. `sourceImage` is the data URL from the file
   // picker; `cropKind` tells the modal which aspect ratio + output size
@@ -90,6 +96,19 @@ export function EditProfileDialog({
 
   const coverInputRef = useRef<HTMLInputElement | null>(null)
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Whenever the upload hook reports progress, scale it into the 0–75 band
+  // so the bar *completes* the upload phase at 75% and has room to tick up
+  // to 100% during the image preload.
+  useEffect(() => {
+    if (uploadingKind === null) return
+    setPhaseProgress(prev => {
+      const scaled = Math.round(uploadProgress * 0.75)
+      // Monotonic — don't let an outdated hook tick undo what the preload
+      // phase has already advanced the bar to.
+      return scaled > prev && prev < 75 ? scaled : prev
+    })
+  }, [uploadProgress, uploadingKind])
 
   // Reset the form state each time the dialog opens so a cancelled edit
   // doesn't carry over to the next open. Do the reset on `open` transition,
@@ -143,10 +162,25 @@ export function EditProfileDialog({
     if (kind === 'banner') setBanner(objectUrl)
     else setPicture(objectUrl)
     setUploadingKind(kind)
+    setPhaseProgress(0)
+    let preloadTimer: ReturnType<typeof setInterval> | null = null
     try {
       const filename = `${kind}-${Date.now()}.jpg`
       const file = new File([blob], filename, { type: 'image/jpeg' })
       const { url } = await upload(file)
+
+      // Upload phase done — pin the bar at 75 so the preload phase starts
+      // from a stable anchor regardless of where the hook's last tick landed.
+      setPhaseProgress(75)
+
+      // Ease from 75 → ~97 over the preload window. We can't drive a real
+      // download-progress value without hand-rolling a fetch+ReadableStream
+      // (and the returned blob would still need to be re-decoded), so we
+      // approximate with a linear tick that the transition smooths into
+      // something that feels like a progress bar rather than a jump.
+      preloadTimer = setInterval(() => {
+        setPhaseProgress(p => (p < 97 ? Math.min(97, p + 2) : p))
+      }, 80)
 
       // Preload the remote image before swapping the src and revoking the
       // blob URL — otherwise the <img>/background would briefly flash empty
@@ -158,6 +192,12 @@ export function EditProfileDialog({
         // loader will take over and the user at worst sees a blank frame.
       })
 
+      if (preloadTimer) {
+        clearInterval(preloadTimer)
+        preloadTimer = null
+      }
+      setPhaseProgress(100)
+
       if (kind === 'banner') setBanner(url)
       else setPicture(url)
       toast.success(kind === 'banner' ? 'Cover uploaded' : 'Avatar uploaded')
@@ -165,7 +205,14 @@ export function EditProfileDialog({
       const msg = err instanceof Error ? err.message : 'Upload failed'
       toast.error(msg)
     } finally {
-      setUploadingKind(null)
+      if (preloadTimer) clearInterval(preloadTimer)
+      // Let the 100% frame paint for a beat so users see the bar hit the
+      // end before the overlay disappears — 250ms is long enough to read,
+      // short enough not to feel like lag.
+      setTimeout(() => {
+        setUploadingKind(null)
+        setPhaseProgress(0)
+      }, 250)
       // Revoke only after the swap has been applied so React has already
       // painted the new remote URL. A microtask is enough to guarantee
       // the commit has run.
@@ -240,9 +287,13 @@ export function EditProfileDialog({
               {uploadingKind === 'banner' && (
                 <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 opacity-100 transition-opacity duration-200 animate-in fade-in">
                   <span className="text-xs font-medium text-white">
-                    Uploading cover… {progress}%
+                    {phaseProgress < 75
+                      ? `Uploading cover… ${phaseProgress}%`
+                      : phaseProgress < 100
+                        ? `Finalizing… ${phaseProgress}%`
+                        : `Ready ${phaseProgress}%`}
                   </span>
-                  <Progress value={progress} className="h-1.5 w-2/3 bg-white/20" />
+                  <Progress value={phaseProgress} className="h-1.5 w-2/3 bg-white/20" />
                 </span>
               )}
             </button>
@@ -279,7 +330,7 @@ export function EditProfileDialog({
                 {uploadingKind === 'avatar' && (
                   <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/55 animate-in fade-in">
                     <span className="text-[10px] font-semibold text-white tabular-nums">
-                      {progress}%
+                      {phaseProgress}%
                     </span>
                   </span>
                 )}
@@ -348,11 +399,11 @@ export function EditProfileDialog({
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={saving || uploading}
+              disabled={saving || uploadingKind !== null}
             >
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || uploading}>
+            <Button onClick={handleSave} disabled={saving || uploadingKind !== null}>
               {saving ? 'Publishing…' : 'Save'}
             </Button>
           </DialogFooter>
