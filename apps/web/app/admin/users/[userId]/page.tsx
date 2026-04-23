@@ -191,7 +191,7 @@ export default function UserDetailPage({
         }
       />
 
-      <div className="flex flex-col gap-6 px-6 pb-6">
+      <div className="flex flex-col gap-6 px-4 pb-6 sm:px-6">
         {loading || !user ? (
           <div className="flex h-48 items-center justify-center">
             <Spinner size={24} />
