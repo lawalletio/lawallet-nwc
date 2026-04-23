@@ -43,9 +43,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (!authenticatedPubkey || authenticatedPubkey !== settings.root) {
     // Public fields: domain/endpoint for lightning address resolution,
-    // branding for a consistent look across all visitors, and the
+    // branding for a consistent look across all visitors, the
     // maintenance flag so clients can render the maintenance banner
-    // without first being blocked by the maintenance middleware.
+    // without first being blocked by the maintenance middleware, and
+    // the social_* handles so the Community About page works for any
+    // visitor (they're contact links, not credentials).
     return NextResponse.json({
       domain: settings.domain,
       endpoint,
@@ -56,6 +58,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       logotype_url: settings.logotype_url,
       isotypo_url: settings.isotypo_url,
       maintenance_enabled: settings.maintenance_enabled,
+      social_whatsapp: settings.social_whatsapp,
+      social_telegram: settings.social_telegram,
+      social_discord: settings.social_discord,
+      social_twitter: settings.social_twitter,
+      social_website: settings.social_website,
+      social_nostr: settings.social_nostr,
+      social_email: settings.social_email,
     })
   }
 
