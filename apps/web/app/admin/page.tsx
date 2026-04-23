@@ -28,6 +28,7 @@ import { Permission } from '@/lib/auth/permissions'
 import { SetupBanner } from '@/components/admin/setup-banner'
 import { AddressBanner } from '@/components/admin/address-banner'
 import { EndpointError } from '@/components/admin/endpoint-error'
+import { IdentityCircles } from '@/components/admin/identity-circles'
 import { NwcCard } from '@/components/admin/nwc-card'
 import { ForwardingCard } from '@/components/admin/forwarding-card'
 import { useApi } from '@/lib/client/hooks/use-api'
@@ -98,6 +99,8 @@ export default function AdminDashboardPage() {
           <>
         <SetupBanner />
         <AddressBanner />
+
+        <IdentityCircles className="py-2" />
 
         {me?.lightningAddress && (() => {
           const needsDomainSetup = me.lightningAddress.endsWith('@undefined')
