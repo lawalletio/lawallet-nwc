@@ -17,7 +17,12 @@ interface TopbarTab {
 }
 
 interface TopbarProps extends React.HTMLAttributes<HTMLDivElement> {
-  title: string
+  /**
+   * Optional so pages that already lead with their own heading (e.g. a
+   * full-bleed user profile card) can render the chrome without a
+   * redundant title above.
+   */
+  title?: string
   subtitle?: string
   type?: 'page' | 'subpage'
   alert?: TopbarAlert
@@ -50,9 +55,11 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
 
       <div className="flex items-center justify-between px-4 py-2 min-h-[60px] border-b border-border">
         <div className="flex flex-col">
-          <span className="text-base font-semibold text-foreground">
-            {title}
-          </span>
+          {title && (
+            <span className="text-base font-semibold text-foreground">
+              {title}
+            </span>
+          )}
           {subtitle && (
             <span className="text-sm text-muted-foreground">{subtitle}</span>
           )}

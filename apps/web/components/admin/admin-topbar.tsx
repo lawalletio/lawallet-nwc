@@ -10,7 +10,12 @@ import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { cn } from '@/lib/utils'
 
 interface AdminTopbarProps {
-  title: string
+  /**
+   * Page title. Optional so chromeless pages (e.g. the user detail card
+   * that already leads with the user's name) can keep the topbar's
+   * brand + menu + actions while skipping the redundant heading.
+   */
+  title?: string
   subtitle?: string
   actions?: React.ReactNode
   type?: 'page' | 'subpage'
@@ -63,7 +68,7 @@ function MobilePageTopbar({
   actions,
   tabs,
 }: {
-  title: string
+  title?: string
   subtitle?: string
   actions?: React.ReactNode
   tabs?: TopbarTab[]
@@ -88,15 +93,17 @@ function MobilePageTopbar({
           wrap *before* hitting the actions cluster on the right, which
           otherwise overlaps because `items-start` + `justify-between` lets
           the text flow full-width behind the absolutely-ish action chip. */}
-      <div className="flex items-start justify-between gap-3 px-4 py-3">
-        <div className="flex min-w-0 flex-col gap-0.5 pr-4">
-          <h1 className="text-base font-semibold">{title}</h1>
-          {subtitle && (
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
-          )}
+      {(title || subtitle || actions) && (
+        <div className="flex items-start justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 flex-col gap-0.5 pr-4">
+            {title && <h1 className="text-base font-semibold">{title}</h1>}
+            {subtitle && (
+              <p className="text-sm text-muted-foreground">{subtitle}</p>
+            )}
+          </div>
+          {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </div>
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
-      </div>
+      )}
 
       {/* Tabs */}
       {tabs && tabs.length > 0 && (
