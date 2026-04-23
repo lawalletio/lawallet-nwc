@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { authenticateWithPermission } from '@/lib/auth/unified-auth'
-import { Permission } from '@/lib/auth/permissions'
-import { NotFoundError } from '@/types/server/errors'
+import { authenticate } from '@/lib/auth/unified-auth'
+import { Permission, hasPermission } from '@/lib/auth/permissions'
+import { AuthorizationError, NotFoundError } from '@/types/server/errors'
 import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
 
 export const dynamic = 'force-dynamic'
@@ -12,16 +12,22 @@ export const revalidate = 0
 /**
  * GET /api/users/[userId]
  *
- * Admin detail view (gated by USERS_READ) for a single user. Returns the
- * user's core fields, all lightning addresses with their effective NWC
- * mode, and aggregate transaction stats drawn from the Invoice table.
+ * Returns a single user's core fields, all lightning addresses with their
+ * effective NWC mode, and aggregate transaction stats drawn from Invoice.
+ *
+ * Access model:
+ *   - Viewing yourself is always allowed, regardless of USERS_READ, so a
+ *     plain USER can load their own profile page (the /admin sidebar
+ *     footer links here).
+ *   - Viewing someone else requires the USERS_READ permission
+ *     (OPERATOR / VIEWER / ADMIN).
  */
 export const GET = withErrorHandling(
   async (
     request: Request,
     { params }: { params: Promise<{ userId: string }> },
   ) => {
-    await authenticateWithPermission(request, Permission.USERS_READ)
+    const auth = await authenticate(request)
 
     const { userId } = await params
 
@@ -42,6 +48,14 @@ export const GET = withErrorHandling(
 
     if (!user) {
       throw new NotFoundError('User not found')
+    }
+
+    // Self can always read their own profile; otherwise require USERS_READ.
+    // Check post-lookup so callers can't probe for pubkey existence via
+    // 403 vs 404.
+    const isSelf = user.pubkey === auth.pubkey
+    if (!isSelf && !hasPermission(auth.role, Permission.USERS_READ)) {
+      throw new AuthorizationError('Not authorized to view this user')
     }
 
     const primaryNwc = user.nwcConnections[0] ?? null
