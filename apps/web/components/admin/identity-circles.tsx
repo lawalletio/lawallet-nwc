@@ -103,10 +103,13 @@ export function IdentityCircles({
         <AtSign className="size-1/2" />
       </div>
 
-      <div
+      <Link
+        href="/admin/community"
+        aria-label="About this community"
         className={cn(
           sizeClass,
           'relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-card ring-2 ring-border',
+          'transition-transform hover:scale-105 hover:ring-ring focus-visible:outline-none focus-visible:ring-ring',
         )}
       >
         <Image
@@ -116,7 +119,7 @@ export function IdentityCircles({
           sizes="96px"
           className="object-contain p-2"
         />
-      </div>
+      </Link>
     </div>
   )
 }
