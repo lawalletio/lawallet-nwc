@@ -23,6 +23,14 @@ const SIZE_CLASSES: Record<Required<IdentityCirclesProps>['size'], string> = {
   lg: 'size-20 sm:size-24',
 }
 
+// The @ circle reads as a connector between the two identity discs, so
+// it's visually de-emphasized — about 60% of the outer circles' diameter.
+const CONNECTOR_SIZE_CLASSES: Record<Required<IdentityCirclesProps>['size'], string> = {
+  sm: 'size-8 sm:size-9',
+  md: 'size-10 sm:size-12',
+  lg: 'size-12 sm:size-14',
+}
+
 /**
  * Three-circle identity badge: the signed-in user's avatar, an @ symbol,
  * and the community's isotypo. Visualizes "you@community" as a glance so
@@ -54,9 +62,10 @@ export function IdentityCircles({
     .toUpperCase()
 
   const sizeClass = SIZE_CLASSES[size]
+  const connectorSizeClass = CONNECTOR_SIZE_CLASSES[size]
 
   return (
-    <div className={cn('flex items-center justify-center gap-2 sm:gap-3', className)}>
+    <div className={cn('flex items-center justify-center gap-4 sm:gap-5', className)}>
       <Avatar className={cn(sizeClass, 'ring-2 ring-border')}>
         {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
         <AvatarFallback>{avatarFallback}</AvatarFallback>
@@ -64,7 +73,7 @@ export function IdentityCircles({
 
       <div
         className={cn(
-          sizeClass,
+          connectorSizeClass,
           'flex shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ring-2 ring-border',
         )}
         aria-hidden
