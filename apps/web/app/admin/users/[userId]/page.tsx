@@ -2,13 +2,20 @@
 
 import { use, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Copy, Forward, Pencil, Star } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Copy, Forward, MoreHorizontal, Pencil, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -32,7 +39,10 @@ import { EditProfileDialog } from '@/components/admin/edit-profile-dialog'
 import { useAuth } from '@/components/admin/auth-context'
 import { truncateNpub, formatRelativeTime } from '@/lib/client/format'
 import { Role, Permission } from '@/lib/auth/permissions'
-import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
+import {
+  type WalletAddress,
+  useAddressMutations,
+} from '@/lib/client/hooks/use-wallet-addresses'
 import { cn } from '@/lib/utils'
 
 const ROLE_OPTIONS: Role[] = [Role.ADMIN, Role.OPERATOR, Role.VIEWER, Role.USER]
@@ -61,16 +71,26 @@ export default function UserDetailPage({
 }: {
   params: Promise<{ userId: string }>
 }) {
+  const router = useRouter()
   const { userId } = use(params)
   const { data: user, loading, refetch } = useUser(userId)
   const { data: settings } = useSettings()
   const { profile, updateProfile } = useNostrProfile(user?.pubkey ?? null)
   const { pubkey: callerPubkey, role: callerRole, isAuthorized } = useAuth()
   const { updateUserRole, loading: roleUpdating } = useUserMutations()
+  const { setAsPrimary, settingPrimary } = useAddressMutations()
   const [editingProfile, setEditingProfile] = useState(false)
+  // Optimistic primary override so the star flips before the server
+  // confirms, matching /admin/addresses. Only meaningful when isSelf.
+  const [optimisticPrimary, setOptimisticPrimary] = useState<string | null>(null)
 
   const canManageRoles = isAuthorized(Permission.USERS_MANAGE_ROLES)
   const isSelf = user?.pubkey === callerPubkey
+  const isAdmin = callerRole === Role.ADMIN
+  // Permission to open an address row: viewing yourself or any ADMIN
+  // viewing anyone. Non-admins viewing another user keep the read-only
+  // table.
+  const canManageAddresses = isSelf || isAdmin
 
   // ROLE_OPTIONS is ordered highest → lowest. Roles strictly "below" the
   // caller in the hierarchy sit at a higher index. Mirroring the server
@@ -116,6 +136,45 @@ export default function UserDetailPage({
       toast.success('Pubkey copied')
     } catch {
       toast.error('Could not copy')
+    }
+  }
+
+  async function handleCopyAddress(username: string) {
+    const full = `${username}@${domain}`
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(full)
+      } else {
+        // execCommand fallback for insecure contexts (http://localhost in dev).
+        const ta = document.createElement('textarea')
+        ta.value = full
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        ta.remove()
+      }
+      toast.success(`Copied ${full}`)
+    } catch {
+      toast.error('Could not copy to clipboard')
+    }
+  }
+
+  async function handleSetPrimary(username: string) {
+    // Only makes sense when the viewer is the owner — the API is
+    // pubkey-scoped. For admins viewing another user, the dropdown
+    // hides the Set-as-primary action entirely.
+    if (!isSelf) return
+    setOptimisticPrimary(username)
+    try {
+      await setAsPrimary(username)
+      await refetch()
+      toast.success(`${username}@${domain} is now primary`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to set primary')
+    } finally {
+      setOptimisticPrimary(null)
     }
   }
 
@@ -287,91 +346,148 @@ export default function UserDetailPage({
                     <TableRow>
                       <TableHead>Address</TableHead>
                       <TableHead>Mode</TableHead>
-                      <TableHead>Created</TableHead>
+                      <TableHead className="hidden sm:table-cell">Created</TableHead>
+                      {canManageAddresses && (
+                        <TableHead className="w-12 text-right">Actions</TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {user.addresses.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={3}
+                          colSpan={canManageAddresses ? 4 : 3}
                           className="py-8 text-center text-sm text-muted-foreground"
                         >
                           This user has no lightning addresses.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      user.addresses.map(addr => (
-                        <TableRow key={addr.username}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">
-                                {addr.username}
-                                {/* Domain is implied once you're on the
-                                    user detail page — drop it on phones so
-                                    the Address + Mode + Created columns
-                                    have enough room without horizontal
-                                    scroll. */}
-                                <span className="hidden text-muted-foreground sm:inline">
-                                  @{domain}
-                                </span>
-                              </span>
-                              {addr.isPrimary && (
-                                <Badge
-                                  variant="secondary"
-                                  className="items-center gap-1 text-xs"
+                      user.addresses.map(addr => {
+                        // Apply the optimistic primary flip on top of the
+                        // server data so the star moves to the row the
+                        // viewer just clicked before the refetch lands.
+                        const isPrimary =
+                          isSelf && optimisticPrimary !== null
+                            ? addr.username === optimisticPrimary
+                            : addr.isPrimary
+                        return (
+                          <TableRow key={addr.username}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {canManageAddresses ? (
+                                  <Link
+                                    href={`/admin/addresses/${encodeURIComponent(addr.username)}`}
+                                    className="font-medium hover:underline underline-offset-4"
+                                  >
+                                    {addr.username}
+                                    <span className="hidden text-muted-foreground sm:inline">
+                                      @{domain}
+                                    </span>
+                                  </Link>
+                                ) : (
+                                  <span className="font-medium">
+                                    {addr.username}
+                                    <span className="hidden text-muted-foreground sm:inline">
+                                      @{domain}
+                                    </span>
+                                  </span>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-7 text-muted-foreground hover:text-foreground"
+                                  onClick={() => handleCopyAddress(addr.username)}
+                                  aria-label={`Copy ${addr.username}@${domain}`}
                                 >
-                                  <Star
-                                    className="size-3 fill-yellow-500 text-yellow-500"
+                                  <Copy className="size-3.5" />
+                                </Button>
+                                {isPrimary && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="items-center gap-1 text-xs"
+                                  >
+                                    <Star
+                                      className="size-3 fill-yellow-500 text-yellow-500"
+                                      aria-hidden
+                                    />
+                                    Primary
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {addr.mode === 'ALIAS' && addr.redirect ? (
+                                <Badge
+                                  variant="outline"
+                                  title={addr.redirect}
+                                  className="inline-flex max-w-[160px] items-center gap-1 font-mono text-xs font-normal"
+                                >
+                                  <Forward
+                                    className="size-3 shrink-0"
                                     aria-hidden
                                   />
-                                  Primary
+                                  <span className="truncate">
+                                    {addr.redirect}
+                                  </span>
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant={
+                                    addr.mode === 'IDLE' ? 'outline' : 'default'
+                                  }
+                                  className={cn(
+                                    'text-xs',
+                                    addr.mode === 'IDLE' &&
+                                      'italic text-muted-foreground',
+                                  )}
+                                >
+                                  {MODE_LABEL[addr.mode]}
                                 </Badge>
                               )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {addr.mode === 'ALIAS' && addr.redirect ? (
-                              // Cap the badge width and truncate long
-                              // redirect targets with an ellipsis —
-                              // `break-all` alone wraps character-by-
-                              // character in a narrow column and balloons
-                              // the row to ~6 lines tall on phones. The
-                              // full address still shows on hover via
-                              // `title`.
-                              <Badge
-                                variant="outline"
-                                title={addr.redirect}
-                                className="inline-flex max-w-[160px] items-center gap-1 font-mono text-xs font-normal"
-                              >
-                                <Forward
-                                  className="size-3 shrink-0"
-                                  aria-hidden
-                                />
-                                <span className="truncate">
-                                  {addr.redirect}
-                                </span>
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant={
-                                  addr.mode === 'IDLE' ? 'outline' : 'default'
-                                }
-                                className={cn(
-                                  'text-xs',
-                                  addr.mode === 'IDLE' &&
-                                    'italic text-muted-foreground',
-                                )}
-                              >
-                                {MODE_LABEL[addr.mode]}
-                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
+                              {formatRelativeTime(addr.createdAt)}
+                            </TableCell>
+                            {canManageAddresses && (
+                              <TableCell className="text-right">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon">
+                                      <MoreHorizontal className="size-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        router.push(
+                                          `/admin/addresses/${encodeURIComponent(addr.username)}`,
+                                        )
+                                      }
+                                    >
+                                      Edit
+                                    </DropdownMenuItem>
+                                    {/* Set-as-primary is intrinsically
+                                        a user-scoped write — the API
+                                        sets the caller's primary. Only
+                                        offer it when viewing your own
+                                        profile; admins looking at other
+                                        users can edit but not reorder. */}
+                                    {isSelf && (
+                                      <DropdownMenuItem
+                                        disabled={isPrimary || settingPrimary}
+                                        onClick={() => handleSetPrimary(addr.username)}
+                                      >
+                                        Set as primary
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
                             )}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {formatRelativeTime(addr.createdAt)}
-                          </TableCell>
-                        </TableRow>
-                      ))
+                          </TableRow>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>
