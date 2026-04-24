@@ -36,6 +36,109 @@ State split: configs, audit log, and zap ledger live in the shared Postgres (via
 
 ## Architecture
 
+### System diagram (how the pieces fit together)
+
+```mermaid
+flowchart LR
+    %% External actors and systems
+    wallet["🏦 NWC Wallet<br/>Alby · Coinos · …"]
+    relay(("📡 Nostr relays<br/>wss://…"))
+    consumer["📬 Webhook<br/>consumer"]
+    admin["👤 Nostr admin<br/>encrypted DM"]
+    writer["🛠 apps/web · psql<br/>· migrations"]
+    operator["👩‍💻 Operator<br/>browser"]
+
+    %% Storage
+    pg[("🐘 Postgres<br/>shared schema<br/>NwcConnection ·<br/>Webhook · Audit · Zap")]
+    redis[("🔴 Redis<br/>BullMQ ·<br/>dedup · cursors")]
+
+    subgraph service["⚡ apps/nostr-trigger (Bun)"]
+        direction TB
+
+        subgraph edge["Control plane"]
+            http["Hono HTTP<br/>/api/v1/*"]
+            ctrl["NostrControlPlane<br/>kind-4 DM"]
+            dash["/dashboard<br/>+ SSE /events/stream"]
+        end
+
+        subgraph core["Core runtime"]
+            connmgr["ConnectionManager<br/>open · reload · close"]
+            pool["RelayPool<br/>(SimplePool)"]
+            ingest["EventIngest<br/>verify · dedup ·<br/>decrypt · audit · fan-out"]
+            bus["EventBus<br/>in-process pub/sub"]
+        end
+
+        subgraph outbound["Outbound effects"]
+            nwcc["NWC client<br/>make_invoice · get_info"]
+            wh["WebhookDispatcher<br/>BullMQ worker"]
+            zap["ZapReceiptPublisher<br/>kind-9735"]
+        end
+
+        listener["NwcChangeListener<br/>pg.Client LISTEN"]
+    end
+
+    %% Wallet payment flow
+    wallet == "notif 23196/7" ==> relay
+    relay == "REQ stream" ==> pool
+    pool ==> ingest
+    ingest ==> bus
+    bus -- "SSE push" --> dash
+    ingest == "enqueue" ==> wh
+    wh == "HTTP POST<br/>HMAC + Idempotency-Key" ==> consumer
+
+    %% Outbound NIP-47 requests
+    nwcc -- "kind-23194" --> relay
+    relay -- "kind-23195" --> nwcc
+    zap -- "publish 9735" --> relay
+
+    %% Control plane entry points
+    http --> connmgr
+    http --> nwcc
+    http --> wh
+    http --> zap
+    ctrl --> connmgr
+    ctrl --> nwcc
+    ctrl --> zap
+    connmgr --> pool
+
+    %% Nostr DM admin path
+    admin -- "encrypted kind-4" --> relay
+    relay --> ctrl
+    ctrl -. "encrypted reply" .-> relay
+
+    %% DB-driven reconcile
+    writer == "INSERT · UPDATE · DELETE" ==> pg
+    pg -- "pg_notify trigger" --> listener
+    listener --> connmgr
+
+    %% Storage reads/writes
+    connmgr -.->|load rows| pg
+    ingest -.->|audit row| pg
+    ingest -.->|SET NX + cursor| redis
+    wh -.->|jobs + backoff| redis
+    zap -.->|ledger row| pg
+
+    %% Operator UI
+    operator --> dash
+    dash --> http
+
+    classDef ext fill:#1c2027,stroke:#6ee7b7,color:#e6e8ec
+    classDef store fill:#15181d,stroke:#93c5fd,color:#e6e8ec
+    classDef svc fill:#0b0d10,stroke:#262b33,color:#e6e8ec
+    class wallet,relay,consumer,admin,writer,operator ext
+    class pg,redis store
+    class http,ctrl,dash,connmgr,pool,ingest,bus,nwcc,wh,zap,listener svc
+```
+
+Legend:
+- **Bold arrows** (`==>`) — hot path for a received payment
+- **Solid arrows** (`-->`) — synchronous calls and request/response
+- **Dashed arrows** (`-.->`) — storage reads/writes and best-effort replies
+
+---
+
+### Internal data flow (compact view)
+
 ```
                         apps/nostr-trigger (Bun runtime)
   ┌────────────────────────────────────────────────────────────────────────┐
