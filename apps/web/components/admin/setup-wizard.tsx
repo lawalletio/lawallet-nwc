@@ -15,6 +15,23 @@ import { buildPublicHost } from '@/lib/public-url-utils'
 
 type WizardStep = 'idle' | 'loading' | 'domain' | 'fetching' | 'confirm' | 'claiming' | 'hidden'
 
+function deriveSubdomainFromUrl(url: string, domain: string): string {
+  const raw = url.trim().toLowerCase()
+  if (!raw) return ''
+  let host: string
+  try {
+    host = new URL(raw.includes('://') ? raw : `https://${raw}`).host
+  } catch {
+    return ''
+  }
+  const cleanDomain = domain.trim().toLowerCase()
+  if (!cleanDomain || host === cleanDomain) return ''
+  if (host.endsWith(`.${cleanDomain}`)) {
+    return host.slice(0, -cleanDomain.length - 1)
+  }
+  return ''
+}
+
 interface CommunityData {
   id: string
   title: string
@@ -30,7 +47,7 @@ export function SetupWizard() {
   const { status, signer, role, login, loginMethod, apiClient } = useAuth()
   const [step, setStep] = useState<WizardStep>('idle')
   const [domain, setDomain] = useState('')
-  const [subdomain, setSubdomain] = useState('')
+  const [endpointUrl, setEndpointUrl] = useState('')
   const [showAdvance, setShowAdvance] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [verified, setVerified] = useState(false)
@@ -118,12 +135,33 @@ export function SetupWizard() {
   }, [step])
 
   async function handleVerify() {
-    if (!domain.trim()) return
+    const cleanDomain = domain.trim().toLowerCase()
+    if (!cleanDomain) return
     setVerifying(true)
-    await new Promise((r) => setTimeout(r, 800))
-    setVerifying(false)
-    setVerified(true)
-    toast.success('Domain verified')
+    setVerified(false)
+    try {
+      const issueRes = await fetch('/api/setup/verify', { method: 'POST' })
+      if (!issueRes.ok) throw new Error('Failed to issue token')
+      const { token } = (await issueRes.json()) as { token: string }
+
+      const scheme = cleanDomain.startsWith('localhost') || cleanDomain.startsWith('127.') ? 'http' : 'https'
+      const probeRes = await fetch(`${scheme}://${cleanDomain}/.well-known/verify`, {
+        cache: 'no-store',
+      })
+      if (!probeRes.ok) throw new Error(`Got HTTP ${probeRes.status} from ${cleanDomain}`)
+      const probeToken = (await probeRes.text()).trim()
+
+      if (probeToken !== token) {
+        throw new Error(`${cleanDomain} does not point to this instance`)
+      }
+
+      setVerified(true)
+      toast.success(`${cleanDomain} verified`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Verification failed')
+    } finally {
+      setVerifying(false)
+    }
   }
 
   async function handleNext() {
@@ -171,7 +209,7 @@ export function SetupWizard() {
       await claimRootRole(signer)
 
       const cleanDomain = domain.trim().toLowerCase()
-      const cleanSubdomain = subdomain.trim().toLowerCase()
+      const cleanSubdomain = deriveSubdomainFromUrl(endpointUrl, cleanDomain)
       await apiClient.post('/api/settings', {
         domain: cleanDomain,
         endpoint: cleanSubdomain,
@@ -218,7 +256,10 @@ export function SetupWizard() {
     )
   }
 
-  const fullDomain = buildPublicHost(domain, subdomain) || domain || 'your community'
+  const fullDomain =
+    buildPublicHost(domain, deriveSubdomainFromUrl(endpointUrl, domain)) ||
+    domain ||
+    'your community'
 
   const heroImage = community?.backgroundImage || '/images/onboarding-hero.jpg'
   const avatarImage = community?.avatarImage || '/images/onboarding-hero.jpg'
@@ -251,7 +292,7 @@ export function SetupWizard() {
 
               <div className="flex gap-2">
                 <InputGroup className="flex-1">
-                  <InputGroupText>https://</InputGroupText>
+                  <InputGroupText>username@</InputGroupText>
                   <Input
                     placeholder="domain.com"
                     value={domain}
@@ -271,7 +312,13 @@ export function SetupWizard() {
               </div>
 
               <button
-                onClick={() => setShowAdvance(!showAdvance)}
+                onClick={() => {
+                  const next = !showAdvance
+                  setShowAdvance(next)
+                  if (next && !endpointUrl && typeof window !== 'undefined') {
+                    setEndpointUrl(window.location.origin)
+                  }
+                }}
                 className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mx-auto"
               >
                 Advance
@@ -279,14 +326,15 @@ export function SetupWizard() {
               </button>
 
               {showAdvance && (
-                <InputGroup>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Endpoint URL</label>
                   <Input
-                    placeholder="subdomain"
-                    value={subdomain}
-                    onChange={(e) => setSubdomain(e.target.value)}
+                    type="url"
+                    placeholder="https://admin.domain.com"
+                    value={endpointUrl}
+                    onChange={(e) => setEndpointUrl(e.target.value)}
                   />
-                  <InputGroupText>.{domain || 'domain.com'}</InputGroupText>
-                </InputGroup>
+                </div>
               )}
             </CardContent>
           </Card>
