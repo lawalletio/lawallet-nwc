@@ -97,7 +97,7 @@ importers:
         version: 7.0.0(typescript@5.9.3)
       '@hookform/resolvers':
         specifier: ^5.2.2
-        version: 5.2.2(react-hook-form@7.73.1(react@19.2.4))
+        version: 5.2.2(react-hook-form@7.74.0(react@19.2.4))
       '@nostrify/nostrify':
         specifier: npm:@jsr/nostrify__nostrify@^0.46.5
         version: '@jsr/nostrify__nostrify@0.46.5(typescript@5.9.3)'
@@ -265,7 +265,7 @@ importers:
         version: 19.2.4(react@19.2.4)
       react-hook-form:
         specifier: latest
-        version: 7.73.1(react@19.2.4)
+        version: 7.74.0(react@19.2.4)
       react-image-crop:
         specifier: ^11.0.10
         version: 11.0.10(react@19.2.4)
@@ -342,6 +342,9 @@ importers:
       eslint-config-next:
         specifier: ^16.2.3
         version: 16.2.3(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3))(eslint@9.39.2(jiti@1.21.7))(typescript@5.9.3)
+      fake-indexeddb:
+        specifier: ^6.2.5
+        version: 6.2.5
       happy-dom:
         specifier: ^20.5.0
         version: 20.5.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -3543,6 +3546,10 @@ packages:
   extend@3.0.2:
     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==}
 
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+    engines: {node: '>=18'}
+
   fast-check@3.23.2:
     resolution: {integrity: sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==}
     engines: {node: '>=8.0.0'}
@@ -4978,8 +4985,8 @@ packages:
     peerDependencies:
       react: ^19.2.4
 
-  react-hook-form@7.73.1:
-    resolution: {integrity: sha512-VAfVYOPcx3piiEVQy95vyFmBwbVUsP/AUIN+mpFG8h11yshDd444nn0VyfaGWSRnhOLVgiDu7HIuBtAIzxn9dA==}
+  react-hook-form@7.74.0:
+    resolution: {integrity: sha512-yR6wHr99p9wFv686jhRWVSFhUvDvNbdUf2dKlbno8/VKOCuoNobDGC6S+M2dua9A9Yo8vpcrp8assIYbsZCQ9g==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -6424,10 +6431,10 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@hookform/resolvers@5.2.2(react-hook-form@7.73.1(react@19.2.4))':
+  '@hookform/resolvers@5.2.2(react-hook-form@7.74.0(react@19.2.4))':
     dependencies:
       '@standard-schema/utils': 0.3.0
-      react-hook-form: 7.73.1(react@19.2.4)
+      react-hook-form: 7.74.0(react@19.2.4)
 
   '@humanfs/core@0.19.1': {}
 
@@ -9237,6 +9244,8 @@ snapshots:
 
   extend@3.0.2: {}
 
+  fake-indexeddb@6.2.5: {}
+
   fast-check@3.23.2:
     dependencies:
       pure-rand: 6.1.0
@@ -10994,7 +11003,7 @@ snapshots:
       react: 19.2.4
       scheduler: 0.27.0
 
-  react-hook-form@7.73.1(react@19.2.4):
+  react-hook-form@7.74.0(react@19.2.4):
     dependencies:
       react: 19.2.4
 
