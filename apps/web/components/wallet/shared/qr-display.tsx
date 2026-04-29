@@ -15,6 +15,16 @@ interface QrDisplayProps {
   uppercasePayload?: boolean
   className?: string
   size?: number
+  /**
+   * Optional avatar / logo overlaid in the center of the QR. When set we
+   * automatically bump error correction to level H (≤30% loss budget) and
+   * `excavate` the modules behind the image so the QR stays scannable. Keep
+   * the image small relative to `size` — the default of ~22% diameter is
+   * conservative.
+   */
+  centerImage?: string
+  /** Side length in px for the centered image. Defaults to ~22% of `size`. */
+  centerImageSize?: number
 }
 
 export function QrDisplay({
@@ -23,9 +33,20 @@ export function QrDisplay({
   uppercasePayload = false,
   className,
   size = 240,
+  centerImage,
+  centerImageSize,
 }: QrDisplayProps) {
   const [copied, setCopied] = useState(false)
   const encoded = uppercasePayload ? value.toUpperCase() : value
+  const overlaySize = centerImageSize ?? Math.round(size * 0.22)
+  const imageSettings = centerImage
+    ? {
+        src: centerImage,
+        height: overlaySize,
+        width: overlaySize,
+        excavate: true,
+      }
+    : undefined
 
   async function copy() {
     try {
@@ -54,8 +75,29 @@ export function QrDisplay({
 
   return (
     <div className={cn('flex flex-col items-center gap-4', className)}>
-      <div className="rounded-2xl bg-white p-4 shadow-lg">
-        <QRCodeSVG value={encoded} size={size} level="M" />
+      <div className="relative rounded-2xl bg-white p-4 shadow-lg">
+        <QRCodeSVG
+          value={encoded}
+          size={size}
+          level={centerImage ? 'H' : 'M'}
+          imageSettings={imageSettings}
+        />
+        {centerImage && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-[3px] border-white bg-white shadow-md"
+            style={{ width: overlaySize, height: overlaySize }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={centerImage}
+              alt=""
+              width={overlaySize}
+              height={overlaySize}
+              className="size-full object-cover"
+            />
+          </div>
+        )}
       </div>
 
       {caption && (

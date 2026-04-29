@@ -57,7 +57,8 @@ export function CreateAccountFlow() {
     setLoading(true)
     try {
       const signer = createNsecSigner(hex)
-      await login(signer, 'nsec')
+      // Persist the nsec so reloads silently rebuild the signer.
+      await login(signer, 'nsec', { secret: nsec })
       router.replace('/wallet/welcome')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account'
