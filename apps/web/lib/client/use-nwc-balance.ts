@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { nwcCacheKey } from '@/lib/client/cache/key'
+import {
+  readBalance,
+  writeBalance,
+} from '@/lib/client/cache/balance-cache'
+import { upsertMany } from '@/lib/client/cache/activity-cache'
 
 /**
  * Minimal shape of a NIP-47 transaction that we care about for UI.
@@ -57,6 +63,13 @@ interface BalanceState {
   updatedAt: number | null
   /** Live connection status. */
   status: NwcStatus
+  /**
+   * `true` while the displayed `sats` came from the local cache and a
+   * fresh value hasn't landed yet. Consumers use this to render a
+   * skeleton-pulse on the cached number rather than swapping it for a
+   * spinner. Flips to `false` on the first successful `getBalance()`.
+   */
+  fromCache: boolean
 }
 
 const DEFAULT_POLL_MS = 30_000
@@ -103,10 +116,26 @@ export function useNwcBalance(
   }
 ): BalanceState {
   const pollMs = opts?.pollMs ?? DEFAULT_POLL_MS
-  const [sats, setSats] = useState<number | null>(null)
+  // Seed lazily from the local cache so a reload paints the last-seen
+  // balance immediately. `nwcCacheKey` is synchronous (FNV-1a) so this
+  // happens in the same tick as state init — no flash of `null` and no
+  // microtask gap before the cache hit lands.
+  const initial = (() => {
+    if (!nwcString) {
+      return { sats: null as number | null, fromCache: false, updatedAt: null as number | null }
+    }
+    const cached = readBalance(nwcCacheKey(nwcString))
+    if (!cached) {
+      return { sats: null, fromCache: false, updatedAt: null }
+    }
+    return { sats: cached.sats, fromCache: true, updatedAt: cached.fetchedAt }
+  })
+
+  const [sats, setSats] = useState<number | null>(() => initial().sats)
+  const [fromCache, setFromCache] = useState<boolean>(() => initial().fromCache)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<number | null>(() => initial().updatedAt)
   const [status, setStatus] = useState<NwcStatus>('idle')
 
   // Internal nonce for a manual refetch trigger
@@ -134,8 +163,24 @@ export function useNwcBalance(
       setError(null)
       setLoading(false)
       setStatus('idle')
+      setFromCache(false)
       lastAnnouncedRef.current = null
       return
+    }
+
+    // Resolve once per nwcString change; reused inside the closure for
+    // both balance and activity-cache writes.
+    const nwcKey = nwcCacheKey(nwcString)
+
+    // The nwcString may have changed since the last render; re-seed from
+    // cache so a wallet swap paints the new wallet's last-seen balance.
+    const seeded = readBalance(nwcKey)
+    if (seeded) {
+      setSats(seeded.sats)
+      setUpdatedAt(seeded.fetchedAt)
+      setFromCache(true)
+    } else {
+      setFromCache(false)
     }
 
     installSdkConsolePatch()
@@ -166,10 +211,15 @@ export function useNwcBalance(
           const res = await client.getBalance()
           if (cancelled) return
           // NWC returns balance in msats
-          setSats(Math.floor(res.balance / 1000))
+          const fresh = Math.floor(res.balance / 1000)
+          setSats(fresh)
           setError(null)
           setUpdatedAt(Date.now())
           setStatus('connected')
+          setFromCache(false)
+          // Persist for the next reload; failures (quota, disabled
+          // storage) are swallowed by `writeBalance`.
+          writeBalance(nwcKey, fresh)
           if (lastAnnouncedRef.current === 'disconnected') {
             toast.success('Wallet reconnected')
           }
@@ -206,14 +256,30 @@ export function useNwcBalance(
           const tx = notification.notification
           // Refresh balance on any payment event so the UI stays in sync
           fetchOnce()
-          onTransactionRef.current?.({
+          const event = {
             type: tx.type,
             amountSats: Math.floor(tx.amount / 1000),
             feesPaidSats: Math.floor((tx.fees_paid ?? 0) / 1000),
             description: tx.description ?? '',
             paymentHash: tx.payment_hash,
             settledAt: tx.settled_at ? tx.settled_at * 1000 : null,
-          })
+          }
+          onTransactionRef.current?.(event)
+          // Mirror the new tx into the activity cache so the next reload
+          // (or a freshly-mounted ActivityScreen) paints with it
+          // pre-applied. `upsertMany` swallows IDB errors itself.
+          upsertMany(nwcKey, [
+            {
+              type: event.type,
+              amountSats: event.amountSats,
+              feesPaidSats: event.feesPaidSats,
+              description: event.description,
+              paymentHash: event.paymentHash,
+              preimage: null,
+              settledAt: event.settledAt,
+              createdAt: event.settledAt ?? Date.now(),
+            },
+          ])
         }, ['payment_received', 'payment_sent'])
       } catch {
         // Wallet may not support notifications — polling still works.
@@ -244,5 +310,5 @@ export function useNwcBalance(
     }
   }, [nwcString, pollMs, nonce])
 
-  return { sats, loading, error, refetch, updatedAt, status }
+  return { sats, loading, error, refetch, updatedAt, status, fromCache }
 }

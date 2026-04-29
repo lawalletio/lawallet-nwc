@@ -11,7 +11,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
-import type { LoginMethod } from '@/components/admin/auth-context'
+import type {
+  LoginMethod,
+  SignerCredentials,
+} from '@/components/admin/auth-context'
 
 /**
  * Narrow dialog that re-obtains a NostrSigner without triggering a full
@@ -33,7 +36,11 @@ export function SignerUnlockDialog({
 }: {
   open: boolean
   onCancel: () => void
-  onUnlock: (signer: NostrSigner, method: LoginMethod) => void
+  onUnlock: (
+    signer: NostrSigner,
+    method: LoginMethod,
+    credentials?: SignerCredentials,
+  ) => void
 }) {
   return (
     <Dialog
@@ -58,8 +65,8 @@ export function SignerUnlockDialog({
           submitLabel="Unlock"
           loadingLabel="Unlocking…"
           showExtension={false}
-          handleSigner={async (signer, method) => {
-            onUnlock(signer, method)
+          handleSigner={async (signer, method, credentials) => {
+            onUnlock(signer, method, credentials)
           }}
         />
       </DialogContent>

@@ -10,7 +10,11 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
-import { useAuth, type LoginMethod } from '@/components/admin/auth-context'
+import {
+  useAuth,
+  type LoginMethod,
+  type SignerCredentials,
+} from '@/components/admin/auth-context'
 import type { NostrSigner } from '@nostrify/nostrify'
 import {
   createNsecSigner,
@@ -29,6 +33,7 @@ import {
 export type NostrSignerHandler = (
   signer: NostrSigner,
   method: LoginMethod,
+  credentials?: SignerCredentials,
 ) => Promise<void>
 
 interface NostrConnectFormProps {
@@ -150,7 +155,7 @@ function NsecForm({
 
     try {
       const signer = createNsecSigner(nsec)
-      await onSigner(signer, 'nsec')
+      await onSigner(signer, 'nsec', { secret: nsec.trim() })
       onSuccess?.()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to login'
@@ -435,7 +440,7 @@ function BunkerPasteMode({
     setLoading(true)
     try {
       const signer = await createBunkerSigner(bunkerUrl, { timeout: 30_000 })
-      await onSigner(signer, 'bunker')
+      await onSigner(signer, 'bunker', { secret: bunkerUrl.trim() })
       onSuccess?.()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to connect to bunker'
