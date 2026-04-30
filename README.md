@@ -1,4 +1,7 @@
-<img src="/apps/web/public/logos/lawallet.svg" alt="LaWallet Logo" width="400" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="/apps/web/public/logos/lawallet.svg">
+  <img src="/apps/web/public/logos/lawallet.png" alt="LaWallet Logo" width="400" />
+</picture>
 
 # LaWallet NWC
 
