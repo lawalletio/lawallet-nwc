@@ -90,6 +90,10 @@ export const POST = withErrorHandling(async (request: Request) => {
   })
 
   eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+  // Also bump users:updated so any mounted /api/users/me consumer (e.g.
+  // the admin home banner that nudges to register a first address) drops
+  // its now-stale state.
+  eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
   logActivity.fireAndForget({
     category: 'ADDRESS',
     event: ActivityEvent.ADDRESS_CREATED,

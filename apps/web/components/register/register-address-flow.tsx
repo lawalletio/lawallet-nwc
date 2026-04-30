@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
+import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { pollVerifyUrl } from '@/lib/client/lnurl'
 import { buildPublicHost } from '@/lib/public-url-utils'
 
@@ -218,6 +219,11 @@ export function RegisterAddressFlow({
             })
             if (claimResult.success) {
               const address = claimResult.lightningAddress ?? `${name}@${domain}`
+              // Drop the cached /api/users/me so when the user navigates
+              // back to /admin its consumers (e.g. the "claim your first
+              // address" banner) re-fetch instead of rendering one frame
+              // of stale state with no lightningAddress.
+              invalidateApiPath('/api/users/me')
               setClaimedAddress(address)
               setStep('success')
               onSuccess?.(address)
@@ -254,6 +260,9 @@ export function RegisterAddressFlow({
       const me = await apiClient.get<{ userId: string }>('/api/users/me')
       await apiClient.put(`/api/users/${me.userId}/lightning-address`, { username: name })
       const address = `${name}@${domain}`
+      // Drop the stale /api/users/me cache so consumers re-fetch instead
+      // of flashing the "no address yet" state on the next mount.
+      invalidateApiPath('/api/users/me')
       setClaimedAddress(address)
       setStep('success')
       onSuccess?.(address)

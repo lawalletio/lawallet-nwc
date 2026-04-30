@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 
 interface HeroSectionProps {
   onClaim: () => void
+  onSetup: () => void
+  setupNeeded: boolean
   domain: string
   loading: boolean
 }
@@ -76,7 +78,7 @@ function useScrambleText(words: string[], interval = 3000) {
   return display
 }
 
-export function HeroSection({ onClaim, domain, loading }: HeroSectionProps) {
+export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: HeroSectionProps) {
   const scrambledUser = useScrambleText(usernames, 3000)
   const displayDomain = domain || 'domain.com'
 
@@ -188,10 +190,10 @@ export function HeroSection({ onClaim, domain, loading }: HeroSectionProps) {
         <Button
           variant="theme"
           className="px-8 h-12 text-base"
-          onClick={onClaim}
+          onClick={setupNeeded ? onSetup : onClaim}
           disabled={loading}
         >
-          Get Started
+          {setupNeeded ? 'Setup now' : 'Get Started'}
           <ArrowRight className="size-4 ml-1" />
         </Button>
       </div>

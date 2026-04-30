@@ -26,6 +26,7 @@ import {
 import { useAuth } from '@/components/admin/auth-context'
 import { Permission } from '@/lib/auth/permissions'
 import { SetupBanner } from '@/components/admin/setup-banner'
+import { RegisterAddressBanner } from '@/components/admin/register-address-banner'
 import { EndpointError } from '@/components/admin/endpoint-error'
 import { IdentityCircles } from '@/components/admin/identity-circles'
 import { NwcCard } from '@/components/admin/nwc-card'
@@ -97,6 +98,7 @@ export default function AdminDashboardPage() {
         ) : (
           <>
         <SetupBanner />
+        <RegisterAddressBanner lightningAddress={me?.lightningAddress ?? null} />
 
         {me?.lightningAddress && <IdentityCircles className="py-2" />}
 

@@ -1,16 +1,31 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Minus } from 'lucide-react'
+import { Plus, Minus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
 import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
+import { useAuth } from '@/components/admin/auth-context'
 import { cn } from '@/lib/utils'
+
+const IS_DEV = process.env.NODE_ENV !== 'production'
 
 // Settings values are stored as strings. Array-typed settings (relays, blossom_servers)
 // are JSON-stringified. Default to a single empty input when absent or malformed.
@@ -57,6 +72,23 @@ const INVALID_CLASSES = 'border-destructive focus-visible:ring-destructive focus
 export function InfrastructureTab() {
   const { data: settings, loading: settingsLoading } = useSettings()
   const { updateSettings } = useUpdateSettings()
+  const { logout } = useAuth()
+  const [wiping, setWiping] = useState(false)
+
+  async function handleWipe() {
+    setWiping(true)
+    try {
+      const res = await fetch('/api/dev/reset', { method: 'POST' })
+      if (!res.ok) throw new Error(`Reset failed (HTTP ${res.status})`)
+      // Clear the in-memory + localStorage auth state, then hard-reload
+      // to /admin so the cleared schema re-runs the setup wizard.
+      logout()
+      window.location.href = '/admin'
+    } catch (err) {
+      setWiping(false)
+      toast.error(err instanceof Error ? err.message : 'Reset failed')
+    }
+  }
 
   const [domain, setDomain] = useState('')
   const [subdomain, setSubdomain] = useState('')
@@ -384,6 +416,76 @@ export function InfrastructureTab() {
           </div>
         </div>
       </div>
+
+      {IS_DEV && (
+        <>
+          <Separator />
+
+          <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
+            <div>
+              <h3 className="text-sm font-semibold text-destructive">Danger Zone</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Development only. These actions are destructive and cannot be undone.
+              </p>
+            </div>
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Wipe and restart</p>
+                <p className="text-xs text-muted-foreground">
+                  Deletes all users, settings, cards, addresses, and activity logs,
+                  then signs you out so you can re-run the onboarding wizard from a
+                  clean state.
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={wiping}
+                  >
+                    {wiping ? (
+                      <>
+                        <Spinner size={16} className="mr-2" />
+                        Wiping…
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="size-4 mr-2" />
+                        Wipe & restart
+                      </>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Wipe entire database?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This permanently deletes all users, settings, cards, addresses,
+                      and activity logs — then signs you out and reloads to the setup
+                      wizard. Available in development only.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={wiping}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={(e) => {
+                        e.preventDefault()
+                        handleWipe()
+                      }}
+                      disabled={wiping}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {wiping ? 'Wiping…' : 'Yes, wipe everything'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
