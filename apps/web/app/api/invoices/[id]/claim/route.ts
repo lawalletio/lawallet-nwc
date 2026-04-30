@@ -156,6 +156,10 @@ export const POST = withErrorHandling(
     eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
     if (createsAddress) {
       eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+      // The user's primary lightning-address just got set — bump
+      // users:updated so /api/users/me consumers (admin "claim your first
+      // address" banner, profile cards, etc.) pick up the new state.
+      eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
     }
 
     logActivity.fireAndForget({

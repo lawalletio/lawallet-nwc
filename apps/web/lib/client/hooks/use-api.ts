@@ -75,6 +75,18 @@ export function clearApiCache() {
 }
 
 /**
+ * Invalidate a single cached path. Use this after a mutation whose result
+ * isn't visible in the response itself but does change a different
+ * endpoint's payload (e.g. claiming a Lightning Address changes
+ * /api/users/me, even though the claim hit /api/invoices/.../claim).
+ * Without this, the next mount of a consumer of `path` would render with
+ * stale cached data for one frame before the SSE-driven refetch swaps it.
+ */
+export function invalidateApiPath(path: string) {
+  apiCache.delete(path)
+}
+
+/**
  * Generic hook for fetching data from authenticated API endpoints.
  * Automatically refetches when:
  * - The path changes

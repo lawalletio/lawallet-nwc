@@ -4,42 +4,40 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Zap, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useApi } from '@/lib/client/hooks/use-api'
 import { useAuth } from '@/components/admin/auth-context'
 
-interface UserMe {
-  userId: string
+interface RegisterAddressBannerProps {
   lightningAddress: string | null
 }
 
-export function AddressBanner() {
+// Closable nudge for admins who haven't claimed a Lightning Address yet.
+// Renders nothing once dismissed, or for non-admins, or once an address
+// exists. The dismissal is intentionally session-only — if the admin
+// reloads, the prompt comes back until they claim something.
+export function RegisterAddressBanner({ lightningAddress }: RegisterAddressBannerProps) {
   const router = useRouter()
-  const { status } = useAuth()
-  const { data: user, loading, error } = useApi<UserMe>(
-    status === 'authenticated' ? '/api/users/me' : null
-  )
+  const { role } = useAuth()
   const [dismissed, setDismissed] = useState(false)
 
-  // Never render the "claim your address" nudge when the fetch errored —
-  // the page-level `<EndpointError>` banner communicates the real state, and
-  // showing both would ask the user to register an address they may already
-  // have but can't see because the DB is down.
-  if (loading || dismissed || error || !user || user.lightningAddress) return null
+  if (dismissed || role !== 'ADMIN' || lightningAddress) return null
 
   return (
-    <div className="relative bg-card/60 dark:bg-card/40 dark:bg-gradient-to-br dark:from-primary/10 dark:to-transparent backdrop-blur-xl rounded-2xl p-6 border border-primary/20 shadow-xl shadow-black/5 dark:shadow-black/10 transition-all duration-300 ease-out animate-in slide-in-from-top-4">
+    <div className="relative bg-card/60 dark:bg-card/40 dark:bg-gradient-to-br dark:from-yellow-500/10 dark:to-transparent backdrop-blur-xl rounded-2xl p-6 border border-yellow-500/20 shadow-xl shadow-black/5 dark:shadow-black/10 transition-all duration-300 ease-out animate-in slide-in-from-top-4">
       <div className="relative flex items-start gap-4">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-muted/60">
+        {/* Icon */}
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-yellow-500/10">
           <Zap className="size-6 text-yellow-500" />
         </div>
 
+        {/* Content */}
         <div className="flex-1 min-w-0 space-y-3">
           <div className="space-y-1 pr-8">
             <h3 className="text-base font-semibold text-foreground">
-              Claim your Lightning Address
+              Claim your first Lightning Address
             </h3>
             <p className="text-sm text-muted-foreground">
-              Register a lightning address to receive payments on this platform.
+              You haven&apos;t set up a Lightning Address yet. Pick a username so
+              you can start receiving payments and identifying yourself on Nostr.
             </p>
           </div>
 
@@ -52,8 +50,10 @@ export function AddressBanner() {
           </Button>
         </div>
 
+        {/* Close button */}
         <button
           onClick={() => setDismissed(true)}
+          aria-label="Dismiss"
           className="absolute top-4 right-4 flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         >
           <X className="size-4" />

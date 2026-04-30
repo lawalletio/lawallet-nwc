@@ -117,10 +117,8 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
     setStep('connect')
   }
 
-  // After login succeeds, hand off to the dedicated /register flow which
-  // will call POST /api/invoices and branch into paid or free claim paths.
   function handleLoginSuccess() {
-    router.push(`/register?username=${encodeURIComponent(username)}`)
+    router.push(`/admin/addresses/register?username=${encodeURIComponent(username)}`)
   }
 
   return (

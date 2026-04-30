@@ -5,9 +5,11 @@ import { Button } from '@/components/ui/button'
 
 interface CtaSectionProps {
   onClaim: () => void
+  onSetup: () => void
+  setupNeeded: boolean
 }
 
-export function CtaSection({ onClaim }: CtaSectionProps) {
+export function CtaSection({ onClaim, onSetup, setupNeeded }: CtaSectionProps) {
   return (
     <section className="relative max-w-3xl mx-auto text-center px-4 py-28">
       {/* Background glow */}
@@ -20,17 +22,19 @@ export function CtaSection({ onClaim }: CtaSectionProps) {
 
       <div className="relative z-10 space-y-6">
         <h2 className="text-4xl md:text-5xl font-black tracking-tight">
-          Ready to get started?
+          {setupNeeded ? 'Ready to set up your community?' : 'Ready to get started?'}
         </h2>
         <p className="text-lg text-muted-foreground max-w-md mx-auto">
-          Deploy your own Lightning Address server in minutes.
+          {setupNeeded
+            ? 'This instance is unconfigured. Sign in to claim the root role and finish setup.'
+            : 'Deploy your own Lightning Address server in minutes.'}
         </p>
         <Button
           variant="theme"
           className="px-8 h-12 text-base"
-          onClick={onClaim}
+          onClick={setupNeeded ? onSetup : onClaim}
         >
-          Claim your address
+          {setupNeeded ? 'Setup now' : 'Claim your address'}
           <ArrowRight className="size-4 ml-1" />
         </Button>
       </div>

@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "start": "prisma migrate deploy && next start",
+    "reset": "prisma migrate reset --force --skip-seed",
     "postinstall": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest",

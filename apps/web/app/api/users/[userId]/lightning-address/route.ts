@@ -90,6 +90,10 @@ export const PUT = withErrorHandling(
     })
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+    // Bump users:updated too: the user's primary lightning-address state
+    // changed, so any /api/users/me consumer (e.g. the admin "claim your
+    // first address" banner) needs to refresh.
+    eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
 
     if (oldLightningAddress) {
       logActivity.fireAndForget({

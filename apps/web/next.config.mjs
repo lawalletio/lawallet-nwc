@@ -9,6 +9,10 @@ const nextConfig = {
       {
         source: '/.well-known/lnurlp/:username',
         destination: '/api/lud16/:username'
+      },
+      {
+        source: '/.well-known/verify',
+        destination: '/api/setup/verify'
       }
     ]
   }

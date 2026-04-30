@@ -14,7 +14,8 @@
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "format": "prettier --write .",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "studio": "pnpm --filter @lawallet-nwc/web exec prisma studio"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
