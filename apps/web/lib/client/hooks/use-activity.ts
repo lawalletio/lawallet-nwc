@@ -61,6 +61,12 @@ function toView(log: ActivityLog): ActivityLogView {
 
 const PAGE_SIZE = 20
 
+/**
+ * Cursor-paginated activity feed for the admin dashboard. The first page
+ * loads on mount (and refetches when filters change) and `loadMore` appends
+ * the next cursor. Subscribes to the `activity:new` SSE event and refetches
+ * the first page when one arrives so the table picks up new rows live.
+ */
 export function useActivity(filters: ActivityFilters = {}): UseActivityResult {
   const { apiClient, status } = useAuth()
   const [data, setData] = useState<ActivityLogView[]>([])

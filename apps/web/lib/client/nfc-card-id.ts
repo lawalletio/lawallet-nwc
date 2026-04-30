@@ -16,6 +16,7 @@ export function stripCardId(input: string): string {
   return input.replace(/[\s:]+/g, '').toUpperCase()
 }
 
+/** True when `input` decodes to a 4- or 7-byte NFC UID (any casing/colon style). */
 export function isValidCardId(input: string): boolean {
   const hex = stripCardId(input)
   if (!/^[0-9A-F]+$/.test(hex)) return false

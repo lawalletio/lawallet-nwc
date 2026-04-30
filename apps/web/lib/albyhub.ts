@@ -1,25 +1,46 @@
+/** Shape returned by `POST /apps` on Alby Hub for a new isolated sub-account. */
 export interface AlbyCreateSubAccountResponse {
+  /** NWC pairing URI to hand to the new user's wallet. */
   pairingUri: string
   pairingSecretKey: string
   pairingPublicKey: string
   relayUrl: string
   walletPubkey: string
+  /** Lightning address minted by Alby for the sub-account. */
   lud16: string
+  /** Alby-side numeric app id — keep this to wire follow-up calls. */
   id: number
   name: string
   returnTo: string
 }
 
+/**
+ * Thin client for the self-hosted Alby Hub HTTP API. Used by the signup flow
+ * to provision a per-user wallet and lightning address when the operator has
+ * enabled the integration.
+ */
 export class AlbyHub {
   private readonly url: string
   private readonly bearerToken: string
 
+  /**
+   * @param url - Alby Hub base URL (e.g. `https://hub.example.com`).
+   * @param bearerToken - Hub API token with permission to mint sub-accounts.
+   */
   constructor(url: string, bearerToken: string) {
     console.info('Initializing AlbyHub with URL:', url)
     this.url = url
     this.bearerToken = bearerToken
   }
 
+  /**
+   * Creates an isolated sub-account on the hub with the standard NWC scopes.
+   *
+   * @param name - Display name for the sub-account (typically `LaWallet-<userId>`).
+   * @param subAccount - When `true` (default), tags the app with the
+   *   `uncle-jim` metadata so it shows in Alby Hub's "Friends and Family" UI.
+   * @throws {Error} `'Failed to create sub account'` on a non-2xx response.
+   */
   async createSubAccount(name: string, subAccount: boolean = true) {
     console.info('Creating sub account with name:', name)
     console.info('Sub account flag:', subAccount)
@@ -68,6 +89,11 @@ export class AlbyHub {
     return data
   }
 
+  /**
+   * Mints a Lightning Address on the hub bound to an existing app.
+   *
+   * @throws {Error} `'Failed to create a lightning address'` on a non-2xx response.
+   */
   async createLightningAddress(username: string, appId: string) {
     console.info('Creating lightning address:', username)
     console.info('For app ID:', appId)

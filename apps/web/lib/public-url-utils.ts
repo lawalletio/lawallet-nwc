@@ -12,6 +12,10 @@ function isLocalHost(host: string): boolean {
   )
 }
 
+/**
+ * Joins a domain and optional subdomain into a single host string,
+ * lowercasing and trimming both. Returns `''` when `domain` is missing.
+ */
 export function buildPublicHost(domain?: string, subdomain?: string): string {
   const cleanDomain = normalizePart(domain)
   const cleanSubdomain = normalizePart(subdomain)
@@ -23,6 +27,10 @@ export function buildPublicHost(domain?: string, subdomain?: string): string {
   return cleanSubdomain ? `${cleanSubdomain}.${cleanDomain}` : cleanDomain
 }
 
+/**
+ * Wraps `host` in a scheme — `http://` for any localhost variant,
+ * `https://` otherwise. Returns `''` when `host` is missing.
+ */
 export function buildPublicUrl(host?: string): string {
   const cleanHost = normalizePart(host)
 

@@ -4,7 +4,12 @@ import { Role } from './permissions'
 
 /**
  * Resolves the role for an authenticated pubkey.
- * Checks the User record first, falls back to Settings root check for backwards compatibility.
+ * Checks the User record first; falls back to the legacy Settings `root`
+ * value so a freshly-bootstrapped instance still recognises its admin
+ * before any User row exists.
+ *
+ * @param pubkey - Hex-encoded Nostr pubkey of the authenticated actor.
+ * @returns The resolved role, defaulting to {@link Role.USER} when nothing matches.
  */
 export async function resolveRole(pubkey: string): Promise<Role> {
   const user = await prisma.user.findUnique({

@@ -1,5 +1,13 @@
 import { prisma } from '@/lib/prisma'
 
+/**
+ * Loads settings rows from the DB and returns them as a flat `name → value` object.
+ * Always pass `keys` when only a subset is needed — an unfiltered call scans the
+ * whole `Settings` table.
+ *
+ * @param keys - Optional whitelist of setting names to fetch.
+ * @returns Object keyed by setting name; missing keys are simply absent.
+ */
 export async function getSettings(keys?: string[]) {
   try {
     const settings = await prisma.settings.findMany({

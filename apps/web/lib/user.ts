@@ -4,6 +4,18 @@ import { prisma } from './prisma'
 import { getSettings } from './settings'
 import { ActivityEvent, logActivity } from './activity-log'
 
+/**
+ * Creates a brand-new `User` record for an authenticated pubkey, optionally
+ * provisioning an Alby Hub sub-account when `alby_auto_generate` is enabled
+ * and Alby credentials are configured.
+ *
+ * The returned shape mirrors what `findUnique` callers (notably
+ * `resolvePaymentRoute`) expect — the primary `LightningAddress` with its
+ * linked `nwcConnection`, plus the primary `NWCConnection` — so the union of
+ * "fresh signup" and "existing user" stays a single shape downstream.
+ *
+ * Also fires (best-effort, non-blocking) a `USER_SIGNUP` activity log entry.
+ */
 export async function createNewUser(pubkey: string) {
   const { alby_api_url, alby_bearer_token, alby_auto_generate } =
     await getSettings([

@@ -6,11 +6,16 @@ import { AuthenticationError, AuthorizationError } from '@/types/server/errors'
 import { Role, Permission, hasRole, hasPermission, isValidRole } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
 
+/** Authentication scheme used to identify the caller. */
 export type AuthMethod = 'nip98' | 'jwt'
 
+/** Resolved identity returned by the auth helpers. */
 export interface AuthResult {
+  /** Hex-encoded Nostr pubkey of the authenticated actor. */
   pubkey: string
+  /** Role resolved for the actor (USER when nothing matched). */
   role: Role
+  /** Scheme used for the request — useful for audit logging. */
   method: AuthMethod
 }
 
@@ -85,7 +90,10 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
 }
 
 /**
- * Authenticates and checks that the user has at least the required role.
+ * Authenticates and verifies the actor satisfies the role hierarchy.
+ *
+ * @throws {AuthenticationError} When the request lacks valid credentials.
+ * @throws {AuthorizationError} When the resolved role is below `requiredRole`.
  */
 export async function authenticateWithRole(
   request: Request,
@@ -101,7 +109,10 @@ export async function authenticateWithRole(
 }
 
 /**
- * Authenticates and checks that the user has a specific permission.
+ * Authenticates and verifies the actor holds the given permission.
+ *
+ * @throws {AuthenticationError} When the request lacks valid credentials.
+ * @throws {AuthorizationError} When the resolved role does not grant `permission`.
  */
 export async function authenticateWithPermission(
   request: Request,
@@ -117,7 +128,13 @@ export async function authenticateWithPermission(
 }
 
 /**
- * HOF: wraps a route handler with unified auth (Nostr or JWT).
+ * Wraps a route handler with unified auth (Nostr or JWT) and forwards the
+ * resolved {@link AuthResult} as the second argument.
+ *
+ * @param handler - The handler to invoke after a successful auth.
+ * @param options - Optional gate. `requireNip98` forces Nostr-only auth (used
+ *   by endpoints that mint JWTs); otherwise checks `requiredPermission` first,
+ *   then `requiredRole`, then plain authentication.
  */
 export function withAuth<T extends any[]>(
   handler: (request: Request, auth: AuthResult, ...args: T) => Promise<NextResponse>,

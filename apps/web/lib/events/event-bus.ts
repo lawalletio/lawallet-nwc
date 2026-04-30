@@ -4,6 +4,7 @@ import type { SSEEvent, SSEEventType } from '@/lib/events/event-types'
 // Re-export shared types so existing imports continue to work
 export type { SSEEvent, SSEEventType }
 
+/** A connected SSE subscriber. The bus filters events by `permissions`. */
 export interface SSEClient {
   id: string
   controller: ReadableStreamDefaultController
@@ -25,21 +26,34 @@ const EVENT_PERMISSION_MAP: Record<SSEEventType, Permission | null> = {
 
 // ─── Event Bus ────────────────────────────────────────────────────────────
 
+/**
+ * In-process pub/sub for the SSE endpoint. Singleton — see `eventBus` below.
+ * Permission-aware: events only reach clients whose permissions include the
+ * required scope from `EVENT_PERMISSION_MAP`.
+ */
 class EventBus {
   private clients: Map<string, SSEClient> = new Map()
 
+  /** Registers a new SSE subscriber. Idempotent on `client.id`. */
   addClient(client: SSEClient): void {
     this.clients.set(client.id, client)
   }
 
+  /** Drops a subscriber. Safe to call on an unknown id. */
   removeClient(id: string): void {
     this.clients.delete(id)
   }
 
+  /** Number of connected subscribers — used by the diagnostics endpoint. */
   getClientCount(): number {
     return this.clients.size
   }
 
+  /**
+   * Broadcasts an event to every subscriber whose permissions allow it.
+   * Subscribers that throw on `enqueue` (typically because they disconnected)
+   * are silently removed.
+   */
   emit(event: SSEEvent): void {
     const requiredPermission = EVENT_PERMISSION_MAP[event.type]
     const sseData = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
@@ -74,6 +88,7 @@ const globalForEventBus = globalThis as unknown as {
   eventBus: EventBus | undefined
 }
 
+/** Process-wide SSE broadcast bus. Survives Next.js HMR via `globalThis`. */
 export const eventBus = globalForEventBus.eventBus ?? new EventBus()
 
 if (process.env.NODE_ENV !== 'production') {
