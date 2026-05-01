@@ -75,10 +75,8 @@ pnpm install
 
 # 4. Configure environment variables
 cp apps/web/.env.example apps/web/.env
-# The example ships with a SQLite default — for the Docker Postgres below,
-# edit apps/web/.env and set:
-#   DATABASE_URL="postgresql://lawallet:lawallet_password@localhost:5432/lawallet"
-# Also set a JWT_SECRET (32+ chars):
+# The default DATABASE_URL matches the bundled docker-compose Postgres.
+# Generate and set a JWT_SECRET (32+ chars) in apps/web/.env:
 #   JWT_SECRET="$(openssl rand -base64 48)"
 
 # 5. Start a local Postgres (skip if you already have one)
@@ -93,11 +91,6 @@ cd ../..
 # 7. Boot the dev server (runs at http://localhost:3000)
 pnpm dev:web
 ```
-
-> **Heads up:** `apps/web/.env.example` ships with `DATABASE_URL="file:./dev.db"`
-> (SQLite) as the default. The bundled [`docker-compose.yml`](./docker-compose.yml)
-> uses Postgres, so you must update `DATABASE_URL` in your `.env` to the
-> Postgres connection string above before running migrations.
 
 The admin dashboard is at [http://localhost:3000/admin](http://localhost:3000/admin).
 The first time you visit, sign in with a Nostr key and the **setup wizard**
