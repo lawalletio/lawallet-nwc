@@ -48,6 +48,10 @@ function getReqIdFromContext(): string | undefined {
   return requestContext.getStore()?.reqId
 }
 
+/**
+ * Returns the request id active for the current AsyncLocalStorage frame, or
+ * `undefined` outside a {@link withRequestLogging}-wrapped handler.
+ */
 export function getCurrentReqId(): string | undefined {
   return getReqIdFromContext()
 }
@@ -96,6 +100,11 @@ function trySetResponseHeader(res: unknown, name: string, value: string) {
   }
 }
 
+/**
+ * Returns the first acceptable request-id from common upstream headers
+ * (`x-request-id`, `x-correlation-id`, `x-amzn-trace-id`), bounded to 200
+ * chars to keep log lines tidy. Generates a fresh UUID when none qualify.
+ */
 export function getOrCreateRequestId(headers?: Headers): string {
   const fromHeader =
     headers?.get('x-request-id')?.trim() ||
@@ -106,6 +115,10 @@ export function getOrCreateRequestId(headers?: Headers): string {
   return randomUUID()
 }
 
+/**
+ * Runs `fn` inside an AsyncLocalStorage frame so any `logger` call within
+ * (or any awaited descendant) automatically tags log lines with `ctx.reqId`.
+ */
 export function runWithRequestContext<T>(ctx: RequestContext, fn: () => T): T {
   return requestContext.run(ctx, fn)
 }
@@ -136,10 +149,18 @@ export const logger: Logger = pino({
     : undefined
 })
 
+/**
+ * Returns a child logger pre-tagged with `context` (e.g. `{ module: 'jwt' }`).
+ * Without `context`, returns the root `logger` unchanged.
+ */
 export function createLogger(context?: Record<string, unknown>) {
   return context ? logger.child(context) : logger
 }
 
+/**
+ * Convenience for logging an error with optional structured context. Uses Pino's
+ * standard `err` serializer so stack traces render cleanly in JSON output.
+ */
 export function logError(err: unknown, context?: Record<string, unknown>) {
   logger.error({ err, ...context }, 'error')
 }

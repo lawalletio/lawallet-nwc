@@ -1,3 +1,7 @@
+/**
+ * Authentication roles in ascending privilege.
+ * USER < VIEWER < OPERATOR < ADMIN.
+ */
 export enum Role {
   ADMIN = 'ADMIN',
   OPERATOR = 'OPERATOR',
@@ -7,6 +11,10 @@ export enum Role {
 
 const ROLE_HIERARCHY: Role[] = [Role.USER, Role.VIEWER, Role.OPERATOR, Role.ADMIN]
 
+/**
+ * Granular permissions checked by RBAC guards. Each role maps to a fixed
+ * subset via `ROLE_PERMISSIONS`; ADMIN gets every permission by definition.
+ */
 export enum Permission {
   SETTINGS_READ = 'settings:read',
   SETTINGS_WRITE = 'settings:write',
@@ -50,18 +58,32 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.USER]: [],
 }
 
+/**
+ * @returns `true` if `role` is granted `permission` via the static role→permission map.
+ */
 export function hasPermission(role: Role, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role].includes(permission)
 }
 
+/**
+ * Hierarchy check — `true` when `role` is at least as privileged as `requiredRole`.
+ * @param role - The actor's resolved role.
+ * @param requiredRole - The minimum role demanded by the caller.
+ */
 export function hasRole(role: Role, requiredRole: Role): boolean {
   return ROLE_HIERARCHY.indexOf(role) >= ROLE_HIERARCHY.indexOf(requiredRole)
 }
 
+/**
+ * @returns A defensive copy of the permissions assigned to `role`.
+ */
 export function getRolePermissions(role: Role): Permission[] {
   return [...ROLE_PERMISSIONS[role]]
 }
 
+/**
+ * Type guard narrowing an arbitrary string to a known {@link Role}.
+ */
 export function isValidRole(value: string): value is Role {
   return Object.values(Role).includes(value as Role)
 }

@@ -2,6 +2,7 @@ import { NostrSigner } from '@nostrify/nostrify'
 import { nip98, NostrEvent } from 'nostr-tools'
 import { getToken } from 'nostr-tools/nip98'
 
+/** Outcome of validating a NIP-98 token — the verified pubkey and the raw event. */
 export interface Nip98ValidationResult {
   pubkey: string
   event: NostrEvent
@@ -46,6 +47,12 @@ export function generateAbsoluteUrl(url: string, baseUrl?: string): string {
   return base + url
 }
 
+/**
+ * Normalises a `RequestInit.body` into the plain object that NIP-98 hashes.
+ * Non-JSON strings are wrapped as `{ body: '<string>' }` so the hash is stable.
+ *
+ * @returns The payload to feed to `getToken`, or `undefined` for empty bodies.
+ */
 export function bodyToPayload(body: any): Record<string, any> | undefined {
   let payload: Record<string, any> | undefined
   if (body) {
@@ -111,10 +118,18 @@ export async function createNip98Token(
 }
 
 /**
- * Validates a NIP-98 authentication token
- * @param request - The Request object containing the authorization header
- * @param timeDelta - The time difference in seconds for event timestamp validation
- * @returns Promise<Nip98ValidationResult> - The validated event data
+ * Validates a NIP-98 authentication token from a `Request`.
+ *
+ * The signed event commits to the *public* URL the client typed, not the
+ * internal one Next.js sees behind a proxy/tunnel. We reconstruct that URL
+ * from `x-forwarded-host` / `x-forwarded-proto` (falling back to `host` and
+ * the request scheme) so signatures verify in development tunnels and
+ * production proxies alike.
+ *
+ * @param request - The incoming HTTP request
+ * @param timeDelta - Allowed clock skew in seconds for the event's `created_at`
+ * @returns The verified pubkey and full event
+ * @throws {Error} On missing/malformed header, signature mismatch, or stale timestamp.
  */
 export async function validateNip98(
   request: Request,

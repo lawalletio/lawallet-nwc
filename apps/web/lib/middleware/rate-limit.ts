@@ -57,8 +57,10 @@ if (typeof setInterval !== 'undefined') {
 }
 
 /**
- * Extract client IP from request
- * Handles common proxy headers
+ * Extracts the client IP from common proxy headers.
+ * Checks `x-forwarded-for` (first hop), then `x-real-ip`, then `cf-connecting-ip`.
+ *
+ * @returns The resolved IP, or `'unknown'` when no proxy header is present.
  */
 export function getClientIp(request: Request): string {
   // Check common proxy headers
@@ -176,8 +178,11 @@ export function applyRateLimitHeaders(
 }
 
 /**
- * Rate limiting middleware for API routes
- * Throws TooManyRequestsError if limit exceeded
+ * Rate-limiting middleware for API routes. Logs at `warn` and throws when the
+ * caller exceeds their bucket; otherwise returns the bucket metadata so the
+ * handler can attach `X-RateLimit-*` headers via {@link applyRateLimitHeaders}.
+ *
+ * @throws {TooManyRequestsError} When the bucket for this identifier is exhausted.
  *
  * @example
  * ```ts

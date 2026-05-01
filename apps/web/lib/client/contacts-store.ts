@@ -4,12 +4,14 @@ import { useSyncExternalStore } from 'react'
 
 const STORAGE_KEY = 'lawallet-contacts'
 
+/** Saved-recipient entry persisted in localStorage by the wallet send flow. */
 export interface Contact {
   id: string
   name: string
   lightningAddress: string
   npub?: string | null
   avatarUrl?: string | null
+  /** Epoch ms; used purely for ordering in the UI. */
   createdAt: number
 }
 
@@ -67,6 +69,10 @@ function genId() {
   return rand
 }
 
+/**
+ * Subscribes to the contacts list. Returns the most-recently-added entries
+ * first. Empty during SSR — the data is localStorage-only on purpose.
+ */
 export function useContacts(): Contact[] {
   return useSyncExternalStore(
     subscribe,
@@ -75,6 +81,7 @@ export function useContacts(): Contact[] {
   )
 }
 
+/** Mutation surface for the contacts store — all writes notify subscribers. */
 export const contactsActions = {
   add(input: Omit<Contact, 'id' | 'createdAt'>): Contact {
     const contact: Contact = {

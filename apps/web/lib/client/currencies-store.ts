@@ -127,6 +127,11 @@ export function useActiveCurrencies(): Currency[] {
   return out
 }
 
+/**
+ * Mutation surface for the currencies store. All writes go through these to
+ * keep the locked-codes invariant ({@link CURRENCY_CATALOG} entries with
+ * `locked: true` always remain at the front of the list).
+ */
 export const currenciesActions = {
   add(code: string) {
     if (!CURRENCY_CATALOG.some(c => c.code === code)) return

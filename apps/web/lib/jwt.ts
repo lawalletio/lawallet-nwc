@@ -1,24 +1,31 @@
 import jwt from 'jsonwebtoken'
 
+/** Decoded JWT payload used by this app. Open via index signature for custom claims. */
 export interface JwtPayload {
-  userId: string // subject (user ID)
-  pubkey: string // public key
-  iat: number // issued at
-  exp: number // expiration time
-  [key: string]: any // allow additional claims
+  /** Subject — typically the user's DB id. */
+  userId: string
+  /** Hex-encoded Nostr pubkey of the actor. */
+  pubkey: string
+  /** Issued-at, epoch seconds. */
+  iat: number
+  /** Expiration, epoch seconds. */
+  exp: number
+  /** Additional claims (role, etc.). */
+  [key: string]: any
 }
 
+/** Result returned by the verify/decode helpers — payload plus the JOSE header. */
 export interface JwtValidationResult {
   payload: JwtPayload
   header: any
 }
 
 /**
- * Creates a JWT token with the given payload
- * @param payload - The payload to encode in the JWT
- * @param secret - The secret key to sign the JWT
- * @param options - Additional JWT options
- * @returns string - The encoded JWT token
+ * Signs a JWT. `iat`, `exp`, and `pubkey` are intentionally excluded from
+ * `payload` — `iat`/`exp` come from `expiresIn`, and `pubkey` is added by the
+ * caller as part of the broader claims it spreads in.
+ *
+ * @returns The encoded JWT (`xxx.yyy.zzz`).
  */
 export function createJwtToken(
   payload: Omit<JwtPayload, 'iat' | 'exp' | 'pubkey'>,
@@ -44,11 +51,14 @@ export function createJwtToken(
 }
 
 /**
- * Verifies and decodes a JWT token
+ * Verifies and decodes a JWT token.
+ *
  * @param token - The JWT token to verify
  * @param secret - The secret key to verify the JWT
  * @param options - Additional verification options
- * @returns JwtValidationResult - The decoded payload and header
+ * @returns The decoded payload and header
+ * @throws {Error} `'Token has expired'`, `'Invalid token'`, `'Token not active yet'`,
+ *   or a wrapped verification error.
  */
 export function verifyJwtToken(
   token: string,
@@ -99,9 +109,11 @@ export function verifyJwtToken(
 }
 
 /**
- * Decodes a JWT token without verification (use with caution)
- * @param token - The JWT token to decode
- * @returns JwtValidationResult - The decoded payload and header
+ * Decodes a JWT *without* verifying its signature — only safe for inspecting
+ * a token (e.g. reading `exp` to schedule a refresh) when you don't yet trust it.
+ * Never use the returned claims for authorization.
+ *
+ * @throws {Error} `'Invalid token format'` or a wrapped decoding error.
  */
 export function decodeJwtToken(token: string): JwtValidationResult {
   try {
@@ -123,9 +135,9 @@ export function decodeJwtToken(token: string): JwtValidationResult {
 }
 
 /**
- * Extracts JWT token from Authorization header
- * @param authHeader - The Authorization header value
- * @returns string - The extracted JWT token
+ * Extracts the bearer token from an `Authorization: Bearer <token>` header.
+ *
+ * @throws {Error} When the header is missing, lacks the `Bearer ` prefix, or is empty.
  */
 export function extractJwtFromHeader(authHeader: string | null): string {
   if (!authHeader) {
@@ -146,11 +158,9 @@ export function extractJwtFromHeader(authHeader: string | null): string {
 }
 
 /**
- * Validates a JWT token from a Request object
- * @param request - The Request object containing the authorization header
- * @param secret - The secret key to verify the JWT
- * @param options - Additional verification options
- * @returns Promise<JwtValidationResult> - The validated JWT data
+ * Convenience wrapper: pulls the bearer token from a `Request` and verifies it.
+ *
+ * @throws {Error} See {@link extractJwtFromHeader} and {@link verifyJwtToken}.
  */
 export async function validateJwtFromRequest(
   request: Request,
@@ -169,10 +179,9 @@ export async function validateJwtFromRequest(
 }
 
 /**
- * Checks if a JWT token is expired
- * @param payload - The JWT payload
- * @param clockTolerance - Clock tolerance in seconds (default: 0)
- * @returns boolean - True if token is expired
+ * Checks whether a decoded payload is past its `exp`.
+ *
+ * @param clockTolerance - Optional skew, in seconds, applied in the caller's favour.
  */
 export function isTokenExpired(
   payload: JwtPayload,
@@ -183,9 +192,7 @@ export function isTokenExpired(
 }
 
 /**
- * Gets the time until a JWT token expires
- * @param payload - The JWT payload
- * @returns number - Seconds until expiration (negative if expired)
+ * @returns Seconds until the payload's `exp` (negative when already expired).
  */
 export function getTimeUntilExpiration(payload: JwtPayload): number {
   const now = Math.floor(Date.now() / 1000)

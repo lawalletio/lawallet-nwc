@@ -7,6 +7,13 @@ const debug = (message: string) => {
   console.info(message)
 }
 
+/**
+ * Builds the Boltcard "write" payload used to provision a blank NTAG424 with
+ * this card's keys and the LNURLW base pointing at our scan endpoint.
+ *
+ * @param card - Card record with its `ntag424` keys eagerly loaded.
+ * @param domain - The platform's public host (used in the `lnurlw://` URL).
+ */
 export function cardToNtag424WriteData(
   card: Card,
   domain: string
@@ -25,6 +32,10 @@ export function cardToNtag424WriteData(
   }
 }
 
+/**
+ * Builds the Boltcard "wipe" payload that resets an NTAG424 back to factory
+ * defaults using the card's recorded keys.
+ */
 export function cardToNtag424WipeData(card: Card): Ntag424WipeData {
   return {
     action: 'wipe',
@@ -38,7 +49,11 @@ export function cardToNtag424WipeData(card: Card): Ntag424WipeData {
   }
 }
 
-// Function to generate random ntag424 values
+/**
+ * Generates a fresh set of NTAG424 keys (k0–k4, 16 bytes each) and a zeroed
+ * tap counter for a given card UID. Keys are 128-bit AES keys returned as
+ * lowercase hex.
+ */
 export function generateNtag424Values(cid: string) {
   return {
     cid,
@@ -53,6 +68,10 @@ export function generateNtag424Values(cid: string) {
 
 /// *********** Ntag424 tap verification ***********
 
+/**
+ * Reasons a tap can be rejected during {@link consumeNtag424FromPC}. Surfaced
+ * to the caller via the `error` branch of the result; never thrown.
+ */
 export enum Ntag424Error {
   MALFORMED_P__NOT_A_32_CHAR_UPPERCASE_HEX_VALUE = 'Malformed p: not a 32-char uppercase hex value',
   MALFORMED_P__DOES_NOT_START_WITH_0XC7 = 'Malformed p: does not start with 0xC7',

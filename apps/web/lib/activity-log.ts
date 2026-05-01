@@ -5,6 +5,12 @@ import { eventBus } from '@/lib/events/event-bus'
 
 export type { ActivityCategory, ActivityLevel, ActivityLog }
 
+/**
+ * Stable string codes for every event the app records. Stored verbatim in
+ * `ActivityLog.event` and used as filter keys in the admin UI — renaming a
+ * value silently breaks historical queries, so prefer adding new codes over
+ * renaming existing ones.
+ */
 export const ActivityEvent = {
   // USER
   USER_JWT_ISSUED: 'user.jwt_issued',
@@ -93,6 +99,7 @@ function toIso(value: Date | string | null | undefined): string | null {
   return String(value)
 }
 
+/** Input shape for {@link logActivity} — `level` defaults to `'INFO'`. */
 export interface LogActivityInput {
   category: ActivityCategory
   event: ActivityEventCode | string
@@ -155,13 +162,19 @@ async function logActivityImpl(input: LogActivityInput): Promise<ActivityLog> {
   return row
 }
 
+/**
+ * Persists an `ActivityLog` row, mirrors the line into Pino, and broadcasts an
+ * `activity:new` SSE event. Awaitable when the caller needs the row id.
+ */
 export async function logActivity(input: LogActivityInput): Promise<ActivityLog> {
   return logActivityImpl(input)
 }
 
-// Fire-and-forget variant. Callers use this from hot paths where logging must
-// never throw or await — e.g. route handlers where a broken DB connection for
-// the ActivityLog table should not kill the user-facing request.
+/**
+ * Fire-and-forget variant. Use from hot paths where logging must never throw
+ * or block — a broken DB connection for the `ActivityLog` table should not
+ * kill the user-facing request. Errors are caught and logged via Pino.
+ */
 logActivity.fireAndForget = (input: LogActivityInput): void => {
   logActivityImpl(input).catch(err => {
     logger.error({ err, activity_input: input }, 'activity_log.write_failed')
