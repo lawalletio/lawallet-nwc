@@ -11,7 +11,10 @@
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
     "@codesandbox/sandpack-themes": "^2.0.21",
+    "@lawallet-nwc/openapi": "workspace:*",
+    "@scalar/api-reference-react": "^0.9.32",
     "fumadocs-core": "16.6.0",
+    "openapi3-ts": "^4.5.0",
     "fumadocs-mdx": "14.2.7",
     "fumadocs-ui": "16.6.0",
     "lucide-react": "^0.563.0",
