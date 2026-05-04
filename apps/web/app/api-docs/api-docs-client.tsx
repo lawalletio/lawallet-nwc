@@ -6,6 +6,7 @@ import '@scalar/api-reference-react/style.css'
 import { Nip98Modal } from './nip98-modal'
 import { ServerSelector, loadStoredServer } from './server-selector'
 import { Nip07Connect, type Nip07Connection } from './nip07-connect'
+import { LawalletLogo } from './lawallet-logo'
 import { createNip98Token } from '@/lib/nip98'
 
 type RequiredRole = 'PUBLIC' | 'USER' | 'VIEWER' | 'OPERATOR' | 'ADMIN'
@@ -273,6 +274,7 @@ export function ApiDocsClient() {
     const ROLE_MARKER = 'data-role-badge'
     const SIDEBAR_MARKER = 'data-role-badge-sidebar'
     const TRIGGER_MARKER = 'data-nip98-trigger'
+    const isConnected = !!connection
 
     // Sidebar buttons don't carry an op id we can target, so build a lookup
     // by `${METHOD} ${summary}` — collisions are unlikely since each op has
@@ -381,37 +383,61 @@ export function ApiDocsClient() {
     }
 
     function injectNip98Trigger(panel: HTMLElement, op: OperationMeta) {
-      if (panel.querySelector(`[${TRIGGER_MARKER}]`)) return
       const authBadge = panel.querySelector('button.security-requirement-badge')
       if (!authBadge || !authBadge.parentElement) return
 
-      const trigger = document.createElement('button')
-      trigger.setAttribute(TRIGGER_MARKER, '')
-      trigger.type = 'button'
-      // Match Scalar's badge typography so the chip blends in.
-      trigger.className =
-        'security-requirement-badge inline-flex w-fit items-center justify-center gap-1 text-sm font-medium'
-      trigger.style.cssText = [
-        'padding: 2px 10px',
-        'border-radius: 4px',
-        'border: 1px solid var(--scalar-color-accent)',
-        'background: color-mix(in srgb, var(--scalar-color-accent) 14%, transparent)',
-        'color: var(--scalar-color-accent)',
-        'cursor: pointer',
-      ].join(';')
-      trigger.title = 'Sign this request with a NIP-07 browser extension'
-      trigger.textContent = 'Sign with NIP-07'
-      trigger.addEventListener('click', e => {
-        e.preventDefault()
-        e.stopPropagation()
-        setOpened({
-          method: op.method,
-          path: op.path,
-          defaultBody: op.defaultBody,
+      let trigger = panel.querySelector<HTMLButtonElement>(`[${TRIGGER_MARKER}]`)
+      const created = !trigger
+      if (!trigger) {
+        trigger = document.createElement('button')
+        trigger.setAttribute(TRIGGER_MARKER, '')
+        trigger.type = 'button'
+        // Match Scalar's badge typography so the chip blends in.
+        trigger.className =
+          'security-requirement-badge inline-flex w-fit items-center justify-center gap-1 text-sm font-medium'
+        trigger.addEventListener('click', e => {
+          e.preventDefault()
+          e.stopPropagation()
+          if (trigger!.dataset.state === 'connected') return
+          setOpened({
+            method: op.method,
+            path: op.path,
+            defaultBody: op.defaultBody,
+          })
         })
-      })
+      }
 
-      authBadge.parentElement.insertBefore(trigger, authBadge.nextSibling)
+      const nextState = isConnected ? 'connected' : 'disconnected'
+      if (trigger.dataset.state !== nextState) {
+        trigger.dataset.state = nextState
+        if (isConnected) {
+          trigger.style.cssText = [
+            'padding: 2px 10px',
+            'border-radius: 4px',
+            'border: 1px solid color-mix(in srgb, var(--scalar-color-green, #2ea043) 60%, transparent)',
+            'background: color-mix(in srgb, var(--scalar-color-green, #2ea043) 14%, transparent)',
+            'color: var(--scalar-color-green, #2ea043)',
+            'cursor: default',
+          ].join(';')
+          trigger.title = 'NIP-07 extension already connected — requests are auto-signed'
+          trigger.textContent = 'Already connected'
+        } else {
+          trigger.style.cssText = [
+            'padding: 2px 10px',
+            'border-radius: 4px',
+            'border: 1px solid var(--scalar-color-accent)',
+            'background: color-mix(in srgb, var(--scalar-color-accent) 14%, transparent)',
+            'color: var(--scalar-color-accent)',
+            'cursor: pointer',
+          ].join(';')
+          trigger.title = 'Sign this request with a NIP-07 browser extension'
+          trigger.textContent = 'Sign with NIP-07'
+        }
+      }
+
+      if (created) {
+        authBadge.parentElement.insertBefore(trigger, authBadge.nextSibling)
+      }
     }
 
     // Debounce the injector with a microtask-level timer: each badge insert
@@ -436,7 +462,7 @@ export function ApiDocsClient() {
       window.removeEventListener('hashchange', schedule)
       if (timerId !== null) clearTimeout(timerId)
     }
-  }, [ops])
+  }, [ops, connection])
 
   return (
     <div className="min-h-dvh">
@@ -448,17 +474,22 @@ export function ApiDocsClient() {
             zIndex: 50,
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: 16,
             flexWrap: 'wrap',
+            padding: '8px 16px',
             background: 'var(--scalar-background-1)',
             borderBottom: '1px solid var(--scalar-border-color)',
           }}
         >
-          <ServerSelector
-            localUrl={localUrl}
-            value={serverUrl}
-            onChange={setServerUrl}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <LawalletLogo height={24} />
+            <ServerSelector
+              localUrl={localUrl}
+              value={serverUrl}
+              onChange={setServerUrl}
+            />
+          </div>
           <Nip07Connect
             serverUrl={serverUrl}
             connection={connection}

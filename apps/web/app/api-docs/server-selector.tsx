@@ -163,15 +163,9 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
     <div
       ref={rootRef}
       style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-        display: 'flex',
+        display: 'inline-flex',
         alignItems: 'center',
         gap: 8,
-        padding: '8px 16px',
-        borderBottom: '1px solid var(--scalar-border-color)',
-        background: 'var(--scalar-background-1)',
         color: 'var(--scalar-color-1)',
         fontFamily: 'var(--scalar-font, inherit)',
         fontSize: 13,
