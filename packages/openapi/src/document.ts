@@ -62,7 +62,6 @@ export function getOpenApiDocument(options: OpenApiDocumentOptions = {}): OpenAP
         description: 'Platform-wide settings persisted in the Settings store.',
       },
       { name: 'Admin', description: 'Admin role assignment and bootstrap.' },
-      { name: 'Root', description: 'Root admin claim.' },
       { name: 'Setup', description: 'Initial setup status checks.' },
       { name: 'Remote Connections', description: 'External device pairing for cards.' },
       { name: 'Activity', description: 'Activity log access.' },

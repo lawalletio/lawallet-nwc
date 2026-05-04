@@ -41,7 +41,6 @@ describe('getOpenApiDocument', () => {
       '/api/invoices',
       '/api/settings',
       '/api/admin/assign',
-      '/api/root/assign',
       '/api/setup/status',
       '/api/remote-connections/{externalDeviceKey}',
       '/api/activity',
