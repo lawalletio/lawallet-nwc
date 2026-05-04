@@ -12,6 +12,7 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Read admin-assignment status.',
   description:
+    'One-time bootstrap check — once an admin is assigned this endpoint is no longer relevant. ' +
     'Authenticated via NIP-98 directly so the bootstrap wizard works without a JWT.',
   operationId: 'admin.assign.get',
   security: [{ [NIP98]: [] }],
@@ -31,6 +32,7 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Assign the admin role.',
   description:
+    'One-time bootstrap operation — succeeds only when no admin exists. Subsequent calls are rejected. ' +
     'Authenticated via NIP-98 directly so the bootstrap wizard works without a JWT.',
   operationId: 'admin.assign.set',
   security: [{ [NIP98]: [] }],
