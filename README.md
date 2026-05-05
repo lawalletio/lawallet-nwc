@@ -14,7 +14,7 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 **Stack:** Next.js 16 + TypeScript + Prisma + PostgreSQL
 
 [![CI](https://github.com/lawalletio/lawallet-nwc/actions/workflows/ci.yml/badge.svg)](https://github.com/lawalletio/lawallet-nwc/actions/workflows/ci.yml)
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&root-directory=apps%2Fweb&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD&env=JWT_SECRET&envDescription=JWT_SECRET%20must%20be%20a%2032%2B%20character%20random%20string.%20Generate%20one%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc%2Fblob%2Fmain%2Fapps%2Fweb%2F.env.example)
 
 ---
 
