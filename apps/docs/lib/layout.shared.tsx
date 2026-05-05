@@ -1,5 +1,7 @@
-import Image from 'next/image';
-import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
+import Image from 'next/image'
+import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared'
+
+const apiDocsUrl = process.env.NEXT_PUBLIC_API_DOCS_URL ?? '/api-docs'
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -17,6 +19,13 @@ export function baseOptions(): BaseLayoutProps {
         </div>
       ),
     },
+    links: [
+      {
+        text: 'API Playground',
+        url: apiDocsUrl,
+        external: apiDocsUrl.startsWith('http'),
+      },
+    ],
     githubUrl: 'https://github.com/lawalletio/lawallet-nwc',
-  };
+  }
 }

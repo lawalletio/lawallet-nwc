@@ -56,7 +56,7 @@ El JWT lleva el rol embebido al momento de emitirlo. **Cambiar el rol de un usua
 
 ## Cómo se le asigna un rol a alguien
 
-- **Bootstrap (primer admin)**: el primer pubkey en llamar `POST /api/admin/assign` con NIP-98 firma el setting `root`, y queda como `ADMIN`. Ver [API Reference → Admin](/docs/api-reference) y la guía de [JWT Authentication](/docs/guides/jwt-authentication).
+- **Bootstrap (primer admin)**: el primer pubkey en llamar `POST /api/admin/assign` con NIP-98 firma el setting `root`, y queda como `ADMIN`. Ver el [API Playground](/api-docs) y la guía de [JWT Authentication](/docs/guides/jwt-authentication).
 - **Promover/degradar usuarios**: requiere permiso `users:manage_roles` (solo `ADMIN`). Endpoint: `PUT /api/users/{userId}/role`.
 - **Self-demotion bloqueado**: un admin no puede bajarse el rol a sí mismo, y el sistema impide quedar sin ningún `ADMIN`.
 
@@ -70,6 +70,6 @@ Las rutas protegidas usan helpers en `lib/auth/`:
 
 Las rutas que aceptan ambos métodos (NIP-98 o JWT) usan `lib/auth/unified-auth.ts`, que detecta el header `Authorization` y aplica el flujo correspondiente antes de resolver el rol.
 
-## En la API Reference
+## En el API Playground
 
-En la [API Reference interactiva](/api-reference), cada endpoint muestra una badge con el rol mínimo requerido (`PUBLIC`, `USER`, `VIEWER`, `OPERATOR`, `ADMIN`). Los colores ayudan a escanear visualmente qué endpoints están al alcance de cada rol antes de probarlos con tu firmante NIP-07.
+En el [API Playground interactivo](/api-docs), cada endpoint muestra una badge con el rol mínimo requerido (`PUBLIC`, `USER`, `VIEWER`, `OPERATOR`, `ADMIN`). Los colores ayudan a escanear visualmente qué endpoints están al alcance de cada rol antes de probarlos con tu firmante NIP-07.

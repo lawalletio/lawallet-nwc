@@ -5,7 +5,6 @@ import {
   SandpackLive,
   SandpackCodeOnly,
 } from '@/components/sandpack-wrapper';
-import { ApiReference } from '@/components/api-reference';
 
 export function getMDXComponents(components?: MDXComponents): MDXComponents {
   return {
@@ -13,7 +12,6 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     SandpackExample,
     SandpackLive,
     SandpackCodeOnly,
-    ApiReference,
     ...components,
   };
 }
