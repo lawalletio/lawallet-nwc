@@ -1,7 +1,6 @@
 {
   "name": "@lawallet-nwc/web",
   "version": "0.10.0",
-  "type": "module",
   "private": true,
   "scripts": {
     "build": "next build",
