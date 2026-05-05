@@ -14,11 +14,11 @@ const toolbox = [
     badgeColor: "#3178C6",
   },
   {
-    title: "REST API",
-    description: "Full endpoint reference for address, wallet & identity",
-    href: "/docs/api-reference",
+    title: "API Playground",
+    description: "Interactive REST reference with NIP-07 / NIP-98 signing",
+    href: "/api-docs",
     icon: "terminal",
-    badge: "Reference",
+    badge: "Playground",
     badgeColor: "#F5A623",
   },
   {
@@ -299,10 +299,10 @@ export default function HomePage() {
             Get Started
           </Link>
           <Link
-            href='/docs/guides/sdk'
+            href='/api-docs'
             className='inline-flex items-center justify-center rounded-lg border border-[#26A69A]/30 px-8 py-3 text-sm font-medium text-[#26A69A] transition-all hover:bg-[#26A69A]/10 hover:border-[#26A69A]/50'
           >
-            SDK Reference
+            API Playground
           </Link>
           <Link
             href='https://github.com/lawalletio/lawallet-nwc'

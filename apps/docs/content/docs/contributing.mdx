@@ -1,0 +1,52 @@
+---
+title: Contributing
+description: How to build on top of LaWallet NWC and contribute back to the project.
+---
+
+LaWallet NWC is open source (MIT) and pre-alpha. Whether you're integrating it into a community, writing a plugin, or sending a fix upstream, this is the entry point.
+
+## The repository
+
+It's a pnpm + Turborepo monorepo. Node v22.14.0 (`.nvmrc`).
+
+```
+apps/
+  web/          Next.js — frontend, REST API, LUD-16 resolution
+  docs/         This site
+  listener/     NWC payment listener (stub) — relays + LUD-22 webhooks
+packages/
+  sdk/          TypeScript client (stub)
+  shared/       Shared types/utilities (stub)
+  openapi/      OpenAPI document generated from Zod schemas
+```
+
+The NWC proxy is **not vendored** — it's an external service provisioned via LNURL. See [Architecture → NWC Proxy](/docs/architecture).
+
+## Local development
+
+1. `nvm use` (Node 22.14)
+2. `pnpm install`
+3. `pnpm dev` — runs every app in parallel
+4. Web app is at `localhost:3000`, this docs site is at `localhost:3001`
+
+For depth (env vars, database setup, seed data) see [Getting Started](/docs/getting-started).
+
+## How to extend the platform
+
+- **Plugins** — proposed extension points for events, badges, and commerce. See the [Plugins section](/docs/plugins) for proposals and current status.
+- **Integrations** — drop-in connectors for existing platforms (e.g. [WordPress](/docs/integrations/wordpress)).
+- **The API** — every external integration is built against the REST API. Explore it interactively in the [API Playground](/api-docs).
+
+## How to contribute
+
+- **Issues** — bug reports and proposals at [github.com/lawalletio/lawallet-nwc/issues](https://github.com/lawalletio/lawallet-nwc/issues).
+- **Pull requests** — fork → branch → PR against `main`. Keep PRs focused; tests and typecheck must pass (`pnpm test`, `pnpm typecheck`).
+- **Discussions** — design decisions and roadmap conversations live in GitHub Discussions.
+
+## Code style
+
+Prettier (no semicolons, single quotes, no trailing commas, arrow parens: avoid) and ESLint with `next/core-web-vitals`. Run `pnpm format` and `pnpm lint` before pushing.
+
+## Testing
+
+Vitest 3.2 + MSW + happy-dom in `apps/web`. Unit tests live in `tests/unit/lib/`, integration tests in `tests/integration/api/`. See the [Testing guide](/docs/guides) for patterns.

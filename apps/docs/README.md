@@ -33,7 +33,7 @@ Open [http://localhost:3000](http://localhost:3000).
 │   ├── getting-started/    # Quick start, vision, onboarding, Docker
 │   ├── architecture/       # System design, service docs
 │   ├── guides/             # SDK, JWT auth, testing
-│   ├── api-reference/      # REST API docs
+│   ├── contributing/       # How to build on top / contribute
 │   ├── plugins/            # Events, Badges, Commerce proposals
 │   ├── integrations/       # WordPress
 │   ├── roadmap/            # Month 1-6 plans
