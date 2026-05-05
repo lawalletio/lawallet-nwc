@@ -1,0 +1,75 @@
+---
+title: "Roles & Permisos"
+description: "Modelo RBAC de LaWallet NWC: cuatro roles jerárquicos, permisos granulares y cómo se resuelve el rol del llamante."
+---
+
+LaWallet NWC usa un modelo RBAC con cuatro roles jerárquicos más un nivel `PUBLIC` para llamadas sin autenticar. Cada rol tiene un conjunto fijo de permisos granulares; los guards de las rutas chequean **rol mínimo** o **permiso específico** según el caso.
+
+## Jerarquía
+
+```
+PUBLIC  →  USER  <  VIEWER  <  OPERATOR  <  ADMIN
+```
+
+Un rol más alto **incluye** todo lo que puede hacer el rol inferior — los guards usan `hasRole(actual, requerido)` que compara posiciones en la jerarquía.
+
+| Rol | Quién es | Resumen de privilegios |
+|-----|----------|------------------------|
+| **PUBLIC** | Llamante sin autenticar | Endpoints abiertos: LUD-16 payRequest/callback, `/.well-known/verify`, `/api/setup/status`, exchange `POST /api/jwt`. |
+| **USER** | Cualquier `pubkey` autenticado sin permisos extra | Lee/edita su propia data (LUD-16, NWC propio). No accede al panel admin. |
+| **VIEWER** | Auditor / observador | Solo lectura sobre cards, designs, addresses, ntags, users, settings y activity log. |
+| **OPERATOR** | Operador del día a día | VIEWER + escritura sobre cards, designs, addresses y ntags. **No** toca settings ni roles de otros usuarios. |
+| **ADMIN** | Root del sistema | Todos los permisos, sin excepción. Asignado automáticamente al primer pubkey que reclama el bootstrap (`POST /api/admin/assign`). |
+
+## Matriz de permisos
+
+Los permisos están definidos en [`lib/auth/permissions.ts`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/lib/auth/permissions.ts) como un enum, y cada rol mapea a una lista fija de permisos.
+
+| Permiso | USER | VIEWER | OPERATOR | ADMIN |
+|---------|:----:|:------:|:--------:|:-----:|
+| `settings:read` | | ✓ | | ✓ |
+| `settings:write` | | | | ✓ |
+| `users:read` | | ✓ | ✓ | ✓ |
+| `users:write` | | | | ✓ |
+| `users:manage_roles` | | | | ✓ |
+| `cards:read` | | ✓ | ✓ | ✓ |
+| `cards:write` | | | ✓ | ✓ |
+| `card_designs:read` | | ✓ | ✓ | ✓ |
+| `card_designs:write` | | | ✓ | ✓ |
+| `addresses:read` | | ✓ | ✓ | ✓ |
+| `addresses:write` | | | ✓ | ✓ |
+| `ntags:read` | | ✓ | ✓ | ✓ |
+| `ntags:write` | | | ✓ | ✓ |
+| `activity:read` | | ✓ | ✓ | ✓ |
+
+`USER` no tiene ninguno de estos permisos de plataforma — es el rol por defecto para pubkeys autenticados que solo operan sobre su propia identidad.
+
+## Cómo se resuelve el rol del llamante
+
+Toda request autenticada (NIP-98 o Bearer JWT) pasa por `resolveRole(pubkey)` en [`lib/auth/resolve-role.ts`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/lib/auth/resolve-role.ts):
+
+1. Busca un `User` con ese `pubkey` en la base. Si tiene un rol distinto de `USER`, lo devuelve.
+2. Si no, consulta el setting `root` (compatibilidad con bootstrap previo a la tabla `User`). Si el pubkey coincide → `ADMIN`.
+3. En cualquier otro caso → `USER`.
+
+El JWT lleva el rol embebido al momento de emitirlo. **Cambiar el rol de un usuario no invalida sus tokens activos** — el cambio se ve recién en el próximo `POST /api/jwt`. Por eso operaciones sensibles (asignar roles, cambiar settings) suelen pedir NIP-98 directo en vez de aceptar JWT.
+
+## Cómo se le asigna un rol a alguien
+
+- **Bootstrap (primer admin)**: el primer pubkey en llamar `POST /api/admin/assign` con NIP-98 firma el setting `root`, y queda como `ADMIN`. Ver [API Reference → Admin](/docs/api-reference) y la guía de [JWT Authentication](/docs/guides/jwt-authentication).
+- **Promover/degradar usuarios**: requiere permiso `users:manage_roles` (solo `ADMIN`). Endpoint: `PUT /api/users/{userId}/role`.
+- **Self-demotion bloqueado**: un admin no puede bajarse el rol a sí mismo, y el sistema impide quedar sin ningún `ADMIN`.
+
+## Cómo se chequea el rol en una ruta
+
+Las rutas protegidas usan helpers en `lib/auth/`:
+
+- `requireRole(req, Role.OPERATOR)` — exige rol mínimo `OPERATOR`. Devuelve 403 con `AuthorizationError` si el llamante no califica.
+- `requirePermission(req, Permission.CARDS_WRITE)` — chequeo granular contra el mapa de permisos.
+- `withAdminAuth(handler)` — HOF en `lib/admin-auth.ts` que pinea NIP-98 y exige `ADMIN`. Lo usan los endpoints de bootstrap.
+
+Las rutas que aceptan ambos métodos (NIP-98 o JWT) usan `lib/auth/unified-auth.ts`, que detecta el header `Authorization` y aplica el flujo correspondiente antes de resolver el rol.
+
+## En la API Reference
+
+En la [API Reference interactiva](/api-reference), cada endpoint muestra una badge con el rol mínimo requerido (`PUBLIC`, `USER`, `VIEWER`, `OPERATOR`, `ADMIN`). Los colores ayudan a escanear visualmente qué endpoints están al alcance de cada rol antes de probarlos con tu firmante NIP-07.

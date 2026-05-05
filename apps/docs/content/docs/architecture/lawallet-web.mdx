@@ -93,8 +93,7 @@ Not implemented in the current repo:
 ### Admin and Device Flows
 
 - `GET /api/settings` and `POST /api/settings` — Settings management
-- `GET /api/admin/assign` and `POST /api/admin/assign` — Admin assignment
-- `GET /api/root/assign` and `POST /api/root/assign` — Root assignment
+- `GET /api/admin/assign` and `POST /api/admin/assign` — Admin assignment (one-time root bootstrap + idempotent re-claim)
 - `GET /api/remote-connections/:externalDeviceKey` — Remote connection bootstrap
 - `POST /api/remote-connections/:externalDeviceKey/cards` — Remote card initialization
 

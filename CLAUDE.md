@@ -112,7 +112,7 @@ NIP-47 (NWC), NIP-05 (Nostr ID), NIP-07/46 (Nostr signing), NIP-57 (Zaps), NIP-9
 Vitest 3.2 + MSW + happy-dom. Config at `apps/web/vitest.config.ts`.
 
 - **Unit tests**: 16 files in `tests/unit/lib/` — auth, config, env, errors, jwt, logger, maintenance, nip98, nostr, permissions, rate-limit, unified-auth, utils, validation, public-URL
-- **Integration tests**: 24 files in `tests/integration/api/` — all API routes (cards, card-designs, users, addresses, settings, invoices, remote-connections, lud16, lud21-verify, jwt, admin-assign, root-assign) with MSW
+- **Integration tests**: 23 files in `tests/integration/api/` — all API routes (cards, card-designs, users, addresses, settings, invoices, remote-connections, lud16, lud21-verify, jwt, admin-assign) with MSW
 - **Setup**: `tests/setup.ts` starts MSW server
 - **Helpers**: `tests/helpers/` — auth-helpers, api-helpers, fixtures, route-helpers
 

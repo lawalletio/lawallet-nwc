@@ -329,7 +329,7 @@ These routes require NIP-98 authentication directly (via `admin-auth.ts`):
 
 | Route | Method | Auth Level |
 |-------|--------|------------|
-| `/api/admin/root-assign` | POST | Root pubkey only |
+| `/api/admin/assign` | POST | Root pubkey only |
 | `/api/users/[id]/role` | PUT | ADMIN role |
 | `/api/settings` | PUT | ADMIN role |
 | `/api/card-designs` | POST/PUT/DELETE | ADMIN role |
