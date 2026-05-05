@@ -9,6 +9,7 @@
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=@lawallet-nwc/web",
     "dev:docs": "turbo run dev --filter=@lawallet-nwc/docs",
+    "dev:openapi": "turbo run dev --filter=@lawallet-nwc/openapi",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
