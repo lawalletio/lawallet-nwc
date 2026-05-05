@@ -101,7 +101,7 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
 
   const localOption: ServerOption = {
     id: 'local',
-    label: 'Local development',
+    label: 'rest-docs',
     url: localUrl,
     builtIn: true,
   }

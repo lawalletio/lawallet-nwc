@@ -8,5 +8,19 @@ export const metadata: Metadata = {
 }
 
 export default function ApiDocsPage() {
-  return <ApiDocsClient />
+  return (
+    <>
+      {/* Hide Scalar's "Powered by Scalar" branding (footer link + sidebar
+          version chip). Both link to scalar.com — selectors target the
+          stable href so they survive Scalar class-name changes. */}
+      <style>{`
+        a[href="https://www.scalar.com"],
+        .scalar-version-number,
+        .disclaimerLink {
+          display: none !important;
+        }
+      `}</style>
+      <ApiDocsClient />
+    </>
+  )
 }
