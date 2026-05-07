@@ -37,7 +37,6 @@ Open [http://localhost:3000](http://localhost:3000).
 │   ├── plugins/            # Events, Badges, Commerce proposals
 │   ├── integrations/       # WordPress
 │   ├── roadmap/            # Month 1-6 plans
-│   ├── changelogs/         # Monthly changelogs
 │   └── reports/            # OpenSats grant reports
 ├── lib/                    # Source loader and layout config
 ├── source.config.ts        # Fumadocs MDX collection config
