@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { OpenStandardsSection } from "@/components/open-standards-section";
 
 /* ── Toolbox items ────────────────────────────────────────── */
 
@@ -410,63 +411,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Architecture overview ────────────────────────────── */}
-      <section className='max-w-4xl mx-auto px-4 pb-24'>
-        <h2 className='text-2xl font-bold text-center mb-2'>
-          Two Services + lncurl
-        </h2>
-        <p className='text-center text-sm text-fd-muted-foreground mb-8'>
-          No shared database. No shared filesystem. Independent services +
-          external courtesy NWC via lncurl.
-        </p>
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-          {[
-            {
-              name: "lawallet-web",
-              port: "3000",
-              desc: "Next.js app serving frontend, API, dashboards, and address resolution.",
-              color: "#F5A623",
-            },
-            {
-              name: "lawallet-listener",
-              port: "3001/3002",
-              desc: "Monitors NWC relays for payments, dispatches LUD-22 webhooks.",
-              color: "#26A69A",
-            },
-            {
-              name: "lncurl",
-              port: "external",
-              desc: "Agent-first courtesy NWC wallets via lncurl.lol, powered by Alby Hub.",
-              color: "#4DB6AC",
-            },
-          ].map((s) => (
-            <div
-              key={s.name}
-              className='rounded-lg border border-fd-border bg-fd-card/80 backdrop-blur-sm p-5 transition-all hover:border-[color:var(--hover-color)] hover:shadow-md'
-              style={{ "--hover-color": `${s.color}40` } as React.CSSProperties}
-            >
-              <div
-                className='font-mono text-sm font-semibold mb-1'
-                style={{ color: s.color }}
-              >
-                {s.name}
-              </div>
-              <div className='text-xs text-fd-muted-foreground font-mono mb-3'>
-                {s.port === "external" ? "External service" : `Port ${s.port}`}
-              </div>
-              <p className='text-sm text-fd-muted-foreground'>{s.desc}</p>
-            </div>
-          ))}
-        </div>
-        <p className='text-center text-sm text-fd-muted-foreground mt-6'>
-          <Link
-            href='/docs/architecture'
-            className='text-[#F5A623] hover:text-[#FFD580] hover:underline transition-colors'
-          >
-            Learn more about the architecture
-          </Link>
-        </p>
-      </section>
+      {/* ── Open Standards ───────────────────────────────────── */}
+      <OpenStandardsSection />
     </main>
   );
 }
