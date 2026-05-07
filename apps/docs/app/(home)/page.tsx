@@ -16,105 +16,52 @@ const toolbox = [
   {
     title: "API Playground",
     description: "Interactive REST reference with NIP-07 / NIP-98 signing",
-    href: "/api-docs",
+    href: "https://beta.lawallet.io/api-docs",
     icon: "terminal",
     badge: "Playground",
     badgeColor: "#F5A623",
   },
   {
-    title: "JWT Authentication",
-    description: "NIP-98 to JWT exchange, token lifecycle & protected routes",
-    href: "/docs/guides/jwt-authentication",
-    icon: "key",
-    badge: "Security",
-    badgeColor: "#E53935",
-  },
-  {
-    title: "WordPress Plugin",
-    description: "Lightning payments & NWC checkout for WooCommerce",
-    href: "/docs/integrations/wordpress",
-    icon: "plug",
-    badge: "Integration",
-    badgeColor: "#26A69A",
-  },
-  {
-    title: "Docker Deploy",
-    description: "One-command production deployment with docker compose",
-    href: "/docs/getting-started/docker",
+    title: "Docker · Umbrel · Start9 Deploy",
+    description: "Self-host on Docker, Umbrel, or Start9 with one-command deployment",
+    href: "/docs/deploy",
     icon: "container",
     badge: "DevOps",
     badgeColor: "#4DB6AC",
   },
   {
-    title: "Testing Guide",
-    description: "End-to-end testing patterns for NWC flows",
-    href: "/docs/guides/testing",
-    icon: "flask",
-    badge: "QA",
-    badgeColor: "#FFD580",
-  },
-  {
-    title: "Events Plugin",
-    description: "Ticketing & event management with Lightning payments",
-    href: "/docs/plugins/events",
-    icon: "calendar",
-    badge: "Plugin",
-    badgeColor: "#9C27B0",
-  },
-  {
-    title: "Commerce Plugin",
-    description: "Point-of-sale, invoicing & merchant tools",
-    href: "/docs/plugins/commerce",
-    icon: "cart",
+    title: "Create Plugins",
+    description: "Build ticketing, commerce, and merchant tools on top of LaWallet",
+    href: "/docs/plugins",
+    icon: "plug",
     badge: "Plugin",
     badgeColor: "#9C27B0",
   },
 ];
 
-/* ── Features ─────────────────────────────────────────────── */
+/* ── Deploy options ───────────────────────────────────────── */
 
-const features = [
+const deployOptions = [
   {
-    title: "Lightning Addresses",
-    description:
-      "Give your users lightning addresses under your domain. LUD-16 compliant, with NIP-05 Nostr identity.",
-    icon: "zap",
-    color: "gold",
+    title: "Vercel",
+    description: "Free one-click deploy. Production-ready in minutes.",
+    href: "https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&root-directory=apps%2Fweb",
+    external: true,
+    icon: "vercel",
   },
   {
-    title: "Progressive Self-Custody",
-    description:
-      "Start with a simple alias, graduate to courtesy NWC, then bring your own wallet. Four stages of sovereignty.",
-    icon: "shield",
-    color: "teal",
+    title: "Local Deploy",
+    description: "Run the TypeScript build on your own machine for development.",
+    href: "/docs/deploy/local",
+    external: false,
+    icon: "localTerminal",
   },
   {
-    title: "Nostr Wallet Connect",
-    description:
-      "NIP-47 native. Connect any NWC-compatible wallet as your payment backend.",
-    icon: "link",
-    color: "gold",
-  },
-  {
-    title: "Self-Hostable",
-    description:
-      "Deploy on Vercel, Docker, Umbrel, or Start9. Three independent services, zero shared infrastructure.",
-    icon: "server",
-    color: "teal",
-  },
-  {
-    title: "SDK & React Hooks",
-    description:
-      "TypeScript client SDK and 11 React hooks with caching, loading states, and type safety.",
-    icon: "code",
-    color: "gold",
-  },
-  {
-    title: "100% Open Source",
-    description:
-      "MIT licensed. Funded by OpenSats. Built for communities, companies, and circular economies.",
-    icon: "heart",
-    color: "coral",
+    title: "Docker",
+    description: "Containerized deploy with docker compose for any VPS or server.",
+    href: "/docs/deploy/docker",
+    external: false,
+    icon: "dockerWhale",
   },
 ];
 
@@ -237,6 +184,35 @@ const icons: Record<string, ReactNode> = {
   ),
 };
 
+const deployIcons: Record<string, ReactNode> = {
+  vercel: (
+    <svg width='100%' height='100%' viewBox='0 0 24 24' fill='currentColor'>
+      <path d='M12 2L22 20H2L12 2z' />
+    </svg>
+  ),
+  localTerminal: (
+    <svg
+      width='100%'
+      height='100%'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <rect x='2' y='4' width='20' height='16' rx='2' />
+      <polyline points='6 10 10 13 6 16' />
+      <line x1='12' y1='17' x2='17' y2='17' />
+    </svg>
+  ),
+  dockerWhale: (
+    <svg width='100%' height='100%' viewBox='0 0 24 24' fill='currentColor'>
+      <path d='M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.186m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.184-.186h-2.12a.186.186 0 00-.186.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 003.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288Z' />
+    </svg>
+  ),
+};
+
 const iconColors: Record<string, string> = {
   gold: "text-[#F5A623]",
   teal: "text-[#26A69A]",
@@ -299,7 +275,7 @@ export default function HomePage() {
             Get Started
           </Link>
           <Link
-            href='/api-docs'
+            href='https://beta.lawallet.io/api-docs'
             className='inline-flex items-center justify-center rounded-lg border border-[#26A69A]/30 px-8 py-3 text-sm font-medium text-[#26A69A] transition-all hover:bg-[#26A69A]/10 hover:border-[#26A69A]/50'
           >
             API Playground
@@ -400,24 +376,36 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Features grid ────────────────────────────────────── */}
-      <section className='max-w-5xl mx-auto px-4 pb-24'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-          {features.map((f) => (
-            <div
-              key={f.title}
-              className='group rounded-xl border border-fd-border bg-fd-card/80 backdrop-blur-sm p-6 transition-all hover:border-[#F5A623]/30 hover:shadow-lg hover:shadow-[#F5A623]/5'
+      {/* ── Deploy options grid ──────────────────────────────── */}
+      <section className='max-w-6xl mx-auto px-4 pb-24'>
+        <div className='text-center mb-10'>
+          <h2 className='text-3xl md:text-4xl font-bold mb-3'>
+            Deploy in one click
+          </h2>
+          <p className='text-base text-fd-muted-foreground'>
+            Three ways to ship LaWallet NWC to production.
+          </p>
+        </div>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+          {deployOptions.map((opt) => (
+            <Link
+              key={opt.title}
+              href={opt.href}
+              {...(opt.external
+                ? { target: "_blank", rel: "noopener noreferrer" }
+                : {})}
+              className='group relative flex flex-col items-center justify-center rounded-2xl border border-fd-border bg-fd-card/80 backdrop-blur-sm p-12 min-h-[360px] transition-all hover:border-[#F5A623]/40 hover:bg-fd-card hover:-translate-y-1 hover:shadow-xl hover:shadow-[#F5A623]/10 no-underline'
             >
-              <div
-                className={`inline-flex items-center justify-center w-10 h-10 rounded-lg ${iconBgColors[f.color]} ${iconColors[f.color]} mb-4`}
-              >
-                {icons[f.icon]}
+              <div className='flex items-center justify-center w-32 h-32 mb-6 text-fd-foreground transition-transform group-hover:scale-110'>
+                {deployIcons[opt.icon]}
               </div>
-              <h3 className='font-semibold mb-2'>{f.title}</h3>
-              <p className='text-sm text-fd-muted-foreground leading-relaxed'>
-                {f.description}
+              <h3 className='text-xl font-semibold mb-2 text-center'>
+                {opt.title}
+              </h3>
+              <p className='text-sm text-fd-muted-foreground leading-relaxed text-center max-w-[260px]'>
+                {opt.description}
               </p>
-            </div>
+            </Link>
           ))}
         </div>
       </section>
