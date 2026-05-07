@@ -3,18 +3,14 @@ title: "Docker Deployment"
 description: "Build and run LaWallet NWC with Docker and Docker Compose."
 ---
 
-https://hub.docker.com/repository/docker/masize/lawallet-nwc/general
-
-## Build
+## Clone
 
 ```bash
-# Get version from package.json
-VERSION=$(node -p "require('./package.json').version")
-docker buildx build -t masize/lawallet-nwc:${VERSION} . --platform linux/amd64,linux/arm64 --push
+git clone https://github.com/lawalletio/lawallet-nwc
 ```
 
-## Docker compose
+## Run
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
