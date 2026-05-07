@@ -22,6 +22,18 @@ export function baseOptions(): BaseLayoutProps {
     },
     links: [
       {
+        text: 'Getting started',
+        url: '/docs',
+      },
+      {
+        text: 'Deploy',
+        url: '/docs/deploy',
+      },
+      {
+        text: 'Develop',
+        url: '/docs/guides',
+      },
+      {
         text: 'API Playground',
         url: apiDocsUrl,
         external: apiDocsUrl.startsWith('http'),
