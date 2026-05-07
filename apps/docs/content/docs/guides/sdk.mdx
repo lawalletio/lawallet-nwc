@@ -3,34 +3,19 @@ title: "Client SDK & React Hooks"
 description: "Roadmap notes for the planned SDK and React Hooks packages."
 ---
 
+<div className="inline-flex items-center rounded-full px-3 py-1 text-xs font-mono font-semibold uppercase tracking-wider border" style={{ color: '#F5A623', borderColor: '#F5A62330', backgroundColor: '#F5A62310' }}>
+  Expected · June 2026
+</div>
+
+<Callout type="info" title="Status">
+  React components and hooks already live in the codebase under `apps/web/components/` and `apps/web/lib/client/hooks/`. They still need to be extracted and published as a standalone npm package — that migration is targeted for **June 2026**.
+</Callout>
+
 ## Overview
 
-The current `lawallet-nwc` repository does not contain a published client SDK or React Hooks package.
+The current `lawallet-nwc` repository does not yet ship a published client SDK or React Hooks npm package.
 
 This page documents the intended SDK and hooks direction described in the roadmap so the planned API surface stays visible while implementation catches up.
-
----
-
-## Current Reality
-
-If you are integrating with the repo today:
-
-- Call the REST API directly
-- Use the server-side helpers already present in `lib/`
-- Refer to the [API Playground](/api-docs) for the routes that currently exist
-- Treat everything below as planned work, not shipped packages
-
----
-
-## Planned TypeScript Client SDK
-
-The roadmap calls for a standalone client package that would eventually cover:
-
-- Authentication helpers around the current JWT flow
-- Lightning address management
-- NWC connection management
-- Card and card-design operations
-- Later roadmap additions such as redirects, webhooks, and payment verification
 
 ---
 

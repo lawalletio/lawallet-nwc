@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared'
 
-const apiDocsUrl = process.env.NEXT_PUBLIC_API_DOCS_URL ?? '/api-docs'
+const apiDocsUrl = process.env.NEXT_PUBLIC_API_DOCS_URL ?? 'https://beta.lawallet.io/api-docs'
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -16,6 +16,7 @@ export function baseOptions(): BaseLayoutProps {
             className="dark:invert-0"
             priority
           />
+          <span className="text-fd-muted-foreground text-base font-medium tracking-tight">docs</span>
         </div>
       ),
     },

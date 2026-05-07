@@ -1,0 +1,102 @@
+---
+title: Local Deploy
+description: Build and run LaWallet NWC locally from source with a PostgreSQL database.
+---
+
+## Prerequisites
+
+- **Node.js 22.14.0** (see `.nvmrc` — `nvm use` will pick the right version)
+- **pnpm**
+- **PostgreSQL 14+** (or Docker, to run the bundled instance)
+- **Git**
+
+## 1. Clone the repository
+
+```bash
+git clone https://github.com/lawalletio/lawallet-nwc.git
+cd lawallet-nwc
+```
+
+## 2. Install dependencies
+
+```bash
+pnpm install
+```
+
+## 3. Start PostgreSQL
+
+You have two options:
+
+### Option A — Docker (recommended)
+
+The repo ships a `docker-compose.yml` that runs PostgreSQL with credentials matching `.env.example`:
+
+```bash
+docker compose up -d postgres
+```
+
+That starts Postgres on `localhost:5432` with database `lawallet`, user `lawallet`, password `lawallet_password`.
+
+### Option B — Native install
+
+If you prefer a local Postgres, create the database and user:
+
+```bash
+psql postgres <<'SQL'
+CREATE USER lawallet WITH PASSWORD 'lawallet_password';
+CREATE DATABASE lawallet OWNER lawallet;
+GRANT ALL PRIVILEGES ON DATABASE lawallet TO lawallet;
+SQL
+```
+
+## 4. Configure environment variables
+
+```bash
+cp apps/web/.env.example apps/web/.env
+```
+
+Edit `apps/web/.env` and set at least:
+
+```bash
+DATABASE_URL="postgresql://lawallet:lawallet_password@localhost:5432/lawallet"
+JWT_SECRET="<generate-a-32+-char-random-string>"
+```
+
+Generate a secure JWT secret:
+
+```bash
+openssl rand -base64 48
+```
+
+## 5. Run database migrations
+
+```bash
+cd apps/web
+pnpm exec prisma generate
+pnpm exec prisma migrate deploy
+```
+
+Optional — seed with mock data for local development:
+
+```bash
+pnpm exec prisma db seed
+```
+
+## 6. Start the dev server
+
+From the repo root:
+
+```bash
+pnpm --filter @lawallet-nwc/web dev
+```
+
+The app is now running at **http://localhost:3000**.
+
+## Useful commands
+
+```bash
+pnpm --filter @lawallet-nwc/web build         # Production build
+pnpm --filter @lawallet-nwc/web typecheck     # Type-check
+pnpm --filter @lawallet-nwc/web test          # Run tests
+pnpm exec prisma studio                       # Visual DB browser (run from apps/web)
+```
