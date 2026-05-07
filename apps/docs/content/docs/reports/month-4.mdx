@@ -1,0 +1,504 @@
+---
+title: "Report: Month 4"
+description: "OpenSats progress report for April 6 - May 7, 2026."
+---
+
+**Project:** LaWallet NWC
+**Period:** April 6 – May 7, 2026
+**Grant:** [OpenSats — Fifteenth Wave of Bitcoin Grants](https://opensats.org/blog/fifteenth-wave-of-bitcoin-grants)
+
+---
+
+## Summary
+
+This report covers all work completed since the previous report ([Months 2-3](./months-2-3)), which closed at commit [`7bd68dc`](https://github.com/lawalletio/lawallet-nwc/commit/7bd68dc) on April 6, 2026.
+
+In a single intense month, the project went from a frontend-shaped product into a **full end-to-end platform**. The work spans every layer of the stack — from a deep architectural refactor (monorepo migration) to a brand-new user-facing wallet, a system-wide activity log, full LUD-16 / LUD-21 mode-aware payment routing, a complete admin dashboard build-out, real-time SSE infrastructure, a published OpenAPI 3.1 specification, and a fully reorganized public docs site.
+
+This corresponds to the largest release window in the project's history. It includes:
+
+- **The biggest release since OpenSats funding:** [v0.10.0](../changelogs) (April 30, 2026)
+- **Monorepo migration** from a single Next.js app to **pnpm workspaces + Turborepo** with three apps (`web`, `docs`, `listener`) and three shared packages (`sdk`, `shared`, `openapi`)
+- **A brand-new user-facing Wallet experience** at `/wallet/*` with onboarding, Send/Receive/Scan, offline cache, currency switching, and persistent sign-in
+- **A schema-level rewrite** introducing `LightningAddress 1→N` + a new `NWCConnection` model that unlocks per-address NWC routing and three operational modes (`IDLE` / `ALIAS` / `NWC`)
+- **A complete Admin Dashboard end-to-end implementation** covering Cards, Designs, Users, Addresses, Settings, Activity, and Community
+- **An end-to-end Activity Log** spanning DB model, instrumentation, dual-sink helper, SSE, and admin UI
+- **OpenAPI 3.1 spec** (live, served from the running app) + **Scalar API Playground** with NIP-07 auth integration
+- **Complete public documentation site overhaul** (Fumadocs) with restructured navigation, API reference rewiring, and live OpenAPI viewer
+- A new in-progress service, **`nostr-trigger`** (currently on the `nostr-trigger` branch), implementing NWC payment notifications with a Bun runtime, BullMQ jobs, Redis, and a self-contained SSE dashboard
+
+**Main repository stats (`lawallet-nwc`):** 940 files changed, **84,100 insertions**, 5,422 deletions — **172 commits across 13 merged PRs** (PRs [#187](https://github.com/lawalletio/lawallet-nwc/pull/187) – [#199](https://github.com/lawalletio/lawallet-nwc/pull/199)).
+
+---
+
+## Live Deployments
+
+All four public surfaces are now deployed and reachable:
+
+| Surface | URL | What it is |
+|---------|-----|------------|
+| Product Landing | [lawallet.io](https://lawallet.io) | Public marketing / waitlist site (separate `lawallet-landing` repo) |
+| Live Beta | [beta.lawallet.io](https://beta.lawallet.io) | The full LaWallet NWC application — admin, wallet, onboarding |
+| Main Documentation | [docs.lawallet.io](https://docs.lawallet.io) | Fumadocs site — architecture, guides, deploy, roadmap, reports |
+| API Playground | [beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs) | Live OpenAPI 3.1 reference, Scalar viewer with NIP-07 auth |
+
+---
+
+## Releases
+
+| Tag | Date | Notes |
+|-----|------|-------|
+| `v0.10.0` | 2026-04-30 | The biggest release since OpenSats funding. Monorepo, Admin Dashboard E2E, user Wallet, Activity Log, dynamic branding, schema rewrite. |
+| `v0.10.1` | (in progress) | Docs/OpenAPI/Vercel deploy fixes layered on top of `v0.10.0`. |
+
+---
+
+## Pull Requests Merged (13)
+
+| PR | Title | Date |
+|----|-------|------|
+| [#187](https://github.com/lawalletio/lawallet-nwc/pull/187) | refactor: migrate to pnpm + turborepo monorepo | 2026-04-13 |
+| [#188](https://github.com/lawalletio/lawallet-nwc/pull/188) | refactor: remove proxy app, add stub warnings for unimplemented packages | 2026-04-13 |
+| [#189](https://github.com/lawalletio/lawallet-nwc/pull/189) | chore: add 22 Claude Code agent skills | 2026-04-13 |
+| [#190](https://github.com/lawalletio/lawallet-nwc/pull/190) | feat: full Admin Dashboard E2E + Activity Log + LightningAddress 1→N | 2026-04-23 |
+| [#191](https://github.com/lawalletio/lawallet-nwc/pull/191) | feat: user-facing Wallet (onboarding, Send/Receive/Scan, offline cache) | 2026-04-29 |
+| [#192](https://github.com/lawalletio/lawallet-nwc/pull/192) | feat: full first-run onboarding flow with paid registration | 2026-04-30 |
+| [#193](https://github.com/lawalletio/lawallet-nwc/pull/193) | docs(lib): JSDoc on public lib/ surface for IDE tooltips | 2026-04-30 |
+| [#194](https://github.com/lawalletio/lawallet-nwc/pull/194) | docs: add CONTRIBUTING.md with backend setup, commands, and PR process | 2026-04-30 |
+| [#195](https://github.com/lawalletio/lawallet-nwc/pull/195) | docs(testing): rewrite TESTING.md as a practical contributor guide | 2026-04-30 |
+| [#196](https://github.com/lawalletio/lawallet-nwc/pull/196) | feat: live OpenAPI 3.1 reference with Scalar viewer + RBAC docs | 2026-05-05 |
+| [#197](https://github.com/lawalletio/lawallet-nwc/pull/197) | docs: rewire docs site to external API Playground | 2026-05-05 |
+| [#198](https://github.com/lawalletio/lawallet-nwc/pull/198) | fix(vercel): one-click deploy button (Neon integration + migrate) | 2026-05-05 |
+| [#199](https://github.com/lawalletio/lawallet-nwc/pull/199) | docs: overhaul docs site structure and content (v0.1.1) | 2026-05-07 |
+
+---
+
+## What Was Delivered
+
+### 1. Monorepo Migration
+
+[PR #187](https://github.com/lawalletio/lawallet-nwc/pull/187), [PR #188](https://github.com/lawalletio/lawallet-nwc/pull/188)
+
+The repository was restructured from a single Next.js app at the root into a **pnpm workspaces + Turborepo monorepo**, locking Node to `22.14.0` via `.nvmrc`.
+
+**New layout:**
+
+```
+apps/
+  web/        Next.js 16 — frontend, REST API, LUD-16/21 resolution
+  docs/       Fumadocs + Next.js — documentation site
+  listener/   NWC Payment Listener (stub; in-progress on nostr-trigger branch)
+packages/
+  sdk/        TypeScript SDK client (stub with echo warnings)
+  shared/     Shared types, errors, and Zod validation schemas
+  openapi/    OpenAPI 3.1 specification (NEW — added in PR #196)
+```
+
+**Key commits:**
+
+- [`f1789fc`](https://github.com/lawalletio/lawallet-nwc/commit/f1789fc) — refactor: migrate to pnpm + turborepo monorepo
+- [`df7f6c8`](https://github.com/lawalletio/lawallet-nwc/commit/df7f6c8) — feat: add docs app, package stubs, and CI for monorepo
+- [`46c9701`](https://github.com/lawalletio/lawallet-nwc/commit/46c9701) — docs: add CLAUDE.md for monorepo bootstrap
+- [`3f53b18`](https://github.com/lawalletio/lawallet-nwc/commit/3f53b18) — refactor: remove proxy app, add stub warnings for unimplemented packages
+
+**CI fixes during the migration:**
+
+- [`ddb055c`](https://github.com/lawalletio/lawallet-nwc/commit/ddb055c) — fix(ci): remove pnpm version conflict in GitHub Actions
+- [`ceccd80`](https://github.com/lawalletio/lawallet-nwc/commit/ceccd80) — fix: resolve CI lint errors and dependency vulnerabilities
+- [`72b701f`](https://github.com/lawalletio/lawallet-nwc/commit/72b701f) — fix(ci): resolve test coverage threshold and audit scope
+- [`3ca1dcb`](https://github.com/lawalletio/lawallet-nwc/commit/3ca1dcb) — fix(ci): add JWT_SECRET to build environment
+- [`e99695f`](https://github.com/lawalletio/lawallet-nwc/commit/e99695f) — fix(ci): pass env vars through turbo to build task
+- [`f00255e`](https://github.com/lawalletio/lawallet-nwc/commit/f00255e) — fix: update vercel.json for monorepo install path
+- [`b3669f4`](https://github.com/lawalletio/lawallet-nwc/commit/b3669f4) — fix(ci): don't require DATABASE_URL at prisma-generate time
+- [`86f89c2`](https://github.com/lawalletio/lawallet-nwc/commit/86f89c2) — fix(ci): downgrade React Compiler strict rules to warnings
+
+**Outcome:** the `@/*` alias now roots at `apps/web/`, the proxy app is no longer vendored (it's an external service), CI runs `turbo` against the workspace, and the app builds cleanly on Vercel.
+
+### 2. Admin Dashboard — End-to-End
+
+[PR #190](https://github.com/lawalletio/lawallet-nwc/pull/190)
+
+The single largest PR of the period: **170 files changed, 15,642 insertions, 1,491 deletions**. This PR turned the previously skeletal admin shell into a fully functional operator console with real APIs and real data.
+
+#### Cards & Card Designs
+
+- [`4d638f5`](https://github.com/lawalletio/lawallet-nwc/commit/4d638f5) — feat(admin/cards): design CRUD + BoltCard QR + NFC scan flow
+- [`e00e7da`](https://github.com/lawalletio/lawallet-nwc/commit/e00e7da) — feat(admin/cards): real API data via JWT + client-side shape adapter
+
+Cards table is wired to the live API; designs support full CRUD with BoltCard QR code generation and NFC scan; shape adapters bridge backend snake_case to frontend camelCase.
+
+#### Users
+
+- [`2ca4eae`](https://github.com/lawalletio/lawallet-nwc/commit/2ca4eae) — feat(admin/users): list users with Nostr avatars
+- [`0592962`](https://github.com/lawalletio/lawallet-nwc/commit/0592962) — feat(admin/users): user detail page with profile and addresses
+- [`7549c80`](https://github.com/lawalletio/lawallet-nwc/commit/7549c80) — feat(admin/users): role picker with hierarchy-aware guard
+- [`ae9e223`](https://github.com/lawalletio/lawallet-nwc/commit/ae9e223) — feat(user-profile): social-media-style header with cover + editable kind-0
+- [`db9b225`](https://github.com/lawalletio/lawallet-nwc/commit/db9b225) — feat(user-profile): upload + crop avatar and cover with live hover affordance
+- [`e3ab4d7`](https://github.com/lawalletio/lawallet-nwc/commit/e3ab4d7) — feat(user-profile): live crop preview + animated upload progress bar
+- [`79a2db1`](https://github.com/lawalletio/lawallet-nwc/commit/79a2db1) — feat(edit-profile): progress bar reflects upload (0-75) + preload (75-100)
+- [`24a0c3e`](https://github.com/lawalletio/lawallet-nwc/commit/24a0c3e) — feat(blossom): on-demand signer unlock + Unicode-safe auth header
+- [`497ae38`](https://github.com/lawalletio/lawallet-nwc/commit/497ae38) — fix(api/users/[userId]): allow self-access regardless of USERS_READ
+- [`a8e7094`](https://github.com/lawalletio/lawallet-nwc/commit/a8e7094) — fix(avatar): make AvatarFallback text non-selectable
+
+The user surface is the most visually polished part of the dashboard: a social-media-style header with a cover image, editable Nostr kind-0 metadata, avatar/cover cropping with a live preview, animated upload progress bars, and Blossom-backed image hosting. Role pickers respect the role hierarchy (only ADMIN can promote/demote ADMIN/OPERATOR, etc.).
+
+#### Lightning Addresses
+
+- [`6a5091b`](https://github.com/lawalletio/lawallet-nwc/commit/6a5091b) — feat(ui/addresses): wallet-style list + edit page under /admin/addresses
+- [`f74f281`](https://github.com/lawalletio/lawallet-nwc/commit/f74f281) — feat(ui/addresses): list page — star primary, copy button, row link, optimistic set-primary, alias badge
+- [`5391f51`](https://github.com/lawalletio/lawallet-nwc/commit/5391f51) — feat(ui/addresses): detail page redesign — balance, invoices, collapsed mode
+- [`3012465`](https://github.com/lawalletio/lawallet-nwc/commit/3012465) — feat(admin/addresses): admin "All users" toggle
+- [`0d73122`](https://github.com/lawalletio/lawallet-nwc/commit/0d73122) — feat(user-detail): bring /admin/addresses actions to the Lightning addresses table
+
+The address list is wallet-styled with a star icon for the primary, copy button, alias badges, and optimistic UI for set-primary. Admin operators can toggle "All users" to see addresses across the platform.
+
+#### Settings (Branding / Wallet / Infrastructure)
+
+- [`019d1b1`](https://github.com/lawalletio/lawallet-nwc/commit/019d1b1) — feat(admin/settings): persist every form input to the DB
+- [`429809d`](https://github.com/lawalletio/lawallet-nwc/commit/429809d) — feat(settings/infrastructure): multi relays/blossom/smtp, validation, reset
+- [`e3b9e12`](https://github.com/lawalletio/lawallet-nwc/commit/e3b9e12) — feat(settings): polish branding and wallet tab copy
+- [`dc41ed8`](https://github.com/lawalletio/lawallet-nwc/commit/dc41ed8) — feat(branding): persist theme globally via /api/settings
+- [`4afe4f2`](https://github.com/lawalletio/lawallet-nwc/commit/4afe4f2) — feat(branding): Blossom logo uploads + global logo + admin-only settings
+- [`f2047c9`](https://github.com/lawalletio/lawallet-nwc/commit/f2047c9) — feat(ui): BrandLogotype component with skeleton + 6 consumer migrations
+- [`dd9a9f4`](https://github.com/lawalletio/lawallet-nwc/commit/dd9a9f4) — fix(brand): load community logotype on pre-auth surfaces, drop Image
+- [`8501047`](https://github.com/lawalletio/lawallet-nwc/commit/8501047) — fix(api/settings): expose social_* handles in the public subset
+- [`95f0a58`](https://github.com/lawalletio/lawallet-nwc/commit/95f0a58) — fix(settings): endpoint field label, placeholder and trim
+- [`a01f3fd`](https://github.com/lawalletio/lawallet-nwc/commit/a01f3fd) — refactor: rename subdomain setting to endpoint, add public URL resolver
+
+Every form input now persists. Infrastructure tab supports multiple relay URLs, multiple Blossom servers, and SMTP credentials with validation and per-section reset. Branding theme tokens persist globally and apply platform-wide. A new `BrandLogotype` component replaces ad-hoc `<Image>` usage across six call sites.
+
+#### Identity Circles & Community Page
+
+- [`3d07786`](https://github.com/lawalletio/lawallet-nwc/commit/3d07786) — feat(admin): identity circles badge on home (avatar @ community)
+- [`b62bcd1`](https://github.com/lawalletio/lawallet-nwc/commit/b62bcd1) — feat(identity-circles): avatar circle links to /admin/users/&#123;pubkey&#125;
+- [`25a2d36`](https://github.com/lawalletio/lawallet-nwc/commit/25a2d36) — feat(identity-circles): link isotypo circle to Community About page
+- [`f14f92d`](https://github.com/lawalletio/lawallet-nwc/commit/f14f92d) — fix(identity-circles): shrink @ connector and widen gaps
+- [`3c3668a`](https://github.com/lawalletio/lawallet-nwc/commit/3c3668a) — feat(admin/community): About page surfaced from Branding settings
+- [`080bed7`](https://github.com/lawalletio/lawallet-nwc/commit/080bed7) — feat(community): brand-icon WhatsApp, Discord, and ostrich Nostr mark
+- [`6eb229f`](https://github.com/lawalletio/lawallet-nwc/commit/6eb229f) — feat(community): use official Nostr ostrich mark (currentColor)
+
+The home dashboard now shows an "identity circle" badge — the user's avatar `@` the community isotype — that links to the user detail page and the community About page. The community About page surfaces the operator's branding choices publicly.
+
+#### Dashboard Polish
+
+- [`83a0c7a`](https://github.com/lawalletio/lawallet-nwc/commit/83a0c7a) — feat(dashboard): EndpointError banner + ForwardingCard for IDLE/ALIAS primary
+- [`9da4a09`](https://github.com/lawalletio/lawallet-nwc/commit/9da4a09) — feat(dashboard/nwc): collapse card by default, drop wrapper and refresh
+- [`08c51c3`](https://github.com/lawalletio/lawallet-nwc/commit/08c51c3) — feat(maintenance): honour DB flag, gate dashboard + JWT admin bypass
+- [`d2da560`](https://github.com/lawalletio/lawallet-nwc/commit/d2da560) — feat(stat-card): make card linkable via href, wire Total users → /admin/users
+- [`89bf73c`](https://github.com/lawalletio/lawallet-nwc/commit/89bf73c) — feat(admin): compact responsive stat cards on mobile
+- [`c27c008`](https://github.com/lawalletio/lawallet-nwc/commit/c27c008) — fix(dashboard): shorten System status stub to "OK"
+- [`6d9a9a9`](https://github.com/lawalletio/lawallet-nwc/commit/6d9a9a9) — fix(admin-shell): min-w-0 on SidebarInset to prevent mobile overflow
+- [`6b844c0`](https://github.com/lawalletio/lawallet-nwc/commit/6b844c0) — fix(topbar-mobile): right-align subpage title with fluid font size
+- [`db12302`](https://github.com/lawalletio/lawallet-nwc/commit/db12302) — refactor(topbar): make title optional for chromeless pages
+- [`ed8f18b`](https://github.com/lawalletio/lawallet-nwc/commit/ed8f18b) — fix(user-detail): drop redundant "User" title and top padding
+- [`fece291`](https://github.com/lawalletio/lawallet-nwc/commit/fece291) — fix(user-detail): align page body margin with topbar on mobile
+- [`d34776a`](https://github.com/lawalletio/lawallet-nwc/commit/d34776a) — fix(admin-sidebar): profile link fills footer width
+- [`cd71375`](https://github.com/lawalletio/lawallet-nwc/commit/cd71375) — feat(admin-sidebar): link profile footer to user detail, close sheet on mobile
+- [`9da9ee3`](https://github.com/lawalletio/lawallet-nwc/commit/9da9ee3) — feat(web): add app favicon
+
+The dashboard responds to platform mode: in `IDLE` (no NWC, no alias) and `ALIAS` (forwarding only), an `EndpointError` banner appears and a `ForwardingCard` explains the current behavior. When the operator toggles maintenance mode, the dashboard is gated for non-admin users while ADMIN tokens bypass.
+
+### 3. The `LightningAddress 1→N` + `NWCConnection` Schema Rewrite
+
+This is the architectural change that makes per-address NWC routing possible — landed inside [PR #190](https://github.com/lawalletio/lawallet-nwc/pull/190).
+
+- [`b1599f1`](https://github.com/lawalletio/lawallet-nwc/commit/b1599f1) — feat(schema): LightningAddress 1→N + NWCConnection model
+- [`fb6d6cb`](https://github.com/lawalletio/lawallet-nwc/commit/fb6d6cb) — feat(prisma): add Prisma configuration and update schema datasource
+- [`94ceafe`](https://github.com/lawalletio/lawallet-nwc/commit/94ceafe) — feat(api/wallet): per-user addresses + NWC connection management
+- [`05a58e9`](https://github.com/lawalletio/lawallet-nwc/commit/05a58e9) — feat(lud16): mode-aware resolution (IDLE reject, ALIAS proxy, NWC route)
+- [`d5fef72`](https://github.com/lawalletio/lawallet-nwc/commit/d5fef72) — feat(api/wallet-addresses): ship effectiveConnectionString on detail response
+- [`0a164f5`](https://github.com/lawalletio/lawallet-nwc/commit/0a164f5) — feat(api/wallet-addresses): per-address invoices feed + back-fill NWC connection coverage
+- [`e90cd6a`](https://github.com/lawalletio/lawallet-nwc/commit/e90cd6a) — feat(api/users-me): expose primary-address fields (effectiveNwcString, mode, username, redirect)
+
+The Prisma schema now has 10 models: `User`, `CardDesign`, `Ntag424`, `LightningAddress`, **`NWCConnection`** (new), `Card`, `AlbySubAccount`, `Settings`, `Invoice`, **`ActivityLog`** (new). A user can own many `LightningAddress` records, each with its own optional `NWCConnection`. LUD-16 resolution is now **mode-aware**:
+
+- `IDLE` — address has neither alias nor NWC ⇒ reject with structured error
+- `ALIAS` — address forwards to another LUD-16 (proxy)
+- `NWC` — address routes payments through a configured NWC connection
+
+The detail responses include `effectiveConnectionString` (the live NWC URI) and `users/me` exposes `effectiveNwcString`, `mode`, `username`, `redirect` for the primary address.
+
+### 4. Activity Log — System-wide
+
+[PR #190](https://github.com/lawalletio/lawallet-nwc/pull/190)
+
+A complete instrumentation layer that captures user-visible events across the platform with both DB persistence and live SSE streaming.
+
+- [`7a5f6ef`](https://github.com/lawalletio/lawallet-nwc/commit/7a5f6ef) — feat(activity-log): add DB model, permission, SSE event type
+- [`7cedf68`](https://github.com/lawalletio/lawallet-nwc/commit/7cedf68) — feat(activity-log): dual-sink helper, API endpoint, error-handler integration
+- [`0a664d3`](https://github.com/lawalletio/lawallet-nwc/commit/0a664d3) — feat(activity-log): instrument USER, ADDRESS, NWC, INVOICE, CARD, SERVER emit sites
+- [`639403f`](https://github.com/lawalletio/lawallet-nwc/commit/639403f) — feat(activity-log): admin UI with filters, pagination, live updates, details dialog
+
+The dual-sink helper writes to PostgreSQL and broadcasts on the SSE bus simultaneously. The error handler emits SERVER-class entries on uncaught failures. The admin Activity page (`/admin/activity`) supports filtering by category, actor, and time range, paginates server-side, and updates live via SSE. A details dialog shows the full structured payload.
+
+### 5. Real-time SSE Infrastructure
+
+Real-time updates were promoted from a single dashboard balance card to a generic transport.
+
+- [`c22eafb`](https://github.com/lawalletio/lawallet-nwc/commit/c22eafb) — feat: server-sent events for real-time dashboard updates
+- [`94f9605`](https://github.com/lawalletio/lawallet-nwc/commit/94f9605) — feat: useNwcBalance hook with real-time balance and status
+- [`0811cd3`](https://github.com/lawalletio/lawallet-nwc/commit/0811cd3) — feat(nwc-card): real-time balance, NWC branding and live status
+- [`d45e421`](https://github.com/lawalletio/lawallet-nwc/commit/d45e421) — feat: track when the user's NWC connection was set
+- [`2726a32`](https://github.com/lawalletio/lawallet-nwc/commit/2726a32) — feat(api/lud16): broadcast invoices:updated on new invoice + PAID transition
+- [`c98cc89`](https://github.com/lawalletio/lawallet-nwc/commit/c98cc89) — feat(hooks/use-api): SWR cache with logout teardown + invoices SSE routing
+- [`8294b70`](https://github.com/lawalletio/lawallet-nwc/commit/8294b70) — refactor: extract shared utilities and dedupe SSE event types
+
+The `useApi` hook is now SWR-backed, with cache teardown on logout and automatic key revalidation when an `invoices:updated` SSE event arrives. The `/api/events` route is the canonical channel for `invoices:updated`, `activity:created`, and balance/status events.
+
+### 6. User-facing Wallet
+
+[PR #191](https://github.com/lawalletio/lawallet-nwc/pull/191)
+
+A separate Next.js route group — `apps/web/app/(wallet)/...` — that implements the end-user wallet experience independent of the admin dashboard. **80 files changed, 6,072 insertions.**
+
+- [`96d6bc8`](https://github.com/lawalletio/lawallet-nwc/commit/96d6bc8) — feat(wallet): NWC client facade, route groups, mobile shell
+- [`2f7389a`](https://github.com/lawalletio/lawallet-nwc/commit/2f7389a) — feat(wallet): onboarding, home, send and receive flows
+- [`c24173e`](https://github.com/lawalletio/lawallet-nwc/commit/c24173e) — test(wallet): unit coverage for parser, contacts, and keypad
+- [`7310ba5`](https://github.com/lawalletio/lawallet-nwc/commit/7310ba5) — feat(wallet): offline cache, redesigned home, scan, currencies, infinite-scroll activity, persistent sign-in
+- [`3e5140f`](https://github.com/lawalletio/lawallet-nwc/commit/3e5140f) — feat(ui/wallet): BalanceCard + AddressInvoicesCard
+- [`9f53391`](https://github.com/lawalletio/lawallet-nwc/commit/9f53391) — refactor(hooks): shared primitives for wallet + address UI
+- [`67252b0`](https://github.com/lawalletio/lawallet-nwc/commit/67252b0) — feat(ui): reusable InputWithQrScanner + QR a11y fix
+- [`0b3998a`](https://github.com/lawalletio/lawallet-nwc/commit/0b3998a) — fix(nwc): toast on relay timeout, suppress SDK console spam
+
+Highlights of the wallet surface:
+
+- **NWC client facade** with offline cache (last-known balance + activity), persistent sign-in via localStorage
+- **Onboarding** → **Home** (redesigned) with balance card, primary address, recent activity
+- **Send / Receive / Scan** flows including WebLN integration and QR scanning
+- **Currency switcher** with split-BTC display (sats/BTC)
+- **Infinite-scroll Activity** backed by an `activity-cache` module
+- New unit tests under `apps/web/tests/unit/components/wallet/` and `apps/web/tests/unit/lib/client/cache/` covering the NWC parser, contacts store, balance/activity caches, and keypad
+
+### 7. Onboarding Flow
+
+[PR #192](https://github.com/lawalletio/lawallet-nwc/pull/192)
+
+A polished first-run experience that handles the whole "claim domain → become root → register first address" journey.
+
+- [`626b4bd`](https://github.com/lawalletio/lawallet-nwc/commit/626b4bd) — feat(setup-wizard): real domain verification + endpoint URL field
+- [`fd3e829`](https://github.com/lawalletio/lawallet-nwc/commit/fd3e829) — feat(onboarding): drop /register page, route claim through admin
+- [`0310b31`](https://github.com/lawalletio/lawallet-nwc/commit/0310b31) — feat(paid-reg): require Lightning payment to register addresses
+- [`1aea407`](https://github.com/lawalletio/lawallet-nwc/commit/1aea407) — feat(register): public /register route + admin bypass toggle
+- [`945b4a6`](https://github.com/lawalletio/lawallet-nwc/commit/945b4a6) — feat(wallet/new-address): paid flow in-dialog + WebLN + animated hero
+- [`64eb347`](https://github.com/lawalletio/lawallet-nwc/commit/64eb347) — feat(landing): "Accessing Dashboard" spinner overlay after login
+- [`8ee7d2a`](https://github.com/lawalletio/lawallet-nwc/commit/8ee7d2a) — feat(landing): add navbar with login / dashboard button
+- [`fe81dbe`](https://github.com/lawalletio/lawallet-nwc/commit/fe81dbe) — feat(onboarding): confirm-root step, community auto-import, setup-now CTAs, dev reset, address banner
+
+The setup wizard now does **real domain verification** (probes the configured endpoint), exposes an explicit endpoint URL field, and confirms the root pubkey before claiming. Community metadata can be auto-imported from `veintiuno.lat`. A public `/register` route handles paid Lightning-address registration, with an admin bypass toggle for free claims; the paid flow is presented in-dialog with WebLN auto-pay and an animated hero. A dev-only reset endpoint lets contributors wipe state without touching the database.
+
+### 8. Lightning Address Registration & Payment Verification
+
+Earlier in the period, before the schema rewrite, foundational LUD work landed:
+
+- [`9b36ee5`](https://github.com/lawalletio/lawallet-nwc/commit/9b36ee5) — feat: lightning address registration flow with invoice tracking
+- [`521f8e7`](https://github.com/lawalletio/lawallet-nwc/commit/521f8e7) — fix: lightning-addresses endpoints accept JWT auth (not just NIP-98)
+- [`cc7077e`](https://github.com/lawalletio/lawallet-nwc/commit/cc7077e) — feat: LUD-21 verify endpoint for LUD-16 invoices
+- [`cac1e87`](https://github.com/lawalletio/lawallet-nwc/commit/cac1e87) — feat: LUD-12 comment support on LUD-16 callback
+- [`c60edb8`](https://github.com/lawalletio/lawallet-nwc/commit/c60edb8) — feat: show public NWC details when connected
+- [`932dd47`](https://github.com/lawalletio/lawallet-nwc/commit/932dd47) — feat: admin dashboard UX polish and NWC setup
+- [`975b5f1`](https://github.com/lawalletio/lawallet-nwc/commit/975b5f1) — test: integration tests for new API endpoints
+
+This brings the platform's Lightning Address surface to LUD-12 + LUD-16 + LUD-21 compliance. LUD-22 webhook delivery is the remaining piece, planned through the `nostr-trigger` / `listener` service.
+
+### 9. Authentication Polish
+
+- [`59782cf`](https://github.com/lawalletio/lawallet-nwc/commit/59782cf) — fix: bunker QR login fails with "invalid payload length" on NIP-04 signers
+- [`2b1142d`](https://github.com/lawalletio/lawallet-nwc/commit/2b1142d) — feat: add QR code flow to bunker login (NIP-46 nostrconnect://)
+
+The NIP-46 bunker login flow now supports `nostrconnect://` QR codes, and a long-standing payload-length bug on NIP-04 signers is fixed.
+
+### 10. OpenAPI 3.1 + Live API Reference
+
+[PR #196](https://github.com/lawalletio/lawallet-nwc/pull/196)
+
+A complete OpenAPI 3.1 specification for the REST API, served live by the running app and rendered through Scalar. **52 files changed, 6,291 insertions.**
+
+- [`15b0fd9`](https://github.com/lawalletio/lawallet-nwc/commit/15b0fd9) — feat(shared): extract Zod validation schemas into @lawallet-nwc/shared
+- [`cfb7dfd`](https://github.com/lawalletio/lawallet-nwc/commit/cfb7dfd) — feat(openapi): add @lawallet-nwc/openapi package with OpenAPI 3.1 spec
+- [`1904b22`](https://github.com/lawalletio/lawallet-nwc/commit/1904b22) — feat(web): add /api/openapi.json route and /api-docs Scalar viewer
+- [`ac4c380`](https://github.com/lawalletio/lawallet-nwc/commit/ac4c380) — feat(docs): replace static API reference with live OpenAPI viewer
+- [`fce2d90`](https://github.com/lawalletio/lawallet-nwc/commit/fce2d90) — docs(openapi): clarify /api/admin/assign as one-time bootstrap
+- [`ef826bd`](https://github.com/lawalletio/lawallet-nwc/commit/ef826bd) — feat(api-docs): polish navbar — logo, layout, NIP-07 connected state
+- [`941f095`](https://github.com/lawalletio/lawallet-nwc/commit/941f095) — chore: remove dead /api/root/assign endpoint
+- [`6877c02`](https://github.com/lawalletio/lawallet-nwc/commit/6877c02) — docs: add Roles & Permissions guide
+- [`6561e80`](https://github.com/lawalletio/lawallet-nwc/commit/6561e80) — feat(api-docs): rest-docs server rename, Roles section in sidebar, hide Scalar branding
+- [`b9d9ff0`](https://github.com/lawalletio/lawallet-nwc/commit/b9d9ff0) — chore(openapi): add local dev server for OpenAPI document
+- [`aba776c`](https://github.com/lawalletio/lawallet-nwc/commit/aba776c) — docs: rewire docs site to external API Playground
+
+The new `packages/openapi/` package builds the OpenAPI document programmatically from per-resource path modules:
+
+```
+packages/openapi/src/paths/
+  activity.ts    admin.ts        auth.ts        card-designs.ts
+  cards.ts       events.ts       invoices.ts    lightning-addresses.ts
+  lud16.ts       remote-connections.ts          settings.ts
+  setup.ts       users.ts        wallet.ts
+```
+
+The `@lawallet-nwc/shared` package now hosts the Zod validation schemas (extracted from `apps/web/lib/validation/`) so they can be shared between the API and the OpenAPI builder. The web app exposes `/api/openapi.json` and a Scalar-powered playground at `/api-docs` with NIP-07 connected-state in the navbar — the API Playground recognizes when the user has a Nostr extension and surfaces a connected pubkey badge. A new [Roles & Permissions guide](../architecture/roles-and-permissions) documents the RBAC model.
+
+### 11. Documentation Site Overhaul
+
+[PR #199](https://github.com/lawalletio/lawallet-nwc/pull/199)
+
+A complete restructure of the public docs site at `apps/docs/`.
+
+- [`b88097c`](https://github.com/lawalletio/lawallet-nwc/commit/b88097c) — docs: overhaul docs site structure and content (v0.1.1)
+
+The sidebar now organizes content into **Getting Started → Architecture → Guides → Deploy → Plugins → Integrations → Roadmap → Reports → Changelogs**. Standalone `getting-started/index.mdx` was removed in favor of a cleaner home page. Deployment docs (`docker.mdx`, `local.mdx`, `onboarding.mdx`) moved into a dedicated `deploy/` section. The roles-and-permissions doc moved under `architecture/`. The home page (`apps/docs/app/(home)/page.tsx`) was rewritten with refreshed navigation and feature cards.
+
+Earlier in the month:
+
+- [`9076774`](https://github.com/lawalletio/lawallet-nwc/commit/9076774) — docs(lib): JSDoc on public lib/ surface for IDE tooltips ([PR #193](https://github.com/lawalletio/lawallet-nwc/pull/193))
+- [`18f52c5`](https://github.com/lawalletio/lawallet-nwc/commit/18f52c5) — docs: add CONTRIBUTING.md with backend setup, commands, and PR process ([PR #194](https://github.com/lawalletio/lawallet-nwc/pull/194))
+- [`4b435ad`](https://github.com/lawalletio/lawallet-nwc/commit/4b435ad) — docs: call out SQLite default in .env.example, point to Postgres URL
+- [`a9fd4ce`](https://github.com/lawalletio/lawallet-nwc/commit/a9fd4ce) — docs(env): drop SQLite default from .env.example, point at Postgres
+- [`4f0cdd0`](https://github.com/lawalletio/lawallet-nwc/commit/4f0cdd0) — docs(testing): rewrite TESTING.md as a practical contributor guide ([PR #195](https://github.com/lawalletio/lawallet-nwc/pull/195))
+- [`6dca82f`](https://github.com/lawalletio/lawallet-nwc/commit/6dca82f) — docs: comprehensive ARCHITECTURE.md with modules, boundaries, and data flows
+- [`b420da8`](https://github.com/lawalletio/lawallet-nwc/commit/b420da8) — docs(claude): refresh CLAUDE.md with current architecture
+- [`362bfec`](https://github.com/lawalletio/lawallet-nwc/commit/362bfec) — docs: theme-aware README logo via prefers-color-scheme
+- [`9d1ff2e`](https://github.com/lawalletio/lawallet-nwc/commit/9d1ff2e) — docs: fix broken logo path in README after monorepo migration
+
+### 12. Vercel Deploy Button Fixes
+
+[PR #198](https://github.com/lawalletio/lawallet-nwc/pull/198)
+
+The repo's "Deploy with Vercel" button is the canonical zero-config install path; several layered fixes shipped this period:
+
+- [`b627040`](https://github.com/lawalletio/lawallet-nwc/commit/b627040) — fix(readme): point Vercel deploy button at apps/web with Neon integration
+- [`d4b161d`](https://github.com/lawalletio/lawallet-nwc/commit/d4b161d) — fix(readme): drop redundant products param from Vercel deploy URL
+- [`64d32f4`](https://github.com/lawalletio/lawallet-nwc/commit/64d32f4) — chore(vercel): run prisma migrate deploy during Vercel build
+- [`d569ee0`](https://github.com/lawalletio/lawallet-nwc/commit/d569ee0) — chore(vercel): drop redundant prisma generate from buildCommand
+- [`acc6af7`](https://github.com/lawalletio/lawallet-nwc/commit/acc6af7) — fix(web): remove "type": "module" to fix Vercel ERR_REQUIRE_ESM
+
+The deploy URL now provisions a Neon Postgres database, runs `prisma migrate deploy` at build time so a fresh deployment lands in a working state, and the workspace-level ESM/CJS conflict that was blocking Vercel builds is resolved.
+
+### 13. `nostr-trigger` — In-progress NWC Notification Service
+
+Branch: [`origin/nostr-trigger`](https://github.com/lawalletio/lawallet-nwc/tree/nostr-trigger). 19 commits, not yet merged.
+
+A new Bun-based microservice that will replace the listener stub. It implements:
+
+- HTTP + Nostr **dual control planes** with shared command handlers
+- BullMQ job queue on Redis for retries and delivery tracking
+- Pool/subscription-based **Nostr ingest** with NIP-57 zaps
+- **PG `LISTEN` / `NOTIFY`** trigger so `NwcConnection` table changes propagate without polling
+- Webhook payload contract for LUD-22 delivery
+- A self-contained **dashboard** with live SSE event stream
+- **Coinos-compatible** `make-invoice` flow + wallet-info probe
+- Kind-1 / Kind-9735 **dual-kind notification dedup**
+- A `DANGEROUSLY_FREE` env flag for auth-disabled local development
+
+Notable commits on the branch:
+
+- [`c99766a`](https://github.com/lawalletio/lawallet-nwc/commit/c99766a) — scaffold Bun service with Docker and Turbo config
+- [`246285b`](https://github.com/lawalletio/lawallet-nwc/commit/246285b) — feat(prisma): add nostr-trigger models and migration
+- [`fb4e6ec`](https://github.com/lawalletio/lawallet-nwc/commit/fb4e6ec) — refactor(prisma): extract @lawallet-nwc/prisma shared package
+- [`09f4738`](https://github.com/lawalletio/lawallet-nwc/commit/09f4738) — feat: config, logger, redis, crypto, and error primitives
+- [`9dfa9bb`](https://github.com/lawalletio/lawallet-nwc/commit/9dfa9bb) — feat: Nostr runtime — pool, subscriptions, ingest, zaps
+- [`1c0da1c`](https://github.com/lawalletio/lawallet-nwc/commit/1c0da1c) — feat: HTTP + Nostr control planes with shared command handlers
+- [`7ad07de`](https://github.com/lawalletio/lawallet-nwc/commit/7ad07de) — feat: self-contained dashboard with live SSE event stream
+- [`642a9af`](https://github.com/lawalletio/lawallet-nwc/commit/642a9af) — feat: make-invoice flow + wallet info probe + Coinos compat
+- [`2eecfcf`](https://github.com/lawalletio/lawallet-nwc/commit/2eecfcf) — feat: dedup dual-kind notifications + dashboard detail rows
+- [`85a6ff2`](https://github.com/lawalletio/lawallet-nwc/commit/85a6ff2) — feat: Settings tab to manage payment webhook endpoints
+- [`19aac69`](https://github.com/lawalletio/lawallet-nwc/commit/19aac69) — feat(prisma): NOTIFY trigger on NwcConnection changes
+- [`94da50d`](https://github.com/lawalletio/lawallet-nwc/commit/94da50d) — feat: react to NwcConnection changes via pg LISTEN
+- [`596415f`](https://github.com/lawalletio/lawallet-nwc/commit/596415f) — test: unit coverage for pure modules
+- Documentation updates: [`db46e32`](https://github.com/lawalletio/lawallet-nwc/commit/db46e32), [`86ca985`](https://github.com/lawalletio/lawallet-nwc/commit/86ca985), [`fe4ad73`](https://github.com/lawalletio/lawallet-nwc/commit/fe4ad73), [`9d3e2d1`](https://github.com/lawalletio/lawallet-nwc/commit/9d3e2d1), [`e0ae9fc`](https://github.com/lawalletio/lawallet-nwc/commit/e0ae9fc)
+- Bug fix: [`3491656`](https://github.com/lawalletio/lawallet-nwc/commit/3491656) — fix: BullMQ forbids ':' in custom job ids
+
+### 14. Tooling: 22 Claude Code Agent Skills
+
+[PR #189](https://github.com/lawalletio/lawallet-nwc/pull/189)
+
+A `.agents/skills/` library that codifies project-specific knowledge for working with the codebase: `next-best-practices`, `next-cache-components`, `next-upgrade`, `prisma-cli`, `prisma-client-api`, `prisma-database-setup`, `prisma-postgres`, `tailwind-css-patterns`, `tailwind-v4-shadcn`, `shadcn`, `vitest`, `vite`, `typescript-advanced-types`, `turborepo`, `vercel-composition-patterns`, `vercel-react-best-practices`, `deploy-to-vercel`, `nodejs-best-practices`, `nodejs-backend-patterns`, `frontend-design`, `accessibility`, `seo` — plus a `skills-lock.json` for reproducibility.
+
+These speed up onboarding for both human contributors and AI assistants and are referenced from [CONTRIBUTING.md](../contributing).
+
+---
+
+## Database Schema Snapshot
+
+The current Prisma schema (`apps/web/prisma/schema.prisma`) has **10 models**:
+
+```
+User · CardDesign · Ntag424 · LightningAddress · NWCConnection
+Card · AlbySubAccount · Settings · Invoice · ActivityLog
+```
+
+with three enums: `UserRole` (ADMIN / OPERATOR / VIEWER / USER), `InvoicePurpose` (REGISTRATION / WALLET_ADDRESS / LUD16_PAYMENT), and `InvoiceStatus` (PENDING / PAID / EXPIRED).
+
+`NWCConnection` and `ActivityLog` are new this period; `LightningAddress` was migrated from a 1:1 relation with `User` to a 1:N relation that supports multiple addresses per user with primary-address selection.
+
+---
+
+## Roadmap Impact
+
+The original roadmap positioned **Month 4** around *User Dashboard delivery, Courtesy NWC Proxy launch, and white-label customization*. During this period the project executed against that mandate and pulled additional work forward:
+
+**Completed this period:**
+
+- ✅ User Dashboard (Wallet) — onboarding, Send/Receive/Scan, balance, activity, currencies, offline cache, persistent sign-in
+- ✅ White-label customization — Branding, theme persistence, Blossom logo upload, infrastructure tab, community page
+- ✅ Admin Dashboard E2E — Cards/Designs CRUD with NFC, Users, Addresses, Settings, Activity, Community
+- ✅ Payment registration flow — public `/register`, paid Lightning registration, admin bypass
+- ✅ LUD-12, LUD-16, LUD-21 compliance with mode-aware resolution
+- ✅ Activity Log + SSE — system-wide instrumentation and live admin UI
+- ✅ Schema rewrite enabling per-address NWC routing
+- ✅ Monorepo migration + Turborepo + workspaces
+- ✅ OpenAPI 3.1 spec + live Scalar playground
+- ✅ Public docs site overhaul
+
+**In progress (`nostr-trigger` branch, not yet merged):**
+
+- 🚧 Courtesy NWC notification service (replaces listener stub) — Nostr ingest, BullMQ webhook delivery, PG LISTEN/NOTIFY triggers, dashboard
+
+**Still on the radar:**
+
+- TypeScript Client SDK package coverage (the `packages/sdk/` workspace remains a stub)
+- React Hooks package
+- Playwright E2E coverage for onboarding and admin flows
+- LUD-22 webhook delivery (will land via `nostr-trigger`)
+- External Courtesy NWC Proxy provisioning + integration
+
+The cumulative effect is that **the platform is now usable end-to-end** by an operator and an end user — claim a domain, brand it, register addresses, route payments via NWC, and observe everything in real time.
+
+---
+
+## Next Quarter (May – Jun 2026)
+
+The remaining two months of the grant should focus on hardening, integration, and the deferred infrastructure work:
+
+- Merge and ship the **`nostr-trigger`** service into `apps/listener/` as the canonical NWC notification pipeline
+- Deliver **LUD-22 webhook** signing and retry semantics on top of `nostr-trigger`
+- Stand up the external **Courtesy NWC Proxy** and wire it into the new schema
+- Ship the **TypeScript Client SDK** with full endpoint coverage, generated from the OpenAPI 3.1 spec
+- Add **Playwright E2E** coverage for the four critical journeys: domain claim → registration → primary-address set → payment received
+- Polish multi-language support, mobile a11y, and consolidate the responsive breakpoints
+- Final-mile docs: deploy targets (Umbrel, Start9, Netlify), self-host runbooks, recovery procedures
+
+See the full [Roadmap](../roadmap) for the 6-month plan.
+
+---
+
+## Links
+
+### Deployed Surfaces
+
+- **Product Landing:** [lawallet.io](https://lawallet.io)
+- **Live Beta:** [beta.lawallet.io](https://beta.lawallet.io)
+- **Main Documentation:** [docs.lawallet.io](https://docs.lawallet.io)
+- **API Playground:** [beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs)
+
+### Source
+
+- **Repository:** [github.com/lawalletio/lawallet-nwc](https://github.com/lawalletio/lawallet-nwc)
+- **Public landing repo:** [github.com/lawalletio/lawallet-landing](https://github.com/lawalletio/lawallet-landing)
+- **`nostr-trigger` branch:** [github.com/lawalletio/lawallet-nwc/tree/nostr-trigger](https://github.com/lawalletio/lawallet-nwc/tree/nostr-trigger)
+- **v0.10.0 release:** [Releases page](https://github.com/lawalletio/lawallet-nwc/releases/tag/v0.10.0)
+
+### Reference
+
+- **Previous report:** [Months 2-3](./months-2-3)
+- **Roadmap:** [Roadmap](../roadmap)
+- **Architecture:** [Architecture](../architecture)
