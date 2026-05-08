@@ -14,6 +14,20 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 **Stack:** Next.js 16 + TypeScript + Prisma + PostgreSQL
 
 [![CI](https://github.com/lawalletio/lawallet-nwc/actions/workflows/ci.yml/badge.svg)](https://github.com/lawalletio/lawallet-nwc/actions/workflows/ci.yml)
+[![Security](https://github.com/lawalletio/lawallet-nwc/actions/workflows/security.yml/badge.svg)](https://github.com/lawalletio/lawallet-nwc/actions/workflows/security.yml)
+[![codecov](https://codecov.io/gh/lawalletio/lawallet-nwc/branch/main/graph/badge.svg)](https://codecov.io/gh/lawalletio/lawallet-nwc)
+[![License: MIT](https://img.shields.io/github/license/lawalletio/lawallet-nwc?color=blue)](./LICENSE)
+[![Release](https://img.shields.io/github/v/release/lawalletio/lawallet-nwc?include_prereleases&sort=semver)](https://github.com/lawalletio/lawallet-nwc/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/lawalletio/lawallet-nwc)](https://github.com/lawalletio/lawallet-nwc/commits/main)
+
+[![Status: Pre-Alpha](https://img.shields.io/badge/status-pre--alpha-orange)](./README.md)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522.14-339933?logo=node.js&logoColor=white)](./.nvmrc)
+[![⚡ Lightning](https://img.shields.io/badge/⚡-Lightning_Network-792EE5)](https://lightning.network)
+[![Nostr](https://img.shields.io/badge/Nostr-Protocol-8E44AD)](https://nostr.com)
+[![Funded by OpenSats](https://img.shields.io/badge/Funded_by-OpenSats-F7931A)](https://opensats.org)
+
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&root-directory=apps%2Fweb&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD&env=JWT_SECRET&envDescription=JWT_SECRET%20must%20be%20a%2032%2B%20character%20random%20string.%20Generate%20one%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc%2Fblob%2Fmain%2Fapps%2Fweb%2F.env.example)
 
 ---
