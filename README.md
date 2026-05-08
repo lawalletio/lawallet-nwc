@@ -3,19 +3,7 @@
   <img src="/apps/web/public/logos/lawallet.png" alt="LaWallet Logo" width="400" />
 </picture>
 
-# LaWallet NWC
-
-**Lightning Address Platform with Nostr Wallet Connect**
-
-An open-source platform for creating, managing, and serving Lightning Addresses connected via NWC. Built on a progressive self-custody model — users start receiving payments instantly through address aliasing, then upgrade to NWC and eventually self-hosting at their own pace.
-
-> **Pre-Alpha** — Do not use real funds. Expect breaking changes.
-
-<p align="center">
-  <a href="https://beta.lawallet.io"><img src="https://img.shields.io/badge/Live_Demo-beta.lawallet.io-F5A623?style=for-the-badge&logo=lightning&logoColor=white" alt="Live Demo" /></a>
-  <a href="https://docs.lawallet.io"><img src="https://img.shields.io/badge/Documentation-docs.lawallet.io-26A69A?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation" /></a>
-  <a href="https://beta.lawallet.io/api-docs"><img src="https://img.shields.io/badge/API_Playground-Try_it_live-3178C6?style=for-the-badge&logo=swagger&logoColor=white" alt="API Playground" /></a>
-</p>
+---
 
 [![CI](https://github.com/lawalletio/lawallet-nwc/actions/workflows/ci.yml/badge.svg)](https://github.com/lawalletio/lawallet-nwc/actions/workflows/ci.yml)
 [![Security](https://github.com/lawalletio/lawallet-nwc/actions/workflows/security.yml/badge.svg)](https://github.com/lawalletio/lawallet-nwc/actions/workflows/security.yml)
@@ -32,21 +20,25 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 [![Nostr](https://img.shields.io/badge/Nostr-Protocol-8E44AD)](https://nostr.com)
 [![Funded by OpenSats](https://img.shields.io/badge/Funded_by-OpenSats-F7931A)](https://opensats.org)
 
+# LaWallet NWC
+
+**Lightning Address Platform and Nostr CRM**
+
+An open-source platform for creating, managing, and serving Lightning Addresses connected via NWC. Built on a progressive self-custody model — users start receiving payments instantly through address aliasing, then upgrade to NWC and eventually self-hosting at their own pace.
+
+<p align="center">
+  <a href="https://docs.lawallet.io"><img src="https://img.shields.io/badge/Documentation-docs.lawallet.io-26A69A?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation" /></a>
+  <a href="https://beta.lawallet.io/api-docs"><img src="https://img.shields.io/badge/API_Playground-Try_it_live-3178C6?style=for-the-badge&logo=swagger&logoColor=white" alt="API Playground" /></a>
+</p>
+
+> **Pre-Alpha** — Do not use real funds. Expect breaking changes.
+
+# Try Demo 👇
+<a href="https://beta.lawallet.io"><img src="https://img.shields.io/badge/Live_Demo-beta.lawallet.io-F5A623?style=for-the-badge&logo=lightning&logoColor=white" alt="Live Demo" /></a>
+
+# One Click Deploy 👇
+
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&root-directory=apps%2Fweb&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD&env=JWT_SECRET&envDescription=JWT_SECRET%20must%20be%20a%2032%2B%20character%20random%20string.%20Generate%20one%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc%2Fblob%2Fmain%2Fapps%2Fweb%2F.env.example)
-
----
-
-## Project Snapshot
-
-| | |
-|---|---|
-| **Status** | Pre-alpha — OpenSats Fifteenth Wave (Dec 2025 – Sep 2026) |
-| **Version** | `v0.10.0` |
-| **Services** | 3 containers — `web`, `listener`, `nwc-proxy` |
-| **API** | 47 REST routes · LUD-16 / LUD-21 / LUD-22 · NIP-98 + JWT auth |
-| **Tests** | 578 across 50 files · coverage thresholds enforced in CI |
-| **Roadmap** | 8 months · M1–M4 completed · M5 in progress |
-| **License** | MIT |
 
 ---
 
