@@ -10,6 +10,8 @@ import {
 } from '@/components/wallet/shared/amount-keypad'
 import { AmountDisplay } from '@/components/wallet/shared/amount-display'
 import { useSendFlow, sendActions } from '@/lib/client/wallet-flow-store'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 export function SendAmountStep() {
   const router = useRouter()
@@ -21,8 +23,14 @@ export function SendAmountStep() {
   useEffect(() => {
     if (!flow.recipient) {
       router.replace('/wallet/send')
+      return
     }
-  }, [flow.recipient, router])
+    trackEvent(AnalyticsEvent.WALLET_SEND_STARTED)
+    // Recipient is captured by the parent route; the started event
+    // belongs here because this is the first step where the user can
+    // actually commit to sending. Fire once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const amount = parseKeypadValue(value)
   const recipientLabel =

@@ -16,6 +16,8 @@ import { checkRootStatus, claimRootRole } from '@/lib/client/auth-api'
 import { buildPublicHost } from '@/lib/public-url-utils'
 import { truncateNpub } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 // Hostname only — no protocol, no path. Mirrors the validator used by
 // the Infrastructure settings tab so onboarding rejects the same things
@@ -139,6 +141,7 @@ export function SetupWizard() {
           // fires after the user confirms. The rest of the wizard runs
           // as ADMIN (settings POST needs SETTINGS_WRITE).
           setStep('confirm-root')
+          trackEvent(AnalyticsEvent.SETUP_STARTED)
         }
       } catch {
         // API error — don't show onboarding
@@ -166,6 +169,7 @@ export function SetupWizard() {
       // (settings POST needs ADMIN). Skip if loginMethod is gone — rare,
       // but the next reload will re-exchange anyway.
       if (loginMethod) await login(signer, loginMethod)
+      trackEvent(AnalyticsEvent.SETUP_STEP_COMPLETED, { step: 'confirm_root' })
       setStep('loading')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to claim root role')
@@ -251,6 +255,7 @@ export function SetupWizard() {
       }
 
       setVerified(true)
+      trackEvent(AnalyticsEvent.SETUP_STEP_COMPLETED, { step: 'domain_verified' })
       toast.success(`${cleanDomain} verified`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Verification failed')
@@ -325,6 +330,9 @@ export function SetupWizard() {
         }
       }
 
+      trackEvent(AnalyticsEvent.SETUP_COMPLETED, {
+        community: community ? 'matched' : 'none',
+      })
       toast.success('Setup complete! You are now the root administrator.')
       setStep('hidden')
     } catch (error) {

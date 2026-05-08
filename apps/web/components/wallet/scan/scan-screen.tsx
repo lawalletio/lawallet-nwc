@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 import { parseDestination } from '@/lib/client/nwc/parse-destination'
 import { sendActions, type ResolvedRecipient } from '@/lib/client/wallet-flow-store'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 /**
  * Auto-opening QR scanner reachable from the home tabbar's center button.
@@ -70,6 +72,7 @@ export function ScanScreen() {
   function handleResult(text: string) {
     try {
       const destination = parseDestination(text)
+      trackEvent(AnalyticsEvent.WALLET_SCAN_USED, { kind: destination.kind })
       const recipient: ResolvedRecipient = { raw: text.trim(), destination }
       sendActions.setRecipient(recipient)
 

@@ -31,6 +31,8 @@ import {
 } from '@/components/ui/collapsible'
 import { Permission } from '@/lib/auth/permissions'
 import { useCard, useCardMutations } from '@/lib/client/hooks/use-cards'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 export default function CardDetailPage({
   params,
@@ -46,6 +48,7 @@ export default function CardDetailPage({
   async function handleDelete() {
     try {
       await deleteCard(id)
+      trackEvent(AnalyticsEvent.CARD_DELETED)
       toast.success('Card deleted')
       router.push('/admin/cards')
     } catch (error) {

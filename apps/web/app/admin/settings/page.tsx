@@ -24,6 +24,8 @@ import { useNavGuard } from '@/lib/client/hooks/use-nav-guard'
 import { useTheme, type ThemePreset, type RoundingOption } from '@/lib/client/theme-context'
 import { useAuth } from '@/components/admin/auth-context'
 import { Role } from '@/lib/auth/permissions'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 function SettingsContent() {
   const searchParams = useSearchParams()
@@ -143,6 +145,7 @@ function SettingsContent() {
         await saveAllRef.current()
       }
 
+      trackEvent(AnalyticsEvent.SETTINGS_UPDATED, { tab: activeTab })
       setHasChanges(false)
       toast.success('Settings saved')
     } catch (error) {

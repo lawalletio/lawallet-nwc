@@ -15,6 +15,8 @@ import { clearApiCache } from '@/lib/client/hooks/use-api'
 import { clearAllBalances } from '@/lib/client/cache/balance-cache'
 import { clearAll as clearAllActivity } from '@/lib/client/cache/activity-cache'
 import { SignerUnlockDialog } from '@/components/admin/signer-unlock-dialog'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 const JWT_STORAGE_KEY = 'lawallet-jwt'
 const LOGIN_METHOD_KEY = 'lawallet-login-method'
@@ -111,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Logout - clear everything
   const logout = useCallback(() => {
+    trackEvent(AnalyticsEvent.LOGOUT)
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current)
       refreshTimerRef.current = null
@@ -211,6 +214,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signer,
         loginMethod: method,
       })
+
+      trackEvent(AnalyticsEvent.LOGIN_SUCCEEDED, { method, role: validation.role })
 
       scheduleRefresh(validation.expiresAt, signer)
     },

@@ -65,6 +65,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       social_website: settings.social_website,
       social_nostr: settings.social_nostr,
       social_email: settings.social_email,
+      gtag_id: settings.gtag_id,
     })
   }
 

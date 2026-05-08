@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { formatCardId } from '@/lib/client/nfc-card-id'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 /**
  * Web NFC types — only Chrome for Android ships `NDEFReader` at the moment,
@@ -104,6 +106,7 @@ export function NfcScanDialog({
         setState('error')
         return
       }
+      trackEvent(AnalyticsEvent.CARD_PAIRED, { via: 'nfc' })
       onDetected(canonical)
       abortRef.current?.abort()
       onOpenChange(false)

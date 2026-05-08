@@ -1,19 +1,27 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useReceiveFlow, receiveActions } from '@/lib/client/wallet-flow-store'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 export function ReceiveSummaryStep() {
   const router = useRouter()
   const flow = useReceiveFlow()
+  const trackedRef = useRef(false)
 
   useEffect(() => {
     if (!flow.invoice) {
       router.replace('/wallet/receive')
+      return
+    }
+    if (!trackedRef.current) {
+      trackedRef.current = true
+      trackEvent(AnalyticsEvent.WALLET_RECEIVE_COMPLETED)
     }
   }, [flow.invoice, router])
 

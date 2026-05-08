@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowRight } from 'lucide-react'
@@ -18,6 +18,8 @@ import {
   useReceiveFlow,
   receiveActions,
 } from '@/lib/client/wallet-flow-store'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
@@ -35,6 +37,10 @@ export function ReceiveAmountStep() {
   const [description, setDescription] = useState(flow.description)
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    trackEvent(AnalyticsEvent.WALLET_RECEIVE_STARTED)
+  }, [])
+
   const amount = parseKeypadValue(value)
 
   async function create() {
@@ -48,6 +54,7 @@ export function ReceiveAmountStep() {
     receiveActions.setDescription(description)
     try {
       const invoice = await makeInvoice(effectiveNwc, amount, description)
+      trackEvent(AnalyticsEvent.WALLET_RECEIVE_INVOICE_GENERATED)
       receiveActions.setInvoice(invoice)
       router.push('/wallet/receive/invoice')
     } catch (err) {
