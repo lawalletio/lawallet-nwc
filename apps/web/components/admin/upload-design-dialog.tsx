@@ -20,6 +20,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { useBlossomUpload } from '@/lib/client/hooks/use-blossom-upload'
 import { useDesignMutations } from '@/lib/client/hooks/use-designs'
 import { cn } from '@/lib/utils'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -118,6 +120,7 @@ export function UploadDesignDialog({
     try {
       const { url } = await upload.upload(file)
       await createDesign({ description: name.trim(), imageUrl: url })
+      trackEvent(AnalyticsEvent.DESIGN_CREATED)
       toast.success('Design uploaded')
       onCreated?.()
       handleOpenChange(false)

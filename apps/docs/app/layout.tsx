@@ -1,5 +1,6 @@
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import { SandPackCSS } from '@/components/sandpack-styles';
+import { GoogleAnalytics } from '@/components/analytics/google-analytics';
 import './global.css';
 import { Inter } from 'next/font/google';
 import type { ReactNode } from 'react';
@@ -19,6 +20,8 @@ export const metadata: Metadata = {
 };
 
 export default function Layout({ children }: { children: ReactNode }) {
+  const gtagId = process.env.NEXT_PUBLIC_GTAG_ID?.trim() || null;
+
   return (
     <html lang="en" className={inter.className} suppressHydrationWarning>
       <head>
@@ -26,6 +29,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         <link rel="icon" href="/logos/lawallet.svg" type="image/svg+xml" />
       </head>
       <body className="flex flex-col min-h-screen">
+        <GoogleAnalytics gtagId={gtagId} />
         <RootProvider
           theme={{
             defaultTheme: 'dark',

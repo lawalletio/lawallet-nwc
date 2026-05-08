@@ -33,6 +33,8 @@ import {
 import { useDesigns } from '@/lib/client/hooks/use-designs'
 import { useCardMutations } from '@/lib/client/hooks/use-cards'
 import { formatCardId, isValidCardId } from '@/lib/client/nfc-card-id'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 interface CreateCardDialogProps {
   onSuccess?: () => void
@@ -78,6 +80,7 @@ export function CreateCardDialog({ onSuccess }: CreateCardDialogProps) {
         id: canonical,
         ...(designId ? { designId } : {}),
       })
+      trackEvent(AnalyticsEvent.CARD_CREATED, { has_design: !!designId })
       toast.success('Card created successfully')
       setOpen(false)
       setCardId('')
@@ -105,7 +108,13 @@ export function CreateCardDialog({ onSuccess }: CreateCardDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) trackEvent(AnalyticsEvent.CARD_CREATE_STARTED)
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="mr-2 size-4" />

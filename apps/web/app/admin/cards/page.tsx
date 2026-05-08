@@ -62,6 +62,8 @@ import {
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { truncateNpub, formatRelativeTime, truncateHex } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 const PAGE_SIZE = 10
 
@@ -116,6 +118,7 @@ export default function CardsPage() {
   async function handleSyncDesigns() {
     try {
       await importDesigns()
+      trackEvent(AnalyticsEvent.DESIGN_IMPORTED)
       toast.success('Designs synced successfully')
       refetchDesigns()
     } catch (error) {
@@ -476,6 +479,7 @@ function DesignCardHeader({
     }
     try {
       await updateDesign(design.id, { description: next })
+      trackEvent(AnalyticsEvent.DESIGN_UPDATED, { field: 'description' })
       toast.success('Design updated')
       setEditing(false)
       onUpdated()
@@ -494,6 +498,9 @@ function DesignCardHeader({
   async function toggleArchive() {
     try {
       await updateDesign(design.id, { archived: !isArchived })
+      trackEvent(AnalyticsEvent.DESIGN_UPDATED, {
+        field: isArchived ? 'restored' : 'archived',
+      })
       toast.success(isArchived ? 'Design restored' : 'Design archived')
       onUpdated()
     } catch (err) {

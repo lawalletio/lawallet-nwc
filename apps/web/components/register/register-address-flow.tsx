@@ -15,6 +15,8 @@ import { useSettings } from '@/lib/client/hooks/use-settings'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { pollVerifyUrl } from '@/lib/client/lnurl'
 import { buildPublicHost } from '@/lib/public-url-utils'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 type Step = 'username' | 'payment' | 'claiming' | 'success'
 
@@ -224,6 +226,7 @@ export function RegisterAddressFlow({
               // address" banner) re-fetch instead of rendering one frame
               // of stale state with no lightningAddress.
               invalidateApiPath('/api/users/me')
+              trackEvent(AnalyticsEvent.ADDRESS_CREATED, { paid: true })
               setClaimedAddress(address)
               setStep('success')
               onSuccess?.(address)
@@ -263,6 +266,7 @@ export function RegisterAddressFlow({
       // Drop the stale /api/users/me cache so consumers re-fetch instead
       // of flashing the "no address yet" state on the next mount.
       invalidateApiPath('/api/users/me')
+      trackEvent(AnalyticsEvent.ADDRESS_CREATED, { paid: false })
       setClaimedAddress(address)
       setStep('success')
       onSuccess?.(address)

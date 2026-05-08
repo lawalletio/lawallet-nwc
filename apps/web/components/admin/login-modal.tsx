@@ -25,6 +25,8 @@ import {
   createNostrConnectSigner,
   hasBrowserExtension,
 } from '@/lib/client/nostr-signer'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 interface LoginModalProps {
   open: boolean
@@ -119,10 +121,12 @@ function ExtensionTab() {
 
   async function handleConnect() {
     setLoading(true)
+    trackEvent(AnalyticsEvent.LOGIN_STARTED, { method: 'extension' })
     try {
       const signer = createBrowserSigner()
       await login(signer, 'extension')
     } catch (error) {
+      trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'extension' })
       toast.error(error instanceof Error ? error.message : 'Failed to connect with extension')
     } finally {
       setLoading(false)
@@ -186,11 +190,13 @@ function NsecTab() {
     e.preventDefault()
     setError(null)
     setLoading(true)
+    trackEvent(AnalyticsEvent.LOGIN_STARTED, { method: 'nsec' })
 
     try {
       const signer = createNsecSigner(nsec)
       await login(signer, 'nsec')
     } catch (err) {
+      trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'nsec' })
       const message = err instanceof Error ? err.message : 'Failed to login'
       setError(message)
       toast.error(message)
@@ -317,6 +323,7 @@ function BunkerQRMode() {
     setError(null)
     setStatus('generating')
     setCopied(false)
+    trackEvent(AnalyticsEvent.LOGIN_STARTED, { method: 'bunker', flow: 'qr' })
 
     try {
       const signer = await createNostrConnectSigner({
@@ -334,6 +341,7 @@ function BunkerQRMode() {
       await login(signer, 'bunker')
     } catch (err) {
       if (controller.signal.aborted) return
+      trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'bunker', flow: 'qr' })
       const message = err instanceof Error ? err.message : 'Failed to connect'
       setError(message.includes('timed out') || message.includes('abort')
         ? 'Connection timed out. Make sure your signer app scanned the QR code.'
@@ -430,10 +438,12 @@ function BunkerPasteMode() {
     }
 
     setLoading(true)
+    trackEvent(AnalyticsEvent.LOGIN_STARTED, { method: 'bunker', flow: 'paste' })
     try {
       const signer = await createBunkerSigner(bunkerUrl, { timeout: 30_000 })
       await login(signer, 'bunker')
     } catch (err) {
+      trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'bunker', flow: 'paste' })
       const message = err instanceof Error ? err.message : 'Failed to connect to bunker'
       setError(message)
       toast.error(message)

@@ -41,6 +41,8 @@ export interface SettingsData {
   disable_transfers?: string
   disable_registers?: string
   disable_address?: string
+  /** Google Tag ID (e.g. `G-XXXXXXXXXX`). Empty string disables analytics. */
+  gtag_id?: string
   [key: string]: string | undefined
 }
 

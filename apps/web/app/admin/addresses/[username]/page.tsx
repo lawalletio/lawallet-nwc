@@ -34,6 +34,8 @@ import {
 } from '@/lib/client/hooks/use-wallet-addresses'
 import { isLightningAddress } from '@/lib/ln-address'
 import { cn } from '@/lib/utils'
+import { trackEvent } from '@/lib/analytics/gtag'
+import { AnalyticsEvent } from '@/lib/analytics/events'
 
 /**
  * Structural check for a Nostr Wallet Connect URI, mirrored from the server
@@ -171,6 +173,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
       // Save button from briefly un-disabling between "mutation done"
       // and "form reset to clean".
       await refetch()
+      trackEvent(AnalyticsEvent.ADDRESS_MODE_CHANGED, { mode })
       setModeOpen(false)
       toast.success('Saved')
     } catch (err) {
