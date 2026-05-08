@@ -9,7 +9,7 @@
 With LUD-12/16/21 compliance, the OpenAPI spec, and the docs site overhaul already shipped in Month 4, the original Month 5 plan no longer applies. This month splits cleanly into two themes:
 
 1. **Card System Completion** — finish the BoltCard story end-to-end: Android login app, the rebrand of `simple-card-manager`, and a working issue → activate → pair → pay flow.
-2. **Platform Polish & Integrations** — full NIP-05, relay preferences, user data cache, onboarding-v2 with Cloudflare detection, the **NWC Payment Listener (lite, transport-only)** merged from the [`nostr-trigger` branch](https://github.com/lawalletio/lawallet-nwc/tree/nostr-trigger), LUD-22 webhook plumbing, the `@lawallet-nwc/react` hooks package, multi-email (Resend), dashboard cache, PWA wallet, the admin Subscription Manager, bug fixes, and the landing CRM swap.
+2. **Platform Polish & Integrations** — full NIP-05, relay preferences, user data cache, onboarding-v2 with Cloudflare detection, the **NWC Payment Listener (lite, transport-only)** merged from the [`nostr-trigger` branch](https://github.com/lawalletio/lawallet-nwc/tree/nostr-trigger), LUD-22 webhook plumbing, the `@lawallet-nwc/react` hooks package, multi-email (Resend), dashboard cache, PWA wallet, the **Follower Capture Endpoint** (formerly "Subscription Manager (admin)" — renamed to free the name for the M7 paid-tier feature), bug fixes, and the landing CRM swap.
 
 Full LUD-16/21/22 + NIP-57 **compliance** moves to [Month 6](MONTH-6.md), where it ships through the NWC Proxy Lite settlement layer.
 
@@ -35,7 +35,7 @@ Full LUD-16/21/22 + NIP-57 **compliance** moves to [Month 6](MONTH-6.md), where 
 - Multi-email provider — add Resend adapter alongside SMTP
 - Dashboard cache pages — Next.js Cache Components, dedupe `getSettings`
 - PWA Wallet (manifest, service worker, install prompt, offline)
-- Subscription manager (admin) — endpoint stores signed-Nostr followers, optional NIP-04 reply via instance nsec
+- Follower Capture Endpoint (admin) — stores signed-Nostr followers, optional NIP-04 reply via instance nsec _(formerly named "Subscription Manager (admin)" — renamed to free the name for the M7 paid-tier feature)_
 - Bug fixes — card-design dropdown stale state, redundant `getSettings`
 - LaWallet landing — swap Tally for the operator's CRM
 
@@ -159,15 +159,17 @@ Hooked into the listener → apps-web webhook contract above. Operators register
 - Install prompt UX in the user wallet
 - iOS / Android install instructions
 
-### Subscription Manager (admin)
+### Follower Capture Endpoint
+
+> Renamed from "Subscription Manager (admin)" — the name "Subscription Manager" is reused in [Month 7](MONTH-7.md) for the paid-tier feature.
 
 A new admin feature for capturing potential followers via Nostr.
 
-- `POST /api/subscriptions/subscribe` accepts `{ pubkey, signedEvent }` (NIP-22-style signed nostr event)
+- `POST /api/followers/capture` (formerly `/api/subscriptions/subscribe`) accepts `{ pubkey, signedEvent }` (NIP-22-style signed nostr event)
 - Verifies the signature, stores `(pubkey, signedAt, source)` as a potential follower
 - Optional NIP-04 reply: instance signs and DMs a welcome message via the configured instance nsec
 - Instance nsec storage: encrypted-in-DB, opt-in per instance (operator must enable in Settings)
-- Admin UI: list of subscribers, export (CSV), broadcast (kind:1 / kind:4 to opted-in pubkeys)
+- Admin UI: list of captured followers, export (CSV), broadcast (kind:1 / kind:4 to opted-in pubkeys)
 - Rate-limited; respects spam protections
 
 ### Bug Fixes
@@ -198,6 +200,6 @@ Out-of-tree (lives in the `lawallet-landing` repo). Replace the Tally form with 
 | Resend adapter | Email sends through Resend; toggle in Settings | P2 |
 | Dashboard cache | Single `getSettings` per page; cache hits visible in profiler | P1 |
 | PWA Wallet | Installable, runs offline with last-known balance | P1 |
-| Subscription Manager | Endpoint accepts signed events, opt-in nsec, admin export | P1 |
+| Follower Capture Endpoint | Accepts signed events, opt-in nsec, admin export | P1 |
 | Bug fixes | Card-design dropdown updates; `getSettings` deduped | P1 |
 | Landing CRM | Tally replaced with operator's CRM (in `lawallet-landing`) | P2 |

@@ -413,6 +413,58 @@ export default function HomePage() {
 
       {/* ── Open Standards ───────────────────────────────────── */}
       <OpenStandardsSection />
+
+      {/* ── Documentation CTA ────────────────────────────────── */}
+      <section className='relative max-w-4xl mx-auto px-4 pb-24 w-full'>
+        {/* Section glow */}
+        <div className='absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-[#F5A623]/[0.04] rounded-full blur-[120px] -z-10' />
+
+        <div className='relative rounded-2xl border border-fd-border bg-fd-card/80 backdrop-blur-sm p-10 sm:p-12 text-center overflow-hidden'>
+          {/* Decorative corner accents */}
+          <div className='absolute top-0 left-0 h-[1px] w-24 bg-gradient-to-r from-[#F5A623]/60 to-transparent' />
+          <div className='absolute top-0 left-0 w-[1px] h-24 bg-gradient-to-b from-[#F5A623]/60 to-transparent' />
+          <div className='absolute bottom-0 right-0 h-[1px] w-24 bg-gradient-to-l from-[#26A69A]/60 to-transparent' />
+          <div className='absolute bottom-0 right-0 w-[1px] h-24 bg-gradient-to-t from-[#26A69A]/60 to-transparent' />
+
+          <div className='inline-flex items-center gap-3 mb-4'>
+            <div className='h-px w-12 bg-gradient-to-r from-transparent to-[#F5A623]/40' />
+            <span className='text-[#F5A623] text-sm font-mono uppercase tracking-widest'>
+              Documentation
+            </span>
+            <div className='h-px w-12 bg-gradient-to-l from-transparent to-[#F5A623]/40' />
+          </div>
+
+          <h2 className='text-3xl sm:text-4xl font-bold mb-4'>
+            Ready to dive deeper?
+          </h2>
+
+          <p className='text-fd-muted-foreground text-base sm:text-lg max-w-2xl mx-auto mb-8 leading-relaxed'>
+            Explore the full LaWallet NWC documentation — architecture, API
+            references, the SDK and React Hooks, deployment guides, and the
+            8-month development roadmap.
+          </p>
+
+          <Link
+            href='/docs'
+            className='inline-flex items-center gap-2 rounded-lg bg-[#F5A623] px-8 py-3 text-sm font-semibold text-[#0A0A0F] shadow-lg shadow-[#F5A623]/20 transition-all hover:bg-[#FFD580] hover:shadow-xl hover:shadow-[#F5A623]/30'
+          >
+            See full documentation
+            <svg
+              width='16'
+              height='16'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <line x1='5' y1='12' x2='19' y2='12' />
+              <polyline points='12 5 19 12 12 19' />
+            </svg>
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }

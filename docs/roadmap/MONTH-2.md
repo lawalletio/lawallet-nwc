@@ -1,8 +1,10 @@
-# Month 2: CI/CD + Client SDK + React Hooks
+# Month 2: CI/CD + Auth Flow Upgrade (COMPLETED)
 
 **Period:** February 5 - March 5, 2026
-**Status:** In Progress
+**Status:** Completed
 **Depends on:** Month 1 (completed)
+
+> Reported jointly with Month 3 in [`docs/reports/MONTHS-2-3.md`](../reports/MONTHS-2-3.md). The Client SDK and React Hooks parts of the original Month 2 plan were pulled forward to later phases; this period delivered CI/CD + the NIP-98 → JWT session auth migration.
 
 ## Summary
 

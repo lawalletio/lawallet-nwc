@@ -105,26 +105,51 @@ Deploy all three, or just `lawallet-web` to start. Each service scales independe
 - Full LUD-16/21/22 compliance, NIP-57 zaps
 - Documentation, deployment configurations (Vercel, Docker, Umbrel)
 
-### CRM + Communications (Post-Grant)
+### Monetization & Intelligence (Months 7–8, Post-Grant Continuation)
 
+Months 7–8 are formally committed in [ROADMAP.md](./ROADMAP.md). They turn the platform into something operators can monetize and extend with AI.
+
+**Month 7 — Monetization Plane**
+
+- **Subscription Manager** — paid tiers with monthly or one-time pricing (sats); operator-defined plans + perks
+- **Perks (P0):** vanity Lightning address, email-to-Nostr bridge, sat allowance ledger
+- **Nostr Chat — DMs** (NIP-17 gift-wrapped over NIP-44, NIP-04 fallback); messages live on relays
+- **Operator → user broadcast** via instance nsec, segmented by tier
+- **Email-to-Nostr bridge** — `username+inbox@domain.com` arrives as a NIP-44 DM
+
+**Month 8 — Intelligence Plane**
+
+- **AI Agents** — operator spawns agents with their own LN address, Nostr identity, and NWC wallet
+- **One-click spawn + dashboard funding** — operator clicks Fund Agent → invoice → balance updates
+- **Identity Mode A** (server-side encrypted nsec, autonomous) and **Mode B** (NIP-46 / Amber bunker URI, delegated)
+- **Heartbeats / scheduled tasks** — cron-driven `POST`, `REPLY_TO_MENTIONS`, `ZAP_LIST`, `CUSTOM_PROMPT`
+- **Sat-metered runs** — debits the M7 user allowance first; falls back to a 402-style invoice from the agent's wallet
+- **Vercel AI SDK + AI Gateway** as the model router (no new container)
+
+### Beyond M8 / Community Vision
+
+These items extend the platform after M8 ships. They are not on the formal roadmap.
+
+**Communications & CRM**
 - Payment history and frequency tracking per user
 - Onboarding stage tracking and user segmentation
-- **Nostr DMs** to users (NIP-04/NIP-17/NIP-44 encrypted)
-- **Broadcast messages** to user segments via Nostr
 - **Newsletter-style long-form posts** (kind:30023) published to relays
 - Notification system for payment events and platform updates
 - Inbox management for admin
 
-### AI Integration (Future)
+**Group Messaging**
+- **Nostr group chat threads** (NIP-29) — multi-party threads beyond the M7 DM surface
 
-- Smart message drafting with AI assistance
+**AI Extensions**
 - Message personalization based on user profile and payment history
-- Auto-responses to common user inquiries via Nostr DM
 - User behavior analysis, churn prediction, segment recommendations
 - Natural language search across users, payments, and communications
 
-### Plugins (Community)
+**Money Layer**
+- **Operator-hosted paid Nostr relay** — vendor strfry or khatru as a 4th container
+- **Cashu eCash mint integration** (NIP-60/61) — eCash perks alongside the sat allowance
 
+**Plugins (Community)**
 - **Events** — event management with check-in via QR/NFC, badge issuance
 - **Badges** — Nostr badges (NIP-58) for attendance, achievements, tiers
 - **Commerce** — merchant directory with badge-based discounts
@@ -153,4 +178,6 @@ No vendor lock-in. No proprietary protocols. Interoperability or death.
 
 ## Funded by
 
-OpenSats — Fifteenth Wave (December 2025). 6-month development grant for testing, security, SDK, dashboards, and deployment infrastructure.
+OpenSats — Fifteenth Wave (December 2025). 6-month development grant covering Months 1–6: testing, security, SDK, dashboards, Lightning compliance, and deployment infrastructure.
+
+Months 7–8 (Subscription Manager + AI Agents) are post-grant continuation, self-funded.

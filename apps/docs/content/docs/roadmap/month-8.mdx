@@ -1,0 +1,172 @@
+---
+title: "Month 8: AI Agents (Intelligence Plane)"
+description: "Operator-spawned AI agents with their own LN address, Nostr identity, and NWC wallet. Sat-metered runs with subscriber discounts."
+---
+
+import { CircleDashed } from 'lucide-react'
+
+**Period:** August 5 - September 5, 2026
+**Status:** <span className="inline-flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400"><CircleDashed className="size-4" /> Planned</span>
+**Depends on:** Month 7 (Subscription Manager + Nostr Chat) — and indirectly all of Month 6
+
+## Summary
+
+Month 8 turns LaWallet NWC into a platform where operators can run AI agents as first-class participants. **Each agent has its own Lightning address, its own Nostr identity, and its own NWC wallet.** Operators spawn agents from the dashboard with one click, fund them with sats, and configure schedules and prompts. Agents participate in Nostr Chat (M7), run autonomous Nostr actions on a cron, and serve user-facing AI requests billed in sats — with subscriber discounts via the M7 sat allowance.
+
+The model router is the **Vercel AI SDK + AI Gateway**, running inside `apps/web` route handlers. The agent scheduler / heartbeat ticker lives in `apps/listener`. **Container count stays at 3.**
+
+---
+
+## Goals
+
+- One-click agent spawn from the dashboard
+- Per-agent Lightning address (`<slug>@domain.com`) reusing existing LN address infra
+- Per-agent NWC wallet provisioned via NWC Proxy Lite (M6)
+- Two identity modes:
+  - **Mode A (autonomous):** server-side encrypted nsec
+  - **Mode B (delegated):** NIP-46 bunker URI (Amber etc.) for human-approved signing
+- Dashboard funding flow — operator pays an invoice from the agent's wallet to top it up
+- Agent NWC wallet supports outbound payments (zaps, agent-to-agent payments, paid services)
+- Heartbeats / scheduled tasks via cron in `apps/listener`
+- Autonomous Nostr task types: `POST`, `REPLY_TO_MENTIONS`, `ZAP_LIST`, `CUSTOM_PROMPT`
+- Sat-metered user-facing inference with M7 allowance debit and 402-style invoice fallback
+- Two reference agents (Drafter, Summarizer) plus a custom OperatorBot
+
+---
+
+## Agent Spawn + Identity
+
+### One-click spawn (admin)
+
+`POST /api/admin/agents` from a dashboard form (name, description, system prompt, default model, optional Amber bunker URI). On create:
+
+1. Generate or import a Nostr keypair (depending on mode)
+2. Provision a Lightning address `<slug>@domain.com` reusing the existing `LightningAddress` infra
+3. Create an NWC connection for the agent's wallet via NWC Proxy Lite (M6)
+4. Persist the `Agent` row and register it in the dashboard list
+
+### Mode A — Autonomous (server-side nsec)
+
+- The agent's nsec is generated server-side and encrypted at rest
+- Agent signs Nostr events directly without human approval
+- Required for full automation (heartbeats, autonomous posts at scheduled times)
+- Risk: server compromise leaks the nsec — recommended for low-stakes agents
+
+### Mode B — Delegated (NIP-46 / Amber)
+
+- Agent stores a **NIP-46 bunker URI** instead of an nsec
+- Signing requests go to the bunker — typically Amber on the operator's phone — for explicit approval
+- Recommended for high-stakes agents (zaps, replies that represent the operator)
+- Trade-off: operator must be on-call for autonomous tasks
+
+---
+
+## Per-Agent Lightning Address + Funding
+
+- Each agent has `<slug>@domain.com`, resolved through the existing M4/M6 LN address path
+- Operator clicks **Fund Agent** in the dashboard → backend creates an invoice from the agent's NWC wallet → operator pays from their own wallet → balance updates
+- Agents pay invoices, send zaps, and pay for agent-to-agent services from their own NWC wallet
+
+---
+
+## Heartbeats / Scheduled Tasks
+
+### Scheduling model
+
+- `AgentSchedule` model: `agentId, cron, taskType, taskConfig, isActive, lastRunAt, nextRunAt`
+- Listener ticker scans schedules every minute and triggers due tasks
+- On trigger, listener calls `apps/web` for any LLM work, then publishes Nostr events via its existing relay pool (Mode A) or via the NIP-46 bunker (Mode B)
+
+### Task types
+
+| Task | Behavior |
+|------|----------|
+| `POST` | Publishes a `kind:1` from a stored prompt (LLM call → publish) |
+| `REPLY_TO_MENTIONS` | Scans recent mentions of the agent's npub, drafts replies, publishes |
+| `ZAP_LIST` | Zaps a stored list of npubs from a prompt-derived amount |
+| `CUSTOM_PROMPT` | Runs an LLM call with stored prompt; output handled per `taskConfig` |
+
+---
+
+## User-Facing Inference (Sat-Metered)
+
+### Run endpoint
+
+`POST /api/agents/[agentId]/run` accepts `{ messages: [...], stream?: true }`. Middleware:
+
+1. Resolves the user (JWT or NIP-98)
+2. Looks up agent pricing and active subscription
+3. Checks the user's `TokenAllocation` from the M7 sat-allowance ledger:
+   - If sufficient → debit and stream the response
+   - Otherwise → return a 402-style payload with an invoice from the **agent's NWC wallet**
+4. On payment (listener webhook), settles the request and streams the response
+
+### Tier discount / allowance
+
+- Active subscribers' allowance from M7 covers requests transparently — they pay 0 sats while the allowance lasts
+- Free tier always pays per-request to the agent's NWC wallet (operator's revenue)
+
+---
+
+## Reference Agents + OperatorBot
+
+| Agent | Default System Prompt | Spawn UX |
+|-------|-----------------------|----------|
+| Drafter | "Draft a Nostr post or DM matching the user's voice" | One-click button |
+| Summarizer | "Summarize a Nostr thread or article" | One-click button |
+| OperatorBot | Operator-defined custom prompt | Form with prompt field |
+
+All three have their own LN address, npub, and NWC wallet just like any other agent.
+
+---
+
+## Agent Chat Participation
+
+- Agents are first-class participants in the M7 Nostr Chat surface
+- Users DM an agent's npub → agent processes the DM → replies via DM through the same M7 chat infrastructure
+- Agents can also receive zaps to their LN address mid-conversation
+
+---
+
+## Architecture Notes
+
+- **No new containers.** Container count stays at 3 (`web`, `listener`, `nwc-proxy`).
+- **Agent inference** runs inside `apps/web` route handlers via the Vercel AI SDK
+- **Agent scheduler / heartbeat ticker** lives in `apps/listener`
+- **NIP-46 client (Mode B)** reuses the existing client from admin login (NConnectSigner / nostr-tools nip46)
+- **Vercel AI Gateway** is the only LLM dependency — provider keys live in encrypted Settings
+
+---
+
+## Acceptance Criteria
+
+| Deliverable | Criteria | Priority |
+|-------------|----------|----------|
+| One-click agent spawn | Admin form creates agent with npub + LN address + NWC wallet in under 5s | P0 |
+| Per-agent LN address | `<slug>@domain.com` resolves; agent receives sats | P0 |
+| Agent NWC wallet | Agent can pay invoices and send zaps from its own balance | P0 |
+| Dashboard funding | "Fund Agent" → invoice → operator pays → balance updates | P0 |
+| Agent identity Mode A (nsec) | Server-side encrypted nsec; agent signs autonomously | P0 |
+| Agent identity Mode B (Amber/NIP-46) | Operator selects bunker URI; signing requests reach Amber and return | P0 |
+| Agent run endpoint | Streams response; debits user's M7 allowance or returns invoice | P0 |
+| `AgentRequest` ledger | Every run logged with cost, tokens, plan, paidVia | P0 |
+| Drafter + Summarizer agents | Both spawnable in one click; work from admin UI and SDK | P0 |
+| OperatorBot custom prompt | Admin sets system prompt during spawn; new agent appears | P0 |
+| Agent chat participation | User DMs agent npub → agent replies via DM through M7 chat surface | P0 |
+| Scheduled tasks (cron) | Operator sets cron + task type; listener triggers at scheduled time | P0 |
+| Autonomous Nostr tasks | All four task types execute end-to-end | P0 |
+| Tier allowance / discount | Subscriber pays 0 sats while M7 allowance lasts | P0 |
+| Agent-to-agent payments | One agent zaps another's LN address from its NWC wallet | P1 |
+| Agent invocation via Nostr DM | DM the OperatorBot npub from any Nostr client → reply via DM | P1 |
+| Group threads (NIP-29) | Deferred to M9 / post-roadmap | — |
+
+---
+
+## Non-goals
+
+- No fine-tuning, no custom model hosting (Vercel AI Gateway only)
+- No multi-tenant isolation beyond per-operator scoping
+- No streaming over WebSocket — HTTP streaming is sufficient
+- No NIP-29 group chat threads (M9 / post-roadmap)
+- No agent marketplace, no public agent discovery beyond the operator's instance
+- No cross-instance agent federation

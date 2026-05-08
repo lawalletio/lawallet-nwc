@@ -142,7 +142,7 @@ The next phase should focus on consolidating the new product surface and complet
 - Resume SDK and React Hooks work so external apps can consume the platform cleanly
 - Continue deployment and documentation work for self-hosted and managed environments
 
-See the full [ROADMAP](../ROADMAP.md) for the 6-month plan.
+See the full [ROADMAP](../ROADMAP.md) for the 8-month plan.
 
 ---
 
