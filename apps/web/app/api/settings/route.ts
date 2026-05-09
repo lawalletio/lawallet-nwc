@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -157,6 +158,16 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   eventBus.emit({ type: 'settings:updated', timestamp: Date.now() })
 
   const changedKeys = processedSettings.map(s => s.name)
+
+  // The root layout reads `gtag_id` server-side (see app/layout.tsx) and
+  // every page inherits that layout. Without this revalidation the static
+  // prerender keeps serving the build-time value (or `null` from a missing
+  // DB) until the next deploy — operators expect "save → reload → script
+  // updates" to just work.
+  if (changedKeys.includes('gtag_id')) {
+    revalidatePath('/', 'layout')
+  }
+
   logActivity.fireAndForget({
     category: 'SERVER',
     event: ActivityEvent.SERVER_SETTINGS_UPDATED,
