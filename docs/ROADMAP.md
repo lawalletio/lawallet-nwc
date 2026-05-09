@@ -2,14 +2,14 @@
 
 ## 8-Month Development Timeline
 
-Months 1–6 are funded by the OpenSats grant. Months 7–8 are post-grant continuation, formally committed here to ship monetization (Subscription Manager) and intelligence (AI Agents) on top of the grant deliverables.
+All eight months are covered by the OpenSats grant (Fifteenth Wave, Dec 2025 – Sep 2026). The phases progress from foundation (M1–M2) through enhancement (M3–M4) and expansion (M5–M6) to monetization and intelligence (M7–M8).
 
 | Month | Phase | Status | Key Deliverables |
 |-------|-------|--------|------------------|
-| 1 | Foundation | **Completed** | Vitest + MSW + 154 integration tests, error hierarchy, Zod env + input validation, Pino logging, JWT auth + RBAC (4 roles), rate limiting + request limits, Next.js 16 + ESLint 9 |
-| 2 | Foundation | **Completed** | GitHub Actions CI/CD pipeline, security scanning + coverage thresholds, Vercel config, NIP-98 → JWT session auth migration |
-| 3 | Enhancement | **Completed** | Figma-based admin dashboard rebuild (Home/Users/Activity/Cards/Settings + shadcn/ui), responsive/mobile layout, multi-tab Settings (Branding/Wallet/Infrastructure), 8-preset theme system, branding image uploads, domain claim onboarding wizard, `lawallet.io` landing repo split, v0.9.0 release |
-| 4 | Enhancement | **Completed** | Monorepo migration (pnpm + Turborepo, 3 apps + 3 packages), full Admin Dashboard E2E (Cards/Designs + BoltCard QR/NFC), schema rewrite (LightningAddress 1→N + NWCConnection, IDLE/ALIAS/NWC modes), user-facing Wallet (onboarding, Send/Receive/Scan, offline cache), system-wide Activity Log + SSE, LUD-12/16/21 compliance, OpenAPI 3.1 + Scalar Playground, docs site overhaul, v0.10.0 release |
+| 1 | Foundation | **Completed**<br/>[See report](./reports/MONTH-1.md) | Vitest + MSW + 154 integration tests, error hierarchy, Zod env + input validation, Pino logging, JWT auth + RBAC (4 roles), rate limiting + request limits, Next.js 16 + ESLint 9 |
+| 2 | Foundation | **Completed**<br/>[See report](./reports/MONTHS-2-3.md) | GitHub Actions CI/CD pipeline, security scanning + coverage thresholds, Vercel config, NIP-98 → JWT session auth migration |
+| 3 | Enhancement | **Completed**<br/>[See report](./reports/MONTHS-2-3.md) | Figma-based admin dashboard rebuild (Home/Users/Activity/Cards/Settings + shadcn/ui), responsive/mobile layout, multi-tab Settings (Branding/Wallet/Infrastructure), 8-preset theme system, branding image uploads, domain claim onboarding wizard, `lawallet.io` landing repo split, v0.9.0 release |
+| 4 | Enhancement | **Completed**<br/>[See report](./reports/MONTH-4.md) | Monorepo migration (pnpm + Turborepo, 3 apps + 3 packages), full Admin Dashboard E2E (Cards/Designs + BoltCard QR/NFC), schema rewrite (LightningAddress 1→N + NWCConnection, IDLE/ALIAS/NWC modes), user-facing Wallet (onboarding, Send/Receive/Scan, offline cache), system-wide Activity Log + SSE, LUD-12/16/21 compliance, OpenAPI 3.1 + Scalar Playground, docs site overhaul, v0.10.0 release |
 | 5 | Expansion | **In Progress** | Card System completion (Android BoltCard login, simple-card-manager rebrand), full NIP-05, relay picker, user data cache, NWC Listener Lite (transport-only), LUD-22 plumbing, `@lawallet-nwc/react`, Resend, PWA, Follower Capture Endpoint |
 | 6 | Expansion | Planned | NWC Proxy Lite settlement layer, full LUD-16/21/22 + NIP-57 closeout, Nostr scheduler, full wallet settings, deploy targets (Vercel/Netlify/Umbrel/Start9/Docker), threat model, SDK + hooks finalization |
 | 7 | Monetization | Planned | **Subscription Manager** (paid tiers, monthly/one-time), perks (vanity LN address, email-to-Nostr bridge, sat allowance), **Nostr Chat DMs** (NIP-17/44), operator → user broadcast |
@@ -21,7 +21,7 @@ Months 1–6 are funded by the OpenSats grant. Months 7–8 are post-grant conti
 
 ### Month 1: Backend Infrastructure + Testing (COMPLETED)
 
-Exceeded original scope. Delivered 90% of the backend infrastructure:
+See the [Month 1 progress report](./reports/MONTH-1.md). Exceeded original scope. Delivered 90% of the backend infrastructure:
 
 - Vitest + MSW + 154 integration tests covering all 32 routes
 - Error handling (ApiError hierarchy + withErrorHandling)
@@ -34,7 +34,7 @@ Exceeded original scope. Delivered 90% of the backend infrastructure:
 
 ### Month 2: CI/CD + Auth Flow Upgrade (COMPLETED)
 
-Hardened the pipeline and migrated to web-friendly session auth.
+See the [Months 2–3 progress report](./reports/MONTHS-2-3.md). Hardened the pipeline and migrated to web-friendly session auth.
 
 - GitHub Actions CI/CD pipeline — lint, typecheck, test, build jobs in parallel
 - Security scanning + coverage thresholds enforced in CI
@@ -47,7 +47,7 @@ Hardened the pipeline and migrated to web-friendly session auth.
 
 ### Month 3: Admin Dashboard + Nostr Login (COMPLETED)
 
-Full Figma-based rebuild of the admin surface with Nostr-native auth.
+See the [Months 2–3 progress report](./reports/MONTHS-2-3.md). Full Figma-based rebuild of the admin surface with Nostr-native auth.
 
 - Figma-based admin dashboard rebuild — Home / Users / Activity / Cards / Designs / Settings on shadcn/ui
 - Responsive / mobile layout across the entire admin
@@ -60,7 +60,7 @@ Full Figma-based rebuild of the admin surface with Nostr-native auth.
 
 ### Month 4: User Wallet + Schema Rewrite + Monorepo (COMPLETED)
 
-Migrated to a monorepo, rebuilt the Lightning Address schema, and shipped the user-facing wallet.
+See the [Month 4 progress report](./reports/MONTH-4.md). Migrated to a monorepo, rebuilt the Lightning Address schema, and shipped the user-facing wallet.
 
 - Monorepo migration — pnpm workspaces + Turborepo, 3 apps (`web`, `docs`, `listener`) + 3 packages (`sdk`, `shared`, `openapi`)
 - Schema rewrite — `LightningAddress` 1→N, `NWCConnection`, `IDLE` / `ALIAS` / `NWC` modes
@@ -91,7 +91,7 @@ Wraps the BoltCard story end-to-end and lays down the listener transport layer.
 
 ### Month 6: NWC Proxy Lite + Lightning Compliance + Deployment
 
-Closes out the OpenSats grant with the settlement layer, full Lightning compliance, and ready-to-self-host deploy targets.
+Ships the settlement layer, full Lightning compliance, and ready-to-self-host deploy targets.
 
 - **NWC Proxy Lite** — courtesy NWC settlement layer for external providers
 - Full LUD-16 / LUD-21 / LUD-22 closeout (with alias / redirect support)
@@ -104,7 +104,7 @@ Closes out the OpenSats grant with the settlement layer, full Lightning complian
 
 ---
 
-## Phase 4: Post-Grant Continuation (Months 7-8)
+## Phase 4: Monetization & Intelligence (Months 7-8)
 
 ### Month 7: Monetization Plane (Subscription Manager + Nostr Chat)
 

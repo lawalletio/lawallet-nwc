@@ -41,7 +41,7 @@ When a payer hits `username@domain.com`:
 ### What "Lite" Means
 
 - Single-tenant — runs alongside the listener (or as the same process in lite deployments)
-- No multi-provider adapter layer (the original M4 plan's Alby/LNBits/BTCPay/YakiHonne adapters land **post-grant**)
+- No multi-provider adapter layer (the original M4 plan's Alby/LNBits/BTCPay/YakiHonne adapters land **beyond M8**)
 - Uses the holder's existing NWC connection — no provisioning of new courtesy wallets
 
 ### Compliance delivered through the Proxy

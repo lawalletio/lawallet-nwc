@@ -174,22 +174,22 @@ The full rendered docs live at **[docs.lawallet.io](https://docs.lawallet.io)**.
 | [SDK.md](./docs/SDK.md) | TypeScript Client SDK + React Hooks reference |
 | [TESTING.md](./docs/TESTING.md) | Testing strategy (Vitest, MSW, Playwright) |
 | [DOCKER.md](./docs/DOCKER.md) | Docker setup and containerized deployment |
-| [VISION.md](./docs/VISION.md) | Post-grant vision: CRM + AI + Nostr communications |
+| [VISION.md](./docs/VISION.md) | Long-term vision: CRM + AI + Nostr communications (Beyond M8) |
 
 ### Roadmap by Month
 
 | Month | Phase | Focus | Status |
 |-------|-------|-------|--------|
-| [1](./docs/roadmap/MONTH-1.md) | Foundation | Backend infrastructure + testing | ✅ Completed |
-| [2](./docs/roadmap/MONTH-2.md) | Foundation | CI/CD + Auth flow upgrade | ✅ Completed |
-| [3](./docs/roadmap/MONTH-3.md) | Enhancement | Admin Dashboard + Nostr login + E2E | ✅ Completed |
-| [4](./docs/roadmap/MONTH-4.md) | Enhancement | User Wallet + Admin E2E + schema rewrite | ✅ Completed |
+| [1](./docs/roadmap/MONTH-1.md) | Foundation | Backend infrastructure + testing | ✅ Completed · [Report](./docs/reports/MONTH-1.md) |
+| [2](./docs/roadmap/MONTH-2.md) | Foundation | CI/CD + Auth flow upgrade | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
+| [3](./docs/roadmap/MONTH-3.md) | Enhancement | Admin Dashboard + Nostr login + E2E | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
+| [4](./docs/roadmap/MONTH-4.md) | Enhancement | User Wallet + Admin E2E + schema rewrite | ✅ Completed · [Report](./docs/reports/MONTH-4.md) |
 | [5](./docs/roadmap/MONTH-5.md) | Expansion | Card system + platform polish + NWC Listener Lite | 🟡 In Progress |
 | [6](./docs/roadmap/MONTH-6.md) | Expansion | NWC Proxy Lite + Lightning compliance + deployment | ⏳ Planned |
 | [7](./docs/roadmap/MONTH-7.md) | Monetization | Subscription Manager + Nostr Chat (DMs) | ⏳ Planned |
 | [8](./docs/roadmap/MONTH-8.md) | Intelligence | AI Agents (own LN address, NWC wallet, scheduled tasks) | ⏳ Planned |
 
-Months 1–6 are funded by the OpenSats Fifteenth Wave grant. Months 7–8 are post-grant continuation, formally committed in [ROADMAP.md](./docs/ROADMAP.md).
+All eight months are covered by the OpenSats Fifteenth Wave grant (Dec 2025 – Sep 2026). Full month-by-month detail in [ROADMAP.md](./docs/ROADMAP.md).
 
 ---
 

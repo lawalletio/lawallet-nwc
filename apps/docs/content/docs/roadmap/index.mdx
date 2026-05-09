@@ -1,24 +1,35 @@
 ---
 title: "Roadmap"
-description: "8-month development timeline for LaWallet NWC. Months 1–6 funded by OpenSats; Months 7–8 are post-grant continuation."
+description: "8-month development timeline for LaWallet NWC, funded by OpenSats (Fifteenth Wave, Dec 2025 – Sep 2026)."
 ---
 
 import { CheckCircle2, Loader2, CircleDashed } from 'lucide-react'
 
-export const StatusDone = () => <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="size-4" /> Completed</span>
+export const StatusDone = ({ report }) => (
+  <span className="flex flex-col items-start gap-0.5">
+    <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
+      <CheckCircle2 className="size-4" /> Completed
+    </span>
+    {report && (
+      <a href={report} className="text-[11px] text-fd-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline underline-offset-2">
+        See report →
+      </a>
+    )}
+  </span>
+)
 export const StatusInProgress = () => <span className="inline-flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400"><Loader2 className="size-4 animate-spin" /> In Progress</span>
 export const StatusPlanned = () => <span className="inline-flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400"><CircleDashed className="size-4" /> Planned</span>
 
 ## 8-Month Development Timeline
 
-Months 1–6 are funded by the OpenSats grant. Months 7–8 are post-grant continuation, formally committed here to ship monetization (Subscription Manager) and intelligence (AI Agents) on top of the grant deliverables.
+All eight months are covered by the OpenSats grant (Fifteenth Wave, Dec 2025 – Sep 2026). The phases progress from foundation (M1–M2) through enhancement (M3–M4) and expansion (M5–M6) to monetization and intelligence (M7–M8).
 
 | Month | Phase | Status | Key Deliverables |
 |-------|-------|--------|------------------|
-| 1 | Foundation | <StatusDone /> | Vitest + MSW + 154 integration tests, error hierarchy, Zod env + input validation, Pino logging, JWT auth + RBAC (4 roles), rate limiting + request limits, Next.js 16 + ESLint 9 |
-| 2 | Foundation | <StatusDone /> | GitHub Actions CI/CD pipeline, security scanning + coverage thresholds, Vercel config, NIP-98 → JWT session auth migration |
-| 3 | Enhancement | <StatusDone /> | Figma-based admin dashboard rebuild (Home/Users/Activity/Cards/Settings + shadcn/ui), responsive/mobile layout, multi-tab Settings (Branding/Wallet/Infrastructure), 8-preset theme system, branding image uploads, domain claim onboarding wizard, `lawallet.io` landing repo split, v0.9.0 release |
-| 4 | Enhancement | <StatusDone /> | Monorepo migration (pnpm + Turborepo, 3 apps + 3 packages), full Admin Dashboard E2E (Cards/Designs + BoltCard QR/NFC), schema rewrite (LightningAddress 1→N + NWCConnection, IDLE/ALIAS/NWC modes), user-facing Wallet (onboarding, Send/Receive/Scan, offline cache), system-wide Activity Log + SSE, LUD-12/16/21 compliance, OpenAPI 3.1 + Scalar Playground, docs site overhaul, v0.10.0 release |
+| 1 | Foundation | <StatusDone report="../reports/month-1" /> | Vitest + MSW + 154 integration tests, error hierarchy, Zod env + input validation, Pino logging, JWT auth + RBAC (4 roles), rate limiting + request limits, Next.js 16 + ESLint 9 |
+| 2 | Foundation | <StatusDone report="../reports/months-2-3" /> | GitHub Actions CI/CD pipeline, security scanning + coverage thresholds, Vercel config, NIP-98 → JWT session auth migration |
+| 3 | Enhancement | <StatusDone report="../reports/months-2-3" /> | Figma-based admin dashboard rebuild (Home/Users/Activity/Cards/Settings + shadcn/ui), responsive/mobile layout, multi-tab Settings (Branding/Wallet/Infrastructure), 8-preset theme system, branding image uploads, domain claim onboarding wizard, `lawallet.io` landing repo split, v0.9.0 release |
+| 4 | Enhancement | <StatusDone report="../reports/month-4" /> | Monorepo migration (pnpm + Turborepo, 3 apps + 3 packages), full Admin Dashboard E2E (Cards/Designs + BoltCard QR/NFC), schema rewrite (LightningAddress 1→N + NWCConnection, IDLE/ALIAS/NWC modes), user-facing Wallet (onboarding, Send/Receive/Scan, offline cache), system-wide Activity Log + SSE, LUD-12/16/21 compliance, OpenAPI 3.1 + Scalar Playground, docs site overhaul, v0.10.0 release |
 | 5 | Expansion | <StatusInProgress /> | Card System completion (Android BoltCard login, simple-card-manager rebrand), full NIP-05, relay picker, user data cache, NWC Listener Lite (transport-only), LUD-22 plumbing, `@lawallet-nwc/react`, Resend, PWA, Follower Capture Endpoint |
 | 6 | Expansion | <StatusPlanned /> | NWC Proxy Lite settlement layer, full LUD-16/21/22 + NIP-57 closeout, Nostr scheduler, full wallet settings, deploy targets (Vercel/Netlify/Umbrel/Start9/Docker), threat model, SDK + hooks finalization |
 | 7 | Monetization | <StatusPlanned /> | **Subscription Manager** (paid tiers, monthly/one-time), perks (vanity LN address, email-to-Nostr, sat allowance), **Nostr Chat DMs** (NIP-17/44), operator → user broadcast |
@@ -30,7 +41,7 @@ Months 1–6 are funded by the OpenSats grant. Months 7–8 are post-grant conti
 
 ### Month 1: Backend Infrastructure + Testing (COMPLETED)
 
-Exceeded original scope. Delivered 90% of the backend infrastructure:
+See the [Month 1 progress report](../reports/month-1). Exceeded original scope. Delivered 90% of the backend infrastructure:
 
 - Vitest + MSW + 154 integration tests covering all 32 routes
 - Error handling (ApiError hierarchy + withErrorHandling)
@@ -74,7 +85,7 @@ Per the [Months 2–3 progress report](../reports/months-2-3) — the project pu
 
 ### Month 4: User Wallet + Admin Dashboard E2E + Schema Rewrite (COMPLETED)
 
-The largest release window in the project's history. Original scope (User Dashboard, Courtesy NWC Proxy, wallet polish, white-label) was significantly exceeded:
+See the [Month 4 progress report](../reports/month-4). The largest release window in the project's history. Original scope (User Dashboard, Courtesy NWC Proxy, wallet polish, white-label) was significantly exceeded:
 
 - Monorepo migration
 - Brand-new user-facing wallet
@@ -113,7 +124,7 @@ The headline deliverable is the **NWC Proxy Lite** — built on top of the M5 li
 
 ---
 
-## Phase 4: Post-Grant Continuation (Months 7-8)
+## Phase 4: Monetization & Intelligence (Months 7-8)
 
 ### Month 7: Monetization Plane (Subscription Manager + Nostr Chat)
 
