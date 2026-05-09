@@ -94,7 +94,7 @@ Deploy all three, or just `lawallet-web` to start. Each service scales independe
 
 ## Roadmap
 
-### Foundation (Months 1–6, Grant Period)
+### Foundation (Months 1–6)
 
 - Backend infrastructure, testing, error handling, auth, security
 - CI/CD, Client SDK, React Hooks
@@ -105,7 +105,7 @@ Deploy all three, or just `lawallet-web` to start. Each service scales independe
 - Full LUD-16/21/22 compliance, NIP-57 zaps
 - Documentation, deployment configurations (Vercel, Docker, Umbrel)
 
-### Monetization & Intelligence (Months 7–8, Post-Grant Continuation)
+### Monetization & Intelligence (Months 7–8)
 
 Months 7–8 are formally committed in [ROADMAP.md](./ROADMAP.md). They turn the platform into something operators can monetize and extend with AI.
 
@@ -178,6 +178,4 @@ No vendor lock-in. No proprietary protocols. Interoperability or death.
 
 ## Funded by
 
-OpenSats — Fifteenth Wave (December 2025). 6-month development grant covering Months 1–6: testing, security, SDK, dashboards, Lightning compliance, and deployment infrastructure.
-
-Months 7–8 (Subscription Manager + AI Agents) are post-grant continuation, self-funded.
+OpenSats — Fifteenth Wave (December 2025 – September 2026). 8-month development grant covering testing, security, SDK, dashboards, Lightning compliance, deployment infrastructure, the Subscription Manager, and AI Agents.
