@@ -66,7 +66,7 @@ describe('GET /api/lud16/[username]', () => {
       nwcConnection: null,
       user: { id: 'user-1', nwc: 'nostr+walletconnect://test', nwcConnections: [] },
     } as any)
-    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'app' })
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'https://app.test.com' })
 
     const req = createNextRequest('/api/lud16/alice')
     const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
@@ -112,7 +112,7 @@ describe('GET /api/lud16/[username]', () => {
       nwcConnection: null,
       user: { id: 'user-1', nwc: 'nostr+walletconnect://test', nwcConnections: [] },
     } as any)
-    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'app' })
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'https://app.test.com' })
 
     const req = createNextRequest('/api/lud16/Alice')
     const res = await Lud16Get(req, createParamsPromise({ username: 'Alice' }))
@@ -220,7 +220,7 @@ describe('GET /api/lud16/[username]', () => {
 
 describe('GET /api/lud16/[username]/cb', () => {
   beforeEach(() => {
-    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'app' })
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'https://app.test.com' })
   })
 
   it('creates invoice and returns payment request', async () => {

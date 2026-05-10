@@ -108,11 +108,14 @@ describe('GET /api/cards/[id]/write', () => {
     )
   })
 
-  it('combines endpoint and domain for lnurlw_base host', async () => {
+  it('uses endpoint URL host for lnurlw_base host', async () => {
     const ntag424 = createNtag424Fixture()
     const card = { ...createCardFixture(), design: createCardDesignFixture(), ntag424 }
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
-    vi.mocked(getSettings).mockResolvedValue({ domain: 'example.com', endpoint: 'app' })
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'example.com',
+      endpoint: 'https://app.example.com',
+    })
     vi.mocked(cardToNtag424WriteData).mockReturnValue({ lnurlw_base: 'test' } as any)
 
     const req = createNextRequest(`/api/cards/${card.id}/write`)
