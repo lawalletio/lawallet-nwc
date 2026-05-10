@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { getSettings } from '@/lib/settings'
 import { resolvePaymentRoute } from '@/lib/wallet/resolve-payment-route'
 
 export const dynamic = 'force-dynamic'
@@ -40,11 +40,15 @@ export const GET = withErrorHandling(async (request: Request) => {
 
     const user = existingUser || (await createNewUser(authenticatedPubkey))
 
-    // Resolve host with subdomain fallback (subdomain empty → use domain)
-    const { host } = await resolvePublicEndpoint(request)
+    // Lightning addresses resolve as `username@<domain>`. The `endpoint`
+    // setting (where the instance is publicly reachable) may differ from
+    // the address domain — e.g. `endpoint=https://beta.lacrypta.ar` while
+    // `domain=lacrypta.ar` — so we read the address domain directly here
+    // rather than via `resolvePublicEndpoint`, which mixes the two concerns.
+    const { domain } = await getSettings(['domain'])
     const primaryAddress = user.lightningAddresses[0]
     const lightningAddress = primaryAddress?.username
-      ? `${primaryAddress.username}@${host}`
+      ? `${primaryAddress.username}@${domain}`
       : null
 
   // Priority matches `resolvePaymentRoute` for DEFAULT_NWC:

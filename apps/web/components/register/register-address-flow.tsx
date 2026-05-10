@@ -14,7 +14,6 @@ import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { pollVerifyUrl } from '@/lib/client/lnurl'
-import { buildPublicHost, parseEndpoint } from '@/lib/public-url-utils'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -77,10 +76,7 @@ export function RegisterAddressFlow({
   // Success state
   const [claimedAddress, setClaimedAddress] = useState<string | null>(null)
 
-  const domain =
-    parseEndpoint(settings?.endpoint)?.host ||
-    buildPublicHost(settings?.domain, settings?.subdomain) ||
-    'domain.com'
+  const domain = settings?.domain || 'domain.com'
 
   // ─── Username check ─────────────────────────────────────────────────
 
