@@ -17,7 +17,18 @@ export const StatusDone = ({ report }) => (
     )}
   </span>
 )
-export const StatusInProgress = () => <span className="inline-flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400"><Loader2 className="size-4 animate-spin" /> In Progress</span>
+export const StatusInProgress = ({ presentation }) => (
+  <span className="flex flex-col items-start gap-0.5">
+    <span className="inline-flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400">
+      <Loader2 className="size-4 animate-spin" /> In Progress
+    </span>
+    {presentation && (
+      <a href={presentation} target="_blank" rel="noopener" className="text-[11px] text-fd-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:underline underline-offset-2">
+        📊 Presentation →
+      </a>
+    )}
+  </span>
+)
 export const StatusPlanned = () => <span className="inline-flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400"><CircleDashed className="size-4" /> Planned</span>
 
 ## 8-Month Development Timeline
@@ -30,9 +41,9 @@ All eight months are covered by the OpenSats grant (Fifteenth Wave, Dec 2025 –
 | 2 | Foundation | <StatusDone report="../reports/months-2-3" /> | GitHub Actions CI/CD pipeline, security scanning + coverage thresholds, Vercel config, NIP-98 → JWT session auth migration |
 | 3 | Enhancement | <StatusDone report="../reports/months-2-3" /> | Figma-based admin dashboard rebuild (Home/Users/Activity/Cards/Settings + shadcn/ui), responsive/mobile layout, multi-tab Settings (Branding/Wallet/Infrastructure), 8-preset theme system, branding image uploads, domain claim onboarding wizard, `lawallet.io` landing repo split, v0.9.0 release |
 | 4 | Enhancement | <StatusDone report="../reports/month-4" /> | Monorepo migration (pnpm + Turborepo, 3 apps + 3 packages), full Admin Dashboard E2E (Cards/Designs + BoltCard QR/NFC), schema rewrite (LightningAddress 1→N + NWCConnection, IDLE/ALIAS/NWC modes), user-facing Wallet (onboarding, Send/Receive/Scan, offline cache), system-wide Activity Log + SSE, LUD-12/16/21 compliance, OpenAPI 3.1 + Scalar Playground, docs site overhaul, v0.10.0 release |
-| 5 | Expansion | <StatusInProgress /> | Card System completion (Android BoltCard login, simple-card-manager rebrand), full NIP-05, relay picker, user data cache, NWC Listener Lite (transport-only), LUD-22 plumbing, `@lawallet-nwc/react`, Resend, PWA, Follower Capture Endpoint |
-| 6 | Expansion | <StatusPlanned /> | NWC Proxy Lite settlement layer, full LUD-16/21/22 + NIP-57 closeout, Nostr scheduler, full wallet settings, deploy targets (Vercel/Netlify/Umbrel/Start9/Docker), threat model, SDK + hooks finalization |
-| 7 | Monetization | <StatusPlanned /> | **Subscription Manager** (paid tiers, monthly/one-time), perks (vanity LN address, email-to-Nostr, sat allowance), **Nostr Chat DMs** (NIP-17/44), operator → user broadcast |
+| 5 | Expansion | <StatusInProgress presentation="/presentations/month-5.html" /> | **Remote Wallets first** (named `RemoteWallet` model + NWC driver; LND / CLN / BTCPay deferred), then Card System Apps (B.0 QR-based JWT login → `card-installer` Android → `simple-card-manager` rewrite drives the E2E → end-user "Activate Card" flow with `SIMPLE` / `MASTER` cards + `ONE_TIME` / `FOREVER` QRs), Platform Polish (full NIP-05, relay picker, user data cache, onboarding v2 with infra-aware `.well-known` rewrites, customizable domain landing, admin home redesign, dashboard cache, PWA, bug fixes) |
+| 6 | Expansion | <StatusPlanned /> | **NWC Payment Listener** (lite, transport-only) + LUD-22 plumbing, NWC Proxy Lite settlement layer, full LUD-16/21/22 + NIP-57 closeout, **`@lawallet-nwc/react`** extraction, multi-email (Resend), Nostr scheduler, full wallet settings, deploy targets (Vercel/Netlify/Umbrel/Start9/Docker), threat model, SDK + hooks finalization |
+| 7 | Monetization & Communication | <StatusPlanned /> | **Subscription Manager** (paid tiers, monthly/one-time), perks (vanity LN address, email-to-Nostr bridge, sat allowance), **Nostr Chat DMs** (NIP-17/44), operator → user broadcast, **i18n** (en/es/pt-BR) |
 | 8 | Intelligence | <StatusPlanned /> | **AI Agents** with own LN address + Nostr identity + NWC wallet (one-click spawn, dashboard funding, scheduled tasks), Vercel AI Gateway router, sat-metered runs with subscriber discounts, Mode A (nsec) + Mode B (NIP-46/Amber) signing |
 
 ---
