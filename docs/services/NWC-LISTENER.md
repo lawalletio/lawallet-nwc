@@ -1,5 +1,7 @@
 # lawallet-listener: NWC Payment Listener
 
+> **Status note (May 2026):** this document describes an earlier design (isolated DB, own storage, WebSocket events). The current plan — implemented in Month 6 — replaces it with a **lite, transport-only** service that uses Postgres `LISTEN`/`NOTIFY` against the shared web-app database (keyed on `RemoteWallet` rows of `type = NWC`) and forwards events to `apps/web` via HMAC-signed webhook. No own database, no DLQ, no WebSocket. See [MONTH-6.md](../roadmap/MONTH-6.md) for the current spec; this file will be rewritten when the M6 listener ships.
+
 ## Overview
 
 Standalone Node.js microservice that monitors NWC relays for incoming payment events and dispatches webhook notifications.
