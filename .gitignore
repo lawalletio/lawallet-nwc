@@ -42,3 +42,4 @@ coverage/
 .source/
 
 .claude/worktrees
+.lawallet/

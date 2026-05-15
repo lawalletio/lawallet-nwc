@@ -1,0 +1,25 @@
+{
+  "name": "@lawallet-nwc/cli",
+  "version": "0.10.0",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "lawallet": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "dist",
+    "scripts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.13.0"
+  },
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "typecheck": "node ./scripts/check.mjs",
+    "test": "node --test",
+    "clean": "node ./scripts/clean.mjs",
+    "prepack": "node ./scripts/build.mjs"
+  }
+}

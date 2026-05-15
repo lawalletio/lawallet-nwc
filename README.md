@@ -115,6 +115,17 @@ Three independent containerized services with no shared infrastructure:
 
 ## Getting Started
 
+### Bootstrap With the Local CLI
+
+To install the npm CLI from this repo and immediately run the guided installer:
+
+```bash
+bash ./scripts/install-lawallet-cli.sh
+```
+
+The installer lives in [`apps/cli`](./apps/cli) and the generated app-management
+commands are available from `apps/web` through `pnpm service <status|start|stop|restart>`.
+
 ### 1. Install dependencies
 
 Set the correct Node version with `nvm`:

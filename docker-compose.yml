@@ -4,16 +4,17 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=lawallet
-      - POSTGRES_USER=lawallet
-      - POSTGRES_PASSWORD=lawallet_password
+      POSTGRES_DB: ${POSTGRES_DB:-lawallet}
+      POSTGRES_USER: ${POSTGRES_USER:-lawallet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lawallet_password}
     ports:
-      - '5432:5432'
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U lawallet -d lawallet']
+      test:
+        ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,18 +24,19 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     ports:
-      - '2288:2288'
+      - '${PORT:-2288}:${PORT:-2288}'
     environment:
-      - DATABASE_URL=postgresql://lawallet:lawallet_password@postgres:5432/lawallet
-      - NODE_ENV=production
-      - PORT=2288
-      # - JWT_SECRET=your-secret-key
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lawallet}:${POSTGRES_PASSWORD:-lawallet_password}@postgres:5432/${POSTGRES_DB:-lawallet}
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-2288}
+      JWT_SECRET: ${JWT_SECRET:-lawallet_local_development_secret_change_me_please}
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:2288']
+      test:
+        ['CMD-SHELL', 'curl -f http://localhost:$$PORT/api/openapi.json']
       interval: 30s
       timeout: 10s
       retries: 3
