@@ -71,6 +71,26 @@ export function createSettingsFixture(overrides: Record<string, unknown> = {}) {
   }
 }
 
+// ── Remote Wallet Fixtures ──────────────────────────────────────────────────
+
+export function createRemoteWalletFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: faker.string.uuid(),
+    userId: faker.string.uuid(),
+    name: 'NWC Wallet',
+    type: 'NWC' as const,
+    config: {
+      connectionString: `nostr+walletconnect://${faker.string.hexadecimal({ length: 64, prefix: '' })}`,
+      mode: 'RECEIVE' as const,
+    },
+    status: 'ACTIVE' as const,
+    isDefault: false,
+    createdAt: faker.date.past(),
+    updatedAt: faker.date.recent(),
+    ...overrides,
+  }
+}
+
 // ── NTAG424 Fixtures ────────────────────────────────────────────────────────
 
 export function createNtag424Fixture(overrides: Record<string, unknown> = {}) {
