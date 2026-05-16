@@ -8,7 +8,13 @@ import {
   sleep,
   waitForHttp
 } from './process.js'
-import { getLogFilePath, getPidFilePath, getWebDir } from './paths.js'
+import {
+  getDocsDir,
+  getOpenapiDir,
+  getServiceLogFilePath,
+  getServicePidFilePath,
+  getWebDir
+} from './paths.js'
 import { promptConfirm } from './prompt.js'
 import { buildDatabaseUrl } from './shared.js'
 
@@ -335,15 +341,66 @@ async function ensureWorkspaceReady(repoRoot) {
   })
 }
 
-async function ensureWebBuild(repoRoot) {
-  await runCommand('pnpm', ['build'], {
-    cwd: getWebDir(repoRoot)
-  })
+function getManagedServices(state) {
+  return [
+    {
+      name: 'web',
+      cwd: getWebDir(state.repoRoot),
+      healthUrl: state.services.web.healthUrl,
+      url: state.services.web.url,
+      env: {
+        NODE_ENV: 'production',
+        PORT: String(state.services.web.port),
+        JWT_SECRET: state.jwtSecret
+      },
+      buildBeforeStart: true,
+      startArgs: ['start']
+    },
+    {
+      name: 'docs',
+      cwd: getDocsDir(state.repoRoot),
+      healthUrl: state.services.docs.healthUrl,
+      url: state.services.docs.url,
+      env: {
+        DOCS_HOST: '127.0.0.1',
+        NODE_ENV: 'production',
+        PORT: String(state.services.docs.port)
+      },
+      buildBeforeStart: true,
+      startArgs: ['start']
+    },
+    {
+      name: 'openapi',
+      cwd: getOpenapiDir(state.repoRoot),
+      healthUrl: state.services.openapi.healthUrl,
+      url: state.services.openapi.url,
+      env: {
+        NODE_ENV: 'production',
+        OPENAPI_HOST: '127.0.0.1',
+        OPENAPI_PORT: String(state.services.openapi.port),
+        OPENAPI_SERVER_URL: state.services.web.url
+      },
+      buildBeforeStart: false,
+      startArgs: ['start']
+    }
+  ]
 }
 
-async function readPid(repoRoot) {
+async function ensureManagedBuilds(state) {
+  for (const service of getManagedServices(state)) {
+    if (!service.buildBeforeStart) {
+      continue
+    }
+
+    await runCommand('pnpm', ['build'], {
+      cwd: service.cwd
+    })
+  }
+}
+
+async function readPid(repoRoot, serviceName) {
   try {
-    const contents = await readFile(getPidFilePath(repoRoot), 'utf8')
+    const contents = await readFile(getServicePidFilePath(repoRoot, serviceName), 'utf8')
     const pid = Number.parseInt(contents.trim(), 10)
     return Number.isInteger(pid) ? pid : null
   } catch {
@@ -351,58 +408,62 @@ async function readPid(repoRoot) {
   }
 }
 
-async function writePid(repoRoot, pid) {
-  await writeFile(getPidFilePath(repoRoot), `${pid}\n`, 'utf8')
+async function writePid(repoRoot, serviceName, pid) {
+  await writeFile(getServicePidFilePath(repoRoot, serviceName), `${pid}\n`, 'utf8')
 }
 
-export async function startNativeRuntime(state) {
-  await ensureWorkspaceReady(state.repoRoot)
-  await ensureWebBuild(state.repoRoot)
-
-  const existingPid = await readPid(state.repoRoot)
+async function startManagedService(state, service) {
+  const existingPid = await readPid(state.repoRoot, service.name)
 
   if (existingPid && isProcessRunning(existingPid)) {
+    await waitForHttp(service.healthUrl)
     return
   }
 
-  await mkdir(path.dirname(getLogFilePath(state.repoRoot)), { recursive: true })
+  await mkdir(path.dirname(getServiceLogFilePath(state.repoRoot, service.name)), {
+    recursive: true
+  })
 
-  const logFile = await open(getLogFilePath(state.repoRoot), 'a')
-  const child = spawn('pnpm', ['start'], {
-    cwd: getWebDir(state.repoRoot),
+  const logFile = await open(getServiceLogFilePath(state.repoRoot, service.name), 'a')
+  const child = spawn('pnpm', service.startArgs, {
+    cwd: service.cwd,
+    env: {
+      ...process.env,
+      ...service.env
+    },
     detached: true,
     stdio: ['ignore', logFile.fd, logFile.fd]
   })
 
   child.unref()
-  await writePid(state.repoRoot, child.pid)
+  await writePid(state.repoRoot, service.name, child.pid)
   await logFile.close()
-  await waitForHttp(state.app.healthUrl)
+  await waitForHttp(service.healthUrl)
 }
 
-export async function stopNativeRuntime(state) {
-  const pid = await readPid(state.repoRoot)
+async function stopManagedService(state, service) {
+  const pid = await readPid(state.repoRoot, service.name)
 
   if (!pid) {
     return
   }
 
   if (!isProcessRunning(pid)) {
-    await rm(getPidFilePath(state.repoRoot), { force: true })
+    await rm(getServicePidFilePath(state.repoRoot, service.name), { force: true })
     return
   }
 
   try {
     process.kill(-pid, 'SIGTERM')
   } catch {
-    await rm(getPidFilePath(state.repoRoot), { force: true })
+    await rm(getServicePidFilePath(state.repoRoot, service.name), { force: true })
     return
   }
 
   const startedAt = Date.now()
   while (Date.now() - startedAt < 15_000) {
     if (!isProcessRunning(pid)) {
-      await rm(getPidFilePath(state.repoRoot), { force: true })
+      await rm(getServicePidFilePath(state.repoRoot, service.name), { force: true })
       return
     }
 
@@ -412,7 +473,34 @@ export async function stopNativeRuntime(state) {
   try {
     process.kill(-pid, 'SIGKILL')
   } catch {}
-  await rm(getPidFilePath(state.repoRoot), { force: true })
+
+  await rm(getServicePidFilePath(state.repoRoot, service.name), { force: true })
+}
+
+async function isHealthUrlReady(url) {
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(3_000)
+    })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+export async function startNativeRuntime(state) {
+  await ensureWorkspaceReady(state.repoRoot)
+  await ensureManagedBuilds(state)
+
+  for (const service of getManagedServices(state)) {
+    await startManagedService(state, service)
+  }
+}
+
+export async function stopNativeRuntime(state) {
+  for (const service of [...getManagedServices(state)].reverse()) {
+    await stopManagedService(state, service)
+  }
 }
 
 export async function restartNativeRuntime(state) {
@@ -421,18 +509,40 @@ export async function restartNativeRuntime(state) {
 }
 
 export async function printStatusSummary(state) {
-  const pid = await readPid(state.repoRoot)
-  const webRunning = pid ? isProcessRunning(pid) : false
   const databaseReady = await isPostgresReady(state)
+  const services = await Promise.all(
+    getManagedServices(state).map(async service => {
+      const pid = await readPid(state.repoRoot, service.name)
+      const running = pid ? isProcessRunning(pid) : false
+      return {
+        ...service,
+        pid,
+        running,
+        healthy: running ? await isHealthUrlReady(service.healthUrl) : false
+      }
+    })
+  )
 
   console.log(`LaWallet status
 
 Mode: ${state.mode}
 Install path: ${state.repoRoot}
-URL: ${state.app.url}
-Port: ${state.app.port}
 Database URL: ${buildDatabaseUrl(state)}
-Database ready: ${databaseReady ? 'yes' : 'no'}
-Process: ${webRunning ? `running (pid ${pid})` : 'stopped'}
-Log file: ${getLogFilePath(state.repoRoot)}`)
+Database ready: ${databaseReady ? 'yes' : 'no'}`)
+
+  console.log('\nServices:')
+
+  for (const service of services) {
+    console.log(
+      `  - ${service.name}: ${service.running ? `running (pid ${service.pid})` : 'stopped'} ` +
+        `${service.running ? `[${service.healthy ? 'healthy' : 'unhealthy'}] ` : ''}` +
+        `${service.url} (health: ${service.healthUrl})`
+    )
+  }
+
+  console.log('\nLog files:')
+
+  for (const service of services) {
+    console.log(`  - ${service.name}: ${getServiceLogFilePath(state.repoRoot, service.name)}`)
+  }
 }

@@ -1,12 +1,72 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { getInstallStatePath, getLawalletStateDir, getWebDir } from './paths.js'
-import { buildAppHealthUrl, buildAppUrl, buildDatabaseUrl } from './shared.js'
+import {
+  getDocsDir,
+  getInstallStatePath,
+  getLawalletStateDir,
+  getOpenapiDir,
+  getWebDir
+} from './paths.js'
+import {
+  DEFAULT_DOCS_PORT,
+  DEFAULT_OPENAPI_PORT,
+  DEFAULT_WEB_PORT,
+  buildAppHealthUrl,
+  buildAppUrl,
+  buildDatabaseUrl,
+  buildDocsHealthUrl,
+  buildOpenApiHealthUrl
+} from './shared.js'
+
+function buildServiceRecord(port, buildHealthUrl) {
+  return {
+    port,
+    url: buildAppUrl(port),
+    healthUrl: buildHealthUrl(port)
+  }
+}
+
+function buildServiceMap({
+  webPort,
+  docsPort,
+  openapiPort
+}) {
+  return {
+    web: buildServiceRecord(webPort, buildAppHealthUrl),
+    docs: buildServiceRecord(docsPort, buildDocsHealthUrl),
+    openapi: buildServiceRecord(openapiPort, buildOpenApiHealthUrl)
+  }
+}
+
+function normalizeInstallState(repoRoot, rawState) {
+  const webPort = rawState?.services?.web?.port ?? rawState?.app?.port ?? DEFAULT_WEB_PORT
+  const docsPort = rawState?.services?.docs?.port ?? DEFAULT_DOCS_PORT
+  const openapiPort = rawState?.services?.openapi?.port ?? DEFAULT_OPENAPI_PORT
+  const services = buildServiceMap({
+    webPort,
+    docsPort,
+    openapiPort
+  })
+
+  return {
+    ...rawState,
+    app: services.web,
+    services,
+    paths: {
+      ...rawState?.paths,
+      webDir: getWebDir(repoRoot),
+      docsDir: getDocsDir(repoRoot),
+      openapiDir: getOpenapiDir(repoRoot)
+    }
+  }
+}
 
 export function buildInstallState({
   repoRoot,
   mode,
   appPort,
+  docsPort,
+  openapiPort,
   postgresPort,
   postgresUser,
   postgresPassword,
@@ -14,17 +74,20 @@ export function buildInstallState({
   jwtSecret,
   composeProjectName
 }) {
+  const services = buildServiceMap({
+    webPort: appPort,
+    docsPort,
+    openapiPort
+  })
+
   return {
-    version: 1,
+    version: 2,
     installedAt: new Date().toISOString(),
     repoRoot,
     mode,
     composeProjectName,
-    app: {
-      port: appPort,
-      url: buildAppUrl(appPort),
-      healthUrl: buildAppHealthUrl(appPort)
-    },
+    app: services.web,
+    services,
     postgres: {
       host: '127.0.0.1',
       port: postgresPort,
@@ -35,7 +98,9 @@ export function buildInstallState({
     },
     jwtSecret,
     paths: {
-      webDir: getWebDir(repoRoot)
+      webDir: getWebDir(repoRoot),
+      docsDir: getDocsDir(repoRoot),
+      openapiDir: getOpenapiDir(repoRoot)
     }
   }
 }
@@ -43,7 +108,7 @@ export function buildInstallState({
 export async function readInstallState(repoRoot) {
   try {
     const file = await readFile(getInstallStatePath(repoRoot), 'utf8')
-    return JSON.parse(file)
+    return normalizeInstallState(repoRoot, JSON.parse(file))
   } catch {
     return null
   }
@@ -66,6 +131,9 @@ export async function writeRootEnvFile(repoRoot, state) {
     `POSTGRES_PASSWORD=${state.postgres.password}`,
     `POSTGRES_PORT=${state.postgres.port}`,
     `PORT=${state.app.port}`,
+    `DOCS_PORT=${state.services.docs.port}`,
+    `OPENAPI_PORT=${state.services.openapi.port}`,
+    `OPENAPI_SERVER_URL=${state.app.url}`,
     `NODE_ENV=production`,
     `JWT_SECRET=${state.jwtSecret}`
   ].join('\n')

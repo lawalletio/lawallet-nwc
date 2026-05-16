@@ -8,8 +8,10 @@ import {
 } from '../lib/paths.js'
 import {
   DEFAULT_APP_PORT,
+  DEFAULT_DOCS_PORT,
   DEFAULT_DOCKER_POSTGRES_PORT,
   DEFAULT_MODE,
+  DEFAULT_OPENAPI_PORT,
   DEFAULT_REPO_URL,
   DEFAULT_WEB_PORT,
   createComposeProjectName,
@@ -22,8 +24,8 @@ import {
 import {
   commandExists,
   findAvailablePort,
-  runCommand,
-  waitForHttp
+  isPortAvailable,
+  runCommand
 } from '../lib/process.js'
 import { promptConfirm, promptText } from '../lib/prompt.js'
 import {
@@ -61,6 +63,40 @@ function parsePort(value, label) {
   return port
 }
 
+async function findAvailableDistinctPort(startPort, reservedPorts, attempts = 50) {
+  for (let offset = 0; offset < attempts; offset += 1) {
+    const port = startPort + offset
+
+    if (reservedPorts.has(port)) {
+      continue
+    }
+
+    if (await isPortAvailable(port)) {
+      return port
+    }
+  }
+
+  throw new Error(`Could not find an available port starting at ${startPort}.`)
+}
+
+function assertDistinctPorts(entries) {
+  const seen = new Map()
+
+  for (const [label, port] of entries) {
+    if (port === undefined) {
+      continue
+    }
+
+    const existing = seen.get(port)
+
+    if (existing) {
+      throw new Error(`${label} must not reuse port ${port}; it is already assigned to ${existing}.`)
+    }
+
+    seen.set(port, label)
+  }
+}
+
 function parseInstallArguments(args) {
   const { values, positionals } = parseArgs({
     args,
@@ -71,6 +107,8 @@ function parseInstallArguments(args) {
       repo: { type: 'string' },
       yes: { type: 'boolean', short: 'y' },
       'app-port': { type: 'string' },
+      'docs-port': { type: 'string' },
+      'openapi-port': { type: 'string' },
       'postgres-port': { type: 'string' },
       help: { type: 'boolean', short: 'h' }
     }
@@ -99,6 +137,12 @@ function parseInstallArguments(args) {
     appPort: values['app-port']
       ? parsePort(values['app-port'], 'The app port')
       : undefined,
+    docsPort: values['docs-port']
+      ? parsePort(values['docs-port'], 'The docs port')
+      : undefined,
+    openapiPort: values['openapi-port']
+      ? parsePort(values['openapi-port'], 'The OpenAPI port')
+      : undefined,
     postgresPort: values['postgres-port']
       ? parsePort(values['postgres-port'], 'The Postgres port')
       : undefined
@@ -110,6 +154,7 @@ function printInstallHelp() {
 
 Usage:
   lawallet install [--dir <path>] [--mode auto|docker|native] [--repo <url>] [--yes]
+    [--app-port <port>] [--docs-port <port>] [--openapi-port <port>] [--postgres-port <port>]
 `)
 }
 
@@ -140,12 +185,15 @@ export async function runInstallCommand(args) {
   await mkdir(target.baseDir, { recursive: true })
   await cloneRepository(options.repo, target.targetDir)
 
-  await ensurePnpmInstalled()
-  await ensureWorkspaceInstalled(target.targetDir)
-
   const dockerEnvironment =
     options.mode === 'native' ? null : await detectDockerEnvironment()
   const installMode = detectRequestedMode(options.mode, dockerEnvironment)
+
+  await ensurePnpmInstalled()
+
+  if (installMode === 'native') {
+    await ensureWorkspaceInstalled(target.targetDir)
+  }
 
   if (installMode === 'native' && options.mode === 'auto' && !options.yes) {
     const confirmed = await promptConfirm({
@@ -165,16 +213,33 @@ export async function runInstallCommand(args) {
     (await findAvailablePort(
       installMode === 'docker' ? DEFAULT_APP_PORT : DEFAULT_WEB_PORT
     ))
+  const reservedPorts = new Set([appPort])
+  const docsPort =
+    options.docsPort || (await findAvailableDistinctPort(DEFAULT_DOCS_PORT, reservedPorts))
+  reservedPorts.add(docsPort)
+  const openapiPort =
+    options.openapiPort ||
+    (await findAvailableDistinctPort(DEFAULT_OPENAPI_PORT, reservedPorts))
+  reservedPorts.add(openapiPort)
   const postgresPort =
     installMode === 'docker'
       ? options.postgresPort ||
-        (await findAvailablePort(DEFAULT_DOCKER_POSTGRES_PORT))
+        (await findAvailableDistinctPort(DEFAULT_DOCKER_POSTGRES_PORT, reservedPorts))
       : DEFAULT_DOCKER_POSTGRES_PORT
+
+  assertDistinctPorts([
+    ['The web app port', appPort],
+    ['The docs port', docsPort],
+    ['The OpenAPI port', openapiPort],
+    ['The Postgres port', postgresPort]
+  ])
 
   const state = buildInstallState({
     repoRoot: target.targetDir,
     mode: installMode,
     appPort,
+    docsPort,
+    openapiPort,
     postgresPort,
     postgresUser: createDatabaseUser(instanceId),
     postgresPassword: createDatabasePassword(),
@@ -189,7 +254,6 @@ export async function runInstallCommand(args) {
   if (installMode === 'docker') {
     await writeRootEnvFile(target.targetDir, state)
     await startDockerStack(state, dockerEnvironment)
-    await waitForHttp(state.app.healthUrl)
   } else {
     await ensureNativePostgresReady({
       state,
@@ -198,9 +262,6 @@ export async function runInstallCommand(args) {
     })
 
     await runCommand('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
-      cwd: getWebDir(target.targetDir)
-    })
-    await runCommand('pnpm', ['build'], {
       cwd: getWebDir(target.targetDir)
     })
     await startNativeRuntime(state)

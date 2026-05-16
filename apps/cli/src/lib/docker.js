@@ -1,5 +1,13 @@
 import { commandExists, runCommand, waitForHttp } from './process.js'
 
+function getManagedServices(state) {
+  return [
+    ['web', state.services?.web || state.app],
+    ['docs', state.services?.docs],
+    ['openapi', state.services?.openapi]
+  ].filter(([, service]) => service)
+}
+
 export async function detectDockerEnvironment() {
   const hasDocker = commandExists('docker')
   const hasLegacyCompose = commandExists('docker-compose')
@@ -86,7 +94,10 @@ function parseComposeStatus(raw) {
 
 export async function startDockerStack(state, dockerEnvironment) {
   await runCompose(state, dockerEnvironment, ['up', '-d', '--build'])
-  await waitForHttp(state.app.healthUrl)
+
+  for (const [, service] of getManagedServices(state)) {
+    await waitForHttp(service.healthUrl)
+  }
 }
 
 export async function stopDockerStack(state, dockerEnvironment) {
@@ -107,10 +118,14 @@ export async function printDockerStatus(state, dockerEnvironment) {
 
 Mode: docker
 Install path: ${state.repoRoot}
-URL: ${state.app.url}
-Port: ${state.app.port}
 Database: ${state.postgres.database}
 Database host/port: ${state.postgres.host}:${state.postgres.port}`)
+
+  console.log('\nServices:')
+
+  for (const [name, service] of getManagedServices(state)) {
+    console.log(`  - ${name}: ${service.url} (health: ${service.healthUrl})`)
+  }
 
   if (containers.length > 0) {
     console.log('\nContainers:')

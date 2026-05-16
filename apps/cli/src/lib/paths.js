@@ -3,8 +3,6 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import {
   deriveRepoDirectoryName,
-  LOG_FILENAME,
-  PID_FILENAME,
   STATE_DIRNAME,
   STATE_FILENAME
 } from './shared.js'
@@ -69,14 +67,30 @@ export function getInstallStatePath(repoRoot) {
   return path.join(getLawalletStateDir(repoRoot), STATE_FILENAME)
 }
 
+export function getServicePidFilePath(repoRoot, serviceName) {
+  return path.join(getLawalletStateDir(repoRoot), `lawallet-${serviceName}.pid`)
+}
+
+export function getServiceLogFilePath(repoRoot, serviceName) {
+  return path.join(getLawalletStateDir(repoRoot), `lawallet-${serviceName}.log`)
+}
+
 export function getPidFilePath(repoRoot) {
-  return path.join(getLawalletStateDir(repoRoot), PID_FILENAME)
+  return getServicePidFilePath(repoRoot, 'web')
 }
 
 export function getLogFilePath(repoRoot) {
-  return path.join(getLawalletStateDir(repoRoot), LOG_FILENAME)
+  return getServiceLogFilePath(repoRoot, 'web')
 }
 
 export function getWebDir(repoRoot) {
   return path.join(repoRoot, 'apps', 'web')
+}
+
+export function getDocsDir(repoRoot) {
+  return path.join(repoRoot, 'apps', 'docs')
+}
+
+export function getOpenapiDir(repoRoot) {
+  return path.join(repoRoot, 'packages', 'openapi')
 }

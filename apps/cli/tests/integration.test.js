@@ -83,10 +83,12 @@ async function createFixtureRepo(parentDir) {
   const repoDir = path.join(parentDir, 'lawallet-nwc')
 
   await mkdir(path.join(repoDir, 'apps/web'), { recursive: true })
+  await mkdir(path.join(repoDir, 'apps/docs'), { recursive: true })
+  await mkdir(path.join(repoDir, 'packages/openapi'), { recursive: true })
 
   await writeFile(
     path.join(repoDir, 'pnpm-workspace.yaml'),
-    "packages:\n  - 'apps/*'\n",
+    "packages:\n  - 'apps/*'\n  - 'packages/*'\n",
     'utf8'
   )
   await writeFile(
@@ -116,6 +118,38 @@ async function createFixtureRepo(parentDir) {
         scripts: {
           start: 'next start',
           build: 'next build'
+        }
+      },
+      null,
+      2
+    ),
+    'utf8'
+  )
+  await writeFile(
+    path.join(repoDir, 'apps/docs/package.json'),
+    JSON.stringify(
+      {
+        name: '@lawallet-nwc/docs',
+        private: true,
+        scripts: {
+          start: 'next start',
+          build: 'next build'
+        }
+      },
+      null,
+      2
+    ),
+    'utf8'
+  )
+  await writeFile(
+    path.join(repoDir, 'packages/openapi/package.json'),
+    JSON.stringify(
+      {
+        name: '@lawallet-nwc/openapi',
+        private: true,
+        scripts: {
+          start: 'node server.js',
+          build: 'tsc -p tsconfig.json'
         }
       },
       null,
@@ -298,7 +332,7 @@ case "\${1:-}" in
         ;;
       ps)
         if [[ -f "$pid_file" ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null; then
-          printf '[{"Name":"lawallet-web","Service":"web","State":"running"},{"Name":"lawallet-postgres","Service":"postgres","State":"running"}]\\n'
+          printf '[{"Name":"lawallet-web","Service":"web","State":"running"},{"Name":"lawallet-docs","Service":"docs","State":"running"},{"Name":"lawallet-openapi","Service":"openapi","State":"running"},{"Name":"lawallet-postgres","Service":"postgres","State":"running"}]\\n'
         else
           printf '[]\\n'
         fi
@@ -377,6 +411,8 @@ test(
     const fakeTools = await createFakeTools(tempRoot, { includeDocker: true })
     const env = buildTestEnv(fakeTools)
     const appPort = 38181
+    const docsPort = 33101
+    const openapiPort = 35101
     const postgresPort = 45432
 
     const install = await runProcess(
@@ -393,6 +429,10 @@ test(
         fixtureRepo,
         '--app-port',
         String(appPort),
+        '--docs-port',
+        String(docsPort),
+        '--openapi-port',
+        String(openapiPort),
         '--postgres-port',
         String(postgresPort)
       ],
@@ -403,7 +443,12 @@ test(
     )
 
     assert.match(install.stdout, /Mode: docker/)
-    assert.match(install.stdout, new RegExp(`URL: http://127\\.0\\.0\\.1:${appPort}`))
+    assert.match(install.stdout, new RegExp(`web: http://127\\.0\\.0\\.1:${appPort}`))
+    assert.match(install.stdout, new RegExp(`docs: http://127\\.0\\.0\\.1:${docsPort}`))
+    assert.match(
+      install.stdout,
+      new RegExp(`openapi: http://127\\.0\\.0\\.1:${openapiPort}`)
+    )
 
     const installedRepo = path.join(tempRoot, 'installs', 'lawallet-nwc')
     const state = await readJson(
@@ -414,8 +459,12 @@ test(
 
     assert.equal(state.mode, 'docker')
     assert.equal(state.app.port, appPort)
+    assert.equal(state.services.docs.port, docsPort)
+    assert.equal(state.services.openapi.port, openapiPort)
     assert.equal(state.postgres.port, postgresPort)
     assert.match(rootEnv, new RegExp(`^PORT=${appPort}$`, 'm'))
+    assert.match(rootEnv, new RegExp(`^DOCS_PORT=${docsPort}$`, 'm'))
+    assert.match(rootEnv, new RegExp(`^OPENAPI_PORT=${openapiPort}$`, 'm'))
     assert.match(rootEnv, new RegExp(`^POSTGRES_PORT=${postgresPort}$`, 'm'))
     assert.match(webEnv, new RegExp(`^PORT="${appPort}"$`, 'm'))
 
@@ -428,6 +477,8 @@ test(
     )
     assert.match(serviceStatus.stdout, /Mode: docker/)
     assert.match(serviceStatus.stdout, /Containers:/)
+    assert.match(serviceStatus.stdout, /docs:/)
+    assert.match(serviceStatus.stdout, /openapi:/)
 
     const stop = await runProcess(
       process.execPath,
@@ -449,7 +500,7 @@ test(
         env
       }
     )
-    assert.match(restart.stdout, /lawallet-web/)
+    assert.match(restart.stdout, /lawallet-openapi/)
 
     await runProcess(
       process.execPath,
@@ -476,6 +527,8 @@ test(
     const fakeTools = await createFakeTools(tempRoot)
     const env = buildTestEnv(fakeTools)
     const appPort = 38182
+    const docsPort = 33102
+    const openapiPort = 35102
 
     const install = await runProcess(
       process.execPath,
@@ -490,7 +543,11 @@ test(
         '--repo',
         fixtureRepo,
         '--app-port',
-        String(appPort)
+        String(appPort),
+        '--docs-port',
+        String(docsPort),
+        '--openapi-port',
+        String(openapiPort)
       ],
       {
         cwd: tempRoot,
@@ -499,18 +556,24 @@ test(
     )
 
     assert.match(install.stdout, /Mode: native/)
-    assert.match(install.stdout, /Process: running/)
+    assert.match(install.stdout, /Services:/)
 
     const installedRepo = path.join(tempRoot, 'native-installs', 'lawallet-nwc')
     const state = await readJson(
       path.join(installedRepo, '.lawallet', 'install-state.json')
     )
-    const pidFile = path.join(installedRepo, '.lawallet', 'lawallet-web.pid')
+    const webPidFile = path.join(installedRepo, '.lawallet', 'lawallet-web.pid')
+    const docsPidFile = path.join(installedRepo, '.lawallet', 'lawallet-docs.pid')
+    const openapiPidFile = path.join(installedRepo, '.lawallet', 'lawallet-openapi.pid')
     const webEnv = await readFile(path.join(installedRepo, 'apps/web/.env'), 'utf8')
 
     assert.equal(state.mode, 'native')
     assert.equal(state.app.port, appPort)
-    assert.equal(await pathExists(pidFile), true)
+    assert.equal(state.services.docs.port, docsPort)
+    assert.equal(state.services.openapi.port, openapiPort)
+    assert.equal(await pathExists(webPidFile), true)
+    assert.equal(await pathExists(docsPidFile), true)
+    assert.equal(await pathExists(openapiPidFile), true)
     assert.match(webEnv, /^NODE_ENV="production"$/m)
 
     const status = await runProcess(
@@ -522,6 +585,8 @@ test(
     )
     assert.match(status.stdout, /Mode: native/)
     assert.match(status.stdout, /Database ready: yes/)
+    assert.match(status.stdout, /docs: running/)
+    assert.match(status.stdout, /openapi: running/)
 
     const restart = await runProcess(
       process.execPath,
@@ -530,7 +595,7 @@ test(
         env
       }
     )
-    assert.match(restart.stdout, /Process: running/)
+    assert.match(restart.stdout, /web: running/)
 
     await runProcess(
       process.execPath,
@@ -547,8 +612,10 @@ test(
         env
       }
     )
-    assert.match(stopped.stdout, /Process: stopped/)
-    assert.equal(await pathExists(pidFile), false)
+    assert.match(stopped.stdout, /web: stopped/)
+    assert.equal(await pathExists(webPidFile), false)
+    assert.equal(await pathExists(docsPidFile), false)
+    assert.equal(await pathExists(openapiPidFile), false)
   }
 )
 
@@ -573,6 +640,8 @@ test(
       LAWALLET_CLI_REPO_URL: fixtureRepo
     }
     const appPort = 38183
+    const docsPort = 33103
+    const openapiPort = 35103
     const postgresPort = 45433
 
     const bootstrap = await runProcess(
@@ -584,6 +653,10 @@ test(
         '--yes',
         '--app-port',
         String(appPort),
+        '--docs-port',
+        String(docsPort),
+        '--openapi-port',
+        String(openapiPort),
         '--postgres-port',
         String(postgresPort)
       ],
@@ -602,6 +675,8 @@ test(
     assert.match(bootstrap.stdout, /Mode: docker/)
     assert.equal(state.mode, 'docker')
     assert.equal(state.app.port, appPort)
+    assert.equal(state.services.docs.port, docsPort)
+    assert.equal(state.services.openapi.port, openapiPort)
 
     await runProcess(
       process.execPath,

@@ -113,6 +113,16 @@ pnpm service stop
 pnpm service restart
 ```
 
+To smoke-test the bootstrap flow inside a disposable Docker-in-Docker runner:
+
+```bash
+bash ./scripts/test-install-cli-docker.sh
+```
+
+That runner installs the CLI globally, clones the repo into a fresh directory,
+starts the bundled `lawallet + postgres` Docker Compose stack, and verifies
+that the app responds on the configured port before exiting.
+
 ---
 
 ## Environment Variables

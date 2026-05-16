@@ -126,6 +126,12 @@ bash ./scripts/install-lawallet-cli.sh
 The installer lives in [`apps/cli`](./apps/cli) and the generated app-management
 commands are available from `apps/web` through `pnpm service <status|start|stop|restart>`.
 
+To smoke-test that entire flow inside Docker, run:
+
+```bash
+bash ./scripts/test-install-cli-docker.sh
+```
+
 ### 1. Install dependencies
 
 Set the correct Node version with `nvm`:

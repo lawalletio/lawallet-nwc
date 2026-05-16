@@ -5,6 +5,8 @@ export const DEFAULT_REPO_URL = 'https://github.com/lawalletio/lawallet-nwc.git'
 export const DEFAULT_MODE = 'auto'
 export const DEFAULT_APP_PORT = 2288
 export const DEFAULT_WEB_PORT = 2288
+export const DEFAULT_DOCS_PORT = 3000
+export const DEFAULT_OPENAPI_PORT = 4500
 export const DEFAULT_DOCKER_POSTGRES_PORT = 5432
 export const DEFAULT_POSTGRES_HOST = '127.0.0.1'
 export const DEFAULT_POSTGRES_PORT = 5432
@@ -71,5 +73,13 @@ export function buildAppUrl(port) {
 }
 
 export function buildAppHealthUrl(port) {
-  return `${buildAppUrl(port)}/api/openapi.json`
+  return `${buildAppUrl(port)}/api/health`
+}
+
+export function buildDocsHealthUrl(port) {
+  return `${buildAppUrl(port)}/api/health`
+}
+
+export function buildOpenApiHealthUrl(port) {
+  return `${buildAppUrl(port)}/health`
 }
