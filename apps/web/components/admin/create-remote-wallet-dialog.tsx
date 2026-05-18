@@ -14,8 +14,8 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { InputWithQrScanner } from '@/components/ui/input-with-qr-scanner'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -267,18 +267,27 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
             <>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="wallet-uri">Connection string</Label>
-                <Textarea
+                <InputWithQrScanner
                   id="wallet-uri"
+                  // `type="password"` masks the URI on screen (it carries a
+                  // shared secret) and disables browser autofill — matches
+                  // the existing NWC input pattern in `nwc-card.tsx`.
+                  type="password"
                   placeholder="nostr+walletconnect://..."
                   value={connectionString}
-                  onChange={e => setConnectionString(e.target.value)}
-                  rows={3}
-                  className="font-mono text-xs"
+                  onChange={setConnectionString}
+                  onScan={text => setConnectionString(text.trim())}
+                  onScanError={err => toast.error(err)}
+                  scanLabel="Scan NWC QR code"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  disabled={loading}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Paste the NWC pairing URI from your wallet (Alby, Mutiny,
-                  Phoenix, …). It’s stored encrypted and never displayed
-                  again.
+                  Paste or scan the NWC pairing QR from your wallet (Alby,
+                  Mutiny, Phoenix, …). It’s stored encrypted and never
+                  displayed again.
                 </p>
               </div>
 
