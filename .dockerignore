@@ -1,0 +1,8 @@
+.git
+.github
+.lawallet
+.pnpm-store
+**/node_modules
+**/.next
+**/.turbo
+**/coverage

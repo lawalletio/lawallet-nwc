@@ -5,7 +5,7 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
-    "start": "next start",
+    "start": "next start --hostname ${DOCS_HOST:-127.0.0.1} --port ${PORT:-3000}",
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {

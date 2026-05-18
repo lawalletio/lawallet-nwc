@@ -15,6 +15,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/web/prisma ./apps/web/prisma
+COPY packages/openapi/package.json ./packages/openapi/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
 COPY packages/sdk/package.json ./packages/sdk/package.json
 
@@ -26,9 +27,11 @@ FROM base AS builder
 WORKDIR /app
 
 # Copy workspace config
-COPY pnpm-workspace.yaml turbo.json tsconfig.base.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /app/packages/openapi/node_modules ./packages/openapi/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 
 # Copy web app source
 COPY apps/web ./apps/web
@@ -40,6 +43,7 @@ COPY packages ./packages
 ENV SKIP_ENV_VALIDATION=1
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV CI=1
 
 WORKDIR /app/apps/web
 RUN pnpm exec prisma generate && pnpm run build
@@ -47,6 +51,7 @@ RUN pnpm exec prisma generate && pnpm run build
 # Production image
 FROM base AS runner
 WORKDIR /app
+ARG PRISMA_VERSION=6.19.2
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs \
@@ -60,7 +65,10 @@ COPY --from=builder /app/apps/web/prisma ./apps/web/prisma
 COPY --from=builder /app/apps/web/lib/generated ./apps/web/lib/generated
 
 # Install Prisma CLI for migrations
-RUN npm install -g prisma
+ENV NODE_PATH=/usr/local/lib/node_modules
+RUN npm install -g "prisma@${PRISMA_VERSION}" \
+    && mkdir -p /app/apps/web/node_modules \
+    && ln -s /usr/local/lib/node_modules/prisma /app/apps/web/node_modules/prisma
 
 # Set permissions
 RUN mkdir -p /app/data && chown -R nextjs:nodejs /app
@@ -72,4 +80,4 @@ EXPOSE 2288
 ENV NODE_ENV=production
 
 WORKDIR /app/apps/web
-CMD ["sh", "-c", "prisma migrate deploy && node ../../server.js"]
+CMD ["sh", "-c", "prisma migrate deploy && node server.js"]

@@ -1,15 +1,29 @@
 import { createServer } from 'node:http'
 import { getOpenApiDocument } from '../src/index.ts'
 
-const port = Number(process.env.OPENAPI_DEV_PORT ?? 4500)
-const host = '127.0.0.1'
+const port = Number(process.env.OPENAPI_PORT ?? process.env.OPENAPI_DEV_PORT ?? 4500)
+const host = process.env.OPENAPI_HOST ?? '127.0.0.1'
 
 const server = createServer((req, res) => {
   const url = req.url ?? '/'
 
+  if (url === '/health') {
+    res.writeHead(200, {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+    })
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        service: 'openapi',
+      }),
+    )
+    return
+  }
+
   if (url === '/openapi.json' || url === '/') {
     const doc = getOpenApiDocument({
-      serverUrl: process.env.OPENAPI_SERVER_URL ?? `http://localhost:3000`,
+      serverUrl: process.env.OPENAPI_SERVER_URL ?? `http://127.0.0.1:2288`,
     })
     res.writeHead(200, {
       'content-type': 'application/json',
