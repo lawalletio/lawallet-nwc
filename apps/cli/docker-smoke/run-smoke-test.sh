@@ -131,7 +131,9 @@ prepare_source_repo
 export LAWALLET_CLI_REPO_URL="${SOURCE_REPO}"
 
 print_section "Running the bootstrap installer"
-bash "${SOURCE_REPO}/scripts/install-lawallet-cli.sh" \
+LAWALLET_CLI_NPM_SPEC="${SOURCE_REPO}/apps/cli" \
+LAWALLET_REPO_URL="${SOURCE_REPO}" \
+bash "${SOURCE_REPO}/install.sh" \
   --mode docker \
   --yes \
   --dir "${INSTALL_ROOT}" \

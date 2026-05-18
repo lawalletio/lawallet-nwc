@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '../../..')
 const cliEntry = path.join(repoRoot, 'apps/cli/src/index.js')
-const bootstrapScript = path.join(repoRoot, 'scripts/install-lawallet-cli.sh')
+const bootstrapScript = path.join(repoRoot, 'install.sh')
 
 async function pathExists(targetPath) {
   try {
@@ -163,9 +163,11 @@ async function createFixtureRepo(parentDir) {
 
 async function createFakeTools(parentDir, options = {}) {
   const fakeBinDir = path.join(parentDir, 'fake-bin')
+  const homeDir = path.join(parentDir, 'home')
   const toolStateDir = path.join(parentDir, 'tool-state')
 
   await mkdir(fakeBinDir, { recursive: true })
+  await mkdir(homeDir, { recursive: true })
   await mkdir(toolStateDir, { recursive: true })
 
   await createExecutable(
@@ -362,12 +364,33 @@ exit 1
 set -euo pipefail
 
 if [[ "\${1:-}" == "install" && "\${2:-}" == "--global" ]]; then
-  bin_dir="$(cd -- "$(dirname "$0")" && pwd)"
-  cat > "$bin_dir/lawallet" <<'EOF'
+  prefix_dir=''
+  shift 2
+
+  while [[ "$#" -gt 0 ]]; do
+    case "\${1:-}" in
+      --prefix)
+        prefix_dir="\${2:?}"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "$prefix_dir" ]]; then
+    echo "fake npm expected --prefix" >&2
+    exit 1
+  fi
+
+  mkdir -p "$prefix_dir/bin"
+
+  cat > "$prefix_dir/bin/lawallet" <<'EOF'
 #!/usr/bin/env bash
 exec "$LAWALLET_TEST_NODE_BIN" "$LAWALLET_TEST_CLI_SRC" "$@"
 EOF
-  chmod +x "$bin_dir/lawallet"
+  chmod +x "$prefix_dir/bin/lawallet"
   exit 0
 fi
 
@@ -379,12 +402,14 @@ exit 1
 
   return {
     fakeBinDir,
+    homeDir,
     toolStateDir
   }
 }
 
 function buildTestEnv(fakeTools) {
   return {
+    HOME: fakeTools.homeDir,
     PATH: `${fakeTools.fakeBinDir}:${path.dirname(process.execPath)}:/usr/bin:/bin:/usr/sbin:/sbin`,
     LAWALLET_TEST_NODE_BIN: process.execPath,
     LAWALLET_TEST_CLI_SRC: cliEntry,
@@ -620,7 +645,7 @@ test(
 )
 
 test(
-  'bootstrap script installs the CLI and defaults install location to the current directory',
+  'standalone install.sh installs the CLI and defaults install location to the current directory',
   { timeout: 30_000 },
   async t => {
     const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'lawallet-cli-bootstrap-'))
@@ -637,7 +662,9 @@ test(
     })
     const env = {
       ...buildTestEnv(fakeTools),
-      LAWALLET_CLI_REPO_URL: fixtureRepo
+      LAWALLET_CLI_NPM_SPEC: path.join(repoRoot, 'apps/cli'),
+      LAWALLET_REPO_URL: fixtureRepo,
+      LAWALLET_INSTALL_SKIP_PROFILE: 'true'
     }
     const appPort = 38183
     const docsPort = 33103
@@ -667,12 +694,15 @@ test(
     )
 
     const installedRepo = path.join(tempRoot, 'lawallet-nwc')
+    const installedCliPath = path.join(fakeTools.homeDir, '.lawallet', 'bin', 'lawallet')
     const state = await readJson(
       path.join(installedRepo, '.lawallet', 'install-state.json')
     )
 
-    assert.match(bootstrap.stdout, /Installing the local LaWallet CLI package globally/)
+    assert.match(bootstrap.stdout, /Installing LaWallet CLI package/)
+    assert.match(bootstrap.stdout, /Running `lawallet install`\./)
     assert.match(bootstrap.stdout, /Mode: docker/)
+    assert.equal(await pathExists(installedCliPath), true)
     assert.equal(state.mode, 'docker')
     assert.equal(state.app.port, appPort)
     assert.equal(state.services.docs.port, docsPort)

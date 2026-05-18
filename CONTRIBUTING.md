@@ -96,14 +96,24 @@ The admin dashboard is at [http://localhost:3000/admin](http://localhost:3000/ad
 The first time you visit, sign in with a Nostr key and the **setup wizard**
 will claim that pubkey as root admin via `POST /api/admin/assign`.
 
-If you want the guided install flow instead, bootstrap the local npm CLI from
-this repo:
+If you want the guided install flow instead, the public bootstrap entrypoint is
+the repo-root `install.sh`, which is designed for a hosted `curl | bash` flow:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/install.sh | bash
+```
+
+Or, from inside this repo, use the local wrapper that installs the CLI package
+from `apps/cli` and then delegates into that same bootstrap flow:
 
 ```bash
 bash ./scripts/install-lawallet-cli.sh
 ```
 
-That installs the `lawallet` CLI from `apps/cli` and runs `lawallet install`.
+The standalone installer writes the `lawallet` command into `~/.lawallet/bin`,
+downloads a compatible Node.js runtime if necessary, and then runs
+`lawallet install`.
+
 Once an instance is installed, you can manage it from `apps/web` with:
 
 ```bash
@@ -119,9 +129,9 @@ To smoke-test the bootstrap flow inside a disposable Docker-in-Docker runner:
 bash ./scripts/test-install-cli-docker.sh
 ```
 
-That runner installs the CLI globally, clones the repo into a fresh directory,
-starts the bundled `lawallet + postgres` Docker Compose stack, and verifies
-that the app responds on the configured port before exiting.
+That runner executes the same root `install.sh` bootstrap, clones the repo into
+a fresh directory, starts the bundled `web + docs + openapi + postgres` Docker
+Compose stack, and verifies each health endpoint before exiting.
 
 ---
 

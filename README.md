@@ -115,18 +115,48 @@ Three independent containerized services with no shared infrastructure:
 
 ## Getting Started
 
-### Bootstrap With the Local CLI
+### Bootstrap With the CLI
 
-To install the npm CLI from this repo and immediately run the guided installer:
+The standalone bootstrap flow is designed for a hosted `curl | bash` install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/install.sh | bash
+```
+
+To force Docker mode and skip prompts:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/install.sh | \
+  bash -s -- --mode docker --yes
+```
+
+That installer:
+
+- installs a user-owned `lawallet` CLI under `~/.lawallet/bin`
+- downloads a bundled Node.js runtime when the machine does not already have a compatible one
+- persists the CLI on your shell `PATH`
+- runs `lawallet install`, which clones `lawallet-nwc` and brings up `web`, `docs`, `openapi`, and PostgreSQL
+
+For local development of the CLI from this repo, use the wrapper script instead:
 
 ```bash
 bash ./scripts/install-lawallet-cli.sh
 ```
 
-The installer lives in [`apps/cli`](./apps/cli) and the generated app-management
-commands are available from `apps/web` through `pnpm service <status|start|stop|restart>`.
+That wrapper reuses the same root [`install.sh`](./install.sh) flow, but installs the CLI package directly from [`apps/cli`](./apps/cli) instead of npm.
 
-To smoke-test that entire flow inside Docker, run:
+Once an instance is installed, the generated app-management commands are available from `apps/web` through `pnpm service <status|start|stop|restart>`.
+
+Useful bootstrap env vars:
+
+```bash
+LAWALLET_REPO_URL=https://github.com/your-org/lawallet-nwc.git
+LAWALLET_CLI_NPM_SPEC=@lawallet-nwc/cli@latest
+LAWALLET_INSTALL_SKIP_RUN=true
+LAWALLET_INSTALL_SKIP_PROFILE=true
+```
+
+To smoke-test the published bootstrap flow inside Docker, run:
 
 ```bash
 bash ./scripts/test-install-cli-docker.sh

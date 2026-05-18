@@ -15,7 +15,9 @@ Install options:
   --dir, -d <path>         Base directory to clone into (default: current dir)
   --mode <auto|docker|native>
   --repo <git-url-or-path>
-  --app-port <port>
+  --app-port <port>        Web app port
+  --docs-port <port>       Docs app port
+  --openapi-port <port>    OpenAPI app port
   --postgres-port <port>   Docker host Postgres port
   --yes, -y                Skip interactive prompts
 
