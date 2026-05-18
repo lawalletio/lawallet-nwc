@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Plus, Lock } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, ArrowDownToLine, ArrowLeftRight, Check, Lock, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -30,6 +30,10 @@ import {
   type RemoteWalletData,
 } from '@/lib/client/hooks/use-remote-wallets'
 import { ApiClientError } from '@/lib/client/api-client'
+import {
+  probeNwcCapabilities,
+  type NwcCapabilities,
+} from '@/lib/client/nwc/probe-capabilities'
 
 /**
  * Driver types known to the platform. `NWC` is the only one that's
@@ -66,13 +70,26 @@ interface CreateRemoteWalletDialogProps {
   onCreated?: () => void
 }
 
+/**
+ * Auto-detection lifecycle. We deliberately surface every state to the
+ * UI — silent failures here would mean the user submits with a fallback
+ * `mode` without knowing the wallet wasn't actually reachable.
+ */
+type ProbeState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'success'; capabilities: NwcCapabilities }
+  | { status: 'error'; message: string }
+
+const PROBE_DEBOUNCE_MS = 600
+
 export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialogProps) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [type, setType] = useState<RemoteWalletData['type']>('NWC')
   const [connectionString, setConnectionString] = useState('')
-  const [mode, setMode] = useState<'RECEIVE' | 'SEND_RECEIVE'>('RECEIVE')
   const [isDefault, setIsDefault] = useState(false)
+  const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
   const { createWallet, loading } = useRemoteWalletMutations()
 
   const trimmedName = name.trim()
@@ -85,13 +102,74 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
     trimmedUri.length > 0 &&
     looksLikeNwcUri(trimmedUri)
 
+  // ── Auto-probe ────────────────────────────────────────────────────────
+  //
+  // Whenever the URI changes to something that *looks* like a valid NWC
+  // pairing string, kick off `get_info` against the wallet to discover
+  // which methods it exposes. Debounced so a paste doesn't trigger a
+  // probe per intermediate keystroke; `AbortController` cancels the
+  // previous probe if the user keeps editing.
+  const abortRef = useRef<AbortController | null>(null)
+  useEffect(() => {
+    if (type !== 'NWC' || !looksLikeNwcUri(trimmedUri)) {
+      abortRef.current?.abort()
+      abortRef.current = null
+      // Functional update — React bails out when we're already idle, so
+      // toggling URIs back and forth doesn't cascade re-renders.
+      setProbe(prev => (prev.status === 'idle' ? prev : { status: 'idle' }))
+      return
+    }
+
+    const controller = new AbortController()
+    abortRef.current?.abort()
+    abortRef.current = controller
+
+    const timer = setTimeout(async () => {
+      setProbe({ status: 'checking' })
+      try {
+        const capabilities = await probeNwcCapabilities(trimmedUri, {
+          signal: controller.signal,
+        })
+        if (!controller.signal.aborted) {
+          setProbe({ status: 'success', capabilities })
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return
+        const message =
+          err instanceof Error
+            ? err.name === 'TimeoutError'
+              ? 'Wallet didn’t respond in time'
+              : err.message
+            : 'Couldn’t detect wallet capabilities'
+        setProbe({ status: 'error', message })
+      }
+    }, PROBE_DEBOUNCE_MS)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [trimmedUri, type])
+
   function resetForm() {
     setName('')
     setType('NWC')
     setConnectionString('')
-    setMode('RECEIVE')
     setIsDefault(false)
+    setProbe({ status: 'idle' })
+    abortRef.current?.abort()
+    abortRef.current = null
   }
+
+  /**
+   * Mode the form will submit. Falls back to RECEIVE when detection
+   * didn't complete — that's the strictly more limited capability, so
+   * the worst-case outcome of a bad detect is a wallet flagged as
+   * receive-only that the user can upgrade later via the per-row edit
+   * (when that lands).
+   */
+  const submitMode: 'RECEIVE' | 'SEND_RECEIVE' =
+    probe.status === 'success' ? probe.capabilities.mode : 'RECEIVE'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -101,7 +179,7 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
       await createWallet({
         name: trimmedName,
         type,
-        config: { connectionString: trimmedUri, mode },
+        config: { connectionString: trimmedUri, mode: submitMode },
         isDefault,
       })
       toast.success('Wallet added')
@@ -205,19 +283,12 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
               </div>
 
               <div className="flex flex-col gap-2">
-                <Label htmlFor="wallet-mode">Capabilities</Label>
-                <Select value={mode} onValueChange={v => setMode(v as typeof mode)}>
-                  <SelectTrigger id="wallet-mode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="RECEIVE">Receive only</SelectItem>
-                    <SelectItem value="SEND_RECEIVE">Send and receive</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Capabilities</Label>
+                <CapabilitiesPanel probe={probe} />
                 <p className="text-xs text-muted-foreground">
-                  Choose what this wallet is allowed to do — match the scopes
-                  you granted when you generated the connection string.
+                  Detected automatically from the wallet’s NIP-47 <code>get_info</code>{' '}
+                  response. We use this to decide whether the wallet can both send
+                  and receive, or receive only.
                 </p>
               </div>
             </>
@@ -252,5 +323,57 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * Renders the current state of the auto-probe in place of the manual
+ * Capabilities select. Always occupies a fixed-height row so the form
+ * doesn't reflow each time the state advances `idle → checking → success`.
+ */
+function CapabilitiesPanel({ probe }: { probe: ProbeState }) {
+  if (probe.status === 'idle') {
+    return (
+      <div className="flex h-10 items-center rounded-md border border-dashed px-3 text-sm text-muted-foreground">
+        Paste a valid NWC URI to detect capabilities.
+      </div>
+    )
+  }
+  if (probe.status === 'checking') {
+    return (
+      <div className="flex h-10 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground">
+        <Spinner className="size-4" />
+        Detecting wallet capabilities…
+      </div>
+    )
+  }
+  if (probe.status === 'error') {
+    return (
+      <div className="flex h-10 items-center gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/5 px-3 text-sm text-yellow-600 dark:text-yellow-400">
+        <AlertTriangle className="size-4 shrink-0" />
+        <span className="line-clamp-1">
+          {probe.message}. Wallet will be saved as receive-only.
+        </span>
+      </div>
+    )
+  }
+
+  // success — show the detected mode + wallet alias if reported
+  const { capabilities } = probe
+  const isSendReceive = capabilities.mode === 'SEND_RECEIVE'
+  const Icon = isSendReceive ? ArrowLeftRight : ArrowDownToLine
+  return (
+    <div className="flex h-10 items-center justify-between rounded-md border border-green-500/40 bg-green-500/5 px-3 text-sm">
+      <div className="flex items-center gap-2">
+        <Icon className="size-4 text-green-600 dark:text-green-400" />
+        <span className="font-medium">
+          {isSendReceive ? 'Send and receive' : 'Receive only'}
+        </span>
+        {capabilities.alias && (
+          <span className="text-muted-foreground">· {capabilities.alias}</span>
+        )}
+      </div>
+      <Check className="size-4 text-green-600 dark:text-green-400" />
+    </div>
   )
 }
