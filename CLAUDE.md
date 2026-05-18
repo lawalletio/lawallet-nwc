@@ -45,9 +45,15 @@ Push commits → mark PR ready for review → merge. On merge: the issue auto-cl
 
 ### Sub-issues of an epic
 For an epic with sub-issues (e.g. #263 with sub-issues #231-#236):
-- Each sub-issue gets its own branch via `gh issue develop <sub-n>`.
+- Each sub-issue gets its own branch via `gh issue develop <sub-n> --base feat/<epic-n>-... -n feat/<sub-n>-<slug> -c`.
 - Sub-issue PRs target the **epic branch** (`--base feat/<epic-n>-...`), not `main`.
 - The epic branch merges to `main` only when the epic is complete.
+- When the sub-branch is created from the epic, it starts at the same commit as the epic, so opening a draft PR fails with `No commits between ...`. Seed it first:
+  ```bash
+  git commit --allow-empty -m "chore(#<sub-n>): start <topic>"
+  git push origin feat/<sub-n>-<slug>
+  ```
+  Then `gh pr create --draft --base feat/<epic-n>-... ...`.
 
 ### Do not
 - Do not start work without an issue — open one first.
