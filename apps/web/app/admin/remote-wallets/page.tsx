@@ -1,9 +1,8 @@
 'use client'
 
 import React from 'react'
-import { Plus, Wallet } from 'lucide-react'
+import { Wallet } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -14,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
+import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
 import {
   useRemoteWallets,
   type RemoteWalletData,
@@ -32,7 +32,7 @@ import {
  * follow-up commits on this branch.
  */
 export default function RemoteWalletsPage() {
-  const { data: wallets, loading, error } = useRemoteWallets()
+  const { data: wallets, loading, error, refetch } = useRemoteWallets()
 
   return (
     <div className="flex flex-col">
@@ -47,15 +47,7 @@ export default function RemoteWalletsPage() {
               payments through.
             </p>
           </div>
-          {/*
-           * `disabled` until the Add Wallet dialog lands in the next commit.
-           * Keeping it visible (rather than hiding it) signals the feature
-           * is intentional, not missing.
-           */}
-          <Button disabled className="gap-2">
-            <Plus className="size-4" />
-            Add wallet
-          </Button>
+          <CreateRemoteWalletDialog onCreated={refetch} />
         </div>
 
         {error ? (
