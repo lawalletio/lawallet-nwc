@@ -9,10 +9,15 @@ import type {
 } from './types'
 
 /**
- * `RemoteWallet.config` shape for NWC wallets — just the pairing URI. We
- * intentionally don't persist anything derived from it (relay URL, wallet
- * pubkey, …) here; the SDK parses those out of the connection string on
- * every call, so there's only one source of truth.
+ * `RemoteWallet.config` shape for NWC wallets. We persist:
+ *
+ *  - `connectionString` — the NWC pairing URI. Everything derived from it
+ *    (relay URL, wallet pubkey, …) is parsed by the SDK on every call, so
+ *    there's only one source of truth here.
+ *  - `mode` — `RECEIVE` (default) or `SEND_RECEIVE`. Mirrors the legacy
+ *    `NWCConnection.mode` enum that the #231 migration copied forward into
+ *    JSON. We default to `RECEIVE` so older payloads written before this
+ *    field existed still parse.
  */
 const nwcConfigSchema = z
   .object({
@@ -22,6 +27,7 @@ const nwcConfigSchema = z
       .refine(s => s.startsWith('nostr+walletconnect://') || s.startsWith('nostrwalletconnect://'), {
         message: 'connectionString must be a nostr+walletconnect:// URI',
       }),
+    mode: z.enum(['RECEIVE', 'SEND_RECEIVE']).default('RECEIVE'),
   })
   .strict()
 

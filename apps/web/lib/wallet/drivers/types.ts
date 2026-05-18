@@ -58,10 +58,12 @@ export interface RemoteWalletDriver<TConfig = unknown> {
 
   /**
    * Zod schema that validates and parses the wallet's `config` JSON column.
-   * The registry uses this to narrow `unknown` JSON into `TConfig` before
-   * handing it to the driver, so individual methods can assume valid input.
+   * The registry uses this to narrow arbitrary input JSON into `TConfig`
+   * before handing it to the driver, so individual methods can assume
+   * valid output. Input is `unknown` because callers pass raw JSON that
+   * may omit defaulted fields like `mode` on the NWC driver.
    */
-  readonly configSchema: z.ZodType<TConfig>
+  readonly configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>
 
   /**
    * Read the wallet's current spendable balance. Network round-trip; expect

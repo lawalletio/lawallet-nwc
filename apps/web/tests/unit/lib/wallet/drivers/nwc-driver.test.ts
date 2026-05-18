@@ -30,6 +30,13 @@ import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 
 const VALID_URI = 'nostr+walletconnect://abc?relay=wss%3A%2F%2Fr.example&secret=deadbeef'
 
+/**
+ * Parsed-shape config the driver methods see in production — the registry
+ * runs the schema before handing it over, which fills the `mode` default.
+ * Tests call methods directly so we mirror that shape explicitly.
+ */
+const CONFIG = { connectionString: VALID_URI, mode: 'RECEIVE' as const }
+
 describe('nwcDriver', () => {
   beforeEach(() => {
     getBalanceMock.mockReset()
@@ -45,7 +52,7 @@ describe('nwcDriver', () => {
 
   describe('configSchema', () => {
     it('accepts a well-formed connection string', () => {
-      expect(nwcDriver.configSchema.safeParse({ connectionString: VALID_URI }).success).toBe(true)
+      expect(nwcDriver.configSchema.safeParse(CONFIG).success).toBe(true)
     })
 
     it('also accepts the alternate "nostrwalletconnect://" scheme', () => {
@@ -70,37 +77,58 @@ describe('nwcDriver', () => {
       })
       expect(r.success).toBe(false)
     })
+
+    it('defaults mode to RECEIVE when omitted (back-compat with pre-#231 payloads)', () => {
+      const r = nwcDriver.configSchema.parse({ connectionString: VALID_URI })
+      expect(r.mode).toBe('RECEIVE')
+    })
+
+    it('accepts mode=SEND_RECEIVE', () => {
+      const r = nwcDriver.configSchema.parse({
+        connectionString: VALID_URI,
+        mode: 'SEND_RECEIVE',
+      })
+      expect(r.mode).toBe('SEND_RECEIVE')
+    })
+
+    it('rejects an unknown mode', () => {
+      const r = nwcDriver.configSchema.safeParse({
+        connectionString: VALID_URI,
+        mode: 'WRITE_ONLY',
+      })
+      expect(r.success).toBe(false)
+    })
   })
 
   describe('getBalance', () => {
     it('translates the SDK msat response to sats', async () => {
       getBalanceMock.mockResolvedValueOnce({ balance: 12_345_000 })
-      const res = await nwcDriver.getBalance({ connectionString: VALID_URI })
+      const res = await nwcDriver.getBalance(CONFIG)
       expect(res).toEqual({ balanceSats: 12_345 })
     })
 
     it('floors fractional-msat balances rather than rounding up', async () => {
       // 1234 msats → 1 sat (not 2, not 1.234)
       getBalanceMock.mockResolvedValueOnce({ balance: 1234 })
-      const res = await nwcDriver.getBalance({ connectionString: VALID_URI })
+      const res = await nwcDriver.getBalance(CONFIG)
       expect(res.balanceSats).toBe(1)
     })
 
     it('handles a zero balance', async () => {
       getBalanceMock.mockResolvedValueOnce({ balance: 0 })
-      expect(await nwcDriver.getBalance({ connectionString: VALID_URI })).toEqual({ balanceSats: 0 })
+      expect(await nwcDriver.getBalance(CONFIG)).toEqual({ balanceSats: 0 })
     })
 
     it('passes the connection string through to the SDK constructor', async () => {
       getBalanceMock.mockResolvedValueOnce({ balance: 0 })
-      await nwcDriver.getBalance({ connectionString: VALID_URI })
+      await nwcDriver.getBalance(CONFIG)
       expect(nwcCtor).toHaveBeenCalledWith({ nostrWalletConnectUrl: VALID_URI })
     })
 
     it('wraps SDK errors in DriverRemoteError so callers get a uniform type', async () => {
       getBalanceMock.mockRejectedValueOnce(new Error('relay timeout'))
       await expect(
-        nwcDriver.getBalance({ connectionString: VALID_URI }),
+        nwcDriver.getBalance(CONFIG),
       ).rejects.toBeInstanceOf(DriverRemoteError)
     })
 
@@ -108,7 +136,7 @@ describe('nwcDriver', () => {
       const original = new Error('relay timeout')
       getBalanceMock.mockRejectedValueOnce(original)
       try {
-        await nwcDriver.getBalance({ connectionString: VALID_URI })
+        await nwcDriver.getBalance(CONFIG)
         throw new Error('should have thrown')
       } catch (err) {
         expect((err as DriverRemoteError).cause).toBe(original)
@@ -122,7 +150,7 @@ describe('nwcDriver', () => {
     it('returns preimage + fees, converting msat fees to sats', async () => {
       payInvoiceMock.mockResolvedValueOnce({ preimage: 'cafebabe', fees_paid: 1_500 })
       const res = await nwcDriver.payInvoice(
-        { connectionString: VALID_URI },
+        CONFIG,
         { bolt11: BOLT11 },
       )
       expect(res).toEqual({ preimage: 'cafebabe', feesPaidSats: 1 })
@@ -131,7 +159,7 @@ describe('nwcDriver', () => {
     it('treats a missing fees_paid as zero', async () => {
       payInvoiceMock.mockResolvedValueOnce({ preimage: 'aa' })
       const res = await nwcDriver.payInvoice(
-        { connectionString: VALID_URI },
+        CONFIG,
         { bolt11: BOLT11 },
       )
       expect(res.feesPaidSats).toBe(0)
@@ -140,7 +168,7 @@ describe('nwcDriver', () => {
     it('omits amount when the invoice already encodes one', async () => {
       payInvoiceMock.mockResolvedValueOnce({ preimage: 'aa', fees_paid: 0 })
       await nwcDriver.payInvoice(
-        { connectionString: VALID_URI },
+        CONFIG,
         { bolt11: BOLT11 },
       )
       expect(payInvoiceMock).toHaveBeenCalledWith({ invoice: BOLT11, amount: undefined })
@@ -149,7 +177,7 @@ describe('nwcDriver', () => {
     it('passes amount in msats for zero-amount invoices', async () => {
       payInvoiceMock.mockResolvedValueOnce({ preimage: 'aa', fees_paid: 0 })
       await nwcDriver.payInvoice(
-        { connectionString: VALID_URI },
+        CONFIG,
         { bolt11: BOLT11, amountSats: 42 },
       )
       expect(payInvoiceMock).toHaveBeenCalledWith({ invoice: BOLT11, amount: 42_000 })
@@ -158,7 +186,7 @@ describe('nwcDriver', () => {
     it('wraps SDK errors in DriverRemoteError', async () => {
       payInvoiceMock.mockRejectedValueOnce(new Error('insufficient_balance'))
       await expect(
-        nwcDriver.payInvoice({ connectionString: VALID_URI }, { bolt11: BOLT11 }),
+        nwcDriver.payInvoice(CONFIG, { bolt11: BOLT11 }),
       ).rejects.toBeInstanceOf(DriverRemoteError)
     })
   })
@@ -166,15 +194,15 @@ describe('nwcDriver', () => {
   describe('client cache', () => {
     it('reuses the same NWCClient across calls for the same URI', async () => {
       getBalanceMock.mockResolvedValue({ balance: 0 })
-      await nwcDriver.getBalance({ connectionString: VALID_URI })
-      await nwcDriver.getBalance({ connectionString: VALID_URI })
+      await nwcDriver.getBalance(CONFIG)
+      await nwcDriver.getBalance(CONFIG)
       expect(nwcCtor).toHaveBeenCalledTimes(1)
     })
 
     it('builds a fresh client for a different URI', async () => {
       getBalanceMock.mockResolvedValue({ balance: 0 })
-      await nwcDriver.getBalance({ connectionString: VALID_URI })
-      await nwcDriver.getBalance({ connectionString: VALID_URI + '&other=1' })
+      await nwcDriver.getBalance(CONFIG)
+      await nwcDriver.getBalance({ ...CONFIG, connectionString: VALID_URI + "&other=1" })
       expect(nwcCtor).toHaveBeenCalledTimes(2)
     })
   })
