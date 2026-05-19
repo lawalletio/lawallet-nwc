@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table'
 import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
 import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
+import { RemoteWalletRowActions } from '@/components/admin/remote-wallet-row-actions'
 import {
   useRemoteWallets,
   type RemoteWalletData,
@@ -59,7 +60,7 @@ export default function RemoteWalletsPage() {
         ) : !wallets || wallets.length === 0 ? (
           <EmptyState />
         ) : (
-          <WalletsTable wallets={wallets} />
+          <WalletsTable wallets={wallets} onChanged={refetch} />
         )}
       </div>
     </div>
@@ -92,7 +93,13 @@ const STATUS_VARIANT: Record<
   REVOKED: 'outline',
 }
 
-function WalletsTable({ wallets }: { wallets: RemoteWalletData[] }) {
+function WalletsTable({
+  wallets,
+  onChanged,
+}: {
+  wallets: RemoteWalletData[]
+  onChanged: () => void
+}) {
   return (
     <div className="rounded-md border">
       <Table>
@@ -101,8 +108,13 @@ function WalletsTable({ wallets }: { wallets: RemoteWalletData[] }) {
             <TableHead>Name</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Default</TableHead>
-            <TableHead className="text-right">Created</TableHead>
+            <TableHead>Primary</TableHead>
+            <TableHead>Created</TableHead>
+            {/* `w-0` keeps the actions cell snug against the right edge —
+                the icon button is fixed width, so no need to claim more. */}
+            <TableHead className="w-0 text-right">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -117,13 +129,16 @@ function WalletsTable({ wallets }: { wallets: RemoteWalletData[] }) {
               </TableCell>
               <TableCell>
                 {w.isDefault ? (
-                  <Badge>Default</Badge>
+                  <Badge>Primary</Badge>
                 ) : (
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
-              <TableCell className="text-right text-muted-foreground">
+              <TableCell className="text-muted-foreground">
                 {formatDate(w.createdAt)}
+              </TableCell>
+              <TableCell className="text-right">
+                <RemoteWalletRowActions wallet={w} onChanged={onChanged} />
               </TableCell>
             </TableRow>
           ))}

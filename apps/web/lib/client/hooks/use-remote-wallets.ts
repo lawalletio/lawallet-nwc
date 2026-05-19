@@ -52,27 +52,75 @@ export interface CreateRemoteWalletInput {
 }
 
 /**
- * Mutations for Remote Wallets. Today this exposes `createWallet`; rename /
- * set-default / disable / revoke land here when the `apiClient` grows a
- * `patch` method (currently only `get`/`post`/`put`/`del`).
- *
- * `createWallet` invalidates the cached list path so the next `useApi`
- * hit refetches — bridges the gap until a `remote-wallets:updated` SSE
- * event is wired into `getEventTypeForPath`.
+ * Body shape for `PATCH /api/remote-wallets/[id]`. Server-side schema
+ * requires at least one field — passing an empty object will 400 — so
+ * the per-action helpers below always populate something.
+ */
+export interface UpdateRemoteWalletInput {
+  name?: string
+  isDefault?: boolean
+  status?: RemoteWalletData['status']
+}
+
+/**
+ * Mutations for Remote Wallets. Each helper hits the matching REST verb
+ * and then invalidates the cached list path so any mounted
+ * `useRemoteWallets` refetches on the next render. The invalidation
+ * bridges the gap until a `remote-wallets:updated` SSE event is wired
+ * into `getEventTypeForPath`.
  */
 export function useRemoteWalletMutations() {
-  const { mutate, loading, error } = useMutation<CreateRemoteWalletInput, RemoteWalletData>()
+  const create = useMutation<CreateRemoteWalletInput, RemoteWalletData>()
+  const update = useMutation<UpdateRemoteWalletInput, RemoteWalletData>()
+  const remove = useMutation<void, void>()
 
   return {
     createWallet: async (input: CreateRemoteWalletInput) => {
-      const created = await mutate('post', '/api/remote-wallets', input)
-      // Invalidate every filter combination of the list path. The cache
-      // is keyed by full URL so we walk all cached entries that start
-      // with the base path — no need for a separate index.
+      const created = await create.mutate('post', '/api/remote-wallets', input)
       invalidateApiPath('/api/remote-wallets')
       return created
     },
-    loading,
-    error,
+
+    /**
+     * Mark a wallet as the user's default ("primary"). Server clears any
+     * prior default in the same transaction.
+     */
+    setPrimary: async (id: string) => {
+      const updated = await update.mutate(
+        'patch',
+        `/api/remote-wallets/${id}`,
+        { isDefault: true },
+      )
+      invalidateApiPath('/api/remote-wallets')
+      return updated
+    },
+
+    /**
+     * Rename — exists for future use by an inline-edit UI. Kept here so
+     * every mutation lives next to `setPrimary` and `deleteWallet`.
+     */
+    renameWallet: async (id: string, name: string) => {
+      const updated = await update.mutate(
+        'patch',
+        `/api/remote-wallets/${id}`,
+        { name },
+      )
+      invalidateApiPath('/api/remote-wallets')
+      return updated
+    },
+
+    /**
+     * Soft-delete. Server flips `status → REVOKED` and clears
+     * `isDefault`. The wallet vanishes from the default list (which
+     * excludes REVOKED) but the row stays for audit.
+     */
+    deleteWallet: async (id: string) => {
+      await remove.mutate('del', `/api/remote-wallets/${id}`)
+      invalidateApiPath('/api/remote-wallets')
+    },
+
+    /** Aggregate spinner — true while ANY of the three helpers is in flight. */
+    loading: create.loading || update.loading || remove.loading,
+    error: create.error || update.error || remove.error,
   }
 }
