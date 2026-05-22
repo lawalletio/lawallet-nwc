@@ -236,6 +236,70 @@ export const claimInvoiceSchema = z.object({
     .regex(/^[a-f0-9]+$/i, 'Preimage must be a hex string'),
 })
 
+// ── Remote Wallets ──────────────────────────────────────────────────────────
+
+/**
+ * Wallet name shown in the UI sidebar and pickers. Constraints mirror the
+ * `(userId, name)` unique index in Prisma — uniqueness is enforced by the
+ * DB, length by this schema.
+ */
+const remoteWalletName = z
+  .string()
+  .trim()
+  .min(1, 'Name is required')
+  .max(120, 'Name must be 120 characters or less')
+
+/** Driver discriminator. Mirrors the `RemoteWalletType` enum in Prisma. */
+const remoteWalletType = z.enum(['NWC', 'LND', 'CLN', 'BTCPAY'])
+
+/** Soft-state. `REVOKED` is terminal — clients should not flip back from it. */
+const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED'])
+
+/**
+ * Body for `POST /api/remote-wallets`. `config` is passed through as
+ * `unknown` and validated by the driver registry's per-type schema in the
+ * route handler — keeping the discriminator + driver schema together in the
+ * driver module rather than duplicating it here.
+ */
+export const createRemoteWalletSchema = z.object({
+  name: remoteWalletName,
+  type: remoteWalletType,
+  config: z.unknown(),
+  /** When `true`, the new wallet becomes the user's default (un-marks the previous one in the same transaction). */
+  isDefault: z.boolean().optional().default(false),
+})
+
+/**
+ * Partial update for `PATCH /api/remote-wallets/[id]`. At least one field
+ * must be present so a no-op PATCH returns 400 — matches the convention used
+ * by `updateCardDesignSchema`.
+ *
+ * Note: this never accepts `config`. Rotating an NWC URI happens through a
+ * dedicated endpoint (future) so the secret never travels in a generic
+ * update payload.
+ */
+export const updateRemoteWalletSchema = z
+  .object({
+    name: remoteWalletName.optional(),
+    isDefault: z.boolean().optional(),
+    status: remoteWalletStatus.optional(),
+  })
+  .refine(
+    v => v.name !== undefined || v.isDefault !== undefined || v.status !== undefined,
+    { message: 'No fields to update' },
+  )
+
+/** Query params for `GET /api/remote-wallets`. */
+export const remoteWalletListQuerySchema = z.object({
+  /**
+   * Filter by status. Defaults to "anything not revoked" so the UI doesn't
+   * show dead wallets unless asked.
+   */
+  status: remoteWalletStatus.optional(),
+  /** Filter by driver type — useful for the "NWC only" picker for now. */
+  type: remoteWalletType.optional(),
+})
+
 // ── JWT ─────────────────────────────────────────────────────────────────────
 
 export const jwtRequestSchema = z.object({
