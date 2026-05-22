@@ -41,6 +41,32 @@ export interface PayInvoiceResult {
 }
 
 /**
+ * Request handed to {@link RemoteWalletDriver.makeInvoice} to mint a BOLT11
+ * invoice the wallet will receive into. Powers LUD-16 (Lightning Address)
+ * receiving.
+ */
+export interface MakeInvoiceInput {
+  /** Amount to request, in sats. Must be > 0. */
+  amountSats: number
+  /** Optional human-readable memo embedded in the invoice. */
+  description?: string
+}
+
+/** Result of a successful {@link RemoteWalletDriver.makeInvoice} call. */
+export interface MakeInvoiceResult {
+  /** BOLT11 invoice string to hand back to the payer. */
+  bolt11: string
+  /** Payment hash, hex-encoded — used to look up / verify settlement later. */
+  paymentHash: string
+  /** Amount encoded in the invoice, in sats (normalised from msats). */
+  amountSats: number
+  /** Memo echoed back by the wallet (may differ from the requested one). */
+  description: string
+  /** Expiry as a unix-ms timestamp, or `null` if the wallet didn't report one. */
+  expiresAt: number | null
+}
+
+/**
  * Strategy interface for every external wallet type the platform can attach
  * to a user (NWC today; LND / CLN / BTCPay later).
  *
@@ -80,4 +106,15 @@ export interface RemoteWalletDriver<TConfig = unknown> {
    * @throws {DriverError} on validation, protocol, or remote errors.
    */
   payInvoice(config: TConfig, input: PayInvoiceInput): Promise<PayInvoiceResult>
+
+  /**
+   * Mint a BOLT11 invoice for the wallet to receive into. Powers LUD-16
+   * (Lightning Address) payments. A wallet provisioned without receive
+   * capability (e.g. an NWC connection lacking `make_invoice`) will reject —
+   * the driver surfaces that as a {@link DriverError} so callers can fall
+   * back or report it.
+   *
+   * @throws {DriverError} on validation, protocol, or remote errors.
+   */
+  makeInvoice(config: TConfig, input: MakeInvoiceInput): Promise<MakeInvoiceResult>
 }

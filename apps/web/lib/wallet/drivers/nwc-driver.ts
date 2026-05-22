@@ -3,6 +3,8 @@ import { DriverRemoteError } from './errors'
 import { getServerNwcClient } from './nwc-client-cache'
 import type {
   BalanceResult,
+  MakeInvoiceInput,
+  MakeInvoiceResult,
   PayInvoiceInput,
   PayInvoiceResult,
   RemoteWalletDriver,
@@ -44,9 +46,10 @@ export type NwcDriverConfig = z.infer<typeof nwcConfigSchema>
  *    handle wallet failures uniformly across driver types,
  *  - shares relay subscriptions via {@link getServerNwcClient}.
  *
- * Capability detection (e.g. `make_invoice`) lives in higher-level callers
- * — every NWC wallet supports `get_balance` and `pay_invoice`, which are
- * the only methods this interface exposes today.
+ * Capability detection (e.g. whether a connection was granted
+ * `make_invoice`) lives in higher-level callers — the driver simply
+ * surfaces the wallet's rejection as a {@link DriverRemoteError} if a
+ * method isn't permitted.
  */
 export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
   type: 'NWC',
@@ -79,6 +82,32 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
       }
     } catch (err) {
       throw new DriverRemoteError('NWC pay_invoice failed', { cause: err })
+    }
+  },
+
+  async makeInvoice(config, input: MakeInvoiceInput): Promise<MakeInvoiceResult> {
+    if (!Number.isFinite(input.amountSats) || input.amountSats <= 0) {
+      throw new DriverRemoteError('makeInvoice requires a positive amount')
+    }
+    try {
+      const client = await getServerNwcClient(config.connectionString)
+      const res = await client.makeInvoice({
+        // NWC speaks msats.
+        amount: input.amountSats * 1000,
+        description: input.description ?? '',
+      })
+      return {
+        bolt11: res.invoice,
+        paymentHash: res.payment_hash,
+        amountSats: Math.floor(res.amount / 1000),
+        description: res.description ?? input.description ?? '',
+        // NWC reports expiry in unix seconds; normalise to ms (or null).
+        expiresAt: typeof res.expires_at === 'number' ? res.expires_at * 1000 : null,
+      }
+    } catch (err) {
+      // Re-throw our own validation error untouched; wrap everything else.
+      if (err instanceof DriverRemoteError) throw err
+      throw new DriverRemoteError('NWC make_invoice failed', { cause: err })
     }
   },
 }

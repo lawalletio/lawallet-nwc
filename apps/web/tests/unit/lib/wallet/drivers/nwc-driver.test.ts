@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 const getBalanceMock = vi.fn()
 const payInvoiceMock = vi.fn()
+const makeInvoiceMock = vi.fn()
 const closeMock = vi.fn()
 const nwcCtor = vi.fn()
 
@@ -18,6 +19,7 @@ vi.mock('@getalby/sdk', () => {
     }
     getBalance = getBalanceMock
     payInvoice = payInvoiceMock
+    makeInvoice = makeInvoiceMock
     close = closeMock
   }
   return { NWCClient: FakeNWCClient }
@@ -41,6 +43,7 @@ describe('nwcDriver', () => {
   beforeEach(() => {
     getBalanceMock.mockReset()
     payInvoiceMock.mockReset()
+    makeInvoiceMock.mockReset()
     closeMock.mockReset()
     nwcCtor.mockReset()
     closeAllServerNwcClients()
@@ -187,6 +190,61 @@ describe('nwcDriver', () => {
       payInvoiceMock.mockRejectedValueOnce(new Error('insufficient_balance'))
       await expect(
         nwcDriver.payInvoice(CONFIG, { bolt11: BOLT11 }),
+      ).rejects.toBeInstanceOf(DriverRemoteError)
+    })
+  })
+
+  describe('makeInvoice', () => {
+    const MADE = {
+      invoice: 'lnbc500n1pjmadeup',
+      payment_hash: 'abc123',
+      amount: 50_000, // msats
+      description: 'coffee',
+      expires_at: 1_700_000_000, // unix seconds
+    }
+
+    it('mints an invoice, normalising msats → sats and expiry s → ms', async () => {
+      makeInvoiceMock.mockResolvedValueOnce(MADE)
+      const res = await nwcDriver.makeInvoice(CONFIG, { amountSats: 50, description: 'coffee' })
+      expect(res).toEqual({
+        bolt11: 'lnbc500n1pjmadeup',
+        paymentHash: 'abc123',
+        amountSats: 50,
+        description: 'coffee',
+        expiresAt: 1_700_000_000_000,
+      })
+    })
+
+    it('sends the amount to the SDK in msats', async () => {
+      makeInvoiceMock.mockResolvedValueOnce(MADE)
+      await nwcDriver.makeInvoice(CONFIG, { amountSats: 50, description: 'coffee' })
+      expect(makeInvoiceMock).toHaveBeenCalledWith({ amount: 50_000, description: 'coffee' })
+    })
+
+    it('defaults description to empty string when omitted', async () => {
+      makeInvoiceMock.mockResolvedValueOnce({ ...MADE, description: '' })
+      await nwcDriver.makeInvoice(CONFIG, { amountSats: 50 })
+      expect(makeInvoiceMock).toHaveBeenCalledWith({ amount: 50_000, description: '' })
+    })
+
+    it('returns null expiresAt when the wallet omits expires_at', async () => {
+      const { expires_at, ...noExpiry } = MADE
+      makeInvoiceMock.mockResolvedValueOnce(noExpiry)
+      const res = await nwcDriver.makeInvoice(CONFIG, { amountSats: 50 })
+      expect(res.expiresAt).toBeNull()
+    })
+
+    it('rejects a non-positive amount without hitting the SDK', async () => {
+      await expect(
+        nwcDriver.makeInvoice(CONFIG, { amountSats: 0 }),
+      ).rejects.toBeInstanceOf(DriverRemoteError)
+      expect(makeInvoiceMock).not.toHaveBeenCalled()
+    })
+
+    it('wraps SDK errors (e.g. unsupported make_invoice) in DriverRemoteError', async () => {
+      makeInvoiceMock.mockRejectedValueOnce(new Error('method not supported'))
+      await expect(
+        nwcDriver.makeInvoice(CONFIG, { amountSats: 50 }),
       ).rejects.toBeInstanceOf(DriverRemoteError)
     })
   })

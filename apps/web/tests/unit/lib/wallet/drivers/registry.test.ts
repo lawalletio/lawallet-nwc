@@ -28,6 +28,15 @@ function makeStubDriver(): RemoteWalletDriver<{ token: string }> {
     async payInvoice() {
       return { preimage: 'p', feesPaidSats: 0 }
     },
+    async makeInvoice() {
+      return {
+        bolt11: 'lnbc1',
+        paymentHash: 'h',
+        amountSats: 1,
+        description: '',
+        expiresAt: null,
+      }
+    },
   }
 }
 
