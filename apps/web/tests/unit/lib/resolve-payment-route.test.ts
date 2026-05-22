@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   parseLightningAddress,
   resolvePaymentRoute,
+  resolveWalletRoute,
+  type ResolveWalletRouteInput,
 } from '@/lib/wallet/resolve-payment-route'
 
 describe('resolvePaymentRoute', () => {
@@ -85,6 +87,145 @@ describe('resolvePaymentRoute', () => {
   it('returns unconfigured for DEFAULT_NWC when neither primary nor legacy is set', () => {
     expect(resolvePaymentRoute({ ...baseInput, mode: 'DEFAULT_NWC' })).toEqual({
       kind: 'unconfigured',
+    })
+  })
+})
+
+describe('resolveWalletRoute', () => {
+  const base: ResolveWalletRouteInput = {
+    mode: 'IDLE',
+    redirect: null,
+    remoteWallet: null,
+    defaultRemoteWallet: null,
+    nwcConnection: null,
+    primaryNwcConnection: null,
+    userNwc: null,
+  }
+
+  const activeWallet = {
+    type: 'NWC' as const,
+    config: { connectionString: 'nostr+walletconnect://bound', mode: 'SEND_RECEIVE' },
+    status: 'ACTIVE' as const,
+  }
+
+  it('returns idle for IDLE', () => {
+    expect(resolveWalletRoute({ ...base, mode: 'IDLE' })).toEqual({ kind: 'idle' })
+  })
+
+  it('returns alias for ALIAS with a redirect (trimmed)', () => {
+    expect(
+      resolveWalletRoute({ ...base, mode: 'ALIAS', redirect: '  bob@x.com ' }),
+    ).toEqual({ kind: 'alias', redirect: 'bob@x.com' })
+  })
+
+  it('returns unconfigured for ALIAS without a redirect', () => {
+    expect(resolveWalletRoute({ ...base, mode: 'ALIAS' })).toEqual({ kind: 'unconfigured' })
+  })
+
+  describe('CUSTOM_NWC', () => {
+    it('routes through the bound RemoteWallet when ACTIVE', () => {
+      expect(
+        resolveWalletRoute({ ...base, mode: 'CUSTOM_NWC', remoteWallet: activeWallet }),
+      ).toEqual({
+        kind: 'wallet',
+        type: 'NWC',
+        config: activeWallet.config,
+        source: 'remote-wallet',
+      })
+    })
+
+    it('returns unconfigured when the bound wallet is DISABLED (no silent reroute)', () => {
+      expect(
+        resolveWalletRoute({
+          ...base,
+          mode: 'CUSTOM_NWC',
+          remoteWallet: { ...activeWallet, status: 'DISABLED' },
+          // legacy fallback present but must NOT be used for an explicit binding
+          nwcConnection: { connectionString: 'nostr+walletconnect://legacy' },
+        }),
+      ).toEqual({ kind: 'unconfigured' })
+    })
+
+    it('falls back to the legacy NWCConnection when nothing is bound', () => {
+      expect(
+        resolveWalletRoute({
+          ...base,
+          mode: 'CUSTOM_NWC',
+          nwcConnection: { connectionString: 'nostr+walletconnect://legacy' },
+        }),
+      ).toEqual({
+        kind: 'wallet',
+        type: 'NWC',
+        config: { connectionString: 'nostr+walletconnect://legacy', mode: 'RECEIVE' },
+        source: 'legacy-nwc',
+      })
+    })
+
+    it('returns unconfigured when neither bound wallet nor legacy connection exists', () => {
+      expect(resolveWalletRoute({ ...base, mode: 'CUSTOM_NWC' })).toEqual({
+        kind: 'unconfigured',
+      })
+    })
+  })
+
+  describe('DEFAULT_NWC', () => {
+    it('routes through the default RemoteWallet when ACTIVE', () => {
+      expect(
+        resolveWalletRoute({ ...base, mode: 'DEFAULT_NWC', defaultRemoteWallet: activeWallet }),
+      ).toEqual({
+        kind: 'wallet',
+        type: 'NWC',
+        config: activeWallet.config,
+        source: 'remote-wallet',
+      })
+    })
+
+    it('falls back to legacy primary NWCConnection when the default is DISABLED', () => {
+      expect(
+        resolveWalletRoute({
+          ...base,
+          mode: 'DEFAULT_NWC',
+          defaultRemoteWallet: { ...activeWallet, status: 'DISABLED' },
+          primaryNwcConnection: { connectionString: 'nostr+walletconnect://primary' },
+        }),
+      ).toEqual({
+        kind: 'wallet',
+        type: 'NWC',
+        config: { connectionString: 'nostr+walletconnect://primary', mode: 'RECEIVE' },
+        source: 'legacy-nwc',
+      })
+    })
+
+    it('falls back to legacy User.nwc when no default and no primary', () => {
+      expect(
+        resolveWalletRoute({
+          ...base,
+          mode: 'DEFAULT_NWC',
+          userNwc: 'nostr+walletconnect://legacy',
+        }),
+      ).toEqual({
+        kind: 'wallet',
+        type: 'NWC',
+        config: { connectionString: 'nostr+walletconnect://legacy', mode: 'RECEIVE' },
+        source: 'legacy-nwc',
+      })
+    })
+
+    it('prefers the default RemoteWallet over legacy fallbacks', () => {
+      const route = resolveWalletRoute({
+        ...base,
+        mode: 'DEFAULT_NWC',
+        defaultRemoteWallet: activeWallet,
+        primaryNwcConnection: { connectionString: 'nostr+walletconnect://primary' },
+        userNwc: 'nostr+walletconnect://legacy',
+      })
+      expect(route).toMatchObject({ source: 'remote-wallet', config: activeWallet.config })
+    })
+
+    it('returns unconfigured when nothing is set', () => {
+      expect(resolveWalletRoute({ ...base, mode: 'DEFAULT_NWC' })).toEqual({
+        kind: 'unconfigured',
+      })
     })
   })
 })
