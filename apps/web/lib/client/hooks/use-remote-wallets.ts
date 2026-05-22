@@ -95,15 +95,28 @@ export function useRemoteWalletMutations() {
       return updated
     },
 
-    /**
-     * Rename — exists for future use by an inline-edit UI. Kept here so
-     * every mutation lives next to `setPrimary` and `deleteWallet`.
-     */
+    /** Rename a wallet. Server enforces the `(userId, name)` unique index. */
     renameWallet: async (id: string, name: string) => {
       const updated = await update.mutate(
         'patch',
         `/api/remote-wallets/${id}`,
         { name },
+      )
+      invalidateApiPath('/api/remote-wallets')
+      return updated
+    },
+
+    /**
+     * Flip a wallet between ACTIVE and DISABLED. A disabled wallet stays
+     * in the list (so it's re-enableable) but shouldn't be selected for
+     * new payment routes. REVOKED is terminal and not reachable here —
+     * callers gate the affordance on the current status.
+     */
+    setStatus: async (id: string, status: 'ACTIVE' | 'DISABLED') => {
+      const updated = await update.mutate(
+        'patch',
+        `/api/remote-wallets/${id}`,
+        { status },
       )
       invalidateApiPath('/api/remote-wallets')
       return updated

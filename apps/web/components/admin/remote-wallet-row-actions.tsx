@@ -1,9 +1,11 @@
 'use client'
 
 import React, { useState } from 'react'
-import { MoreHorizontal, Star, Trash2 } from 'lucide-react'
+import { Ban, CircleCheck, MoreHorizontal, Pencil, Star, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +23,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
 import {
   useRemoteWalletMutations,
@@ -37,25 +47,38 @@ interface RemoteWalletRowActionsProps {
 /**
  * Per-row actions menu for the Remote Wallets table.
  *
- * Two actions today, kept deliberately narrow:
+ * Actions, gated on the wallet's current state:
  *  - **Set as Primary** — PATCH `isDefault: true`. Hidden when the
  *    wallet is already the default (no point offering a no-op) and
- *    when the wallet is REVOKED (can't promote a dead wallet).
+ *    when status ≠ ACTIVE (can't promote a disabled/revoked wallet).
+ *  - **Rename** — opens a small dialog; PATCH `name`. Available for
+ *    any non-revoked wallet.
+ *  - **Disable / Enable** — PATCH `status`. Toggles ACTIVE ⇄ DISABLED.
+ *    A disabled wallet stays in the list (re-enableable) but shouldn't
+ *    be picked for new routes. Not shown for REVOKED (terminal).
  *  - **Delete** — DELETE → soft delete (status flips to REVOKED).
  *    Always behind an `AlertDialog` confirmation because the wallet
  *    may be wired up to lightning addresses or cards via
  *    `Card.remoteWalletId` / `LightningAddress.remoteWalletId`, and
  *    revoking it routes those resources back to the default wallet
  *    (or unconfigured, if none).
- *
- * Rename / disable / re-enable aren't here yet — they need an inline
- * edit dialog, which lands in a follow-up.
  */
 export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowActionsProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const { setPrimary, deleteWallet, loading } = useRemoteWalletMutations()
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameValue, setRenameValue] = useState(wallet.name)
+  const { setPrimary, renameWallet, setStatus, deleteWallet, loading } =
+    useRemoteWalletMutations()
 
+  const isRevoked = wallet.status === 'REVOKED'
   const canSetPrimary = !wallet.isDefault && wallet.status === 'ACTIVE'
+
+  const trimmedRename = renameValue.trim()
+  const canRename =
+    !loading &&
+    trimmedRename.length > 0 &&
+    trimmedRename.length <= 120 &&
+    trimmedRename !== wallet.name
 
   async function handleSetPrimary() {
     try {
@@ -64,6 +87,30 @@ export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowAct
       onChanged?.()
     } catch (err) {
       toast.error(messageFor(err, 'Couldn’t set wallet as primary'))
+    }
+  }
+
+  async function handleRename(e: React.FormEvent) {
+    e.preventDefault()
+    if (!canRename) return
+    try {
+      await renameWallet(wallet.id, trimmedRename)
+      toast.success('Wallet renamed')
+      setRenameOpen(false)
+      onChanged?.()
+    } catch (err) {
+      toast.error(messageFor(err, 'Couldn’t rename wallet'))
+    }
+  }
+
+  async function handleToggleStatus() {
+    const next = wallet.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
+    try {
+      await setStatus(wallet.id, next)
+      toast.success(next === 'DISABLED' ? `“${wallet.name}” disabled` : `“${wallet.name}” enabled`)
+      onChanged?.()
+    } catch (err) {
+      toast.error(messageFor(err, 'Couldn’t update wallet'))
     }
   }
 
@@ -99,7 +146,33 @@ export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowAct
               Set as Primary
             </DropdownMenuItem>
           )}
-          {canSetPrimary && <DropdownMenuSeparator />}
+          {!isRevoked && (
+            <DropdownMenuItem
+              onSelect={() => {
+                setRenameValue(wallet.name)
+                setRenameOpen(true)
+              }}
+            >
+              <Pencil className="mr-2 size-4" />
+              Rename…
+            </DropdownMenuItem>
+          )}
+          {!isRevoked && (
+            <DropdownMenuItem onSelect={handleToggleStatus}>
+              {wallet.status === 'ACTIVE' ? (
+                <>
+                  <Ban className="mr-2 size-4" />
+                  Disable
+                </>
+              ) : (
+                <>
+                  <CircleCheck className="mr-2 size-4" />
+                  Enable
+                </>
+              )}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => setConfirmOpen(true)}
             className="text-destructive focus:text-destructive"
@@ -109,6 +182,39 @@ export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowAct
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename wallet</DialogTitle>
+            <DialogDescription>
+              Give this wallet a name that’s easy to recognise in pickers and
+              the connection map.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRename} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`rename-${wallet.id}`}>Name</Label>
+              <Input
+                id={`rename-${wallet.id}`}
+                value={renameValue}
+                onChange={e => setRenameValue(e.target.value)}
+                maxLength={120}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setRenameOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!canRename} className="gap-2">
+                {loading && <Spinner className="size-4" />}
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
