@@ -193,6 +193,68 @@ export function resolveWalletRoute(input: ResolveWalletRouteInput): WalletRoute 
   }
 }
 
+/** Driver-addressable routing decision for a Card spend. */
+export type CardWalletRoute =
+  | {
+      kind: 'wallet'
+      type: RemoteWalletType
+      config: unknown
+      source: 'remote-wallet' | 'legacy-nwc'
+    }
+  | { kind: 'unconfigured' }
+
+export interface ResolveCardWalletInput {
+  /** RemoteWallet bound directly to the card. */
+  remoteWallet: RemoteWalletRef | null
+  /** The owner's default RemoteWallet (when the card has no explicit binding). */
+  defaultRemoteWallet: RemoteWalletRef | null
+  /** Legacy `User.nwc` URI — last-resort fallback for un-migrated cards. */
+  userNwc: string | null
+}
+
+/**
+ * Resolve which wallet a Card spends from when tapped.
+ *
+ * Priority:
+ *   1. The card's bound `remoteWallet` when ACTIVE. A non-ACTIVE explicit
+ *      binding returns `unconfigured` — a card tap is a real-time spend, so
+ *      we must never silently route it to a *different* wallet than the one
+ *      the holder bound.
+ *   2. Otherwise (no explicit binding) the owner's default RemoteWallet
+ *      when ACTIVE.
+ *   3. Otherwise the legacy `User.nwc` URI.
+ *
+ * Symmetric with `resolveWalletRoute`'s CUSTOM/DEFAULT handling so card and
+ * address routing share the same safety rules.
+ */
+export function resolveCardWallet(input: ResolveCardWalletInput): CardWalletRoute {
+  if (input.remoteWallet) {
+    return input.remoteWallet.status === 'ACTIVE'
+      ? {
+          kind: 'wallet',
+          type: input.remoteWallet.type,
+          config: input.remoteWallet.config,
+          source: 'remote-wallet',
+        }
+      : { kind: 'unconfigured' }
+  }
+  if (input.defaultRemoteWallet?.status === 'ACTIVE') {
+    return {
+      kind: 'wallet',
+      type: input.defaultRemoteWallet.type,
+      config: input.defaultRemoteWallet.config,
+      source: 'remote-wallet',
+    }
+  }
+  if (input.userNwc) {
+    const legacy = legacyNwcWallet(input.userNwc)
+    // legacyNwcWallet always returns a 'wallet' route; narrow for the
+    // CardWalletRoute return type.
+    if (legacy.kind === 'wallet') return legacy
+  }
+  return { kind: 'unconfigured' }
+}
+
 /**
  * Parse `user@host` out of a LUD-16 / internet-identifier string. Returns
  * `null` for anything that isn't a well-formed address — callers surface a

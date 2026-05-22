@@ -3,7 +3,9 @@ import {
   parseLightningAddress,
   resolvePaymentRoute,
   resolveWalletRoute,
+  resolveCardWallet,
   type ResolveWalletRouteInput,
+  type ResolveCardWalletInput,
 } from '@/lib/wallet/resolve-payment-route'
 
 describe('resolvePaymentRoute', () => {
@@ -227,6 +229,62 @@ describe('resolveWalletRoute', () => {
         kind: 'unconfigured',
       })
     })
+  })
+})
+
+describe('resolveCardWallet', () => {
+  const base: ResolveCardWalletInput = {
+    remoteWallet: null,
+    defaultRemoteWallet: null,
+    userNwc: null,
+  }
+  const activeWallet = {
+    type: 'NWC' as const,
+    config: { connectionString: 'nostr+walletconnect://card', mode: 'SEND_RECEIVE' },
+    status: 'ACTIVE' as const,
+  }
+
+  it('routes through the card-bound RemoteWallet when ACTIVE', () => {
+    expect(resolveCardWallet({ ...base, remoteWallet: activeWallet })).toEqual({
+      kind: 'wallet',
+      type: 'NWC',
+      config: activeWallet.config,
+      source: 'remote-wallet',
+    })
+  })
+
+  it('returns unconfigured when the bound wallet is DISABLED (never reroutes a spend)', () => {
+    expect(
+      resolveCardWallet({
+        ...base,
+        remoteWallet: { ...activeWallet, status: 'DISABLED' },
+        defaultRemoteWallet: activeWallet, // present but must NOT be used
+        userNwc: 'nostr+walletconnect://legacy',
+      }),
+    ).toEqual({ kind: 'unconfigured' })
+  })
+
+  it('falls back to the default RemoteWallet when the card has no binding', () => {
+    expect(resolveCardWallet({ ...base, defaultRemoteWallet: activeWallet })).toMatchObject({
+      kind: 'wallet',
+      source: 'remote-wallet',
+      config: activeWallet.config,
+    })
+  })
+
+  it('falls back to legacy User.nwc when no bound or default wallet', () => {
+    expect(
+      resolveCardWallet({ ...base, userNwc: 'nostr+walletconnect://legacy' }),
+    ).toEqual({
+      kind: 'wallet',
+      type: 'NWC',
+      config: { connectionString: 'nostr+walletconnect://legacy', mode: 'RECEIVE' },
+      source: 'legacy-nwc',
+    })
+  })
+
+  it('returns unconfigured when nothing is set', () => {
+    expect(resolveCardWallet(base)).toEqual({ kind: 'unconfigured' })
   })
 })
 

@@ -2,7 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { LUD03CallbackSuccess } from '@/types/lnurl'
-import { LN } from '@getalby/sdk'
 import { consumeNtag424FromPC } from '@/lib/ntag424'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, ValidationError } from '@/types/server/errors'
@@ -37,12 +36,24 @@ export const GET = withErrorHandling(
 
   logger.info({ cardId, action }, 'Card scan callback request')
 
-  // Find card by id in database
+  // Find card by id in database. Include the card's bound RemoteWallet and
+  // the owner's default wallet so the pay action can route the spend through
+  // the driver registry (#234); `user` still carries the legacy `nwc` URI as
+  // a fallback for un-migrated cards.
   const card = await prisma.card.findUnique({
     where: { id: cardId },
     include: {
       ntag424: true,
-      user: true
+      user: {
+        include: {
+          remoteWallets: {
+            where: { isDefault: true },
+            select: { type: true, config: true, status: true },
+            take: 1,
+          },
+        },
+      },
+      remoteWallet: { select: { type: true, config: true, status: true } },
     }
   })
 
