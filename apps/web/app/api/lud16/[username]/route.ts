@@ -9,7 +9,7 @@ import { validateParams } from '@/lib/validation/middleware'
 import { resolvePublicEndpoint } from '@/lib/public-url'
 import {
   parseLightningAddress,
-  resolvePaymentRoute,
+  resolveWalletRoute,
 } from '@/lib/wallet/resolve-payment-route'
 
 /** Abort the remote LUD-16 fetch for ALIAS mode after this many ms. */
@@ -22,18 +22,25 @@ export const GET = withErrorHandling(
 
     logger.info({ username }, 'LUD16 lookup request')
 
-    // Load the address along with every piece resolvePaymentRoute needs: its
-    // own linked NWCConnection (CUSTOM_NWC), the owner's primary connection
-    // (DEFAULT_NWC), and the legacy `user.nwc` fallback for un-migrated
-    // accounts. One query, no N+1.
+    // Load the address along with every piece resolveWalletRoute needs: its
+    // bound RemoteWallet (CUSTOM) and the owner's default RemoteWallet
+    // (DEFAULT), plus the legacy NWCConnection / `user.nwc` fallbacks for
+    // un-migrated accounts. One query, no N+1. Must stay in lockstep with
+    // the /cb route's query so metadata and callback can't disagree.
     const lightningAddress = await prisma.lightningAddress.findUnique({
       where: { username },
       include: {
+        remoteWallet: { select: { type: true, config: true, status: true } },
         nwcConnection: { select: { connectionString: true } },
         user: {
           select: {
             id: true,
             nwc: true,
+            remoteWallets: {
+              where: { isDefault: true },
+              select: { type: true, config: true, status: true },
+              take: 1,
+            },
             nwcConnections: {
               where: { isPrimary: true },
               select: { connectionString: true },
@@ -48,9 +55,11 @@ export const GET = withErrorHandling(
       throw new NotFoundError('Lightning address not found')
     }
 
-    const route = resolvePaymentRoute({
+    const route = resolveWalletRoute({
       mode: lightningAddress.mode,
       redirect: lightningAddress.redirect,
+      remoteWallet: lightningAddress.remoteWallet,
+      defaultRemoteWallet: lightningAddress.user.remoteWallets[0] ?? null,
       nwcConnection: lightningAddress.nwcConnection,
       primaryNwcConnection: lightningAddress.user.nwcConnections[0] ?? null,
       userNwc: lightningAddress.user.nwc,
@@ -108,7 +117,8 @@ export const GET = withErrorHandling(
       }
     }
 
-    // route.kind === 'nwc' — return our own LUD-16 so /cb can mint an invoice.
+    // route.kind === 'wallet' — return our own LUD-16 so /cb can mint an
+    // invoice through the resolved wallet's driver.
     const { host, url } = await resolvePublicEndpoint(req)
     const callback = `${url}/api/lud16/${username}/cb`
 
