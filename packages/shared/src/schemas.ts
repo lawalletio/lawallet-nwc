@@ -145,8 +145,8 @@ export const createWalletAddressSchema = z.object({
  * use the existing `validateBody` middleware without bespoke shapes):
  *   - mode === 'ALIAS'      → `redirect` is required and must look like an LN
  *                             address ("user@host").
- *   - mode === 'CUSTOM_NWC' → `nwcConnectionId` is required and must reference
- *                             a connection owned by the caller.
+ *   - mode === 'CUSTOM_NWC' → `remoteWalletId` is required and must reference
+ *                             a RemoteWallet owned by the caller.
  *   - mode === 'IDLE' or 'DEFAULT_NWC' → both fields are ignored / cleared.
  */
 export const updateWalletAddressSchema = z.object({
@@ -156,7 +156,7 @@ export const updateWalletAddressSchema = z.object({
     .max(254)
     .regex(/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i, 'Must be a valid LN address')
     .nullish(),
-  nwcConnectionId: z.string().min(1).nullish(),
+  remoteWalletId: z.string().min(1).nullish(),
 })
 
 export const nwcModeSchema = z.enum(['RECEIVE', 'SEND_RECEIVE'])
