@@ -21,7 +21,7 @@ export const POST = withErrorHandling(async () => {
     prisma.card.deleteMany(),
     prisma.ntag424.deleteMany(),
     prisma.lightningAddress.deleteMany(),
-    prisma.nWCConnection.deleteMany(),
+    prisma.remoteWallet.deleteMany(),
     prisma.cardDesign.deleteMany(),
     prisma.albySubAccount.deleteMany(),
     prisma.user.deleteMany(),

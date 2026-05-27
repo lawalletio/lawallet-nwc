@@ -69,10 +69,6 @@ export const GET = withErrorHandling(
       redirect: address.redirect,
       remoteWallet: address.remoteWallet,
       defaultRemoteWallet: defaultWallet,
-      // Legacy NWC fields are gone — RemoteWallet is the only source now.
-      nwcConnection: null,
-      primaryNwcConnection: null,
-      userNwc: null,
     })
     const effectiveConnectionString =
       route.kind === 'wallet'

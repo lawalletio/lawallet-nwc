@@ -73,9 +73,6 @@ export const GET = withErrorHandling(async (request: Request) => {
           redirect: primaryAddress.redirect,
           remoteWallet: primaryAddress.remoteWallet,
           defaultRemoteWallet: defaultWallet,
-          nwcConnection: null,
-          primaryNwcConnection: null,
-          userNwc: null,
         })
         return route.kind === 'wallet'
           ? ((route.config as { connectionString?: string } | null)?.connectionString ?? null)

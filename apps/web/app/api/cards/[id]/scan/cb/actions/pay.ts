@@ -31,7 +31,6 @@ export default async function pay(req: NextRequest, card: CardWithWallet) {
   const route = resolveCardWallet({
     remoteWallet: card.remoteWallet ?? null,
     defaultRemoteWallet: card.user?.remoteWallets?.[0] ?? null,
-    userNwc: card.user?.nwc ?? null,
   })
 
   if (route.kind !== 'wallet') {
@@ -40,7 +39,7 @@ export default async function pay(req: NextRequest, card: CardWithWallet) {
   }
 
   try {
-    logger.info({ cardId: card.id, source: route.source }, 'Processing payment request')
+    logger.info({ cardId: card.id, walletType: route.type }, 'Processing payment request')
     const { driver, config } = driverForWallet({ type: route.type, config: route.config })
     // The scanned `pr` is a fully-amounted bolt11 (the merchant's invoice),
     // so we don't pass an override amount.

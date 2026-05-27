@@ -53,19 +53,12 @@ export const GET = withErrorHandling(
       where: { username },
       include: {
         remoteWallet: { select: { type: true, config: true, status: true } },
-        nwcConnection: { select: { connectionString: true } },
         user: {
           select: {
             id: true,
-            nwc: true,
             remoteWallets: {
               where: { isDefault: true },
               select: { type: true, config: true, status: true },
-              take: 1,
-            },
-            nwcConnections: {
-              where: { isPrimary: true },
-              select: { connectionString: true },
               take: 1,
             },
           },
@@ -82,9 +75,6 @@ export const GET = withErrorHandling(
       redirect: lightningAddress.redirect,
       remoteWallet: lightningAddress.remoteWallet,
       defaultRemoteWallet: lightningAddress.user.remoteWallets[0] ?? null,
-      nwcConnection: lightningAddress.nwcConnection,
-      primaryNwcConnection: lightningAddress.user.nwcConnections[0] ?? null,
-      userNwc: lightningAddress.user.nwc,
     })
 
     if (route.kind !== 'wallet') {
@@ -115,7 +105,7 @@ export const GET = withErrorHandling(
       // corrupt config) shouldn't surface as a 500 — they're an upstream
       // dependency being unavailable, not a bug in our handler.
       if (err instanceof DriverError) {
-        logger.error({ username, source: route.source, err: String(err) }, 'LUD16 invoice mint failed')
+        logger.error({ username, walletType: route.type, err: String(err) }, 'LUD16 invoice mint failed')
         throw new ServiceUnavailableError('Wallet is currently unavailable')
       }
       throw err

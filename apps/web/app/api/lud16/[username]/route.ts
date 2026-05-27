@@ -31,19 +31,12 @@ export const GET = withErrorHandling(
       where: { username },
       include: {
         remoteWallet: { select: { type: true, config: true, status: true } },
-        nwcConnection: { select: { connectionString: true } },
         user: {
           select: {
             id: true,
-            nwc: true,
             remoteWallets: {
               where: { isDefault: true },
               select: { type: true, config: true, status: true },
-              take: 1,
-            },
-            nwcConnections: {
-              where: { isPrimary: true },
-              select: { connectionString: true },
               take: 1,
             },
           },
@@ -60,9 +53,6 @@ export const GET = withErrorHandling(
       redirect: lightningAddress.redirect,
       remoteWallet: lightningAddress.remoteWallet,
       defaultRemoteWallet: lightningAddress.user.remoteWallets[0] ?? null,
-      nwcConnection: lightningAddress.nwcConnection,
-      primaryNwcConnection: lightningAddress.user.nwcConnections[0] ?? null,
-      userNwc: lightningAddress.user.nwc,
     })
 
     // IDLE (disabled by the owner) and unconfigured (missing connection /
