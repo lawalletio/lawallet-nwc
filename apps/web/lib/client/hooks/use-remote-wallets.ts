@@ -24,6 +24,24 @@ export interface RemoteWalletFilters {
   type?: RemoteWalletData['type']
 }
 
+/** Shape of `GET /api/remote-wallets/[id]/balance`. */
+export interface RemoteWalletBalance {
+  balanceSats: number
+}
+
+/**
+ * Live spendable balance for a single wallet. Pass `null` to skip the
+ * fetch entirely (e.g. for REVOKED wallets, which have no live balance) —
+ * `useApi(null)` is a no-op that stays in the idle state.
+ *
+ * Each row calls this independently so balances stream in in parallel,
+ * each with its own loading/error state, instead of blocking the whole
+ * table on N sequential relay round-trips.
+ */
+export function useRemoteWalletBalance(id: string | null) {
+  return useApi<RemoteWalletBalance>(id ? `/api/remote-wallets/${id}/balance` : null)
+}
+
 /**
  * List the authenticated user's Remote Wallets. By default the API hides
  * REVOKED rows; pass `{ status: 'REVOKED' }` to get them. Filters become
