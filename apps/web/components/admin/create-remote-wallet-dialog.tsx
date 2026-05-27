@@ -291,15 +291,20 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <Label>Capabilities</Label>
-                <CapabilitiesPanel probe={probe} />
-                <p className="text-xs text-muted-foreground">
-                  Detected automatically from the wallet’s NIP-47 <code>get_info</code>{' '}
-                  response. We use this to decide whether the wallet can both send
-                  and receive, or receive only.
-                </p>
-              </div>
+              {/* Only surface Capabilities once there's a URI worth probing —
+                  the section stays hidden while the field is empty or the
+                  input doesn't yet look like an NWC URI (probe `idle`). */}
+              {probe.status !== 'idle' && (
+                <div className="flex flex-col gap-2">
+                  <Label>Capabilities</Label>
+                  <CapabilitiesPanel probe={probe} />
+                  <p className="text-xs text-muted-foreground">
+                    Detected automatically from the wallet’s NIP-47 <code>get_info</code>{' '}
+                    response. We use this to decide whether the wallet can both send
+                    and receive, or receive only.
+                  </p>
+                </div>
+              )}
             </>
           )}
 
@@ -338,16 +343,12 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
 /**
  * Renders the current state of the auto-probe in place of the manual
  * Capabilities select. Always occupies a fixed-height row so the form
- * doesn't reflow each time the state advances `idle → checking → success`.
+ * doesn't reflow each time the state advances `checking → success`.
+ *
+ * The caller only mounts this once `probe.status !== 'idle'`, so the idle
+ * state has no branch here.
  */
-function CapabilitiesPanel({ probe }: { probe: ProbeState }) {
-  if (probe.status === 'idle') {
-    return (
-      <div className="flex h-10 items-center rounded-md border border-dashed px-3 text-sm text-muted-foreground">
-        Paste a valid NWC URI to detect capabilities.
-      </div>
-    )
-  }
+function CapabilitiesPanel({ probe }: { probe: Exclude<ProbeState, { status: 'idle' }> }) {
   if (probe.status === 'checking') {
     return (
       <div className="flex h-10 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground">

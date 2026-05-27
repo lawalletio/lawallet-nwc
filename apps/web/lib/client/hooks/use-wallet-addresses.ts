@@ -9,7 +9,8 @@ export interface WalletAddress {
   username: string
   mode: LightningAddressMode
   redirect: string | null
-  nwcConnectionId: string | null
+  /** The RemoteWallet this address is bound to (CUSTOM_NWC), or null. */
+  remoteWalletId: string | null
   isPrimary: boolean
   /** Effective NWC mode derived server-side; mirrors what users actually get. */
   nwcMode: EffectiveNwcMode
@@ -17,22 +18,22 @@ export interface WalletAddress {
   updatedAt: string
 }
 
-export interface WalletNwcConnectionSummary {
+export interface WalletRemoteWalletSummary {
   id: string
-  connectionString: string
-  mode: 'RECEIVE' | 'SEND_RECEIVE'
-  isPrimary: boolean
+  name: string
+  type: 'NWC' | 'LND' | 'CLN' | 'BTCPAY'
+  status: 'ACTIVE' | 'DISABLED' | 'REVOKED'
+  isDefault: boolean
 }
 
 export interface WalletAddressDetail {
   address: WalletAddress
-  /** All NWCConnections owned by the caller, useful for the CUSTOM_NWC picker. */
-  connections: WalletNwcConnectionSummary[]
+  /** Caller's selectable RemoteWallets, for the CUSTOM_NWC picker. */
+  wallets: WalletRemoteWalletSummary[]
   /**
    * Pre-resolved NWC URI this address currently routes to, matching the
-   * server-side `resolvePaymentRoute` output. `null` for IDLE / ALIAS /
-   * unconfigured. Includes the legacy `User.nwc` fallback for
-   * DEFAULT_NWC so un-migrated accounts still get a balance.
+   * server-side `resolveWalletRoute` output. `null` for IDLE / ALIAS /
+   * unconfigured.
    */
   effectiveConnectionString: string | null
 }
@@ -59,21 +60,7 @@ export interface CreateWalletAddressInput {
 export interface UpdateWalletAddressInput {
   mode: LightningAddressMode
   redirect?: string | null
-  nwcConnectionId?: string | null
-}
-
-export interface CreateNwcConnectionInput {
-  connectionString: string
-  mode?: 'RECEIVE' | 'SEND_RECEIVE'
-  isPrimary?: boolean
-}
-
-export interface CreatedNwcConnection {
-  id: string
-  mode: 'RECEIVE' | 'SEND_RECEIVE'
-  isPrimary: boolean
-  createdAt: string
-  updatedAt: string
+  remoteWalletId?: string | null
 }
 
 /** GET /api/wallet/addresses — caller's own addresses, primary first. */
@@ -111,7 +98,6 @@ export function useAddressMutations() {
   const create = useMutation<CreateWalletAddressInput, WalletAddress>()
   const update = useMutation<UpdateWalletAddressInput, WalletAddress>()
   const setPrimary = useMutation<undefined, { success: boolean; username: string }>()
-  const createConn = useMutation<CreateNwcConnectionInput, CreatedNwcConnection>()
 
   return {
     createAddress: (input: CreateWalletAddressInput) =>
@@ -128,14 +114,9 @@ export function useAddressMutations() {
         `/api/wallet/addresses/${encodeURIComponent(username)}/primary`,
         undefined,
       ),
-    /** POST /api/wallet/nwc-connections — create a new NWC connection owned
-     *  by the caller. Used by the CUSTOM_NWC inline flow on the edit page. */
-    createNwcConnection: (input: CreateNwcConnectionInput) =>
-      createConn.mutate('post', '/api/wallet/nwc-connections', input),
     creating: create.loading,
     updating: update.loading,
     settingPrimary: setPrimary.loading,
-    creatingConnection: createConn.loading,
-    error: create.error ?? update.error ?? setPrimary.error ?? createConn.error,
+    error: create.error ?? update.error ?? setPrimary.error,
   }
 }

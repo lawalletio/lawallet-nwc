@@ -1,9 +1,10 @@
 'use client'
 
 import React from 'react'
-import { Wallet } from 'lucide-react'
+import { Star, Wallet } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Table,
   TableBody,
@@ -12,11 +13,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
 import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
 import { RemoteWalletRowActions } from '@/components/admin/remote-wallet-row-actions'
 import {
   useRemoteWallets,
+  useRemoteWalletBalance,
   type RemoteWalletData,
 } from '@/lib/client/hooks/use-remote-wallets'
 
@@ -56,7 +64,7 @@ export default function RemoteWalletsPage() {
             Couldn’t load your wallets: {error.message}
           </div>
         ) : loading ? (
-          <TableSkeleton rows={3} columns={5} />
+          <TableSkeleton rows={3} columns={6} />
         ) : !wallets || wallets.length === 0 ? (
           <EmptyState />
         ) : (
@@ -108,7 +116,7 @@ function WalletsTable({
             <TableHead>Name</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Primary</TableHead>
+            <TableHead className="text-right">Balance</TableHead>
             <TableHead>Created</TableHead>
             {/* `w-0` keeps the actions cell snug against the right edge —
                 the icon button is fixed width, so no need to claim more. */}
@@ -120,19 +128,32 @@ function WalletsTable({
         <TableBody>
           {wallets.map(w => (
             <TableRow key={w.id}>
-              <TableCell className="font-medium">{w.name}</TableCell>
+              <TableCell className="font-medium">
+                <span className="flex items-center gap-1.5">
+                  {w.name}
+                  {w.isDefault && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Star
+                            className="size-3.5 shrink-0 fill-current text-amber-400"
+                            aria-label="Primary wallet"
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>Primary wallet</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </span>
+              </TableCell>
               <TableCell>
                 <Badge variant="outline">{w.type}</Badge>
               </TableCell>
               <TableCell>
                 <Badge variant={STATUS_VARIANT[w.status]}>{w.status}</Badge>
               </TableCell>
-              <TableCell>
-                {w.isDefault ? (
-                  <Badge>Primary</Badge>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
+              <TableCell className="text-right tabular-nums">
+                <WalletBalanceCell wallet={w} />
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {formatDate(w.createdAt)}
@@ -146,6 +167,27 @@ function WalletsTable({
       </Table>
     </div>
   )
+}
+
+/**
+ * Live NWC balance for one row. Fetched per-row (not in the list query) so
+ * the table renders instantly and balances stream in independently. REVOKED
+ * wallets have no live balance, so we skip the fetch and show a dash.
+ */
+function WalletBalanceCell({ wallet }: { wallet: RemoteWalletData }) {
+  const skip = wallet.status === 'REVOKED'
+  const { data, loading, error } = useRemoteWalletBalance(skip ? null : wallet.id)
+
+  if (skip) return <span className="text-muted-foreground">—</span>
+  if (loading) return <Spinner className="ml-auto size-3.5 text-muted-foreground" />
+  if (error || !data) {
+    return <span className="text-xs text-muted-foreground">Unavailable</span>
+  }
+  return <span>{formatSats(data.balanceSats)}</span>
+}
+
+function formatSats(sats: number): string {
+  return `${sats.toLocaleString()} sats`
 }
 
 function formatDate(iso: string): string {

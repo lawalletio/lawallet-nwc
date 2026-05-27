@@ -13,7 +13,7 @@ import {
 } from '@/lib/validation/schemas'
 import { validateBody, validateQuery } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
-import { getDriver, DriverConfigError } from '@/lib/wallet/drivers'
+import { getDriver } from '@/lib/wallet/drivers'
 import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -126,8 +126,22 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   try {
     const created = await prisma.$transaction(async tx => {
-      if (body.isDefault) {
-        // Clear any existing default before flipping the new row — the
+      // A user must always have exactly one primary wallet once they have
+      // any. Look up the current primary inside the transaction so the
+      // decision is consistent with the write.
+      const existingDefault = await tx.remoteWallet.findFirst({
+        where: { userId, isDefault: true },
+        select: { id: true },
+      })
+
+      // The new wallet becomes primary when the caller asks for it OR when
+      // the user has no primary yet (their first wallet — or the first after
+      // a prior primary was revoked). This guarantees the first wallet is
+      // primary automatically without the client having to opt in.
+      const makeDefault = body.isDefault || !existingDefault
+
+      if (makeDefault && existingDefault) {
+        // Clear the current primary before flipping the new row — the
         // partial unique index `RemoteWallet_userId_default_unique` would
         // otherwise raise a 23505 on the insert.
         await tx.remoteWallet.updateMany({
@@ -145,7 +159,7 @@ export const POST = withErrorHandling(async (request: Request) => {
           // stable. Cast to Prisma input type — Zod schemas always return
           // JSON-serialisable shapes for our drivers.
           config: parsedConfig.data as object,
-          isDefault: body.isDefault ?? false,
+          isDefault: makeDefault,
         },
       })
     })
@@ -162,9 +176,6 @@ export const POST = withErrorHandling(async (request: Request) => {
       (err as { code?: string }).code === 'P2002'
     ) {
       throw new ConflictError('A wallet with that name already exists')
-    }
-    if (err instanceof DriverConfigError) {
-      throw new ValidationError('Invalid wallet config', { type: err.type })
     }
     throw err
   }

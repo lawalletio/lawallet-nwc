@@ -16,21 +16,11 @@ const walletAddressSchema = z
     username: z.string(),
     mode: z.enum(['IDLE', 'ALIAS', 'CUSTOM_NWC', 'DEFAULT_NWC']),
     redirect: z.string().nullable().optional(),
-    nwcConnectionId: z.string().nullable().optional(),
+    remoteWalletId: z.string().nullable().optional(),
     isPrimary: z.boolean().optional(),
   })
   .passthrough()
   .openapi({ description: 'Per-user wallet lightning address record.' })
-
-const nwcConnectionSchema = z
-  .object({
-    id: z.string(),
-    mode: z.enum(['RECEIVE', 'SEND_RECEIVE']),
-    isPrimary: z.boolean(),
-    createdAt: z.string().datetime(),
-  })
-  .passthrough()
-  .openapi({ description: 'Stored NWC connection metadata. The connection string is omitted.' })
 
 registry.registerPath({
   ...withRole('USER'),
@@ -135,25 +125,5 @@ registry.registerPath({
     ),
     ...commonErrorResponses,
     404: responses.notFound,
-  },
-})
-
-registry.registerPath({
-  ...withRole('USER'),
-  method: 'post',
-  path: '/api/wallet/nwc-connections',
-  tags: [TAG],
-  summary: 'Create an NWC connection for the caller.',
-  operationId: 'wallet.nwc.create',
-  security: protectedSecurity,
-  request: {
-    body: {
-      content: { 'application/json': { schema: schemas.NwcConnectionCreateRequest } },
-    },
-  },
-  responses: {
-    201: inlineJsonResponse('Connection created.', nwcConnectionSchema),
-    ...commonErrorResponses,
-    409: responses.conflict,
   },
 })

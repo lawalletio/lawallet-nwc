@@ -9,11 +9,10 @@ import type {
 export interface AddressData {
   username: string
   pubkey: string
-  /** Legacy single-NWC string on the owning User; kept for back-compat. */
-  nwcString: string | null
   mode: LightningAddressMode
   redirect: string | null
-  nwcConnectionId: string | null
+  /** The RemoteWallet this address is bound to (CUSTOM_NWC), or null. */
+  remoteWalletId: string | null
   isPrimary: boolean
   /** Server-derived effective NWC capability for this address. */
   nwcMode: EffectiveNwcMode

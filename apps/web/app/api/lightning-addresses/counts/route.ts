@@ -10,21 +10,16 @@ export const revalidate = 0
 export const GET = withErrorHandling(async (request: Request) => {
   await authenticateWithPermission(request, Permission.ADDRESSES_READ)
 
+  // "withNWC" now means the address's owner has at least one usable
+  // (non-revoked) RemoteWallet — i.e. the address can route a payment.
+  const usableWallet = { some: { status: { not: 'REVOKED' as const } } }
   const [total, withNWC, withoutNWC] = await Promise.all([
     prisma.lightningAddress.count(),
     prisma.lightningAddress.count({
-      where: {
-        user: {
-          nwc: { not: null },
-        },
-      },
+      where: { user: { remoteWallets: usableWallet } },
     }),
     prisma.lightningAddress.count({
-      where: {
-        user: {
-          nwc: null,
-        },
-      },
+      where: { user: { remoteWallets: { none: { status: { not: 'REVOKED' } } } } },
     }),
   ])
 

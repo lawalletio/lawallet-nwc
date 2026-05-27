@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 const getBalanceMock = vi.fn()
 const payInvoiceMock = vi.fn()
+const makeInvoiceMock = vi.fn()
 const closeMock = vi.fn()
 const nwcCtor = vi.fn()
 
@@ -18,6 +19,7 @@ vi.mock('@getalby/sdk', () => {
     }
     getBalance = getBalanceMock
     payInvoice = payInvoiceMock
+    makeInvoice = makeInvoiceMock
     close = closeMock
   }
   return { NWCClient: FakeNWCClient }
@@ -26,7 +28,11 @@ vi.mock('@getalby/sdk', () => {
 // Import AFTER the mock so the driver's cache module picks up the stub.
 import { DriverRemoteError } from '@/lib/wallet/drivers/errors'
 import { nwcDriver } from '@/lib/wallet/drivers/nwc-driver'
-import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
+import {
+  closeAllServerNwcClients,
+  closeServerNwcClient,
+  getServerNwcClient,
+} from '@/lib/wallet/drivers/nwc-client-cache'
 
 const VALID_URI = 'nostr+walletconnect://abc?relay=wss%3A%2F%2Fr.example&secret=deadbeef'
 
@@ -39,11 +45,16 @@ const CONFIG = { connectionString: VALID_URI, mode: 'RECEIVE' as const }
 
 describe('nwcDriver', () => {
   beforeEach(() => {
+    // Evict any clients cached by the previous test BEFORE resetting the
+    // mocks — `closeAllServerNwcClients` calls `close()` on each cached
+    // client, and we don't want those teardown calls counted against the
+    // current test's `closeMock` assertions.
+    closeAllServerNwcClients()
     getBalanceMock.mockReset()
     payInvoiceMock.mockReset()
+    makeInvoiceMock.mockReset()
     closeMock.mockReset()
     nwcCtor.mockReset()
-    closeAllServerNwcClients()
   })
 
   it('declares type "NWC"', () => {
@@ -191,6 +202,61 @@ describe('nwcDriver', () => {
     })
   })
 
+  describe('makeInvoice', () => {
+    const MADE = {
+      invoice: 'lnbc500n1pjmadeup',
+      payment_hash: 'abc123',
+      amount: 50_000, // msats
+      description: 'coffee',
+      expires_at: 1_700_000_000, // unix seconds
+    }
+
+    it('mints an invoice, normalising msats → sats and expiry s → ms', async () => {
+      makeInvoiceMock.mockResolvedValueOnce(MADE)
+      const res = await nwcDriver.makeInvoice(CONFIG, { amountSats: 50, description: 'coffee' })
+      expect(res).toEqual({
+        bolt11: 'lnbc500n1pjmadeup',
+        paymentHash: 'abc123',
+        amountSats: 50,
+        description: 'coffee',
+        expiresAt: 1_700_000_000_000,
+      })
+    })
+
+    it('sends the amount to the SDK in msats', async () => {
+      makeInvoiceMock.mockResolvedValueOnce(MADE)
+      await nwcDriver.makeInvoice(CONFIG, { amountSats: 50, description: 'coffee' })
+      expect(makeInvoiceMock).toHaveBeenCalledWith({ amount: 50_000, description: 'coffee' })
+    })
+
+    it('defaults description to empty string when omitted', async () => {
+      makeInvoiceMock.mockResolvedValueOnce({ ...MADE, description: '' })
+      await nwcDriver.makeInvoice(CONFIG, { amountSats: 50 })
+      expect(makeInvoiceMock).toHaveBeenCalledWith({ amount: 50_000, description: '' })
+    })
+
+    it('returns null expiresAt when the wallet omits expires_at', async () => {
+      const { expires_at, ...noExpiry } = MADE
+      makeInvoiceMock.mockResolvedValueOnce(noExpiry)
+      const res = await nwcDriver.makeInvoice(CONFIG, { amountSats: 50 })
+      expect(res.expiresAt).toBeNull()
+    })
+
+    it('rejects a non-positive amount without hitting the SDK', async () => {
+      await expect(
+        nwcDriver.makeInvoice(CONFIG, { amountSats: 0 }),
+      ).rejects.toBeInstanceOf(DriverRemoteError)
+      expect(makeInvoiceMock).not.toHaveBeenCalled()
+    })
+
+    it('wraps SDK errors (e.g. unsupported make_invoice) in DriverRemoteError', async () => {
+      makeInvoiceMock.mockRejectedValueOnce(new Error('method not supported'))
+      await expect(
+        nwcDriver.makeInvoice(CONFIG, { amountSats: 50 }),
+      ).rejects.toBeInstanceOf(DriverRemoteError)
+    })
+  })
+
   describe('client cache', () => {
     it('reuses the same NWCClient across calls for the same URI', async () => {
       getBalanceMock.mockResolvedValue({ balance: 0 })
@@ -204,6 +270,44 @@ describe('nwcDriver', () => {
       await nwcDriver.getBalance(CONFIG)
       await nwcDriver.getBalance({ ...CONFIG, connectionString: VALID_URI + "&other=1" })
       expect(nwcCtor).toHaveBeenCalledTimes(2)
+    })
+
+    it('closeServerNwcClient evicts a cached client so the next call rebuilds', async () => {
+      getBalanceMock.mockResolvedValue({ balance: 0 })
+      await getServerNwcClient(VALID_URI)
+      expect(nwcCtor).toHaveBeenCalledTimes(1)
+
+      closeServerNwcClient(VALID_URI)
+      expect(closeMock).toHaveBeenCalledTimes(1)
+
+      // Cache was evicted → a fresh client is constructed.
+      await getServerNwcClient(VALID_URI)
+      expect(nwcCtor).toHaveBeenCalledTimes(2)
+    })
+
+    it('closeServerNwcClient is a no-op for an uncached URI', () => {
+      expect(() => closeServerNwcClient('nostr+walletconnect://never-opened')).not.toThrow()
+      expect(closeMock).not.toHaveBeenCalled()
+    })
+
+    it('closeServerNwcClient swallows a throwing close() and still evicts', async () => {
+      await getServerNwcClient(VALID_URI)
+      closeMock.mockImplementationOnce(() => {
+        throw new Error('socket already gone')
+      })
+      expect(() => closeServerNwcClient(VALID_URI)).not.toThrow()
+      // Despite the throw, the entry is evicted → next call rebuilds.
+      await getServerNwcClient(VALID_URI)
+      expect(nwcCtor).toHaveBeenCalledTimes(2)
+    })
+
+    it('closeAllServerNwcClients swallows a throwing close()', async () => {
+      await getServerNwcClient(VALID_URI)
+      closeMock.mockImplementationOnce(() => {
+        throw new Error('socket already gone')
+      })
+      // Must not propagate — best-effort teardown.
+      expect(() => closeAllServerNwcClients()).not.toThrow()
     })
   })
 })

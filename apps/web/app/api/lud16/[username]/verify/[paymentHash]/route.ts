@@ -51,7 +51,13 @@ export const GET = withErrorHandling(
         user: {
           select: {
             id: true,
-            nwc: true,
+            // The default RemoteWallet is the source of the connection used
+            // to look up settlement status — no more legacy User.nwc.
+            remoteWallets: {
+              where: { isDefault: true },
+              select: { config: true },
+              take: 1,
+            },
             lightningAddresses: {
               where: { username },
               select: { username: true },
@@ -93,8 +99,11 @@ export const GET = withErrorHandling(
       return NextResponse.json(response)
     }
 
-    // Query NWC to check current status
-    if (!invoice.user.nwc) {
+    // Query the user's default wallet to check current status.
+    const walletConn =
+      (invoice.user.remoteWallets[0]?.config as { connectionString?: string } | null)
+        ?.connectionString ?? null
+    if (!walletConn) {
       const response: LUD21VerifySuccess = {
         status: 'OK',
         settled: false,
@@ -106,7 +115,7 @@ export const GET = withErrorHandling(
 
     let nwcClient: NWCClient | null = null
     try {
-      nwcClient = new NWCClient({ nostrWalletConnectUrl: invoice.user.nwc })
+      nwcClient = new NWCClient({ nostrWalletConnectUrl: walletConn })
       const tx = await nwcClient.lookupInvoice({ payment_hash: paymentHash })
 
       const settled = tx.state === 'settled'

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { LUD06CallbackSuccess } from '@/types/lnurl'
-import { LN, SATS } from '@getalby/sdk'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   InternalServerError,
   NotFoundError,
+  ServiceUnavailableError,
 } from '@/types/server/errors'
 import {
   lud16CallbackQuerySchema,
@@ -20,7 +20,8 @@ import {
 } from '@/lib/invoice-utils'
 import type { Prisma } from '@/lib/generated/prisma'
 import { logger } from '@/lib/logger'
-import { resolvePaymentRoute } from '@/lib/wallet/resolve-payment-route'
+import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
+import { DriverError, driverForWallet } from '@/lib/wallet/drivers'
 import { eventBus } from '@/lib/events/event-bus'
 
 export const GET = withErrorHandling(
@@ -37,24 +38,27 @@ export const GET = withErrorHandling(
       .slice(0, LUD12_MAX_COMMENT_LENGTH)
       || undefined
 
-    // Same shape as the metadata route — pull every piece resolvePaymentRoute
+    // Same shape as the metadata route — pull every piece resolveWalletRoute
     // needs so /cb stays in lockstep with the LUD-16 lookup. Wallets only hit
     // /cb after our metadata route promised them a callback URL, so we
-    // expect the resolved route to be `nwc`. ALIAS addresses returned the
+    // expect the resolved route to be `wallet`. ALIAS addresses returned the
     // remote callback URL during step one, so /cb here is unreachable for
     // them — but if a stale link or hand-crafted request still lands here we
     // surface a clean 404 instead of crashing.
+    //
+    // RemoteWallet is the source of truth (#234): the address's bound wallet
+    // (CUSTOM) or the user's default wallet (DEFAULT). Legacy NWCConnection /
+    // User.nwc remain as fallbacks for accounts not yet migrated.
     const lightningAddress = await prisma.lightningAddress.findUnique({
       where: { username },
       include: {
-        nwcConnection: { select: { connectionString: true } },
+        remoteWallet: { select: { type: true, config: true, status: true } },
         user: {
           select: {
             id: true,
-            nwc: true,
-            nwcConnections: {
-              where: { isPrimary: true },
-              select: { connectionString: true },
+            remoteWallets: {
+              where: { isDefault: true },
+              select: { type: true, config: true, status: true },
               take: 1,
             },
           },
@@ -66,15 +70,14 @@ export const GET = withErrorHandling(
       throw new NotFoundError('Lightning address not found')
     }
 
-    const route = resolvePaymentRoute({
+    const route = resolveWalletRoute({
       mode: lightningAddress.mode,
       redirect: lightningAddress.redirect,
-      nwcConnection: lightningAddress.nwcConnection,
-      primaryNwcConnection: lightningAddress.user.nwcConnections[0] ?? null,
-      userNwc: lightningAddress.user.nwc,
+      remoteWallet: lightningAddress.remoteWallet,
+      defaultRemoteWallet: lightningAddress.user.remoteWallets[0] ?? null,
     })
 
-    if (route.kind !== 'nwc') {
+    if (route.kind !== 'wallet') {
       logger.info(
         { username, mode: lightningAddress.mode, reason: route.kind },
         'LUD16 callback rejected',
@@ -89,22 +92,33 @@ export const GET = withErrorHandling(
       ? `${baseDescription}: ${sanitizedComment}`
       : baseDescription
 
-    // Generate invoice via NWC — connection string comes from the resolver,
-    // so CUSTOM_NWC uses the address's linked connection and DEFAULT_NWC
-    // uses the user's primary (or legacy `User.nwc` fallback).
-    const ln = new LN(route.connectionString)
+    // Mint the invoice through the driver registry. The route carries a
+    // `{ type, config }` resolved from the RemoteWallet (or synthesised from
+    // a legacy NWC connection string), so this is wallet-type-agnostic.
     const amountSats = Math.floor(Number(amount) / 1000)
-    const invoiceObj = await ln.requestPayment(SATS(amountSats), {
-      description,
-    })
+    let made
+    try {
+      const { driver, config } = driverForWallet({ type: route.type, config: route.config })
+      made = await driver.makeInvoice(config, { amountSats, description })
+    } catch (err) {
+      // Driver/transport failures (relay down, wallet rejected make_invoice,
+      // corrupt config) shouldn't surface as a 500 — they're an upstream
+      // dependency being unavailable, not a bug in our handler.
+      if (err instanceof DriverError) {
+        logger.error({ username, walletType: route.type, err: String(err) }, 'LUD16 invoice mint failed')
+        throw new ServiceUnavailableError('Wallet is currently unavailable')
+      }
+      throw err
+    }
 
-    const pr = invoiceObj.invoice?.paymentRequest
+    const pr = made.bolt11
     if (!pr) {
       throw new InternalServerError('Failed to generate invoice')
     }
 
-    // Extract payment hash — required to build the LUD-21 verify URL
-    const paymentHash = extractPaymentHash(pr)
+    // Prefer the wallet-reported payment hash; fall back to parsing the
+    // bolt11 so the LUD-21 verify URL is always derivable.
+    const paymentHash = made.paymentHash || extractPaymentHash(pr)
     if (!paymentHash) {
       logger.error({ username }, 'Failed to extract payment hash from bolt11')
       throw new InternalServerError('Invalid invoice returned from wallet')

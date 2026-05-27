@@ -129,24 +129,3 @@ registry.registerPath({
     409: responses.conflict,
   },
 })
-
-registry.registerPath({
-  ...withRole('USER'),
-  method: 'put',
-  path: '/api/users/{userId}/nwc',
-  tags: [TAG],
-  summary: 'Store or replace a user’s NWC connection string (self only).',
-  operationId: 'users.nwc.set',
-  security: protectedSecurity,
-  request: {
-    params: schemas.UserIdParam,
-    body: {
-      content: { 'application/json': { schema: schemas.UserNwcUpdateRequest } },
-    },
-  },
-  responses: {
-    200: inlineJsonResponse('NWC saved.', z.object({ success: z.literal(true) })),
-    ...commonErrorResponses,
-    404: responses.notFound,
-  },
-})

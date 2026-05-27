@@ -11,6 +11,8 @@ registerDriver(nwcDriver)
 
 export type {
   BalanceResult,
+  MakeInvoiceInput,
+  MakeInvoiceResult,
   PayInvoiceInput,
   PayInvoiceResult,
   RemoteWalletDriver,
