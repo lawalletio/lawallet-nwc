@@ -4,7 +4,6 @@ import {
   createCardDesignSchema,
   createCardSchema,
   createInvoiceSchema,
-  createNwcConnectionSchema,
   createRemoteCardSchema,
   createWalletAddressSchema,
   externalDeviceKeyParam,
@@ -13,14 +12,12 @@ import {
   lightningAddressModeSchema,
   lud16CallbackQuerySchema,
   lud16UsernameParam,
-  nwcModeSchema,
   otcParam,
   payActionQuerySchema,
   scanCardQuerySchema,
   settingsBodySchema,
   updateCardDesignSchema,
   updateLightningAddressSchema,
-  updateNwcSchema,
   updateRoleSchema,
   updateWalletAddressSchema,
   userIdParam,
@@ -81,14 +78,8 @@ export const schemas = {
     'WalletAddressUpdateRequest',
     updateWalletAddressSchema,
   ),
-  NwcMode: registry.register('NwcMode', nwcModeSchema),
-  NwcConnectionCreateRequest: registry.register(
-    'NwcConnectionCreateRequest',
-    createNwcConnectionSchema,
-  ),
 
   // ── Users ─────────────────────────────────────────────────────────────
-  UserNwcUpdateRequest: registry.register('UserNwcUpdateRequest', updateNwcSchema),
   UserRoleUpdateRequest: registry.register('UserRoleUpdateRequest', updateRoleSchema),
 
   // ── Settings ──────────────────────────────────────────────────────────

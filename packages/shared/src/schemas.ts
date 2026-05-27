@@ -159,30 +159,7 @@ export const updateWalletAddressSchema = z.object({
   remoteWalletId: z.string().min(1).nullish(),
 })
 
-export const nwcModeSchema = z.enum(['RECEIVE', 'SEND_RECEIVE'])
-
-/**
- * Body for POST /api/wallet/nwc-connections.
- *
- * `connectionString` must look like a Nostr Wallet Connect URI so we reject
- * pasted garbage before reaching the DB. We don't verify the relays are
- * reachable here — that's the listener's job at runtime.
- */
-export const createNwcConnectionSchema = z.object({
-  connectionString: z
-    .string()
-    .min(1, 'Connection string is required')
-    .max(2048, 'Connection string is too long')
-    .regex(/^nostr\+walletconnect:\/\//i, 'Must start with nostr+walletconnect://'),
-  mode: nwcModeSchema.optional(),
-  isPrimary: z.boolean().optional(),
-})
-
 // ── Users ───────────────────────────────────────────────────────────────────
-
-export const updateNwcSchema = z.object({
-  nwcUri: z.string().min(1, 'NWC URI is required'),
-})
 
 export const updateRoleSchema = z.object({
   role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']),
