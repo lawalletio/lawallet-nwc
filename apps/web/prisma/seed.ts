@@ -17,8 +17,7 @@ async function main() {
         data: {
           id: user.id,
           pubkey: user.pubkey,
-          createdAt: user.createdAt,
-          nwc: user.nwc
+          createdAt: user.createdAt
         }
       })
     )

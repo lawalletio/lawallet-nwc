@@ -31,13 +31,8 @@ enum InvoiceStatus {
 enum LightningAddressMode {
   IDLE // address exists but does nothing (disabled)
   ALIAS // forwards to another LN address via `redirect`
-  CUSTOM_NWC // uses the NWCConnection referenced by nwcConnectionId
-  DEFAULT_NWC // uses the user's primary NWCConnection
-}
-
-enum NwcMode {
-  RECEIVE
-  SEND_RECEIVE
+  CUSTOM_NWC // uses the RemoteWallet referenced by remoteWalletId
+  DEFAULT_NWC // uses the user's default RemoteWallet
 }
 
 enum RemoteWalletType {
@@ -72,12 +67,9 @@ model User {
   id                 String             @id
   pubkey             String             @unique
   createdAt          DateTime           @default(now())
-  nwc                String?
-  nwcUpdatedAt       DateTime?
   cardDesigns        CardDesign[]
   ntag424s           Ntag424[]
   lightningAddresses LightningAddress[]
-  nwcConnections     NWCConnection[]
   remoteWallets      RemoteWallet[]
   cards              Card[]
   invoices           Invoice[]
@@ -128,8 +120,6 @@ model LightningAddress {
   user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   mode            LightningAddressMode @default(DEFAULT_NWC)
   redirect        String?
-  nwcConnectionId String?
-  nwcConnection   NWCConnection?       @relation(fields: [nwcConnectionId], references: [id], onDelete: SetNull)
   remoteWalletId  String?
   remoteWallet    RemoteWallet?        @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
   isPrimary       Boolean              @default(false)
@@ -137,22 +127,7 @@ model LightningAddress {
   updatedAt       DateTime             @updatedAt
 
   @@index([userId])
-  @@index([nwcConnectionId])
   @@index([remoteWalletId])
-}
-
-model NWCConnection {
-  id                 String             @id @default(cuid())
-  userId             String
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  connectionString   String
-  mode               NwcMode            @default(RECEIVE)
-  isPrimary          Boolean            @default(false)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  lightningAddresses LightningAddress[]
-
-  @@index([userId])
 }
 
 /// Generic remote wallet attached by a user. `type` discriminates the driver;
