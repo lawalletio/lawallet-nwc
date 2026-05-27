@@ -28,7 +28,11 @@ vi.mock('@getalby/sdk', () => {
 // Import AFTER the mock so the driver's cache module picks up the stub.
 import { DriverRemoteError } from '@/lib/wallet/drivers/errors'
 import { nwcDriver } from '@/lib/wallet/drivers/nwc-driver'
-import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
+import {
+  closeAllServerNwcClients,
+  closeServerNwcClient,
+  getServerNwcClient,
+} from '@/lib/wallet/drivers/nwc-client-cache'
 
 const VALID_URI = 'nostr+walletconnect://abc?relay=wss%3A%2F%2Fr.example&secret=deadbeef'
 
@@ -41,12 +45,16 @@ const CONFIG = { connectionString: VALID_URI, mode: 'RECEIVE' as const }
 
 describe('nwcDriver', () => {
   beforeEach(() => {
+    // Evict any clients cached by the previous test BEFORE resetting the
+    // mocks — `closeAllServerNwcClients` calls `close()` on each cached
+    // client, and we don't want those teardown calls counted against the
+    // current test's `closeMock` assertions.
+    closeAllServerNwcClients()
     getBalanceMock.mockReset()
     payInvoiceMock.mockReset()
     makeInvoiceMock.mockReset()
     closeMock.mockReset()
     nwcCtor.mockReset()
-    closeAllServerNwcClients()
   })
 
   it('declares type "NWC"', () => {
@@ -262,6 +270,44 @@ describe('nwcDriver', () => {
       await nwcDriver.getBalance(CONFIG)
       await nwcDriver.getBalance({ ...CONFIG, connectionString: VALID_URI + "&other=1" })
       expect(nwcCtor).toHaveBeenCalledTimes(2)
+    })
+
+    it('closeServerNwcClient evicts a cached client so the next call rebuilds', async () => {
+      getBalanceMock.mockResolvedValue({ balance: 0 })
+      await getServerNwcClient(VALID_URI)
+      expect(nwcCtor).toHaveBeenCalledTimes(1)
+
+      closeServerNwcClient(VALID_URI)
+      expect(closeMock).toHaveBeenCalledTimes(1)
+
+      // Cache was evicted → a fresh client is constructed.
+      await getServerNwcClient(VALID_URI)
+      expect(nwcCtor).toHaveBeenCalledTimes(2)
+    })
+
+    it('closeServerNwcClient is a no-op for an uncached URI', () => {
+      expect(() => closeServerNwcClient('nostr+walletconnect://never-opened')).not.toThrow()
+      expect(closeMock).not.toHaveBeenCalled()
+    })
+
+    it('closeServerNwcClient swallows a throwing close() and still evicts', async () => {
+      await getServerNwcClient(VALID_URI)
+      closeMock.mockImplementationOnce(() => {
+        throw new Error('socket already gone')
+      })
+      expect(() => closeServerNwcClient(VALID_URI)).not.toThrow()
+      // Despite the throw, the entry is evicted → next call rebuilds.
+      await getServerNwcClient(VALID_URI)
+      expect(nwcCtor).toHaveBeenCalledTimes(2)
+    })
+
+    it('closeAllServerNwcClients swallows a throwing close()', async () => {
+      await getServerNwcClient(VALID_URI)
+      closeMock.mockImplementationOnce(() => {
+        throw new Error('socket already gone')
+      })
+      // Must not propagate — best-effort teardown.
+      expect(() => closeAllServerNwcClients()).not.toThrow()
     })
   })
 })

@@ -13,7 +13,7 @@ import {
 } from '@/lib/validation/schemas'
 import { validateBody, validateQuery } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
-import { getDriver, DriverConfigError } from '@/lib/wallet/drivers'
+import { getDriver } from '@/lib/wallet/drivers'
 import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -162,9 +162,6 @@ export const POST = withErrorHandling(async (request: Request) => {
       (err as { code?: string }).code === 'P2002'
     ) {
       throw new ConflictError('A wallet with that name already exists')
-    }
-    if (err instanceof DriverConfigError) {
-      throw new ValidationError('Invalid wallet config', { type: err.type })
     }
     throw err
   }

@@ -239,6 +239,22 @@ describe('POST /api/remote-wallets', () => {
     expect(res.status).toBe(409)
   })
 
+  it('rethrows non-P2002 DB errors as a 500', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    // A generic DB failure (no P2002 code) must not be swallowed as a 409.
+    vi.mocked(prismaMock.remoteWallet.create).mockRejectedValue(new Error('connection reset'))
+
+    const res = await createHandler(
+      createNextRequest('/api/remote-wallets', {
+        method: 'POST',
+        body: { name: 'X', type: 'NWC', config: { connectionString: VALID_NWC } },
+      }),
+    )
+    expect(res.status).toBe(500)
+  })
+
   it('clears the previous default when creating a new wallet with isDefault=true', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
@@ -432,6 +448,21 @@ describe('PATCH /api/remote-wallets/[id]', () => {
       createParamsPromise({ id: 'w1' }),
     )
     expect(res.status).toBe(409)
+  })
+
+  it('rethrows non-P2002 DB errors as a 500', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    vi.mocked(prismaMock.remoteWallet.update).mockRejectedValue(new Error('connection reset'))
+
+    const res = await patchHandler(
+      createNextRequest('/api/remote-wallets/w1', { method: 'PATCH', body: { name: 'New' } }),
+      createParamsPromise({ id: 'w1' }),
+    )
+    expect(res.status).toBe(500)
   })
 })
 
