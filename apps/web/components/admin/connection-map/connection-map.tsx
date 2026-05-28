@@ -25,6 +25,7 @@ import {
 import { useCards, type CardData } from '@/lib/client/hooks/use-cards'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { Spinner } from '@/components/ui/spinner'
+import { truncateHex } from '@/lib/client/format'
 import { nodeTypes, NODE_LAYOUT } from './nodes'
 import { HoverProvider, type HighlightSet } from './hover-context'
 import { HighlightEdge } from './highlight-edge'
@@ -48,8 +49,11 @@ const walletIdFromNodeId = (nodeId: string | null | undefined): string | null =>
 const edgeTypes = { highlight: HighlightEdge }
 
 /**
- * Two-column connection map: Lightning Addresses + Cards on the left,
- * Remote Wallets on the right, bezier edges for every active binding.
+ * Three-column connection map: Lightning Addresses on the LEFT, Remote
+ * Wallets in the MIDDLE, Cards on the RIGHT. Bezier edges connect the
+ * outer columns to the wallets in the middle, so the graph reads as
+ * "what LA / card binds to which wallet" at a glance without crossing
+ * lanes.
  *
  * Interactions today (slice 1 + drag-to-rebind for LAs):
  *   - Hover a node/edge: dim everything else.
@@ -236,6 +240,20 @@ function ConnectionMapInner() {
     [disconnectAddress],
   )
 
+  // Reject invalid drops while the user is dragging — xyflow paints the
+  // ghost edge red so the affordance reads as "this won't work" before
+  // the release. Two rules:
+  //   1. Only LA → wallet connections are allowed (Card source handles
+  //      are non-connectable, but be defensive).
+  //   2. The LA edge must land on the wallet's LEFT (`from-la`) handle —
+  //      the right (`from-card`) side is reserved for cards.
+  const isValidConnection = useCallback((connection: Connection | Edge) => {
+    if (!connection.source?.startsWith('la:')) return false
+    if (!connection.target?.startsWith('wallet:')) return false
+    if (connection.targetHandle && connection.targetHandle !== 'from-la') return false
+    return true
+  }, [])
+
   if (loading && !nodes.length) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -276,6 +294,7 @@ function ConnectionMapInner() {
             strokeWidth: 1.5,
             strokeDasharray: '4 4',
           }}
+          isValidConnection={isValidConnection}
           onConnect={handleConnect}
           onConnectStart={handleConnectStart}
           onConnectEnd={handleConnectEnd}
@@ -337,9 +356,17 @@ interface BuiltGraph {
 }
 
 /**
- * Deterministic positions: each section (LA header → LAs → Cards header →
- * Cards) is stacked vertically in the left column; wallets stack in the
- * right column. Header rows take one row each.
+ * Deterministic positions, one column per model:
+ *   - LEFT   (`addressX`): Lightning Addresses header + LA nodes.
+ *   - MIDDLE (`walletX`) : Remote Wallets header + wallet nodes.
+ *   - RIGHT  (`cardX`)   : Cards header + card nodes.
+ * Each column stacks from `topY` downward by `rowGap`, so the y of any
+ * row is purely a function of its index in its source list — no
+ * auto-layout, stable across re-renders.
+ *
+ * Edge handle ids must match `nodes.tsx`:
+ *   - LA   `out` (right) → Wallet `from-la`   (left)
+ *   - Card `out` (left)  → Wallet `from-card` (right)
  */
 function buildGraph({
   wallets,
@@ -348,77 +375,84 @@ function buildGraph({
   defaultWallet,
   domain,
 }: BuildGraphInput): BuiltGraph {
-  const { leftX, rightX, rowGap, groupGap, topY } = NODE_LAYOUT
+  const { addressX, walletX, cardX, rowGap, topY } = NODE_LAYOUT
   const nodes: Node[] = []
   const edges: Edge[] = []
 
-  // Left column: addresses on top, then cards.
-  let leftY = topY
+  // ── Column 1 (left): Lightning Addresses ────────────────────────────────
+  let y = topY
   if (addresses && addresses.length > 0) {
     nodes.push({
       id: 'header:addresses',
       type: 'header',
-      position: { x: leftX, y: leftY },
+      position: { x: addressX, y },
       data: { label: 'Lightning Addresses' },
       draggable: false,
       selectable: false,
     })
-    leftY += rowGap
+    y += rowGap
     for (const addr of addresses) {
       nodes.push({
         id: addressNodeId(addr.username),
         type: 'lightning-address',
-        position: { x: leftX, y: leftY },
+        position: { x: addressX, y },
         data: { username: addr.username, domain, mode: addr.mode },
       })
-      leftY += rowGap
-    }
-    leftY += groupGap - rowGap
-  }
-  if (cards && cards.length > 0) {
-    nodes.push({
-      id: 'header:cards',
-      type: 'header',
-      position: { x: leftX, y: leftY },
-      data: { label: 'Cards' },
-      draggable: false,
-      selectable: false,
-    })
-    leftY += rowGap
-    for (const card of cards) {
-      nodes.push({
-        id: cardNodeId(card.id),
-        type: 'card',
-        position: { x: leftX, y: leftY },
-        data: {
-          label: card.lightningAddress?.username ?? card.id.slice(0, 8),
-          paired: !!card.ntag424,
-        },
-      })
-      leftY += rowGap
+      y += rowGap
     }
   }
 
-  // Right column: wallets. Reserve a header row for parity with the left.
-  let rightY = topY
+  // ── Column 2 (middle): Remote Wallets ───────────────────────────────────
+  y = topY
   if (wallets && wallets.length > 0) {
     nodes.push({
       id: 'header:wallets',
       type: 'header',
-      position: { x: rightX, y: rightY },
+      position: { x: walletX, y },
       data: { label: 'Remote Wallets' },
       draggable: false,
       selectable: false,
     })
-    rightY += rowGap
+    y += rowGap
     for (const w of wallets) {
       nodes.push({
         id: walletNodeId(w.id),
         type: 'remote-wallet',
-        position: { x: rightX, y: rightY },
+        position: { x: walletX, y },
         data: { name: w.name, type: w.type, status: w.status, isDefault: w.isDefault },
       })
-      rightY += rowGap
+      y += rowGap
+    }
+  }
+
+  // ── Column 3 (right): Cards ─────────────────────────────────────────────
+  // Card "label" prefers the bound LA username (most recognisable), then
+  // falls back to a `first8...last8` truncation of the card id so even
+  // unpaired cards have a stable, distinguishable handle.
+  y = topY
+  if (cards && cards.length > 0) {
+    nodes.push({
+      id: 'header:cards',
+      type: 'header',
+      position: { x: cardX, y },
+      data: { label: 'Cards' },
+      draggable: false,
+      selectable: false,
+    })
+    y += rowGap
+    for (const card of cards) {
+      nodes.push({
+        id: cardNodeId(card.id),
+        type: 'card',
+        position: { x: cardX, y },
+        data: {
+          label: card.lightningAddress?.username ?? truncateHex(card.id),
+          designName: card.design?.description ?? null,
+          designImage: card.design?.image ?? null,
+          paired: !!card.ntag424,
+        },
+      })
+      y += rowGap
     }
   }
 
@@ -427,15 +461,15 @@ function buildGraph({
   // current hover from HoverContext and dim themselves locally — no
   // rebuilding of the edges array required.
   //
-  // `reconnectable` is set per-edge:
-  //   - LA edges: 'target' — users can drag the wallet end to rebind or to
-  //     empty space to disconnect, but the LA end stays put (dragging it
-  //     onto another LA doesn't make sense).
+  // `reconnectable` per-edge:
+  //   - LA edges: 'target' — drag the wallet end to rebind or to empty
+  //     space to disconnect. The LA end is fixed; dragging it onto
+  //     another LA doesn't make sense.
   //   - Card edges: false — card↔wallet rebinding ships in a later slice.
   //
   // Address bindings:
-  //   CUSTOM_NWC  → solid edge to the address's bound wallet.
-  //   DEFAULT_NWC → dashed edge to the user's default wallet (implicit).
+  //   CUSTOM_NWC   → solid edge to the address's bound wallet.
+  //   DEFAULT_NWC  → dashed edge to the user's default wallet (implicit).
   //   IDLE / ALIAS → no edge (no wallet involved).
   for (const addr of addresses ?? []) {
     if (addr.mode === 'CUSTOM_NWC' && addr.remoteWalletId) {
@@ -443,7 +477,9 @@ function buildGraph({
         id: `e:la:${addr.username}->${addr.remoteWalletId}`,
         type: 'highlight',
         source: addressNodeId(addr.username),
+        sourceHandle: 'out',
         target: walletNodeId(addr.remoteWalletId),
+        targetHandle: 'from-la',
         reconnectable: 'target',
         style: { stroke: 'oklch(0.78 0.18 162)' /* emerald */, strokeWidth: 1.5 },
       })
@@ -452,7 +488,9 @@ function buildGraph({
         id: `e:la:${addr.username}->default:${defaultWallet.id}`,
         type: 'highlight',
         source: addressNodeId(addr.username),
+        sourceHandle: 'out',
         target: walletNodeId(defaultWallet.id),
+        targetHandle: 'from-la',
         reconnectable: 'target',
         style: {
           stroke: 'oklch(0.78 0.18 162)',
@@ -463,17 +501,17 @@ function buildGraph({
     }
   }
 
-  // Card bindings: solid edge for explicit `remoteWalletId`. Cards without
-  // a binding render as orphan nodes (no edge) — they spend through the
-  // owner's default wallet at run-time, but the map shows only what's
-  // explicitly bound to keep visual signal clean.
+  // Card bindings enter the wallet from the RIGHT (`from-card`) so the
+  // bezier curves out from the card column on the right cleanly.
   for (const card of cards ?? []) {
     if (!card.remoteWalletId) continue
     edges.push({
       id: `e:card:${card.id}->${card.remoteWalletId}`,
       type: 'highlight',
       source: cardNodeId(card.id),
+      sourceHandle: 'out',
       target: walletNodeId(card.remoteWalletId),
+      targetHandle: 'from-card',
       reconnectable: false,
       style: { stroke: 'oklch(0.72 0.16 245)' /* sky */, strokeWidth: 1.5 },
     })
