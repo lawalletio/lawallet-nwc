@@ -56,6 +56,7 @@ export const GET = withErrorHandling(async (request: Request) => {
       lastUsedAt: true,
       username: true,
       otc: true,
+      remoteWalletId: true,
       design: {
         select: {
           id: true,
@@ -102,7 +103,8 @@ export const GET = withErrorHandling(async (request: Request) => {
     lastUsedAt: card.lastUsedAt || undefined,
     pubkey: card.user?.pubkey,
     username: card.username || undefined,
-    otc: card.otc || undefined
+    otc: card.otc || undefined,
+    remoteWalletId: card.remoteWalletId ?? null,
   }))
 
   return NextResponse.json(transformedCards)

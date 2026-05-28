@@ -24,6 +24,8 @@ export interface CardData {
     username: string
     pubkey: string
   } | null
+  /** RemoteWallet this card spends from (or null if unbound). */
+  remoteWalletId: string | null
   createdAt: string
   updatedAt: string
 }
@@ -76,6 +78,7 @@ interface ApiCard {
   pubkey?: string
   username?: string
   otc?: string | null
+  remoteWalletId?: string | null
 }
 
 function toCardData(c: ApiCard): CardData {
@@ -104,6 +107,7 @@ function toCardData(c: ApiCard): CardData {
       c.username && c.pubkey
         ? { username: c.username, pubkey: c.pubkey }
         : null,
+    remoteWalletId: c.remoteWalletId ?? null,
     createdAt: c.createdAt,
     // Legacy API has no `updatedAt` — fall back to lastUsedAt/createdAt so
     // the "Last used" column still shows something sensible.

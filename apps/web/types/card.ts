@@ -11,4 +11,6 @@ export type Card = {
   pubkey?: string
   username?: string
   otc?: string
+  /** RemoteWallet this card spends from, or null if unbound. */
+  remoteWalletId?: string | null
 }
