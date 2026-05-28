@@ -551,41 +551,50 @@ function WalletActions({
     return (
       <form
         onSubmit={handleReceiveSubmit}
-        className="flex gap-2 animate-in fade-in-0 slide-in-from-left-1 duration-200"
+        className="flex flex-col gap-2 animate-in fade-in-0 slide-in-from-left-1 duration-200"
       >
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-11 shrink-0"
-          onClick={resetReceive}
-          disabled={busy}
-          aria-label="Cancel"
-        >
-          <X className="size-4" />
-        </Button>
-        <Input
-          type="number"
-          inputMode="numeric"
-          min={1}
-          step={1}
-          autoFocus
-          placeholder="sats"
-          value={receiveAmount}
-          onChange={e => setReceiveAmount(e.target.value)}
-          disabled={busy}
-          className="h-11 flex-1 tabular-nums"
-        />
-        <Button
-          type="submit"
-          variant="theme"
-          size="icon"
-          className="h-11 shrink-0"
-          disabled={busy || !receiveAmount}
-          aria-label="Generate invoice"
-        >
-          {busy ? <Spinner size={16} /> : <ArrowRight className="size-4" />}
-        </Button>
+        {/* Header — mirrors the "To <target>" line on the send amount
+            step so the two flows read symmetrically: arrow + verb,
+            small muted text. */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <ArrowDownLeft className="size-3.5" />
+          <span>Deposit</span>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-11 shrink-0"
+            onClick={resetReceive}
+            disabled={busy}
+            aria-label="Cancel"
+          >
+            <X className="size-4" />
+          </Button>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            step={1}
+            autoFocus
+            placeholder="sats"
+            value={receiveAmount}
+            onChange={e => setReceiveAmount(e.target.value)}
+            disabled={busy}
+            className="h-11 flex-1 tabular-nums"
+          />
+          <Button
+            type="submit"
+            variant="theme"
+            size="icon"
+            className="h-11 shrink-0"
+            disabled={busy || !receiveAmount}
+            aria-label="Generate invoice"
+          >
+            {busy ? <Spinner size={16} /> : <ArrowRight className="size-4" />}
+          </Button>
+        </div>
       </form>
     )
   }
