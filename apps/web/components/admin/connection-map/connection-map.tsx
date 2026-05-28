@@ -33,6 +33,9 @@ import { truncateHex } from '@/lib/client/format'
 import { nodeTypes, NODE_LAYOUT } from './nodes'
 import { HoverProvider, type HighlightSet } from './hover-context'
 import { HighlightEdge } from './highlight-edge'
+import { AddressDetailDialog } from './address-detail-dialog'
+import { WalletDetailDialog } from './wallet-detail-dialog'
+import { CardDetailDialog } from './card-detail-dialog'
 
 /** Stable id helpers — used by both nodes and edges so they always agree. */
 const walletNodeId = (id: string) => `wallet:${id}`
@@ -113,6 +116,16 @@ function ConnectionMapInner() {
   // the highlight set and visually competes with the drag.
   const [isPanning, setIsPanning] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+
+  // Clicking a node opens its detail dialog. We track the selection by
+  // kind + raw id (no node-id prefix) so the dialogs can look the entity
+  // up in the local lists without re-parsing prefixes themselves.
+  const [selected, setSelected] = useState<
+    | { kind: 'la'; username: string }
+    | { kind: 'wallet'; id: string }
+    | { kind: 'card'; id: string }
+    | null
+  >(null)
 
   // `onReconnect` and `onReconnectEnd` cooperate via this ref to detect
   // "edge dragged off into empty space" (the official xyflow pattern, see
@@ -301,6 +314,28 @@ function ConnectionMapInner() {
     [disconnectAddress, disconnectCard],
   )
 
+  // Click on a node body (not a handle drag) opens its detail dialog.
+  // Header nodes are skipped — they're decorative column labels.
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    const username = usernameFromNodeId(node.id)
+    if (username) {
+      setSelected({ kind: 'la', username })
+      return
+    }
+    const walletId = walletIdFromNodeId(node.id)
+    if (walletId) {
+      setSelected({ kind: 'wallet', id: walletId })
+      return
+    }
+    const cardId = cardIdFromNodeId(node.id)
+    if (cardId) {
+      setSelected({ kind: 'card', id: cardId })
+    }
+    // Header nodes (id="header:*") fall through and do nothing.
+  }, [])
+
+  const closeDetail = useCallback(() => setSelected(null), [])
+
   // Reject invalid drops while the user is dragging — xyflow paints the
   // ghost edge red so the affordance reads as "this won't work" before
   // release. Two valid shapes match the two edge families:
@@ -366,6 +401,7 @@ function ConnectionMapInner() {
             strokeDasharray: '4 4',
           }}
           isValidConnection={isValidConnection}
+          onNodeClick={handleNodeClick}
           onConnect={handleConnect}
           onConnectStart={handleConnectStart}
           onConnectEnd={handleConnectEnd}
@@ -397,6 +433,50 @@ function ConnectionMapInner() {
             </Panel>
           )}
         </ReactFlow>
+
+        {/*
+         * Detail dialogs — rendered conditionally so the close animation
+         * is driven by unmount (Radix Dialog handles the exit transition).
+         * The `.find(…)` guards against the entity disappearing between
+         * the click and the next SSE refresh: if the wallet got revoked
+         * by another tab milliseconds before the click, we just don't
+         * open anything rather than crash.
+         */}
+        {selected?.kind === 'la' &&
+          (() => {
+            const addr = addresses?.find(a => a.username === selected.username)
+            return addr ? (
+              <AddressDetailDialog
+                address={addr}
+                domain={domain}
+                wallets={wallets ?? []}
+                onClose={closeDetail}
+              />
+            ) : null
+          })()}
+        {selected?.kind === 'wallet' &&
+          (() => {
+            const w = wallets?.find(w => w.id === selected.id)
+            return w ? (
+              <WalletDetailDialog
+                wallet={w}
+                addresses={addresses ?? []}
+                cards={cards ?? []}
+                onClose={closeDetail}
+              />
+            ) : null
+          })()}
+        {selected?.kind === 'card' &&
+          (() => {
+            const c = cards?.find(c => c.id === selected.id)
+            return c ? (
+              <CardDetailDialog
+                card={c}
+                wallets={wallets ?? []}
+                onClose={closeDetail}
+              />
+            ) : null
+          })()}
       </div>
     </HoverProvider>
   )
