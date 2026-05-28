@@ -8,12 +8,14 @@ import {
   ArrowUpRight,
   Copy,
   ExternalLink,
+  QrCode,
   Send,
   Star,
   Wallet,
   X,
   Zap,
 } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import {
   Dialog,
   DialogContent,
@@ -291,6 +293,10 @@ function WalletActions({
   const [receiveAmount, setReceiveAmount] = useState('')
   const [minting, setMinting] = useState(false)
   const [invoice, setInvoice] = useState<MakeInvoiceResult | null>(null)
+  // QR toggle on the invoice screen. Defaults off — the user might just
+  // want to copy the bolt11 to paste somewhere else. Reset on resetReceive
+  // so the next mint starts back in text mode.
+  const [showQr, setShowQr] = useState(false)
 
   // Send state
   const [sendStep, setSendStep] = useState<SendStep>('idle')
@@ -317,6 +323,7 @@ function WalletActions({
     setReceiveStep('idle')
     setReceiveAmount('')
     setInvoice(null)
+    setShowQr(false)
     setPayingWebLn(false)
   }, [])
 
@@ -521,6 +528,22 @@ function WalletActions({
             {invoice.amountSats.toLocaleString()} sats
           </span>
         </div>
+        {/* QR code — toggleable via the QR button below. Rendered on a
+            white tile so it stays scannable under the dark theme. AutoHeight
+            picks up the size change automatically. `uppercase` packs the
+            bolt11 into denser modules (bolt11 is base-32, both cases scan
+            identically). */}
+        {showQr && (
+          <div className="flex justify-center animate-in fade-in-0 duration-200">
+            <div className="rounded-md bg-white p-3">
+              <QRCodeSVG
+                value={invoice.bolt11.toUpperCase()}
+                size={200}
+                level="M"
+              />
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <code className="flex-1 truncate rounded bg-background px-2 py-1.5 font-mono text-xs">
             {preview}
@@ -534,6 +557,17 @@ function WalletActions({
             aria-label="Copy invoice"
           >
             <Copy className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant={showQr ? 'theme' : 'secondary'}
+            size="icon"
+            className="size-9 shrink-0"
+            onClick={() => setShowQr(v => !v)}
+            aria-label={showQr ? 'Hide QR code' : 'Show QR code'}
+            aria-pressed={showQr}
+          >
+            <QrCode className="size-4" />
           </Button>
         </div>
         <div className="flex gap-2">
