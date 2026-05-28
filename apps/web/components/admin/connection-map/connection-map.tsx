@@ -603,6 +603,18 @@ function buildGraph({
 
 // ── Hover highlighting ────────────────────────────────────────────────────
 
+/**
+ * Walks the WHOLE connected component the hovered node/edge belongs to,
+ * not just its immediate neighbours. That way hovering a Lightning
+ * Address spotlights the LA → its wallet → every card bound to that
+ * wallet (and vice versa from any of those), so the user sees the full
+ * chain a payment can traverse in one glance.
+ *
+ * Implementation: BFS over the edge list with a frontier queue. The
+ * graph is small (handful of nodes, dozen-ish edges in practice), so
+ * we re-scan all edges per frontier pop instead of pre-building an
+ * adjacency map — easier to follow and not a perf concern.
+ */
 function computeHighlight(
   hovered: { kind: 'node' | 'edge'; id: string } | null,
   edges: Edge[],
@@ -611,22 +623,36 @@ function computeHighlight(
 
   const keptNodes = new Set<string>()
   const keptEdges = new Set<string>()
+  const frontier: string[] = []
 
+  // Seed the BFS depending on what's hovered.
   if (hovered.kind === 'node') {
     keptNodes.add(hovered.id)
-    for (const e of edges) {
-      if (e.source === hovered.id || e.target === hovered.id) {
-        keptEdges.add(e.id)
-        keptNodes.add(e.source)
-        keptNodes.add(e.target)
-      }
-    }
+    frontier.push(hovered.id)
   } else {
     const e = edges.find(edge => edge.id === hovered.id)
     if (e) {
       keptEdges.add(e.id)
       keptNodes.add(e.source)
       keptNodes.add(e.target)
+      frontier.push(e.source, e.target)
+    }
+  }
+
+  // Expand: for each node in the frontier, pull in every edge that
+  // touches it + the node on the other side, then queue that node for
+  // its own expansion. Stops naturally when nothing new is discovered.
+  while (frontier.length > 0) {
+    const node = frontier.shift() as string
+    for (const e of edges) {
+      if (e.source !== node && e.target !== node) continue
+      if (keptEdges.has(e.id)) continue
+      keptEdges.add(e.id)
+      const other = e.source === node ? e.target : e.source
+      if (!keptNodes.has(other)) {
+        keptNodes.add(other)
+        frontier.push(other)
+      }
     }
   }
 
