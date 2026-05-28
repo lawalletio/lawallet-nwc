@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { AtSign, CreditCard, Star, Wallet } from 'lucide-react'
+import { AtSign, Star, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHover } from './hover-context'
 
@@ -105,42 +105,50 @@ export function LightningAddressNode({ id, data }: NodeProps) {
  * right of the canvas, so the connection faces the wallets in the
  * middle). Cards are the *receiving* end of the wallet→card binding —
  * the wallet "owns" the card from the graph's perspective, which makes
- * the wallet's right dot the draggable initiator. Renders the design
- * thumbnail on the OUTER edge, mirroring the LA node (icon opposite the
- * handle) so the two side columns read as a symmetric pair.
+ * the wallet's right dot the draggable initiator.
+ *
+ * Layout is a vertical stack: title on top, design image filling the
+ * full content width below at credit-card aspect (≈ 8:5). The image is
+ * what the admin actually recognises a card by, so it's the dominant
+ * visual element rather than a tiny side thumb. When a card has no
+ * design image (rare — legacy rows), we fall back to a small secondary
+ * text line so the row still has two pieces of information.
+ *
+ * Because the card row is now taller than LAs / wallets, `buildGraph`
+ * uses a separate `cardRowGap` in `NODE_LAYOUT` to lay out the cards
+ * column.
  */
 export function CardNode({ id, data }: NodeProps) {
   const d = data as unknown as CardNodeData
   const dimmed = useDimmed(id)
-  // Always render a second line so the row height matches the LA node —
-  // fall back to pairing status when there's no design description.
-  const secondary = d.designName ?? (d.paired ? 'paired' : 'unpaired')
   return (
-    <div className={shellClasses(dimmed)} style={{ width: NODE_WIDTH }}>
+    <div
+      className={cn(shellClasses(dimmed), 'items-stretch')}
+      style={{ width: NODE_WIDTH }}
+    >
       <Handle
         id="in"
         type="target"
         position={Position.Left}
         className="!size-2 !bg-sky-400"
       />
-      <div className="flex min-w-0 flex-col flex-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <span className="truncate text-xs font-medium">{d.label}</span>
-        <span className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
-          {secondary}
-        </span>
+        {d.designImage ? (
+          // Full-width credit-card-aspect preview. Plain <img> matches
+          // the cards table convention (apps/web/app/admin/cards/page.tsx)
+          // and avoids next/image's remote-pattern requirement.
+          <img
+            src={d.designImage}
+            alt={d.designName ?? 'Card design'}
+            className="aspect-[8/5] w-full rounded-sm border border-border object-cover"
+          />
+        ) : (
+          <span className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+            {d.designName ?? (d.paired ? 'paired' : 'unpaired')}
+          </span>
+        )}
       </div>
-      {d.designImage ? (
-        // Plain <img> matches the cards table convention (apps/web/app/
-        // admin/cards/page.tsx) and avoids next/image's remote-pattern
-        // requirement for a thumb we never need to optimise.
-        <img
-          src={d.designImage}
-          alt={d.designName ?? 'Card design'}
-          className="h-8 w-12 shrink-0 rounded-sm border border-border object-cover"
-        />
-      ) : (
-        <CreditCard className="size-4 shrink-0 text-sky-400" />
-      )}
     </div>
   )
 }
@@ -228,8 +236,18 @@ export const NODE_LAYOUT = {
   addressX: 40,
   walletX: 420,
   cardX: 800,
-  /** Vertical spacing between consecutive nodes in the same column. */
+  /**
+   * Vertical stride for LA / wallet rows + header→first-row gap in every
+   * column. Cards use a larger stride (see `cardRowGap`) because the
+   * full-width design image makes the card node noticeably taller.
+   */
   rowGap: 72,
+  /**
+   * Vertical stride between consecutive card rows in the cards column.
+   * Sized for the full-width 8:5 design preview (≈ 124px) + title +
+   * padding, with some breathing room so adjacent cards never overlap.
+   */
+  cardRowGap: 176,
   /** Y of the first header in each column. */
   topY: 0,
 }

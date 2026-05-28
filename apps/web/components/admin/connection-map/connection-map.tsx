@@ -447,7 +447,7 @@ function buildGraph({
   defaultWallet,
   domain,
 }: BuildGraphInput): BuiltGraph {
-  const { addressX, walletX, cardX, rowGap, topY } = NODE_LAYOUT
+  const { addressX, walletX, cardX, rowGap, cardRowGap, topY } = NODE_LAYOUT
   const nodes: Node[] = []
   const edges: Edge[] = []
 
@@ -512,6 +512,10 @@ function buildGraph({
       draggable: false,
       selectable: false,
     })
+    // Header → first card uses the standard `rowGap` so the cards-column
+    // header lines up with the other columns. Between cards uses the
+    // taller `cardRowGap` so the full-width design previews don't stack
+    // into each other.
     y += rowGap
     for (const card of cards) {
       nodes.push({
@@ -526,7 +530,7 @@ function buildGraph({
           paired: !!card.ntag424,
         },
       })
-      y += rowGap
+      y += cardRowGap
     }
   }
 
