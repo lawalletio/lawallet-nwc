@@ -548,7 +548,12 @@ function buildGraph({
         id: addressNodeId(addr.username),
         type: 'lightning-address',
         position: { x: addressX, y },
-        data: { username: addr.username, domain, mode: addr.mode },
+        data: {
+          username: addr.username,
+          domain,
+          mode: addr.mode,
+          isPrimary: addr.isPrimary,
+        },
       })
       y += rowGap
     }

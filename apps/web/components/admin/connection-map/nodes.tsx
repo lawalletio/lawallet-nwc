@@ -45,6 +45,8 @@ interface LightningAddressNodeData {
   username: string
   domain: string
   mode: string
+  /** Mirrors `WalletAddress.isPrimary` — paints the star next to the address. */
+  isPrimary: boolean
 }
 
 interface CardNodeData {
@@ -140,9 +142,17 @@ export function LightningAddressNode({ id, data }: NodeProps) {
     <div className={shellClasses(dimmed)} style={{ width: NODE_WIDTH }}>
       <AtSign className="size-4 shrink-0 text-emerald-400" />
       <div className="flex min-w-0 flex-col">
-        <span className="truncate text-xs font-medium">
-          {d.username}
-          <span className="text-muted-foreground">@{d.domain}</span>
+        <span className="flex items-center gap-1 truncate text-xs font-medium">
+          <span className="truncate">
+            {d.username}
+            <span className="text-muted-foreground">@{d.domain}</span>
+          </span>
+          {d.isPrimary && (
+            <Star
+              className="size-3 shrink-0 fill-amber-400 text-amber-400"
+              aria-label="Primary"
+            />
+          )}
         </span>
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
           {d.mode}
