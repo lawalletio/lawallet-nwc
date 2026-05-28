@@ -12,6 +12,9 @@ import {
   type Node,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+// Co-located admin theme overrides for the Controls panel — imported AFTER
+// the xyflow stylesheet so source-order wins on equal specificity.
+import './connection-map.css'
 import { toast } from 'sonner'
 import { useRemoteWallets, type RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
 import {
@@ -249,6 +252,12 @@ function ConnectionMapInner() {
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
+          // The admin shell is `forcedTheme="dark"` via next-themes, so we
+          // hardcode dark here too. This flips xyflow's internal CSS vars
+          // (background, edge default colors, MiniMap, etc.) to dark-mode
+          // values. Our `connection-map.css` further tunes the Controls
+          // panel to match the admin palette.
+          colorMode="dark"
           fitView
           fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
           // Layout stays fixed (positions are deterministic) but handles

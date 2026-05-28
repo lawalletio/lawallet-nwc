@@ -1,0 +1,55 @@
+/*
+ * Connection Map — admin-themed overrides for React Flow's built-in
+ * Controls panel (Zoom In / Out / Fit View) and the canvas background.
+ *
+ * Without these, the Controls fall back to xyflow's light-mode defaults
+ * (white buttons, black icons), which read as a foreign tile glued onto
+ * our dark canvas. xyflow's own `colorMode="dark"` flips a few palette
+ * variables but its grey is a different shade than the admin theme, so
+ * we map the relevant rules onto the same HSL tokens shadcn uses
+ * elsewhere in the app.
+ *
+ * Loaded AFTER `@xyflow/react/dist/style.css` (see connection-map.tsx)
+ * so source-order wins on equal specificity.
+ *
+ * Tokens (from globals.css):
+ *   --card        button surface
+ *   --popover     hover surface (one notch lighter than card)
+ *   --border      hairline between buttons + outer ring
+ *   --foreground  icon fill (near-white, via `currentColor`)
+ *   --radius      shared rounding so the group matches Card / Button
+ */
+
+.react-flow__controls {
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 4px);
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background-color: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  width: 28px;
+  height: 28px;
+  transition: background-color 120ms ease;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.react-flow__controls-button:hover {
+  background-color: hsl(var(--popover));
+}
+
+/* The default rule is `fill: currentColor`, but xyflow also sets
+ * `fill: <grey>` directly on the button — re-asserting currentColor
+ * here keeps the icon following our `color` token instead.
+ */
+.react-flow__controls-button,
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
