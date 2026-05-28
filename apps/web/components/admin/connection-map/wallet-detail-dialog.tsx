@@ -543,6 +543,11 @@ function WalletActions({
 
   // ── Render: Receive AMOUNT state (in place of the Receive button) ──
   if (receiveStep === 'amount') {
+    // Lock the form while we're talking to the relay so the user
+    // can't double-submit, edit the amount mid-mint, or cancel into a
+    // weird state (cancel still resets the UI but blocks accidental
+    // taps while the spinner is up).
+    const busy = minting || connection.loading
     return (
       <form
         onSubmit={handleReceiveSubmit}
@@ -554,6 +559,7 @@ function WalletActions({
           size="icon"
           className="h-11 shrink-0"
           onClick={resetReceive}
+          disabled={busy}
           aria-label="Cancel"
         >
           <X className="size-4" />
@@ -567,6 +573,7 @@ function WalletActions({
           placeholder="sats"
           value={receiveAmount}
           onChange={e => setReceiveAmount(e.target.value)}
+          disabled={busy}
           className="h-11 flex-1 tabular-nums"
         />
         <Button
@@ -574,14 +581,10 @@ function WalletActions({
           variant="theme"
           size="icon"
           className="h-11 shrink-0"
-          disabled={minting || !receiveAmount || connection.loading}
+          disabled={busy || !receiveAmount}
           aria-label="Generate invoice"
         >
-          {minting || connection.loading ? (
-            <Spinner size={16} />
-          ) : (
-            <ArrowRight className="size-4" />
-          )}
+          {busy ? <Spinner size={16} /> : <ArrowRight className="size-4" />}
         </Button>
       </form>
     )
@@ -598,6 +601,11 @@ function WalletActions({
           : destination?.kind === 'invoice'
             ? 'invoice'
             : 'recipient'
+    // Lock everything (input, cancel, submit) while a payment is in
+    // flight. Without this the user could double-tap the arrow and
+    // pay twice, or change the amount mid-NWC-call into a stale
+    // toast.
+    const busy = paying || connection.loading
     return (
       <form
         onSubmit={handleSendAmountSubmit}
@@ -616,6 +624,7 @@ function WalletActions({
             size="icon"
             className="h-11 shrink-0"
             onClick={resetSend}
+            disabled={busy}
             aria-label="Cancel"
           >
             <X className="size-4" />
@@ -629,6 +638,7 @@ function WalletActions({
             placeholder="sats"
             value={sendAmount}
             onChange={e => setSendAmount(e.target.value)}
+            disabled={busy}
             className="h-11 flex-1 tabular-nums"
           />
           <Button
@@ -636,14 +646,10 @@ function WalletActions({
             variant="theme"
             size="icon"
             className="h-11 shrink-0"
-            disabled={paying || !sendAmount || connection.loading}
+            disabled={busy || !sendAmount}
             aria-label="Send"
           >
-            {paying || connection.loading ? (
-              <Spinner size={16} />
-            ) : (
-              <ArrowUpRight className="size-4" />
-            )}
+            {busy ? <Spinner size={16} /> : <ArrowUpRight className="size-4" />}
           </Button>
         </div>
       </form>
@@ -652,6 +658,9 @@ function WalletActions({
 
   // ── Render: Send DESTINATION state (paste invoice / LA) ────────────
   if (sendStep === 'destination') {
+    // Becomes busy when a bolt11 with embedded amount triggers
+    // payment immediately on submit (no amount step to render).
+    const busy = paying || connection.loading
     return (
       <div className="flex flex-col gap-2 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
         <form onSubmit={handleDestinationSubmit} className="flex gap-2">
@@ -661,6 +670,7 @@ function WalletActions({
             size="icon"
             className="h-11 shrink-0"
             onClick={resetSend}
+            disabled={busy}
             aria-label="Cancel"
           >
             <X className="size-4" />
@@ -673,6 +683,7 @@ function WalletActions({
             placeholder="Lightning address or invoice"
             value={destinationInput}
             onChange={e => setDestinationInput(e.target.value)}
+            disabled={busy}
             className="h-11 flex-1 font-mono text-xs"
           />
           <Button
@@ -680,14 +691,10 @@ function WalletActions({
             variant="theme"
             size="icon"
             className="h-11 shrink-0"
-            disabled={paying || !destinationInput.trim() || connection.loading}
+            disabled={busy || !destinationInput.trim()}
             aria-label="Continue"
           >
-            {paying || connection.loading ? (
-              <Spinner size={16} />
-            ) : (
-              <ArrowRight className="size-4" />
-            )}
+            {busy ? <Spinner size={16} /> : <ArrowRight className="size-4" />}
           </Button>
         </form>
         {hasWebLn && (
@@ -699,6 +706,7 @@ function WalletActions({
             variant="secondary"
             className="h-10 w-full justify-start gap-2 animate-in fade-in-0 duration-200"
             onClick={() => setSendStep('amount-alby')}
+            disabled={busy}
           >
             <Image
               src="/logos/alby.png"
