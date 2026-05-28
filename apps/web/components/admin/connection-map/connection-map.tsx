@@ -1,18 +1,24 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import {
   Background,
   Controls,
   Panel,
   ReactFlow,
   ReactFlowProvider,
+  type Connection,
   type Edge,
   type Node,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { toast } from 'sonner'
 import { useRemoteWallets, type RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
-import { useMyAddresses, type WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
+import {
+  useMyAddresses,
+  useAddressMutations,
+  type WalletAddress,
+} from '@/lib/client/hooks/use-wallet-addresses'
 import { useCards, type CardData } from '@/lib/client/hooks/use-cards'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { Spinner } from '@/components/ui/spinner'
@@ -25,6 +31,12 @@ const walletNodeId = (id: string) => `wallet:${id}`
 const addressNodeId = (username: string) => `la:${username}`
 const cardNodeId = (id: string) => `card:${id}`
 
+/** Inverse helpers — extract the model id from a node id, or null if the prefix doesn't match. */
+const usernameFromNodeId = (nodeId: string | null | undefined): string | null =>
+  nodeId && nodeId.startsWith('la:') ? nodeId.slice('la:'.length) : null
+const walletIdFromNodeId = (nodeId: string | null | undefined): string | null =>
+  nodeId && nodeId.startsWith('wallet:') ? nodeId.slice('wallet:'.length) : null
+
 /**
  * Edge type registry. Defined at module scope so React Flow sees a stable
  * identity across renders (a fresh object literal each render would trigger
@@ -36,8 +48,14 @@ const edgeTypes = { highlight: HighlightEdge }
  * Two-column connection map: Lightning Addresses + Cards on the left,
  * Remote Wallets on the right, bezier edges for every active binding.
  *
- * Read-only in this slice (slice 1 of #235). Drag-to-rebind + click panels
- * + keyboard navigation land in follow-up commits on this branch.
+ * Interactions today (slice 1 + drag-to-rebind for LAs):
+ *   - Hover a node/edge: dim everything else.
+ *   - Drag from an LA handle to a wallet handle: bind (CUSTOM_NWC).
+ *   - Drag the wallet end of an LA edge to a different wallet: rebind.
+ *   - Drag the wallet end of an LA edge into empty space: disconnect → IDLE.
+ *
+ * Card↔Wallet rebinding ships in a follow-up commit (the card PATCH
+ * endpoint isn't there yet); the card source handle is inert today.
  *
  * Positions are deterministic (no auto-layout) so the canvas stays stable
  * across re-renders / SSE refreshes — each row computes its y from its
@@ -76,11 +94,21 @@ function ConnectionMapInner() {
   // their own dim state — so the arrays handed to ReactFlow stay stable.
   const [hovered, setHovered] = useState<{ kind: 'node' | 'edge'; id: string } | null>(null)
 
-  // While the user is panning the canvas, suppress hover updates. Without
-  // this gate, every element passing under the cursor fires
-  // mouseEnter/Leave, which churns the highlight set and visually
-  // competes with the drag.
+  // While the user is panning the canvas OR dragging a handle to create /
+  // reconnect an edge, suppress hover updates. Without these gates, every
+  // element passing under the cursor fires mouseEnter/Leave, which churns
+  // the highlight set and visually competes with the drag.
   const [isPanning, setIsPanning] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
+
+  // `onReconnect` and `onReconnectEnd` cooperate via this ref to detect
+  // "edge dragged off into empty space" (the official xyflow pattern, see
+  // https://reactflow.dev/learn/advanced-use/delete-edges-on-drop). The
+  // ref starts at true so a fresh drag that never lands anywhere ends up
+  // calling the disconnect path.
+  const edgeReconnectSuccessful = useRef(true)
+
+  const { updateAddress } = useAddressMutations()
 
   /** Default wallet drives the "implicit binding" for DEFAULT_NWC addresses. */
   const defaultWallet = useMemo(
@@ -105,6 +133,106 @@ function ConnectionMapInner() {
   // `isPanning` flips during a drag).
   const hoverValue = useMemo(() => ({ highlight }), [highlight])
 
+  // ── Lightning Address ↔ Wallet rebinding ─────────────────────────────────
+  // Only LA edges are interactive here. Card edges are inert (their handle
+  // is `isConnectable={false}` in nodes.tsx). The shape of an LA edge id is
+  // `e:la:<username>-><walletId>` (CUSTOM_NWC) or
+  // `e:la:<username>->default:<defaultWalletId>` (DEFAULT_NWC), but we don't
+  // parse the edge id — we derive `username` from `edge.source` and the
+  // wallet from `edge.target` (or `newConnection.target` on reconnect),
+  // which is the same data Prisma sees.
+  //
+  // Three flows, all backed by the same `PUT /api/wallet/addresses/:username`
+  // endpoint, which emits `addresses:updated` over SSE so the underlying
+  // `useMyAddresses` (and thus `nodes`/`edges`) refresh automatically:
+  //   - CONNECT     : LA had no edge → drag from LA handle to a wallet handle
+  //                   → `mode: CUSTOM_NWC, remoteWalletId: <walletId>`.
+  //   - REBIND      : LA already had an edge → drag the wallet-side endpoint
+  //                   to a different wallet → same CUSTOM_NWC payload, new id.
+  //   - DISCONNECT  : LA already had an edge → drag the wallet-side endpoint
+  //                   into empty space → `mode: IDLE` (wipes redirect +
+  //                   remoteWalletId server-side).
+  //
+  // Optimistic UI is deliberately skipped — the round-trip is fast and the
+  // SSE refresh keeps the source of truth on the server, which avoids the
+  // "edge briefly snaps to two places" flicker we'd see if we mutated the
+  // local nodes/edges array and then re-derived from a new fetch.
+
+  const bindAddressToWallet = useCallback(
+    async (username: string, walletId: string) => {
+      try {
+        await updateAddress(username, { mode: 'CUSTOM_NWC', remoteWalletId: walletId })
+        toast.success(`${username} bound to wallet`)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not bind address'
+        toast.error(msg)
+      }
+    },
+    [updateAddress],
+  )
+
+  const disconnectAddress = useCallback(
+    async (username: string) => {
+      try {
+        await updateAddress(username, { mode: 'IDLE' })
+        toast.success(`${username} disconnected`)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not disconnect address'
+        toast.error(msg)
+      }
+    },
+    [updateAddress],
+  )
+
+  const handleConnectStart = useCallback(() => setIsConnecting(true), [])
+  const handleConnectEnd = useCallback(() => setIsConnecting(false), [])
+
+  // New edge created by dragging from a source handle onto a target handle.
+  // Source-side guard: only LA → Wallet is allowed (Card handles are not
+  // connectable, but be defensive against future changes).
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      const username = usernameFromNodeId(connection.source)
+      const walletId = walletIdFromNodeId(connection.target)
+      if (username && walletId) bindAddressToWallet(username, walletId)
+    },
+    [bindAddressToWallet],
+  )
+
+  const handleReconnectStart = useCallback(() => {
+    edgeReconnectSuccessful.current = false
+    setIsConnecting(true)
+  }, [])
+
+  // Existing LA edge dragged onto a new wallet handle. We update via the
+  // edge's `source` (the LA), not the old/new wallet — the LA is the row
+  // we're patching, regardless of which wallet it lands on.
+  const handleReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      edgeReconnectSuccessful.current = true
+      const username = usernameFromNodeId(oldEdge.source)
+      const walletId = walletIdFromNodeId(newConnection.target)
+      if (username && walletId) bindAddressToWallet(username, walletId)
+    },
+    [bindAddressToWallet],
+  )
+
+  // Edge dropped on empty space: disconnect. The ref pattern means we land
+  // here only when `handleReconnect` did NOT run for the same drag.
+  const handleReconnectEnd = useCallback(
+    (_event: MouseEvent | TouchEvent, edge: Edge) => {
+      setIsConnecting(false)
+      if (edgeReconnectSuccessful.current) {
+        edgeReconnectSuccessful.current = true
+        return
+      }
+      edgeReconnectSuccessful.current = true
+      const username = usernameFromNodeId(edge.source)
+      if (username) disconnectAddress(username)
+    },
+    [disconnectAddress],
+  )
+
   if (loading && !nodes.length) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -123,26 +251,41 @@ function ConnectionMapInner() {
           edgeTypes={edgeTypes}
           fitView
           fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
-          // Read-only canvas: positions are deterministic, no UI dragging,
-          // no edge dragging. Slice 3 enables wallet-handle drags for rebind.
+          // Layout stays fixed (positions are deterministic) but handles
+          // are interactive so users can connect / rebind / disconnect LA
+          // edges. Card handles opt out via `isConnectable={false}` in
+          // nodes.tsx.
           nodesDraggable={false}
-          nodesConnectable={false}
+          nodesConnectable
           edgesFocusable={false}
           elementsSelectable={false}
           proOptions={{ hideAttribution: true }}
+          // Style the in-flight connection line to match LA edges (emerald,
+          // dashed while dragging) so the affordance is obvious.
+          connectionLineStyle={{
+            stroke: 'oklch(0.78 0.18 162)',
+            strokeWidth: 1.5,
+            strokeDasharray: '4 4',
+          }}
+          onConnect={handleConnect}
+          onConnectStart={handleConnectStart}
+          onConnectEnd={handleConnectEnd}
+          onReconnect={handleReconnect}
+          onReconnectStart={handleReconnectStart}
+          onReconnectEnd={handleReconnectEnd}
           onMoveStart={() => setIsPanning(true)}
           onMoveEnd={() => setIsPanning(false)}
           onNodeMouseEnter={(_, n) => {
-            if (!isPanning) setHovered({ kind: 'node', id: n.id })
+            if (!isPanning && !isConnecting) setHovered({ kind: 'node', id: n.id })
           }}
           onNodeMouseLeave={() => {
-            if (!isPanning) setHovered(null)
+            if (!isPanning && !isConnecting) setHovered(null)
           }}
           onEdgeMouseEnter={(_, e) => {
-            if (!isPanning) setHovered({ kind: 'edge', id: e.id })
+            if (!isPanning && !isConnecting) setHovered({ kind: 'edge', id: e.id })
           }}
           onEdgeMouseLeave={() => {
-            if (!isPanning) setHovered(null)
+            if (!isPanning && !isConnecting) setHovered(null)
           }}
         >
           <Background gap={24} size={1} className="!bg-background" />
@@ -275,6 +418,12 @@ function buildGraph({
   // current hover from HoverContext and dim themselves locally — no
   // rebuilding of the edges array required.
   //
+  // `reconnectable` is set per-edge:
+  //   - LA edges: 'target' — users can drag the wallet end to rebind or to
+  //     empty space to disconnect, but the LA end stays put (dragging it
+  //     onto another LA doesn't make sense).
+  //   - Card edges: false — card↔wallet rebinding ships in a later slice.
+  //
   // Address bindings:
   //   CUSTOM_NWC  → solid edge to the address's bound wallet.
   //   DEFAULT_NWC → dashed edge to the user's default wallet (implicit).
@@ -286,6 +435,7 @@ function buildGraph({
         type: 'highlight',
         source: addressNodeId(addr.username),
         target: walletNodeId(addr.remoteWalletId),
+        reconnectable: 'target',
         style: { stroke: 'oklch(0.78 0.18 162)' /* emerald */, strokeWidth: 1.5 },
       })
     } else if (addr.mode === 'DEFAULT_NWC' && defaultWallet) {
@@ -294,6 +444,7 @@ function buildGraph({
         type: 'highlight',
         source: addressNodeId(addr.username),
         target: walletNodeId(defaultWallet.id),
+        reconnectable: 'target',
         style: {
           stroke: 'oklch(0.78 0.18 162)',
           strokeWidth: 1.5,
@@ -314,6 +465,7 @@ function buildGraph({
       type: 'highlight',
       source: cardNodeId(card.id),
       target: walletNodeId(card.remoteWalletId),
+      reconnectable: false,
       style: { stroke: 'oklch(0.72 0.16 245)' /* sky */, strokeWidth: 1.5 },
     })
   }

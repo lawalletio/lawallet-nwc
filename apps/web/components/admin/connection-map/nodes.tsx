@@ -13,6 +13,15 @@ import { useHover } from './hover-context'
  *  - Right column (wallets) receives edges on the LEFT handle.
  *  - Dimming reads from `HoverContext` instead of node `data` so the
  *    `nodes` array stays stable across hover changes (no flicker).
+ *
+ * Connectability:
+ *  - LA source + Wallet target are draggable: users can rebind / connect /
+ *    disconnect by grabbing the handle. This is what powers the
+ *    `onConnect`, `onReconnect`, and `onReconnectEnd` handlers in
+ *    `connection-map.tsx`.
+ *  - Card source is intentionally `isConnectable={false}` — card↔wallet
+ *    rebinding lives in a later slice and the PATCH endpoint isn't wired
+ *    yet, so we hide the affordance to avoid a half-broken interaction.
  */
 const NODE_WIDTH = 220
 
@@ -80,7 +89,12 @@ export function CardNode({ id, data }: NodeProps) {
           {d.paired ? 'paired' : 'unpaired'}
         </span>
       </div>
-      <Handle type="source" position={Position.Right} className="!size-2 !bg-sky-400" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!size-2 !bg-sky-400"
+        isConnectable={false}
+      />
     </div>
   )
 }
