@@ -44,6 +44,7 @@ import {
   type ParsedDestination,
 } from '@/lib/client/nwc'
 import { toast } from 'sonner'
+import { AutoHeight } from './auto-height'
 import { InfoField } from './info-field'
 
 interface Props {
@@ -158,12 +159,19 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
               )}
             </div>
 
+            {/* `AutoHeight` smooths the dialog as WalletActions swaps
+                between idle / amount / destination / invoice / amount-alby
+                — each state has a different natural height and without
+                a measured transition the surrounding Radix box would
+                jump abruptly. */}
             <div className="relative mt-4">
-              <WalletActions
-                walletId={wallet.id}
-                walletName={wallet.name}
-                disabled={!isLive}
-              />
+              <AutoHeight>
+                <WalletActions
+                  walletId={wallet.id}
+                  walletName={wallet.name}
+                  disabled={!isLive}
+                />
+              </AutoHeight>
             </div>
           </div>
 
