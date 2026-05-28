@@ -61,14 +61,16 @@ export function AutoHeight({
       style={{ height: height ?? 'auto' }}
     >
       {/*
-        `pb-1` (4 px) absorbs the bottom edge of focus rings — inputs in
-        this project use `ring-offset-2` which paints 4 px BEYOND the
-        box, and without this padding the outer `overflow-hidden` clips
-        the bottom of that ring. The measured `offsetHeight` includes
-        this padding, so the animated wrapper accommodates it
+        `py-1` (4 px top + 4 px bottom) absorbs the BOTH edges of focus
+        rings — inputs in this project use `ring-offset-2` which paints
+        4 px BEYOND the box on every side, and without this padding the
+        outer `overflow-hidden` clips the top OR bottom of that ring
+        depending on whether the focused input is the first or last
+        child. The measured `offsetHeight` includes the padding, so the
+        animated wrapper accommodates the rings on either side
         automatically.
       */}
-      <div ref={innerRef} className="pb-1">
+      <div ref={innerRef} className="py-1">
         {children}
       </div>
     </div>
