@@ -2,10 +2,11 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   ArrowDownLeft,
-  ArrowUpRight,
   ArrowRight,
+  ArrowUpRight,
   Copy,
   ExternalLink,
   Star,
@@ -34,7 +35,14 @@ import {
 import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import type { CardData } from '@/lib/client/hooks/use-cards'
-import { makeInvoice, type MakeInvoiceResult } from '@/lib/client/nwc'
+import {
+  makeInvoice,
+  parseDestination,
+  payInvoice,
+  payLnurl,
+  type MakeInvoiceResult,
+  type ParsedDestination,
+} from '@/lib/client/nwc'
 import { toast } from 'sonner'
 import { InfoField } from './info-field'
 
@@ -47,41 +55,34 @@ interface Props {
   onClose: () => void
 }
 
-// WebLN provider shape — mirrors the inline declaration in
-// `new-address-dialog.tsx`. Kept lightweight (only what we call).
+// WebLN provider shape. Lightweight — only the methods we actually call.
+// `makeInvoice` is broader in the official spec but we only need the
+// `paymentRequest` field back, so we type it tightly.
 interface WebLnProvider {
   enable(): Promise<void>
   sendPayment(bolt11: string): Promise<{ preimage: string }>
+  makeInvoice?(args: {
+    amount: number
+    defaultMemo?: string
+  }): Promise<{ paymentRequest: string }>
 }
 type WebLnWindow = Window & { webln?: WebLnProvider }
 
 /**
- * Remote Wallet detail dialog. Redesigned to lead with the balance —
- * the wallet's reason for existing — rather than buryin it in a grid
- * of metadata fields. Mirrors the visual hierarchy of a real wallet:
+ * Remote Wallet detail dialog. Balance is the dominant element with
+ * inline Receive + Send sub-flows, wallet-style.
  *
- *   [balance hero, big tabular number]
- *   [wallet name + Default badge]
- *   [Receive / Send actions]   ← morph in place into receive flow
- *   ─────────────────
- *   compact metadata
+ * Receive flow: enter amount → mint invoice via NWC → show + WebLN pay.
+ * Send    flow: paste destination → optional amount step → pay via NWC.
  *
- * Receive flow: clicking Receive swaps the buttons row for an inline
- * "enter amount → mint invoice → show + WebLN pay" sequence. The
- * invoice is minted CLIENT-SIDE via NWC against this specific wallet's
- * connection URI (fetched on demand from the connection-string
- * endpoint), so the invoice routes to the wallet the user is actually
- * looking at — not their default wallet.
- *
- * Send hops to `/wallet/send` for now (the existing send page works
- * against the default wallet; per-wallet send is a larger flow).
+ * Both flows are scoped to THIS wallet (not the user's default) — the
+ * NWC URI is fetched on demand from `/api/remote-wallets/[id]/connection-string`.
  */
 export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props) {
   const isLive = wallet.status !== 'REVOKED'
   const balance = useLiveRemoteWalletBalance(isLive ? wallet.id : null)
   const animatedSats = useAnimatedNumber(balance.data?.balanceSats ?? null)
 
-  // Match the LA edge logic in buildGraph.
   const boundLas = addresses.filter(a => {
     if (a.mode === 'CUSTOM_NWC') return a.remoteWalletId === wallet.id
     if (a.mode === 'DEFAULT_NWC') return wallet.isDefault
@@ -115,14 +116,10 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* HERO — balance card. Gradient surface + a soft amber glow
-              in the corner gives it some weight without screaming. */}
+          {/* HERO — balance card. */}
           <div className="relative overflow-hidden rounded-lg border border-border bg-gradient-to-br from-card to-card/40 p-5">
-            {/* Decorative glow — pointer-events-none so it doesn't
-                interfere with the action buttons below. */}
             <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-amber-400/10 blur-3xl" />
 
-            {/* Balance row */}
             <div className="relative space-y-1">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">
                 Balance
@@ -136,7 +133,6 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
                 </span>
                 <span className="text-base text-muted-foreground">sats</span>
               </div>
-              {/* Connection status — small row, dot + label. */}
               <div className="flex items-center gap-1.5 pt-1 text-xs text-muted-foreground">
                 <span
                   className={cn(
@@ -151,7 +147,6 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
               </div>
             </div>
 
-            {/* Wallet name + Default badge — secondary line. */}
             <div className="relative mt-5 flex items-center gap-2 text-sm font-medium">
               <Wallet className="size-4 shrink-0 text-amber-400" />
               <span className="truncate">{wallet.name}</span>
@@ -163,21 +158,15 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
               )}
             </div>
 
-            {/* Actions — Receive morphs in place into an amount input +
-                invoice display; Send stays static (it routes to the
-                existing /wallet/send flow which is default-wallet only
-                today). */}
             <div className="relative mt-4">
               <WalletActions
                 walletId={wallet.id}
                 walletName={wallet.name}
                 disabled={!isLive}
-                onClose={onClose}
               />
             </div>
           </div>
 
-          {/* Compact metadata strip. */}
           <div className="grid grid-cols-2 gap-4">
             <InfoField label="Type" value={<Badge variant="outline">{wallet.type}</Badge>} />
             <InfoField
@@ -230,69 +219,104 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
   )
 }
 
-// ── Receive + Send actions with inline receive flow ──────────────────────
+// ── Receive + Send inline actions ────────────────────────────────────────
 
-type ReceiveMode = 'idle' | 'amount' | 'invoice'
+type ReceiveStep = 'idle' | 'amount' | 'invoice'
+type SendStep =
+  | 'idle'
+  // destination paste / type. WebLN shortcut also surfaces here.
+  | 'destination'
+  // amount input — used both for a regular LA destination AND for the
+  // "Send to Alby" WebLN shortcut (the user enters how many sats to
+  // send into their Alby wallet).
+  | 'amount'
+  | 'amount-alby'
 
 /**
- * Receive / Send action row with an inline receive sub-flow.
+ * Receive + Send action row with inline sub-flows that morph in place
+ * over the action buttons. Receive and Send are mutually exclusive —
+ * starting one cancels the other.
  *
- * - idle  : two big buttons (Receive | Send), matching the home-screen
- *           pattern (variant secondary + theme, h-11).
- * - amount: the Receive button morphs into an X-cancel + numeric input
- *           + arrow-confirm; Send stays clickable. Enter submits.
- * - invoice: the buttons row is replaced by a compact "minted invoice"
- *           card with the truncated bolt11, copy, optional WebLN pay,
- *           and a Done button that returns to idle.
+ * Receive:
+ *   idle → amount input → mint via NWC → invoice card (copy + WebLN pay).
  *
- * The wallet's NWC URI is fetched lazily through `useRemoteWalletConnectionString`
- * (passes `null` while idle so the GET only fires once the user
- * actually starts a receive). The mint itself happens client-side via
- * `makeInvoice` — same code path the existing /wallet/receive page
- * uses, just scoped to this wallet instead of the user's default.
+ * Send:
+ *   idle → destination paste box → (if LA / amount-less invoice) amount
+ *   input → pay via NWC.
+ *
+ * Send to Alby (only when window.webln is present):
+ *   idle → destination paste box (with "Send to Alby" pill) → amount
+ *   input → webln.makeInvoice → pay the returned bolt11 via NWC. The
+ *   amount step is identical to the LA path, just with a different
+ *   submit handler.
  */
 function WalletActions({
   walletId,
   walletName,
   disabled,
-  onClose,
 }: {
   walletId: string
   walletName: string
   disabled: boolean
-  onClose: () => void
 }) {
-  const [mode, setMode] = useState<ReceiveMode>('idle')
-  const [amount, setAmount] = useState('')
+  // Receive state
+  const [receiveStep, setReceiveStep] = useState<ReceiveStep>('idle')
+  const [receiveAmount, setReceiveAmount] = useState('')
   const [minting, setMinting] = useState(false)
   const [invoice, setInvoice] = useState<MakeInvoiceResult | null>(null)
-  const [hasWebLn, setHasWebLn] = useState(false)
+
+  // Send state
+  const [sendStep, setSendStep] = useState<SendStep>('idle')
+  const [destinationInput, setDestinationInput] = useState('')
+  const [destination, setDestination] = useState<ParsedDestination | null>(null)
+  const [sendAmount, setSendAmount] = useState('')
   const [paying, setPaying] = useState(false)
 
-  // Only fetch the NWC URI once the user enters the receive flow.
-  // `useApi(null)` is a no-op so this stays cheap while idle.
-  const connection = useRemoteWalletConnectionString(
-    mode === 'idle' ? null : walletId,
-  )
+  // Shared
+  const [hasWebLn, setHasWebLn] = useState(false)
+  const [payingWebLn, setPayingWebLn] = useState(false)
 
-  // Detect WebLN whenever the invoice appears — covers the case where
-  // the extension was injected after the dialog mounted.
+  const needsNwc = receiveStep !== 'idle' || sendStep !== 'idle'
+  const connection = useRemoteWalletConnectionString(needsNwc ? walletId : null)
+
+  // WebLN feature-detect on any mode change.
   useEffect(() => {
     if (typeof window === 'undefined') return
     setHasWebLn(!!(window as WebLnWindow).webln)
-  }, [mode])
+  }, [receiveStep, sendStep])
 
+  // ── Resets ─────────────────────────────────────────────────────────
   const resetReceive = useCallback(() => {
-    setMode('idle')
-    setAmount('')
+    setReceiveStep('idle')
+    setReceiveAmount('')
     setInvoice(null)
+    setPayingWebLn(false)
+  }, [])
+
+  const resetSend = useCallback(() => {
+    setSendStep('idle')
+    setDestinationInput('')
+    setDestination(null)
+    setSendAmount('')
     setPaying(false)
   }, [])
 
-  const handleSubmit = useCallback(
+  // Mutual exclusion: when opening one flow, ensure the other is idle.
+  const openReceive = useCallback(() => {
+    resetSend()
+    setReceiveStep('amount')
+  }, [resetSend])
+
+  const openSend = useCallback(() => {
+    resetReceive()
+    setSendStep('destination')
+  }, [resetReceive])
+
+  // ── Receive: mint invoice via NWC ──────────────────────────────────
+  const handleReceiveSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
-      const sats = Number(amount)
+      const sats = Number(receiveAmount)
       if (!Number.isFinite(sats) || sats <= 0) {
         toast.error('Enter a positive amount')
         return
@@ -306,18 +330,17 @@ function WalletActions({
       try {
         const inv = await makeInvoice(nwc, sats, `Receive to ${walletName}`)
         setInvoice(inv)
-        setMode('invoice')
+        setReceiveStep('invoice')
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Could not mint invoice'
-        toast.error(msg)
+        toast.error(err instanceof Error ? err.message : 'Could not mint invoice')
       } finally {
         setMinting(false)
       }
     },
-    [amount, connection.data, walletName],
+    [receiveAmount, connection.data, walletName],
   )
 
-  const handleCopy = useCallback(async () => {
+  const handleCopyInvoice = useCallback(async () => {
     if (!invoice) return
     try {
       await navigator.clipboard.writeText(invoice.bolt11)
@@ -327,34 +350,144 @@ function WalletActions({
     }
   }, [invoice])
 
-  const handleWebLnPay = useCallback(async () => {
+  const handleWebLnPayInvoice = useCallback(async () => {
     if (!invoice) return
     const w = window as WebLnWindow
     if (!w.webln) return
-    setPaying(true)
+    setPayingWebLn(true)
     try {
       await w.webln.enable()
       await w.webln.sendPayment(invoice.bolt11)
       toast.success('Payment sent')
       resetReceive()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'WebLN payment failed'
-      toast.error(msg)
+      toast.error(err instanceof Error ? err.message : 'WebLN payment failed')
     } finally {
-      setPaying(false)
+      setPayingWebLn(false)
     }
   }, [invoice, resetReceive])
 
-  // ── Render: invoice state takes over the whole action area ────────
-  if (mode === 'invoice' && invoice) {
+  // ── Send: pay a parsed destination ─────────────────────────────────
+  // Declared first so `handleDestinationSubmit` can capture it cleanly
+  // through its `useCallback` deps array (the rendered button always
+  // sees the latest closure either way, but the deps are honest).
+  const payDestination = useCallback(
+    async (dest: ParsedDestination, amountSats: number) => {
+      const nwc = connection.data?.connectionString
+      if (!nwc) {
+        toast.error('Wallet connection unavailable')
+        return
+      }
+      setPaying(true)
+      try {
+        if (dest.kind === 'invoice') {
+          await payInvoice(nwc, dest.bolt11, dest.amountSats ? undefined : amountSats)
+        } else if (dest.kind === 'lnurl-pay') {
+          await payLnurl(nwc, dest, amountSats)
+        } else {
+          throw new Error('Unsupported destination')
+        }
+        toast.success('Payment sent')
+        resetSend()
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Payment failed')
+      } finally {
+        setPaying(false)
+      }
+    },
+    [connection.data, resetSend],
+  )
+
+  // ── Send: parse destination + dispatch to next step ────────────────
+  const handleDestinationSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      const raw = destinationInput.trim()
+      if (!raw) return
+      let parsed: ParsedDestination
+      try {
+        parsed = parseDestination(raw)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Invalid destination')
+        return
+      }
+      setDestination(parsed)
+
+      if (parsed.kind === 'npub') {
+        toast.error('Sending to npub is not supported yet')
+        return
+      }
+      if (parsed.kind === 'invoice' && parsed.amountSats) {
+        // Invoice carries its own amount — pay immediately.
+        await payDestination(parsed, parsed.amountSats)
+        return
+      }
+      // Either an amount-less invoice (unusual) or an LNURL/LA — need
+      // an amount from the user.
+      setSendStep('amount')
+    },
+    [destinationInput, payDestination],
+  )
+
+  const handleSendAmountSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      const sats = Number(sendAmount)
+      if (!Number.isFinite(sats) || sats <= 0) {
+        toast.error('Enter a positive amount')
+        return
+      }
+
+      // "Send to Alby" branch — no destination parsed; we ask WebLN to
+      // mint an invoice FOR the user's Alby wallet, then pay it via
+      // our NWC connection.
+      if (sendStep === 'amount-alby') {
+        const w = window as WebLnWindow
+        if (!w.webln?.makeInvoice) {
+          toast.error('WebLN unavailable')
+          return
+        }
+        const nwc = connection.data?.connectionString
+        if (!nwc) {
+          toast.error('Wallet connection unavailable')
+          return
+        }
+        setPaying(true)
+        try {
+          await w.webln.enable()
+          const { paymentRequest } = await w.webln.makeInvoice({
+            amount: sats,
+            defaultMemo: `From ${walletName}`,
+          })
+          await payInvoice(nwc, paymentRequest)
+          toast.success(`Sent ${sats.toLocaleString()} sats to Alby`)
+          resetSend()
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Send failed')
+        } finally {
+          setPaying(false)
+        }
+        return
+      }
+
+      // Standard branch — pay against the parsed destination.
+      if (!destination) {
+        toast.error('No destination')
+        return
+      }
+      await payDestination(destination, sats)
+    },
+    [sendAmount, sendStep, destination, connection.data, walletName, payDestination, resetSend],
+  )
+
+  // ── Render: Receive INVOICE state (takes over the action area) ─────
+  if (receiveStep === 'invoice' && invoice) {
     const preview =
       invoice.bolt11.length > 22
         ? `${invoice.bolt11.slice(0, 12)}…${invoice.bolt11.slice(-8)}`
         : invoice.bolt11
     return (
-      <div
-        className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 p-3 animate-in fade-in-0 slide-in-from-bottom-1 duration-200"
-      >
+      <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 p-3 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
         <div className="flex items-center justify-between gap-2 text-xs">
           <span className="text-muted-foreground">Invoice</span>
           <span className="tabular-nums font-medium">
@@ -370,7 +503,7 @@ function WalletActions({
             variant="secondary"
             size="icon"
             className="size-9 shrink-0"
-            onClick={handleCopy}
+            onClick={handleCopyInvoice}
             aria-label="Copy invoice"
           >
             <Copy className="size-4" />
@@ -382,10 +515,10 @@ function WalletActions({
               type="button"
               variant="theme"
               className="h-10 flex-1"
-              onClick={handleWebLnPay}
-              disabled={paying}
+              onClick={handleWebLnPayInvoice}
+              disabled={payingWebLn}
             >
-              {paying ? (
+              {payingWebLn ? (
                 <Spinner size={16} />
               ) : (
                 <>
@@ -408,11 +541,11 @@ function WalletActions({
     )
   }
 
-  // ── Render: amount state inline, replacing only the Receive button.
-  if (mode === 'amount') {
+  // ── Render: Receive AMOUNT state (in place of the Receive button) ──
+  if (receiveStep === 'amount') {
     return (
       <form
-        onSubmit={handleSubmit}
+        onSubmit={handleReceiveSubmit}
         className="flex gap-2 animate-in fade-in-0 slide-in-from-left-1 duration-200"
       >
         <Button
@@ -432,8 +565,8 @@ function WalletActions({
           step={1}
           autoFocus
           placeholder="sats"
-          value={amount}
-          onChange={e => setAmount(e.target.value)}
+          value={receiveAmount}
+          onChange={e => setReceiveAmount(e.target.value)}
           className="h-11 flex-1 tabular-nums"
         />
         <Button
@@ -441,7 +574,7 @@ function WalletActions({
           variant="theme"
           size="icon"
           className="h-11 shrink-0"
-          disabled={minting || !amount || connection.loading}
+          disabled={minting || !receiveAmount || connection.loading}
           aria-label="Generate invoice"
         >
           {minting || connection.loading ? (
@@ -454,7 +587,135 @@ function WalletActions({
     )
   }
 
-  // ── Render: idle state (default) — Receive + Send side by side.
+  // ── Render: Send AMOUNT state (LA destination, or amount-less invoice). ──
+  // Also covers the "Send to Alby" shortcut (`amount-alby`).
+  if (sendStep === 'amount' || sendStep === 'amount-alby') {
+    const target =
+      sendStep === 'amount-alby'
+        ? 'Alby'
+        : destination?.kind === 'lnurl-pay'
+          ? destination.address ?? destination.host ?? 'recipient'
+          : destination?.kind === 'invoice'
+            ? 'invoice'
+            : 'recipient'
+    return (
+      <form
+        onSubmit={handleSendAmountSubmit}
+        className="flex flex-col gap-2 animate-in fade-in-0 slide-in-from-bottom-1 duration-200"
+      >
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <ArrowUpRight className="size-3.5" />
+          <span>
+            To <span className="text-foreground truncate">{target}</span>
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-11 shrink-0"
+            onClick={resetSend}
+            aria-label="Cancel"
+          >
+            <X className="size-4" />
+          </Button>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            step={1}
+            autoFocus
+            placeholder="sats"
+            value={sendAmount}
+            onChange={e => setSendAmount(e.target.value)}
+            className="h-11 flex-1 tabular-nums"
+          />
+          <Button
+            type="submit"
+            variant="theme"
+            size="icon"
+            className="h-11 shrink-0"
+            disabled={paying || !sendAmount || connection.loading}
+            aria-label="Send"
+          >
+            {paying || connection.loading ? (
+              <Spinner size={16} />
+            ) : (
+              <ArrowUpRight className="size-4" />
+            )}
+          </Button>
+        </div>
+      </form>
+    )
+  }
+
+  // ── Render: Send DESTINATION state (paste invoice / LA) ────────────
+  if (sendStep === 'destination') {
+    return (
+      <div className="flex flex-col gap-2 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
+        <form onSubmit={handleDestinationSubmit} className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-11 shrink-0"
+            onClick={resetSend}
+            aria-label="Cancel"
+          >
+            <X className="size-4" />
+          </Button>
+          <Input
+            type="text"
+            autoFocus
+            spellCheck={false}
+            autoComplete="off"
+            placeholder="Lightning address or invoice"
+            value={destinationInput}
+            onChange={e => setDestinationInput(e.target.value)}
+            className="h-11 flex-1 font-mono text-xs"
+          />
+          <Button
+            type="submit"
+            variant="theme"
+            size="icon"
+            className="h-11 shrink-0"
+            disabled={paying || !destinationInput.trim() || connection.loading}
+            aria-label="Continue"
+          >
+            {paying || connection.loading ? (
+              <Spinner size={16} />
+            ) : (
+              <ArrowRight className="size-4" />
+            )}
+          </Button>
+        </form>
+        {hasWebLn && (
+          // Shortcut: skip the destination input and use WebLN to mint
+          // an invoice the user's Alby wallet receives. The amount step
+          // is the same as the regular LA path.
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-10 w-full justify-start gap-2 animate-in fade-in-0 duration-200"
+            onClick={() => setSendStep('amount-alby')}
+          >
+            <Image
+              src="/logos/alby.png"
+              alt=""
+              width={16}
+              height={16}
+              className="size-4"
+              aria-hidden
+            />
+            Send to Alby
+          </Button>
+        )}
+      </div>
+    )
+  }
+
+  // ── Render: idle (default) — Receive + Send side by side. ──────────
   return (
     <div className="flex gap-2">
       <Button
@@ -462,29 +723,20 @@ function WalletActions({
         variant="secondary"
         className="h-11 flex-1"
         disabled={disabled}
-        onClick={() => setMode('amount')}
+        onClick={openReceive}
       >
         <ArrowDownLeft className="size-4" />
         Receive
       </Button>
       <Button
+        type="button"
         variant="theme"
         className="h-11 flex-1"
         disabled={disabled}
-        asChild={!disabled}
-        onClick={onClose}
+        onClick={openSend}
       >
-        {disabled ? (
-          <span>
-            <ArrowUpRight className="size-4" />
-            Send
-          </span>
-        ) : (
-          <Link href="/wallet/send">
-            <ArrowUpRight className="size-4" />
-            Send
-          </Link>
-        )}
+        <ArrowUpRight className="size-4" />
+        Send
       </Button>
     </div>
   )
