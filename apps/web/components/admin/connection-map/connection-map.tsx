@@ -498,9 +498,10 @@ function buildGraph({
   }
 
   // ── Column 3 (right): Cards ─────────────────────────────────────────────
-  // Card "label" prefers the bound LA username (most recognisable), then
-  // falls back to a `first8...last8` truncation of the card id so even
-  // unpaired cards have a stable, distinguishable handle.
+  // Card "label" priority: admin-set `title` → bound LA username (paired
+  // cards) → `first8...last8` truncation of the card id. The truncation
+  // keeps even legacy / orphan rows distinguishable, but a real title is
+  // what the admin actually thinks of as the card's name, so it wins.
   y = topY
   if (cards && cards.length > 0) {
     nodes.push({
@@ -518,7 +519,8 @@ function buildGraph({
         type: 'card',
         position: { x: cardX, y },
         data: {
-          label: card.lightningAddress?.username ?? truncateHex(card.id),
+          label:
+            card.title ?? card.lightningAddress?.username ?? truncateHex(card.id),
           designName: card.design?.description ?? null,
           designImage: card.design?.image ?? null,
           paired: !!card.ntag424,

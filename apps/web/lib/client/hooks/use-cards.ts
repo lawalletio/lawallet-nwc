@@ -5,6 +5,8 @@ import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 
 export interface CardData {
   id: string
+  /** Human-readable card name (admin-set). Can be null on legacy / orphan rows. */
+  title: string | null
   designId: string | null
   design: {
     id: string
@@ -84,6 +86,7 @@ interface ApiCard {
 function toCardData(c: ApiCard): CardData {
   return {
     id: c.id,
+    title: c.title ?? null,
     designId: c.design?.id ?? null,
     design: c.design
       ? {
