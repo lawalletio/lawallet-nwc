@@ -60,7 +60,17 @@ export function AutoHeight({
       className={`overflow-hidden transition-[height] duration-200 ease-out ${className ?? ''}`}
       style={{ height: height ?? 'auto' }}
     >
-      <div ref={innerRef}>{children}</div>
+      {/*
+        `pb-1` (4 px) absorbs the bottom edge of focus rings — inputs in
+        this project use `ring-offset-2` which paints 4 px BEYOND the
+        box, and without this padding the outer `overflow-hidden` clips
+        the bottom of that ring. The measured `offsetHeight` includes
+        this padding, so the animated wrapper accommodates it
+        automatically.
+      */}
+      <div ref={innerRef} className="pb-1">
+        {children}
+      </div>
     </div>
   )
 }

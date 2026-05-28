@@ -495,7 +495,7 @@ function WalletActions({
         ? `${invoice.bolt11.slice(0, 12)}…${invoice.bolt11.slice(-8)}`
         : invoice.bolt11
     return (
-      <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 p-3 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
+      <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 p-3 animate-in fade-in-0 duration-200">
         <div className="flex items-center justify-between gap-2 text-xs">
           <span className="text-muted-foreground">Invoice</span>
           <span className="tabular-nums font-medium">
@@ -559,7 +559,7 @@ function WalletActions({
     return (
       <form
         onSubmit={handleReceiveSubmit}
-        className="flex flex-col gap-2 animate-in fade-in-0 slide-in-from-left-1 duration-200"
+        className="flex flex-col gap-2 animate-in fade-in-0 duration-200"
       >
         {/* Header — mirrors the "To <target>" line on the send amount
             step so the two flows read symmetrically: arrow + verb,
@@ -626,7 +626,7 @@ function WalletActions({
     return (
       <form
         onSubmit={handleSendAmountSubmit}
-        className="flex flex-col gap-2 animate-in fade-in-0 slide-in-from-bottom-1 duration-200"
+        className="flex flex-col gap-2 animate-in fade-in-0 duration-200"
       >
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <ArrowUpRight className="size-3.5" />
@@ -679,7 +679,7 @@ function WalletActions({
     // payment immediately on submit (no amount step to render).
     const busy = paying || connection.loading
     return (
-      <div className="flex flex-col gap-2 animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
+      <div className="flex flex-col gap-2 animate-in fade-in-0 duration-200">
         <form onSubmit={handleDestinationSubmit} className="flex gap-2">
           <Button
             type="button"
