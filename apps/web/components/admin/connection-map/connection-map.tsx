@@ -491,7 +491,16 @@ function buildGraph({
         id: walletNodeId(w.id),
         type: 'remote-wallet',
         position: { x: walletX, y },
-        data: { name: w.name, type: w.type, status: w.status, isDefault: w.isDefault },
+        data: {
+          // `walletId` (without the "wallet:" prefix) is what the live
+          // balance hook inside RemoteWalletNode needs — we pass it
+          // explicitly rather than re-parsing the node id at render time.
+          walletId: w.id,
+          name: w.name,
+          type: w.type,
+          status: w.status,
+          isDefault: w.isDefault,
+        },
       })
       y += rowGap
     }
