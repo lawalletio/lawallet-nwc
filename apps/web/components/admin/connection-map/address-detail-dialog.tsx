@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { formatRelativeTime } from '@/lib/client/format'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import type { RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
+import { SuccessHeroCard } from '@/components/wallet/new-address-dialog'
 import { InfoField } from './info-field'
 import { WalletLiveBalance } from './wallet-live-balance'
 
@@ -72,19 +73,20 @@ export function AddressDetailDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Hero — the address itself with a Primary badge inline. */}
-          <div className="flex items-center gap-2 text-base font-medium">
-            <span className="truncate">
-              {address.username}
-              <span className="text-muted-foreground">@{domain}</span>
-            </span>
-            {address.isPrimary && (
+          {/* Hero — reuses the success-card-style lightning bolt visual
+              from new-address-dialog.tsx so the LA gets a proper
+              "this is your lightning address" presentation instead of a
+              bare label. The Primary badge moves below since the hero
+              already carries the address inside its pill. */}
+          <SuccessHeroCard address={`${address.username}@${domain}`} />
+          {address.isPrimary && (
+            <div>
               <Badge variant="secondary" className="gap-1">
                 <Star className="size-3 fill-amber-400 text-amber-400" />
                 Primary
               </Badge>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <InfoField label="Mode" value={<Badge variant="outline">{address.mode}</Badge>} />
