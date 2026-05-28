@@ -30,6 +30,26 @@ export interface RemoteWalletBalance {
   balanceSats: number
 }
 
+/** Shape of `GET /api/remote-wallets/[id]/connection-string`. */
+export interface RemoteWalletConnectionString {
+  connectionString: string
+}
+
+/**
+ * Fetch the wallet's NWC connection URI on demand. Used by inline
+ * receive / send flows that need to call the relay directly from the
+ * client. Pass `null` to skip the fetch — useful when the wallet
+ * type isn't NWC or is REVOKED.
+ *
+ * The endpoint is owner-scoped + `force-dynamic`, so the URI never
+ * touches a CDN cache and only the owner ever sees it.
+ */
+export function useRemoteWalletConnectionString(id: string | null) {
+  return useApi<RemoteWalletConnectionString>(
+    id ? `/api/remote-wallets/${id}/connection-string` : null,
+  )
+}
+
 /**
  * Live spendable balance for a single wallet. Pass `null` to skip the
  * fetch entirely (e.g. for REVOKED wallets, which have no live balance) —

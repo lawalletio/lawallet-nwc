@@ -1,13 +1,17 @@
 'use client'
 
-import React from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  ArrowRight,
+  Copy,
   ExternalLink,
   Star,
   Wallet,
+  X,
+  Zap,
 } from 'lucide-react'
 import {
   Dialog,
@@ -18,15 +22,20 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { formatRelativeTime } from '@/lib/client/format'
 import {
   useLiveRemoteWalletBalance,
+  useRemoteWalletConnectionString,
   type RemoteWalletData,
 } from '@/lib/client/hooks/use-remote-wallets'
 import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import type { CardData } from '@/lib/client/hooks/use-cards'
+import { makeInvoice, type MakeInvoiceResult } from '@/lib/client/nwc'
+import { toast } from 'sonner'
 import { InfoField } from './info-field'
 
 interface Props {
@@ -38,6 +47,14 @@ interface Props {
   onClose: () => void
 }
 
+// WebLN provider shape — mirrors the inline declaration in
+// `new-address-dialog.tsx`. Kept lightweight (only what we call).
+interface WebLnProvider {
+  enable(): Promise<void>
+  sendPayment(bolt11: string): Promise<{ preimage: string }>
+}
+type WebLnWindow = Window & { webln?: WebLnProvider }
+
 /**
  * Remote Wallet detail dialog. Redesigned to lead with the balance —
  * the wallet's reason for existing — rather than buryin it in a grid
@@ -45,20 +62,19 @@ interface Props {
  *
  *   [balance hero, big tabular number]
  *   [wallet name + Default badge]
- *   [Receive] [Send]    ← actions
+ *   [Receive / Send actions]   ← morph in place into receive flow
  *   ─────────────────
  *   compact metadata
  *
- * The Send / Receive buttons jump to the existing `/wallet/send` and
- * `/wallet/receive` flows — those operate on the user's default
- * wallet today; threading a `walletId` query param to scope them to
- * an arbitrary wallet is out of scope here. The "Manage wallet"
- * footer link still goes to the list page.
+ * Receive flow: clicking Receive swaps the buttons row for an inline
+ * "enter amount → mint invoice → show + WebLN pay" sequence. The
+ * invoice is minted CLIENT-SIDE via NWC against this specific wallet's
+ * connection URI (fetched on demand from the connection-string
+ * endpoint), so the invoice routes to the wallet the user is actually
+ * looking at — not their default wallet.
  *
- * The balance line is inline (not WalletLiveBalance) because the
- * layout is wallet-specific: huge numerals, small status row
- * beneath, gradient surface around it — none of which fits the
- * shared component's two-size knob.
+ * Send hops to `/wallet/send` for now (the existing send page works
+ * against the default wallet; per-wallet send is a larger flow).
  */
 export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props) {
   const isLive = wallet.status !== 'REVOKED'
@@ -135,9 +151,7 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
               </div>
             </div>
 
-            {/* Wallet name + Default badge — secondary line. Sits
-                comfortably below the balance, with the wallet icon
-                doubling as a "this is a wallet" affordance. */}
+            {/* Wallet name + Default badge — secondary line. */}
             <div className="relative mt-5 flex items-center gap-2 text-sm font-medium">
               <Wallet className="size-4 shrink-0 text-amber-400" />
               <span className="truncate">{wallet.name}</span>
@@ -149,55 +163,21 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
               )}
             </div>
 
-            {/* Action row — Receive (secondary) + Send (theme). Matches
-                the home-screen pattern. Both close the dialog before
-                navigating so the canvas isn't masked when the user
-                returns. */}
-            <div className="relative mt-4 flex gap-2">
-              <Button
-                variant="secondary"
-                className="h-11 flex-1"
+            {/* Actions — Receive morphs in place into an amount input +
+                invoice display; Send stays static (it routes to the
+                existing /wallet/send flow which is default-wallet only
+                today). */}
+            <div className="relative mt-4">
+              <WalletActions
+                walletId={wallet.id}
+                walletName={wallet.name}
                 disabled={!isLive}
-                asChild={isLive}
-                onClick={onClose}
-              >
-                {isLive ? (
-                  <Link href="/wallet/receive">
-                    <ArrowDownLeft className="size-4" />
-                    Receive
-                  </Link>
-                ) : (
-                  <span>
-                    <ArrowDownLeft className="size-4" />
-                    Receive
-                  </span>
-                )}
-              </Button>
-              <Button
-                variant="theme"
-                className="h-11 flex-1"
-                disabled={!isLive}
-                asChild={isLive}
-                onClick={onClose}
-              >
-                {isLive ? (
-                  <Link href="/wallet/send">
-                    <ArrowUpRight className="size-4" />
-                    Send
-                  </Link>
-                ) : (
-                  <span>
-                    <ArrowUpRight className="size-4" />
-                    Send
-                  </span>
-                )}
-              </Button>
+                onClose={onClose}
+              />
             </div>
           </div>
 
-          {/* Compact metadata strip — the bookkeeping fields, smaller
-              than the hero but still legible. Two columns to keep the
-              dialog tall but not narrow. */}
+          {/* Compact metadata strip. */}
           <div className="grid grid-cols-2 gap-4">
             <InfoField label="Type" value={<Badge variant="outline">{wallet.type}</Badge>} />
             <InfoField
@@ -247,5 +227,265 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ── Receive + Send actions with inline receive flow ──────────────────────
+
+type ReceiveMode = 'idle' | 'amount' | 'invoice'
+
+/**
+ * Receive / Send action row with an inline receive sub-flow.
+ *
+ * - idle  : two big buttons (Receive | Send), matching the home-screen
+ *           pattern (variant secondary + theme, h-11).
+ * - amount: the Receive button morphs into an X-cancel + numeric input
+ *           + arrow-confirm; Send stays clickable. Enter submits.
+ * - invoice: the buttons row is replaced by a compact "minted invoice"
+ *           card with the truncated bolt11, copy, optional WebLN pay,
+ *           and a Done button that returns to idle.
+ *
+ * The wallet's NWC URI is fetched lazily through `useRemoteWalletConnectionString`
+ * (passes `null` while idle so the GET only fires once the user
+ * actually starts a receive). The mint itself happens client-side via
+ * `makeInvoice` — same code path the existing /wallet/receive page
+ * uses, just scoped to this wallet instead of the user's default.
+ */
+function WalletActions({
+  walletId,
+  walletName,
+  disabled,
+  onClose,
+}: {
+  walletId: string
+  walletName: string
+  disabled: boolean
+  onClose: () => void
+}) {
+  const [mode, setMode] = useState<ReceiveMode>('idle')
+  const [amount, setAmount] = useState('')
+  const [minting, setMinting] = useState(false)
+  const [invoice, setInvoice] = useState<MakeInvoiceResult | null>(null)
+  const [hasWebLn, setHasWebLn] = useState(false)
+  const [paying, setPaying] = useState(false)
+
+  // Only fetch the NWC URI once the user enters the receive flow.
+  // `useApi(null)` is a no-op so this stays cheap while idle.
+  const connection = useRemoteWalletConnectionString(
+    mode === 'idle' ? null : walletId,
+  )
+
+  // Detect WebLN whenever the invoice appears — covers the case where
+  // the extension was injected after the dialog mounted.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setHasWebLn(!!(window as WebLnWindow).webln)
+  }, [mode])
+
+  const resetReceive = useCallback(() => {
+    setMode('idle')
+    setAmount('')
+    setInvoice(null)
+    setPaying(false)
+  }, [])
+
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      const sats = Number(amount)
+      if (!Number.isFinite(sats) || sats <= 0) {
+        toast.error('Enter a positive amount')
+        return
+      }
+      const nwc = connection.data?.connectionString
+      if (!nwc) {
+        toast.error('Wallet connection unavailable')
+        return
+      }
+      setMinting(true)
+      try {
+        const inv = await makeInvoice(nwc, sats, `Receive to ${walletName}`)
+        setInvoice(inv)
+        setMode('invoice')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not mint invoice'
+        toast.error(msg)
+      } finally {
+        setMinting(false)
+      }
+    },
+    [amount, connection.data, walletName],
+  )
+
+  const handleCopy = useCallback(async () => {
+    if (!invoice) return
+    try {
+      await navigator.clipboard.writeText(invoice.bolt11)
+      toast.success('Invoice copied')
+    } catch {
+      toast.error('Copy failed')
+    }
+  }, [invoice])
+
+  const handleWebLnPay = useCallback(async () => {
+    if (!invoice) return
+    const w = window as WebLnWindow
+    if (!w.webln) return
+    setPaying(true)
+    try {
+      await w.webln.enable()
+      await w.webln.sendPayment(invoice.bolt11)
+      toast.success('Payment sent')
+      resetReceive()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'WebLN payment failed'
+      toast.error(msg)
+    } finally {
+      setPaying(false)
+    }
+  }, [invoice, resetReceive])
+
+  // ── Render: invoice state takes over the whole action area ────────
+  if (mode === 'invoice' && invoice) {
+    const preview =
+      invoice.bolt11.length > 22
+        ? `${invoice.bolt11.slice(0, 12)}…${invoice.bolt11.slice(-8)}`
+        : invoice.bolt11
+    return (
+      <div
+        className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 p-3 animate-in fade-in-0 slide-in-from-bottom-1 duration-200"
+      >
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <span className="text-muted-foreground">Invoice</span>
+          <span className="tabular-nums font-medium">
+            {invoice.amountSats.toLocaleString()} sats
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 truncate rounded bg-background px-2 py-1.5 font-mono text-xs">
+            {preview}
+          </code>
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className="size-9 shrink-0"
+            onClick={handleCopy}
+            aria-label="Copy invoice"
+          >
+            <Copy className="size-4" />
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          {hasWebLn && (
+            <Button
+              type="button"
+              variant="theme"
+              className="h-10 flex-1"
+              onClick={handleWebLnPay}
+              disabled={paying}
+            >
+              {paying ? (
+                <Spinner size={16} />
+              ) : (
+                <>
+                  <Zap className="size-4" />
+                  Pay with WebLN
+                </>
+              )}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="secondary"
+            className={cn('h-10', hasWebLn ? '' : 'flex-1')}
+            onClick={resetReceive}
+          >
+            Done
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Render: amount state inline, replacing only the Receive button.
+  if (mode === 'amount') {
+    return (
+      <form
+        onSubmit={handleSubmit}
+        className="flex gap-2 animate-in fade-in-0 slide-in-from-left-1 duration-200"
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-11 shrink-0"
+          onClick={resetReceive}
+          aria-label="Cancel"
+        >
+          <X className="size-4" />
+        </Button>
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          step={1}
+          autoFocus
+          placeholder="sats"
+          value={amount}
+          onChange={e => setAmount(e.target.value)}
+          className="h-11 flex-1 tabular-nums"
+        />
+        <Button
+          type="submit"
+          variant="theme"
+          size="icon"
+          className="h-11 shrink-0"
+          disabled={minting || !amount || connection.loading}
+          aria-label="Generate invoice"
+        >
+          {minting || connection.loading ? (
+            <Spinner size={16} />
+          ) : (
+            <ArrowRight className="size-4" />
+          )}
+        </Button>
+      </form>
+    )
+  }
+
+  // ── Render: idle state (default) — Receive + Send side by side.
+  return (
+    <div className="flex gap-2">
+      <Button
+        type="button"
+        variant="secondary"
+        className="h-11 flex-1"
+        disabled={disabled}
+        onClick={() => setMode('amount')}
+      >
+        <ArrowDownLeft className="size-4" />
+        Receive
+      </Button>
+      <Button
+        variant="theme"
+        className="h-11 flex-1"
+        disabled={disabled}
+        asChild={!disabled}
+        onClick={onClose}
+      >
+        {disabled ? (
+          <span>
+            <ArrowUpRight className="size-4" />
+            Send
+          </span>
+        ) : (
+          <Link href="/wallet/send">
+            <ArrowUpRight className="size-4" />
+            Send
+          </Link>
+        )}
+      </Button>
+    </div>
   )
 }
