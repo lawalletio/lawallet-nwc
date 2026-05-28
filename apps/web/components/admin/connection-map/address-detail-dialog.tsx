@@ -23,6 +23,14 @@ interface Props {
   domain: string
   wallets: RemoteWalletData[]
   onClose: () => void
+  /**
+   * Optional — when provided, the "Bound wallet" line becomes a button
+   * that swaps the LA dialog out for the wallet dialog of the given id.
+   * The Connection Map passes a handler that just flips `selected` to
+   * `{ kind: 'wallet', id }`, which unmounts this dialog and mounts the
+   * wallet dialog (Radix handles the transition between the two).
+   */
+  onOpenWallet?: (walletId: string) => void
 }
 
 /**
@@ -35,7 +43,13 @@ interface Props {
  * already has in memory, so we don't fire an extra fetch just to show
  * one label.
  */
-export function AddressDetailDialog({ address, domain, wallets, onClose }: Props) {
+export function AddressDetailDialog({
+  address,
+  domain,
+  wallets,
+  onClose,
+  onOpenWallet,
+}: Props) {
   // For CUSTOM_NWC the wallet is the explicitly-bound one. For DEFAULT_NWC
   // the implicit binding is whatever the user's primary wallet is — the
   // PUT endpoint clears `remoteWalletId` for that mode, so we look up the
@@ -91,15 +105,36 @@ export function AddressDetailDialog({ address, domain, wallets, onClose }: Props
               <InfoField
                 label="Bound wallet"
                 value={
-                  <span className="flex items-center gap-1">
-                    {boundWallet.name}
-                    {boundWallet.isDefault && (
-                      <Star
-                        className="size-3 fill-amber-400 text-amber-400"
-                        aria-label="Default"
-                      />
-                    )}
-                  </span>
+                  onOpenWallet ? (
+                    // Clickable — clicking swaps this dialog out for the
+                    // wallet dialog. Plain <button> so we don't pick up
+                    // shadcn Button's padding / variant styling (this
+                    // sits inside an InfoField, the row sizing comes
+                    // from there).
+                    <button
+                      type="button"
+                      onClick={() => onOpenWallet(boundWallet.id)}
+                      className="flex items-center gap-1 text-left hover:underline"
+                    >
+                      {boundWallet.name}
+                      {boundWallet.isDefault && (
+                        <Star
+                          className="size-3 fill-amber-400 text-amber-400"
+                          aria-label="Default"
+                        />
+                      )}
+                    </button>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      {boundWallet.name}
+                      {boundWallet.isDefault && (
+                        <Star
+                          className="size-3 fill-amber-400 text-amber-400"
+                          aria-label="Default"
+                        />
+                      )}
+                    </span>
+                  )
                 }
               />
             )}

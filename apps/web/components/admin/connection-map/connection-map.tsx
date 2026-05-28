@@ -336,6 +336,19 @@ function ConnectionMapInner() {
 
   const closeDetail = useCallback(() => setSelected(null), [])
 
+  // Cross-dialog navigation: clicking the "Bound wallet" line in the LA
+  // or Card dialog flips `selected` to the wallet dialog (Radix handles
+  // the mount/unmount transition between the two). Same idea for
+  // clicking the LA name in the Card dialog.
+  const openWalletDetail = useCallback(
+    (id: string) => setSelected({ kind: 'wallet', id }),
+    [],
+  )
+  const openAddressDetail = useCallback(
+    (username: string) => setSelected({ kind: 'la', username }),
+    [],
+  )
+
   // Reject invalid drops while the user is dragging — xyflow paints the
   // ghost edge red so the affordance reads as "this won't work" before
   // release. Two valid shapes match the two edge families:
@@ -451,6 +464,7 @@ function ConnectionMapInner() {
                 domain={domain}
                 wallets={wallets ?? []}
                 onClose={closeDetail}
+                onOpenWallet={openWalletDetail}
               />
             ) : null
           })()}
@@ -474,6 +488,8 @@ function ConnectionMapInner() {
                 card={c}
                 wallets={wallets ?? []}
                 onClose={closeDetail}
+                onOpenWallet={openWalletDetail}
+                onOpenAddress={openAddressDetail}
               />
             ) : null
           })()}

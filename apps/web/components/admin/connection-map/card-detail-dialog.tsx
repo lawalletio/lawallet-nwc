@@ -16,11 +16,24 @@ import { formatRelativeTime, truncateHex } from '@/lib/client/format'
 import type { CardData } from '@/lib/client/hooks/use-cards'
 import type { RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
 import { InfoField } from './info-field'
+import { WalletLiveBalance } from './wallet-live-balance'
 
 interface Props {
   card: CardData
   wallets: RemoteWalletData[]
   onClose: () => void
+  /**
+   * Optional — when provided, the "Bound wallet" line becomes a button
+   * that swaps this dialog out for the wallet dialog of the given id.
+   * Mirrors the LA dialog's pattern.
+   */
+  onOpenWallet?: (walletId: string) => void
+  /**
+   * Optional — when provided AND the card has a linked Lightning
+   * Address, the "Lightning Address" line becomes a button that swaps
+   * this dialog out for the LA dialog of the given username.
+   */
+  onOpenAddress?: (username: string) => void
 }
 
 /**
@@ -28,10 +41,21 @@ interface Props {
  * thumb is 196 px wide, here we render at full dialog width with the
  * same 8:5 aspect so the design is recognisable at a glance.
  *
- * "View card" jumps to the existing `/admin/cards/[id]` page for the
- * full administrative view (ntag424 keys, scan history, delete).
+ * Cross-dialog navigation: clicking the bound wallet jumps to the
+ * wallet dialog, clicking the linked LA jumps to the LA dialog. Both
+ * just flip the parent's `selected` state, so Radix Dialog handles the
+ * mount/unmount transition between the two.
+ *
+ * "View card" (footer) jumps to the existing `/admin/cards/[id]` page
+ * for the full administrative view (ntag424 keys, scan history, delete).
  */
-export function CardDetailDialog({ card, wallets, onClose }: Props) {
+export function CardDetailDialog({
+  card,
+  wallets,
+  onClose,
+  onOpenWallet,
+  onOpenAddress,
+}: Props) {
   const boundWallet = card.remoteWalletId
     ? wallets.find(w => w.id === card.remoteWalletId)
     : null
@@ -82,10 +106,27 @@ export function CardDetailDialog({ card, wallets, onClose }: Props) {
               }
             />
 
+            {/* Lightning Address — only when the card is claimed by a
+                user. Clickable when the parent provides a handler so
+                the user can hop straight into the LA detail dialog. */}
             {card.lightningAddress && (
               <InfoField
                 label="Lightning Address"
-                value={`${card.lightningAddress.username}`}
+                value={
+                  onOpenAddress ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenAddress(card.lightningAddress!.username)
+                      }
+                      className="text-left hover:underline"
+                    >
+                      {card.lightningAddress.username}
+                    </button>
+                  ) : (
+                    card.lightningAddress.username
+                  )
+                }
               />
             )}
 
@@ -93,12 +134,39 @@ export function CardDetailDialog({ card, wallets, onClose }: Props) {
               label="Bound wallet"
               value={
                 boundWallet ? (
-                  boundWallet.name
+                  onOpenWallet ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenWallet(boundWallet.id)}
+                      className="text-left hover:underline"
+                    >
+                      {boundWallet.name}
+                    </button>
+                  ) : (
+                    boundWallet.name
+                  )
                 ) : (
                   <span className="text-muted-foreground">None (uses default)</span>
                 )
               }
             />
+
+            {/* Live balance — routed through the bound wallet, same
+                visual treatment as the LA + wallet dialogs. Skip
+                entirely when there's no wallet behind the card; the
+                "Bound wallet: None" line above already conveys it. */}
+            {boundWallet && (
+              <div className="col-span-2">
+                <InfoField
+                  label="Balance"
+                  value={
+                    <WalletLiveBalance
+                      walletId={boundWallet.status === 'REVOKED' ? null : boundWallet.id}
+                    />
+                  }
+                />
+              </div>
+            )}
 
             <InfoField
               label="Created"
