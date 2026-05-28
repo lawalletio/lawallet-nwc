@@ -16,6 +16,7 @@ import { formatRelativeTime } from '@/lib/client/format'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import type { RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
 import { InfoField } from './info-field'
+import { WalletLiveBalance } from './wallet-live-balance'
 
 interface Props {
   address: WalletAddress
@@ -101,6 +102,25 @@ export function AddressDetailDialog({ address, domain, wallets, onClose }: Props
                   </span>
                 }
               />
+            )}
+
+            {/* Live balance — same component + visual treatment as the
+                wallet detail dialog so the two views agree on the
+                number. Skip entirely when there's no wallet behind the
+                LA (IDLE / ALIAS): there's literally nothing to show.
+                When the bound wallet is REVOKED we still render so the
+                muted dot makes the "no balance available" state legible. */}
+            {boundWallet && (
+              <div className="col-span-2">
+                <InfoField
+                  label="Balance"
+                  value={
+                    <WalletLiveBalance
+                      walletId={boundWallet.status === 'REVOKED' ? null : boundWallet.id}
+                    />
+                  }
+                />
+              </div>
             )}
 
             <InfoField

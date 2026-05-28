@@ -12,16 +12,12 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
 import { formatRelativeTime } from '@/lib/client/format'
-import {
-  useLiveRemoteWalletBalance,
-  type RemoteWalletData,
-} from '@/lib/client/hooks/use-remote-wallets'
-import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
+import type { RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import type { CardData } from '@/lib/client/hooks/use-cards'
 import { InfoField } from './info-field'
+import { WalletLiveBalance } from './wallet-live-balance'
 
 interface Props {
   wallet: RemoteWalletData
@@ -43,8 +39,6 @@ interface Props {
  */
 export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props) {
   const isLive = wallet.status !== 'REVOKED'
-  const balance = useLiveRemoteWalletBalance(isLive ? wallet.id : null)
-  const animatedSats = useAnimatedNumber(balance.data?.balanceSats ?? null)
 
   // Match the LA edge logic in buildGraph: a wallet is "bound" to an
   // address either explicitly (CUSTOM_NWC + matching remoteWalletId) or
@@ -55,15 +49,6 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
     return false
   })
   const boundCards = cards.filter(c => c.remoteWalletId === wallet.id)
-
-  const hasBalance = isLive && balance.data != null
-  const state: 'searching' | 'connected' | 'error' | 'disabled' = !isLive
-    ? 'disabled'
-    : balance.error
-      ? 'error'
-      : hasBalance
-        ? 'connected'
-        : 'searching'
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
@@ -97,23 +82,7 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
             <div className="col-span-2">
               <InfoField
                 label="Balance"
-                value={
-                  <span
-                    className="flex items-center gap-2 tabular-nums"
-                    aria-label={`Balance ${state}`}
-                  >
-                    <span
-                      className={cn(
-                        'inline-block size-2 shrink-0 rounded-full',
-                        state === 'connected' && 'bg-emerald-400',
-                        state === 'searching' && 'animate-pulse bg-amber-400',
-                        state === 'error' && 'bg-destructive',
-                        state === 'disabled' && 'bg-muted-foreground',
-                      )}
-                    />
-                    {hasBalance ? `${animatedSats.toLocaleString()} sats` : '— sats'}
-                  </span>
-                }
+                value={<WalletLiveBalance walletId={isLive ? wallet.id : null} />}
               />
             </div>
 

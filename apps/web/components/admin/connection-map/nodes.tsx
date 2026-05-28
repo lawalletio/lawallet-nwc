@@ -5,8 +5,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { AtSign, Star, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHover } from './hover-context'
-import { useLiveRemoteWalletBalance } from '@/lib/client/hooks/use-remote-wallets'
-import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
+import { WalletLiveBalance } from './wallet-live-balance'
 
 /**
  * Visual conventions shared by every node in the connection map:
@@ -73,59 +72,6 @@ function useDimmed(id: string): boolean {
   return !!highlight && !highlight.nodes.has(id)
 }
 
-/**
- * Live spendable balance + connection-state pill for a Remote Wallet.
- * Split into its own subcomponent because it has its own hooks
- * (polling + odometer) and we want every wallet row to subscribe
- * independently — putting the hooks on `RemoteWalletNode` would force
- * every wallet to share the same effect order, which is fine but
- * separating it keeps the wallet row's render lean.
- *
- * Passes `null` to the balance hook when the wallet isn't live
- * (REVOKED — and DISABLED, optionally) so we don't burn polling
- * requests on rows that have no balance.
- */
-function WalletBalanceLine({
-  walletId,
-  active,
-}: {
-  walletId: string
-  active: boolean
-}) {
-  // `null` short-circuits the underlying useApi (no fetch, no interval).
-  const balance = useLiveRemoteWalletBalance(active ? walletId : null)
-  const animated = useAnimatedNumber(balance.data?.balanceSats ?? null)
-
-  if (!active) return null
-
-  const hasValue = balance.data != null
-  // Three visual states:
-  //   - error    : red, no pulse — the last fetch failed.
-  //   - searching: amber, pulsing — we don't have a value yet.
-  //   - connected: emerald, no pulse — fresh value in hand.
-  const state: 'searching' | 'connected' | 'error' = balance.error
-    ? 'error'
-    : hasValue
-      ? 'connected'
-      : 'searching'
-
-  return (
-    <span
-      className="flex items-center gap-1.5 text-[10px] tabular-nums text-muted-foreground"
-      aria-label={`Balance ${state}`}
-    >
-      <span
-        className={cn(
-          'inline-block size-1.5 shrink-0 rounded-full',
-          state === 'connected' && 'bg-emerald-400',
-          state === 'searching' && 'animate-pulse bg-amber-400',
-          state === 'error' && 'bg-destructive',
-        )}
-      />
-      {hasValue ? `${animated.toLocaleString()} sats` : '— sats'}
-    </span>
-  )
-}
 
 function shellClasses(dimmed: boolean): string {
   return cn(
@@ -260,8 +206,12 @@ export function RemoteWalletNode({ id, data }: NodeProps) {
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
           {d.type} · {d.status.toLowerCase()}
         </span>
-        {/* Live balance line — REVOKED wallets have no balance to fetch. */}
-        <WalletBalanceLine walletId={d.walletId} active={d.status !== 'REVOKED'} />
+        {/* Live balance line — REVOKED wallets have no balance, pass null
+            so the hook stays idle and the row shows the muted "— sats". */}
+        <WalletLiveBalance
+          walletId={d.status === 'REVOKED' ? null : d.walletId}
+          size="sm"
+        />
       </div>
       <Handle
         id="to-card"
