@@ -121,12 +121,12 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
           <div className="relative overflow-hidden rounded-lg border border-border bg-gradient-to-br from-card to-card/40 p-5">
             <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-amber-400/10 blur-3xl" />
 
-            <div className="relative space-y-1">
+            <div className="relative space-y-1 text-center">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">
                 Balance
               </div>
               <div
-                className="flex items-baseline gap-2 tabular-nums"
+                className="flex items-baseline justify-center gap-2 tabular-nums"
                 aria-label={`Balance ${state}`}
               >
                 <span className="text-4xl font-semibold leading-none">
@@ -134,7 +134,7 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
                 </span>
                 <span className="text-base text-muted-foreground">sats</span>
               </div>
-              <div className="flex items-center gap-1.5 pt-1 text-xs text-muted-foreground">
+              <div className="flex items-center justify-center gap-1.5 pt-1 text-xs text-muted-foreground">
                 <span
                   className={cn(
                     'inline-block size-1.5 shrink-0 rounded-full',
@@ -148,7 +148,7 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
               </div>
             </div>
 
-            <div className="relative mt-5 flex items-center gap-2 text-sm font-medium">
+            <div className="relative mt-5 flex items-center justify-center gap-2 text-sm font-medium">
               <Wallet className="size-4 shrink-0 text-amber-400" />
               <span className="truncate">{wallet.name}</span>
               {wallet.isDefault && (
