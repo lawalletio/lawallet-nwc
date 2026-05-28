@@ -17,11 +17,20 @@ import { useCards, type CardData } from '@/lib/client/hooks/use-cards'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { Spinner } from '@/components/ui/spinner'
 import { nodeTypes, NODE_LAYOUT } from './nodes'
+import { HoverProvider, type HighlightSet } from './hover-context'
+import { HighlightEdge } from './highlight-edge'
 
 /** Stable id helpers — used by both nodes and edges so they always agree. */
 const walletNodeId = (id: string) => `wallet:${id}`
 const addressNodeId = (username: string) => `la:${username}`
 const cardNodeId = (id: string) => `card:${id}`
+
+/**
+ * Edge type registry. Defined at module scope so React Flow sees a stable
+ * identity across renders (a fresh object literal each render would trigger
+ * the "new nodeTypes / edgeTypes object" warning + extra work).
+ */
+const edgeTypes = { highlight: HighlightEdge }
 
 /**
  * Two-column connection map: Lightning Addresses + Cards on the left,
@@ -33,6 +42,20 @@ const cardNodeId = (id: string) => `card:${id}`
  * Positions are deterministic (no auto-layout) so the canvas stays stable
  * across re-renders / SSE refreshes — each row computes its y from its
  * index in the source list.
+ *
+ * Why hover lives in a Context instead of inside the `nodes`/`edges`
+ * arrays:
+ *   Folding hover state into the arrays gave every node/edge object a new
+ *   identity on every mouseEnter/Leave, so React Flow reconciled the
+ *   whole graph, the cursor lost its hover target mid-frame, mouseLeave
+ *   fired, mouseEnter fired again, and the screen flickered while the
+ *   cursor toggled between pointer/arrow. With a Context, only the
+ *   individual node/edge components re-render on hover — the arrays
+ *   handed to React Flow stay reference-stable across mouse moves.
+ *
+ *   `isPanning` further silences the hover handlers while the user is
+ *   dragging the canvas, since elements sliding under the cursor would
+ *   otherwise fire a constant stream of enter/leave events.
  */
 function ConnectionMapInner() {
   const { data: settings } = useSettings()
@@ -46,10 +69,18 @@ function ConnectionMapInner() {
   const loading = walletsLoading || addressesLoading || cardsLoading
   const domain = settings?.domain || 'your-domain'
 
-  // Track hover so we can dim everything that isn't connected to it.
+  // Hover lives in local state, NOT folded into the nodes/edges arrays.
   // Hovering a node highlights its edges + the nodes on the other end;
-  // hovering an edge highlights its two endpoints.
+  // hovering an edge highlights its two endpoints. The HoverProvider
+  // exposes the resulting set to the node + edge components, which render
+  // their own dim state — so the arrays handed to ReactFlow stay stable.
   const [hovered, setHovered] = useState<{ kind: 'node' | 'edge'; id: string } | null>(null)
+
+  // While the user is panning the canvas, suppress hover updates. Without
+  // this gate, every element passing under the cursor fires
+  // mouseEnter/Leave, which churns the highlight set and visually
+  // competes with the drag.
+  const [isPanning, setIsPanning] = useState(false)
 
   /** Default wallet drives the "implicit binding" for DEFAULT_NWC addresses. */
   const defaultWallet = useMemo(
@@ -69,33 +100,10 @@ function ConnectionMapInner() {
     [hovered, edges],
   )
 
-  // Apply dim/highlight by mutating the data + style fields. We rebuild
-  // light wrappers rather than mutating in place so React notices the
-  // change and re-renders.
-  const renderedNodes: Node[] = useMemo(
-    () =>
-      nodes.map(n => ({
-        ...n,
-        data: { ...n.data, dimmed: highlight ? !highlight.nodes.has(n.id) : false },
-      })),
-    [nodes, highlight],
-  )
-  const renderedEdges: Edge[] = useMemo(
-    () =>
-      edges.map(e => {
-        const active = !highlight || highlight.edges.has(e.id)
-        return {
-          ...e,
-          animated: active && !!highlight,
-          style: {
-            ...(e.style ?? {}),
-            opacity: active ? 1 : 0.15,
-            strokeWidth: active && highlight ? 2.5 : 1.5,
-          },
-        }
-      }),
-    [edges, highlight],
-  )
+  // Memoise the context value so consumers only re-render when `highlight`
+  // actually changes — not on every render of this component (e.g. while
+  // `isPanning` flips during a drag).
+  const hoverValue = useMemo(() => ({ highlight }), [highlight])
 
   if (loading && !nodes.length) {
     return (
@@ -106,36 +114,49 @@ function ConnectionMapInner() {
   }
 
   return (
-    <div className="h-full">
-      <ReactFlow
-        nodes={renderedNodes}
-        edges={renderedEdges}
-        nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
-        // Read-only canvas: positions are deterministic, no UI dragging,
-        // no edge dragging. Slice 3 enables wallet-handle drags for rebind.
-        nodesDraggable={false}
-        nodesConnectable={false}
-        edgesFocusable={false}
-        elementsSelectable={false}
-        proOptions={{ hideAttribution: true }}
-        onNodeMouseEnter={(_, n) => setHovered({ kind: 'node', id: n.id })}
-        onNodeMouseLeave={() => setHovered(null)}
-        onEdgeMouseEnter={(_, e) => setHovered({ kind: 'edge', id: e.id })}
-        onEdgeMouseLeave={() => setHovered(null)}
-      >
-        <Background gap={24} size={1} className="!bg-background" />
-        <Controls position="bottom-right" showInteractive={false} />
-        {nodes.length === 0 && !loading && (
-          <Panel position="top-center">
-            <p className="text-sm text-muted-foreground">
-              Nothing to show yet — add a wallet, address, or card.
-            </p>
-          </Panel>
-        )}
-      </ReactFlow>
-    </div>
+    <HoverProvider value={hoverValue}>
+      <div className="h-full">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+          // Read-only canvas: positions are deterministic, no UI dragging,
+          // no edge dragging. Slice 3 enables wallet-handle drags for rebind.
+          nodesDraggable={false}
+          nodesConnectable={false}
+          edgesFocusable={false}
+          elementsSelectable={false}
+          proOptions={{ hideAttribution: true }}
+          onMoveStart={() => setIsPanning(true)}
+          onMoveEnd={() => setIsPanning(false)}
+          onNodeMouseEnter={(_, n) => {
+            if (!isPanning) setHovered({ kind: 'node', id: n.id })
+          }}
+          onNodeMouseLeave={() => {
+            if (!isPanning) setHovered(null)
+          }}
+          onEdgeMouseEnter={(_, e) => {
+            if (!isPanning) setHovered({ kind: 'edge', id: e.id })
+          }}
+          onEdgeMouseLeave={() => {
+            if (!isPanning) setHovered(null)
+          }}
+        >
+          <Background gap={24} size={1} className="!bg-background" />
+          <Controls position="bottom-right" showInteractive={false} />
+          {nodes.length === 0 && !loading && (
+            <Panel position="top-center">
+              <p className="text-sm text-muted-foreground">
+                Nothing to show yet — add a wallet, address, or card.
+              </p>
+            </Panel>
+          )}
+        </ReactFlow>
+      </div>
+    </HoverProvider>
   )
 }
 
@@ -250,6 +271,10 @@ function buildGraph({
   }
 
   // ── Edges ───────────────────────────────────────────────────────────────
+  // All edges use the 'highlight' custom edge type so they can read the
+  // current hover from HoverContext and dim themselves locally — no
+  // rebuilding of the edges array required.
+  //
   // Address bindings:
   //   CUSTOM_NWC  → solid edge to the address's bound wallet.
   //   DEFAULT_NWC → dashed edge to the user's default wallet (implicit).
@@ -258,7 +283,7 @@ function buildGraph({
     if (addr.mode === 'CUSTOM_NWC' && addr.remoteWalletId) {
       edges.push({
         id: `e:la:${addr.username}->${addr.remoteWalletId}`,
-        type: 'default',
+        type: 'highlight',
         source: addressNodeId(addr.username),
         target: walletNodeId(addr.remoteWalletId),
         style: { stroke: 'oklch(0.78 0.18 162)' /* emerald */, strokeWidth: 1.5 },
@@ -266,7 +291,7 @@ function buildGraph({
     } else if (addr.mode === 'DEFAULT_NWC' && defaultWallet) {
       edges.push({
         id: `e:la:${addr.username}->default:${defaultWallet.id}`,
-        type: 'default',
+        type: 'highlight',
         source: addressNodeId(addr.username),
         target: walletNodeId(defaultWallet.id),
         style: {
@@ -286,7 +311,7 @@ function buildGraph({
     if (!card.remoteWalletId) continue
     edges.push({
       id: `e:card:${card.id}->${card.remoteWalletId}`,
-      type: 'default',
+      type: 'highlight',
       source: cardNodeId(card.id),
       target: walletNodeId(card.remoteWalletId),
       style: { stroke: 'oklch(0.72 0.16 245)' /* sky */, strokeWidth: 1.5 },
@@ -297,13 +322,6 @@ function buildGraph({
 }
 
 // ── Hover highlighting ────────────────────────────────────────────────────
-
-interface HighlightSet {
-  /** Node ids that should stay at full opacity. */
-  nodes: Set<string>
-  /** Edge ids that should stay at full opacity. */
-  edges: Set<string>
-}
 
 function computeHighlight(
   hovered: { kind: 'node' | 'edge'; id: string } | null,
