@@ -23,14 +23,18 @@ import {
 import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
 import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
 import { useAuth } from '@/components/admin/auth-context'
+import { DEFAULT_BLOSSOM_SERVERS } from '@/lib/client/blossom-defaults'
 import { cn } from '@/lib/utils'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
 
 // Settings values are stored as strings. Array-typed settings (relays, blossom_servers)
-// are JSON-stringified. Default to a single empty input when absent or malformed.
-function parseStringArray(raw: string | undefined): string[] {
-  if (!raw) return ['']
+// are JSON-stringified. When the setting was never saved (raw === undefined) and a
+// non-empty `defaults` list is provided, surface those defaults so the user sees a
+// sensible starting point. An explicit `"[]"` is preserved as a single empty input —
+// that's the opt-out signal.
+function parseStringArray(raw: string | undefined, defaults: string[] = ['']): string[] {
+  if (raw === undefined) return defaults.length > 0 ? defaults : ['']
   try {
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed) && parsed.every(v => typeof v === 'string')) {
@@ -139,7 +143,7 @@ export function InfrastructureTab() {
     setDomain(settings.domain ?? '')
     setSubdomain(settings.subdomain ?? settings.endpoint ?? '')
     setRelays(parseStringArray(settings.relays))
-    setBlossomServers(parseStringArray(settings.blossom_servers))
+    setBlossomServers(parseStringArray(settings.blossom_servers, DEFAULT_BLOSSOM_SERVERS))
     setSmtpHost(settings.smtp_host ?? '')
     setSmtpPort(settings.smtp_port ?? '')
     setSmtpUsername(settings.smtp_username ?? '')
