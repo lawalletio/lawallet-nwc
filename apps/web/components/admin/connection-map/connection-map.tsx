@@ -30,12 +30,13 @@ import {
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { Spinner } from '@/components/ui/spinner'
 import { truncateHex } from '@/lib/client/format'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { nodeTypes, NODE_LAYOUT } from './nodes'
 import { HoverProvider, type HighlightSet } from './hover-context'
 import { HighlightEdge } from './highlight-edge'
-import { AddressDetailDialog } from './address-detail-dialog'
-import { WalletDetailDialog } from './wallet-detail-dialog'
-import { CardDetailDialog } from './card-detail-dialog'
+import { AddressDetailBody } from './address-detail-dialog'
+import { WalletDetailBody } from './wallet-detail-dialog'
+import { CardDetailBody } from './card-detail-dialog'
 
 /** Stable id helpers — used by both nodes and edges so they always agree. */
 const walletNodeId = (id: string) => `wallet:${id}`
@@ -448,51 +449,73 @@ function ConnectionMapInner() {
         </ReactFlow>
 
         {/*
-         * Detail dialogs — rendered conditionally so the close animation
-         * is driven by unmount (Radix Dialog handles the exit transition).
+         * Single shared Dialog. The body swaps based on `selected.kind`,
+         * but the parent `<Dialog>` and `<DialogContent>` (and therefore
+         * the overlay + portal) stay mounted across navigation — so
+         * clicking the "Bound wallet" link in the LA body, for example,
+         * just replaces the inner Fragment instead of tearing down one
+         * dialog and rebuilding another. The backdrop never flickers.
+         *
          * The `.find(…)` guards against the entity disappearing between
-         * the click and the next SSE refresh: if the wallet got revoked
-         * by another tab milliseconds before the click, we just don't
-         * open anything rather than crash.
+         * the click and the next SSE refresh (e.g. another tab revoked
+         * the wallet milliseconds before the click). When the lookup
+         * misses we render nothing inside the still-open Dialog;
+         * `onOpenChange` then naturally closes it on the next outside
+         * click / ESC.
+         *
+         * `key` on the inner wrapper retriggers `animate-in fade-in-0`
+         * each time `selected.kind` changes, giving the swap a soft
+         * fade between bodies inside the shared Dialog frame.
          */}
-        {selected?.kind === 'la' &&
-          (() => {
-            const addr = addresses?.find(a => a.username === selected.username)
-            return addr ? (
-              <AddressDetailDialog
-                address={addr}
-                domain={domain}
-                wallets={wallets ?? []}
-                onClose={closeDetail}
-                onOpenWallet={openWalletDetail}
-              />
-            ) : null
-          })()}
-        {selected?.kind === 'wallet' &&
-          (() => {
-            const w = wallets?.find(w => w.id === selected.id)
-            return w ? (
-              <WalletDetailDialog
-                wallet={w}
-                addresses={addresses ?? []}
-                cards={cards ?? []}
-                onClose={closeDetail}
-              />
-            ) : null
-          })()}
-        {selected?.kind === 'card' &&
-          (() => {
-            const c = cards?.find(c => c.id === selected.id)
-            return c ? (
-              <CardDetailDialog
-                card={c}
-                wallets={wallets ?? []}
-                onClose={closeDetail}
-                onOpenWallet={openWalletDetail}
-                onOpenAddress={openAddressDetail}
-              />
-            ) : null
-          })()}
+        <Dialog
+          open={selected !== null}
+          onOpenChange={o => !o && closeDetail()}
+        >
+          <DialogContent>
+            <div
+              key={selected?.kind ?? 'none'}
+              className="grid gap-4 animate-in fade-in-0 duration-200"
+            >
+              {selected?.kind === 'la' &&
+                (() => {
+                  const addr = addresses?.find(
+                    a => a.username === selected.username,
+                  )
+                  return addr ? (
+                    <AddressDetailBody
+                      address={addr}
+                      domain={domain}
+                      wallets={wallets ?? []}
+                      onOpenWallet={openWalletDetail}
+                    />
+                  ) : null
+                })()}
+              {selected?.kind === 'wallet' &&
+                (() => {
+                  const w = wallets?.find(w => w.id === selected.id)
+                  return w ? (
+                    <WalletDetailBody
+                      wallet={w}
+                      addresses={addresses ?? []}
+                      cards={cards ?? []}
+                    />
+                  ) : null
+                })()}
+              {selected?.kind === 'card' &&
+                (() => {
+                  const c = cards?.find(c => c.id === selected.id)
+                  return c ? (
+                    <CardDetailBody
+                      card={c}
+                      wallets={wallets ?? []}
+                      onOpenWallet={openWalletDetail}
+                      onOpenAddress={openAddressDetail}
+                    />
+                  ) : null
+                })()}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </HoverProvider>
   )

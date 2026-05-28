@@ -4,8 +4,6 @@ import React from 'react'
 import Link from 'next/link'
 import { AtSign, ExternalLink, Star } from 'lucide-react'
 import {
-  Dialog,
-  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -23,32 +21,35 @@ interface Props {
   address: WalletAddress
   domain: string
   wallets: RemoteWalletData[]
-  onClose: () => void
   /**
    * Optional — when provided, the "Bound wallet" line becomes a button
-   * that swaps the LA dialog out for the wallet dialog of the given id.
-   * The Connection Map passes a handler that just flips `selected` to
-   * `{ kind: 'wallet', id }`, which unmounts this dialog and mounts the
-   * wallet dialog (Radix handles the transition between the two).
+   * that swaps the LA body out for the wallet body inside the shared
+   * parent dialog. The Connection Map passes a handler that just flips
+   * `selected` to `{ kind: 'wallet', id }`, which re-renders the body
+   * inside the SAME open `<Dialog>` — the backdrop stays mounted, no
+   * cross-fade flicker.
    */
   onOpenWallet?: (walletId: string) => void
 }
 
 /**
- * Lightning Address detail dialog. Click on an LA node in the canvas to
- * open it. Read-only summary — the "Edit" button jumps to the existing
- * per-address page (`/admin/addresses/[username]`) for actual changes,
- * so this dialog stays a glance-able card rather than a second editor.
+ * Lightning Address detail body. Rendered as a child of the single
+ * shared `<Dialog>` in `connection-map.tsx`; this component does NOT
+ * mount its own Dialog or DialogContent — the parent provides both so
+ * the backdrop / portal stay continuous when the user navigates from
+ * one entity dialog to another (e.g. via the bound-wallet link). Read-
+ * only summary — the "Edit" button jumps to the existing per-address
+ * page (`/admin/addresses/[username]`) for actual changes, so this
+ * body stays a glance-able card rather than a second editor.
  *
  * The bound-wallet name is resolved from the wallets list the parent
  * already has in memory, so we don't fire an extra fetch just to show
  * one label.
  */
-export function AddressDetailDialog({
+export function AddressDetailBody({
   address,
   domain,
   wallets,
-  onClose,
   onOpenWallet,
 }: Props) {
   // For CUSTOM_NWC the wallet is the explicitly-bound one. For DEFAULT_NWC
@@ -63,16 +64,20 @@ export function AddressDetailDialog({
         : null
 
   return (
-    <Dialog open onOpenChange={o => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AtSign className="size-4 text-emerald-400" />
-            Lightning Address
-          </DialogTitle>
-        </DialogHeader>
+    // Body-only — the parent owns the Dialog + DialogContent + Overlay,
+    // so swapping between bodies inside that single Dialog keeps the
+    // backdrop mounted (no fade-out → fade-in flicker). Returns a
+    // Fragment so DialogHeader / content / DialogFooter become direct
+    // children of the parent's `grid gap-4` wrapper.
+    <>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <AtSign className="size-4 text-emerald-400" />
+          Lightning Address
+        </DialogTitle>
+      </DialogHeader>
 
-        <div className="space-y-4">
+      <div className="space-y-4">
           {/* Hero — reuses the success-card-style lightning bolt visual
               from new-address-dialog.tsx so the LA gets a proper
               "this is your lightning address" presentation instead of a
@@ -171,15 +176,14 @@ export function AddressDetailDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="secondary" asChild onClick={onClose}>
-            <Link href={`/admin/addresses/${encodeURIComponent(address.username)}`}>
-              Edit address
-              <ExternalLink className="ml-1 size-3" />
-            </Link>
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <DialogFooter>
+        <Button variant="secondary" asChild>
+          <Link href={`/admin/addresses/${encodeURIComponent(address.username)}`}>
+            Edit address
+            <ExternalLink className="ml-1 size-3" />
+          </Link>
+        </Button>
+      </DialogFooter>
+    </>
   )
 }

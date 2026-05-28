@@ -17,8 +17,6 @@ import {
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import {
-  Dialog,
-  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -55,7 +53,6 @@ interface Props {
   addresses: WalletAddress[]
   /** Caller's full card list — used to count how many bind to this wallet. */
   cards: CardData[]
-  onClose: () => void
 }
 
 // WebLN provider shape. Lightweight — only the methods we actually call.
@@ -81,7 +78,7 @@ type WebLnWindow = Window & { webln?: WebLnProvider }
  * Both flows are scoped to THIS wallet (not the user's default) — the
  * NWC URI is fetched on demand from `/api/remote-wallets/[id]/connection-string`.
  */
-export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props) {
+export function WalletDetailBody({ wallet, addresses, cards }: Props) {
   const isLive = wallet.status !== 'REVOKED'
   const balance = useLiveRemoteWalletBalance(isLive ? wallet.id : null)
   const animatedSats = useAnimatedNumber(balance.data?.balanceSats ?? null)
@@ -109,9 +106,8 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
   }[state]
 
   return (
-    <Dialog open onOpenChange={o => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
+    <>
+      <DialogHeader>
           {/*
             Title is the wallet's own name (with the Default badge when
             applicable), not a generic "Remote Wallet" — there's only
@@ -235,16 +231,15 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="secondary" asChild onClick={onClose}>
-            <Link href="/admin/remote-wallets">
-              Manage wallet
-              <ExternalLink className="ml-1 size-3" />
-            </Link>
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <DialogFooter>
+        <Button variant="secondary" asChild>
+          <Link href="/admin/remote-wallets">
+            Manage wallet
+            <ExternalLink className="ml-1 size-3" />
+          </Link>
+        </Button>
+      </DialogFooter>
+    </>
   )
 }
 

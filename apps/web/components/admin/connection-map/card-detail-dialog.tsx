@@ -4,8 +4,6 @@ import React from 'react'
 import Link from 'next/link'
 import { CreditCard, ExternalLink } from 'lucide-react'
 import {
-  Dialog,
-  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -21,38 +19,38 @@ import { WalletLiveBalance } from './wallet-live-balance'
 interface Props {
   card: CardData
   wallets: RemoteWalletData[]
-  onClose: () => void
   /**
    * Optional — when provided, the "Bound wallet" line becomes a button
-   * that swaps this dialog out for the wallet dialog of the given id.
-   * Mirrors the LA dialog's pattern.
+   * that swaps this body out for the wallet body inside the shared
+   * parent dialog. Mirrors the LA body's pattern.
    */
   onOpenWallet?: (walletId: string) => void
   /**
    * Optional — when provided AND the card has a linked Lightning
    * Address, the "Lightning Address" line becomes a button that swaps
-   * this dialog out for the LA dialog of the given username.
+   * this body out for the LA body.
    */
   onOpenAddress?: (username: string) => void
 }
 
 /**
- * Card detail dialog. Larger design preview at the top — the canvas
- * thumb is 196 px wide, here we render at full dialog width with the
- * same 8:5 aspect so the design is recognisable at a glance.
+ * Card detail body. Rendered inside the single shared `<Dialog>` in
+ * `connection-map.tsx` — no own Dialog / DialogContent wrapper. Larger
+ * design preview at the top: the canvas thumb is 196 px wide; here we
+ * render at full dialog width with the same 8:5 aspect so the design
+ * is recognisable at a glance.
  *
- * Cross-dialog navigation: clicking the bound wallet jumps to the
- * wallet dialog, clicking the linked LA jumps to the LA dialog. Both
- * just flip the parent's `selected` state, so Radix Dialog handles the
- * mount/unmount transition between the two.
+ * Cross-dialog navigation: clicking the bound wallet swaps to the
+ * wallet body, clicking the linked LA swaps to the LA body. Both just
+ * flip the parent's `selected` state — the shared Dialog stays mounted
+ * so the backdrop never flickers.
  *
  * "View card" (footer) jumps to the existing `/admin/cards/[id]` page
  * for the full administrative view (ntag424 keys, scan history, delete).
  */
-export function CardDetailDialog({
+export function CardDetailBody({
   card,
   wallets,
-  onClose,
   onOpenWallet,
   onOpenAddress,
 }: Props) {
@@ -62,16 +60,15 @@ export function CardDetailDialog({
   const title = card.title ?? card.lightningAddress?.username ?? truncateHex(card.id)
 
   return (
-    <Dialog open onOpenChange={o => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CreditCard className="size-4 text-sky-400" />
-            Card
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          <CreditCard className="size-4 text-sky-400" />
+          Card
+        </DialogTitle>
+      </DialogHeader>
 
-        <div className="space-y-4">
+      <div className="space-y-4">
           {/* Big design preview — falls through to a CreditCard-icon
               placeholder when the design has no uploaded image. */}
           {card.design?.image ? (
@@ -176,18 +173,17 @@ export function CardDetailDialog({
               label="Updated"
               value={formatRelativeTime(card.updatedAt)}
             />
-          </div>
         </div>
+      </div>
 
-        <DialogFooter>
-          <Button variant="secondary" asChild onClick={onClose}>
-            <Link href={`/admin/cards/${card.id}`}>
-              View card
-              <ExternalLink className="ml-1 size-3" />
-            </Link>
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <DialogFooter>
+        <Button variant="secondary" asChild>
+          <Link href={`/admin/cards/${card.id}`}>
+            View card
+            <ExternalLink className="ml-1 size-3" />
+          </Link>
+        </Button>
+      </DialogFooter>
+    </>
   )
 }
