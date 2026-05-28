@@ -2,13 +2,13 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import {
   ArrowDownLeft,
   ArrowRight,
   ArrowUpRight,
   Copy,
   ExternalLink,
+  Send,
   Star,
   Wallet,
   X,
@@ -709,22 +709,18 @@ function WalletActions({
         {hasWebLn && (
           // Shortcut: skip the destination input and use WebLN to mint
           // an invoice the user's Alby wallet receives. The amount step
-          // is the same as the regular LA path.
+          // is the same as the regular LA path. Styled subtler than the
+          // main destination submit — outline border, ghost surface,
+          // small caption — so it reads as "or, alternatively…" rather
+          // than competing with the primary form above.
           <Button
             type="button"
-            variant="secondary"
-            className="h-10 w-full justify-start gap-2 animate-in fade-in-0 duration-200"
+            variant="outline"
+            className="h-9 w-full gap-2 border-dashed text-xs text-muted-foreground hover:text-foreground animate-in fade-in-0 duration-200"
             onClick={() => setSendStep('amount-alby')}
             disabled={busy}
           >
-            <Image
-              src="/logos/alby.png"
-              alt=""
-              width={16}
-              height={16}
-              className="size-4"
-              aria-hidden
-            />
+            <Send className="size-3.5" />
             Send to Alby
           </Button>
         )}
