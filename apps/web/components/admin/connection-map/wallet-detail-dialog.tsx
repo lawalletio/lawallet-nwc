@@ -110,9 +110,24 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
     <Dialog open onOpenChange={o => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Wallet className="size-4 text-amber-400" />
-            Remote Wallet
+          {/*
+            Title is the wallet's own name (with the Default badge when
+            applicable), not a generic "Remote Wallet" — there's only
+            one of these dialogs on screen at a time, so the user
+            doesn't need a category label; they need to know WHICH
+            wallet they're looking at. The wallet identity row that
+            used to sit under the balance is gone now (would have been
+            redundant).
+          */}
+          <DialogTitle className="flex items-center gap-2 min-w-0">
+            <Wallet className="size-4 shrink-0 text-amber-400" />
+            <span className="truncate">{wallet.name}</span>
+            {wallet.isDefault && (
+              <Badge variant="secondary" className="gap-1">
+                <Star className="size-3 fill-amber-400 text-amber-400" />
+                Default
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -120,6 +135,30 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
           {/* HERO — balance card. */}
           <div className="relative overflow-hidden rounded-lg border border-border bg-gradient-to-br from-card to-card/40 p-5">
             <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-amber-400/10 blur-3xl" />
+
+            {/*
+              Connection-state indicator — pinned to the top-right of
+              the hero card. Status is a meta-signal about the data, not
+              a number to read, so it doesn't belong in the centered
+              balance stack; tucking it into the corner keeps the
+              balance reading tall and clean while still surfacing
+              the live link state at a glance.
+            */}
+            <div
+              className="absolute right-3 top-3 z-10 flex items-center gap-1.5 text-xs text-muted-foreground"
+              aria-label={`Balance ${state}`}
+            >
+              <span
+                className={cn(
+                  'inline-block size-1.5 shrink-0 rounded-full',
+                  state === 'connected' && 'bg-emerald-400',
+                  state === 'searching' && 'animate-pulse bg-amber-400',
+                  state === 'error' && 'bg-destructive',
+                  state === 'disabled' && 'bg-muted-foreground',
+                )}
+              />
+              {stateLabel}
+            </div>
 
             <div className="relative space-y-1 text-center">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -134,37 +173,17 @@ export function WalletDetailDialog({ wallet, addresses, cards, onClose }: Props)
                 </span>
                 <span className="text-base text-muted-foreground">sats</span>
               </div>
-              <div className="flex items-center justify-center gap-1.5 pt-1 text-xs text-muted-foreground">
-                <span
-                  className={cn(
-                    'inline-block size-1.5 shrink-0 rounded-full',
-                    state === 'connected' && 'bg-emerald-400',
-                    state === 'searching' && 'animate-pulse bg-amber-400',
-                    state === 'error' && 'bg-destructive',
-                    state === 'disabled' && 'bg-muted-foreground',
-                  )}
-                />
-                {stateLabel}
-              </div>
-            </div>
-
-            <div className="relative mt-5 flex items-center justify-center gap-2 text-sm font-medium">
-              <Wallet className="size-4 shrink-0 text-amber-400" />
-              <span className="truncate">{wallet.name}</span>
-              {wallet.isDefault && (
-                <Badge variant="secondary" className="gap-1">
-                  <Star className="size-3 fill-amber-400 text-amber-400" />
-                  Default
-                </Badge>
-              )}
             </div>
 
             {/* `AutoHeight` smooths the dialog as WalletActions swaps
                 between idle / amount / destination / invoice / amount-alby
                 — each state has a different natural height and without
                 a measured transition the surrounding Radix box would
-                jump abruptly. */}
-            <div className="relative mt-4">
+                jump abruptly. `mt-6` (was `mt-4`) gives more breathing
+                room since the wallet-identity row that used to sit
+                between balance and actions moved up to the dialog
+                title. */}
+            <div className="relative mt-6">
               <AutoHeight>
                 <WalletActions
                   walletId={wallet.id}
