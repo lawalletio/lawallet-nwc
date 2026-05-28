@@ -6,6 +6,7 @@ import type { BlobDescriptor, SignedEvent } from 'blossom-client-sdk'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { toBlossomSigner } from '@/lib/client/blossom-signer'
+import { DEFAULT_BLOSSOM_SERVERS } from '@/lib/client/blossom-defaults'
 
 /**
  * Unicode-safe replacement for `blossom-client-sdk`'s
@@ -42,8 +43,12 @@ interface UploadState {
   error: Error | null
 }
 
+// `undefined` means the operator has never touched the setting — fall back to the
+// shipped defaults so uploads work out of the box. An explicit `"[]"` (or any
+// malformed value) returns an empty list so the operator can intentionally
+// opt-out of blossom uploads.
 function parseServers(raw: string | undefined): string[] {
-  if (!raw) return []
+  if (raw === undefined) return DEFAULT_BLOSSOM_SERVERS
   try {
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed)) {
