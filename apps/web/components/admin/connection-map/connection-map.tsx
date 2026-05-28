@@ -22,7 +22,11 @@ import {
   useAddressMutations,
   type WalletAddress,
 } from '@/lib/client/hooks/use-wallet-addresses'
-import { useCards, type CardData } from '@/lib/client/hooks/use-cards'
+import {
+  useCards,
+  useCardMutations,
+  type CardData,
+} from '@/lib/client/hooks/use-cards'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { Spinner } from '@/components/ui/spinner'
 import { truncateHex } from '@/lib/client/format'
@@ -40,6 +44,8 @@ const usernameFromNodeId = (nodeId: string | null | undefined): string | null =>
   nodeId && nodeId.startsWith('la:') ? nodeId.slice('la:'.length) : null
 const walletIdFromNodeId = (nodeId: string | null | undefined): string | null =>
   nodeId && nodeId.startsWith('wallet:') ? nodeId.slice('wallet:'.length) : null
+const cardIdFromNodeId = (nodeId: string | null | undefined): string | null =>
+  nodeId && nodeId.startsWith('card:') ? nodeId.slice('card:'.length) : null
 
 /**
  * Edge type registry. Defined at module scope so React Flow sees a stable
@@ -116,6 +122,7 @@ function ConnectionMapInner() {
   const edgeReconnectSuccessful = useRef(true)
 
   const { updateAddress } = useAddressMutations()
+  const { updateCard } = useCardMutations()
 
   /** Default wallet drives the "implicit binding" for DEFAULT_NWC addresses. */
   const defaultWallet = useMemo(
@@ -191,19 +198,57 @@ function ConnectionMapInner() {
     [updateAddress],
   )
 
+  const bindCardToWallet = useCallback(
+    async (cardId: string, walletId: string) => {
+      try {
+        await updateCard(cardId, { remoteWalletId: walletId })
+        toast.success('Card bound to wallet')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not bind card'
+        toast.error(msg)
+      }
+    },
+    [updateCard],
+  )
+
+  const disconnectCard = useCallback(
+    async (cardId: string) => {
+      try {
+        await updateCard(cardId, { remoteWalletId: null })
+        toast.success('Card unbound')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Could not unbind card'
+        toast.error(msg)
+      }
+    },
+    [updateCard],
+  )
+
   const handleConnectStart = useCallback(() => setIsConnecting(true), [])
   const handleConnectEnd = useCallback(() => setIsConnecting(false), [])
 
   // New edge created by dragging from a source handle onto a target handle.
-  // Source-side guard: only LA → Wallet is allowed (Card handles are not
-  // connectable, but be defensive against future changes).
+  // Two valid shapes:
+  //   - LA source → wallet target (`from-la`): bind LA to wallet.
+  //   - Wallet source (`to-card`) → card target: bind card to wallet.
+  // `isValidConnection` already rejects anything else before we get here,
+  // but we re-check the prefixes so a future handle id rename doesn't
+  // silently break the dispatch.
   const handleConnect = useCallback(
     (connection: Connection) => {
-      const username = usernameFromNodeId(connection.source)
-      const walletId = walletIdFromNodeId(connection.target)
-      if (username && walletId) bindAddressToWallet(username, walletId)
+      const sourceLa = usernameFromNodeId(connection.source)
+      const sourceWallet = walletIdFromNodeId(connection.source)
+      if (sourceLa) {
+        const walletId = walletIdFromNodeId(connection.target)
+        if (walletId) bindAddressToWallet(sourceLa, walletId)
+        return
+      }
+      if (sourceWallet) {
+        const cardId = cardIdFromNodeId(connection.target)
+        if (cardId) bindCardToWallet(cardId, sourceWallet)
+      }
     },
-    [bindAddressToWallet],
+    [bindAddressToWallet, bindCardToWallet],
   )
 
   const handleReconnectStart = useCallback(() => {
@@ -211,21 +256,32 @@ function ConnectionMapInner() {
     setIsConnecting(true)
   }, [])
 
-  // Existing LA edge dragged onto a new wallet handle. We update via the
-  // edge's `source` (the LA), not the old/new wallet — the LA is the row
-  // we're patching, regardless of which wallet it lands on.
+  // Existing edge dragged onto a new handle. The row we're PATCHing is
+  // the LA (for LA edges) or the card (for wallet→card edges) — that
+  // stays the same; what changes is which wallet binds it.
+  //   - LA edge:   source = LA (fixed), target = wallet (new).
+  //   - Card edge: target = card (fixed), source = wallet (new).
   const handleReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
       edgeReconnectSuccessful.current = true
       const username = usernameFromNodeId(oldEdge.source)
-      const walletId = walletIdFromNodeId(newConnection.target)
-      if (username && walletId) bindAddressToWallet(username, walletId)
+      if (username) {
+        const walletId = walletIdFromNodeId(newConnection.target)
+        if (walletId) bindAddressToWallet(username, walletId)
+        return
+      }
+      const cardId = cardIdFromNodeId(oldEdge.target)
+      if (cardId) {
+        const walletId = walletIdFromNodeId(newConnection.source)
+        if (walletId) bindCardToWallet(cardId, walletId)
+      }
     },
-    [bindAddressToWallet],
+    [bindAddressToWallet, bindCardToWallet],
   )
 
   // Edge dropped on empty space: disconnect. The ref pattern means we land
-  // here only when `handleReconnect` did NOT run for the same drag.
+  // here only when `handleReconnect` did NOT run for the same drag. We
+  // detect which edge family this is by which prefix the endpoints carry.
   const handleReconnectEnd = useCallback(
     (_event: MouseEvent | TouchEvent, edge: Edge) => {
       setIsConnecting(false)
@@ -235,23 +291,38 @@ function ConnectionMapInner() {
       }
       edgeReconnectSuccessful.current = true
       const username = usernameFromNodeId(edge.source)
-      if (username) disconnectAddress(username)
+      if (username) {
+        disconnectAddress(username)
+        return
+      }
+      const cardId = cardIdFromNodeId(edge.target)
+      if (cardId) disconnectCard(cardId)
     },
-    [disconnectAddress],
+    [disconnectAddress, disconnectCard],
   )
 
   // Reject invalid drops while the user is dragging — xyflow paints the
   // ghost edge red so the affordance reads as "this won't work" before
-  // the release. Two rules:
-  //   1. Only LA → wallet connections are allowed (Card source handles
-  //      are non-connectable, but be defensive).
-  //   2. The LA edge must land on the wallet's LEFT (`from-la`) handle —
-  //      the right (`from-card`) side is reserved for cards.
+  // release. Two valid shapes match the two edge families:
+  //   1. LA SOURCE → wallet TARGET, targetHandle `from-la` (LA→wallet).
+  //   2. Wallet SOURCE → card TARGET, sourceHandle `to-card` (wallet→card).
+  // Anything else (wrong direction, wrong handle on the wallet, etc.) is
+  // rejected so partial-typing the wrong handle is impossible.
   const isValidConnection = useCallback((connection: Connection | Edge) => {
-    if (!connection.source?.startsWith('la:')) return false
-    if (!connection.target?.startsWith('wallet:')) return false
-    if (connection.targetHandle && connection.targetHandle !== 'from-la') return false
-    return true
+    const sourceLa = !!connection.source?.startsWith('la:')
+    const sourceWallet = !!connection.source?.startsWith('wallet:')
+    const targetWallet = !!connection.target?.startsWith('wallet:')
+    const targetCard = !!connection.target?.startsWith('card:')
+
+    if (sourceLa && targetWallet) {
+      if (connection.targetHandle && connection.targetHandle !== 'from-la') return false
+      return true
+    }
+    if (sourceWallet && targetCard) {
+      if (connection.sourceHandle && connection.sourceHandle !== 'to-card') return false
+      return true
+    }
+    return false
   }, [])
 
   if (loading && !nodes.length) {
@@ -364,9 +435,10 @@ interface BuiltGraph {
  * row is purely a function of its index in its source list — no
  * auto-layout, stable across re-renders.
  *
- * Edge handle ids must match `nodes.tsx`:
- *   - LA   `out` (right) → Wallet `from-la`   (left)
- *   - Card `out` (left)  → Wallet `from-card` (right)
+ * Edge handle ids must match `nodes.tsx`. The two edge families flow in
+ * opposite directions so the dragged end is always a SOURCE handle:
+ *   - LA edge:   LA     `out`    (right) → Wallet `from-la` (left)
+ *   - Card edge: Wallet `to-card`(right) → Card   `in`      (left)
  */
 function buildGraph({
   wallets,
@@ -463,9 +535,10 @@ function buildGraph({
   //
   // `reconnectable` per-edge:
   //   - LA edges: 'target' — drag the wallet end to rebind or to empty
-  //     space to disconnect. The LA end is fixed; dragging it onto
-  //     another LA doesn't make sense.
-  //   - Card edges: false — card↔wallet rebinding ships in a later slice.
+  //     space to disconnect. The LA end is fixed.
+  //   - Card edges: 'source' — drag the wallet end (which IS the source
+  //     since the edge points wallet → card) to rebind / disconnect.
+  //     The card end stays put.
   //
   // Address bindings:
   //   CUSTOM_NWC   → solid edge to the address's bound wallet.
@@ -501,18 +574,20 @@ function buildGraph({
     }
   }
 
-  // Card bindings enter the wallet from the RIGHT (`from-card`) so the
-  // bezier curves out from the card column on the right cleanly.
+  // Card bindings: edge flows wallet → card (the wallet "owns" the card
+  // visually) so the wallet's right dot can initiate a drag. The
+  // underlying API still sets `card.remoteWalletId = wallet.id` — the
+  // edge direction is purely a UX choice.
   for (const card of cards ?? []) {
     if (!card.remoteWalletId) continue
     edges.push({
-      id: `e:card:${card.id}->${card.remoteWalletId}`,
+      id: `e:card:${card.remoteWalletId}->${card.id}`,
       type: 'highlight',
-      source: cardNodeId(card.id),
-      sourceHandle: 'out',
-      target: walletNodeId(card.remoteWalletId),
-      targetHandle: 'from-card',
-      reconnectable: false,
+      source: walletNodeId(card.remoteWalletId),
+      sourceHandle: 'to-card',
+      target: cardNodeId(card.id),
+      targetHandle: 'in',
+      reconnectable: 'source',
       style: { stroke: 'oklch(0.72 0.16 245)' /* sky */, strokeWidth: 1.5 },
     })
   }

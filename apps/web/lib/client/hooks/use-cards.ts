@@ -152,21 +152,37 @@ export function useCard(id: string | null) {
   return { ...result, data }
 }
 
+export interface UpdateCardInput {
+  /** New wallet to bind; pass `null` to unbind. */
+  remoteWalletId: string | null
+}
+
 /**
- * Mutation hook for creating/deleting cards.
+ * Mutation hook for creating / updating / deleting cards.
+ *
+ * Each verb uses its own `useMutation` instance so their `loading` /
+ * `error` flags don't bleed into each other — a card being PATCHed
+ * shouldn't grey out a separate create button.
  */
 export function useCardMutations() {
   // TOutput intentionally left loose — the create endpoint returns the
   // legacy `Card` shape from `types/card.ts` (flat pubkey/username etc.);
   // consumers here only need `id` to route to the new card's page.
-  const { mutate, loading, error } =
-    useMutation<{ id: string; designId?: string }, { id: string }>()
+  const create = useMutation<{ id: string; designId?: string }, { id: string }>()
+  const update = useMutation<UpdateCardInput, ApiCard>()
+  const del = useMutation<undefined, { message: string; cardId: string }>()
 
   return {
     createCard: (data: { id: string; designId?: string }) =>
-      mutate('post', '/api/cards', data),
-    deleteCard: (id: string) => mutate('del', `/api/cards/${id}`),
-    loading,
-    error,
+      create.mutate('post', '/api/cards', data),
+    updateCard: (id: string, input: UpdateCardInput) =>
+      update.mutate('patch', `/api/cards/${id}`, input),
+    deleteCard: (id: string) => del.mutate('del', `/api/cards/${id}`),
+    creating: create.loading,
+    updating: update.loading,
+    deleting: del.loading,
+    // Backwards-compatible aggregate flag for existing callers.
+    loading: create.loading || update.loading || del.loading,
+    error: create.error ?? update.error ?? del.error,
   }
 }

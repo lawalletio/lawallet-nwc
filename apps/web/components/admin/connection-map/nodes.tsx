@@ -21,22 +21,21 @@ import { useHover } from './hover-context'
  *    `nodes` array stays stable across hover changes (no flicker).
  *
  * Handle ids — referenced from `buildGraph` in `connection-map.tsx` so
- * edges know which side to attach to:
- *  - LA source: `out`
- *  - Card source: `out`
- *  - Wallet targets: `from-la` (left), `from-card` (right)
+ * edges know which side to attach to. The two edge families flow in
+ * OPPOSITE directions to keep both ends of every edge draggable:
  *
- * Connectability:
- *  - LA source + Wallet `from-la` handle are draggable: users can rebind
- *    / connect / disconnect LA→wallet bindings by grabbing the handle.
- *    This is what powers `onConnect`, `onReconnect`, and
- *    `onReconnectEnd` in `connection-map.tsx`.
- *  - Card source is intentionally `isConnectable={false}` — card↔wallet
- *    rebinding lives in a later slice and the PATCH endpoint isn't wired
- *    yet, so we hide the affordance to avoid a half-broken interaction.
- *  - Wallet `from-card` handle is also `isConnectable={false}` for the
- *    same reason; it only renders as a visual attachment point for
- *    existing card edges.
+ *  - LA edges  flow LA → wallet:   `la:*` SOURCE `out`  → `wallet:*` TARGET `from-la`
+ *  - Card edges flow wallet → card: `wallet:*` SOURCE `to-card` → `card:*` TARGET `in`
+ *
+ *  xyflow only lets the user drag from source handles, so each draggable
+ *  endpoint must be the SOURCE of its edge. Flipping the card edges
+ *  this way means the wallet's right dot can initiate a connection to a
+ *  card — which is what the user actually wants ("attach a card to this
+ *  wallet"). The API binding is still `card.remoteWalletId = wallet.id`
+ *  regardless of which way the visual arrow points.
+ *
+ * Connectability — both ends of both edge families are now interactive,
+ * so the JSX uses xyflow's defaults (`isConnectable` unset = true).
  */
 const NODE_WIDTH = 220
 
@@ -102,11 +101,13 @@ export function LightningAddressNode({ id, data }: NodeProps) {
 }
 
 /**
- * Card node — outbound handle on the LEFT (the cards column sits on the
+ * Card node — TARGET handle on the LEFT (the cards column sits on the
  * right of the canvas, so the connection faces the wallets in the
- * middle). Renders the design thumbnail on the OUTER edge — mirroring
- * the LA node where the icon is also opposite the handle — so the two
- * side columns read as a symmetric pair.
+ * middle). Cards are the *receiving* end of the wallet→card binding —
+ * the wallet "owns" the card from the graph's perspective, which makes
+ * the wallet's right dot the draggable initiator. Renders the design
+ * thumbnail on the OUTER edge, mirroring the LA node (icon opposite the
+ * handle) so the two side columns read as a symmetric pair.
  */
 export function CardNode({ id, data }: NodeProps) {
   const d = data as unknown as CardNodeData
@@ -117,11 +118,10 @@ export function CardNode({ id, data }: NodeProps) {
   return (
     <div className={shellClasses(dimmed)} style={{ width: NODE_WIDTH }}>
       <Handle
-        id="out"
-        type="source"
+        id="in"
+        type="target"
         position={Position.Left}
         className="!size-2 !bg-sky-400"
-        isConnectable={false}
       />
       <div className="flex min-w-0 flex-col flex-1">
         <span className="truncate text-xs font-medium">{d.label}</span>
@@ -146,11 +146,15 @@ export function CardNode({ id, data }: NodeProps) {
 }
 
 /**
- * Remote wallet node — sits in the MIDDLE column with target handles on
- * BOTH sides so edges from LAs (left) and Cards (right) meet head-on
- * rather than wrapping around the node.
- *   - `from-la`   LEFT  handle, draggable for rebind / disconnect.
- *   - `from-card` RIGHT handle, view-only until cards get a PATCH endpoint.
+ * Remote wallet node — sits in the MIDDLE column with a handle on each
+ * side. Both are interactive (defaults), but they belong to opposite
+ * edge families:
+ *   - `from-la` LEFT  handle is the TARGET of LA→wallet edges. Users
+ *                     drag an LA edge's wallet end here to rebind /
+ *                     disconnect.
+ *   - `to-card` RIGHT handle is the SOURCE of wallet→card edges. Users
+ *                     drag from this dot onto a card on the right
+ *                     column to bind that card to this wallet.
  */
 export function RemoteWalletNode({ id, data }: NodeProps) {
   const d = data as unknown as RemoteWalletNodeData
@@ -182,11 +186,10 @@ export function RemoteWalletNode({ id, data }: NodeProps) {
         </span>
       </div>
       <Handle
-        id="from-card"
-        type="target"
+        id="to-card"
+        type="source"
         position={Position.Right}
         className="!size-2 !bg-sky-400"
-        isConnectable={false}
       />
     </div>
   )

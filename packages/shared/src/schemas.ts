@@ -22,6 +22,18 @@ export const cardListQuerySchema = z.object({
   used: z.enum(['true', 'false']).optional(),
 })
 
+/**
+ * Partial update for a card. Today only the wallet binding can change:
+ *   - `remoteWalletId: string` rebinds the card to that wallet (must
+ *     belong to the caller, must not be REVOKED — validated in the
+ *     route handler since cross-field rules don't fit Zod cleanly).
+ *   - `remoteWalletId: null` unbinds the card; spending falls back to
+ *     the owner's default wallet at run-time.
+ */
+export const updateCardSchema = z.object({
+  remoteWalletId: z.string().min(1).nullable(),
+})
+
 export const createCardDesignSchema = z.object({
   description: z
     .string()
