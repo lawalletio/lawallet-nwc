@@ -21,9 +21,19 @@ export interface HighlightSet {
 export interface HoverContextValue {
   /** `null` = nothing hovered; everything renders at full opacity. */
   highlight: HighlightSet | null
+  /**
+   * Id of the edge the cursor is DIRECTLY over (not merely part of the
+   * hovered node's connected component). Drives the per-edge tooltip in
+   * `HighlightEdge` — we only want to label the one edge under the
+   * pointer, not every edge that happens to be highlighted.
+   */
+  activeEdgeId: string | null
 }
 
-const HoverContext = createContext<HoverContextValue>({ highlight: null })
+const HoverContext = createContext<HoverContextValue>({
+  highlight: null,
+  activeEdgeId: null,
+})
 
 export const HoverProvider = HoverContext.Provider
 

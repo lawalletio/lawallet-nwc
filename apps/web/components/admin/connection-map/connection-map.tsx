@@ -157,10 +157,17 @@ function ConnectionMapInner() {
     [hovered, edges],
   )
 
+  // The edge directly under the cursor (vs. merely highlighted as part
+  // of a hovered node's component) — drives the per-edge tooltip.
+  const activeEdgeId = hovered?.kind === 'edge' ? hovered.id : null
+
   // Memoise the context value so consumers only re-render when `highlight`
-  // actually changes — not on every render of this component (e.g. while
-  // `isPanning` flips during a drag).
-  const hoverValue = useMemo(() => ({ highlight }), [highlight])
+  // or `activeEdgeId` actually changes — not on every render of this
+  // component (e.g. while `isPanning` flips during a drag).
+  const hoverValue = useMemo(
+    () => ({ highlight, activeEdgeId }),
+    [highlight, activeEdgeId],
+  )
 
   // ── Lightning Address ↔ Wallet rebinding ─────────────────────────────────
   // Only LA edges are interactive here. Card edges are inert (their handle
@@ -725,6 +732,10 @@ function buildGraph({
         target: walletNodeId(addr.remoteWalletId),
         targetHandle: 'from-la',
         reconnectable: true,
+        data: {
+          tooltipTitle: 'CUSTOM_NWC',
+          tooltipHint: 'Bound to this specific wallet',
+        },
         style: { stroke: 'oklch(0.78 0.18 162)' /* emerald */, strokeWidth: 1.5 },
       })
     } else if (addr.mode === 'DEFAULT_NWC' && defaultWallet) {
@@ -736,6 +747,10 @@ function buildGraph({
         target: walletNodeId(defaultWallet.id),
         targetHandle: 'from-la',
         reconnectable: true,
+        data: {
+          tooltipTitle: 'DEFAULT_NWC',
+          tooltipHint: 'Routes through the default wallet',
+        },
         style: {
           stroke: 'oklch(0.78 0.18 162)',
           strokeWidth: 1.5,
@@ -759,6 +774,10 @@ function buildGraph({
       target: cardNodeId(card.id),
       targetHandle: 'in',
       reconnectable: 'source',
+      data: {
+        tooltipTitle: 'CARD',
+        tooltipHint: 'Card spends from this wallet',
+      },
       style: { stroke: 'oklch(0.72 0.16 245)' /* sky */, strokeWidth: 1.5 },
     })
   }
