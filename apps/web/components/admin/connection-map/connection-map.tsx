@@ -38,6 +38,8 @@ import { ConnectionLine } from './connection-line'
 import { AddressDetailBody } from './address-detail-dialog'
 import { WalletDetailBody } from './wallet-detail-dialog'
 import { CardDetailBody } from './card-detail-dialog'
+import { useAuth } from '@/components/admin/auth-context'
+import { Permission } from '@/lib/auth/permissions'
 
 /** Stable id helpers — used by both nodes and edges so they always agree. */
 const walletNodeId = (id: string) => `wallet:${id}`
@@ -94,13 +96,23 @@ const edgeTypes = { highlight: HighlightEdge }
  *   otherwise fire a constant stream of enter/leave events.
  */
 function ConnectionMapInner() {
+  const { isAuthorized } = useAuth()
   const { data: settings } = useSettings()
   const { data: wallets, loading: walletsLoading } = useRemoteWallets()
   const { data: addresses, loading: addressesLoading } = useMyAddresses()
-  // /api/cards is admin-scoped. For non-admin callers we just render no
-  // card group; a per-user cards endpoint would let non-admins see their
-  // own cards bound to wallets (out of scope for this slice).
-  const { data: cards, loading: cardsLoading } = useCards()
+  // The page is reachable by EVERY authenticated role (the admin layout
+  // only gates on auth, not role). `/api/remote-wallets` and
+  // `/api/wallet/addresses` are per-caller, so they're fine for anyone.
+  //
+  // `/api/cards` is admin-scoped (`CARDS_READ`), so we only fetch it when
+  // the caller actually has the permission — otherwise we'd fire a 403
+  // on every non-admin page load. Without the permission the cards
+  // column just doesn't render (a per-user cards endpoint that would let
+  // plain users see their own cards bound to wallets is out of scope).
+  const canReadCards = isAuthorized(Permission.CARDS_READ)
+  const { data: cards, loading: cardsLoading } = useCards(undefined, {
+    enabled: canReadCards,
+  })
 
   const loading = walletsLoading || addressesLoading || cardsLoading
   const domain = settings?.domain || 'your-domain'

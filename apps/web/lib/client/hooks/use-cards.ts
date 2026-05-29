@@ -120,15 +120,24 @@ function toCardData(c: ApiCard): CardData {
 
 /**
  * Fetch cards list with optional filters.
+ *
+ * `/api/cards` is admin-scoped (requires `CARDS_READ`). Pass
+ * `{ enabled: false }` to skip the fetch entirely for callers who lack
+ * the permission — `useApi(null)` is a no-op, so the hook stays idle
+ * and returns `data: null` instead of firing a request that would 403.
+ * The Connection Map uses this so plain users can open the page without
+ * a forbidden request in their network tab; they simply see no card
+ * column.
  */
-export function useCards(filters?: CardFilters) {
+export function useCards(filters?: CardFilters, options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true
   const params = new URLSearchParams()
   if (filters?.paired !== undefined) params.set('paired', String(filters.paired))
   if (filters?.used !== undefined) params.set('used', String(filters.used))
   const qs = params.toString()
   const queryParams = qs ? `?${qs}` : ''
 
-  const result = useApi<ApiCard[]>(`/api/cards${queryParams}`)
+  const result = useApi<ApiCard[]>(enabled ? `/api/cards${queryParams}` : null)
   const data = useMemo(
     () => (result.data ? result.data.map(toCardData) : null),
     [result.data],
