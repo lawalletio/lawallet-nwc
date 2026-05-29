@@ -471,7 +471,13 @@ function ConnectionMapInner() {
           open={selected !== null}
           onOpenChange={o => !o && closeDetail()}
         >
-          <DialogContent>
+          {/* Cap the height so tall bodies (the card body's full-width
+              design preview + all its fields can exceed the viewport)
+              scroll internally instead of overflowing off-screen.
+              `max-h-[85vh]` leaves a margin so the dialog never kisses
+              the viewport edges; `overflow-y-auto` only shows the
+              scrollbar when content actually exceeds the cap. */}
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <div
               key={selected?.kind ?? 'none'}
               className="grid gap-4 animate-in fade-in-0 duration-200"
