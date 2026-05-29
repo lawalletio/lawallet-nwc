@@ -271,27 +271,47 @@ function ConnectionMapInner() {
     setIsConnecting(true)
   }, [])
 
-  // Existing edge dragged onto a new handle. The row we're PATCHing is
-  // the LA (for LA edges) or the card (for wallet→card edges) — that
-  // stays the same; what changes is which wallet binds it.
-  //   - LA edge:   source = LA (fixed), target = wallet (new).
-  //   - Card edge: target = card (fixed), source = wallet (new).
+  // Existing edge dragged onto a new handle. Which model row we PATCH
+  // depends on which END of the edge moved:
+  //
+  //   LA edge (la:* → wallet:*), now reconnectable on BOTH ends:
+  //     · target moved (wallet end): newConnection.source is still the
+  //       original LA → rebind that LA to the new wallet.
+  //     · source moved (LA end): the user grabbed the LA's output and
+  //       dropped it on a DIFFERENT LA → move the binding: bind the new
+  //       LA to the (unchanged) wallet and release the old LA. Dropping
+  //       back on the same LA is a harmless no-op rebind.
+  //
+  //   Card edge (wallet:* → card:*): target = card (fixed), source =
+  //     wallet (new) → rebind that card to the new wallet.
   const handleReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
       edgeReconnectSuccessful.current = true
-      const username = usernameFromNodeId(oldEdge.source)
-      if (username) {
+
+      const oldLaUser = usernameFromNodeId(oldEdge.source)
+      if (oldLaUser) {
         const walletId = walletIdFromNodeId(newConnection.target)
-        if (walletId) bindAddressToWallet(username, walletId)
+        if (!walletId) return
+        const newLaUser = usernameFromNodeId(newConnection.source)
+        if (newLaUser && newLaUser !== oldLaUser) {
+          // Source end moved to a different LA → move the binding.
+          bindAddressToWallet(newLaUser, walletId)
+          disconnectAddress(oldLaUser)
+        } else {
+          // Target end moved (or dropped back on the same LA) → rebind
+          // this LA to whatever wallet it now points at.
+          bindAddressToWallet(oldLaUser, walletId)
+        }
         return
       }
+
       const cardId = cardIdFromNodeId(oldEdge.target)
       if (cardId) {
         const walletId = walletIdFromNodeId(newConnection.source)
         if (walletId) bindCardToWallet(cardId, walletId)
       }
     },
-    [bindAddressToWallet, bindCardToWallet],
+    [bindAddressToWallet, disconnectAddress, bindCardToWallet],
   )
 
   // Edge dropped on empty space: disconnect. The ref pattern means we land
@@ -679,8 +699,14 @@ function buildGraph({
   // rebuilding of the edges array required.
   //
   // `reconnectable` per-edge:
-  //   - LA edges: 'target' — drag the wallet end to rebind or to empty
-  //     space to disconnect. The LA end is fixed.
+  //   - LA edges: `true` — BOTH ends draggable.
+  //       · wallet end (target) → rebind to a different wallet, or drop
+  //         on empty space to disconnect (→ IDLE).
+  //       · LA end (source)     → grabbing the LA's own output handle
+  //         picks up THIS existing edge instead of spawning a second
+  //         wire; the line then redraws from the cursor to the wallet.
+  //         Drop on another LA moves the binding; drop on empty
+  //         disconnects.
   //   - Card edges: 'source' — drag the wallet end (which IS the source
   //     since the edge points wallet → card) to rebind / disconnect.
   //     The card end stays put.
@@ -698,7 +724,7 @@ function buildGraph({
         sourceHandle: 'out',
         target: walletNodeId(addr.remoteWalletId),
         targetHandle: 'from-la',
-        reconnectable: 'target',
+        reconnectable: true,
         style: { stroke: 'oklch(0.78 0.18 162)' /* emerald */, strokeWidth: 1.5 },
       })
     } else if (addr.mode === 'DEFAULT_NWC' && defaultWallet) {
@@ -709,7 +735,7 @@ function buildGraph({
         sourceHandle: 'out',
         target: walletNodeId(defaultWallet.id),
         targetHandle: 'from-la',
-        reconnectable: 'target',
+        reconnectable: true,
         style: {
           stroke: 'oklch(0.78 0.18 162)',
           strokeWidth: 1.5,
