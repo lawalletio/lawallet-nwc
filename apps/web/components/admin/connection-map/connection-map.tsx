@@ -34,6 +34,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { nodeTypes, NODE_LAYOUT } from './nodes'
 import { HoverProvider, type HighlightSet } from './hover-context'
 import { HighlightEdge } from './highlight-edge'
+import { ConnectionLine } from './connection-line'
 import { AddressDetailBody } from './address-detail-dialog'
 import { WalletDetailBody } from './wallet-detail-dialog'
 import { CardDetailBody } from './card-detail-dialog'
@@ -407,13 +408,12 @@ function ConnectionMapInner() {
           edgesFocusable={false}
           elementsSelectable={false}
           proOptions={{ hideAttribution: true }}
-          // Style the in-flight connection line to match LA edges (emerald,
-          // dashed while dragging) so the affordance is obvious.
-          connectionLineStyle={{
-            stroke: 'oklch(0.78 0.18 162)',
-            strokeWidth: 1.5,
-            strokeDasharray: '4 4',
-          }}
+          // Custom in-flight connection line: a bezier preview that
+          // matches the resting edges, colour-coded by drop validity,
+          // with a marching-ants animation + dots on both ends so the
+          // wire reads as live while the user drags it (see
+          // ./connection-line.tsx).
+          connectionLineComponent={ConnectionLine}
           isValidConnection={isValidConnection}
           onNodeClick={handleNodeClick}
           onConnect={handleConnect}

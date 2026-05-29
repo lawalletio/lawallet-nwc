@@ -53,3 +53,28 @@
 .react-flow__controls-button svg {
   fill: currentColor;
 }
+
+/* Marching-ants animation for the in-flight connection line (the
+ * custom `ConnectionLine` component). The dash pattern is `4 4`; one
+ * full cycle is 8 user units, so animating stroke-dashoffset to -8
+ * loops seamlessly and reads as the wire "flowing" toward the cursor
+ * while the user draws.
+ *
+ * `motion-reduce` disables it for users who prefer reduced motion —
+ * the dashed line is still perfectly legible static.
+ */
+@keyframes connection-map-dash {
+  to {
+    stroke-dashoffset: -8;
+  }
+}
+
+.connection-map-line {
+  animation: connection-map-dash 0.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-map-line {
+    animation: none;
+  }
+}
