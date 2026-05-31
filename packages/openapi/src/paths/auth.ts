@@ -31,6 +31,44 @@ registry.registerPath({
 })
 
 registry.registerPath({
+  ...withRole('ADMIN'),
+  method: 'post',
+  path: '/api/auth/qr-jwt/generate',
+  tags: [TAG],
+  summary: 'Mint a scoped device token (QR login)',
+  description:
+    'Admin-only. Mints a stateless JWT scoped to a target user + permission subset, shown as a QR for the card apps (card-installer, simple-card-manager) to scan. No session record, no revocation — validation is signature + exp only, so lifetimes are bounded to 30 days. Granted permissions must be a subset of the caller\'s RBAC.',
+  operationId: 'auth.qrJwt.generate',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: { 'application/json': { schema: schemas.QrJwtGenerateRequest } },
+    },
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Device token minted.',
+      z.object({
+        jwt: z.string(),
+        expiresIn: z.union([z.string(), z.number()]),
+        scopes: z.array(z.string()),
+        user: z.object({
+          id: z.string(),
+          pubkey: z.string(),
+          role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']),
+        }),
+      }),
+    ),
+    400: responses.validation,
+    401: responses.unauthenticated,
+    403: responses.forbidden,
+    404: responses.notFound,
+    429: responses.rateLimited,
+    500: responses.internalError,
+  },
+})
+
+registry.registerPath({
   ...withRole('USER'),
   method: 'get',
   path: '/api/jwt',
