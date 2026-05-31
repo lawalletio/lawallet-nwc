@@ -5,6 +5,8 @@ import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 
 export interface CardData {
   id: string
+  /** Human-readable card name (admin-set). Can be null on legacy / orphan rows. */
+  title: string | null
   designId: string | null
   design: {
     id: string
@@ -24,6 +26,8 @@ export interface CardData {
     username: string
     pubkey: string
   } | null
+  /** RemoteWallet this card spends from (or null if unbound). */
+  remoteWalletId: string | null
   createdAt: string
   updatedAt: string
 }
@@ -76,11 +80,13 @@ interface ApiCard {
   pubkey?: string
   username?: string
   otc?: string | null
+  remoteWalletId?: string | null
 }
 
 function toCardData(c: ApiCard): CardData {
   return {
     id: c.id,
+    title: c.title ?? null,
     designId: c.design?.id ?? null,
     design: c.design
       ? {
@@ -104,6 +110,7 @@ function toCardData(c: ApiCard): CardData {
       c.username && c.pubkey
         ? { username: c.username, pubkey: c.pubkey }
         : null,
+    remoteWalletId: c.remoteWalletId ?? null,
     createdAt: c.createdAt,
     // Legacy API has no `updatedAt` — fall back to lastUsedAt/createdAt so
     // the "Last used" column still shows something sensible.
@@ -113,15 +120,24 @@ function toCardData(c: ApiCard): CardData {
 
 /**
  * Fetch cards list with optional filters.
+ *
+ * `/api/cards` is admin-scoped (requires `CARDS_READ`). Pass
+ * `{ enabled: false }` to skip the fetch entirely for callers who lack
+ * the permission — `useApi(null)` is a no-op, so the hook stays idle
+ * and returns `data: null` instead of firing a request that would 403.
+ * The Connection Map uses this so plain users can open the page without
+ * a forbidden request in their network tab; they simply see no card
+ * column.
  */
-export function useCards(filters?: CardFilters) {
+export function useCards(filters?: CardFilters, options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true
   const params = new URLSearchParams()
   if (filters?.paired !== undefined) params.set('paired', String(filters.paired))
   if (filters?.used !== undefined) params.set('used', String(filters.used))
   const qs = params.toString()
   const queryParams = qs ? `?${qs}` : ''
 
-  const result = useApi<ApiCard[]>(`/api/cards${queryParams}`)
+  const result = useApi<ApiCard[]>(enabled ? `/api/cards${queryParams}` : null)
   const data = useMemo(
     () => (result.data ? result.data.map(toCardData) : null),
     [result.data],
@@ -148,21 +164,37 @@ export function useCard(id: string | null) {
   return { ...result, data }
 }
 
+export interface UpdateCardInput {
+  /** New wallet to bind; pass `null` to unbind. */
+  remoteWalletId: string | null
+}
+
 /**
- * Mutation hook for creating/deleting cards.
+ * Mutation hook for creating / updating / deleting cards.
+ *
+ * Each verb uses its own `useMutation` instance so their `loading` /
+ * `error` flags don't bleed into each other — a card being PATCHed
+ * shouldn't grey out a separate create button.
  */
 export function useCardMutations() {
   // TOutput intentionally left loose — the create endpoint returns the
   // legacy `Card` shape from `types/card.ts` (flat pubkey/username etc.);
   // consumers here only need `id` to route to the new card's page.
-  const { mutate, loading, error } =
-    useMutation<{ id: string; designId?: string }, { id: string }>()
+  const create = useMutation<{ id: string; designId?: string }, { id: string }>()
+  const update = useMutation<UpdateCardInput, ApiCard>()
+  const del = useMutation<undefined, { message: string; cardId: string }>()
 
   return {
     createCard: (data: { id: string; designId?: string }) =>
-      mutate('post', '/api/cards', data),
-    deleteCard: (id: string) => mutate('del', `/api/cards/${id}`),
-    loading,
-    error,
+      create.mutate('post', '/api/cards', data),
+    updateCard: (id: string, input: UpdateCardInput) =>
+      update.mutate('patch', `/api/cards/${id}`, input),
+    deleteCard: (id: string) => del.mutate('del', `/api/cards/${id}`),
+    creating: create.loading,
+    updating: update.loading,
+    deleting: del.loading,
+    // Backwards-compatible aggregate flag for existing callers.
+    loading: create.loading || update.loading || del.loading,
+    error: create.error ?? update.error ?? del.error,
   }
 }

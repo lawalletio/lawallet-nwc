@@ -27,6 +27,7 @@ export const ActivityEvent = {
   NWC_CONNECTION_CREATED: 'nwc.connection_created',
   NWC_DEFAULT_CHANGED: 'nwc.default_changed',
   NWC_ASSIGNED_TO_ADDRESS: 'nwc.assigned_to_address',
+  NWC_ASSIGNED_TO_CARD: 'nwc.assigned_to_card',
   NWC_RELAY_TIMEOUT: 'nwc.relay_timeout',
   NWC_CONNECTION_ERROR: 'nwc.connection_error',
   // INVOICE
@@ -40,6 +41,8 @@ export const ActivityEvent = {
   CARD_CREATED: 'card.created',
   CARD_PAIRED: 'card.paired',
   CARD_STATUS_UPDATED: 'card.status_updated',
+  CARD_WALLET_BOUND: 'card.wallet_bound',
+  CARD_WALLET_UNBOUND: 'card.wallet_unbound',
   CARD_DELETED: 'card.deleted',
   CARD_ERROR: 'card.error',
   // SERVER

@@ -9,6 +9,7 @@ import {
   CreditCard,
   AtSign,
   Wallet,
+  Network,
   Activity,
   Settings,
   HelpCircle,
@@ -98,6 +99,13 @@ const platformItems: NavItem[] = [
     title: 'Remote Wallets',
     href: '/admin/remote-wallets',
     icon: Wallet,
+  },
+  // Connection Map — visual graph of address/card → wallet bindings.
+  // Per-user view of own bindings; cards section is admin-scoped today.
+  {
+    title: 'Connections',
+    href: '/admin/connections',
+    icon: Network,
   },
 ]
 

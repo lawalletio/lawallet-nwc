@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { invalidateApiPath, useApi, useMutation } from '@/lib/client/hooks/use-api'
 
 /**
@@ -29,6 +30,26 @@ export interface RemoteWalletBalance {
   balanceSats: number
 }
 
+/** Shape of `GET /api/remote-wallets/[id]/connection-string`. */
+export interface RemoteWalletConnectionString {
+  connectionString: string
+}
+
+/**
+ * Fetch the wallet's NWC connection URI on demand. Used by inline
+ * receive / send flows that need to call the relay directly from the
+ * client. Pass `null` to skip the fetch — useful when the wallet
+ * type isn't NWC or is REVOKED.
+ *
+ * The endpoint is owner-scoped + `force-dynamic`, so the URI never
+ * touches a CDN cache and only the owner ever sees it.
+ */
+export function useRemoteWalletConnectionString(id: string | null) {
+  return useApi<RemoteWalletConnectionString>(
+    id ? `/api/remote-wallets/${id}/connection-string` : null,
+  )
+}
+
 /**
  * Live spendable balance for a single wallet. Pass `null` to skip the
  * fetch entirely (e.g. for REVOKED wallets, which have no live balance) —
@@ -40,6 +61,47 @@ export interface RemoteWalletBalance {
  */
 export function useRemoteWalletBalance(id: string | null) {
   return useApi<RemoteWalletBalance>(id ? `/api/remote-wallets/${id}/balance` : null)
+}
+
+/**
+ * Same as `useRemoteWalletBalance` but polls on a fixed interval so the
+ * displayed value stays current without a manual refresh. Used by the
+ * Connection Map wallet nodes — combined with `useAnimatedNumber` on
+ * the rendering side it gives the "odometer ticking" feel.
+ *
+ * The interval is paused when `id` is null (skipping balance for
+ * REVOKED wallets etc.) so we don't fire pointless requests for
+ * wallets that have no live balance.
+ *
+ * A ref keeps `refetch` always pointing at the latest closure without
+ * resubscribing the interval on every render — otherwise setInterval
+ * would be torn down + recreated each render of the consumer.
+ */
+export function useLiveRemoteWalletBalance(
+  id: string | null,
+  opts?: { pollMs?: number },
+) {
+  const pollMs = opts?.pollMs ?? 15_000
+  const result = useRemoteWalletBalance(id)
+  // Mirror `refetch` into a ref via a post-commit effect so the
+  // interval below reads the latest closure without depending on it
+  // (which would tear down + re-create the interval every render).
+  // Assigning the ref directly during render trips the
+  // react-hooks/immutability lint rule.
+  const refetchRef = useRef(result.refetch)
+  useEffect(() => {
+    refetchRef.current = result.refetch
+  }, [result.refetch])
+
+  useEffect(() => {
+    if (!id) return
+    const handle = setInterval(() => {
+      refetchRef.current()
+    }, pollMs)
+    return () => clearInterval(handle)
+  }, [id, pollMs])
+
+  return result
 }
 
 /**

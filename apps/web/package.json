@@ -54,6 +54,7 @@
     "@radix-ui/react-tooltip": "latest",
     "@scalar/api-reference-react": "^0.9.32",
     "@types/jsonwebtoken": "^9.0.10",
+    "@xyflow/react": "^12.10.2",
     "@zxing/library": "^0.21.3",
     "aes-cmac": "^4.0.0",
     "bech32": "^2.0.0",
