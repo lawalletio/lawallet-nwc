@@ -3,7 +3,7 @@ import { validateNip98 } from '@/lib/nip98'
 import { validateJwtFromRequest, JwtValidationResult } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { AuthenticationError, AuthorizationError } from '@/types/server/errors'
-import { Role, Permission, hasRole, hasPermission, isValidRole } from '@/lib/auth/permissions'
+import { Role, Permission, hasRole, hasPermission, isValidRole, isValidPermission } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
 
 /** Authentication scheme used to identify the caller. */
@@ -17,6 +17,14 @@ export interface AuthResult {
   role: Role
   /** Scheme used for the request — useful for audit logging. */
   method: AuthMethod
+  /**
+   * Explicit permission scopes carried by a delegated device token (B.0).
+   * When present, this is the actor's *effective* permission set:
+   * {@link authenticateWithPermission} checks membership here instead of
+   * deriving permissions from {@link role}. Absent for session JWTs and NIP-98,
+   * which use the full role→permission map. See `mintDeviceToken`.
+   */
+  scopes?: Permission[]
 }
 
 /**
@@ -80,7 +88,19 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
 
     const role = isValidRole(result.payload.role) ? result.payload.role : Role.USER
 
-    return { pubkey, role, method: 'jwt' }
+    // Device tokens (B.0) carry an explicit `scopes` claim that narrows what the
+    // token can do regardless of role. Only trust a well-formed array of known
+    // permission strings; ignore anything malformed so a bad claim can never
+    // *widen* access (the absence of `scopes` falls back to the role map).
+    const rawScopes = result.payload.scopes
+    const scopes = Array.isArray(rawScopes)
+      ? rawScopes.filter(
+          (s: unknown): s is Permission =>
+            typeof s === 'string' && isValidPermission(s),
+        )
+      : undefined
+
+    return { pubkey, role, method: 'jwt', scopes }
   } catch (error) {
     if (error instanceof AuthenticationError) throw error
     throw new AuthenticationError('Invalid or expired JWT', {
@@ -120,7 +140,14 @@ export async function authenticateWithPermission(
 ): Promise<AuthResult> {
   const auth = await authenticate(request)
 
-  if (!hasPermission(auth.role, permission)) {
+  // A device token's `scopes` claim is authoritative — it's the explicit set
+  // the admin delegated, already validated as a subset of their RBAC at mint
+  // time. For every other caller, fall back to the role→permission map.
+  const allowed = auth.scopes
+    ? auth.scopes.includes(permission)
+    : hasPermission(auth.role, permission)
+
+  if (!allowed) {
     throw new AuthorizationError('Not authorized to perform this action')
   }
 

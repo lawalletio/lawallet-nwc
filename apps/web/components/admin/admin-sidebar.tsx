@@ -122,6 +122,7 @@ const settingsSubItems = [
   { title: 'Wallet', tab: 'wallet' },
   { title: 'Branding', tab: 'branding' },
   { title: 'Infrastructure', tab: 'infrastructure' },
+  { title: 'Device Tokens', tab: 'device-tokens' },
 ]
 
 export function AdminSidebar() {

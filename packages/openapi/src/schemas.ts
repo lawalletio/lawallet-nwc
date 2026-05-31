@@ -9,6 +9,7 @@ import {
   externalDeviceKeyParam,
   idParam,
   jwtRequestSchema,
+  qrJwtGenerateSchema,
   lightningAddressModeSchema,
   lud16CallbackQuerySchema,
   lud16UsernameParam,
@@ -103,6 +104,7 @@ export const schemas = {
 
   // ── JWT ───────────────────────────────────────────────────────────────
   JwtRequest: registry.register('JwtRequest', jwtRequestSchema),
+  QrJwtGenerateRequest: registry.register('QrJwtGenerateRequest', qrJwtGenerateSchema),
 }
 
 // ── Inline response component schemas ─────────────────────────────────────

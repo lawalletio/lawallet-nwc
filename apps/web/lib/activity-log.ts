@@ -14,6 +14,7 @@ export type { ActivityCategory, ActivityLevel, ActivityLog }
 export const ActivityEvent = {
   // USER
   USER_JWT_ISSUED: 'user.jwt_issued',
+  USER_DEVICE_TOKEN_ISSUED: 'user.device_token_issued',
   USER_SIGNUP: 'user.signup',
   USER_AUTH_FAILED: 'user.auth_failed',
   USER_ROLE_CHANGED: 'user.role_changed',

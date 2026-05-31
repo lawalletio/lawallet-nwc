@@ -87,3 +87,15 @@ export function getRolePermissions(role: Role): Permission[] {
 export function isValidRole(value: string): value is Role {
   return Object.values(Role).includes(value as Role)
 }
+
+/** Every permission value — used by "grant all" UIs and for validation. */
+export const ALL_PERMISSIONS: Permission[] = Object.values(Permission)
+
+/**
+ * Type guard narrowing an arbitrary string to a known {@link Permission}.
+ * Used when validating externally-supplied scope lists (e.g. device-token
+ * generation) before trusting them.
+ */
+export function isValidPermission(value: string): value is Permission {
+  return (ALL_PERMISSIONS as string[]).includes(value)
+}

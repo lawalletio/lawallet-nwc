@@ -294,3 +294,37 @@ export const remoteWalletListQuerySchema = z.object({
 export const jwtRequestSchema = z.object({
   expiresIn: z.string().optional().default('1h'),
 })
+
+// ── Device Tokens (QR-based JWT login, B.0) ──────────────────────────────────
+
+/**
+ * `expiresIn` accepts a `ms`-style duration (`30m`, `8h`, `7d`, `2w`) or a bare
+ * number of seconds. The route bounds the parsed value to [1m, 30d] — device
+ * tokens are stateless and unrevocable, so very long lifetimes are rejected
+ * there rather than here (this package has no access to those constants).
+ */
+const deviceTokenExpiresIn = z
+  .string()
+  .trim()
+  .regex(
+    /^\d+\s*(s|m|h|d|w)?$/i,
+    'Use a duration like 8h or 7d, or a number of seconds',
+  )
+
+/**
+ * Body for `POST /api/auth/qr-jwt/generate`.
+ *
+ * The admin picks a target `userId`, ticks a `permissions` subset, and chooses
+ * an `expiresIn`. Permission strings are validated against the real `Permission`
+ * enum in the route handler (which also enforces they're a subset of the admin's
+ * own RBAC) — keeping the enum's source of truth in the web app rather than
+ * duplicating it into this shared package.
+ */
+export const qrJwtGenerateSchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+  permissions: z
+    .array(z.string().min(1))
+    .min(1, 'Select at least one permission')
+    .max(64, 'Too many permissions'),
+  expiresIn: deviceTokenExpiresIn.default('8h'),
+})

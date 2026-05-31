@@ -264,3 +264,64 @@ describe('withAuth', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 })
+
+describe('device-token scopes (B.0)', () => {
+  function mockDeviceToken(role: string, scopes: unknown) {
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'a'.repeat(32) },
+    } as any)
+    vi.mocked(validateJwtFromRequest).mockResolvedValue({
+      payload: { pubkey: PUBKEY, role, scopes, iat: 1000, exp: 2000 },
+      header: { alg: 'HS256' },
+    } as any)
+  }
+
+  it('surfaces a valid scopes array on the AuthResult', async () => {
+    mockDeviceToken('OPERATOR', ['cards:read', 'cards:write'])
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.scopes).toEqual([Permission.CARDS_READ, Permission.CARDS_WRITE])
+  })
+
+  it('narrows permission checks to the scopes claim', async () => {
+    mockDeviceToken('ADMIN', ['cards:read'])
+
+    // In scope → allowed
+    await expect(
+      authenticateWithPermission(mockBearerRequest(), Permission.CARDS_READ),
+    ).resolves.toMatchObject({ pubkey: PUBKEY })
+
+    // Out of scope → denied even though ADMIN would normally hold it
+    await expect(
+      authenticateWithPermission(mockBearerRequest(), Permission.SETTINGS_WRITE),
+    ).rejects.toThrow(AuthorizationError)
+  })
+
+  it('grants a delegated scope beyond the base role (override, not intersection)', async () => {
+    // A USER-role identity normally holds zero permissions, but the admin
+    // explicitly delegated cards:write — the scope claim wins.
+    mockDeviceToken('USER', ['cards:write'])
+
+    await expect(
+      authenticateWithPermission(mockBearerRequest(), Permission.CARDS_WRITE),
+    ).resolves.toMatchObject({ pubkey: PUBKEY })
+  })
+
+  it('ignores a malformed scopes claim and falls back to the role map', async () => {
+    // Not an array → ignored; ADMIN role still grants everything.
+    mockDeviceToken('ADMIN', 'cards:read')
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.scopes).toBeUndefined()
+    await expect(
+      authenticateWithPermission(mockBearerRequest(), Permission.SETTINGS_WRITE),
+    ).resolves.toMatchObject({ pubkey: PUBKEY })
+  })
+
+  it('drops unknown scope strings so a bad claim cannot widen access', async () => {
+    mockDeviceToken('ADMIN', ['cards:read', 'not:a:permission'])
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.scopes).toEqual([Permission.CARDS_READ])
+  })
+})
