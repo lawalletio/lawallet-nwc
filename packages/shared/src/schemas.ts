@@ -22,6 +22,18 @@ export const cardListQuerySchema = z.object({
   used: z.enum(['true', 'false']).optional(),
 })
 
+/**
+ * Partial update for a card. Today only the wallet binding can change:
+ *   - `remoteWalletId: string` rebinds the card to that wallet (must
+ *     belong to the caller, must not be REVOKED — validated in the
+ *     route handler since cross-field rules don't fit Zod cleanly).
+ *   - `remoteWalletId: null` unbinds the card; spending falls back to
+ *     the owner's default wallet at run-time.
+ */
+export const updateCardSchema = z.object({
+  remoteWalletId: z.string().min(1).nullable(),
+})
+
 export const createCardDesignSchema = z.object({
   description: z
     .string()
@@ -145,8 +157,8 @@ export const createWalletAddressSchema = z.object({
  * use the existing `validateBody` middleware without bespoke shapes):
  *   - mode === 'ALIAS'      → `redirect` is required and must look like an LN
  *                             address ("user@host").
- *   - mode === 'CUSTOM_NWC' → `nwcConnectionId` is required and must reference
- *                             a connection owned by the caller.
+ *   - mode === 'CUSTOM_NWC' → `remoteWalletId` is required and must reference
+ *                             a RemoteWallet owned by the caller.
  *   - mode === 'IDLE' or 'DEFAULT_NWC' → both fields are ignored / cleared.
  */
 export const updateWalletAddressSchema = z.object({
@@ -156,33 +168,10 @@ export const updateWalletAddressSchema = z.object({
     .max(254)
     .regex(/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i, 'Must be a valid LN address')
     .nullish(),
-  nwcConnectionId: z.string().min(1).nullish(),
-})
-
-export const nwcModeSchema = z.enum(['RECEIVE', 'SEND_RECEIVE'])
-
-/**
- * Body for POST /api/wallet/nwc-connections.
- *
- * `connectionString` must look like a Nostr Wallet Connect URI so we reject
- * pasted garbage before reaching the DB. We don't verify the relays are
- * reachable here — that's the listener's job at runtime.
- */
-export const createNwcConnectionSchema = z.object({
-  connectionString: z
-    .string()
-    .min(1, 'Connection string is required')
-    .max(2048, 'Connection string is too long')
-    .regex(/^nostr\+walletconnect:\/\//i, 'Must start with nostr+walletconnect://'),
-  mode: nwcModeSchema.optional(),
-  isPrimary: z.boolean().optional(),
+  remoteWalletId: z.string().min(1).nullish(),
 })
 
 // ── Users ───────────────────────────────────────────────────────────────────
-
-export const updateNwcSchema = z.object({
-  nwcUri: z.string().min(1, 'NWC URI is required'),
-})
 
 export const updateRoleSchema = z.object({
   role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']),
@@ -234,6 +223,70 @@ export const claimInvoiceSchema = z.object({
     .string()
     .min(1, 'Preimage is required')
     .regex(/^[a-f0-9]+$/i, 'Preimage must be a hex string'),
+})
+
+// ── Remote Wallets ──────────────────────────────────────────────────────────
+
+/**
+ * Wallet name shown in the UI sidebar and pickers. Constraints mirror the
+ * `(userId, name)` unique index in Prisma — uniqueness is enforced by the
+ * DB, length by this schema.
+ */
+const remoteWalletName = z
+  .string()
+  .trim()
+  .min(1, 'Name is required')
+  .max(120, 'Name must be 120 characters or less')
+
+/** Driver discriminator. Mirrors the `RemoteWalletType` enum in Prisma. */
+const remoteWalletType = z.enum(['NWC', 'LND', 'CLN', 'BTCPAY'])
+
+/** Soft-state. `REVOKED` is terminal — clients should not flip back from it. */
+const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED'])
+
+/**
+ * Body for `POST /api/remote-wallets`. `config` is passed through as
+ * `unknown` and validated by the driver registry's per-type schema in the
+ * route handler — keeping the discriminator + driver schema together in the
+ * driver module rather than duplicating it here.
+ */
+export const createRemoteWalletSchema = z.object({
+  name: remoteWalletName,
+  type: remoteWalletType,
+  config: z.unknown(),
+  /** When `true`, the new wallet becomes the user's default (un-marks the previous one in the same transaction). */
+  isDefault: z.boolean().optional().default(false),
+})
+
+/**
+ * Partial update for `PATCH /api/remote-wallets/[id]`. At least one field
+ * must be present so a no-op PATCH returns 400 — matches the convention used
+ * by `updateCardDesignSchema`.
+ *
+ * Note: this never accepts `config`. Rotating an NWC URI happens through a
+ * dedicated endpoint (future) so the secret never travels in a generic
+ * update payload.
+ */
+export const updateRemoteWalletSchema = z
+  .object({
+    name: remoteWalletName.optional(),
+    isDefault: z.boolean().optional(),
+    status: remoteWalletStatus.optional(),
+  })
+  .refine(
+    v => v.name !== undefined || v.isDefault !== undefined || v.status !== undefined,
+    { message: 'No fields to update' },
+  )
+
+/** Query params for `GET /api/remote-wallets`. */
+export const remoteWalletListQuerySchema = z.object({
+  /**
+   * Filter by status. Defaults to "anything not revoked" so the UI doesn't
+   * show dead wallets unless asked.
+   */
+  status: remoteWalletStatus.optional(),
+  /** Filter by driver type — useful for the "NWC only" picker for now. */
+  type: remoteWalletType.optional(),
 })
 
 // ── JWT ─────────────────────────────────────────────────────────────────────

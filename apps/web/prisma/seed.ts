@@ -17,32 +17,57 @@ async function main() {
         data: {
           id: user.id,
           pubkey: user.pubkey,
-          createdAt: user.createdAt,
-          nwc: user.nwc
+          createdAt: user.createdAt
         }
       })
     )
   )
   console.log(`Created ${users.length} users`)
 
+  // Create RemoteWallet rows for users that have a seeded NWC URI. Mirrors the
+  // forward-migration shape from 20260514120000_add_remote_wallet_schema: one
+  // wallet per user, marked default, with the URI under config.connectionString.
+  console.log('Creating remote wallets...')
+  const remoteWallets = await Promise.all(
+    mockUserData
+      .filter(u => Boolean(u.nwc))
+      .map(u =>
+        prisma.remoteWallet.create({
+          data: {
+            userId: u.id,
+            name: 'NWC Wallet',
+            type: 'NWC',
+            config: { connectionString: u.nwc as string, mode: 'RECEIVE' },
+            status: 'ACTIVE',
+            isDefault: true
+          }
+        })
+      )
+  )
+  console.log(`Created ${remoteWallets.length} remote wallets`)
+
   // Create lightning addresses with their user relationships.
   // Each user gets exactly one address from the seed, so every seeded address
   // is its owner's primary — matches the back-fill behavior of the
-  // addresses_nwc_connection migration for legacy rows.
+  // addresses_nwc_connection migration for legacy rows. When the user has a
+  // RemoteWallet, bind the address to it so the new code paths have data to
+  // resolve against.
   console.log('Creating lightning addresses...')
   await Promise.all(
-    mockLightningAddressData.map((la, index) =>
-      prisma.lightningAddress.create({
+    mockLightningAddressData.map((la, index) => {
+      const owner =
+        mockUserData.find(u => u.pubkey === la.pubkey) ?? mockUserData[index]
+      const wallet = remoteWallets.find(rw => rw.userId === owner.id)
+      return prisma.lightningAddress.create({
         data: {
           username: la.username,
           createdAt: la.createdAt,
           isPrimary: true,
-          userId:
-            mockUserData.find(u => u.pubkey === la.pubkey)?.id ||
-            users[index].id
+          userId: owner.id,
+          remoteWalletId: wallet?.id ?? null
         }
       })
-    )
+    })
   )
   console.log(`Created ${mockLightningAddressData.length} lightning addresses`)
 

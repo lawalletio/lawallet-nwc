@@ -6,14 +6,13 @@ export function createUserFixture(overrides: Record<string, unknown> = {}) {
   return {
     id: faker.string.uuid(),
     pubkey: faker.string.hexadecimal({ length: 64, prefix: '' }),
-    nwc: null,
     role: 'USER' as const,
     createdAt: faker.date.past(),
-    // Default to "no primary NWC connection" so callers of /api/users/me and
-    // similar routes that now `include: { nwcConnections: { where: { isPrimary: true } } }`
-    // don't crash with `user.nwcConnections is undefined`. Tests that care
-    // about a present primary connection override this explicitly.
-    nwcConnections: [],
+    // Default to "no wallets" so callers of /api/users/me and similar routes
+    // that `include: { remoteWallets: { where: { isDefault: true } } }` don't
+    // crash with `user.remoteWallets is undefined`. Tests that care about a
+    // present default wallet override this explicitly.
+    remoteWallets: [],
     ...overrides,
   }
 }
@@ -67,6 +66,26 @@ export function createSettingsFixture(overrides: Record<string, unknown> = {}) {
   return {
     name: faker.string.alpha({ length: 10 }),
     value: faker.string.alpha({ length: 20 }),
+    ...overrides,
+  }
+}
+
+// ── Remote Wallet Fixtures ──────────────────────────────────────────────────
+
+export function createRemoteWalletFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: faker.string.uuid(),
+    userId: faker.string.uuid(),
+    name: 'NWC Wallet',
+    type: 'NWC' as const,
+    config: {
+      connectionString: `nostr+walletconnect://${faker.string.hexadecimal({ length: 64, prefix: '' })}`,
+      mode: 'RECEIVE' as const,
+    },
+    status: 'ACTIVE' as const,
+    isDefault: false,
+    createdAt: faker.date.past(),
+    updatedAt: faker.date.recent(),
     ...overrides,
   }
 }

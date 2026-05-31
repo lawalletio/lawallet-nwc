@@ -8,6 +8,8 @@ import {
   Users,
   CreditCard,
   AtSign,
+  Wallet,
+  Network,
   Activity,
   Settings,
   HelpCircle,
@@ -89,6 +91,21 @@ const platformItems: NavItem[] = [
     title: 'Addresses',
     href: '/admin/addresses',
     icon: AtSign,
+  },
+  // Remote Wallets is the connection abstraction Cards + Addresses bind
+  // through. Same per-user scoping as Addresses — every authenticated user
+  // sees their own wallets, no permission gate.
+  {
+    title: 'Remote Wallets',
+    href: '/admin/remote-wallets',
+    icon: Wallet,
+  },
+  // Connection Map — visual graph of address/card → wallet bindings.
+  // Per-user view of own bindings; cards section is admin-scoped today.
+  {
+    title: 'Connections',
+    href: '/admin/connections',
+    icon: Network,
   },
 ]
 

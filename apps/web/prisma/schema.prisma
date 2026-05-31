@@ -29,15 +29,23 @@ enum InvoiceStatus {
 }
 
 enum LightningAddressMode {
-  IDLE          // address exists but does nothing (disabled)
-  ALIAS         // forwards to another LN address via `redirect`
-  CUSTOM_NWC    // uses the NWCConnection referenced by nwcConnectionId
-  DEFAULT_NWC   // uses the user's primary NWCConnection
+  IDLE // address exists but does nothing (disabled)
+  ALIAS // forwards to another LN address via `redirect`
+  CUSTOM_NWC // uses the RemoteWallet referenced by remoteWalletId
+  DEFAULT_NWC // uses the user's default RemoteWallet
 }
 
-enum NwcMode {
-  RECEIVE
-  SEND_RECEIVE
+enum RemoteWalletType {
+  NWC
+  LND
+  CLN
+  BTCPAY
+}
+
+enum RemoteWalletStatus {
+  ACTIVE
+  DISABLED
+  REVOKED
 }
 
 enum ActivityCategory {
@@ -59,12 +67,10 @@ model User {
   id                 String             @id
   pubkey             String             @unique
   createdAt          DateTime           @default(now())
-  nwc                String?
-  nwcUpdatedAt       DateTime?
   cardDesigns        CardDesign[]
   ntag424s           Ntag424[]
   lightningAddresses LightningAddress[]
-  nwcConnections     NWCConnection[]
+  remoteWallets      RemoteWallet[]
   cards              Card[]
   invoices           Invoice[]
   albySubAccount     AlbySubAccount?
@@ -114,46 +120,60 @@ model LightningAddress {
   user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   mode            LightningAddressMode @default(DEFAULT_NWC)
   redirect        String?
-  nwcConnectionId String?
-  nwcConnection   NWCConnection?       @relation(fields: [nwcConnectionId], references: [id], onDelete: SetNull)
+  remoteWalletId  String?
+  remoteWallet    RemoteWallet?        @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
   isPrimary       Boolean              @default(false)
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
   @@index([userId])
-  @@index([nwcConnectionId])
+  @@index([remoteWalletId])
 }
 
-model NWCConnection {
-  id                 String             @id @default(cuid())
-  userId             String
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  connectionString   String
-  mode               NwcMode            @default(RECEIVE)
-  isPrimary          Boolean            @default(false)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  lightningAddresses LightningAddress[]
+/// Generic remote wallet attached by a user. `type` discriminates the driver;
+/// `config` holds the driver-specific payload (e.g. NWC URI + mode). Encryption
+/// of `config` at rest is enforced at the application layer by the driver
+/// registry — never persist `config` here without going through it.
+model RemoteWallet {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      RemoteWalletType
+  config    Json
+  status    RemoteWalletStatus @default(ACTIVE)
+  isDefault Boolean            @default(false)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
+  lightningAddresses LightningAddress[]
+  cards              Card[]
+
+  @@unique([userId, name])
   @@index([userId])
+  @@index([type])
+  @@index([status])
 }
 
 model Card {
-  id         String    @id @default(uuid())
-  designId   String
-  ntag424Cid String?   @unique
-  createdAt  DateTime  @default(now())
-  title      String?
-  lastUsedAt DateTime?
-  userId     String?
-  username   String?
-  otc        String?
+  id             String    @id @default(uuid())
+  designId       String
+  ntag424Cid     String?   @unique
+  createdAt      DateTime  @default(now())
+  title          String?
+  lastUsedAt     DateTime?
+  userId         String?
+  username       String?
+  otc            String?
+  remoteWalletId String?
 
-  design  CardDesign @relation(fields: [designId], references: [id])
-  ntag424 Ntag424?   @relation(fields: [ntag424Cid], references: [cid])
-  user    User?      @relation(fields: [userId], references: [id])
+  design       CardDesign    @relation(fields: [designId], references: [id])
+  ntag424      Ntag424?      @relation(fields: [ntag424Cid], references: [cid])
+  user         User?         @relation(fields: [userId], references: [id])
+  remoteWallet RemoteWallet? @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([remoteWalletId])
 }
 
 model AlbySubAccount {
@@ -167,8 +187,8 @@ model AlbySubAccount {
 }
 
 model Settings {
-  name String @id
-  value String
+  name      String   @id
+  value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

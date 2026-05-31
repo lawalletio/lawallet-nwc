@@ -16,16 +16,25 @@ import {
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
-import { resolvePaymentRoute } from '@/lib/wallet/resolve-payment-route'
+import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
+import type { RemoteWallet } from '@/lib/generated/prisma'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+/** RemoteWallets the address-detail picker can bind to: active, non-revoked. */
+function selectableWallets(userId: string): Promise<RemoteWallet[]> {
+  return prisma.remoteWallet.findMany({
+    where: { userId, status: { not: 'REVOKED' } },
+    orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+  })
+}
+
 /**
  * GET /api/wallet/addresses/[username]
  *
- * Returns the address (must be owned by caller) plus the user's full list of
- * NWCConnections so the edit page can render a CUSTOM_NWC picker without a
+ * Returns the address (must be owned by caller) plus the user's selectable
+ * RemoteWallets so the edit page can render a CUSTOM_NWC picker without a
  * second round-trip.
  */
 export const GET = withErrorHandling(
@@ -33,51 +42,47 @@ export const GET = withErrorHandling(
     const { pubkey } = await authenticate(request)
     const { username } = validateParams(await params, walletAddressUsernameParam)
 
-    // Pull the legacy `User.nwc` URI too so DEFAULT_NWC addresses on
-    // accounts that haven't migrated to NWCConnection still get a balance
-    // on the client. Matches the server-side LUD-16 fallback order.
     const user = await prisma.user.findUnique({
       where: { pubkey },
-      select: { id: true, nwc: true },
+      select: { id: true },
     })
     if (!user) throw new AuthenticationError('User not found')
 
     const address = await prisma.lightningAddress.findUnique({
       where: { username },
-      include: { nwcConnection: true },
+      include: { remoteWallet: true },
     })
     if (!address || address.userId !== user.id) {
       // Same response either way to avoid revealing other users' addresses.
       throw new NotFoundError('Address not found')
     }
 
-    const connections = await prisma.nWCConnection.findMany({
-      where: { userId: user.id },
-      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-    })
-    const primaryNwc = connections.find(c => c.isPrimary) ?? null
+    const wallets = await selectableWallets(user.id)
+    const defaultWallet = wallets.find(w => w.isDefault) ?? null
 
-    // Ship the already-resolved NWC URI so the balance / transactions
-    // widgets don't have to duplicate (and potentially drift from) the
-    // server's `resolvePaymentRoute` logic. Null for IDLE / ALIAS /
-    // unconfigured — the UI renders an empty state in those cases.
-    const route = resolvePaymentRoute({
+    // Ship the already-resolved connection URI so the balance / transactions
+    // widgets don't duplicate the server's resolution. Null for IDLE / ALIAS
+    // / unconfigured — the UI renders an empty state in those cases. This is
+    // the owner's own wallet secret, returned only to the owner.
+    const route = resolveWalletRoute({
       mode: address.mode,
       redirect: address.redirect,
-      nwcConnection: address.nwcConnection,
-      primaryNwcConnection: primaryNwc,
-      userNwc: user.nwc,
+      remoteWallet: address.remoteWallet,
+      defaultRemoteWallet: defaultWallet,
     })
     const effectiveConnectionString =
-      route.kind === 'nwc' ? route.connectionString : null
+      route.kind === 'wallet'
+        ? ((route.config as { connectionString?: string } | null)?.connectionString ?? null)
+        : null
 
     return NextResponse.json({
-      address: toWalletAddressDto(address, primaryNwc),
-      connections: connections.map(c => ({
-        id: c.id,
-        connectionString: c.connectionString,
-        mode: c.mode,
-        isPrimary: c.isPrimary,
+      address: toWalletAddressDto(address, defaultWallet),
+      wallets: wallets.map(w => ({
+        id: w.id,
+        name: w.name,
+        type: w.type,
+        status: w.status,
+        isDefault: w.isDefault,
       })),
       effectiveConnectionString,
     })
@@ -93,7 +98,7 @@ export const GET = withErrorHandling(
  * Cross-field rules enforced here (not in Zod, so the schema stays a plain
  * shape compatible with `validateBody`):
  *   - ALIAS       → `redirect` must be present.
- *   - CUSTOM_NWC  → `nwcConnectionId` must be present AND owned by caller.
+ *   - CUSTOM_NWC  → `remoteWalletId` must be present AND owned by caller.
  *   - IDLE / DEFAULT_NWC → both fields are cleared (set NULL) regardless of
  *                          what the client sent.
  */
@@ -116,7 +121,7 @@ export const PUT = withErrorHandling(
     }
 
     let redirect: string | null = null
-    let nwcConnectionId: string | null = null
+    let remoteWalletId: string | null = null
 
     if (body.mode === 'ALIAS') {
       if (!body.redirect) {
@@ -124,26 +129,26 @@ export const PUT = withErrorHandling(
       }
       redirect = body.redirect
     } else if (body.mode === 'CUSTOM_NWC') {
-      if (!body.nwcConnectionId) {
-        throw new ValidationError('nwcConnectionId is required when mode is CUSTOM_NWC')
+      if (!body.remoteWalletId) {
+        throw new ValidationError('remoteWalletId is required when mode is CUSTOM_NWC')
       }
-      const conn = await prisma.nWCConnection.findUnique({
-        where: { id: body.nwcConnectionId },
+      const wallet = await prisma.remoteWallet.findUnique({
+        where: { id: body.remoteWalletId },
       })
-      if (!conn || conn.userId !== user.id) {
-        throw new ValidationError('Unknown NWC connection')
+      if (!wallet || wallet.userId !== user.id || wallet.status === 'REVOKED') {
+        throw new ValidationError('Unknown wallet')
       }
-      nwcConnectionId = conn.id
+      remoteWalletId = wallet.id
     }
 
     const updated = await prisma.lightningAddress.update({
       where: { username },
-      data: { mode: body.mode, redirect, nwcConnectionId },
-      include: { nwcConnection: true },
+      data: { mode: body.mode, redirect, remoteWalletId },
+      include: { remoteWallet: true },
     })
 
-    const primaryNwc = await prisma.nWCConnection.findFirst({
-      where: { userId: user.id, isPrimary: true },
+    const defaultWallet = await prisma.remoteWallet.findFirst({
+      where: { userId: user.id, isDefault: true },
     })
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
@@ -157,31 +162,30 @@ export const PUT = withErrorHandling(
         username: updated.username,
         previousMode: existing.mode,
         mode: updated.mode,
-        nwcConnectionId: updated.nwcConnectionId ?? null,
+        remoteWalletId: updated.remoteWalletId ?? null,
       },
     })
 
-    // If the update assigned a custom NWC to this address, emit a dedicated
+    // If the update bound a custom wallet to this address, emit a dedicated
     // NWC-category entry too — the admin panel filters by category, and the
-    // "custom NWC assigned" action is useful to see under NWC, not only
-    // under ADDRESS.
+    // "wallet assigned" action is useful to see under NWC, not only ADDRESS.
     if (
       body.mode === 'CUSTOM_NWC' &&
-      updated.nwcConnectionId &&
-      updated.nwcConnectionId !== existing.nwcConnectionId
+      updated.remoteWalletId &&
+      updated.remoteWalletId !== existing.remoteWalletId
     ) {
       logActivity.fireAndForget({
         category: 'NWC',
         event: ActivityEvent.NWC_ASSIGNED_TO_ADDRESS,
-        message: `Custom NWC assigned to ${updated.username}`,
+        message: `Wallet assigned to ${updated.username}`,
         userId: user.id,
         metadata: {
           username: updated.username,
-          nwcConnectionId: updated.nwcConnectionId,
+          remoteWalletId: updated.remoteWalletId,
         },
       })
     }
 
-    return NextResponse.json(toWalletAddressDto(updated, primaryNwc))
+    return NextResponse.json(toWalletAddressDto(updated, defaultWallet))
   },
 )

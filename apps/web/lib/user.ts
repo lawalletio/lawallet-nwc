@@ -10,9 +10,13 @@ import { ActivityEvent, logActivity } from './activity-log'
  * and Alby credentials are configured.
  *
  * The returned shape mirrors what `findUnique` callers (notably
- * `resolvePaymentRoute`) expect — the primary `LightningAddress` with its
- * linked `nwcConnection`, plus the primary `NWCConnection` — so the union of
+ * `/api/users/me`) expect — the primary `LightningAddress` with its bound
+ * `remoteWallet`, plus the user's default `RemoteWallet` — so the union of
  * "fresh signup" and "existing user" stays a single shape downstream.
+ *
+ * When an Alby sub-account is provisioned, its pairing URI is stored as the
+ * user's default RemoteWallet (RemoteWallet is the single source of truth
+ * for wallets — there's no separate `User.nwc` / `NWCConnection`).
  *
  * Also fires (best-effort, non-blocking) a `USER_SIGNUP` activity log entry.
  */
@@ -36,7 +40,6 @@ export async function createNewUser(pubkey: string) {
     data: {
       id: userId,
       pubkey,
-      nwc: subAccount?.pairingUri || null,
       createdAt: new Date(),
       albyEnabled: !!subAccount,
       albySubAccount: subAccount
@@ -48,24 +51,35 @@ export async function createNewUser(pubkey: string) {
               nostrPubkey: subAccount.walletPubkey
             }
           }
-        : undefined
+        : undefined,
+      // Provisioned Alby wallet becomes the user's default RemoteWallet.
+      remoteWallets: subAccount
+        ? {
+            create: {
+              name: 'NWC Wallet',
+              type: 'NWC',
+              config: {
+                connectionString: subAccount.pairingUri,
+                mode: 'SEND_RECEIVE',
+              },
+              status: 'ACTIVE',
+              isDefault: true,
+            },
+          }
+        : undefined,
     },
     include: {
-      // Pull only the primary address (at most one). All call sites that
-      // historically read `user.lightningAddress` now read
-      // `user.lightningAddresses[0]`. Include the linked nwcConnection
-      // too so the return shape matches the `findUnique` path that feeds
-      // `resolvePaymentRoute` — otherwise TS narrows the union to the
-      // intersection and drops the field.
+      // Pull only the primary address (at most one). Include its bound
+      // RemoteWallet so the return shape matches the `findUnique` path that
+      // feeds /api/users/me — otherwise TS narrows the union and drops it.
       lightningAddresses: {
         where: { isPrimary: true },
         take: 1,
-        include: { nwcConnection: true },
+        include: { remoteWallet: true },
       },
       albySubAccount: true,
-      // Same shape as `findUnique` callers rely on — safe to include here
-      // since a brand-new user has no connections; the array is just `[]`.
-      nwcConnections: { where: { isPrimary: true }, take: 1 },
+      // Default RemoteWallet — matches the `findUnique` callers' shape.
+      remoteWallets: { where: { isDefault: true }, take: 1 },
     }
   })
 

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { ChevronDown, Forward } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
@@ -22,7 +23,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { InputWithQrScanner } from '@/components/ui/input-with-qr-scanner'
 import { BalanceCard } from '@/components/wallet/balance-card'
 import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
 import { useSettings } from '@/lib/client/hooks/use-settings'
@@ -30,19 +30,12 @@ import {
   useMyAddress,
   useAddressMutations,
   type LightningAddressMode,
-  type WalletNwcConnectionSummary,
+  type WalletRemoteWalletSummary,
 } from '@/lib/client/hooks/use-wallet-addresses'
 import { isLightningAddress } from '@/lib/ln-address'
 import { cn } from '@/lib/utils'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
-
-/**
- * Structural check for a Nostr Wallet Connect URI, mirrored from the server
- * Zod schema. Cheap enough to run on every keystroke so we can enable/disable
- * the "Add connection" button without a round-trip.
- */
-const NWC_URI_RE = /^nostr\+walletconnect:\/\//i
 
 const MODE_DESCRIPTIONS: Record<
   LightningAddressMode,
@@ -50,8 +43,8 @@ const MODE_DESCRIPTIONS: Record<
 > = {
   IDLE: { label: 'Idle', help: 'Address is disabled and rejects payments.' },
   ALIAS: { label: 'Alias', help: 'Forward incoming payments to another lightning address.' },
-  CUSTOM_NWC: { label: 'Custom NWC', help: 'Receive via a specific NWC connection.' },
-  DEFAULT_NWC: { label: 'Default NWC', help: 'Use your primary NWC connection (set in NWC settings).' },
+  CUSTOM_NWC: { label: 'Custom wallet', help: 'Receive via a specific wallet.' },
+  DEFAULT_NWC: { label: 'Default wallet', help: 'Use your primary wallet (set in Remote Wallets).' },
 }
 
 interface PageProps {
@@ -69,21 +62,11 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   const { username } = use(params)
   const { data: settings } = useSettings()
   const { data, loading, refetch } = useMyAddress(username)
-  const {
-    updateAddress,
-    updating,
-    createNwcConnection,
-    creatingConnection,
-  } = useAddressMutations()
+  const { updateAddress, updating } = useAddressMutations()
 
   const [mode, setMode] = useState<LightningAddressMode>('DEFAULT_NWC')
   const [redirect, setRedirect] = useState('')
-  const [nwcConnectionId, setNwcConnectionId] = useState<string>('')
-  // Inline "new connection" state — only relevant when mode = CUSTOM_NWC.
-  // Kept separate from the existing-connection picker so users with zero
-  // connections still see a usable form, and users with some still get a
-  // clear path to add another.
-  const [newConnectionUri, setNewConnectionUri] = useState('')
+  const [remoteWalletId, setRemoteWalletId] = useState<string>('')
   // Combined busy flag held across the full save flow: mutation + refetch.
   // `updating` alone drops to false as soon as the PUT resolves, but the
   // form's `isDirty` hasn't re-synced until refetch finishes — that gap
@@ -106,24 +89,17 @@ export default function AdminAddressEditPage({ params }: PageProps) {
     if (!data) return
     setMode(data.address.mode)
     setRedirect(data.address.redirect ?? '')
-    setNwcConnectionId(data.address.nwcConnectionId ?? '')
+    setRemoteWalletId(data.address.remoteWalletId ?? '')
   }, [data, updatedAt])
 
   const domain = settings?.domain || 'your-domain'
   const fullAddress = `${username}@${domain}`
   const aliasInvalid = mode === 'ALIAS' && redirect.length > 0 && !isLightningAddress(redirect)
   const aliasMissing = mode === 'ALIAS' && redirect.length === 0
-  const customMissing = mode === 'CUSTOM_NWC' && !nwcConnectionId
-  const newUriInvalid =
-    newConnectionUri.trim().length > 0 && !NWC_URI_RE.test(newConnectionUri.trim())
-  const canAddConnection =
-    !saving &&
-    !creatingConnection &&
-    newConnectionUri.trim().length > 0 &&
-    !newUriInvalid
+  const customMissing = mode === 'CUSTOM_NWC' && !remoteWalletId
 
   // Dirty check: compare the current form state to the last-saved baseline.
-  // `redirect` and `nwcConnectionId` are normalised to empty string on load
+  // `redirect` and `remoteWalletId` are normalised to empty string on load
   // (see the hydration effect above), and the server returns them as `null`
   // when unset, so both sides collapse "empty" to the same sentinel here.
   // Without this the Save button was always enabled as long as inputs were
@@ -133,33 +109,10 @@ export default function AdminAddressEditPage({ params }: PageProps) {
     !!baseline &&
     (mode !== baseline.mode ||
       (redirect ?? '') !== (baseline.redirect ?? '') ||
-      (nwcConnectionId ?? '') !== (baseline.nwcConnectionId ?? ''))
+      (remoteWalletId ?? '') !== (baseline.remoteWalletId ?? ''))
 
   const saveDisabled =
     saving || updating || !isDirty || aliasInvalid || aliasMissing || customMissing
-
-  /**
-   * Create a new NWCConnection for the caller and select it as the current
-   * address's connection. Does NOT persist the address update itself —
-   * user still hits Save to finalise the address row.
-   */
-  async function handleAddConnection() {
-    const connectionString = newConnectionUri.trim()
-    if (!connectionString || !NWC_URI_RE.test(connectionString)) {
-      toast.error('Paste a valid nostr+walletconnect:// URI')
-      return
-    }
-    try {
-      const created = await createNwcConnection({ connectionString })
-      setNwcConnectionId(created.id)
-      setNewConnectionUri('')
-      toast.success('NWC connection added')
-      // Refetch so the picker shows the new connection immediately.
-      refetch()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add connection')
-    }
-  }
 
   async function handleSave() {
     setSaving(true)
@@ -167,7 +120,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
       await updateAddress(username, {
         mode,
         redirect: mode === 'ALIAS' ? redirect : null,
-        nwcConnectionId: mode === 'CUSTOM_NWC' ? nwcConnectionId : null,
+        remoteWalletId: mode === 'CUSTOM_NWC' ? remoteWalletId : null,
       })
       // Wait for the refetch to land too — this is what prevents the
       // Save button from briefly un-disabling between "mutation done"
@@ -211,7 +164,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
         // logic here. Null for IDLE / ALIAS / unconfigured — the widgets
         // below render an empty state in those cases.
         const persistedMode = data.address.mode
-        const primaryConnection = data.connections.find(c => c.isPrimary) ?? null
+        const defaultWallet = data.wallets.find(w => w.isDefault) ?? null
 
         const emptyReason =
           persistedMode === 'IDLE'
@@ -219,8 +172,8 @@ export default function AdminAddressEditPage({ params }: PageProps) {
           : persistedMode === 'ALIAS'
             ? `Forwards to ${data.address.redirect ?? 'another address'}.`
           : persistedMode === 'CUSTOM_NWC'
-            ? 'No NWC connection is linked to this address yet.'
-          : 'Set up a primary NWC connection to enable payments.'
+            ? 'No wallet is linked to this address yet.'
+          : 'Set a primary wallet to enable payments.'
 
         return (
         <div className="space-y-6 px-4 py-6 sm:px-6">
@@ -334,80 +287,42 @@ export default function AdminAddressEditPage({ params }: PageProps) {
 
             {mode === 'CUSTOM_NWC' && (
               <div className="space-y-4">
-                {/* Existing-connection picker. Only shown when the user has
-                    at least one connection. With zero connections the inline
-                    add-new form below is the only path, which is the common
-                    case on first-time setup. */}
-                {data.connections.length > 0 && (
+                {data.wallets.length > 0 ? (
                   <div className="space-y-2">
-                    <Label htmlFor="nwc-connection">Use existing connection</Label>
+                    <Label htmlFor="remote-wallet">Use wallet</Label>
                     <Select
-                      value={nwcConnectionId}
-                      onValueChange={setNwcConnectionId}
+                      value={remoteWalletId}
+                      onValueChange={setRemoteWalletId}
                       disabled={saving}
                     >
-                      <SelectTrigger id="nwc-connection">
-                        <SelectValue placeholder="Pick a connection" />
+                      <SelectTrigger id="remote-wallet">
+                        <SelectValue placeholder="Pick a wallet" />
                       </SelectTrigger>
                       <SelectContent>
-                        {data.connections.map((c: WalletNwcConnectionSummary) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.mode === 'SEND_RECEIVE' ? 'Send & Receive' : 'Receive'}
-                            {c.isPrimary && ' (primary)'}
+                        {data.wallets.map((w: WalletRemoteWalletSummary) => (
+                          <SelectItem key={w.id} value={w.id} disabled={w.status === 'DISABLED'}>
+                            {w.name}
+                            {w.isDefault && ' (primary)'}
+                            {w.status === 'DISABLED' && ' \u2014 disabled'}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {customMissing && (
+                      <p className="text-xs text-destructive">
+                        Pick a wallet to continue.
+                      </p>
+                    )}
                   </div>
-                )}
-
-                {/* Inline "add new connection" form. Always visible in
-                    CUSTOM_NWC mode; on success it auto-selects the new
-                    connection so the user just needs to hit Save. */}
-                <div className="space-y-2">
-                  <Label htmlFor="new-nwc-uri">
-                    {data.connections.length > 0
-                      ? 'Or add a new connection'
-                      : 'NWC connection URI'}
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <InputWithQrScanner
-                      id="new-nwc-uri"
-                      placeholder="nostr+walletconnect://..."
-                      value={newConnectionUri}
-                      onChange={setNewConnectionUri}
-                      onScanError={err => toast.error(err)}
-                      scanLabel="Scan NWC QR code"
-                      containerClassName="flex-1"
-                      className={cn('font-mono text-xs', newUriInvalid && 'border-destructive')}
-                      spellCheck={false}
-                      autoCapitalize="off"
-                      autoCorrect="off"
-                      disabled={saving || creatingConnection}
-                    />
-                    <Button
-                      type="button"
-                      onClick={handleAddConnection}
-                      disabled={!canAddConnection}
-                    >
-                      {creatingConnection && <Spinner size={16} className="mr-2" />}
-                      Add
-                    </Button>
-                  </div>
-                  {newUriInvalid ? (
-                    <p className="text-xs text-destructive">
-                      Must start with <code>nostr+walletconnect://</code>.
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Paste a connection URI or scan a QR code from your wallet.
-                    </p>
-                  )}
-                </div>
-
-                {customMissing && data.connections.length > 0 && (
-                  <p className="text-xs text-destructive">
-                    Pick a connection or add a new one to continue.
+                ) : (
+                  // No wallets yet \u2014 wallets are created on the Remote Wallets
+                  // page, so point the user there instead of an inline form.
+                  <p className="text-xs text-muted-foreground">
+                    You don\u2019t have any wallets yet.{' '}
+                    <Link href="/admin/remote-wallets" className="underline">
+                      Add one on the Remote Wallets page
+                    </Link>{' '}
+                    first.
                   </p>
                 )}
               </div>
@@ -415,13 +330,9 @@ export default function AdminAddressEditPage({ params }: PageProps) {
 
                 {mode === 'DEFAULT_NWC' && (
                   <p className="text-xs text-muted-foreground">
-                    {primaryConnection
-                      ? `Will use your primary connection (${
-                          primaryConnection.mode === 'SEND_RECEIVE'
-                            ? 'Send & Receive'
-                            : 'Receive'
-                        }).`
-                      : 'You haven\u2019t set up a primary NWC connection yet.'}
+                    {defaultWallet
+                      ? `Will use your primary wallet (${defaultWallet.name}).`
+                      : 'You haven\u2019t set a primary wallet yet.'}
                   </p>
                 )}
 
@@ -438,8 +349,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                     onClick={() => {
                       setMode(data.address.mode)
                       setRedirect(data.address.redirect ?? '')
-                      setNwcConnectionId(data.address.nwcConnectionId ?? '')
-                      setNewConnectionUri('')
+                      setRemoteWalletId(data.address.remoteWalletId ?? '')
                       setModeOpen(false)
                     }}
                   >

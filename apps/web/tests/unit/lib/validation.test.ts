@@ -8,7 +8,6 @@ import {
   lud16UsernameParam,
   lud16CallbackQuerySchema,
   updateLightningAddressSchema,
-  updateNwcSchema,
   updateRoleSchema,
   settingsBodySchema,
   externalDeviceKeyParam,
@@ -125,18 +124,6 @@ describe('Validation Schemas', () => {
     it('accepts max length (16)', () => {
       const username = 'a'.repeat(16)
       expect(updateLightningAddressSchema.parse({ username })).toEqual({ username })
-    })
-  })
-
-  describe('updateNwcSchema', () => {
-    it('accepts valid NWC URI', () => {
-      expect(updateNwcSchema.parse({ nwcUri: 'nostr+walletconnect://...' })).toEqual({
-        nwcUri: 'nostr+walletconnect://...',
-      })
-    })
-
-    it('rejects empty NWC URI', () => {
-      expect(() => updateNwcSchema.parse({ nwcUri: '' })).toThrow()
     })
   })
 
