@@ -30,14 +30,14 @@ import {
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { Spinner } from '@/components/ui/spinner'
 import { truncateHex } from '@/lib/client/format'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { nodeTypes, NODE_LAYOUT } from './nodes'
 import { HoverProvider, type HighlightSet } from './hover-context'
 import { HighlightEdge } from './highlight-edge'
 import { ConnectionLine } from './connection-line'
-import { AddressDetailBody } from './address-detail-dialog'
-import { WalletDetailBody } from './wallet-detail-dialog'
-import { CardDetailBody } from './card-detail-dialog'
+import {
+  ConnectionDetailDialog,
+  type ConnectionSelection,
+} from './connection-detail-dialog'
 import { useAuth } from '@/components/admin/auth-context'
 import { Permission } from '@/lib/auth/permissions'
 
@@ -131,15 +131,11 @@ function ConnectionMapInner() {
   const [isPanning, setIsPanning] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
 
-  // Clicking a node opens its detail dialog. We track the selection by
-  // kind + raw id (no node-id prefix) so the dialogs can look the entity
-  // up in the local lists without re-parsing prefixes themselves.
-  const [selected, setSelected] = useState<
-    | { kind: 'la'; username: string }
-    | { kind: 'wallet'; id: string }
-    | { kind: 'card'; id: string }
-    | null
-  >(null)
+  // Clicking a node opens its detail dialog (the shared
+  // ConnectionDetailDialog). We track the selection by kind + raw id (no
+  // node-id prefix) so the bodies can look the entity up in the local
+  // lists without re-parsing prefixes themselves.
+  const [selected, setSelected] = useState<ConnectionSelection>(null)
 
   // `onReconnect` and `onReconnectEnd` cooperate via this ref to detect
   // "edge dragged off into empty space" (the official xyflow pattern, see
@@ -375,21 +371,6 @@ function ConnectionMapInner() {
     // Header nodes (id="header:*") fall through and do nothing.
   }, [])
 
-  const closeDetail = useCallback(() => setSelected(null), [])
-
-  // Cross-dialog navigation: clicking the "Bound wallet" line in the LA
-  // or Card dialog flips `selected` to the wallet dialog (Radix handles
-  // the mount/unmount transition between the two). Same idea for
-  // clicking the LA name in the Card dialog.
-  const openWalletDetail = useCallback(
-    (id: string) => setSelected({ kind: 'wallet', id }),
-    [],
-  )
-  const openAddressDetail = useCallback(
-    (username: string) => setSelected({ kind: 'la', username }),
-    [],
-  )
-
   // Reject invalid drops while the user is dragging — xyflow paints the
   // ghost edge red so the affordance reads as "this won't work" before
   // release. Two valid shapes match the two edge families:
@@ -487,80 +468,14 @@ function ConnectionMapInner() {
           )}
         </ReactFlow>
 
-        {/*
-         * Single shared Dialog. The body swaps based on `selected.kind`,
-         * but the parent `<Dialog>` and `<DialogContent>` (and therefore
-         * the overlay + portal) stay mounted across navigation — so
-         * clicking the "Bound wallet" link in the LA body, for example,
-         * just replaces the inner Fragment instead of tearing down one
-         * dialog and rebuilding another. The backdrop never flickers.
-         *
-         * The `.find(…)` guards against the entity disappearing between
-         * the click and the next SSE refresh (e.g. another tab revoked
-         * the wallet milliseconds before the click). When the lookup
-         * misses we render nothing inside the still-open Dialog;
-         * `onOpenChange` then naturally closes it on the next outside
-         * click / ESC.
-         *
-         * `key` on the inner wrapper retriggers `animate-in fade-in-0`
-         * each time `selected.kind` changes, giving the swap a soft
-         * fade between bodies inside the shared Dialog frame.
-         */}
-        <Dialog
-          open={selected !== null}
-          onOpenChange={o => !o && closeDetail()}
-        >
-          {/* Cap the height so tall bodies (the card body's full-width
-              design preview + all its fields can exceed the viewport)
-              scroll internally instead of overflowing off-screen.
-              `max-h-[85vh]` leaves a margin so the dialog never kisses
-              the viewport edges; `overflow-y-auto` only shows the
-              scrollbar when content actually exceeds the cap. */}
-          <DialogContent className="max-h-[85vh] overflow-y-auto">
-            <div
-              key={selected?.kind ?? 'none'}
-              className="grid gap-4 animate-in fade-in-0 duration-200"
-            >
-              {selected?.kind === 'la' &&
-                (() => {
-                  const addr = addresses?.find(
-                    a => a.username === selected.username,
-                  )
-                  return addr ? (
-                    <AddressDetailBody
-                      address={addr}
-                      domain={domain}
-                      wallets={wallets ?? []}
-                      onOpenWallet={openWalletDetail}
-                    />
-                  ) : null
-                })()}
-              {selected?.kind === 'wallet' &&
-                (() => {
-                  const w = wallets?.find(w => w.id === selected.id)
-                  return w ? (
-                    <WalletDetailBody
-                      wallet={w}
-                      addresses={addresses ?? []}
-                      cards={cards ?? []}
-                    />
-                  ) : null
-                })()}
-              {selected?.kind === 'card' &&
-                (() => {
-                  const c = cards?.find(c => c.id === selected.id)
-                  return c ? (
-                    <CardDetailBody
-                      card={c}
-                      wallets={wallets ?? []}
-                      onOpenWallet={openWalletDetail}
-                      onOpenAddress={openAddressDetail}
-                    />
-                  ) : null
-                })()}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <ConnectionDetailDialog
+          selected={selected}
+          onSelect={setSelected}
+          addresses={addresses}
+          cards={cards}
+          wallets={wallets}
+          domain={domain}
+        />
       </div>
     </HoverProvider>
   )
