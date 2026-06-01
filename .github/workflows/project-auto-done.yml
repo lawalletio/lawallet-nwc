@@ -1,0 +1,133 @@
+name: Project board → Done
+
+# Moves the LaWallet v2 project card to "Done" when work is finished:
+#   • an issue is closed (covers PRs that close issues via "Closes #N" on merge), or
+#   • a pull request is merged (covers the PR's own card + any issues it closes).
+#
+# The org-level Projects v2 board can't be written with the default GITHUB_TOKEN,
+# so this needs a PROJECTS_TOKEN secret — a PAT (classic: `project` + `repo`
+# scopes, or fine-grained: org Projects read/write + repo Issues/PRs read).
+# Without it the job logs a warning and skips (it never hard-fails the run).
+
+on:
+  issues:
+    types: [closed]
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: project-auto-done-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  move-to-done:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          PROJECTS_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+        with:
+          github-token: ${{ secrets.PROJECTS_TOKEN }}
+          script: |
+            const ORG = 'lawalletio'
+            const PROJECT_NUMBER = 10        // LaWallet v2 (org project)
+            const STATUS_FIELD = 'Status'
+            const DONE_OPTION = 'Done'
+
+            if (!process.env.PROJECTS_TOKEN) {
+              core.warning(
+                'PROJECTS_TOKEN secret is not set — cannot write the org project board. Skipping. ' +
+                'Add a PAT with project write access as the PROJECTS_TOKEN secret to enable this.'
+              )
+              return
+            }
+
+            // 1. Collect the content (issue / PR) node ids whose cards should move to Done.
+            const targets = new Set()
+            if (context.eventName === 'issues') {
+              targets.add(context.payload.issue.node_id)
+            } else if (context.eventName === 'pull_request') {
+              const pr = context.payload.pull_request
+              // A PR closed *without* merging means the work wasn't done — leave the card alone.
+              if (!pr.merged) {
+                core.info('PR was closed without merging — not moving any card to Done.')
+                return
+              }
+              targets.add(pr.node_id)
+              // Issues the PR closes also get closed by GitHub (which fires `issues: closed`),
+              // but resolve them here too so a PR added directly to the board is covered in one run.
+              const closing = await github.graphql(
+                `query($owner:String!,$repo:String!,$num:Int!){
+                   repository(owner:$owner,name:$repo){
+                     pullRequest(number:$num){
+                       closingIssuesReferences(first:50){ nodes { id } }
+                     }
+                   }
+                 }`,
+                { owner: context.repo.owner, repo: context.repo.repo, num: pr.number }
+              )
+              for (const n of closing.repository.pullRequest.closingIssuesReferences.nodes) {
+                targets.add(n.id)
+              }
+            }
+            if (targets.size === 0) return
+
+            // 2. Resolve the project id, the Status field id, and the "Done" option id by name —
+            //    only the org login + project number are pinned, so renaming option ids upstream
+            //    won't silently break this.
+            const projRes = await github.graphql(
+              `query($org:String!,$number:Int!,$status:String!){
+                 organization(login:$org){
+                   projectV2(number:$number){
+                     id
+                     field(name:$status){
+                       ... on ProjectV2SingleSelectField { id options { id name } }
+                     }
+                   }
+                 }
+               }`,
+              { org: ORG, number: PROJECT_NUMBER, status: STATUS_FIELD }
+            )
+            const project = projRes.organization?.projectV2
+            const field = project?.field
+            const doneOption = field?.options?.find(o => o.name === DONE_OPTION)
+            if (!project || !field || !doneOption) {
+              core.setFailed(`Could not resolve project / "${STATUS_FIELD}" field / "${DONE_OPTION}" option.`)
+              return
+            }
+
+            // 3. For each target, find its card in this project and set Status = Done.
+            for (const contentId of targets) {
+              const itemRes = await github.graphql(
+                `query($id:ID!){
+                   node(id:$id){
+                     ... on Issue { title projectItems(first:50){ nodes { id project { id } } } }
+                     ... on PullRequest { title projectItems(first:50){ nodes { id project { id } } } }
+                   }
+                 }`,
+                { id: contentId }
+              )
+              const node = itemRes.node
+              const items = (node?.projectItems?.nodes || []).filter(i => i.project.id === project.id)
+              if (items.length === 0) {
+                core.info(`"${node?.title ?? contentId}" is not on the board — skipping.`)
+                continue
+              }
+              for (const item of items) {
+                await github.graphql(
+                  `mutation($project:ID!,$item:ID!,$field:ID!,$opt:String!){
+                     updateProjectV2ItemFieldValue(input:{
+                       projectId:$project, itemId:$item, fieldId:$field,
+                       value:{ singleSelectOptionId:$opt }
+                     }){ projectV2Item { id } }
+                   }`,
+                  { project: project.id, item: item.id, field: field.id, opt: doneOption.id }
+                )
+                core.info(`Moved "${node.title}" → ${DONE_OPTION}.`)
+              }
+            }
