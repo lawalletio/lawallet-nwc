@@ -204,16 +204,47 @@ Authorization: Bearer <token>
 }
 ```
 
+## How tokens expire
+
+JWTs here are **stateless** — the server keeps no record of issued tokens. A token isn't expired by
+a background job or a database flag; it simply stops being accepted once the deadline baked into it
+passes.
+
+- **At mint time**, the `expiresIn` option becomes an **`exp` claim** — a Unix timestamp
+  (`iat + duration`) that `jsonwebtoken` writes into the payload and the signature covers. A holder
+  can't push it later without the `JWT_SECRET`.
+- **On every request**, `verifyJwtToken` (`lib/jwt.ts`) re-checks the token: it validates the
+  signature and compares `exp` against the **current server clock**. Once `now >= exp`, verification
+  throws and the request is rejected with `401`. No timer, no cleanup — just a per-request check.
+
+```text
+request → verify signature → now < exp ? → allow : 401
+```
+
+### Expiry is not revocation
+
+Because validation is signature + `exp` only and nothing is stored server-side, there is no way to
+invalidate **one specific** token early. To cut access before `exp` you either let the token lapse
+on its own (so keep lifetimes short) or rotate `JWT_SECRET`, which invalidates **every** token at
+once.
+
+### Session tokens refresh; device tokens don't
+
+The admin dashboard layers a convenience on the same mechanism: it reads `exp` and, shortly before a
+session JWT lapses, re-signs a NIP-98 event and calls `POST /api/jwt` for a fresh token so an active
+session isn't logged out mid-use. The server side is unchanged — it still only checks `exp`.
+[Device tokens](#device-tokens-qr-login) have **no** refresh: when one expires, the operator
+generates a new QR.
+
 ## Device Tokens (QR login)
 
 Device tokens are **stateless, scoped JWTs** an admin mints for the third-party card apps
 (`card-installer`, `simple-card-manager`). The admin generates one from the dashboard, renders it
 as a QR, and the card app scans it to authenticate — no shared password, no per-device account.
 
-Validation is **signature + `exp` only** — there is **no session record and no revocation**.
-Lifetimes are therefore deliberately short and bounded server-side to **1 minute – 30 days**. To
-cut a device off early, let the token expire (or rotate the `JWT_SECRET`, which invalidates every
-token) and mint a fresh one.
+They follow the [stateless expiry model above](#how-tokens-expire): validation is signature + `exp`
+only, with **no revocation**. Lifetimes are bounded server-side to **1 minute – 30 days** — to cut a
+device off early, let the token lapse and mint a fresh one.
 
 ### Generating a token (admin UI)
 
