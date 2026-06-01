@@ -269,6 +269,33 @@ The card app then sends the `jwt` as a standard bearer token on its requests:
 Authorization: Bearer <jwt>
 ```
 
+### Available permissions
+
+`permissions` accepts any of the values below, defined in
+[`lib/auth/permissions.ts`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/lib/auth/permissions.ts).
+You can only grant permissions your own role holds — see the full role → permission matrix in
+[Roles & Permissions](/docs/architecture/roles-and-permissions).
+
+| Permission | Allows |
+|------------|--------|
+| `cards:read` | Read cards |
+| `cards:write` | Create, update, and pair cards |
+| `card_designs:read` | Read card designs |
+| `card_designs:write` | Create and update card designs |
+| `ntags:read` | Read NTAG424 keys |
+| `ntags:write` | Write NTAG424 keys |
+| `addresses:read` | Read Lightning addresses |
+| `addresses:write` | Create and update Lightning addresses |
+| `settings:read` | Read instance settings |
+| `settings:write` | Update instance settings |
+| `users:read` | Read users |
+| `users:write` | Create and update users |
+| `users:manage_roles` | Change a user's role |
+| `activity:read` | Read the activity log |
+
+The **Card provisioning** preset in the admin UI selects `cards:read`, `cards:write`,
+`card_designs:read`, `card_designs:write`, `ntags:read`, `ntags:write`, and `addresses:read`.
+
 ### Scopes and how they are enforced
 
 A device token carries an extra `scopes` claim alongside the usual identity claims. The token
