@@ -1,6 +1,6 @@
 ---
 title: "JWT Authentication"
-description: "Current JWT flow in LaWallet NWC, including NIP-98 exchange and server-side helpers."
+description: "JWT flow in LaWallet NWC: NIP-98 session exchange, server-side helpers, and scoped QR device tokens for the card apps."
 ---
 
 This document explains the JWT flow that currently exists in `lawallet-nwc`.
@@ -203,6 +203,154 @@ Authorization: Bearer <token>
   "expiresAt": "2024-01-02T00:00:00.000Z"
 }
 ```
+
+## How tokens expire
+
+JWTs here are **stateless** — the server keeps no record of issued tokens. A token isn't expired by
+a background job or a database flag; it simply stops being accepted once the deadline baked into it
+passes.
+
+- **At mint time**, the `expiresIn` option becomes an **`exp` claim** — a Unix timestamp
+  (`iat + duration`) that `jsonwebtoken` writes into the payload and the signature covers. A holder
+  can't push it later without the `JWT_SECRET`.
+- **On every request**, `verifyJwtToken` (`lib/jwt.ts`) re-checks the token: it validates the
+  signature and compares `exp` against the **current server clock**. Once `now >= exp`, verification
+  throws and the request is rejected with `401`. No timer, no cleanup — just a per-request check.
+
+```text
+request → verify signature → now < exp ? → allow : 401
+```
+
+### Expiry is not revocation
+
+Because validation is signature + `exp` only and nothing is stored server-side, there is no way to
+invalidate **one specific** token early. To cut access before `exp` you either let the token lapse
+on its own (so keep lifetimes short) or rotate `JWT_SECRET`, which invalidates **every** token at
+once.
+
+### Session tokens refresh; device tokens don't
+
+The admin dashboard layers a convenience on the same mechanism: it reads `exp` and, shortly before a
+session JWT lapses, re-signs a NIP-98 event and calls `POST /api/jwt` for a fresh token so an active
+session isn't logged out mid-use. The server side is unchanged — it still only checks `exp`.
+[Device tokens](#device-tokens-qr-login) have **no** refresh: when one expires, the operator
+generates a new QR.
+
+## Device Tokens (QR login)
+
+Device tokens are **stateless, scoped JWTs** an admin mints for the third-party card apps
+(`card-installer`, `simple-card-manager`). The admin generates one from the dashboard, renders it
+as a QR, and the card app scans it to authenticate — no shared password, no per-device account.
+
+They follow the [stateless expiry model above](#how-tokens-expire): validation is signature + `exp`
+only, with **no revocation**. Lifetimes are bounded server-side to **1 minute – 30 days** — to cut a
+device off early, let the token lapse and mint a fresh one.
+
+### Generating a token (admin UI)
+
+**Settings → Device Tokens** (also a sub-item under Settings in the admin sidebar):
+
+1. Pick the **user** the device will act as.
+2. Tick the **permissions** to grant — a subset of your own RBAC. The *Card provisioning* preset
+   selects the card / design / NTAG / address scopes the card apps need.
+3. Choose an **expiration** (`1h` · `8h` · `24h` · `7d` · custom).
+4. **Generate** → the JWT is rendered as a QR with a copy-to-clipboard fallback.
+
+### POST /api/auth/qr-jwt/generate
+
+Mint a device token. **Admin only** — authenticates via NIP-98 **or** the dashboard's Bearer JWT,
+and is rate-limited per admin.
+
+**Headers:**
+
+```text
+Authorization: Bearer <admin-jwt>      # or: Nostr <base64-encoded-nip98-event>
+```
+
+**Request body:**
+
+```json
+{
+  "userId": "clx0abcd1234",
+  "permissions": ["cards:read", "cards:write", "ntags:write"],
+  "expiresIn": "8h"
+}
+```
+
+- `userId` — DB id of the target user the token authenticates as.
+- `permissions` — scopes to grant. Must be a **subset of the calling admin's** permissions; unknown
+  strings return `400`, and granting a permission the caller lacks returns `403`.
+- `expiresIn` — a `ms`-style duration (`8h`, `7d`) or a plain number of **seconds**. Values outside
+  `1m – 30d` are rejected.
+
+**Response:**
+
+```json
+{
+  "jwt": "eyJhbGciOiJIUzI1NiIs...",
+  "expiresIn": "8h",
+  "scopes": ["cards:read", "cards:write", "ntags:write"],
+  "user": { "id": "clx0abcd1234", "pubkey": "<hex-pubkey>", "role": "OPERATOR" }
+}
+```
+
+The card app then sends the `jwt` as a standard bearer token on its requests:
+
+```text
+Authorization: Bearer <jwt>
+```
+
+### Available permissions
+
+`permissions` accepts any of the values below, defined in
+[`lib/auth/permissions.ts`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/lib/auth/permissions.ts).
+You can only grant permissions your own role holds — see the full role → permission matrix in
+[Roles & Permissions](/docs/architecture/roles-and-permissions).
+
+| Permission | Allows |
+|------------|--------|
+| `cards:read` | Read cards |
+| `cards:write` | Create, update, and pair cards |
+| `card_designs:read` | Read card designs |
+| `card_designs:write` | Create and update card designs |
+| `ntags:read` | Read NTAG424 keys |
+| `ntags:write` | Write NTAG424 keys |
+| `addresses:read` | Read Lightning addresses |
+| `addresses:write` | Create and update Lightning addresses |
+| `settings:read` | Read instance settings |
+| `settings:write` | Update instance settings |
+| `users:read` | Read users |
+| `users:write` | Create and update users |
+| `users:manage_roles` | Change a user's role |
+| `activity:read` | Read the activity log |
+
+The **Card provisioning** preset in the admin UI selects `cards:read`, `cards:write`,
+`card_designs:read`, `card_designs:write`, `ntags:read`, `ntags:write`, and `addresses:read`.
+
+### Scopes and how they are enforced
+
+A device token carries an extra `scopes` claim alongside the usual identity claims. The token
+authenticates **as the target user** (its `pubkey` + `role`), but `scopes` **narrows what it can
+do**:
+
+- On **permission-gated** routes (`authenticateWithPermission`), the effective permission set is the
+  `scopes` array — it **overrides** the role→permission map. A token scoped to `cards:read` cannot
+  write cards even if the target user's role normally could; conversely the admin can delegate a
+  capability beyond the user's base role, because `scopes` is a subset of the **admin's** RBAC, not
+  the user's.
+- The check is **fail-closed**: a malformed `scopes` claim, or one containing only unknown strings,
+  resolves to an empty set and denies all permission-gated access.
+- **Role-gated** routes (`authenticateWithRole`) still use the target user's role. For example
+  `POST /api/cards` requires `ADMIN`, so a device token only provisions cards when its target user
+  is an admin.
+- Session JWTs (from `POST /api/jwt`) and NIP-98 requests carry **no** `scopes` claim and are
+  unaffected — they resolve permissions from the full role→permission map as before.
+
+<Callout type="warn">
+Device tokens cannot be revoked before `exp`. Grant only the scopes the device needs, prefer the
+shortest workable expiration, and regenerate to change access — previously issued tokens stay valid
+until they expire.
+</Callout>
 
 ## Frontend Note
 
