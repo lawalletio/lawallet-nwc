@@ -45,6 +45,9 @@ export const ActivityEvent = {
   CARD_WALLET_BOUND: 'card.wallet_bound',
   CARD_WALLET_UNBOUND: 'card.wallet_unbound',
   CARD_DELETED: 'card.deleted',
+  CARD_ACTIVATION_TOKEN_ISSUED: 'card.activation_token_issued',
+  CARD_CLAIMED: 'card.claimed',
+  CARD_RESCUED: 'card.rescued',
   CARD_ERROR: 'card.error',
   // SERVER
   SERVER_UNHANDLED_ERROR: 'server.unhandled_error',

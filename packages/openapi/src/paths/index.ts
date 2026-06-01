@@ -3,6 +3,7 @@
 // path registration is independent across files.
 import './auth'
 import './cards'
+import './card-activation'
 import './card-designs'
 import './lightning-addresses'
 import './lud16'

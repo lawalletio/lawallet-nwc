@@ -13,4 +13,6 @@ export type Card = {
   otc?: string
   /** RemoteWallet this card spends from, or null if unbound. */
   remoteWalletId?: string | null
+  /** Card kind. SIMPLE supports ownership-transfer; MASTER reserved for sharing. */
+  kind?: 'SIMPLE' | 'MASTER'
 }

@@ -25,6 +25,7 @@ export const GET = withErrorHandling(
         lastUsedAt: true,
         username: true,
         otc: true,
+        kind: true,
         design: {
           select: {
             id: true,
@@ -72,7 +73,8 @@ export const GET = withErrorHandling(
     lastUsedAt: card.lastUsedAt || undefined,
     pubkey: card.user?.pubkey,
     username: card.username || undefined,
-    otc: card.otc || undefined
+    otc: card.otc || undefined,
+    kind: card.kind
   }
 
     return NextResponse.json(transformedCard)
@@ -138,6 +140,7 @@ export const PATCH = withErrorHandling(
         username: true,
         otc: true,
         remoteWalletId: true,
+        kind: true,
         design: {
           select: { id: true, imageUrl: true, description: true, createdAt: true },
         },
@@ -197,6 +200,7 @@ export const PATCH = withErrorHandling(
       username: updated.username || undefined,
       otc: updated.otc || undefined,
       remoteWalletId: updated.remoteWalletId ?? null,
+      kind: updated.kind,
     }
 
     return NextResponse.json(transformedCard)
