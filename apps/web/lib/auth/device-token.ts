@@ -4,8 +4,6 @@ import { ValidationError } from '@/types/server/errors'
 
 /** Lower bound for a device token's lifetime, in seconds (1 minute). */
 export const MIN_DEVICE_TOKEN_SECONDS = 60
-/** Upper bound for a device token's lifetime, in seconds (30 days). */
-export const MAX_DEVICE_TOKEN_SECONDS = 30 * 24 * 60 * 60
 
 const UNIT_SECONDS: Record<string, number> = {
   s: 1,
@@ -40,19 +38,17 @@ export function parseDurationSeconds(input: string): number {
  *
  * Bare-number strings are returned as a `number` (seconds) so `jsonwebtoken`
  * doesn't misread them as milliseconds; unit strings (`8h`, `7d`) pass through
- * unchanged. Rejects anything outside [{@link MIN_DEVICE_TOKEN_SECONDS},
- * {@link MAX_DEVICE_TOKEN_SECONDS}] — these tokens can't be revoked, so a
- * runaway lifetime is a security problem, not a convenience.
+ * unchanged. Enforces only a lower bound ({@link MIN_DEVICE_TOKEN_SECONDS}) —
+ * there is no maximum lifetime, so operators can mint long-lived tokens for the
+ * card apps. These tokens can't be revoked, so prefer the shortest lifetime
+ * that fits the use case.
  *
- * @throws {ValidationError} When the duration is unparseable or out of bounds.
+ * @throws {ValidationError} When the duration is unparseable or below the minimum.
  */
 export function normalizeDeviceTokenExpiry(input: string): string | number {
   const seconds = parseDurationSeconds(input)
   if (seconds < MIN_DEVICE_TOKEN_SECONDS) {
     throw new ValidationError('Expiration too short', 'Minimum is 1 minute')
-  }
-  if (seconds > MAX_DEVICE_TOKEN_SECONDS) {
-    throw new ValidationError('Expiration too long', 'Maximum is 30 days')
   }
   // Bare number → return seconds as a number; unit string → pass through so
   // `jsonwebtoken` interprets it via `ms()`.

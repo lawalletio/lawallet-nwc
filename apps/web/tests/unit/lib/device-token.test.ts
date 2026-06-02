@@ -11,7 +11,6 @@ import {
   normalizeDeviceTokenExpiry,
   mintDeviceToken,
   MIN_DEVICE_TOKEN_SECONDS,
-  MAX_DEVICE_TOKEN_SECONDS,
 } from '@/lib/auth/device-token'
 import { createJwtToken } from '@/lib/jwt'
 
@@ -59,18 +58,14 @@ describe('normalizeDeviceTokenExpiry', () => {
     ).toThrow(/too short/i)
   })
 
-  it('rejects durations above the maximum', () => {
-    expect(() =>
-      normalizeDeviceTokenExpiry(String(MAX_DEVICE_TOKEN_SECONDS + 1)),
-    ).toThrow(/too long/i)
-    expect(() => normalizeDeviceTokenExpiry('31d')).toThrow(/too long/i)
-  })
-
-  it('accepts the exact bounds', () => {
+  it('accepts the minimum and imposes no upper bound', () => {
     expect(normalizeDeviceTokenExpiry(String(MIN_DEVICE_TOKEN_SECONDS))).toBe(
       MIN_DEVICE_TOKEN_SECONDS,
     )
+    // Long lifetimes that used to be rejected now pass — there is no maximum.
     expect(normalizeDeviceTokenExpiry('30d')).toBe('30d')
+    expect(normalizeDeviceTokenExpiry('31d')).toBe('31d')
+    expect(normalizeDeviceTokenExpiry('3650d')).toBe('3650d')
   })
 })
 

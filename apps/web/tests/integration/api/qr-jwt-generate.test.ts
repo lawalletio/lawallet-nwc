@@ -200,18 +200,29 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     expect(res.status).toBe(400)
   })
 
-  it('rejects an over-long expiration with 400', async () => {
+  it('accepts a long expiration (no maximum) but still enforces the 1-minute floor', async () => {
     asAdmin()
     configEnabled()
     targetUser()
 
-    const req = createNextRequest('/api/auth/qr-jwt/generate', {
+    // A long lifetime now succeeds — there is no upper bound.
+    const longReq = createNextRequest('/api/auth/qr-jwt/generate', {
       method: 'POST',
       headers: { authorization: 'Bearer admin-jwt' },
-      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '31d' },
+      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '365d' },
     })
-    const res = await POST(req)
-    expect(res.status).toBe(400)
+    const longRes = await POST(longReq)
+    const longBody: any = await assertResponse(longRes, 200)
+    expect(longBody.expiresIn).toBe('365d')
+
+    // A sub-minute lifetime is still rejected.
+    const shortReq = createNextRequest('/api/auth/qr-jwt/generate', {
+      method: 'POST',
+      headers: { authorization: 'Bearer admin-jwt' },
+      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '30s' },
+    })
+    const shortRes = await POST(shortReq)
+    expect(shortRes.status).toBe(400)
   })
 
   it('returns 404 when the target user does not exist', async () => {
