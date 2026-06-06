@@ -69,7 +69,7 @@ describe('POST /api/cards/[id]/activation-tokens', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null as any)
     vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({ count: 0 } as any)
     vi.mocked(prismaMock.cardActivationToken.create).mockImplementation(
-      async (args: any) => args.data,
+      (async (args: any) => args.data) as any,
     )
 
     const req = createNextRequest('/api/cards/card1/activation-tokens', {
@@ -171,7 +171,7 @@ describe('POST /api/cards/[id]/rescue', () => {
     vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({ count: 2 } as any)
     vi.mocked(prismaMock.card.update).mockResolvedValue({ id: 'card1' } as any)
     vi.mocked(prismaMock.cardActivationToken.create).mockImplementation(
-      async (args: any) => args.data,
+      (async (args: any) => args.data) as any,
     )
 
     const req = createNextRequest('/api/cards/card1/rescue', { method: 'POST' })

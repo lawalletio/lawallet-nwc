@@ -42,7 +42,12 @@ export const POST = withErrorHandling(
     // include the default Remote Wallet so we can fall back to it below.
     const existing = await prisma.user.findUnique({
       where: { pubkey },
-      include: { remoteWallets: { where: { isDefault: true }, take: 1 } },
+      // Only an ACTIVE default is a usable fallback binding (see the wallet
+      // resolution note below) — a disabled/revoked default is ignored so the
+      // card is left unbound rather than bound to a dead wallet.
+      include: {
+        remoteWallets: { where: { isDefault: true, status: 'ACTIVE' }, take: 1 },
+      },
     })
     const claimer = existing ?? (await createNewUser(pubkey))
 
@@ -71,19 +76,25 @@ export const POST = withErrorHandling(
       throw new ValidationError('Unsupported activation token kind')
     }
 
-    // Resolve which Remote Wallet funds the card. An explicit choice must
-    // belong to the claimer and be live; otherwise fall back to their default.
+    // Resolve which Remote Wallet funds the card. We only ever bind an ACTIVE
+    // wallet: pay-time `resolveCardWallet` treats an explicit non-ACTIVE
+    // binding as `unconfigured` and will NOT fall back to the owner's default,
+    // so binding a disabled/revoked wallet would silently brick the card until
+    // it's manually rebound. An explicit choice must belong to the claimer and
+    // be ACTIVE; otherwise fall back to their ACTIVE default, or leave the card
+    // unbound (null) so normal default resolution applies at tap time.
     let nextWalletId: string | null
     if (remoteWalletId) {
       const wallet = await prisma.remoteWallet.findUnique({
         where: { id: remoteWalletId },
         select: { id: true, userId: true, status: true },
       })
-      if (!wallet || wallet.userId !== claimer.id || wallet.status === 'REVOKED') {
-        throw new ValidationError('Unknown wallet')
+      if (!wallet || wallet.userId !== claimer.id || wallet.status !== 'ACTIVE') {
+        throw new ValidationError('Unknown or inactive wallet')
       }
       nextWalletId = wallet.id
     } else {
+      // Already filtered to the claimer's ACTIVE default (or empty → unbound).
       nextWalletId = claimer.remoteWallets[0]?.id ?? null
     }
 

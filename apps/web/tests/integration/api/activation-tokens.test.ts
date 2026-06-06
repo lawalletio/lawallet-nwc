@@ -151,8 +151,42 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
         data: { userId: 'user1', remoteWalletId: 'w1' },
       }),
     )
+    // The default-wallet fallback only considers an ACTIVE default, so a
+    // disabled/revoked default is never bound (would brick the card at tap).
+    expect(prismaMock.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          remoteWallets: { where: { isDefault: true, status: 'ACTIVE' }, take: 1 },
+        },
+      }),
+    )
     // Preview-safe card response — no NTAG keys.
     expect(JSON.stringify(body)).not.toContain('k0')
+  })
+
+  it('leaves the card unbound when the claimer has no ACTIVE default wallet', async () => {
+    // The ACTIVE-default filter returns no rows (e.g. the default is disabled).
+    vi.mocked(authenticate).mockResolvedValue({
+      pubkey: CLAIMER_PUBKEY,
+      role: 'USER' as any,
+      method: 'nip98',
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user1',
+      pubkey: CLAIMER_PUBKEY,
+      remoteWallets: [],
+    } as any)
+    mockPendingToken()
+    vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({ count: 1 } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue({ ...claimedCardRow, remoteWalletId: null } as any)
+
+    const req = createNextRequest('/api/activation-tokens/tok1/claim', { method: 'POST', body: {} })
+    const res = await ClaimToken(req, createParamsPromise({ id: 'tok1' }))
+    await assertResponse(res, 200)
+
+    expect(prismaMock.card.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { userId: 'user1', remoteWalletId: null } }),
+    )
   })
 
   it('creates a fresh user on first claim and binds no wallet when none exists', async () => {
@@ -207,6 +241,25 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
       id: 'w2',
       userId: 'someone-else',
       status: 'ACTIVE',
+    } as any)
+
+    const req = createNextRequest('/api/activation-tokens/tok1/claim', {
+      method: 'POST',
+      body: { remoteWalletId: 'w2' },
+    })
+    const res = await ClaimToken(req, createParamsPromise({ id: 'tok1' }))
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects an explicitly chosen inactive (disabled) wallet (400)', async () => {
+    mockClaimer('w1')
+    mockPendingToken()
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'w2',
+      userId: 'user1',
+      status: 'DISABLED',
     } as any)
 
     const req = createNextRequest('/api/activation-tokens/tok1/claim', {
