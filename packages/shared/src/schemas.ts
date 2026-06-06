@@ -299,9 +299,10 @@ export const jwtRequestSchema = z.object({
 
 /**
  * `expiresIn` accepts a `ms`-style duration (`30m`, `8h`, `7d`, `2w`) or a bare
- * number of seconds. The route bounds the parsed value to [1m, 30d] — device
- * tokens are stateless and unrevocable, so very long lifetimes are rejected
- * there rather than here (this package has no access to those constants).
+ * number of seconds. The route enforces only a 1-minute floor (no maximum) —
+ * device tokens are stateless and unrevocable, so prefer short lifetimes even
+ * though long ones are allowed. Bounds are checked in the route, not here (this
+ * package has no access to those constants).
  */
 const deviceTokenExpiresIn = z
   .string()

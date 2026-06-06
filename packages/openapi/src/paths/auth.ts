@@ -37,7 +37,7 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Mint a scoped device token (QR login)',
   description:
-    'Admin-only. Mints a stateless JWT scoped to a target user + permission subset, shown as a QR for the card apps (card-installer, simple-card-manager) to scan. No session record, no revocation — validation is signature + exp only, so lifetimes are bounded to 30 days. Granted permissions must be a subset of the caller\'s RBAC.',
+    'Admin-only. Mints a stateless JWT scoped to a target user + permission subset, shown as a QR for the card apps (card-installer, simple-card-manager) to scan. No session record, no revocation — validation is signature + exp only. Lifetimes have a 1-minute floor but no maximum, so prefer short expirations. Granted permissions must be a subset of the caller\'s RBAC.',
   operationId: 'auth.qrJwt.generate',
   security: protectedSecurity,
   request: {

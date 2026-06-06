@@ -243,8 +243,8 @@ Device tokens are **stateless, scoped JWTs** an admin mints for the third-party 
 as a QR, and the card app scans it to authenticate — no shared password, no per-device account.
 
 They follow the [stateless expiry model above](#how-tokens-expire): validation is signature + `exp`
-only, with **no revocation**. Lifetimes are bounded server-side to **1 minute – 30 days** — to cut a
-device off early, let the token lapse and mint a fresh one.
+only, with **no revocation**. Lifetimes have a **1-minute floor but no maximum** — prefer short
+expirations, and to cut a device off early let the token lapse and mint a fresh one.
 
 ### Generating a token (admin UI)
 
@@ -280,8 +280,8 @@ Authorization: Bearer <admin-jwt>      # or: Nostr <base64-encoded-nip98-event>
 - `userId` — DB id of the target user the token authenticates as.
 - `permissions` — scopes to grant. Must be a **subset of the calling admin's** permissions; unknown
   strings return `400`, and granting a permission the caller lacks returns `403`.
-- `expiresIn` — a `ms`-style duration (`8h`, `7d`) or a plain number of **seconds**. Values outside
-  `1m – 30d` are rejected.
+- `expiresIn` — a `ms`-style duration (`8h`, `7d`) or a plain number of **seconds**. Anything below
+  the **1-minute** floor is rejected; there is no upper bound.
 
 **Response:**
 

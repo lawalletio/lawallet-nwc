@@ -35,8 +35,9 @@ export const revalidate = 0
  * Admin-only. The admin picks a target user, a permission subset, and an
  * expiration; we sign a JWT that the third-party card apps (`card-installer`,
  * `simple-card-manager`) scan from an on-screen QR. There is no session record
- * and no revocation surface — validation is signature + `exp` only, so keep
- * lifetimes short (bounded to 30 days by `normalizeDeviceTokenExpiry`).
+ * and no revocation surface — validation is signature + `exp` only. There is no
+ * maximum lifetime (only a 1-minute floor via `normalizeDeviceTokenExpiry`), so
+ * prefer the shortest expiration that fits the device.
  *
  * The granted `permissions` must be a subset of the admin's own RBAC; the
  * token's `scopes` claim then narrows every permission-gated route to exactly

@@ -311,7 +311,8 @@ export function DeviceTokensTab() {
         <div>
           <h3 className="text-sm font-semibold">Expiration</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Tokens can&apos;t be revoked, so prefer short lifetimes. Max 30 days.
+            Tokens can&apos;t be revoked, so prefer short lifetimes. No maximum,
+            but a longer lifetime is a longer-lived risk if the token leaks.
           </p>
         </div>
         <div className="space-y-3">
