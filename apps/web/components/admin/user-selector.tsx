@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import { Check, ChevronsUpDown, X } from 'lucide-react'
-import { nip19 } from 'nostr-tools'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -22,7 +21,7 @@ import {
 } from '@/components/ui/command'
 import { useUsers, type AdminUser } from '@/lib/client/hooks/use-users'
 import { useNostrProfiles } from '@/lib/client/nostr-profile'
-import { truncateNpub, npubInitials } from '@/lib/client/format'
+import { truncateNpub, npubInitials, toNpub } from '@/lib/client/format'
 import { Role } from '@/lib/auth/permissions'
 
 const ROLE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
@@ -45,14 +44,6 @@ interface UserOption {
   role: Role
   avatarUrl: string | null
   address: string | null
-}
-
-function npubOf(pubkey: string): string {
-  try {
-    return nip19.npubEncode(pubkey)
-  } catch {
-    return pubkey
-  }
 }
 
 export interface UserSelectorProps {
@@ -94,7 +85,7 @@ export function UserSelector({
         return {
           id: u.id,
           pubkey: u.pubkey,
-          npub: npubOf(u.pubkey),
+          npub: toNpub(u.pubkey),
           name: profile?.displayName || profile?.name || null,
           role: u.role,
           avatarUrl: profile?.picture ?? null,

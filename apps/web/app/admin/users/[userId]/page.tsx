@@ -37,7 +37,7 @@ import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { EditProfileDialog } from '@/components/admin/edit-profile-dialog'
 import { useAuth } from '@/components/admin/auth-context'
-import { truncateNpub, formatRelativeTime, npubInitials } from '@/lib/client/format'
+import { truncateNpub, formatRelativeTime, npubInitials, toNpub } from '@/lib/client/format'
 import { Role, Permission } from '@/lib/auth/permissions'
 import {
   type WalletAddress,
@@ -130,8 +130,8 @@ export default function UserDetailPage({
   async function handleCopyPubkey() {
     if (!user) return
     try {
-      await navigator.clipboard.writeText(user.pubkey)
-      toast.success('Pubkey copied')
+      await navigator.clipboard.writeText(toNpub(user.pubkey))
+      toast.success('npub copied')
     } catch {
       toast.error('Could not copy')
     }
@@ -298,7 +298,7 @@ export default function UserDetailPage({
                       size="icon"
                       className="size-6 text-muted-foreground hover:text-foreground"
                       onClick={handleCopyPubkey}
-                      aria-label="Copy pubkey"
+                      aria-label="Copy npub"
                     >
                       <Copy className="size-3" />
                     </Button>

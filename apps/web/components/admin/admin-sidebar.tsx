@@ -56,7 +56,7 @@ import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
-import { truncateNpub, npubInitials } from '@/lib/client/format'
+import { truncateNpub, npubInitials, toNpub } from '@/lib/client/format'
 import { toast } from 'sonner'
 
 interface NavItem {
@@ -215,8 +215,8 @@ export function AdminSidebar() {
 
   function copyPubkey() {
     if (pubkey) {
-      navigator.clipboard.writeText(pubkey)
-      toast.success('Public key copied')
+      navigator.clipboard.writeText(toNpub(pubkey))
+      toast.success('npub copied')
     }
   }
 
@@ -361,7 +361,7 @@ export function AdminSidebar() {
             <DropdownMenuContent align="end" side="top">
               <DropdownMenuItem onClick={copyPubkey}>
                 <Copy className="size-4 mr-2" />
-                Copy public key
+                Copy npub
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout}>

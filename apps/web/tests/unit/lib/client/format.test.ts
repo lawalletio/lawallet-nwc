@@ -1,6 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import { nip19 } from 'nostr-tools'
-import { npubInitials } from '@/lib/client/format'
+import { npubInitials, toNpub } from '@/lib/client/format'
+
+describe('toNpub', () => {
+  it('encodes a hex pubkey to its full npub form', () => {
+    const pubkey = 'a'.repeat(64)
+    const npub = toNpub(pubkey)
+    expect(npub).toBe(nip19.npubEncode(pubkey))
+    expect(npub.startsWith('npub1')).toBe(true)
+    // Round-trips back to the original hex.
+    expect(nip19.decode(npub).data).toBe(pubkey)
+  })
+
+  it('returns the input unchanged when it cannot be encoded', () => {
+    expect(toNpub('not-hex')).toBe('not-hex')
+  })
+})
 
 describe('npubInitials', () => {
   it('returns the first two npub characters after the npub1 prefix, uppercased', () => {

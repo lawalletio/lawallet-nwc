@@ -1,6 +1,19 @@
 import { nip19 } from 'nostr-tools'
 
 /**
+ * Encodes a hex pubkey to its full `npub1…` (NIP-19) form. Falls back to the
+ * input unchanged if it can't be encoded. Use this whenever a pubkey is copied
+ * or shown in full so users always get the npub, never the raw hex.
+ */
+export function toNpub(pubkey: string): string {
+  try {
+    return nip19.npubEncode(pubkey)
+  } catch {
+    return pubkey
+  }
+}
+
+/**
  * Converts a hex pubkey to npub and truncates for display.
  * Example: "npub1abc...xyz4"
  */
