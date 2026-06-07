@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { KeyRound, ShieldAlert, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { QrDisplay } from '@/components/wallet/shared/qr-display'
-import { useUsers } from '@/lib/client/hooks/use-users'
+import { UserSelector } from '@/components/admin/user-selector'
 import {
   useGenerateDeviceToken,
   type GenerateDeviceTokenResult,
@@ -100,7 +100,6 @@ const EXPIRY_PRESETS: { value: string; label: string }[] = [
 ]
 
 export function DeviceTokensTab() {
-  const { data: users, loading: usersLoading } = useUsers()
   const { generate, loading: generating } = useGenerateDeviceToken()
 
   const [userId, setUserId] = useState('')
@@ -110,11 +109,6 @@ export function DeviceTokensTab() {
   const [expiryPreset, setExpiryPreset] = useState('8h')
   const [customExpiry, setCustomExpiry] = useState('')
   const [result, setResult] = useState<GenerateDeviceTokenResult | null>(null)
-
-  const selectedUser = useMemo(
-    () => users?.find(u => u.id === userId) ?? null,
-    [users, userId],
-  )
 
   const expiresIn =
     expiryPreset === 'custom' ? customExpiry.trim() : expiryPreset
@@ -220,23 +214,11 @@ export function DeviceTokensTab() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="device-token-user">User</Label>
-          <Select value={userId} onValueChange={setUserId} disabled={usersLoading}>
-            <SelectTrigger id="device-token-user">
-              <SelectValue
-                placeholder={usersLoading ? 'Loading users…' : 'Select a user'}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {users?.map(u => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.primaryAddress
-                    ? `${u.primaryAddress} · ${truncateNpub(u.pubkey)}`
-                    : truncateNpub(u.pubkey)}{' '}
-                  ({u.role})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <UserSelector
+            value={userId}
+            onValueChange={setUserId}
+            placeholder="Select a user"
+          />
           <p className="text-xs text-muted-foreground">
             The device authenticates as this user. Role-gated actions still
             respect the user&apos;s role; the scopes below narrow what the token

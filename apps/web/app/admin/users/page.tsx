@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table'
 import { useUsers, type AdminUser } from '@/lib/client/hooks/use-users'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
-import { truncateNpub, formatRelativeTime } from '@/lib/client/format'
+import { truncateNpub, formatRelativeTime, npubInitials } from '@/lib/client/format'
 import { Role } from '@/lib/auth/permissions'
 
 const ROLE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
@@ -174,9 +174,7 @@ function UserRow({ user, onClick }: { user: AdminUser; onClick: () => void }) {
   const { profile } = useNostrProfile(user.pubkey)
   const displayName =
     profile?.displayName || profile?.name || truncateNpub(user.pubkey)
-  const fallback = (profile?.name || profile?.displayName || user.pubkey)
-    .slice(0, 2)
-    .toUpperCase()
+  const fallback = npubInitials(user.pubkey)
 
   return (
     <TableRow

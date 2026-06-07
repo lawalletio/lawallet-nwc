@@ -117,7 +117,7 @@ export function IdentityCircles({
           alt="Community isotypo"
           fill
           sizes="96px"
-          className="object-contain p-2"
+          className="object-cover"
         />
       </Link>
     </div>

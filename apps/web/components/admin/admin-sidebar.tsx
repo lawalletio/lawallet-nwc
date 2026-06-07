@@ -1,8 +1,8 @@
 'use client'
 
-import React from 'react'
+import React, { Suspense } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   Home,
   Users,
@@ -56,7 +56,7 @@ import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
-import { truncateNpub } from '@/lib/client/format'
+import { truncateNpub, npubInitials, toNpub } from '@/lib/client/format'
 import { toast } from 'sonner'
 
 interface NavItem {
@@ -125,6 +125,72 @@ const settingsSubItems = [
   { title: 'Device Tokens', tab: 'device-tokens' },
 ]
 
+/** Default tab the settings page lands on when no `?tab=` is present. */
+const DEFAULT_SETTINGS_TAB = 'branding'
+
+/**
+ * The collapsible "Settings" nav item with its tab sub-items. Split out from
+ * {@link AdminSidebar} so the `useSearchParams` read (needed to highlight the
+ * sub-item matching the active tab) can live under its own Suspense boundary.
+ * Reading the query reactively here is what keeps the highlight in sync when
+ * the user switches tabs — `usePathname` alone never changes on `?tab=` edits.
+ */
+function SettingsNav() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  const onSettings = pathname === '/admin/settings'
+  const activeTab = searchParams.get('tab') || DEFAULT_SETTINGS_TAB
+  const [open, setOpen] = React.useState(pathname.startsWith('/admin/settings'))
+
+  function closeMobile() {
+    if (isMobile) setOpenMobile(false)
+  }
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} asChild>
+      <SidebarMenuItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton
+            isActive={pathname.startsWith('/admin/settings')}
+            onClick={() => {
+              if (!open) {
+                router.push('/admin/settings')
+                closeMobile()
+              }
+            }}
+          >
+            <Settings className="size-4" />
+            <span>Settings</span>
+            <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {settingsSubItems.map((sub) => (
+              <SidebarMenuSubItem key={sub.tab}>
+                <SidebarMenuSubButton
+                  asChild
+                  isActive={onSettings && activeTab === sub.tab}
+                >
+                  <Link
+                    href={`/admin/settings?tab=${sub.tab}`}
+                    onClick={closeMobile}
+                  >
+                    {sub.title}
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  )
+}
+
 export function AdminSidebar() {
   const pathname = usePathname()
   const router = useRouter()
@@ -132,9 +198,6 @@ export function AdminSidebar() {
   const { profile } = useNostrProfile(pubkey)
   const { data: settings } = useSettings()
   const { isMobile, setOpenMobile } = useSidebar()
-  const [settingsOpen, setSettingsOpen] = React.useState(
-    pathname.startsWith('/admin/settings')
-  )
 
   // Close the mobile drawer after navigation
   function closeMobile() {
@@ -152,8 +215,8 @@ export function AdminSidebar() {
 
   function copyPubkey() {
     if (pubkey) {
-      navigator.clipboard.writeText(pubkey)
-      toast.success('Public key copied')
+      navigator.clipboard.writeText(toNpub(pubkey))
+      toast.success('npub copied')
     }
   }
 
@@ -174,7 +237,7 @@ export function AdminSidebar() {
     : ''
 
   const displayName = profile?.displayName || profile?.name || (pubkey ? truncateNpub(pubkey) : 'Unknown')
-  const avatarFallback = (profile?.name?.[0] || pubkey?.slice(0, 2) || '??').toUpperCase()
+  const avatarFallback = npubInitials(pubkey)
 
   return (
     <Sidebar>
@@ -224,52 +287,11 @@ export function AdminSidebar() {
                   ))}
 
                   {showSettings && (
-                    <Collapsible
-                      open={settingsOpen}
-                      onOpenChange={setSettingsOpen}
-                      asChild
-                    >
-                      <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            isActive={isActive('/admin/settings')}
-                            onClick={() => {
-                              if (!settingsOpen) {
-                                router.push('/admin/settings')
-                                closeMobile()
-                              }
-                            }}
-                          >
-                            <Settings className="size-4" />
-                            <span>Settings</span>
-                            <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {settingsSubItems.map((sub) => (
-                              <SidebarMenuSubItem key={sub.tab}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={
-                                    pathname === '/admin/settings' &&
-                                    typeof window !== 'undefined' &&
-                                    new URLSearchParams(window.location.search).get('tab') === sub.tab
-                                  }
-                                >
-                                  <Link
-                                    href={`/admin/settings?tab=${sub.tab}`}
-                                    onClick={closeMobile}
-                                  >
-                                    {sub.title}
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </Collapsible>
+                    // `SettingsNav` reads the active tab from the URL query via
+                    // `useSearchParams`, which must sit under a Suspense boundary.
+                    <Suspense fallback={null}>
+                      <SettingsNav />
+                    </Suspense>
                   )}
                 </SidebarMenu>
               </SidebarGroupContent>
@@ -339,7 +361,7 @@ export function AdminSidebar() {
             <DropdownMenuContent align="end" side="top">
               <DropdownMenuItem onClick={copyPubkey}>
                 <Copy className="size-4 mr-2" />
-                Copy public key
+                Copy npub
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout}>
