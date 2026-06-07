@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, X } from 'lucide-react'
 import { nip19 } from 'nostr-tools'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -112,72 +112,100 @@ export function UserSelector({
   const isDisabled = disabled || (!usersProp && usersLoading)
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          disabled={isDisabled}
-          className="h-auto min-h-10 w-full justify-between font-normal"
+    <div className="relative w-full">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={isDisabled}
+            className={cn(
+              'h-auto min-h-10 w-full justify-start font-normal',
+              selected ? 'pr-14' : 'pr-9',
+            )}
+          >
+            {selected ? (
+              <UserRowContent option={selected} />
+            ) : (
+              <span className="text-muted-foreground">
+                {usersLoading && !usersProp ? 'Loading users…' : placeholder}
+              </span>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[var(--radix-popover-trigger-width)] p-0"
+          align="start"
         >
-          {selected ? (
-            <UserRowContent option={selected} />
-          ) : (
-            <span className="text-muted-foreground">
-              {usersLoading && !usersProp ? 'Loading users…' : placeholder}
-            </span>
-          )}
-          <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-0"
-        align="start"
-      >
-        <Command
-          filter={(itemValue, search) =>
-            itemValue.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
-          }
-        >
-          <CommandInput placeholder="Search users…" />
-          <CommandList>
-            <CommandEmpty>No users found.</CommandEmpty>
-            <CommandGroup>
-              {options.map(option => (
-                <CommandItem
-                  key={option.id}
-                  // Searchable text + a unique suffix so same-name users don't collide.
-                  value={[
-                    option.name,
-                    option.npub,
-                    option.address,
-                    option.role,
-                    option.id,
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onSelect={() => {
-                    onValueChange(option.id)
-                    setOpen(false)
-                  }}
-                  className="gap-2"
-                >
-                  <UserRowContent option={option} />
-                  <Check
-                    className={cn(
-                      'ml-auto size-4 shrink-0',
-                      option.id === value ? 'opacity-100' : 'opacity-0',
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+          <Command
+            filter={(itemValue, search) =>
+              itemValue.toLowerCase().includes(search.toLowerCase()) ? 1 : 0
+            }
+          >
+            <CommandInput placeholder="Search users…" />
+            <CommandList>
+              <CommandEmpty>No users found.</CommandEmpty>
+              <CommandGroup>
+                {options.map(option => (
+                  <CommandItem
+                    key={option.id}
+                    // Searchable text + a unique suffix so same-name users don't collide.
+                    value={[
+                      option.name,
+                      option.npub,
+                      option.address,
+                      option.role,
+                      option.id,
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onSelect={() => {
+                      onValueChange(option.id)
+                      setOpen(false)
+                    }}
+                    className="gap-2"
+                  >
+                    <UserRowContent option={option} />
+                    <Check
+                      className={cn(
+                        'ml-auto size-4 shrink-0',
+                        option.id === value ? 'opacity-100' : 'opacity-0',
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {/*
+        Trailing icons overlaid on the trigger. The container is
+        `pointer-events-none` so clicks on the chevron fall through to the
+        trigger (opening the popover); the clear button re-enables pointer
+        events so it can intercept its own click without nesting a <button>
+        inside the trigger <button>.
+      */}
+      <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+        {selected && !isDisabled && (
+          <button
+            type="button"
+            aria-label="Clear selection"
+            onClick={e => {
+              e.stopPropagation()
+              onValueChange('')
+            }}
+            className="pointer-events-auto rounded-sm p-0.5 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <X className="size-4" />
+          </button>
+        )}
+        <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+      </div>
+    </div>
   )
 }
 

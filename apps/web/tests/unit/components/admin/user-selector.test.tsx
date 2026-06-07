@@ -92,6 +92,24 @@ describe('UserSelector', () => {
     expect(screen.getByTestId('value').textContent).toBe('user_a')
   })
 
+  it('clears the selection with the clear (x) button', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    // Select Alice.
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByText('Alice'))
+    expect(screen.getByTestId('value').textContent).toBe('user_a')
+
+    // The clear button appears only once something is selected.
+    await user.click(screen.getByRole('button', { name: /clear selection/i }))
+    expect(screen.getByTestId('value').textContent).toBe('')
+    expect(screen.getByText('Select a user')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /clear selection/i }),
+    ).not.toBeInTheDocument()
+  })
+
   it('filters the list by the search input', async () => {
     const user = userEvent.setup()
     render(<Harness />)
