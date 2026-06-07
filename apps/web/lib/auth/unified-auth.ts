@@ -5,6 +5,14 @@ import { getConfig } from '@/lib/config'
 import { AuthenticationError, AuthorizationError } from '@/types/server/errors'
 import { Role, Permission, hasRole, hasPermission, isValidRole, isValidPermission } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
+import { resolvePublicEndpoint } from '@/lib/public-url'
+
+/** Normalizes a base URL for comparison: trim, drop a trailing slash, lowercase. */
+function normalizeApiUrl(value: unknown): string {
+  return typeof value === 'string'
+    ? value.trim().replace(/\/+$/, '').toLowerCase()
+    : ''
+}
 
 /** Authentication scheme used to identify the caller. */
 export type AuthMethod = 'nip98' | 'jwt'
@@ -99,6 +107,19 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
             typeof s === 'string' && isValidPermission(s),
         )
       : undefined
+
+    // Device tokens (B.0) are scoped to the instance that minted them. Reject a
+    // token whose `apiUrl` claim is missing or doesn't match this platform's URL
+    // so a token issued for one instance can't be replayed against another. Only
+    // device tokens carry `apiUrl`; session JWTs (no `kind`) are unaffected.
+    if (result.payload.kind === 'device') {
+      const { url } = await resolvePublicEndpoint(request)
+      if (normalizeApiUrl(result.payload.apiUrl) !== normalizeApiUrl(url)) {
+        throw new AuthenticationError('Token is not valid for this instance', {
+          details: 'Device token apiUrl does not match this platform',
+        })
+      }
+    }
 
     return { pubkey, role, method: 'jwt', scopes }
   } catch (error) {

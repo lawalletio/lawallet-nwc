@@ -77,6 +77,7 @@ describe('mintDeviceToken', () => {
       role: Role.OPERATOR,
       scopes: [Permission.CARDS_READ, Permission.CARDS_WRITE],
       expiresIn: '8h',
+      apiUrl: 'https://app.example.com',
       secret: 'shhh',
     })
 
@@ -91,6 +92,8 @@ describe('mintDeviceToken', () => {
         permissions: [Permission.CARDS_READ, Permission.CARDS_WRITE],
         sub: 'user_123',
         kind: 'device',
+        // scopes the token to the issuing instance
+        apiUrl: 'https://app.example.com',
       }),
       'shhh',
       expect.objectContaining({
