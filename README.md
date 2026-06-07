@@ -254,12 +254,6 @@ Contributions are welcome. Open an issue to discuss bugs, features, or roadmap i
 
 <p align="center">
   <br />
-  Supported by
-  <br /><br />
-  <a href="https://opensats.org">
-    <img src="https://opensats.org/logo.svg" alt="OpenSats" width="150" />
-  </a>
-  <br /><br />
   <sub>
     <a href="https://beta.lawallet.io">Demo</a> ·
     <a href="https://docs.lawallet.io">Docs</a> ·
