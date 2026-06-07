@@ -290,9 +290,15 @@ Authorization: Bearer <admin-jwt>      # or: Nostr <base64-encoded-nip98-event>
   "jwt": "eyJhbGciOiJIUzI1NiIs...",
   "expiresIn": "8h",
   "scopes": ["cards:read", "cards:write", "ntags:write"],
+  "apiUrl": "https://app.example.com",
   "user": { "id": "clx0abcd1234", "pubkey": "<hex-pubkey>", "role": "OPERATOR" }
 }
 ```
+
+- `apiUrl` — the platform base URL this token is bound to (resolved from the instance's
+  `endpoint`/`domain` settings). It is also embedded as a claim **inside** the JWT, so the scanning
+  app can decode the token to learn which API to call. See
+  [Instance scoping](#instance-scoping-apiurl) for how it is enforced.
 
 The card app then sends the `jwt` as a standard bearer token on its requests:
 
@@ -345,6 +351,28 @@ do**:
   is an admin.
 - Session JWTs (from `POST /api/jwt`) and NIP-98 requests carry **no** `scopes` claim and are
   unaffected — they resolve permissions from the full role→permission map as before.
+
+### Instance scoping (`apiUrl`)
+
+A device token also carries an `apiUrl` claim — the platform base URL of the instance that minted it,
+resolved from the instance's `endpoint`/`domain` settings (e.g. `https://app.example.com`). It serves
+two purposes:
+
+- **Discovery** — the card app decodes the token (the claim is readable without the secret) to learn
+  which API base to call, so a single scanned QR is enough to point the device at the right instance.
+- **Binding** — on every Bearer request, `authenticateJwt` (`lib/auth/unified-auth.ts`) resolves the
+  serving instance's URL and compares it to the token's `apiUrl`. A device token whose `apiUrl` is
+  **missing or doesn't match** is rejected with `401` — a token minted for one instance can't be
+  replayed against another. The comparison is normalized (trimmed, trailing slash dropped,
+  case-insensitive on the host).
+
+Only device tokens carry `apiUrl`; session JWTs (no `kind: 'device'` claim) and NIP-98 requests skip
+this check entirely.
+
+<Callout type="warn">
+Changing the instance's `endpoint`/`domain` settings invalidates **every** previously issued device
+token, since their `apiUrl` no longer matches — re-mint after a domain change.
+</Callout>
 
 <Callout type="warn">
 Device tokens cannot be revoked before `exp`. Grant only the scopes the device needs, prefer the
