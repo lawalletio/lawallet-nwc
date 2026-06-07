@@ -48,6 +48,7 @@ import { GET as ListGet } from '@/app/api/card-designs/list/route'
 import { GET as CountGet } from '@/app/api/card-designs/count/route'
 import { GET as GetById } from '@/app/api/card-designs/get/[id]/route'
 import { POST as ImportPost } from '@/app/api/card-designs/import/route'
+import { POST as ImportVeintiunoPost } from '@/app/api/card-designs/import-veintiuno/route'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { getSettings } from '@/lib/settings'
@@ -245,6 +246,86 @@ describe('POST /api/card-designs/import', () => {
 
     const req = createNextRequest('/api/card-designs/import', { method: 'POST' })
     const res = await ImportPost(req)
+
+    expect(res.status).toBeGreaterThanOrEqual(400)
+  })
+})
+
+describe('POST /api/card-designs/import-veintiuno', () => {
+  const catalog = [
+    { id: 'veintiuno-1', communityId: 'a', imageUrl: 'https://v.lat/1.png', description: 'One' },
+    { id: 'veintiuno-2', communityId: 'b', imageUrl: 'https://v.lat/2.png', title: 'Two' },
+    // No filtering by community: a card from any community is imported.
+    { id: 'veintiuno-3', communityId: 'c', imageUrl: 'https://v.lat/3.png' },
+    // Malformed (no image) — skipped.
+    { id: 'bad', communityId: 'c' },
+  ]
+
+  function mockCatalog() {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(catalog), { status: 200 }),
+    )
+  }
+
+  it('upserts the whole catalog (all communities) on lawallet.io', async () => {
+    mockAdmin()
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'lawallet.io' })
+    mockCatalog()
+    vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([]) // none exist yet
+    vi.mocked(prismaMock.cardDesign.upsert).mockResolvedValue({} as any)
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'POST' })
+    const body: any = await assertResponse(await ImportVeintiunoPost(req), 200)
+
+    expect(body.success).toBe(true)
+    expect(body.imported).toBe(3) // the 3 valid cards; the malformed one is skipped
+    expect(body.updated).toBe(0)
+    expect(prismaMock.cardDesign.upsert).toHaveBeenCalledTimes(3)
+  })
+
+  it('reports existing designs as updated, not imported', async () => {
+    mockAdmin()
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'lawallet.io' })
+    mockCatalog()
+    vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([
+      { id: 'veintiuno-1' },
+    ] as any)
+    vi.mocked(prismaMock.cardDesign.upsert).mockResolvedValue({} as any)
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'POST' })
+    const body: any = await assertResponse(await ImportVeintiunoPost(req), 200)
+
+    expect(body.imported).toBe(2)
+    expect(body.updated).toBe(1)
+  })
+
+  it('rejects when the instance domain is not lawallet.io', async () => {
+    mockAdmin()
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'lacrypta.ar' })
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'POST' })
+    const res = await ImportVeintiunoPost(req)
+
+    expect(res.status).toBe(400)
+    expect(globalThis.fetch).not.toHaveBeenCalled?.()
+  })
+
+  it('returns 500 when the catalog fetch fails', async () => {
+    mockAdmin()
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'lawallet.io' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 502 }))
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'POST' })
+    const res = await ImportVeintiunoPost(req)
+
+    expect(res.status).toBe(500)
+  })
+
+  it('rejects callers without CARD_DESIGNS_WRITE', async () => {
+    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'POST' })
+    const res = await ImportVeintiunoPost(req)
 
     expect(res.status).toBeGreaterThanOrEqual(400)
   })

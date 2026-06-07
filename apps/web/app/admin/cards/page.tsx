@@ -8,6 +8,7 @@ import {
   MoreHorizontal,
   RefreshCw,
   Upload,
+  Download,
   Archive,
   ArchiveRestore,
   Trash2,
@@ -73,7 +74,12 @@ export default function CardsPage() {
   const { data: cards, loading: cardsLoading, refetch: refetchCards } = useCards()
   const { data: counts, loading: countsLoading } = useCardCounts()
   const { data: designs, loading: designsLoading, refetch: refetchDesigns } = useDesigns()
-  const { importDesigns, loading: importing } = useDesignMutations()
+  const {
+    importDesigns,
+    importFromVeintiuno,
+    importing,
+    importingVeintiuno,
+  } = useDesignMutations()
 
   const [search, setSearch] = useState('')
   const [designFilter, setDesignFilter] = useState('all')
@@ -126,6 +132,21 @@ export default function CardsPage() {
     }
   }
 
+  async function handleImportVeintiuno() {
+    try {
+      const result = await importFromVeintiuno()
+      trackEvent(AnalyticsEvent.DESIGN_IMPORTED)
+      toast.success(result?.message ?? 'Imported designs from veintiuno.lat')
+      refetchDesigns()
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to import from veintiuno.lat',
+      )
+    }
+  }
+
   const showDomainAlert = settings && !settings.domain
   // The Sync button calls /api/card-designs/import, which pulls designs from
   // veintiuno.lat filtered by `community_id`. It rejects with a 400 when the
@@ -133,6 +154,9 @@ export default function CardsPage() {
   // `is_community` and `community_id` are set.
   const hasCommunity =
     settings?.is_community === 'true' && !!settings?.community_id?.trim()
+  // lawallet.io is the canonical instance that hosts the full veintiuno
+  // catalog, so the "Import from veintiuno.lat" button is scoped to it.
+  const isVeintiunoHost = settings?.domain === 'lawallet.io'
 
   return (
     <div className="flex flex-col">
@@ -361,6 +385,21 @@ export default function CardsPage() {
                       <RefreshCw className="mr-2 size-4" />
                     )}
                     Sync
+                  </Button>
+                )}
+                {isVeintiunoHost && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleImportVeintiuno}
+                    disabled={importingVeintiuno}
+                  >
+                    {importingVeintiuno ? (
+                      <Spinner size={16} className="mr-2" />
+                    ) : (
+                      <Download className="mr-2 size-4" />
+                    )}
+                    Import from veintiuno.lat
                   </Button>
                 )}
                 <Button

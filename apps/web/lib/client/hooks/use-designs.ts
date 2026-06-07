@@ -70,16 +70,29 @@ export interface UpdateDesignInput {
   archived?: boolean
 }
 
+/** Result of importing the veintiuno.lat catalog. */
+export interface ImportVeintiunoResult {
+  success: boolean
+  message: string
+  imported: number
+  updated: number
+  total: number
+}
+
 /**
  * Mutation hook for importing, creating, and updating designs.
  */
 export function useDesignMutations() {
   const importMut = useMutation()
+  const importVeintiunoMut = useMutation<void, ImportVeintiunoResult>()
   const createMut = useMutation<CreateDesignInput, ApiDesign>()
   const updateMut = useMutation<UpdateDesignInput, ApiDesign>()
 
   return {
     importDesigns: () => importMut.mutate('post', '/api/card-designs/import'),
+    /** Import the full veintiuno.lat catalog (lawallet.io only). */
+    importFromVeintiuno: () =>
+      importVeintiunoMut.mutate('post', '/api/card-designs/import-veintiuno'),
     createDesign: (input: CreateDesignInput) =>
       createMut.mutate('post', '/api/card-designs', input).then(toDesignData),
     updateDesign: (id: string, input: UpdateDesignInput) =>
@@ -90,10 +103,19 @@ export function useDesignMutations() {
           input,
         )
         .then(toDesignData),
-    loading: importMut.loading || createMut.loading || updateMut.loading,
+    loading:
+      importMut.loading ||
+      importVeintiunoMut.loading ||
+      createMut.loading ||
+      updateMut.loading,
     importing: importMut.loading,
+    importingVeintiuno: importVeintiunoMut.loading,
     creating: createMut.loading,
     updating: updateMut.loading,
-    error: importMut.error ?? createMut.error ?? updateMut.error,
+    error:
+      importMut.error ??
+      importVeintiunoMut.error ??
+      createMut.error ??
+      updateMut.error,
   }
 }
