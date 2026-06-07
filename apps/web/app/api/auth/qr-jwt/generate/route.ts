@@ -24,6 +24,7 @@ import {
   mintDeviceToken,
   normalizeDeviceTokenExpiry,
 } from '@/lib/auth/device-token'
+import { resolveApiUrl } from '@/lib/public-url'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const dynamic = 'force-dynamic'
@@ -94,12 +95,19 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const expiresIn = normalizeDeviceTokenExpiry(body.expiresIn)
 
+  // Scope the token to this instance: the auth layer rejects it on any other
+  // platform URL, and the scanning app learns the API base from the claim.
+  // Uses the instance endpoint (not the lightning-address domain), falling back
+  // to the request host so a local dev instance binds to its own URL.
+  const apiUrl = await resolveApiUrl(request)
+
   const jwt = mintDeviceToken({
     pubkey: user.pubkey,
     userId: user.id,
     role: user.role as Role,
     scopes,
     expiresIn,
+    apiUrl,
     secret: config.jwt.secret,
   })
 
@@ -120,6 +128,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     jwt,
     expiresIn,
     scopes,
+    apiUrl,
     user: { id: user.id, pubkey: user.pubkey, role: user.role },
   })
 })

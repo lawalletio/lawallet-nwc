@@ -67,6 +67,8 @@ export interface MintDeviceTokenParams {
   scopes: Permission[]
   /** Validated expiry (unit string like `8h`, or numeric seconds). */
   expiresIn: string | number
+  /** Platform base URL this token is scoped to, e.g. `https://app.example.com`. */
+  apiUrl: string
   /** JWT signing secret. */
   secret: string
 }
@@ -82,9 +84,14 @@ export interface MintDeviceTokenParams {
  *
  * `iss`/`aud` mirror the session JWT so the token authenticates against the
  * same `Bearer` path; `kind: 'device'` marks it as a delegated token for audits.
+ *
+ * The `apiUrl` claim records the platform base URL this token belongs to. The
+ * auth layer enforces it on every Bearer request (see `authenticateJwt`), so a
+ * device token is scoped to the single instance that minted it; an external app
+ * that scans the QR also learns the API base by decoding the token.
  */
 export function mintDeviceToken(params: MintDeviceTokenParams): string {
-  const { pubkey, userId, role, scopes, expiresIn, secret } = params
+  const { pubkey, userId, role, scopes, expiresIn, apiUrl, secret } = params
   return createJwtToken(
     {
       // `userId` mirrors `pubkey` to match the session JWT shape the auth layer
@@ -98,6 +105,7 @@ export function mintDeviceToken(params: MintDeviceTokenParams): string {
       scopes,
       sub: userId,
       kind: 'device',
+      apiUrl,
     },
     secret,
     {

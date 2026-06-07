@@ -290,9 +290,17 @@ Authorization: Bearer <admin-jwt>      # or: Nostr <base64-encoded-nip98-event>
   "jwt": "eyJhbGciOiJIUzI1NiIs...",
   "expiresIn": "8h",
   "scopes": ["cards:read", "cards:write", "ntags:write"],
+  "apiUrl": "https://app.example.com",
   "user": { "id": "clx0abcd1234", "pubkey": "<hex-pubkey>", "role": "OPERATOR" }
 }
 ```
+
+- `apiUrl` — the platform base URL this token is bound to: the instance's `endpoint` setting, or
+  the request host the mint came in on when `endpoint` is unset (e.g. `http://localhost:55067` in
+  local dev). It is deliberately **not** the lightning-address `domain` — a token must point at the
+  API the device will call, not the public address domain. It is also embedded as a claim **inside**
+  the JWT, so the scanning app can decode the token to learn which API to call. See
+  [Instance scoping](#instance-scoping-apiurl) for how it is enforced.
 
 The card app then sends the `jwt` as a standard bearer token on its requests:
 
@@ -345,6 +353,32 @@ do**:
   is an admin.
 - Session JWTs (from `POST /api/jwt`) and NIP-98 requests carry **no** `scopes` claim and are
   unaffected — they resolve permissions from the full role→permission map as before.
+
+### Instance scoping (`apiUrl`)
+
+A device token also carries an `apiUrl` claim — the base URL of the instance that minted it. It is
+resolved from the **`endpoint`** setting, falling back to the **request host** when `endpoint` is
+unset (so a local dev instance binds to its own `http://localhost:<port>`). It is **not** the
+lightning-address `domain`: an instance served at `http://localhost:55067` may advertise a public
+address domain of `lacrypta.ar` for LUD-16, but the device must call the former. It serves two
+purposes:
+
+- **Discovery** — the card app decodes the token (the claim is readable without the secret) to learn
+  which API base to call, so a single scanned QR is enough to point the device at the right instance.
+- **Binding** — on every Bearer request, `authenticateJwt` (`lib/auth/unified-auth.ts`) resolves the
+  serving instance's URL and compares it to the token's `apiUrl`. A device token whose `apiUrl` is
+  **missing or doesn't match** is rejected with `401` — a token minted for one instance can't be
+  replayed against another. The comparison is normalized (trimmed, trailing slash dropped,
+  case-insensitive on the host).
+
+Only device tokens carry `apiUrl`; session JWTs (no `kind: 'device'` claim) and NIP-98 requests skip
+this check entirely.
+
+<Callout type="warn">
+Changing the instance's `endpoint` setting (or, when it's unset, the host the instance is served on)
+invalidates **every** previously issued device token, since their `apiUrl` no longer matches —
+re-mint afterwards.
+</Callout>
 
 <Callout type="warn">
 Device tokens cannot be revoked before `exp`. Grant only the scopes the device needs, prefer the

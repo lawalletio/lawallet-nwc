@@ -21,6 +21,8 @@ export interface GenerateDeviceTokenResult {
   expiresIn: string | number
   /** The scopes baked into the token (validated + de-duped server-side). */
   scopes: Permission[]
+  /** Platform base URL baked into the token (e.g. `https://app.example.com`). */
+  apiUrl: string
   /** Identity the token authenticates as. */
   user: { id: string; pubkey: string; role: Role }
 }

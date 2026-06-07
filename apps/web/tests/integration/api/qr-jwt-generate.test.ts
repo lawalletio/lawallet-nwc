@@ -40,6 +40,10 @@ vi.mock('@/lib/jwt', () => ({
   createJwtToken: vi.fn(() => 'signed.device.jwt'),
 }))
 
+vi.mock('@/lib/public-url', () => ({
+  resolveApiUrl: vi.fn(async () => 'https://app.example.com'),
+}))
+
 import { POST } from '@/app/api/auth/qr-jwt/generate/route'
 import { getConfig } from '@/lib/config'
 import { authenticateWithRole } from '@/lib/auth/unified-auth'
@@ -97,19 +101,23 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     expect(body.jwt).toBe('signed.device.jwt')
     expect(body.expiresIn).toBe('8h')
     expect(body.scopes).toEqual(['cards:read', 'cards:write'])
+    expect(body.apiUrl).toBe('https://app.example.com')
     expect(body.user).toEqual({
       id: 'user_123',
       pubkey: TARGET_PUBKEY,
       role: 'OPERATOR',
     })
 
-    // The minted token carries the target identity + scopes claim.
+    // The minted token carries the target identity, scopes claim, and the
+    // platform URL it's scoped to.
     expect(createJwtToken).toHaveBeenCalledWith(
       expect.objectContaining({
         pubkey: TARGET_PUBKEY,
         role: 'OPERATOR',
         scopes: ['cards:read', 'cards:write'],
         sub: 'user_123',
+        kind: 'device',
+        apiUrl: 'https://app.example.com',
       }),
       'test-secret',
       expect.objectContaining({ issuer: 'lawallet-nwc' }),

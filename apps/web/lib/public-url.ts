@@ -44,3 +44,32 @@ export async function resolvePublicEndpoint(
   const headerHost = request?.headers.get('host') || 'localhost:3000'
   return { host: headerHost, url: buildPublicUrl(headerHost) }
 }
+
+/**
+ * Resolves the API URL of *this instance* — the address where the server is
+ * actually reachable and clients should send requests.
+ *
+ * Unlike {@link resolvePublicEndpoint}, this deliberately does **not** fall back
+ * to the lightning-address `domain`/`subdomain` settings. An instance served at
+ * `http://localhost:55067` may advertise a public address domain of
+ * `lacrypta.ar` for LUD-16, but a device token must be bound to the former — the
+ * URL the device will actually call — not the latter.
+ *
+ * Priority:
+ * 1. `endpoint` setting (parsed as URL — protocol respected, https default).
+ * 2. Request `host` header (the URL the request came in on; `localhost:3000`
+ *    when absent).
+ */
+export async function resolveApiUrl(
+  request?: { headers: { get: (k: string) => string | null } }
+): Promise<string> {
+  const { endpoint } = await getSettings(['endpoint'])
+
+  const parsed = parseEndpoint(endpoint)
+  if (parsed) {
+    return `${parsed.protocol}//${parsed.host}`
+  }
+
+  const headerHost = request?.headers.get('host') || 'localhost:3000'
+  return buildPublicUrl(headerHost)
+}

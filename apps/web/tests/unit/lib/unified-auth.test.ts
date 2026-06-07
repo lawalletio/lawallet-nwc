@@ -30,6 +30,10 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn(),
 }))
 
+vi.mock('@/lib/public-url', () => ({
+  resolveApiUrl: vi.fn(async () => 'https://app.example.com'),
+}))
+
 import {
   authenticate,
   authenticateWithRole,
@@ -41,6 +45,7 @@ import { validateJwtFromRequest } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
+import { resolveApiUrl } from '@/lib/public-url'
 
 const PUBKEY = 'a'.repeat(64)
 
@@ -323,5 +328,68 @@ describe('device-token scopes (B.0)', () => {
 
     const result = await authenticate(mockBearerRequest())
     expect(result.scopes).toEqual([Permission.CARDS_READ])
+  })
+})
+
+describe('device-token apiUrl enforcement (B.0)', () => {
+  function mockDeviceTokenWithApiUrl(apiUrl: unknown) {
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'a'.repeat(32) },
+    } as any)
+    vi.mocked(validateJwtFromRequest).mockResolvedValue({
+      payload: {
+        pubkey: PUBKEY,
+        role: 'OPERATOR',
+        kind: 'device',
+        apiUrl,
+        iat: 1000,
+        exp: 2000,
+      },
+      header: { alg: 'HS256' },
+    } as any)
+  }
+
+  it('authenticates when apiUrl matches the serving instance', async () => {
+    mockDeviceTokenWithApiUrl('https://app.example.com')
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.pubkey).toBe(PUBKEY)
+    expect(result.method).toBe('jwt')
+  })
+
+  it('matches despite trailing slash and case differences', async () => {
+    vi.mocked(resolveApiUrl).mockResolvedValueOnce('https://App.Example.com')
+    mockDeviceTokenWithApiUrl('https://app.example.com/')
+
+    await expect(authenticate(mockBearerRequest())).resolves.toMatchObject({
+      pubkey: PUBKEY,
+    })
+  })
+
+  it('rejects a device token whose apiUrl is for another instance', async () => {
+    mockDeviceTokenWithApiUrl('https://other.example.com')
+
+    await expect(authenticate(mockBearerRequest())).rejects.toThrow(
+      AuthenticationError,
+    )
+  })
+
+  it('rejects a device token missing the apiUrl claim', async () => {
+    mockDeviceTokenWithApiUrl(undefined)
+
+    await expect(authenticate(mockBearerRequest())).rejects.toThrow(
+      AuthenticationError,
+    )
+  })
+
+  it('does not enforce apiUrl on a session JWT (no kind claim)', async () => {
+    vi.mocked(validateJwtFromRequest).mockResolvedValue({
+      payload: { pubkey: PUBKEY, role: 'ADMIN', iat: 1000, exp: 2000 },
+      header: { alg: 'HS256' },
+    } as any)
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.pubkey).toBe(PUBKEY)
+    expect(resolveApiUrl).not.toHaveBeenCalled()
   })
 })

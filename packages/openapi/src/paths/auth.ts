@@ -37,7 +37,7 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Mint a scoped device token (QR login)',
   description:
-    'Admin-only. Mints a stateless JWT scoped to a target user + permission subset, shown as a QR for the card apps (card-installer, simple-card-manager) to scan. No session record, no revocation — validation is signature + exp only. Lifetimes have a 1-minute floor but no maximum, so prefer short expirations. Granted permissions must be a subset of the caller\'s RBAC.',
+    "Admin-only. Mints a stateless JWT scoped to a target user + permission subset, shown as a QR for the card apps (card-installer, simple-card-manager) to scan. The token carries an `apiUrl` claim binding it to this instance: the auth layer rejects it on any other platform URL, and the scanning app reads the API base from the claim. No session record, no revocation — validation is signature + exp + apiUrl only. Lifetimes have a 1-minute floor but no maximum, so prefer short expirations. Granted permissions must be a subset of the caller's RBAC.",
   operationId: 'auth.qrJwt.generate',
   security: protectedSecurity,
   request: {
@@ -52,6 +52,13 @@ registry.registerPath({
         jwt: z.string(),
         expiresIn: z.union([z.string(), z.number()]),
         scopes: z.array(z.string()),
+        apiUrl: z
+          .string()
+          .openapi({
+            description:
+              'Platform base URL baked into the token; it is only valid against this instance.',
+            example: 'https://app.example.com',
+          }),
         user: z.object({
           id: z.string(),
           pubkey: z.string(),
