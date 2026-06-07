@@ -16,6 +16,25 @@ export function truncateNpub(pubkey: string, chars: number = 8): string {
 }
 
 /**
+ * Two-character avatar fallback for a pubkey: the first two characters of its
+ * npub *after* the `npub1` prefix, uppercased (e.g. `npub1q8z…` → `Q8`).
+ *
+ * Deterministic and independent of profile metadata, so the placeholder stays
+ * stable while the avatar image loads or when no kind-0 name is available.
+ * Returns `??` for a missing pubkey and falls back to the hex prefix if the
+ * pubkey can't be encoded.
+ */
+export function npubInitials(pubkey: string | null | undefined): string {
+  if (!pubkey) return '??'
+  try {
+    // `npub1` is a 5-char prefix, so the data part starts at index 5.
+    return nip19.npubEncode(pubkey).slice(5, 7).toUpperCase()
+  } catch {
+    return pubkey.slice(0, 2).toUpperCase()
+  }
+}
+
+/**
  * Formats a date string or Date as relative time.
  * Example: "2 hours ago", "3 days ago", "just now"
  */

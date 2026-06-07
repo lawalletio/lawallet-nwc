@@ -56,7 +56,7 @@ import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
-import { truncateNpub } from '@/lib/client/format'
+import { truncateNpub, npubInitials } from '@/lib/client/format'
 import { toast } from 'sonner'
 
 interface NavItem {
@@ -237,7 +237,7 @@ export function AdminSidebar() {
     : ''
 
   const displayName = profile?.displayName || profile?.name || (pubkey ? truncateNpub(pubkey) : 'Unknown')
-  const avatarFallback = (profile?.name?.[0] || pubkey?.slice(0, 2) || '??').toUpperCase()
+  const avatarFallback = npubInitials(pubkey)
 
   return (
     <Sidebar>

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
+import { nip19 } from 'nostr-tools'
 
 // Mock the data sources so the component renders without real API/relay calls.
 vi.mock('@/lib/client/hooks/use-users', () => ({
@@ -90,6 +91,16 @@ describe('UserSelector', () => {
 
     await user.click(screen.getByText('Alice'))
     expect(screen.getByTestId('value').textContent).toBe('user_a')
+  })
+
+  it('uses the first two npub characters as the avatar fallback', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('combobox'))
+
+    // Bob (PK_B) has no profile picture, so the fallback initials show.
+    const expected = nip19.npubEncode(PK_B).slice(5, 7).toUpperCase()
+    expect(await screen.findByText(expected)).toBeInTheDocument()
   })
 
   it('clears the selection with the clear (x) button', async () => {

@@ -37,7 +37,7 @@ import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { EditProfileDialog } from '@/components/admin/edit-profile-dialog'
 import { useAuth } from '@/components/admin/auth-context'
-import { truncateNpub, formatRelativeTime } from '@/lib/client/format'
+import { truncateNpub, formatRelativeTime, npubInitials } from '@/lib/client/format'
 import { Role, Permission } from '@/lib/auth/permissions'
 import {
   type WalletAddress,
@@ -125,9 +125,7 @@ export default function UserDetailPage({
     profile?.displayName ||
     profile?.name ||
     (user ? truncateNpub(user.pubkey) : '')
-  const fallback = ((profile?.name || profile?.displayName || user?.pubkey || 'U') as string)
-    .slice(0, 2)
-    .toUpperCase()
+  const fallback = npubInitials(user?.pubkey)
 
   async function handleCopyPubkey() {
     if (!user) return

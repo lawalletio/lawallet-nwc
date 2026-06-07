@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/command'
 import { useUsers, type AdminUser } from '@/lib/client/hooks/use-users'
 import { useNostrProfiles } from '@/lib/client/nostr-profile'
-import { truncateNpub } from '@/lib/client/format'
+import { truncateNpub, npubInitials } from '@/lib/client/format'
 import { Role } from '@/lib/auth/permissions'
 
 const ROLE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
@@ -53,10 +53,6 @@ function npubOf(pubkey: string): string {
   } catch {
     return pubkey
   }
-}
-
-function initialsOf(option: UserOption): string {
-  return (option.name || option.npub || option.pubkey).slice(0, 2).toUpperCase()
 }
 
 export interface UserSelectorProps {
@@ -217,7 +213,7 @@ function UserRowContent({ option }: { option: UserOption }) {
       <Avatar className="size-6 shrink-0">
         {option.avatarUrl && <AvatarImage src={option.avatarUrl} alt={label} />}
         <AvatarFallback className="text-[10px]">
-          {initialsOf(option)}
+          {npubInitials(option.pubkey)}
         </AvatarFallback>
       </Avatar>
       <div className="flex min-w-0 flex-col items-start">
