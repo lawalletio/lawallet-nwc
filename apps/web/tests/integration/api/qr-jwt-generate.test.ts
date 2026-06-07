@@ -41,10 +41,7 @@ vi.mock('@/lib/jwt', () => ({
 }))
 
 vi.mock('@/lib/public-url', () => ({
-  resolvePublicEndpoint: vi.fn(async () => ({
-    host: 'app.example.com',
-    url: 'https://app.example.com',
-  })),
+  resolveApiUrl: vi.fn(async () => 'https://app.example.com'),
 }))
 
 import { POST } from '@/app/api/auth/qr-jwt/generate/route'

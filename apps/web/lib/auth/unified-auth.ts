@@ -5,7 +5,7 @@ import { getConfig } from '@/lib/config'
 import { AuthenticationError, AuthorizationError } from '@/types/server/errors'
 import { Role, Permission, hasRole, hasPermission, isValidRole, isValidPermission } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { resolveApiUrl } from '@/lib/public-url'
 
 /** Normalizes a base URL for comparison: trim, drop a trailing slash, lowercase. */
 function normalizeApiUrl(value: unknown): string {
@@ -113,7 +113,7 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
     // so a token issued for one instance can't be replayed against another. Only
     // device tokens carry `apiUrl`; session JWTs (no `kind`) are unaffected.
     if (result.payload.kind === 'device') {
-      const { url } = await resolvePublicEndpoint(request)
+      const url = await resolveApiUrl(request)
       if (normalizeApiUrl(result.payload.apiUrl) !== normalizeApiUrl(url)) {
         throw new AuthenticationError('Token is not valid for this instance', {
           details: 'Device token apiUrl does not match this platform',

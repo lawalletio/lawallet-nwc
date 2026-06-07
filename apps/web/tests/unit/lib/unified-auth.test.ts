@@ -31,10 +31,7 @@ vi.mock('@/lib/settings', () => ({
 }))
 
 vi.mock('@/lib/public-url', () => ({
-  resolvePublicEndpoint: vi.fn(async () => ({
-    host: 'app.example.com',
-    url: 'https://app.example.com',
-  })),
+  resolveApiUrl: vi.fn(async () => 'https://app.example.com'),
 }))
 
 import {
@@ -48,7 +45,7 @@ import { validateJwtFromRequest } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { resolveApiUrl } from '@/lib/public-url'
 
 const PUBKEY = 'a'.repeat(64)
 
@@ -361,10 +358,7 @@ describe('device-token apiUrl enforcement (B.0)', () => {
   })
 
   it('matches despite trailing slash and case differences', async () => {
-    vi.mocked(resolvePublicEndpoint).mockResolvedValueOnce({
-      host: 'App.Example.com',
-      url: 'https://App.Example.com',
-    } as any)
+    vi.mocked(resolveApiUrl).mockResolvedValueOnce('https://App.Example.com')
     mockDeviceTokenWithApiUrl('https://app.example.com/')
 
     await expect(authenticate(mockBearerRequest())).resolves.toMatchObject({
@@ -396,6 +390,6 @@ describe('device-token apiUrl enforcement (B.0)', () => {
 
     const result = await authenticate(mockBearerRequest())
     expect(result.pubkey).toBe(PUBKEY)
-    expect(resolvePublicEndpoint).not.toHaveBeenCalled()
+    expect(resolveApiUrl).not.toHaveBeenCalled()
   })
 })

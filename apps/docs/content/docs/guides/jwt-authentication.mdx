@@ -295,9 +295,11 @@ Authorization: Bearer <admin-jwt>      # or: Nostr <base64-encoded-nip98-event>
 }
 ```
 
-- `apiUrl` — the platform base URL this token is bound to (resolved from the instance's
-  `endpoint`/`domain` settings). It is also embedded as a claim **inside** the JWT, so the scanning
-  app can decode the token to learn which API to call. See
+- `apiUrl` — the platform base URL this token is bound to: the instance's `endpoint` setting, or
+  the request host the mint came in on when `endpoint` is unset (e.g. `http://localhost:55067` in
+  local dev). It is deliberately **not** the lightning-address `domain` — a token must point at the
+  API the device will call, not the public address domain. It is also embedded as a claim **inside**
+  the JWT, so the scanning app can decode the token to learn which API to call. See
   [Instance scoping](#instance-scoping-apiurl) for how it is enforced.
 
 The card app then sends the `jwt` as a standard bearer token on its requests:
@@ -354,9 +356,12 @@ do**:
 
 ### Instance scoping (`apiUrl`)
 
-A device token also carries an `apiUrl` claim — the platform base URL of the instance that minted it,
-resolved from the instance's `endpoint`/`domain` settings (e.g. `https://app.example.com`). It serves
-two purposes:
+A device token also carries an `apiUrl` claim — the base URL of the instance that minted it. It is
+resolved from the **`endpoint`** setting, falling back to the **request host** when `endpoint` is
+unset (so a local dev instance binds to its own `http://localhost:<port>`). It is **not** the
+lightning-address `domain`: an instance served at `http://localhost:55067` may advertise a public
+address domain of `lacrypta.ar` for LUD-16, but the device must call the former. It serves two
+purposes:
 
 - **Discovery** — the card app decodes the token (the claim is readable without the secret) to learn
   which API base to call, so a single scanned QR is enough to point the device at the right instance.
@@ -370,8 +375,9 @@ Only device tokens carry `apiUrl`; session JWTs (no `kind: 'device'` claim) and 
 this check entirely.
 
 <Callout type="warn">
-Changing the instance's `endpoint`/`domain` settings invalidates **every** previously issued device
-token, since their `apiUrl` no longer matches — re-mint after a domain change.
+Changing the instance's `endpoint` setting (or, when it's unset, the host the instance is served on)
+invalidates **every** previously issued device token, since their `apiUrl` no longer matches —
+re-mint afterwards.
 </Callout>
 
 <Callout type="warn">
