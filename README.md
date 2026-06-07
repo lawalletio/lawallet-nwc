@@ -26,15 +26,15 @@
 
 An open-source platform for creating, managing, and serving Lightning Addresses connected via NWC. Built on a progressive self-custody model — users start receiving payments instantly through address aliasing, then upgrade to NWC and eventually self-hosting at their own pace.
 
-<p align="center">
-  <a href="https://docs.lawallet.io"><img src="https://img.shields.io/badge/Documentation-docs.lawallet.io-26A69A?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation" /></a>
-  <a href="https://beta.lawallet.io/api-docs"><img src="https://img.shields.io/badge/API_Playground-Try_it_live-3178C6?style=for-the-badge&logo=swagger&logoColor=white" alt="API Playground" /></a>
-</p>
-
 > **Pre-Alpha** — Do not use real funds. Expect breaking changes.
 
 # Try Demo 👇
-<a href="https://beta.lawallet.io"><img src="https://img.shields.io/badge/Live_Demo-beta.lawallet.io-F5A623?style=for-the-badge&logo=lightning&logoColor=white" alt="Live Demo" /></a>
+
+<p align="center">
+  <a href="https://beta.lawallet.io"><img src="https://img.shields.io/badge/Live_Demo-beta.lawallet.io-F5A623?style=for-the-badge&logo=lightning&logoColor=white" alt="Live Demo" /></a>
+  <a href="https://docs.lawallet.io"><img src="https://img.shields.io/badge/Documentation-docs.lawallet.io-26A69A?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation" /></a>
+  <a href="https://beta.lawallet.io/api-docs"><img src="https://img.shields.io/badge/API_Playground-Try_it_live-3178C6?style=for-the-badge&logo=swagger&logoColor=white" alt="API Playground" /></a>
+</p>
 
 # One Click Deploy 👇
 
