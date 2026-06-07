@@ -48,6 +48,31 @@ enum RemoteWalletStatus {
   REVOKED
 }
 
+/// A card's kind, declared at creation. SIMPLE cards only support
+/// ownership-transfer activation; MASTER cards (reserved for the deferred
+/// account-share feature) will additionally support FOREVER share grants.
+enum CardKind {
+  SIMPLE
+  MASTER
+}
+
+/// The kind of an activation QR. ONE_TIME burns on first claim and transfers
+/// card ownership. FOREVER is reserved for MASTER account-sharing and is not
+/// mintable yet — the activation-token route rejects it.
+enum ActivationQrKind {
+  ONE_TIME
+  FOREVER
+}
+
+/// Lifecycle of a CardActivationToken. ONE_TIME tokens reach CLAIMED on a
+/// successful claim; superseded/rescued tokens become REVOKED.
+enum ActivationTokenStatus {
+  PENDING
+  CLAIMED
+  REVOKED
+  EXPIRED
+}
+
 enum ActivityCategory {
   USER
   ADDRESS
@@ -162,18 +187,48 @@ model Card {
   createdAt      DateTime  @default(now())
   title          String?
   lastUsedAt     DateTime?
+  // `userId` is the card's current *holder* (owner). A ONE_TIME activation
+  // claim transfers this to the new claimer. Pay-time wallet resolution and
+  // `users/[userId]/cards` both key off this field.
   userId         String?
   username       String?
   otc            String?
   remoteWalletId String?
+  kind           CardKind  @default(SIMPLE)
 
-  design       CardDesign    @relation(fields: [designId], references: [id])
-  ntag424      Ntag424?      @relation(fields: [ntag424Cid], references: [cid])
-  user         User?         @relation(fields: [userId], references: [id])
-  remoteWallet RemoteWallet? @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
+  design           CardDesign            @relation(fields: [designId], references: [id])
+  ntag424          Ntag424?              @relation(fields: [ntag424Cid], references: [cid])
+  user             User?                 @relation(fields: [userId], references: [id])
+  remoteWallet     RemoteWallet?         @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
+  activationTokens CardActivationToken[]
 
   @@index([userId])
   @@index([remoteWalletId])
+}
+
+/// An activation token backing a scannable QR for a card. At most one ACTIVE
+/// (PENDING) token may exist per (cardId, qrKind) — enforced by a partial
+/// unique index added in the migration (Prisma can't express partial indexes).
+/// Minting a new token of the same kind first REVOKEs the prior one in a
+/// transaction so the constraint holds.
+model CardActivationToken {
+  id              String                @id @default(cuid())
+  cardId          String
+  card            Card                  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  qrKind          ActivationQrKind      @default(ONE_TIME)
+  status          ActivationTokenStatus @default(PENDING)
+  /// The activation URL the wallet scans (e.g. `https://host/activate/<id>`).
+  qrPayload       String
+  /// DB id of the holder/operator who minted the token (audit only).
+  issuedByUserId  String?
+  expiresAt       DateTime?
+  claimedAt       DateTime?
+  /// DB id of the claimer (ONE_TIME only — single audit row).
+  claimedByUserId String?
+  createdAt       DateTime              @default(now())
+
+  @@index([cardId])
+  @@index([status])
 }
 
 model AlbySubAccount {

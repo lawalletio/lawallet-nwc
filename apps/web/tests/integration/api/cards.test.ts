@@ -25,7 +25,7 @@ vi.mock('@/lib/middleware/request-limits', () => ({
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticateWithRole: vi.fn(),
+  authenticateWithPermission: vi.fn(),
 }))
 
 vi.mock('@/lib/ntag424', () => ({
@@ -41,7 +41,7 @@ vi.mock('@/lib/ntag424', () => ({
 }))
 
 import { GET, POST } from '@/app/api/cards/route'
-import { authenticateWithRole } from '@/lib/auth/unified-auth'
+import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 
 const ADMIN_PUBKEY = 'a'.repeat(64)
 
@@ -51,7 +51,7 @@ beforeEach(() => {
 })
 
 function mockAdminAuth() {
-  vi.mocked(authenticateWithRole).mockResolvedValue({
+  vi.mocked(authenticateWithPermission).mockResolvedValue({
     pubkey: ADMIN_PUBKEY,
     role: 'ADMIN' as any,
     method: 'nip98',
@@ -59,7 +59,7 @@ function mockAdminAuth() {
 }
 
 function mockAdminAuthReject() {
-  vi.mocked(authenticateWithRole).mockRejectedValue(
+  vi.mocked(authenticateWithPermission).mockRejectedValue(
     new AuthorizationError('Not authorized')
   )
 }
@@ -144,6 +144,7 @@ describe('POST /api/cards', () => {
       lastUsedAt: null,
       username: null,
       otc: 'random-otc',
+      kind: 'SIMPLE',
       design: createCardDesignFixture(),
       ntag424: ntag,
       user: null,
@@ -160,6 +161,38 @@ describe('POST /api/cards', () => {
     expect(body).toMatchObject({ title: 'New Card' })
     expect(prismaMock.ntag424.create).toHaveBeenCalled()
     expect(prismaMock.card.create).toHaveBeenCalled()
+  })
+
+  it('persists the card kind when provided', async () => {
+    mockAdminAuth()
+    const ntag = createNtag424Fixture({ cid: 'AABBCCDDEE1122' })
+    vi.mocked(prismaMock.ntag424.create).mockResolvedValue(ntag as any)
+    vi.mocked(prismaMock.card.create).mockResolvedValue({
+      id: 'card-id',
+      createdAt: new Date(),
+      title: 'New Card',
+      lastUsedAt: null,
+      username: null,
+      otc: 'otc',
+      kind: 'MASTER',
+      design: createCardDesignFixture(),
+      ntag424: ntag,
+      user: null,
+    } as any)
+
+    const req = createNextRequest('/api/cards', {
+      method: 'POST',
+      body: { id: 'AA:BB:CC:DD:EE:11:22', designId: 'design-1', kind: 'MASTER' },
+    })
+    const res = await POST(req)
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.kind).toBe('MASTER')
+    expect(prismaMock.card.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ kind: 'MASTER' }),
+      })
+    )
   })
 
   it('rejects missing designId', async () => {

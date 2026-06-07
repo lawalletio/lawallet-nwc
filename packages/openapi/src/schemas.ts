@@ -1,6 +1,8 @@
 import {
   cardListQuerySchema,
+  claimActivationTokenSchema,
   claimInvoiceSchema,
+  createActivationTokenSchema,
   createCardDesignSchema,
   createCardSchema,
   createInvoiceSchema,
@@ -43,6 +45,14 @@ export const schemas = {
   ScanCardQuery: registry.register('ScanCardQuery', scanCardQuerySchema),
   PayActionQuery: registry.register('PayActionQuery', payActionQuerySchema),
   OtcParam: registry.register('OtcParam', otcParam),
+  ActivationTokenCreateRequest: registry.register(
+    'ActivationTokenCreateRequest',
+    createActivationTokenSchema,
+  ),
+  ActivationTokenClaimRequest: registry.register(
+    'ActivationTokenClaimRequest',
+    claimActivationTokenSchema,
+  ),
 
   // ── Card Designs ───────────────────────────────────────────────────────
   CardDesignCreateRequest: registry.register('CardDesignCreateRequest', createCardDesignSchema),

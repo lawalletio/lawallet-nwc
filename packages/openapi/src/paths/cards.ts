@@ -25,7 +25,7 @@ const cardSchema = z
   .openapi({ description: 'Card resource as returned by /api/cards endpoints.' })
 
 registry.registerPath({
-  ...withRole('ADMIN'),
+  ...withRole('VIEWER'),
   method: 'get',
   path: '/api/cards',
   tags: [TAG],
@@ -43,7 +43,7 @@ registry.registerPath({
 })
 
 registry.registerPath({
-  ...withRole('ADMIN'),
+  ...withRole('OPERATOR'),
   method: 'post',
   path: '/api/cards',
   tags: [TAG],

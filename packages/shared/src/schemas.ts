@@ -15,6 +15,12 @@ export const userIdParam = z.object({
 export const createCardSchema = z.object({
   id: z.string().min(1, 'Card ID is required'),
   designId: z.string().min(1, 'Design ID is required'),
+  /**
+   * Card kind, declared at creation. Defaults to SIMPLE when omitted. MASTER is
+   * reserved for the deferred account-share feature but is accepted here so the
+   * field can be set ahead of that work landing.
+   */
+  kind: z.enum(['SIMPLE', 'MASTER']).optional(),
 })
 
 export const cardListQuerySchema = z.object({
@@ -92,6 +98,28 @@ export const payActionQuerySchema = z.object({
 
 export const otcParam = z.object({
   otc: z.string().min(1, 'OTC parameter is required'),
+})
+
+// ── Card activation tokens ──────────────────────────────────────────────────
+
+/**
+ * Mint an activation QR for a card. `qrKind` defaults to ONE_TIME (the only
+ * kind wired this round — the route rejects FOREVER with a clear error).
+ * `expiresIn` is an optional duration string (e.g. `24h`, `7d`); when omitted
+ * the token does not expire.
+ */
+export const createActivationTokenSchema = z.object({
+  qrKind: z.enum(['ONE_TIME', 'FOREVER']).default('ONE_TIME'),
+  expiresIn: z.string().min(1).optional(),
+})
+
+/**
+ * Claim an activation token. For ONE_TIME tokens the claimer may name which
+ * Remote Wallet funds the card; omitted/null falls back to the claimer's
+ * default wallet at claim time.
+ */
+export const claimActivationTokenSchema = z.object({
+  remoteWalletId: z.string().min(1).nullish(),
 })
 
 // ── Lightning Addresses ─────────────────────────────────────────────────────
