@@ -23,6 +23,9 @@ const VEINTIUNO_DOMAIN = 'lawallet.io'
  */
 const CARDS_URL = 'https://veintiuno.lat/api/cards.json'
 
+/** Designs imported from veintiuno are keyed with this id prefix. */
+const VEINTIUNO_ID_PREFIX = 'veintiuno-'
+
 interface VeintiunoCard {
   id: string
   imageUrl: string
@@ -32,11 +35,15 @@ interface VeintiunoCard {
   number?: string
 }
 
-/** A non-empty, length-capped design label from the richest field available. */
-function designDescription(card: VeintiunoCard): string {
+/**
+ * The design name (stored in `CardDesign.description`, which the UI shows as the
+ * design name). Use the card's `title` — e.g. `#1 - BTC Isla - abstractlai` —
+ * falling back to other fields only if a card has no title.
+ */
+function designName(card: VeintiunoCard): string {
   const label =
-    card.description?.trim() ||
     card.title?.trim() ||
+    card.description?.trim() ||
     [card.communityName, card.number].filter(Boolean).join(' ').trim() ||
     'Veintiuno card'
   return label.slice(0, 120)
@@ -102,12 +109,12 @@ export const POST = withErrorHandling(async (request: Request) => {
         create: {
           id: card.id,
           imageUrl: card.imageUrl,
-          description: designDescription(card),
+          description: designName(card),
           userId: null,
         },
         update: {
           imageUrl: card.imageUrl,
-          description: designDescription(card),
+          description: designName(card),
         },
       }),
     ),
@@ -125,5 +132,40 @@ export const POST = withErrorHandling(async (request: Request) => {
     imported,
     updated,
     total: valid.length,
+  })
+})
+
+/**
+ * `DELETE /api/card-designs/import-veintiuno` — remove designs imported from
+ * veintiuno (id prefix `veintiuno-`). Designs still referenced by a card are
+ * kept (the FK would block deletion anyway) and reported as skipped, so the
+ * action is safe to run repeatedly. Available wherever designs were imported
+ * (both this importer and the community Sync produce `veintiuno-` ids).
+ */
+export const DELETE = withErrorHandling(async (request: Request) => {
+  await authenticateWithPermission(request, Permission.CARD_DESIGNS_WRITE)
+
+  const where = { id: { startsWith: VEINTIUNO_ID_PREFIX } }
+  const total = await prisma.cardDesign.count({ where })
+
+  // Only delete designs no card depends on; the rest stay (and are reported).
+  const { count: removed } = await prisma.cardDesign.deleteMany({
+    where: { ...where, cards: { none: {} } },
+  })
+  const skipped = total - removed
+
+  if (removed > 0) {
+    eventBus.emit({ type: 'designs:updated', timestamp: Date.now() })
+  }
+  logger.info({ removed, skipped }, 'Removed veintiuno designs')
+
+  return NextResponse.json({
+    success: true,
+    message:
+      skipped > 0
+        ? `Removed ${removed} imported design${removed === 1 ? '' : 's'}; kept ${skipped} still used by a card`
+        : `Removed ${removed} imported design${removed === 1 ? '' : 's'}`,
+    removed,
+    skipped,
   })
 })

@@ -79,12 +79,21 @@ export interface ImportVeintiunoResult {
   total: number
 }
 
+/** Result of removing imported veintiuno designs. */
+export interface RemoveVeintiunoResult {
+  success: boolean
+  message: string
+  removed: number
+  skipped: number
+}
+
 /**
  * Mutation hook for importing, creating, and updating designs.
  */
 export function useDesignMutations() {
   const importMut = useMutation()
   const importVeintiunoMut = useMutation<void, ImportVeintiunoResult>()
+  const removeVeintiunoMut = useMutation<void, RemoveVeintiunoResult>()
   const createMut = useMutation<CreateDesignInput, ApiDesign>()
   const updateMut = useMutation<UpdateDesignInput, ApiDesign>()
 
@@ -93,6 +102,9 @@ export function useDesignMutations() {
     /** Import the full veintiuno.lat catalog (lawallet.io only). */
     importFromVeintiuno: () =>
       importVeintiunoMut.mutate('post', '/api/card-designs/import-veintiuno'),
+    /** Remove designs imported from veintiuno (id prefix `veintiuno-`). */
+    removeFromVeintiuno: () =>
+      removeVeintiunoMut.mutate('del', '/api/card-designs/import-veintiuno'),
     createDesign: (input: CreateDesignInput) =>
       createMut.mutate('post', '/api/card-designs', input).then(toDesignData),
     updateDesign: (id: string, input: UpdateDesignInput) =>
@@ -106,15 +118,18 @@ export function useDesignMutations() {
     loading:
       importMut.loading ||
       importVeintiunoMut.loading ||
+      removeVeintiunoMut.loading ||
       createMut.loading ||
       updateMut.loading,
     importing: importMut.loading,
     importingVeintiuno: importVeintiunoMut.loading,
+    removingVeintiuno: removeVeintiunoMut.loading,
     creating: createMut.loading,
     updating: updateMut.loading,
     error:
       importMut.error ??
       importVeintiunoMut.error ??
+      removeVeintiunoMut.error ??
       createMut.error ??
       updateMut.error,
   }

@@ -77,8 +77,10 @@ export default function CardsPage() {
   const {
     importDesigns,
     importFromVeintiuno,
+    removeFromVeintiuno,
     importing,
     importingVeintiuno,
+    removingVeintiuno,
   } = useDesignMutations()
 
   const [search, setSearch] = useState('')
@@ -147,6 +149,20 @@ export default function CardsPage() {
     }
   }
 
+  async function handleRemoveVeintiuno() {
+    try {
+      const result = await removeFromVeintiuno()
+      toast.success(result?.message ?? 'Removed imported designs')
+      refetchDesigns()
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to remove imported designs',
+      )
+    }
+  }
+
   const showDomainAlert = settings && !settings.domain
   // The Sync button calls /api/card-designs/import, which pulls designs from
   // veintiuno.lat filtered by `community_id`. It rejects with a 400 when the
@@ -157,6 +173,10 @@ export default function CardsPage() {
   // lawallet.io is the canonical instance that hosts the full veintiuno
   // catalog, so the "Import from veintiuno.lat" button is scoped to it.
   const isVeintiunoHost = settings?.domain === 'lawallet.io'
+  // Designs imported from veintiuno (either source) carry a `veintiuno-` id.
+  // Offer a "Remove imported" action whenever any are present.
+  const hasVeintiunoDesigns =
+    designs?.some(d => d.id.startsWith('veintiuno-')) ?? false
 
   return (
     <div className="flex flex-col">
@@ -400,6 +420,21 @@ export default function CardsPage() {
                       <Download className="mr-2 size-4" />
                     )}
                     Import from veintiuno.lat
+                  </Button>
+                )}
+                {hasVeintiunoDesigns && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemoveVeintiuno}
+                    disabled={removingVeintiuno}
+                  >
+                    {removingVeintiuno ? (
+                      <Spinner size={16} className="mr-2" />
+                    ) : (
+                      <Trash2 className="mr-2 size-4" />
+                    )}
+                    Remove imported
                   </Button>
                 )}
                 <Button

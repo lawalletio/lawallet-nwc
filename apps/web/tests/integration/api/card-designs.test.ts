@@ -48,7 +48,10 @@ import { GET as ListGet } from '@/app/api/card-designs/list/route'
 import { GET as CountGet } from '@/app/api/card-designs/count/route'
 import { GET as GetById } from '@/app/api/card-designs/get/[id]/route'
 import { POST as ImportPost } from '@/app/api/card-designs/import/route'
-import { POST as ImportVeintiunoPost } from '@/app/api/card-designs/import-veintiuno/route'
+import {
+  POST as ImportVeintiunoPost,
+  DELETE as RemoveVeintiunoDelete,
+} from '@/app/api/card-designs/import-veintiuno/route'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { getSettings } from '@/lib/settings'
@@ -253,7 +256,8 @@ describe('POST /api/card-designs/import', () => {
 
 describe('POST /api/card-designs/import-veintiuno', () => {
   const catalog = [
-    { id: 'veintiuno-1', communityId: 'a', imageUrl: 'https://v.lat/1.png', description: 'One' },
+    // title wins over description as the design name.
+    { id: 'veintiuno-1', communityId: 'a', imageUrl: 'https://v.lat/1.png', title: '#1 - A - artist', description: 'One' },
     { id: 'veintiuno-2', communityId: 'b', imageUrl: 'https://v.lat/2.png', title: 'Two' },
     // No filtering by community: a card from any community is imported.
     { id: 'veintiuno-3', communityId: 'c', imageUrl: 'https://v.lat/3.png' },
@@ -321,11 +325,71 @@ describe('POST /api/card-designs/import-veintiuno', () => {
     expect(res.status).toBe(500)
   })
 
+  it('uses the card title as the design name (over description)', async () => {
+    mockAdmin()
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'lawallet.io' })
+    mockCatalog()
+    vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([])
+    vi.mocked(prismaMock.cardDesign.upsert).mockResolvedValue({} as any)
+
+    await assertResponse(
+      await ImportVeintiunoPost(
+        createNextRequest('/api/card-designs/import-veintiuno', { method: 'POST' }),
+      ),
+      200,
+    )
+
+    const call = vi
+      .mocked(prismaMock.cardDesign.upsert)
+      .mock.calls.find(([arg]: any) => arg.where.id === 'veintiuno-1')
+    expect((call?.[0] as any).create.description).toBe('#1 - A - artist')
+    expect((call?.[0] as any).update.description).toBe('#1 - A - artist')
+  })
+
   it('rejects callers without CARD_DESIGNS_WRITE', async () => {
     vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
 
     const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'POST' })
     const res = await ImportVeintiunoPost(req)
+
+    expect(res.status).toBeGreaterThanOrEqual(400)
+  })
+})
+
+describe('DELETE /api/card-designs/import-veintiuno', () => {
+  it('removes unused veintiuno designs and reports counts', async () => {
+    mockAdmin()
+    vi.mocked(prismaMock.cardDesign.count).mockResolvedValue(3) // 3 veintiuno designs exist
+    vi.mocked(prismaMock.cardDesign.deleteMany).mockResolvedValue({ count: 2 } as any)
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'DELETE' })
+    const body: any = await assertResponse(await RemoveVeintiunoDelete(req), 200)
+
+    expect(body.removed).toBe(2)
+    expect(body.skipped).toBe(1) // one is still used by a card
+    // Only deletes veintiuno-prefixed designs that no card depends on.
+    expect(prismaMock.cardDesign.deleteMany).toHaveBeenCalledWith({
+      where: { id: { startsWith: 'veintiuno-' }, cards: { none: {} } },
+    })
+  })
+
+  it('reports zero when there is nothing to remove', async () => {
+    mockAdmin()
+    vi.mocked(prismaMock.cardDesign.count).mockResolvedValue(0)
+    vi.mocked(prismaMock.cardDesign.deleteMany).mockResolvedValue({ count: 0 } as any)
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'DELETE' })
+    const body: any = await assertResponse(await RemoveVeintiunoDelete(req), 200)
+
+    expect(body.removed).toBe(0)
+    expect(body.skipped).toBe(0)
+  })
+
+  it('rejects callers without CARD_DESIGNS_WRITE', async () => {
+    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'DELETE' })
+    const res = await RemoveVeintiunoDelete(req)
 
     expect(res.status).toBeGreaterThanOrEqual(400)
   })
