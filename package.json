@@ -7,6 +7,9 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "start:dev-server": "node scripts/dev-worktree.mjs start",
+    "dev:bootstrap": "node scripts/dev-worktree.mjs bootstrap",
+    "dev:db:reset": "node scripts/dev-worktree.mjs reset-db",
     "dev:web": "turbo run dev --filter=@lawallet-nwc/web",
     "dev:docs": "turbo run dev --filter=@lawallet-nwc/docs",
     "dev:openapi": "turbo run dev --filter=@lawallet-nwc/openapi",
