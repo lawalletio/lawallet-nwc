@@ -118,8 +118,6 @@ export function SetupWizard() {
   const [domain, setDomain] = useState('')
   const [endpointUrl, setEndpointUrl] = useState('')
   const [showAdvance, setShowAdvance] = useState(false)
-  const [verifying, setVerifying] = useState(false)
-  const [verified, setVerified] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState(0)
   const [fadeOut, setFadeOut] = useState(false)
   const [community, setCommunity] = useState<CommunityData | null>(null)
@@ -232,37 +230,6 @@ export function SetupWizard() {
       if (fadeTimer) clearTimeout(fadeTimer)
     }
   }, [step])
-
-  async function handleVerify() {
-    const cleanDomain = domain.trim().toLowerCase()
-    if (!cleanDomain) return
-    setVerifying(true)
-    setVerified(false)
-    try {
-      const issueRes = await fetch('/api/setup/verify', { method: 'POST' })
-      if (!issueRes.ok) throw new Error('Failed to issue token')
-      const { token } = (await issueRes.json()) as { token: string }
-
-      const scheme = cleanDomain.startsWith('localhost') || cleanDomain.startsWith('127.') ? 'http' : 'https'
-      const probeRes = await fetch(`${scheme}://${cleanDomain}/.well-known/verify`, {
-        cache: 'no-store',
-      })
-      if (!probeRes.ok) throw new Error(`Got HTTP ${probeRes.status} from ${cleanDomain}`)
-      const probeToken = (await probeRes.text()).trim()
-
-      if (probeToken !== token) {
-        throw new Error(`${cleanDomain} does not point to this instance`)
-      }
-
-      setVerified(true)
-      trackEvent(AnalyticsEvent.SETUP_STEP_COMPLETED, { step: 'domain_verified' })
-      toast.success(`${cleanDomain} verified`)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Verification failed')
-    } finally {
-      setVerifying(false)
-    }
-  }
 
   async function handleNext() {
     if (!domain.trim()) return
@@ -520,35 +487,25 @@ export function SetupWizard() {
               </div>
 
               <div className="space-y-1">
-                <div className="flex gap-2">
-                  <InputGroup className={cn('flex-1', domainInvalid && INVALID_CLASSES)}>
-                    <InputGroupText>username@</InputGroupText>
-                    <Input
-                      placeholder="domain.com"
-                      value={domain}
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      inputMode="url"
-                      aria-invalid={domainInvalid || undefined}
-                      onChange={(e) => {
-                        // Force lowercase on input so the value the user
-                        // sees matches what we save (DNS is
-                        // case-insensitive, but Settings stores literal
-                        // strings — keep it consistent).
-                        setDomain(e.target.value.toLowerCase())
-                        setVerified(false)
-                      }}
-                    />
-                  </InputGroup>
-                  <Button
-                    variant="secondary"
-                    onClick={handleVerify}
-                    disabled={!domain.trim() || domainInvalid || verifying}
-                  >
-                    {verifying ? <Spinner size={16} /> : 'Verify'}
-                  </Button>
-                </div>
+                <InputGroup className={cn(domainInvalid && INVALID_CLASSES)}>
+                  <InputGroupText>username@</InputGroupText>
+                  <Input
+                    placeholder="domain.com"
+                    value={domain}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode="url"
+                    aria-invalid={domainInvalid || undefined}
+                    onChange={(e) => {
+                      // Force lowercase on input so the value the user
+                      // sees matches what we save (DNS is
+                      // case-insensitive, but Settings stores literal
+                      // strings — keep it consistent).
+                      setDomain(e.target.value.toLowerCase())
+                    }}
+                  />
+                </InputGroup>
                 {domainInvalid && (
                   <p className="text-xs text-destructive">
                     Enter a valid domain (e.g. example.com) — no protocol or path.
@@ -591,12 +548,6 @@ export function SetupWizard() {
           >
             Next
           </Button>
-
-          {verified && (
-            <p className="text-center text-sm text-green-500 flex items-center justify-center gap-1">
-              <span>✓</span> Domain verified
-            </p>
-          )}
         </div>
         )
       })()}
