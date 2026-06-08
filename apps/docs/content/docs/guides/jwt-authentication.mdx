@@ -204,6 +204,42 @@ Authorization: Bearer <token>
 }
 ```
 
+## Token claims (payload)
+
+The decoded JWT payload carries the actor's identity and authorization. Every token has the
+registered + identity claims below; **device tokens** ([QR login](#device-tokens-qr-login)) add a
+few more.
+
+**Registered claims (every token):**
+
+| Claim | Value |
+|-------|-------|
+| `iss` | `lawallet-nwc` |
+| `aud` | `lawallet-users` |
+| `iat` | Issued-at, Unix seconds |
+| `exp` | Expiry, Unix seconds (`iat + expiresIn`) |
+
+**Identity & authorization (session JWT and device tokens):**
+
+| Claim | Type | Meaning |
+|-------|------|---------|
+| `userId` | string | Actor's hex Nostr pubkey (doubles as the subject) |
+| `pubkey` | string | Actor's hex Nostr pubkey |
+| `role` | `ADMIN \| OPERATOR \| VIEWER \| USER` | Resolved role |
+| `permissions` | string[] | Permissions for the role (device tokens mirror `scopes` here) |
+
+**Device-token-only claims** (`POST /api/auth/qr-jwt/generate`):
+
+| Claim | Type | Meaning |
+|-------|------|---------|
+| `kind` | `'device'` | Marks the token as a delegated device token |
+| `sub` | string | Target user's DB id (for auditing) |
+| `scopes` | string[] | Delegated permission subset — **authoritative** for permission-gated routes (see [Scopes](#scopes-and-how-they-are-enforced)) |
+| `apiUrl` | string | Platform base URL the token is bound to, e.g. `https://app.example.com` — enforced on every request (see [Instance scoping](#instance-scoping-apiurl)) |
+
+Session JWTs (from `POST /api/jwt`) and NIP-98 requests carry **no** `kind`, `sub`, `scopes`, or
+`apiUrl`.
+
 ## How tokens expire
 
 JWTs here are **stateless** — the server keeps no record of issued tokens. A token isn't expired by
