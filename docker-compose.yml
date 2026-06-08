@@ -81,3 +81,4 @@ services:
 
 volumes:
   postgres_data:
+    name: ${POSTGRES_VOLUME:-lawallet_postgres_data}

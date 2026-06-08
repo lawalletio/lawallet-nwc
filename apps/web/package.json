@@ -11,6 +11,7 @@
     "start": "prisma migrate deploy && next start",
     "service": "node ../cli/src/index.js service",
     "reset": "prisma migrate reset --force --skip-seed",
+    "seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
     "postinstall": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest",

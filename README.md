@@ -198,6 +198,17 @@ pnpm prisma db seed
 pnpm dev
 ```
 
+For an isolated one-command worktree setup with its own generated database,
+environment and seed data, run:
+
+```bash
+pnpm start:dev-server
+```
+
+This writes local development env files, starts a per-worktree Postgres service,
+resets and seeds the database, and prints the ready `/admin` URL. Set
+`DEV_DB_RESET=false` when restarting if you want to preserve local data.
+
 ### 5. Open your browser
 
 | Surface | Local URL |
