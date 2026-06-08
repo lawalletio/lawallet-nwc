@@ -62,13 +62,18 @@ describe('GET /api/lightning-addresses', () => {
         updatedAt: new Date('2024-01-01'),
         mode: 'DEFAULT_NWC',
         redirect: null,
-        nwcConnectionId: null,
+        remoteWalletId: null,
         isPrimary: true,
-        nwcConnection: null,
+        remoteWallet: null,
         user: {
           pubkey: 'a'.repeat(64),
-          nwc: 'nostr+walletconnect://test',
-          nwcConnections: [],
+          remoteWallets: [
+            {
+              type: 'NWC',
+              config: { connectionString: 'nostr+walletconnect://test', mode: 'SEND_RECEIVE' },
+              status: 'ACTIVE',
+            },
+          ],
         },
       },
     ] as any)

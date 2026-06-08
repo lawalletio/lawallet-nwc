@@ -1,0 +1,36 @@
+{
+  "name": "@lawallet-nwc/cli",
+  "version": "0.10.0",
+  "description": "Standalone CLI for installing and managing a local LaWallet stack",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "lawallet": "./src/index.js"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/lawalletio/lawallet-nwc/tree/main/apps/cli",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lawalletio/lawallet-nwc.git",
+    "directory": "apps/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "dist",
+    "scripts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.13.0"
+  },
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "typecheck": "node ./scripts/check.mjs",
+    "test": "node --test",
+    "clean": "node ./scripts/clean.mjs",
+    "prepack": "node ./scripts/build.mjs"
+  }
+}

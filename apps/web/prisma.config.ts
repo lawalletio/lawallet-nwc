@@ -1,5 +1,12 @@
-import 'dotenv/config'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'prisma/config'
+
+const configDir = dirname(fileURLToPath(import.meta.url))
+
+loadEnvFile(resolve(configDir, '.env'))
+loadEnvFile(resolve(configDir, '.env.local'))
 
 // NOTE: `env('DATABASE_URL')` from `prisma/config` throws at config-load
 // time when the variable is missing, which breaks `prisma generate` in
@@ -22,3 +29,47 @@ export default defineConfig({
     url: DATABASE_URL
   }
 })
+
+function loadEnvFile(path: string) {
+  if (!existsSync(path)) {
+    return
+  }
+
+  const contents = readFileSync(path, 'utf8')
+
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const trimmed = rawLine.trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue
+    }
+
+    const line = trimmed.startsWith('export ')
+      ? trimmed.slice('export '.length)
+      : trimmed
+    const separatorIndex = line.indexOf('=')
+
+    if (separatorIndex <= 0) {
+      continue
+    }
+
+    const key = line.slice(0, separatorIndex).trim()
+    if (!key || process.env[key] !== undefined) {
+      continue
+    }
+
+    let value = line.slice(separatorIndex + 1).trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    } else {
+      const inlineCommentIndex = value.search(/\s+#/)
+      if (inlineCommentIndex >= 0) {
+        value = value.slice(0, inlineCommentIndex).trim()
+      }
+    }
+
+    process.env[key] = value.replace(/\\n/g, '\n')
+  }
+}

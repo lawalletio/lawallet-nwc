@@ -26,15 +26,15 @@
 
 An open-source platform for creating, managing, and serving Lightning Addresses connected via NWC. Built on a progressive self-custody model — users start receiving payments instantly through address aliasing, then upgrade to NWC and eventually self-hosting at their own pace.
 
-<p align="center">
-  <a href="https://docs.lawallet.io"><img src="https://img.shields.io/badge/Documentation-docs.lawallet.io-26A69A?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation" /></a>
-  <a href="https://beta.lawallet.io/api-docs"><img src="https://img.shields.io/badge/API_Playground-Try_it_live-3178C6?style=for-the-badge&logo=swagger&logoColor=white" alt="API Playground" /></a>
-</p>
-
 > **Pre-Alpha** — Do not use real funds. Expect breaking changes.
 
 # Try Demo 👇
-<a href="https://beta.lawallet.io"><img src="https://img.shields.io/badge/Live_Demo-beta.lawallet.io-F5A623?style=for-the-badge&logo=lightning&logoColor=white" alt="Live Demo" /></a>
+
+<p align="center">
+  <a href="https://beta.lawallet.io"><img src="https://img.shields.io/badge/Live_Demo-beta.lawallet.io-F5A623?style=for-the-badge&logo=lightning&logoColor=white" alt="Live Demo" /></a>
+  <a href="https://docs.lawallet.io"><img src="https://img.shields.io/badge/Documentation-docs.lawallet.io-26A69A?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation" /></a>
+  <a href="https://beta.lawallet.io/api-docs"><img src="https://img.shields.io/badge/API_Playground-Try_it_live-3178C6?style=for-the-badge&logo=swagger&logoColor=white" alt="API Playground" /></a>
+</p>
 
 # One Click Deploy 👇
 
@@ -115,6 +115,53 @@ Three independent containerized services with no shared infrastructure:
 
 ## Getting Started
 
+### Bootstrap With the CLI
+
+The standalone bootstrap flow is designed for a hosted `curl | bash` install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/install.sh | bash
+```
+
+To force Docker mode and skip prompts:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/install.sh | \
+  bash -s -- --mode docker --yes
+```
+
+That installer:
+
+- installs a user-owned `lawallet` CLI under `~/.lawallet/bin`
+- downloads a bundled Node.js runtime when the machine does not already have a compatible one
+- persists the CLI on your shell `PATH`
+- runs `lawallet install`, which clones `lawallet-nwc` and brings up `web`, `docs`, `openapi`, and PostgreSQL
+
+For local development of the CLI from this repo, use the wrapper script instead:
+
+```bash
+bash ./scripts/install-lawallet-cli.sh
+```
+
+That wrapper reuses the same root [`install.sh`](./install.sh) flow, but installs the CLI package directly from [`apps/cli`](./apps/cli) instead of npm.
+
+Once an instance is installed, the generated app-management commands are available from `apps/web` through `pnpm service <status|start|stop|restart>`.
+
+Useful bootstrap env vars:
+
+```bash
+LAWALLET_REPO_URL=https://github.com/your-org/lawallet-nwc.git
+LAWALLET_CLI_NPM_SPEC=@lawallet-nwc/cli@latest
+LAWALLET_INSTALL_SKIP_RUN=true
+LAWALLET_INSTALL_SKIP_PROFILE=true
+```
+
+To smoke-test the published bootstrap flow inside Docker, run:
+
+```bash
+bash ./scripts/test-install-cli-docker.sh
+```
+
 ### 1. Install dependencies
 
 Set the correct Node version with `nvm`:
@@ -185,22 +232,22 @@ The full rendered docs live at **[docs.lawallet.io](https://docs.lawallet.io)**.
 | [SDK.md](./docs/SDK.md) | TypeScript Client SDK + React Hooks reference |
 | [TESTING.md](./docs/TESTING.md) | Testing strategy (Vitest, MSW, Playwright) |
 | [DOCKER.md](./docs/DOCKER.md) | Docker setup and containerized deployment |
-| [VISION.md](./docs/VISION.md) | Post-grant vision: CRM + AI + Nostr communications |
+| [VISION.md](./docs/VISION.md) | Long-term vision: CRM + AI + Nostr communications (Beyond M8) |
 
 ### Roadmap by Month
 
 | Month | Phase | Focus | Status |
 |-------|-------|-------|--------|
-| [1](./docs/roadmap/MONTH-1.md) | Foundation | Backend infrastructure + testing | ✅ Completed |
-| [2](./docs/roadmap/MONTH-2.md) | Foundation | CI/CD + Auth flow upgrade | ✅ Completed |
-| [3](./docs/roadmap/MONTH-3.md) | Enhancement | Admin Dashboard + Nostr login + E2E | ✅ Completed |
-| [4](./docs/roadmap/MONTH-4.md) | Enhancement | User Wallet + Admin E2E + schema rewrite | ✅ Completed |
+| [1](./docs/roadmap/MONTH-1.md) | Foundation | Backend infrastructure + testing | ✅ Completed · [Report](./docs/reports/MONTH-1.md) |
+| [2](./docs/roadmap/MONTH-2.md) | Foundation | CI/CD + Auth flow upgrade | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
+| [3](./docs/roadmap/MONTH-3.md) | Enhancement | Admin Dashboard + Nostr login + E2E | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
+| [4](./docs/roadmap/MONTH-4.md) | Enhancement | User Wallet + Admin E2E + schema rewrite | ✅ Completed · [Report](./docs/reports/MONTH-4.md) |
 | [5](./docs/roadmap/MONTH-5.md) | Expansion | Card system + platform polish + NWC Listener Lite | 🟡 In Progress |
 | [6](./docs/roadmap/MONTH-6.md) | Expansion | NWC Proxy Lite + Lightning compliance + deployment | ⏳ Planned |
 | [7](./docs/roadmap/MONTH-7.md) | Monetization | Subscription Manager + Nostr Chat (DMs) | ⏳ Planned |
 | [8](./docs/roadmap/MONTH-8.md) | Intelligence | AI Agents (own LN address, NWC wallet, scheduled tasks) | ⏳ Planned |
 
-Months 1–6 are funded by the OpenSats Fifteenth Wave grant. Months 7–8 are post-grant continuation, formally committed in [ROADMAP.md](./docs/ROADMAP.md).
+All eight months are covered by the OpenSats Fifteenth Wave grant (Dec 2025 – Sep 2026). Full month-by-month detail in [ROADMAP.md](./docs/ROADMAP.md).
 
 ---
 
@@ -218,12 +265,6 @@ Contributions are welcome. Open an issue to discuss bugs, features, or roadmap i
 
 <p align="center">
   <br />
-  Supported by
-  <br /><br />
-  <a href="https://opensats.org">
-    <img src="https://opensats.org/logo.svg" alt="OpenSats" width="150" />
-  </a>
-  <br /><br />
   <sub>
     <a href="https://beta.lawallet.io">Demo</a> ·
     <a href="https://docs.lawallet.io">Docs</a> ·

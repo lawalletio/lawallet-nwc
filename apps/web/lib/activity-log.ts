@@ -14,6 +14,7 @@ export type { ActivityCategory, ActivityLevel, ActivityLog }
 export const ActivityEvent = {
   // USER
   USER_JWT_ISSUED: 'user.jwt_issued',
+  USER_DEVICE_TOKEN_ISSUED: 'user.device_token_issued',
   USER_SIGNUP: 'user.signup',
   USER_AUTH_FAILED: 'user.auth_failed',
   USER_ROLE_CHANGED: 'user.role_changed',
@@ -27,6 +28,7 @@ export const ActivityEvent = {
   NWC_CONNECTION_CREATED: 'nwc.connection_created',
   NWC_DEFAULT_CHANGED: 'nwc.default_changed',
   NWC_ASSIGNED_TO_ADDRESS: 'nwc.assigned_to_address',
+  NWC_ASSIGNED_TO_CARD: 'nwc.assigned_to_card',
   NWC_RELAY_TIMEOUT: 'nwc.relay_timeout',
   NWC_CONNECTION_ERROR: 'nwc.connection_error',
   // INVOICE
@@ -40,7 +42,12 @@ export const ActivityEvent = {
   CARD_CREATED: 'card.created',
   CARD_PAIRED: 'card.paired',
   CARD_STATUS_UPDATED: 'card.status_updated',
+  CARD_WALLET_BOUND: 'card.wallet_bound',
+  CARD_WALLET_UNBOUND: 'card.wallet_unbound',
   CARD_DELETED: 'card.deleted',
+  CARD_ACTIVATION_TOKEN_ISSUED: 'card.activation_token_issued',
+  CARD_CLAIMED: 'card.claimed',
+  CARD_RESCUED: 'card.rescued',
   CARD_ERROR: 'card.error',
   // SERVER
   SERVER_UNHANDLED_ERROR: 'server.unhandled_error',

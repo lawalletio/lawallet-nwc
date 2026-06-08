@@ -1,7 +1,19 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Key, Globe, Plug, Eye, EyeOff, AlertTriangle, QrCode, Copy, Link, RefreshCw } from 'lucide-react'
+import {
+  Key,
+  Globe,
+  Plug,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  QrCode,
+  Copy,
+  Link,
+  RefreshCw,
+  Smartphone,
+} from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
 import {
@@ -399,10 +411,27 @@ function BunkerQRMode() {
         <QRCodeSVG value={uri!} size={200} />
       </div>
 
-      <Button variant="ghost" size="sm" onClick={handleCopy} className="text-xs">
-        <Copy className="mr-1.5 size-3.5" />
-        {copied ? 'Copied!' : 'Copy URI'}
-      </Button>
+      <div className="flex w-full flex-col gap-2 sm:flex-row">
+        <Button
+          asChild
+          className="flex-1 bg-amber-400 text-black hover:bg-amber-300"
+        >
+          <a href={uri!}>
+            <Smartphone className="mr-2 size-4" />
+            Login with Amber
+          </a>
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCopy}
+          className="flex-1 text-xs"
+        >
+          <Copy className="mr-1.5 size-3.5" />
+          {copied ? 'Copied!' : 'Copy URI'}
+        </Button>
+      </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Spinner size={12} />

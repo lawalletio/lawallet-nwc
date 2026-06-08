@@ -149,7 +149,7 @@ A new Bun-based microservice that replaces the listener stub. **19 commits, not 
 | Item | Reason | Moved To |
 |------|--------|----------|
 | Courtesy NWC Proxy (full, multi-provider) | Reframed mid-month as the `nostr-trigger` notification service; merge + lite settlement role targeted for M6 | Month 6 (lite version) |
-| 5-provider adapters (Alby Hub / LNBits / BTCPayServer / YakiHonne / Generic NWC) | Out of scope for the lite version | Post-grant |
+| 5-provider adapters (Alby Hub / LNBits / BTCPayServer / YakiHonne / Generic NWC) | Out of scope for the lite version | Beyond M8 |
 | `useCourtesyNWC` React hook | Depends on Proxy delivery | Month 6 |
 | NIP-05 `.well-known/nostr.json` (with user relays + avatar) | Not implemented; profile editing landed but the public NIP-05 endpoint did not | Month 5 |
 | Customizable Landing Page (admin editor) | Reframed as the public Community About page surfaced from Branding settings | Done in spirit; no separate editor |

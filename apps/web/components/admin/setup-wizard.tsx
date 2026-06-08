@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { checkRootStatus, claimRootRole } from '@/lib/client/auth-api'
-import { buildPublicHost } from '@/lib/public-url-utils'
+import { parseEndpoint } from '@/lib/public-url-utils'
 import { truncateNpub } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
 import { trackEvent } from '@/lib/analytics/gtag'
@@ -45,23 +45,6 @@ type WizardStep =
   | 'confirm'
   | 'claiming'
   | 'hidden'
-
-function deriveSubdomainFromUrl(url: string, domain: string): string {
-  const raw = url.trim().toLowerCase()
-  if (!raw) return ''
-  let host: string
-  try {
-    host = new URL(raw.includes('://') ? raw : `https://${raw}`).host
-  } catch {
-    return ''
-  }
-  const cleanDomain = domain.trim().toLowerCase()
-  if (!cleanDomain || host === cleanDomain) return ''
-  if (host.endsWith(`.${cleanDomain}`)) {
-    return host.slice(0, -cleanDomain.length - 1)
-  }
-  return ''
-}
 
 interface CommunityData {
   id: string
@@ -278,10 +261,10 @@ export function SetupWizard() {
       // left is persisting the chosen domain/community and importing
       // related assets.
       const cleanDomain = domain.trim().toLowerCase()
-      const cleanSubdomain = deriveSubdomainFromUrl(endpointUrl, cleanDomain)
+      const cleanEndpoint = endpointUrl.trim().replace(/\/+$/, '').toLowerCase()
       await apiClient.post('/api/settings', {
         domain: cleanDomain,
-        endpoint: cleanSubdomain,
+        endpoint: cleanEndpoint,
         ...(community ? buildCommunitySettings(community) : {}),
       })
 
@@ -451,7 +434,7 @@ export function SetupWizard() {
   }
 
   const fullDomain =
-    buildPublicHost(domain, deriveSubdomainFromUrl(endpointUrl, domain)) ||
+    parseEndpoint(endpointUrl)?.host ||
     domain ||
     'your community'
 

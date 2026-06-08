@@ -75,13 +75,22 @@ interface BalanceState {
 const DEFAULT_POLL_MS = 30_000
 
 /**
- * `@getalby/sdk` calls `console.error('Failed to request …', err)`
- * before rejecting every NIP-47 request that times out, which floods
- * the devtools console on every poll tick when the relay is down.
- * Our hook already catches the rejection and drives the UI status —
- * suppress the redundant SDK log exactly once per app load so we
- * don't silence unrelated errors and don't re-patch on every render.
+ * `@getalby/sdk` (and the nostr-tools relay pool underneath it) logs to
+ * `console.error` *before* rejecting when the wallet's relays are
+ * unreachable:
+ *   - `Failed to request …`            — a NIP-47 request timed out
+ *   - `failed to connect to any relay` — the pool gave up; the second
+ *     arg is an `AggregateError: All promises were rejected`
+ * Both flood devtools (and pop the Next.js dev error overlay) on every
+ * poll tick when a relay is down. Our hook already catches the rejection
+ * and drives the UI status + a one-time toast, so these logs are pure
+ * noise. Suppress them exactly once per app load — matched by message
+ * prefix so unrelated errors still surface.
  */
+const SUPPRESSED_SDK_ERROR_PREFIXES = [
+  'Failed to request',
+  'failed to connect to any relay',
+]
 let sdkConsolePatchInstalled = false
 function installSdkConsolePatch() {
   if (sdkConsolePatchInstalled) return
@@ -92,7 +101,7 @@ function installSdkConsolePatch() {
     const first = args[0]
     if (
       typeof first === 'string' &&
-      first.startsWith('Failed to request')
+      SUPPRESSED_SDK_ERROR_PREFIXES.some(p => first.startsWith(p))
     ) {
       return
     }

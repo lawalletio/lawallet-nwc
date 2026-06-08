@@ -13,7 +13,7 @@ export interface AdminUser {
   primaryAddress: string | null
   /** Total number of lightning addresses this user owns. */
   addressCount: number
-  /** True if the user has at least one NWCConnection or a legacy `nwc` string. */
+  /** True if the user has at least one usable (non-revoked) RemoteWallet. */
   hasNwc: boolean
 }
 

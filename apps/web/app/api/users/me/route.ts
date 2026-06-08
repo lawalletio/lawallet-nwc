@@ -3,8 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
-import { resolvePublicEndpoint } from '@/lib/public-url'
-import { resolvePaymentRoute } from '@/lib/wallet/resolve-payment-route'
+import { getSettings } from '@/lib/settings'
+import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,76 +16,67 @@ export const GET = withErrorHandling(async (request: Request) => {
         pubkey: authenticatedPubkey
       },
       include: {
-        // The user's "primary" address (at most one). Existing rows were
-        // back-filled with isPrimary=true in the addresses_nwc_connection
-        // migration, so behavior is preserved for legacy clients.
-        // Pull the linked NWCConnection too so we can run the full
-        // `resolvePaymentRoute` on it below — the dashboard needs the
-        // same resolution an address-detail page would do, since balance
-        // is only meaningful when the primary address is actually
-        // routable (CUSTOM_NWC / DEFAULT_NWC with a connection).
+        // The user's "primary" address (at most one). Pull its bound
+        // RemoteWallet so we can run `resolveWalletRoute` on it below — the
+        // dashboard needs the same resolution an address-detail page does,
+        // since balance is only meaningful when the primary address is
+        // actually routable (CUSTOM_NWC / DEFAULT_NWC with a wallet).
         lightningAddresses: {
           where: { isPrimary: true },
           take: 1,
-          include: { nwcConnection: true },
+          include: { remoteWallet: true },
         },
         albySubAccount: true,
-        // Primary NWCConnection is the canonical source of the user's
-        // default NWC — same lookup the DEFAULT_NWC lightning-address mode
-        // uses, so the dashboard card and an address set to "Default NWC"
-        // always target the same wallet.
-        nwcConnections: { where: { isPrimary: true }, take: 1 },
+        // The default RemoteWallet is the canonical source of the user's
+        // primary wallet — same lookup the DEFAULT_NWC lightning-address
+        // mode uses, so the dashboard card and a "Default" address always
+        // target the same wallet.
+        remoteWallets: { where: { isDefault: true }, take: 1 },
       }
     })
 
     const user = existingUser || (await createNewUser(authenticatedPubkey))
 
-    // Resolve host with subdomain fallback (subdomain empty → use domain)
-    const { host } = await resolvePublicEndpoint(request)
+    // Lightning addresses resolve as `username@<domain>`. The `endpoint`
+    // setting (where the instance is publicly reachable) may differ from
+    // the address domain — e.g. `endpoint=https://beta.lacrypta.ar` while
+    // `domain=lacrypta.ar` — so we read the address domain directly here
+    // rather than via `resolvePublicEndpoint`, which mixes the two concerns.
+    const { domain } = await getSettings(['domain'])
     const primaryAddress = user.lightningAddresses[0]
     const lightningAddress = primaryAddress?.username
-      ? `${primaryAddress.username}@${host}`
+      ? `${primaryAddress.username}@${domain}`
       : null
 
-  // Priority matches `resolvePaymentRoute` for DEFAULT_NWC:
-  //   1. Primary NWCConnection — the new first-class wallet record.
-  //   2. Legacy `User.nwc` — accounts set up before the NWCConnection
-  //      model existed; kept so migrations can be lazy.
-  //   3. Auto-provisioned Alby sub-account — fallback for community
-  //      members that never configured an external wallet.
-  // Keeping one source of truth means the dashboard NwcCard and an
-  // address in DEFAULT_NWC mode always reflect the same underlying
-  // connection, balance, and relay health.
-  const primaryConnection = user.nwcConnections[0] ?? null
-  const nwcString =
-    primaryConnection?.connectionString
-    ?? user.nwc
-    ?? user.albySubAccount?.nwcUri
-    ?? ''
-  const nwcUpdatedAt = primaryConnection
-    ? primaryConnection.updatedAt.toISOString()
-    : user.nwc
-      ? user.nwcUpdatedAt?.toISOString() ?? null
-      : user.albySubAccount?.createdAt?.toISOString() ?? null
+  // The user's default RemoteWallet is the single source of truth for the
+  // dashboard's "primary wallet". Its connection string drives the balance
+  // widget; the same wallet backs a "Default" lightning address, so the
+  // card and a DEFAULT_NWC address always reflect the same wallet.
+  const defaultWallet = user.remoteWallets[0] ?? null
+  const defaultWalletConn =
+    (defaultWallet?.config as { connectionString?: string } | null)?.connectionString ?? null
+  const nwcString = defaultWalletConn ?? ''
+  const nwcUpdatedAt = defaultWallet?.updatedAt.toISOString() ?? null
 
   // Run the same resolver the LUD-16 endpoint uses, but against the
   // *primary* lightning address. The dashboard balance widget should only
   // pull funds info when the primary address is actually routable:
-  //   - CUSTOM_NWC → the address's linked connection
-  //   - DEFAULT_NWC → user's primary NWCConnection (with legacy fallback)
+  //   - CUSTOM_NWC → the address's bound RemoteWallet
+  //   - DEFAULT_NWC → the user's default RemoteWallet
   //   - IDLE / ALIAS / unconfigured → null, caller renders empty state
   // `primaryAddressMode` is returned alongside so the UI can phrase the
   // empty-state reason accurately.
   const effectiveNwcString = primaryAddress
     ? (() => {
-        const route = resolvePaymentRoute({
+        const route = resolveWalletRoute({
           mode: primaryAddress.mode,
           redirect: primaryAddress.redirect,
-          nwcConnection: primaryAddress.nwcConnection,
-          primaryNwcConnection: primaryConnection,
-          userNwc: user.nwc,
+          remoteWallet: primaryAddress.remoteWallet,
+          defaultRemoteWallet: defaultWallet,
         })
-        return route.kind === 'nwc' ? route.connectionString : null
+        return route.kind === 'wallet'
+          ? ((route.config as { connectionString?: string } | null)?.connectionString ?? null)
+          : null
       })()
     : null
 

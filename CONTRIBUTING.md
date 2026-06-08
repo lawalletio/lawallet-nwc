@@ -96,6 +96,43 @@ The admin dashboard is at [http://localhost:3000/admin](http://localhost:3000/ad
 The first time you visit, sign in with a Nostr key and the **setup wizard**
 will claim that pubkey as root admin via `POST /api/admin/assign`.
 
+If you want the guided install flow instead, the public bootstrap entrypoint is
+the repo-root `install.sh`, which is designed for a hosted `curl | bash` flow:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/install.sh | bash
+```
+
+Or, from inside this repo, use the local wrapper that installs the CLI package
+from `apps/cli` and then delegates into that same bootstrap flow:
+
+```bash
+bash ./scripts/install-lawallet-cli.sh
+```
+
+The standalone installer writes the `lawallet` command into `~/.lawallet/bin`,
+downloads a compatible Node.js runtime if necessary, and then runs
+`lawallet install`.
+
+Once an instance is installed, you can manage it from `apps/web` with:
+
+```bash
+pnpm service status
+pnpm service start
+pnpm service stop
+pnpm service restart
+```
+
+To smoke-test the bootstrap flow inside a disposable Docker-in-Docker runner:
+
+```bash
+bash ./scripts/test-install-cli-docker.sh
+```
+
+That runner executes the same root `install.sh` bootstrap, clones the repo into
+a fresh directory, starts the bundled `web + docs + openapi + postgres` Docker
+Compose stack, and verifies each health endpoint before exiting.
+
 ---
 
 ## Environment Variables
@@ -156,6 +193,46 @@ pnpm --filter @lawallet-nwc/web reset
 **Schema location:** [`apps/web/prisma/schema.prisma`](./apps/web/prisma/schema.prisma).
 Generated client is emitted to `apps/web/lib/generated/prisma` — never edit
 those files by hand.
+
+### Multi-worktree local databases
+
+If you want multiple git worktrees open at the same time, the simplest setup is
+one shared Postgres server with one database per worktree.
+
+Do **not** try to run this repo as "Postgres stored in SQLite" — Prisma is
+configured with `provider = "postgresql"` in
+[`apps/web/prisma/schema.prisma`](./apps/web/prisma/schema.prisma), so local
+SQLite is a different database engine and not a drop-in substitute.
+
+Instead:
+
+```bash
+# Start the shared local Postgres once
+docker compose up -d postgres
+
+# In each worktree, create or reuse a unique database and export DATABASE_URL
+eval "$(./scripts/worktree-db.sh env)"
+
+# Then apply schema changes inside that worktree
+cd apps/web
+pnpm exec prisma migrate deploy
+```
+
+The helper derives a deterministic database name from the current branch +
+worktree path, so each checkout gets its own isolated DB on the same
+`localhost:5432` server.
+
+Useful commands:
+
+```bash
+./scripts/worktree-db.sh name    # print this worktree's DB name
+./scripts/worktree-db.sh url     # print the matching DATABASE_URL
+./scripts/worktree-db.sh reset   # drop + recreate only this worktree's DB
+./scripts/worktree-db.sh drop    # remove only this worktree's DB
+```
+
+If you also run multiple Next.js dev servers at once, give each worktree its
+own `PORT` in the shell or in `apps/web/.env` to avoid app port collisions.
 
 When changing the schema:
 

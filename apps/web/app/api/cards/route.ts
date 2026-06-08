@@ -7,8 +7,8 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { createCardSchema, cardListQuerySchema } from '@/lib/validation/schemas'
 import { validateBody, validateQuery } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
-import { authenticateWithRole } from '@/lib/auth/unified-auth'
-import { Role } from '@/lib/auth/permissions'
+import { authenticateWithPermission } from '@/lib/auth/unified-auth'
+import { Permission } from '@/lib/auth/permissions'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
@@ -18,7 +18,7 @@ interface CardFilters {
 }
 
 export const GET = withErrorHandling(async (request: Request) => {
-  await authenticateWithRole(request, Role.ADMIN)
+  await authenticateWithPermission(request, Permission.CARDS_READ)
 
   const query = validateQuery(request.url, cardListQuerySchema)
 
@@ -56,6 +56,8 @@ export const GET = withErrorHandling(async (request: Request) => {
       lastUsedAt: true,
       username: true,
       otc: true,
+      remoteWalletId: true,
+      kind: true,
       design: {
         select: {
           id: true,
@@ -102,7 +104,9 @@ export const GET = withErrorHandling(async (request: Request) => {
     lastUsedAt: card.lastUsedAt || undefined,
     pubkey: card.user?.pubkey,
     username: card.username || undefined,
-    otc: card.otc || undefined
+    otc: card.otc || undefined,
+    remoteWalletId: card.remoteWalletId ?? null,
+    kind: card.kind,
   }))
 
   return NextResponse.json(transformedCards)
@@ -110,9 +114,9 @@ export const GET = withErrorHandling(async (request: Request) => {
 
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'json')
-  await authenticateWithRole(request, Role.ADMIN)
+  await authenticateWithPermission(request, Permission.CARDS_WRITE)
 
-  const { id, designId } = await validateBody(request, createCardSchema)
+  const { id, designId, kind } = await validateBody(request, createCardSchema)
 
     // Generate ntag424 values using the id as cid
     const serial = id.toUpperCase().replace(/:/g, '')
@@ -133,7 +137,8 @@ export const POST = withErrorHandling(async (request: Request) => {
         designId,
         title: 'New Card',
         ntag424Cid: ntag424.cid, // Link to the created ntag424
-        otc: otc // Set the random 16-byte string for otc
+        otc: otc, // Set the random 16-byte string for otc
+        kind: kind ?? 'SIMPLE'
       } as any,
       select: {
         id: true,
@@ -142,6 +147,7 @@ export const POST = withErrorHandling(async (request: Request) => {
         lastUsedAt: true,
         username: true,
         otc: true,
+        kind: true,
         design: {
           select: {
             id: true,
@@ -185,7 +191,8 @@ export const POST = withErrorHandling(async (request: Request) => {
       lastUsedAt: card.lastUsedAt || undefined,
       pubkey: card.user?.pubkey,
       username: card.username || undefined,
-      otc: card.otc || undefined
+      otc: card.otc || undefined,
+      kind: card.kind
     }
 
   eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })

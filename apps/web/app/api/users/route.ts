@@ -27,7 +27,11 @@ export const GET = withErrorHandling(async (request: Request) => {
         select: { username: true },
       },
       _count: {
-        select: { lightningAddresses: true, nwcConnections: true },
+        // Count only usable wallets so a fully-revoked user reads as "no NWC".
+        select: {
+          lightningAddresses: true,
+          remoteWallets: { where: { status: { not: 'REVOKED' } } },
+        },
       },
     },
   })
@@ -39,7 +43,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     createdAt: user.createdAt.toISOString(),
     primaryAddress: user.lightningAddresses[0]?.username ?? null,
     addressCount: user._count.lightningAddresses,
-    hasNwc: user._count.nwcConnections > 0 || !!user.nwc,
+    hasNwc: user._count.remoteWallets > 0,
   }))
 
   return NextResponse.json(transformed)

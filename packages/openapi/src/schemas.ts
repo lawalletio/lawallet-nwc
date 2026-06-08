@@ -1,26 +1,26 @@
 import {
   cardListQuerySchema,
+  claimActivationTokenSchema,
   claimInvoiceSchema,
+  createActivationTokenSchema,
   createCardDesignSchema,
   createCardSchema,
   createInvoiceSchema,
-  createNwcConnectionSchema,
   createRemoteCardSchema,
   createWalletAddressSchema,
   externalDeviceKeyParam,
   idParam,
   jwtRequestSchema,
+  qrJwtGenerateSchema,
   lightningAddressModeSchema,
   lud16CallbackQuerySchema,
   lud16UsernameParam,
-  nwcModeSchema,
   otcParam,
   payActionQuerySchema,
   scanCardQuerySchema,
   settingsBodySchema,
   updateCardDesignSchema,
   updateLightningAddressSchema,
-  updateNwcSchema,
   updateRoleSchema,
   updateWalletAddressSchema,
   userIdParam,
@@ -45,6 +45,14 @@ export const schemas = {
   ScanCardQuery: registry.register('ScanCardQuery', scanCardQuerySchema),
   PayActionQuery: registry.register('PayActionQuery', payActionQuerySchema),
   OtcParam: registry.register('OtcParam', otcParam),
+  ActivationTokenCreateRequest: registry.register(
+    'ActivationTokenCreateRequest',
+    createActivationTokenSchema,
+  ),
+  ActivationTokenClaimRequest: registry.register(
+    'ActivationTokenClaimRequest',
+    claimActivationTokenSchema,
+  ),
 
   // ── Card Designs ───────────────────────────────────────────────────────
   CardDesignCreateRequest: registry.register('CardDesignCreateRequest', createCardDesignSchema),
@@ -81,14 +89,8 @@ export const schemas = {
     'WalletAddressUpdateRequest',
     updateWalletAddressSchema,
   ),
-  NwcMode: registry.register('NwcMode', nwcModeSchema),
-  NwcConnectionCreateRequest: registry.register(
-    'NwcConnectionCreateRequest',
-    createNwcConnectionSchema,
-  ),
 
   // ── Users ─────────────────────────────────────────────────────────────
-  UserNwcUpdateRequest: registry.register('UserNwcUpdateRequest', updateNwcSchema),
   UserRoleUpdateRequest: registry.register('UserRoleUpdateRequest', updateRoleSchema),
 
   // ── Settings ──────────────────────────────────────────────────────────
@@ -112,6 +114,7 @@ export const schemas = {
 
   // ── JWT ───────────────────────────────────────────────────────────────
   JwtRequest: registry.register('JwtRequest', jwtRequestSchema),
+  QrJwtGenerateRequest: registry.register('QrJwtGenerateRequest', qrJwtGenerateSchema),
 }
 
 // ── Inline response component schemas ─────────────────────────────────────

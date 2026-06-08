@@ -24,6 +24,51 @@ packages/
 
 The NWC Proxy is no longer vendored here — it will be provisioned as an **external** service via LNURL (see `docs/services/NWC-PROXY.md`).
 
+## Issue & Branch Workflow
+
+**Every issue addressed must have its own branch, created from the issue.** This auto-links the branch to the issue in GitHub's Development panel and keeps the **LaWallet v2** project board (org project #10) status (`Todo → In progress → Done`) in sync.
+
+### Start an issue
+Always create the branch via `gh issue develop` — never `git checkout -b` — so the branch is auto-linked and based on the latest `main`:
+```bash
+gh issue develop <n> --base main -c                          # auto-named branch
+gh issue develop <n> --base main -n feat/<n>-<slug> -c       # custom name
+```
+Immediately open a **draft PR** (before any commits) so the project card moves `Todo → In progress` via the project's built-in "Pull request opened" workflow:
+```bash
+gh pr create --draft --base main --title "wip(#<n>): <short title>" --body "Closes #<n>"
+```
+Always include `Closes #<n>` (or `Fixes`/`Resolves`) in the PR body so the issue auto-closes on merge.
+
+### Finish an issue
+Push commits → mark PR ready for review → merge. On merge: the issue auto-closes, the project card auto-moves `In progress → Done`, and the branch is deleted (GitHub prompts on merge).
+
+### Sub-issues of an epic
+For an epic with sub-issues (e.g. #263 with sub-issues #231-#236):
+- Each sub-issue gets its own branch via `gh issue develop <sub-n> --base feat/<epic-n>-... -n feat/<sub-n>-<slug> -c`.
+- Sub-issue PRs target the **epic branch** (`--base feat/<epic-n>-...`), not `main`.
+- The epic branch merges to `main` only when the epic is complete.
+- When the sub-branch is created from the epic, it starts at the same commit as the epic, so opening a draft PR fails with `No commits between ...`. Seed it first:
+  ```bash
+  git commit --allow-empty -m "chore(#<sub-n>): start <topic>"
+  git push origin feat/<sub-n>-<slug>
+  ```
+  Then `gh pr create --draft --base feat/<epic-n>-... ...`.
+
+### Do not
+- Do not start work without an issue — open one first.
+- Do not create branches manually (`git checkout -b`) — they won't auto-link to the issue.
+- Do not push to `main` directly.
+- Do not delete a branch with unmerged work — verify it's merged to its base (epic or `main`) first.
+
+### Project board auto-workflows (one-time setup)
+Status transitions above rely on built-in workflows in the **LaWallet v2** project. Enable these at https://github.com/orgs/lawalletio/projects/10/workflows:
+- **Pull request linked to issue** → Status: `In progress`
+- **Pull request merged** → Status: `Done`
+- **Item closed** → Status: `Done`
+
+If any of these are disabled, manually drag the card on the project board when starting/finishing an issue.
+
 ## Commands
 
 ### Workspace-level (from repo root)

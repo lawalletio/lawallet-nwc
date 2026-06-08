@@ -10,6 +10,12 @@ export interface JwtPayload {
   iat: number
   /** Expiration, epoch seconds. */
   exp: number
+  /**
+   * Platform base URL a device token (B.0) is scoped to. Only present on device
+   * tokens; the auth layer enforces it matches the serving instance. Absent on
+   * session JWTs and NIP-98. See `mintDeviceToken`.
+   */
+  apiUrl?: string
   /** Additional claims (role, etc.). */
   [key: string]: any
 }

@@ -1,6 +1,19 @@
 import { nip19 } from 'nostr-tools'
 
 /**
+ * Encodes a hex pubkey to its full `npub1…` (NIP-19) form. Falls back to the
+ * input unchanged if it can't be encoded. Use this whenever a pubkey is copied
+ * or shown in full so users always get the npub, never the raw hex.
+ */
+export function toNpub(pubkey: string): string {
+  try {
+    return nip19.npubEncode(pubkey)
+  } catch {
+    return pubkey
+  }
+}
+
+/**
  * Converts a hex pubkey to npub and truncates for display.
  * Example: "npub1abc...xyz4"
  */
@@ -12,6 +25,25 @@ export function truncateNpub(pubkey: string, chars: number = 8): string {
   } catch {
     // Fallback for invalid pubkeys
     return `${pubkey.slice(0, 8)}...${pubkey.slice(-4)}`
+  }
+}
+
+/**
+ * Two-character avatar fallback for a pubkey: the first two characters of its
+ * npub *after* the `npub1` prefix, uppercased (e.g. `npub1q8z…` → `Q8`).
+ *
+ * Deterministic and independent of profile metadata, so the placeholder stays
+ * stable while the avatar image loads or when no kind-0 name is available.
+ * Returns `??` for a missing pubkey and falls back to the hex prefix if the
+ * pubkey can't be encoded.
+ */
+export function npubInitials(pubkey: string | null | undefined): string {
+  if (!pubkey) return '??'
+  try {
+    // `npub1` is a 5-char prefix, so the data part starts at index 5.
+    return nip19.npubEncode(pubkey).slice(5, 7).toUpperCase()
+  } catch {
+    return pubkey.slice(0, 2).toUpperCase()
   }
 }
 

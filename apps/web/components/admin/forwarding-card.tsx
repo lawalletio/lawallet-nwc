@@ -56,9 +56,9 @@ export function ForwardingCard({
       await updateAddress(username, {
         mode: 'ALIAS',
         redirect: trimmed,
-        // Explicitly clear any previously-linked NWCConnection so the
-        // address has a single clear state — pure alias forward.
-        nwcConnectionId: null,
+        // Explicitly clear any previously-linked wallet so the address has
+        // a single clear state — pure alias forward.
+        remoteWalletId: null,
       })
       toast.success('Forwarding set')
       setInput('')

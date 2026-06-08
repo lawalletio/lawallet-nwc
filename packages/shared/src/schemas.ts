@@ -15,11 +15,29 @@ export const userIdParam = z.object({
 export const createCardSchema = z.object({
   id: z.string().min(1, 'Card ID is required'),
   designId: z.string().min(1, 'Design ID is required'),
+  /**
+   * Card kind, declared at creation. Defaults to SIMPLE when omitted. MASTER is
+   * reserved for the deferred account-share feature but is accepted here so the
+   * field can be set ahead of that work landing.
+   */
+  kind: z.enum(['SIMPLE', 'MASTER']).optional(),
 })
 
 export const cardListQuerySchema = z.object({
   paired: z.enum(['true', 'false']).optional(),
   used: z.enum(['true', 'false']).optional(),
+})
+
+/**
+ * Partial update for a card. Today only the wallet binding can change:
+ *   - `remoteWalletId: string` rebinds the card to that wallet (must
+ *     belong to the caller, must not be REVOKED — validated in the
+ *     route handler since cross-field rules don't fit Zod cleanly).
+ *   - `remoteWalletId: null` unbinds the card; spending falls back to
+ *     the owner's default wallet at run-time.
+ */
+export const updateCardSchema = z.object({
+  remoteWalletId: z.string().min(1).nullable(),
 })
 
 export const createCardDesignSchema = z.object({
@@ -80,6 +98,28 @@ export const payActionQuerySchema = z.object({
 
 export const otcParam = z.object({
   otc: z.string().min(1, 'OTC parameter is required'),
+})
+
+// ── Card activation tokens ──────────────────────────────────────────────────
+
+/**
+ * Mint an activation QR for a card. `qrKind` defaults to ONE_TIME (the only
+ * kind wired this round — the route rejects FOREVER with a clear error).
+ * `expiresIn` is an optional duration string (e.g. `24h`, `7d`); when omitted
+ * the token does not expire.
+ */
+export const createActivationTokenSchema = z.object({
+  qrKind: z.enum(['ONE_TIME', 'FOREVER']).default('ONE_TIME'),
+  expiresIn: z.string().min(1).optional(),
+})
+
+/**
+ * Claim an activation token. For ONE_TIME tokens the claimer may name which
+ * Remote Wallet funds the card; omitted/null falls back to the claimer's
+ * default wallet at claim time.
+ */
+export const claimActivationTokenSchema = z.object({
+  remoteWalletId: z.string().min(1).nullish(),
 })
 
 // ── Lightning Addresses ─────────────────────────────────────────────────────
@@ -145,8 +185,8 @@ export const createWalletAddressSchema = z.object({
  * use the existing `validateBody` middleware without bespoke shapes):
  *   - mode === 'ALIAS'      → `redirect` is required and must look like an LN
  *                             address ("user@host").
- *   - mode === 'CUSTOM_NWC' → `nwcConnectionId` is required and must reference
- *                             a connection owned by the caller.
+ *   - mode === 'CUSTOM_NWC' → `remoteWalletId` is required and must reference
+ *                             a RemoteWallet owned by the caller.
  *   - mode === 'IDLE' or 'DEFAULT_NWC' → both fields are ignored / cleared.
  */
 export const updateWalletAddressSchema = z.object({
@@ -156,33 +196,10 @@ export const updateWalletAddressSchema = z.object({
     .max(254)
     .regex(/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i, 'Must be a valid LN address')
     .nullish(),
-  nwcConnectionId: z.string().min(1).nullish(),
-})
-
-export const nwcModeSchema = z.enum(['RECEIVE', 'SEND_RECEIVE'])
-
-/**
- * Body for POST /api/wallet/nwc-connections.
- *
- * `connectionString` must look like a Nostr Wallet Connect URI so we reject
- * pasted garbage before reaching the DB. We don't verify the relays are
- * reachable here — that's the listener's job at runtime.
- */
-export const createNwcConnectionSchema = z.object({
-  connectionString: z
-    .string()
-    .min(1, 'Connection string is required')
-    .max(2048, 'Connection string is too long')
-    .regex(/^nostr\+walletconnect:\/\//i, 'Must start with nostr+walletconnect://'),
-  mode: nwcModeSchema.optional(),
-  isPrimary: z.boolean().optional(),
+  remoteWalletId: z.string().min(1).nullish(),
 })
 
 // ── Users ───────────────────────────────────────────────────────────────────
-
-export const updateNwcSchema = z.object({
-  nwcUri: z.string().min(1, 'NWC URI is required'),
-})
 
 export const updateRoleSchema = z.object({
   role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']),
@@ -236,8 +253,107 @@ export const claimInvoiceSchema = z.object({
     .regex(/^[a-f0-9]+$/i, 'Preimage must be a hex string'),
 })
 
+// ── Remote Wallets ──────────────────────────────────────────────────────────
+
+/**
+ * Wallet name shown in the UI sidebar and pickers. Constraints mirror the
+ * `(userId, name)` unique index in Prisma — uniqueness is enforced by the
+ * DB, length by this schema.
+ */
+const remoteWalletName = z
+  .string()
+  .trim()
+  .min(1, 'Name is required')
+  .max(120, 'Name must be 120 characters or less')
+
+/** Driver discriminator. Mirrors the `RemoteWalletType` enum in Prisma. */
+const remoteWalletType = z.enum(['NWC', 'LND', 'CLN', 'BTCPAY'])
+
+/** Soft-state. `REVOKED` is terminal — clients should not flip back from it. */
+const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED'])
+
+/**
+ * Body for `POST /api/remote-wallets`. `config` is passed through as
+ * `unknown` and validated by the driver registry's per-type schema in the
+ * route handler — keeping the discriminator + driver schema together in the
+ * driver module rather than duplicating it here.
+ */
+export const createRemoteWalletSchema = z.object({
+  name: remoteWalletName,
+  type: remoteWalletType,
+  config: z.unknown(),
+  /** When `true`, the new wallet becomes the user's default (un-marks the previous one in the same transaction). */
+  isDefault: z.boolean().optional().default(false),
+})
+
+/**
+ * Partial update for `PATCH /api/remote-wallets/[id]`. At least one field
+ * must be present so a no-op PATCH returns 400 — matches the convention used
+ * by `updateCardDesignSchema`.
+ *
+ * Note: this never accepts `config`. Rotating an NWC URI happens through a
+ * dedicated endpoint (future) so the secret never travels in a generic
+ * update payload.
+ */
+export const updateRemoteWalletSchema = z
+  .object({
+    name: remoteWalletName.optional(),
+    isDefault: z.boolean().optional(),
+    status: remoteWalletStatus.optional(),
+  })
+  .refine(
+    v => v.name !== undefined || v.isDefault !== undefined || v.status !== undefined,
+    { message: 'No fields to update' },
+  )
+
+/** Query params for `GET /api/remote-wallets`. */
+export const remoteWalletListQuerySchema = z.object({
+  /**
+   * Filter by status. Defaults to "anything not revoked" so the UI doesn't
+   * show dead wallets unless asked.
+   */
+  status: remoteWalletStatus.optional(),
+  /** Filter by driver type — useful for the "NWC only" picker for now. */
+  type: remoteWalletType.optional(),
+})
+
 // ── JWT ─────────────────────────────────────────────────────────────────────
 
 export const jwtRequestSchema = z.object({
   expiresIn: z.string().optional().default('1h'),
+})
+
+// ── Device Tokens (QR-based JWT login, B.0) ──────────────────────────────────
+
+/**
+ * `expiresIn` accepts a `ms`-style duration (`30m`, `8h`, `7d`, `2w`) or a bare
+ * number of seconds. The route enforces only a 1-minute floor (no maximum) —
+ * device tokens are stateless and unrevocable, so prefer short lifetimes even
+ * though long ones are allowed. Bounds are checked in the route, not here (this
+ * package has no access to those constants).
+ */
+const deviceTokenExpiresIn = z
+  .string()
+  .trim()
+  .regex(
+    /^\d+\s*(s|m|h|d|w)?$/i,
+    'Use a duration like 8h or 7d, or a number of seconds',
+  )
+
+/**
+ * Body for `POST /api/auth/qr-jwt/generate`.
+ *
+ * The admin picks a target `userId`, ticks a `permissions` subset, and chooses
+ * an `expiresIn`. Permission strings are validated against the real `Permission`
+ * enum in the route handler (which also enforces they're a subset of the admin's
+ * own RBAC) — keeping the enum's source of truth in the web app rather than
+ * duplicating it into this shared package.
+ */
+export const qrJwtGenerateSchema = z.object({
+  userId: z.string().min(1, 'User ID is required'),
+  permissions: z
+    .array(z.string().min(1))
+    .min(1, 'Select at least one permission')
+    .max(64, 'Too many permissions'),
+  expiresIn: deviceTokenExpiresIn.default('8h'),
 })

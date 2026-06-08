@@ -1,0 +1,1671 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>LaWallet NWC · Month 5</title>
+<meta name="description" content="LaWallet NWC — Month 5 (May 5 – Jun 5, 2026): Remote Wallets + Card System Apps + Platform Polish." />
+<meta name="theme-color" content="#0A0A0F" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&family=Alex+Brush&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0A0A0F;
+    --bg-soft: #12121A;
+    --bg-glass: rgba(255, 255, 255, 0.04);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --text: #FAFAFA;
+    --text-muted: #9CA3AF;
+    --text-dim: #6B7280;
+    --gold: #FDC800;
+    --gold-soft: #F5A623;
+    --green: #55B68C;
+    --green-soft: #26A69A;
+    --coral: #E95052;
+    --coral-soft: #E53935;
+    --purple: #9C7AFF;
+    --orange: #FBA518;
+    --shadow-glow: 0 8px 60px -10px rgba(253, 200, 0, 0.25);
+    --shadow-card: 0 30px 80px -20px rgba(0, 0, 0, 0.6);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: -50%;
+    background:
+      radial-gradient(ellipse 800px 600px at 20% 30%, rgba(253, 200, 0, 0.08), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 80% 70%, rgba(85, 182, 140, 0.06), transparent 60%),
+      radial-gradient(ellipse 600px 400px at 50% 50%, rgba(233, 80, 82, 0.04), transparent 60%);
+    z-index: -2;
+    animation: drift 30s ease-in-out infinite alternate;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 64px 64px;
+    z-index: -1;
+    pointer-events: none;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  }
+
+  @keyframes drift {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    50%  { transform: translate(40px, -30px) rotate(0.5deg); }
+    100% { transform: translate(-30px, 40px) rotate(-0.5deg); }
+  }
+
+  /* CHROME */
+  .chrome {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 40px;
+    pointer-events: none;
+  }
+  .chrome > * { pointer-events: auto; }
+
+  .brand { display: flex; align-items: center; gap: 14px; color: var(--text); }
+  .brand .mark { height: 26px; width: auto; display: block; filter: drop-shadow(0 0 18px rgba(253, 200, 0, 0.18)); }
+  .brand .sep { width: 1px; height: 22px; background: var(--border-strong); flex-shrink: 0; }
+  .brand .label { display: flex; flex-direction: column; line-height: 1.15; }
+  .brand .label .name { font-weight: 700; letter-spacing: 0.06em; font-size: 13px; text-transform: uppercase; }
+  .brand .label .sub { font-size: 11px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 2px; }
+
+  @media (max-width: 720px) {
+    .brand .mark { height: 22px; }
+    .brand .label .sub { display: none; }
+  }
+
+  .chrome-right { display: flex; align-items: center; gap: 16px; }
+  .chrome-left  { display: flex; align-items: center; gap: 16px; }
+  .brand.brand-right .label { align-items: flex-end; text-align: right; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 999px;
+    background: var(--bg-glass); border: 1px solid var(--border);
+    font-size: 12px; color: var(--text-muted);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    font-weight: 500;
+  }
+  .badge .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.9); }
+  }
+
+  /* SLIDES */
+  .deck { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+  .deck::before, .deck::after {
+    content: ''; position: fixed; left: 0; right: 0; z-index: 95; pointer-events: none;
+  }
+  .deck::before { top: 0; height: 86px; background: linear-gradient(180deg, var(--bg) 35%, rgba(10,10,15,0.55) 75%, transparent 100%); }
+  .deck::after  { bottom: 0; height: 96px; background: linear-gradient(0deg, var(--bg) 35%, rgba(10,10,15,0.55) 75%, transparent 100%); }
+  .slide {
+    position: absolute; inset: 0;
+    padding: 100px 80px;
+    opacity: 0; pointer-events: none;
+    transform: translateX(40px) scale(0.98);
+    transition: opacity 0.6s var(--ease-out), transform 0.7s var(--ease-out);
+    overflow-y: auto; overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.12) transparent;
+  }
+  .slide::-webkit-scrollbar { width: 8px; }
+  .slide::-webkit-scrollbar-track { background: transparent; }
+  .slide::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+  .slide::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+  .slide.active { opacity: 1; pointer-events: auto; transform: translateX(0) scale(1); }
+  .slide.prev { transform: translateX(-40px) scale(0.98); }
+  .slide-inner {
+    width: 100%; max-width: 1200px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 32px;
+    min-height: calc(100vh - 200px); justify-content: center;
+  }
+  .slide.active .reveal { animation: reveal 0.9s var(--ease-out) both; }
+  .slide.active .reveal-1 { animation-delay: 0.10s; }
+  .slide.active .reveal-2 { animation-delay: 0.22s; }
+  .slide.active .reveal-3 { animation-delay: 0.34s; }
+  .slide.active .reveal-4 { animation-delay: 0.46s; }
+  .slide.active .reveal-5 { animation-delay: 0.58s; }
+  .slide.active .reveal-6 { animation-delay: 0.70s; }
+  @keyframes reveal {
+    from { opacity: 0; transform: translateY(20px); filter: blur(8px); }
+    to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+  }
+
+  /* TYPOGRAPHY */
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 8px 16px; border-radius: 999px;
+    background: rgba(253, 200, 0, 0.08); border: 1px solid rgba(253, 200, 0, 0.18);
+    color: var(--gold);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .eyebrow.green { background: rgba(85, 182, 140, 0.08); border-color: rgba(85, 182, 140, 0.2); color: var(--green); }
+  .eyebrow.coral { background: rgba(233, 80, 82, 0.08); border-color: rgba(233, 80, 82, 0.2); color: var(--coral); }
+  .eyebrow.purple { background: rgba(156, 122, 255, 0.08); border-color: rgba(156, 122, 255, 0.2); color: var(--purple); }
+  .eyebrow .pulse {
+    width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+    box-shadow: 0 0 8px currentColor; animation: pulse 2s ease-in-out infinite;
+  }
+
+  h1.display {
+    font-size: clamp(48px, 7.5vw, 108px);
+    font-weight: 800; letter-spacing: -0.04em; line-height: 0.95;
+  }
+  h1.display .accent {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--coral) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h1.display .scribble {
+    font-family: 'Alex Brush', cursive; font-weight: 400;
+    color: var(--gold); font-size: 0.85em; line-height: 1;
+    display: inline-block; transform: translateY(0.04em) rotate(-3deg);
+    margin-left: -0.05em;
+  }
+
+  h2 { font-size: clamp(36px, 4.5vw, 64px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+  h3 { font-size: clamp(20px, 1.8vw, 26px); font-weight: 600; letter-spacing: -0.02em; }
+  .lead { font-size: clamp(16px, 1.5vw, 21px); color: var(--text-muted); line-height: 1.55; max-width: 780px; font-weight: 400; }
+  .mono { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 0.9em; }
+  .text-gold { color: var(--gold); }
+  .text-green { color: var(--green); }
+  .text-coral { color: var(--coral); }
+  .text-purple { color: var(--purple); }
+  .text-muted { color: var(--text-muted); }
+  .text-dim { color: var(--text-dim); }
+
+  /* CARDS / TILES */
+  .glass {
+    background: var(--bg-glass); border: 1px solid var(--border);
+    border-radius: 18px;
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    padding: 24px;
+    transition: all 0.35s var(--ease-out);
+  }
+  .glass:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .tile {
+    position: relative; padding: 28px; border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 100%);
+    border: 1px solid var(--border); overflow: hidden;
+    transition: all 0.35s var(--ease-out);
+  }
+  .tile::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 200px 120px at top right, rgba(253,200,0,0.06), transparent 70%);
+    opacity: 0; transition: opacity 0.35s var(--ease-out);
+  }
+  .tile:hover::before { opacity: 1; }
+  .tile.gold::before   { background: radial-gradient(ellipse 220px 140px at top right, rgba(253,200,0,0.12), transparent 70%); opacity: 1; }
+  .tile.green::before  { background: radial-gradient(ellipse 220px 140px at top right, rgba(85,182,140,0.12), transparent 70%); opacity: 1; }
+  .tile.coral::before  { background: radial-gradient(ellipse 220px 140px at top right, rgba(233,80,82,0.12), transparent 70%); opacity: 1; }
+  .tile.purple::before { background: radial-gradient(ellipse 220px 140px at top right, rgba(156,122,255,0.12), transparent 70%); opacity: 1; }
+
+  .grid { display: grid; gap: 18px; }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+  /* ICON BADGE */
+  .icon-badge {
+    width: 44px; height: 44px;
+    display: grid; place-items: center;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    color: var(--text); flex-shrink: 0;
+  }
+  .icon-badge svg { width: 22px; height: 22px; stroke-width: 1.8; }
+  .icon-badge.gold   { background: rgba(253,200,0,0.1);  border-color: rgba(253,200,0,0.3);  color: var(--gold); }
+  .icon-badge.green  { background: rgba(85,182,140,0.1); border-color: rgba(85,182,140,0.3); color: var(--green); }
+  .icon-badge.coral  { background: rgba(233,80,82,0.1);  border-color: rgba(233,80,82,0.3);  color: var(--coral); }
+  .icon-badge.purple { background: rgba(156,122,255,0.1);border-color: rgba(156,122,255,0.3); color: var(--purple); }
+  .icon-badge.orange { background: rgba(251,165,24,0.1); border-color: rgba(251,165,24,0.3); color: var(--orange); }
+  .icon-badge.lg { width: 64px; height: 64px; border-radius: 16px; }
+  .icon-badge.lg svg { width: 30px; height: 30px; }
+
+  /* PILL TAGS */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .pill.p0 { background: rgba(233,80,82,0.1);  border-color: rgba(233,80,82,0.3);  color: var(--coral); }
+  .pill.p1 { background: rgba(253,200,0,0.1);  border-color: rgba(253,200,0,0.3);  color: var(--gold); }
+  .pill.p2 { background: rgba(85,182,140,0.08); border-color: rgba(85,182,140,0.25); color: var(--green); }
+
+  /* SLIDE 1 — COVER */
+  .cover { text-align: left; }
+  .cover .tagline {
+    display: inline-flex; align-items: center; gap: 10px;
+    color: var(--text-muted); font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .cover .tagline::before { content: ''; width: 32px; height: 1px; background: var(--gold); }
+  .cover-meta {
+    display: flex; gap: 56px; margin-top: 20px; flex-wrap: wrap;
+  }
+  .cover-meta .item .k { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .cover-meta .item .v { font-size: 16px; font-weight: 500; color: var(--text); font-family: 'Geist Mono', monospace; }
+
+  .cover-shape {
+    position: absolute; top: 50%; right: -200px; transform: translateY(-50%);
+    width: 700px; height: 700px; opacity: 0.6; pointer-events: none;
+  }
+  .cover-shape .blob { position: absolute; border-radius: 50%; filter: blur(80px); animation: blob 14s ease-in-out infinite; }
+  .cover-shape .blob.a { width: 380px; height: 380px; top: 80px;  left: 100px; background: var(--gold);  opacity: 0.25; }
+  .cover-shape .blob.b { width: 320px; height: 320px; top: 280px; left: 280px; background: var(--coral); opacity: 0.18; animation-delay: -4s; }
+  .cover-shape .blob.c { width: 280px; height: 280px; top: 380px; left:  80px; background: var(--green); opacity: 0.15; animation-delay: -8s; }
+  @keyframes blob {
+    0%, 100% { transform: translate(0,0) scale(1); }
+    33%      { transform: translate(40px,-30px) scale(1.08); }
+    66%      { transform: translate(-30px,40px) scale(0.95); }
+  }
+
+  /* TIMELINE */
+  .timeline {
+    display: grid; grid-template-columns: repeat(8, 1fr);
+    gap: 10px; margin-top: 32px;
+  }
+  .tl-month {
+    padding: 18px 14px; border-radius: 14px;
+    background: var(--bg-glass); border: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 6px;
+    position: relative; overflow: hidden;
+    transition: all 0.35s var(--ease-out);
+  }
+  .tl-month .m { font-size: 11px; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+  .tl-month .title { font-size: 14px; font-weight: 600; line-height: 1.2; }
+  .tl-month .state { font-size: 11px; margin-top: 6px; opacity: 0.9; font-weight: 500; }
+  .tl-month.done { border-color: rgba(85,182,140,0.3); background: rgba(85,182,140,0.04); }
+  .tl-month.done .state { color: var(--green); }
+  .tl-month.current {
+    border-color: var(--gold);
+    background: linear-gradient(180deg, rgba(253,200,0,0.16), rgba(253,200,0,0.04));
+    transform: translateY(-8px);
+    box-shadow: 0 12px 40px -10px rgba(253,200,0,0.4);
+  }
+  .tl-month.current .title { color: var(--gold); }
+  .tl-month.current .state { color: var(--gold); font-weight: 700; }
+  .tl-month.planned { opacity: 0.55; }
+  .tl-month.planned .state { color: var(--text-dim); }
+
+  .timeline-bar {
+    display: flex; align-items: center; gap: 16px;
+    margin-top: 30px; font-size: 13px; color: var(--text-muted);
+  }
+  .timeline-bar .seg {
+    height: 6px; border-radius: 999px; flex: 1;
+    background: linear-gradient(90deg, var(--green), var(--gold) 50%, var(--text-dim) 50.1%);
+  }
+
+  /* THEMES */
+  .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .theme-card {
+    padding: 28px; border-radius: 20px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+    border: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  .theme-card.a::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 400px 200px at top left, rgba(253,200,0,0.15), transparent 60%); pointer-events: none; }
+  .theme-card.b::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 400px 200px at top left, rgba(85,182,140,0.13), transparent 60%); pointer-events: none; }
+  .theme-card.c::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 400px 200px at top left, rgba(156,122,255,0.13), transparent 60%); pointer-events: none; }
+  .theme-card > * { position: relative; z-index: 1; }
+  .theme-card .num { font-size: 80px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: var(--text); opacity: 0.08; position: absolute; top: 12px; right: 20px; }
+  .theme-card h3 { font-size: 22px; margin: 14px 0 8px; }
+  .theme-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .theme-list li {
+    list-style: none; display: flex; align-items: flex-start; gap: 10px;
+    font-size: 13px; color: var(--text);
+    padding: 9px 10px; background: rgba(255,255,255,0.03);
+    border-radius: 9px; border-left: 2px solid transparent;
+    transition: all 0.25s var(--ease-out);
+  }
+  .theme-list li:hover { background: rgba(255,255,255,0.05); }
+  .theme-list.a li { border-left-color: rgba(253,200,0,0.6); }
+  .theme-list.b li { border-left-color: rgba(85,182,140,0.6); }
+  .theme-list.c li { border-left-color: rgba(156,122,255,0.6); }
+  .theme-list li .ico { color: var(--gold); flex-shrink: 0; margin-top: 2px; }
+  .theme-list.b li .ico { color: var(--green); }
+  .theme-list.c li .ico { color: var(--purple); }
+  .theme-list li .desc { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+
+  /* MODEL BLOCK */
+  .model-block {
+    font-family: 'Geist Mono', monospace; font-size: 12px;
+    padding: 22px; border-radius: 14px;
+    background: rgba(255,255,255,0.025); border: 1px solid var(--border);
+    line-height: 1.65; white-space: pre-wrap;
+    color: var(--text);
+  }
+  .model-block .kw { color: var(--gold); }
+  .model-block .type { color: var(--green); }
+  .model-block .name { color: var(--purple); }
+  .model-block .comment { color: var(--text-dim); }
+
+  /* DRIVER MATRIX */
+  .driver-matrix {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  }
+  .driver-cell {
+    padding: 14px; border-radius: 12px;
+    background: var(--bg-glass); border: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 4px; position: relative; overflow: hidden;
+  }
+  .driver-cell.active {
+    background: rgba(85,182,140,0.06);
+    border-color: rgba(85,182,140,0.3);
+    box-shadow: 0 6px 20px -8px rgba(85,182,140,0.4);
+  }
+  .driver-cell .type { font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; }
+  .driver-cell.active .type { color: var(--green); }
+  .driver-cell .label { font-size: 13px; font-weight: 600; }
+  .driver-cell .status { font-size: 10px; color: var(--text-dim); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .driver-cell.active .status { color: var(--green); }
+
+  /* CONNECTION MAP */
+  .map-wrap {
+    display: grid; grid-template-columns: 1.4fr 1fr;
+    gap: 18px; margin-top: 8px;
+  }
+  .map-canvas {
+    position: relative; padding: 24px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+    border: 1px solid var(--border);
+    min-height: 380px;
+    overflow: hidden;
+  }
+  .map-canvas .badge-corner {
+    position: absolute; top: 14px; right: 14px;
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .map-canvas .col {
+    position: absolute; display: flex; flex-direction: column; gap: 8px;
+    width: 28%;
+  }
+  .map-canvas .col.left  { top: 64px; left: 24px; }
+  .map-canvas .col.right { top: 64px; right: 24px; }
+  .map-canvas .col-label {
+    font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 4px;
+  }
+  .map-canvas .col.right .col-label { text-align: right; }
+  .map-canvas .node {
+    padding: 8px 10px; border-radius: 10px;
+    background: var(--bg-glass); border: 1px solid var(--border);
+    font-size: 11px; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .map-canvas .node.la   { border-left: 3px solid var(--gold); }
+  .map-canvas .node.card { border-left: 3px solid var(--coral); }
+  .map-canvas .node.wallet { border-right: 3px solid var(--green); }
+  .map-canvas .node .pill { font-size: 8px; padding: 1px 6px; }
+  .map-canvas .divider {
+    height: 1px; background: var(--border-strong); opacity: 0.5;
+    margin: 8px 0;
+  }
+  .map-canvas .svg-edges {
+    position: absolute; inset: 0; pointer-events: none;
+    width: 100%; height: 100%;
+  }
+
+  .map-mobile {
+    border-radius: 18px; background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+    border: 1px solid var(--border); padding: 20px;
+  }
+  .map-mobile .tabs {
+    display: flex; gap: 4px; padding: 4px; margin-bottom: 12px;
+    background: rgba(255,255,255,0.03); border-radius: 10px; border: 1px solid var(--border);
+  }
+  .map-mobile .tab {
+    flex: 1; text-align: center; padding: 6px 8px;
+    font-size: 11px; font-weight: 600;
+    color: var(--text-muted); border-radius: 8px;
+  }
+  .map-mobile .tab.active { background: rgba(253,200,0,0.12); color: var(--gold); }
+  .map-mobile .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+    margin-bottom: 6px; font-size: 12px;
+  }
+  .map-mobile .row .chip {
+    padding: 3px 8px; border-radius: 999px;
+    background: rgba(85,182,140,0.1); border: 1px solid rgba(85,182,140,0.3);
+    color: var(--green); font-size: 10px; font-weight: 600;
+  }
+
+  /* FLOW */
+  .flow-row {
+    display: grid; grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 8px; align-items: center;
+    margin-top: 12px;
+  }
+  .flow-node {
+    padding: 16px 12px; border-radius: 14px;
+    background: var(--bg-glass); border: 1px solid var(--border);
+    text-align: center; position: relative;
+    transition: all 0.35s var(--ease-out);
+  }
+  .flow-node .icon-badge { margin: 0 auto 10px; }
+  .flow-node .step { font-size: 10px; font-weight: 700; color: var(--gold); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+  .flow-node h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .flow-node p { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+  .flow-arrow {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim);
+  }
+  .flow-arrow svg { width: 18px; height: 18px; }
+
+  /* SEQUENCE STRIP */
+  .seq {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: 10px; margin-top: 10px;
+  }
+  .seq-step {
+    padding: 16px 14px; border-radius: 14px;
+    background: var(--bg-glass); border: 1px solid var(--border);
+    position: relative; transition: all 0.35s var(--ease-out);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .seq-step .ord {
+    font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 700;
+    color: var(--gold); letter-spacing: 0.06em;
+  }
+  .seq-step h4 { font-size: 14px; font-weight: 600; line-height: 1.2; }
+  .seq-step p { font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+  .seq-step .pill { width: fit-content; font-size: 9px; padding: 1px 8px; }
+
+  /* TOKEN CARDS */
+  .token-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .token-card { padding: 28px; border-radius: 20px; position: relative; overflow: hidden; border: 1px solid var(--border); }
+  .token-card.one-time { background: linear-gradient(180deg, rgba(85,182,140,0.08), rgba(85,182,140,0.01)); }
+  .token-card.master   { background: linear-gradient(180deg, rgba(156,122,255,0.08), rgba(156,122,255,0.01)); }
+  .token-card .label {
+    font-family: 'Geist Mono', monospace; font-size: 10px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 8px;
+  }
+  .token-card.one-time .label { color: var(--green); }
+  .token-card.master .label   { color: var(--purple); }
+  .token-card h3 { font-size: 28px; }
+  .token-card .summary { font-size: 14px; color: var(--text-muted); margin-top: 12px; line-height: 1.55; }
+  .token-card .props { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+  .token-card .prop {
+    font-size: 12.5px; color: var(--text);
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 8px;
+  }
+  .token-card .prop .ico { color: var(--green); flex-shrink: 0; margin-top: 2px; }
+  .token-card.master .prop .ico { color: var(--purple); }
+
+  /* POLISH GRID */
+  .polish-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .polish-tile {
+    padding: 14px; border-radius: 12px;
+    background: var(--bg-glass); border: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+    position: relative; overflow: hidden;
+    transition: all 0.35s var(--ease-out);
+  }
+  .polish-tile:hover { transform: translateY(-3px); border-color: var(--border-strong); }
+  .polish-tile .icon-badge { width: 36px; height: 36px; border-radius: 10px; }
+  .polish-tile .icon-badge svg { width: 18px; height: 18px; }
+  .polish-tile h4 { font-size: 13px; font-weight: 600; line-height: 1.25; }
+  .polish-tile p { font-size: 10.5px; color: var(--text-muted); line-height: 1.45; }
+  .polish-tile .row { display: flex; align-items: center; gap: 10px; }
+  .polish-tile .row .pill { font-size: 9px; padding: 2px 8px; }
+
+  /* INFRA TABLE */
+  .infra-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12.5px; margin-top: 10px;
+  }
+  .infra-table th, .infra-table td {
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .infra-table th {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-dim); font-weight: 600;
+  }
+  .infra-table td .stack {
+    font-family: 'Geist Mono', monospace; font-size: 11.5px;
+    color: var(--gold); font-weight: 600;
+  }
+  .infra-table td.mech { color: var(--text-muted); }
+  .infra-table td .mono { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--text); }
+
+  /* SHIP */
+  .ship { text-align: center; align-items: center; }
+  .ship h1 { font-size: clamp(64px, 10vw, 144px); line-height: 0.95; }
+  .cta-row { display: flex; gap: 16px; justify-content: center; margin-top: 32px; flex-wrap: wrap; }
+  .cta {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 24px; border-radius: 999px;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-soft) 100%);
+    color: var(--bg); font-weight: 600; font-size: 15px;
+    text-decoration: none;
+    box-shadow: 0 8px 30px -8px rgba(253,200,0,0.5);
+    transition: all 0.25s var(--ease-out);
+    border: none; cursor: pointer;
+  }
+  .cta:hover { transform: translateY(-2px); box-shadow: 0 12px 40px -8px rgba(253,200,0,0.6); }
+  .cta svg { width: 18px; height: 18px; }
+  .cta.secondary {
+    background: rgba(255,255,255,0.06); color: var(--text);
+    border: 1px solid var(--border-strong); box-shadow: none;
+  }
+  .cta.secondary:hover { background: rgba(255,255,255,0.1); }
+
+  .big-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 24px; margin-top: 24px;
+  }
+  .big-stat {
+    padding: 32px; border-radius: 20px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+    border: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  .big-stat::before {
+    content: ''; position: absolute; inset: 0; opacity: 0.08;
+    background: currentColor; border-radius: inherit;
+  }
+  .big-stat > * { position: relative; z-index: 1; }
+  .big-stat.gold   { color: var(--gold); }
+  .big-stat.green  { color: var(--green); }
+  .big-stat.coral  { color: var(--coral); }
+  .big-stat.purple { color: var(--purple); }
+  .big-stat .v { font-size: clamp(48px, 6vw, 88px); font-weight: 800; letter-spacing: -0.05em; line-height: 1; }
+  .big-stat .k { color: var(--text); font-size: 14px; font-weight: 600; margin-top: 16px; }
+  .big-stat .s { color: var(--text-muted); font-size: 13px; line-height: 1.5; margin-top: 8px; }
+
+  /* SHOWCASE */
+  .showcase { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .showcase-card {
+    padding: 24px; border-radius: 18px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+    border: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  .showcase-card.gold::after  { content: ''; position: absolute; top: -40px; right: -40px; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(253,200,0,0.12), transparent 70%); pointer-events: none; }
+  .showcase-card.purple::after{ content: ''; position: absolute; top: -40px; right: -40px; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(156,122,255,0.12), transparent 70%); pointer-events: none; }
+  .showcase-card > * { position: relative; z-index: 1; }
+  .at-anim {
+    font-family: 'Geist Mono', monospace;
+    font-size: clamp(20px, 2.5vw, 32px); font-weight: 700;
+    letter-spacing: -0.02em;
+    padding: 18px 16px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    text-align: center;
+    margin-top: 14px;
+  }
+  .at-anim .u { color: var(--text); }
+  .at-anim .at {
+    color: var(--gold);
+    display: inline-block;
+    animation: at-pulse 2.4s ease-in-out infinite;
+  }
+  .at-anim .d { color: var(--text-muted); }
+  @keyframes at-pulse {
+    0%, 100% { transform: scale(1); text-shadow: 0 0 0 rgba(253,200,0,0); }
+    50%      { transform: scale(1.18); text-shadow: 0 0 18px rgba(253,200,0,0.55); }
+  }
+  .step-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .step-row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12.5px; color: var(--text);
+    padding: 8px 10px; background: rgba(255,255,255,0.03); border-radius: 8px;
+  }
+  .step-row .num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(253,200,0,0.15); border: 1px solid rgba(253,200,0,0.4);
+    color: var(--gold); font-size: 11px; font-weight: 700;
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+  .showcase-card.purple .step-row .num {
+    background: rgba(156,122,255,0.15); border-color: rgba(156,122,255,0.4); color: var(--purple);
+  }
+
+  /* NAV */
+  .nav {
+    position: fixed; bottom: 28px; left: 0; right: 0;
+    z-index: 100;
+    display: flex; align-items: center; justify-content: center; gap: 16px;
+    pointer-events: none;
+    opacity: 1; transform: translateY(0);
+    transition: opacity 0.45s var(--ease-out), transform 0.45s var(--ease-out);
+  }
+  .nav > * { pointer-events: auto; }
+  .nav.hidden { opacity: 0; transform: translateY(24px); }
+  .nav.hidden > * { pointer-events: none; }
+  .nav-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--bg-glass); border: 1px solid var(--border);
+    color: var(--text-muted);
+    display: grid; place-items: center;
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); border-color: var(--border-strong); }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .nav-btn svg { width: 18px; height: 18px; }
+
+  .dots {
+    display: flex; gap: 8px; align-items: center;
+    padding: 8px 16px; border-radius: 999px;
+    background: var(--bg-glass); border: 1px solid var(--border);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255,255,255,0.16);
+    cursor: pointer;
+    transition: all 0.25s var(--ease-out);
+    border: none; padding: 0;
+  }
+  .dot:hover { background: rgba(255,255,255,0.32); }
+  .dot.active {
+    background: var(--gold); width: 24px; border-radius: 4px;
+    box-shadow: 0 0 12px rgba(253,200,0,0.5);
+  }
+
+  .progress {
+    position: fixed; top: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--gold), var(--coral));
+    z-index: 200; width: 0;
+    transition: width 0.6s var(--ease-out);
+    box-shadow: 0 0 10px rgba(253,200,0,0.5);
+  }
+
+  /* KEYBOARD HINTS */
+  .kb-key-floating {
+    position: fixed; top: 50%; z-index: 99;
+    width: 184px; height: 184px;
+    display: grid; place-items: center;
+    border-radius: 36px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-bottom: 8px solid rgba(255,255,255,0.16);
+    color: var(--text-muted);
+    pointer-events: none; opacity: 0;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out);
+  }
+  .kb-key-floating svg { width: 80px; height: 80px; stroke-width: 2; }
+  .kb-key-floating.left  { left: 40px;  transform: translateY(-50%) translateX(-30px);
+    animation: kb-float-in-left 0.9s var(--ease-out) 1.0s forwards, kb-press-big 2.6s ease-in-out 1.9s infinite; }
+  .kb-key-floating.right { right: 40px; transform: translateY(-50%) translateX(30px);
+    animation: kb-float-in-right 0.9s var(--ease-out) 1.0s forwards, kb-press-big 2.6s ease-in-out 3.2s infinite; }
+  @keyframes kb-float-in-left  { 0% { opacity: 0; transform: translateY(-50%) translateX(-30px); } 100% { opacity: 1; transform: translateY(-50%) translateX(0); } }
+  @keyframes kb-float-in-right { 0% { opacity: 0; transform: translateY(-50%) translateX(30px); }  100% { opacity: 1; transform: translateY(-50%) translateX(0); } }
+  .kb-key-floating.dismissed { opacity: 0 !important; animation: none !important; pointer-events: none; }
+  .kb-key-floating.left.dismissed  { transform: translateY(-50%) translateX(-40px) !important; }
+  .kb-key-floating.right.dismissed { transform: translateY(-50%) translateX(40px) !important; }
+  @keyframes kb-press-big {
+    0%, 92%, 100% {
+      background: rgba(255,255,255,0.03);
+      border-color: rgba(255,255,255,0.14);
+      border-bottom-color: rgba(255,255,255,0.16);
+      color: var(--text-muted);
+      transform: translateY(-50%);
+      border-bottom-width: 8px;
+      box-shadow: none;
+    }
+    8%, 25% {
+      background: rgba(253,200,0,0.22);
+      border-color: rgba(253,200,0,0.7);
+      border-bottom-color: rgba(253,200,0,0.45);
+      color: var(--gold);
+      transform: translateY(calc(-50% + 6px));
+      border-bottom-width: 2px;
+      box-shadow:
+        0 0 60px rgba(253,200,0,0.35),
+        0 18px 40px -10px rgba(253,200,0,0.4),
+        inset 0 2px 0 rgba(255,255,255,0.06);
+    }
+  }
+  @media (max-width: 1100px) {
+    .kb-key-floating { width: 140px; height: 140px; border-radius: 28px; border-bottom-width: 6px; }
+    .kb-key-floating svg { width: 60px; height: 60px; }
+    .kb-key-floating.left  { left: 24px; }
+    .kb-key-floating.right { right: 24px; }
+  }
+  @media (max-width: 720px) {
+    .kb-key-floating { width: 96px; height: 96px; border-radius: 20px; border-bottom-width: 4px; }
+    .kb-key-floating svg { width: 44px; height: 44px; }
+    .kb-key-floating.left  { left: 16px; }
+    .kb-key-floating.right { right: 16px; }
+  }
+
+  .slide-count {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px; color: var(--text-muted); font-weight: 500;
+  }
+  .slide-count .cur { color: var(--gold); font-weight: 700; }
+  .keys {
+    position: fixed; bottom: 28px; right: 28px;
+    z-index: 100;
+    font-family: 'Geist Mono', monospace; font-size: 11px;
+    color: var(--text-dim);
+    display: flex; gap: 12px; align-items: center;
+    pointer-events: none;
+  }
+  .keys kbd {
+    background: var(--bg-glass); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 6px;
+    font-family: inherit; font-size: 10px; color: var(--text-muted);
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .slide { padding: 80px 24px 100px; }
+    .chrome { padding: 16px 24px; }
+    .grid-4, .grid-3, .polish-grid, .big-stats { grid-template-columns: repeat(2, 1fr); }
+    .theme-grid { grid-template-columns: 1fr; }
+    .map-wrap { grid-template-columns: 1fr; }
+    .showcase { grid-template-columns: 1fr; }
+    .driver-matrix { grid-template-columns: repeat(2, 1fr); }
+    .seq { grid-template-columns: repeat(2, 1fr); }
+    .flow-row { grid-template-columns: 1fr; }
+    .token-grid { grid-template-columns: 1fr; }
+    .cover-shape { display: none; }
+    .keys { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<header class="chrome">
+  <div class="chrome-left">
+    <div class="badge">
+      <span class="dot"></span>
+      <span>In Progress</span>
+    </div>
+    <div class="slide-count">
+      <span class="cur" id="slideNum">01</span>
+      <span>/ 11</span>
+    </div>
+  </div>
+  <div class="brand brand-right">
+    <div class="label">
+      <span class="name">NWC</span>
+      <span class="sub">Month 5 · 2026</span>
+    </div>
+    <div class="sep"></div>
+    <img src="./lawallet.svg" alt="LaWallet" class="mark" />
+  </div>
+</header>
+
+<main class="deck" id="deck">
+
+  <!-- ================== SLIDE 1: COVER ================== -->
+  <section class="slide cover active" data-slide="1">
+    <div class="cover-shape">
+      <div class="blob a"></div>
+      <div class="blob b"></div>
+      <div class="blob c"></div>
+    </div>
+    <div class="slide-inner">
+      <div class="reveal reveal-1 tagline">May 5 — June 5, 2026 · Three themes</div>
+      <h1 class="display reveal reveal-2">
+        Month 5 <span class="scribble">starts here</span><br>
+        <span class="accent">Remote Wallets,</span><br>
+        cards &amp; polish.
+      </h1>
+      <p class="lead reveal reveal-3" style="margin-top: 12px; max-width: 760px;">
+        <strong class="text-gold">Remote Wallets</strong> land first as the named Lightning-source abstraction every card downstream draws from.
+        Then the <strong class="text-green">Card pipeline</strong> — QR JWT login, <span class="mono text-muted">card-installer</span>, the <span class="mono text-muted">simple-card-manager</span> rewrite, and the end-user "Activate Card" flow. Cards are <span class="text-green">SIMPLE</span> or <span class="text-purple">MASTER</span>; QRs are <span class="text-green">ONE_TIME</span> or <span class="text-purple">FOREVER</span> — orthogonal.
+        Topped with the <strong class="text-purple">Platform Polish</strong> shelf: NIP-05, customizable domain landing, admin home redesign, infra-aware onboarding.
+      </p>
+      <div class="cover-meta reveal reveal-4">
+        <div class="item">
+          <div class="k">Phase</div>
+          <div class="v">Expansion</div>
+        </div>
+        <div class="item">
+          <div class="k">Themes</div>
+          <div class="v">3 · A → B → C</div>
+        </div>
+        <div class="item">
+          <div class="k">Headlines</div>
+          <div class="v">RemoteWallet · Card flow · Landing</div>
+        </div>
+        <div class="item">
+          <div class="k">Grant</div>
+          <div class="v">OpenSats · Wave 15</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 2: TIMELINE ================== -->
+  <section class="slide" data-slide="2">
+    <div class="slide-inner">
+      <div class="reveal reveal-1 eyebrow"><span class="pulse"></span>Where M5 fits</div>
+      <h2 class="reveal reveal-2">An 8-month OpenSats journey,<br><span class="text-gold">five months in.</span></h2>
+      <p class="lead reveal reveal-3">
+        Four months shipped — backend, CI, the admin dashboard, the user wallet + monorepo. M5 lays the abstraction
+        cards depend on, ships the card-side apps end-to-end, and sets up the M6 settlement layer.
+      </p>
+      <div class="timeline reveal reveal-4">
+        <div class="tl-month done"><div class="m">M1</div><div class="title">Foundation</div><div class="state">✓ Shipped</div></div>
+        <div class="tl-month done"><div class="m">M2</div><div class="title">CI · Auth</div><div class="state">✓ Shipped</div></div>
+        <div class="tl-month done"><div class="m">M3</div><div class="title">Admin Dashboard</div><div class="state">✓ Shipped</div></div>
+        <div class="tl-month done"><div class="m">M4</div><div class="title">Wallet · Monorepo</div><div class="state">✓ Shipped</div></div>
+        <div class="tl-month current"><div class="m">M5</div><div class="title">Wallets · Cards · Polish</div><div class="state">▶ In Progress</div></div>
+        <div class="tl-month planned"><div class="m">M6</div><div class="title">Listener · Proxy · Deploy</div><div class="state">Planned</div></div>
+        <div class="tl-month planned"><div class="m">M7</div><div class="title">Subscriptions · Chat · i18n</div><div class="state">Beyond</div></div>
+        <div class="tl-month planned"><div class="m">M8</div><div class="title">AI Agents</div><div class="state">Beyond</div></div>
+      </div>
+      <div class="timeline-bar reveal reveal-5">
+        <span class="text-green">4 months shipped</span>
+        <div class="seg"></div>
+        <span class="text-muted">3 months ahead</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 3: THREE THEMES ================== -->
+  <section class="slide" data-slide="3">
+    <div class="slide-inner">
+      <div class="reveal reveal-1 eyebrow"><span class="pulse"></span>Three themes, one month</div>
+      <h2 class="reveal reveal-2">Wallets first.<br><span class="text-gold">Cards bind to them.</span></h2>
+      <div class="theme-grid reveal reveal-3">
+        <div class="theme-card a">
+          <span class="num">A</span>
+          <div class="icon-badge gold lg">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M16 11h.01"/><path d="M2 10h20"/></svg>
+          </div>
+          <h3>Remote Wallets</h3>
+          <p class="text-muted" style="font-size: 13px;">Lightning-source provider with a <span class="mono text-gold">type</span> discriminator. NWC active in M5; LND / CLN / BTCPay reserved.</p>
+          <ul class="theme-list a">
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div><span class="mono">RemoteWallet</span> model + driver interface</div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>Wallet UI · create / rename / default / disable</div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>Connection Map UI · LA + Card ↔ Wallet</div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div><span class="mono">NWCConnection</span> rows migrate forward</div></li>
+          </ul>
+        </div>
+        <div class="theme-card b">
+          <span class="num">B</span>
+          <div class="icon-badge green lg">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+          </div>
+          <h3>Card System Apps &amp; Flows</h3>
+          <p class="text-muted" style="font-size: 13px;">From blank chip to tap-to-pay — sequenced. QR JWT login is the shared contract both card-side apps build against.</p>
+          <ul class="theme-list b">
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>B.0 · QR-based JWT login in <span class="mono">apps/web</span></div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>B.1 · <span class="mono">card-installer</span> Android</div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>B.2 · <span class="mono">simple-card-manager</span> rewrite + activation QR + rescue</div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>B.3 · Activate Card · ONE_TIME / FOREVER QR</div></li>
+          </ul>
+        </div>
+        <div class="theme-card c">
+          <span class="num">C</span>
+          <div class="icon-badge purple lg">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6M7 12H1m17.5-7.5-4 4m-7 7-4 4m0-15 4 4m7 7 4 4"/></svg>
+          </div>
+          <h3>Platform Polish &amp; Landing</h3>
+          <p class="text-muted" style="font-size: 13px;">NIP-05, infra-aware onboarding, the customizable domain landing, the admin home redesign, PWA, bug fixes.</p>
+          <ul class="theme-list c">
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>Full NIP-05 + relay picker + user data cache</div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>Customizable domain landing (white-label)</div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>Admin home redesign · animated <span class="mono">@</span> hero</div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>Onboarding v2 · infra-aware <span class="mono">.well-known</span> rewrites</div></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 4: REMOTE WALLETS ================== -->
+  <section class="slide" data-slide="4">
+    <div class="slide-inner">
+      <div class="reveal reveal-1 eyebrow"><span class="pulse"></span>Theme A · Remote Wallets</div>
+      <h2 class="reveal reveal-2">One model.<br><span class="text-gold">Many Lightning sources.</span></h2>
+      <p class="lead reveal reveal-3">
+        Every Lightning address and every card binds to a <span class="mono text-gold">RemoteWallet</span> by id. The
+        <span class="mono">type</span> field is the door for future drivers — NWC is the only one wired in M5; LND,
+        Core Lightning and BTCPayServer slots are reserved and call sites don't change when they land.
+      </p>
+
+      <div class="grid grid-2 reveal reveal-4" style="grid-template-columns: 1.15fr 1fr;">
+        <div class="model-block">
+<span class="kw">model</span> <span class="name">RemoteWallet</span> {
+  <span class="kw">id</span>           cuid
+  <span class="kw">userId</span>       cuid                  <span class="comment"># owner</span>
+  <span class="kw">name</span>         string                <span class="comment"># user label</span>
+  <span class="kw">type</span>         <span class="type">enum</span>                  <span class="comment"># NWC active · LND / CLN / BTCPAY reserved</span>
+  <span class="kw">config</span>       Json                  <span class="comment"># type-specific, encrypted at rest</span>
+  <span class="kw">status</span>       <span class="type">enum</span>                  <span class="comment"># ACTIVE | DISABLED | REVOKED</span>
+  <span class="kw">isDefault</span>    boolean               <span class="comment"># one default per user</span>
+  <span class="kw">createdAt</span>, <span class="kw">updatedAt</span>
+}
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="glass" style="padding: 16px 18px;">
+            <div style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px;">Driver interface</div>
+            <div class="mono" style="font-size: 12px; color: var(--text); line-height: 1.7;">
+              <span class="text-green">getInfo</span>() ·
+              <span class="text-green">makeInvoice</span>() ·<br>
+              <span class="text-green">lookupInvoice</span>() ·
+              <span class="text-green">subscribeToPayments</span>()
+            </div>
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.5;">
+              Adding a new <span class="mono">type</span> is a new driver module — no call-site changes in <span class="mono">apps/web</span> or <span class="mono">apps/listener</span>.
+            </p>
+          </div>
+          <div class="glass" style="padding: 16px 18px;">
+            <div style="font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px;">Migration</div>
+            <p style="font-size: 12px; color: var(--text); line-height: 1.6;">
+              Existing <span class="mono text-coral">NWCConnection</span> rows migrate forward into
+              <span class="mono text-gold">RemoteWallet</span> rows with <span class="mono">type = NWC</span>.
+              <span class="mono">LightningAddress.remoteWalletId</span> and <span class="mono">Card.remoteWalletId</span> replace direct references.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="driver-matrix reveal reveal-5">
+        <div class="driver-cell active">
+          <div class="type">NWC</div>
+          <div class="label">Nostr Wallet Connect</div>
+          <div class="status">✓ Ships in M5</div>
+        </div>
+        <div class="driver-cell">
+          <div class="type">LND</div>
+          <div class="label">LND gRPC / REST</div>
+          <div class="status">Reserved</div>
+        </div>
+        <div class="driver-cell">
+          <div class="type">CLN</div>
+          <div class="label">Core Lightning</div>
+          <div class="status">Reserved</div>
+        </div>
+        <div class="driver-cell">
+          <div class="type">BTCPAY</div>
+          <div class="label">BTCPay Greenfield</div>
+          <div class="status">Reserved</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 5: CONNECTION MAP UI ================== -->
+  <section class="slide" data-slide="5">
+    <div class="slide-inner">
+      <div class="reveal reveal-1 eyebrow"><span class="pulse"></span>Theme A · Connection Map UI</div>
+      <h2 class="reveal reveal-2">Lightning addresses + Cards<br><span class="text-gold">to Remote Wallets, visualised.</span></h2>
+      <p class="lead reveal reveal-3">
+        The primary surface for editing bindings. Desktop: two-column canvas with sources on the left, wallets on the right,
+        drag-to-rebind. Mobile: three tabs (Addresses · Cards · Wallets), chip-pickers do the rebind.
+      </p>
+
+      <div class="map-wrap reveal reveal-4">
+        <!-- Desktop canvas -->
+        <div class="map-canvas">
+          <div class="badge-corner">Desktop · ≥ 1024 px</div>
+
+          <!-- Left column: LAs + Cards -->
+          <div class="col left">
+            <div class="col-label">Lightning addresses</div>
+            <div class="node la" id="m-la-1"><span style="font-family: 'Geist Mono', monospace;">alice@domain</span></div>
+            <div class="node la" id="m-la-2"><span style="font-family: 'Geist Mono', monospace;">bob@domain</span></div>
+            <div class="divider"></div>
+            <div class="col-label">Cards</div>
+            <div class="node card" id="m-card-1"><span class="pill p0" style="background: rgba(233,80,82,0.15); border-color: rgba(233,80,82,0.4); color: var(--coral);">Card · #042</span></div>
+            <div class="node card" id="m-card-2"><span class="pill p0" style="background: rgba(233,80,82,0.15); border-color: rgba(233,80,82,0.4); color: var(--coral);">Card · #043</span></div>
+          </div>
+
+          <!-- Right column: Wallets -->
+          <div class="col right">
+            <div class="col-label">Remote Wallets</div>
+            <div class="node wallet" id="m-w-1"><span style="font-family: 'Geist Mono', monospace;">Alby Sub</span><span style="margin-left: auto;" class="pill p2">NWC</span></div>
+            <div class="node wallet" id="m-w-2"><span style="font-family: 'Geist Mono', monospace;">Cashapp Box</span><span style="margin-left: auto;" class="pill p2">NWC</span></div>
+            <div class="node wallet" id="m-w-3"><span style="font-family: 'Geist Mono', monospace;">Cold Ops</span><span style="margin-left: auto;" class="pill p2">NWC</span></div>
+          </div>
+
+          <!-- Edges -->
+          <svg class="svg-edges" preserveAspectRatio="none" viewBox="0 0 100 100">
+            <!-- LA-binding edges (gold) -->
+            <path d="M 30 23 C 50 23, 50 26, 70 26" fill="none" stroke="rgba(253,200,0,0.55)" stroke-width="0.4" />
+            <path d="M 30 34 C 50 34, 50 41, 70 41" fill="none" stroke="rgba(253,200,0,0.55)" stroke-width="0.4" />
+            <!-- Card-binding edges (coral) -->
+            <path d="M 30 62 C 50 62, 50 41, 70 41" fill="none" stroke="rgba(233,80,82,0.55)" stroke-width="0.4" stroke-dasharray="0.6 0.6" />
+            <path d="M 30 73 C 50 73, 50 56, 70 56" fill="none" stroke="rgba(233,80,82,0.55)" stroke-width="0.4" stroke-dasharray="0.6 0.6" />
+          </svg>
+
+          <div style="position: absolute; bottom: 16px; left: 24px; display: flex; gap: 18px; font-size: 10px;">
+            <div style="display: flex; align-items: center; gap: 6px;"><div style="width: 18px; height: 2px; background: rgba(253,200,0,0.6);"></div><span class="text-muted">LA · binding</span></div>
+            <div style="display: flex; align-items: center; gap: 6px;"><div style="width: 18px; height: 2px; background: rgba(233,80,82,0.6); background-image: repeating-linear-gradient(90deg, rgba(233,80,82,0.6) 0 4px, transparent 4px 6px);"></div><span class="text-muted">Card · binding</span></div>
+          </div>
+        </div>
+
+        <!-- Mobile -->
+        <div class="map-mobile">
+          <div style="font-family: 'Geist Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px;">Mobile · &lt; 1024 px</div>
+          <div class="tabs">
+            <div class="tab active">Addresses</div>
+            <div class="tab">Cards</div>
+            <div class="tab">Wallets</div>
+          </div>
+          <div class="row"><span class="mono">alice@domain</span><span class="chip">Alby Sub</span></div>
+          <div class="row"><span class="mono">bob@domain</span><span class="chip">Cashapp Box</span></div>
+          <div class="row"><span class="mono">vip@domain</span><span class="chip">Cashapp Box</span></div>
+          <p style="font-size: 11px; color: var(--text-dim); margin-top: 12px; line-height: 1.5;">
+            Tap chip → bottom-sheet picker rebinds. Wallets tab is read-only summary; rebinds happen from Addresses / Cards.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 6: CARD PIPELINE ================== -->
+  <section class="slide" data-slide="6">
+    <div class="slide-inner">
+      <div class="reveal reveal-1 eyebrow green"><span class="pulse"></span>Theme B · Card pipeline</div>
+      <h2 class="reveal reveal-2">From blank chip to tap-to-pay<br><span class="text-green">in five sequenced steps.</span></h2>
+      <p class="lead reveal reveal-3">
+        <strong>B.0</strong> ships first — the shared QR JWT login both card-side apps consume. Then the field tool, the
+        admin workbench, the end-user claim, and the full Playwright + simulated-NFC happy path.
+      </p>
+
+      <div class="seq reveal reveal-4">
+        <div class="seq-step">
+          <div class="ord">B.0</div>
+          <h4>QR JWT Login</h4>
+          <p>Shared login surface in <span class="mono">apps/web</span>. Backend displays QR; both card apps authenticate against it.</p>
+          <span class="pill p0">P0 · prerequisite</span>
+        </div>
+        <div class="seq-step">
+          <div class="ord">B.1</div>
+          <h4><span class="mono">card-installer</span></h4>
+          <p>Android app provisions blank NTAG424s in the field; pair-call carries <span class="mono">remoteWalletId</span>.</p>
+          <span class="pill p0">P0</span>
+        </div>
+        <div class="seq-step">
+          <div class="ord">B.2</div>
+          <h4><span class="mono">simple-card-manager</span></h4>
+          <p>Rewrite. Drives the E2E. Re-issues activation QR for any card (ONE_TIME / FOREVER) + rescue path.</p>
+          <span class="pill p1">P1</span>
+        </div>
+        <div class="seq-step">
+          <div class="ord">B.3</div>
+          <h4>Activate Card</h4>
+          <p>End-user wallet scans QR (as new or existing user); ONE_TIME burns + transfers card; FOREVER shares full account.</p>
+          <span class="pill p0">P0</span>
+        </div>
+        <div class="seq-step">
+          <div class="ord">B.4</div>
+          <h4>Connect E2E</h4>
+          <p><span class="mono">issue → install → activate-QR → claim → pair → pay</span>. Playwright + simulated NFC.</p>
+          <span class="pill p0">P0</span>
+        </div>
+      </div>
+
+      <div class="glass reveal reveal-5" style="display: flex; align-items: center; gap: 16px; padding: 16px 24px;">
+        <div class="icon-badge gold">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+        </div>
+        <div>
+          <div style="font-size: 14px; font-weight: 600;">Every card binds to a <span class="text-gold">Remote Wallet</span> from day one</div>
+          <div style="font-size: 12px; color: var(--text-muted);">No temporary direct-NWC binding. No rework when LND / CLN / BTCPay drivers land later.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 7: B.0 QR JWT LOGIN ================== -->
+  <section class="slide" data-slide="7">
+    <div class="slide-inner">
+      <div class="reveal reveal-1 eyebrow coral"><span class="pulse"></span>B.0 · QR-based JWT Login</div>
+      <h2 class="reveal reveal-2">Admin mints the token.<br><span class="text-coral">QR carries the JWT.</span></h2>
+      <p class="lead reveal reveal-3">
+        The admin picks a user, ticks permissions, sets an expiration, and the backend signs a JWT.
+        It renders as a QR on the admin screen; the device scans it and runs with it.
+        <strong class="text-coral">Stateless</strong> — no session record, no polling, no revocation surface.
+      </p>
+
+      <div class="flow-row reveal reveal-4">
+        <div class="flow-node">
+          <div class="icon-badge gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"/></svg></div>
+          <div class="step">Step 01</div>
+          <h4>Pick user</h4>
+          <p>Admin opens <span class="mono">Settings → Device Tokens</span>; chooses target user.</p>
+        </div>
+        <div class="flow-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
+        <div class="flow-node">
+          <div class="icon-badge purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12l2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div>
+          <div class="step">Step 02</div>
+          <h4>Tick permissions</h4>
+          <p>RBAC subset checklist — JWT scope ⊆ admin's own RBAC.</p>
+        </div>
+        <div class="flow-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
+        <div class="flow-node">
+          <div class="icon-badge orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <div class="step">Step 03</div>
+          <h4>Pick expiration</h4>
+          <p>Preset list · <span class="mono">1h · 8h · 24h · 7d</span> · custom</p>
+        </div>
+      </div>
+
+      <div class="flow-row reveal reveal-5" style="grid-template-columns: 1fr auto 1fr;">
+        <div class="flow-node">
+          <div class="icon-badge green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <div class="step">Step 04</div>
+          <h4>Generate JWT</h4>
+          <p><span class="mono">POST /api/auth/qr-jwt/generate</span> → signs <span class="mono">{ sub, scopes, exp }</span> → returns <span class="mono">{ jwt }</span></p>
+        </div>
+        <div class="flow-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
+        <div class="flow-node">
+          <div class="icon-badge gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></div>
+          <div class="step">Step 05</div>
+          <h4>QR + scan</h4>
+          <p>Admin UI renders the JWT as a QR. Card app scans → JWT lands in the device.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-4 reveal reveal-6" style="margin-top: 4px;">
+        <div class="glass" style="padding: 14px 16px;">
+          <div class="text-coral mono" style="font-size: 11px; font-weight: 700;">Single endpoint</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;"><span class="mono">/api/auth/qr-jwt/generate</span> · admin only</div>
+        </div>
+        <div class="glass" style="padding: 14px 16px;">
+          <div class="text-coral mono" style="font-size: 11px; font-weight: 700;">No storage</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">No session table · stateless JWT · signature + <span class="mono">exp</span> only</div>
+        </div>
+        <div class="glass" style="padding: 14px 16px;">
+          <div class="text-coral mono" style="font-size: 11px; font-weight: 700;">No revocation</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">JWTs valid until <span class="mono">exp</span>. Pick short expirations.</div>
+        </div>
+        <div class="glass" style="padding: 14px 16px;">
+          <div class="text-coral mono" style="font-size: 11px; font-weight: 700;">Scope-bound</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">JWT permissions ⊆ admin's RBAC · rate-limited generation</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 8: CARDS × QRs ================== -->
+  <section class="slide" data-slide="8">
+    <div class="slide-inner">
+      <div class="reveal reveal-1 eyebrow purple"><span class="pulse"></span>B.2.1 + B.3 · Two orthogonal concepts</div>
+      <h2 class="reveal reveal-2">Card kind · QR kind.<br><span class="text-purple">Separate axes.</span></h2>
+      <p class="lead reveal reveal-3">
+        A <strong>card</strong> is declared as <span class="mono text-green">SIMPLE</span> or <span class="mono text-purple">MASTER</span> at creation. A
+        <strong>QR</strong> issued for a card is either <span class="mono text-green">ONE_TIME</span> or <span class="mono text-purple">FOREVER</span>.
+        <strong>Max one active QR of each kind per card</strong> — a new QR of the same kind invalidates the previous.
+      </p>
+
+      <div class="grid grid-2 reveal reveal-4" style="gap: 18px;">
+        <div class="tile gold" style="padding: 24px;">
+          <div style="font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px;">Card kinds · declared at creation</div>
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 4px;">
+            <div style="padding: 12px 14px; border-radius: 10px; background: rgba(85,182,140,0.05); border: 1px solid rgba(85,182,140,0.2);">
+              <div style="font-family: 'Geist Mono', monospace; font-size: 14px; font-weight: 700; color: var(--green);">SIMPLE</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5;">Single-holder card. Only ownership transfer (<span class="mono">ONE_TIME</span> QRs only).</div>
+            </div>
+            <div style="padding: 12px 14px; border-radius: 10px; background: rgba(156,122,255,0.05); border: 1px solid rgba(156,122,255,0.2);">
+              <div style="font-family: 'Geist Mono', monospace; font-size: 14px; font-weight: 700; color: var(--purple);">MASTER</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5;">Account-share-capable. Supports both <span class="mono">ONE_TIME</span> (transfer) and <span class="mono">FOREVER</span> (account share) QRs — up to one of each active concurrently.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tile purple" style="padding: 24px;">
+          <div style="font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px;">QR kinds · per activation token</div>
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 4px;">
+            <div style="padding: 12px 14px; border-radius: 10px; background: rgba(85,182,140,0.05); border: 1px solid rgba(85,182,140,0.2);">
+              <div style="font-family: 'Geist Mono', monospace; font-size: 14px; font-weight: 700; color: var(--green);">ONE_TIME</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5;">Single-use. First scan claims; token burns; transfers card ownership. Works on SIMPLE and MASTER cards.</div>
+            </div>
+            <div style="padding: 12px 14px; border-radius: 10px; background: rgba(156,122,255,0.05); border: 1px solid rgba(156,122,255,0.2);">
+              <div style="font-family: 'Geist Mono', monospace; font-size: 14px; font-weight: 700; color: var(--purple);">FOREVER</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5;">Multi-use. Every scan grants the claimer share access to the card holder's LAs + Remote Wallets. Never burns. <strong>MASTER cards only</strong>.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal reveal-5" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 4px;">
+        <div class="glass" style="padding: 14px 16px;">
+          <div class="text-coral mono" style="font-size: 11px; font-weight: 700;">Constraint</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">Max one active QR per <span class="mono">(cardId, qrKind)</span>. New QR replaces the previous.</div>
+        </div>
+        <div class="glass" style="padding: 14px 16px;">
+          <div class="text-coral mono" style="font-size: 11px; font-weight: 700;">Identity</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">Claimer = new <span class="mono">nsec</span> on the fly · or existing user via NIP-07 / NIP-46 / nsec paste.</div>
+        </div>
+        <div class="glass" style="padding: 14px 16px;">
+          <div class="text-coral mono" style="font-size: 11px; font-weight: 700;">Re-issue</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">Any card holder mints a fresh QR via <span class="mono">simple-card-manager</span>. Cards transfer only via their own QR.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 9: PLATFORM POLISH ================== -->
+  <section class="slide" data-slide="9">
+    <div class="slide-inner">
+      <div class="reveal reveal-1 eyebrow purple"><span class="pulse"></span>Theme C · Platform Polish</div>
+      <h2 class="reveal reveal-2">The polish shelf<br><span class="text-purple">that compounds.</span></h2>
+      <p class="lead reveal reveal-3">
+        Runs in parallel with the card pipeline. NIP-05 + relay picker + user data cache lay the Nostr-identity surface
+        the listener (M6) will lean on; the customizable landing and admin home redesign reshape first impressions.
+      </p>
+      <div class="polish-grid reveal reveal-4">
+        <div class="polish-tile">
+          <div class="icon-badge green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+          <h4>NIP-05 — full</h4>
+          <p><span class="mono">.well-known/nostr.json</span> + relays + avatar.</p>
+          <div class="row"><span class="pill p0">P0</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg></div>
+          <h4>Relay picker</h4>
+          <p>Per-user preference. WSS only.</p>
+          <div class="row"><span class="pill p1">P1</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg></div>
+          <h4>User Data Cache</h4>
+          <p><span class="mono">kind:0</span> + <span class="mono">kind:10002</span> with TTL.</p>
+          <div class="row"><span class="pill p1">P1</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg></div>
+          <h4>Onboarding v2</h4>
+          <p>Infra detect + <span class="mono">.well-known</span> rewrites.</p>
+          <div class="row"><span class="pill p1">P1</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div>
+          <h4>Dashboard cache</h4>
+          <p>Dedupe <span class="mono">getSettings</span> across admin pages.</p>
+          <div class="row"><span class="pill p1">P1</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+          <h4>PWA Wallet</h4>
+          <p>Manifest + service worker + install.</p>
+          <div class="row"><span class="pill p1">P1</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge coral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+          <h4>Domain Landing</h4>
+          <p>White-label entry · cover + isotype + <span class="mono">you@domain</span> live.</p>
+          <div class="row"><span class="pill p0">P0</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/></svg></div>
+          <h4>Admin home redesign</h4>
+          <p>Animated <span class="mono">@</span> hero · LA-first onboarding.</p>
+          <div class="row"><span class="pill p0">P0</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="9" y="2" width="6" height="20" rx="1"/></svg></div>
+          <h4>Screenshots + social</h4>
+          <p>In-app strip + <span class="mono">social_*</span> footer icons.</p>
+          <div class="row"><span class="pill p1">P1</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l4.24 4.24"/><path d="M14.83 9.17l4.24-4.24"/><path d="M14.83 14.83l4.24 4.24"/><path d="M9.17 14.83l-4.24 4.24"/><circle cx="12" cy="12" r="4"/></svg></div>
+          <h4>Bug fixes</h4>
+          <p>Card-design dropdown · settings dedupe.</p>
+          <div class="row"><span class="pill p1">P1</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div>
+          <h4>Monthly roadmap</h4>
+          <p>Per-month pages on <span class="mono">lawallet-landing</span>.</p>
+          <div class="row"><span class="pill p1">P1</span></div>
+        </div>
+        <div class="polish-tile">
+          <div class="icon-badge purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+          <h4>Landing CRM swap</h4>
+          <p>Tally → operator's CRM.</p>
+          <div class="row"><span class="pill p2">P2</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 10: LANDING + ADMIN + INFRA ================== -->
+  <section class="slide" data-slide="10">
+    <div class="slide-inner">
+      <div class="reveal reveal-1 eyebrow purple"><span class="pulse"></span>Showcase · Theme C</div>
+      <h2 class="reveal reveal-2">First impressions,<br><span class="text-purple">redrawn.</span></h2>
+
+      <div class="showcase reveal reveal-3">
+        <div class="showcase-card gold">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="icon-badge gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+            <div>
+              <div style="font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase;">lawallet-web · landing</div>
+              <h3 style="margin-top: 2px;">Customizable Domain Landing</h3>
+            </div>
+          </div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 12px; line-height: 1.55;">
+            White-label entry screen. Cover banner, isotype, color + radius tokens, live <span class="mono text-gold">you@domain</span> preview, optional benefits step, login, continue.
+          </p>
+          <div class="at-anim">
+            <span class="u">alice</span><span class="at">@</span><span class="d">domain.com</span>
+          </div>
+          <div class="step-list">
+            <div class="step-row"><div class="num">1</div><div>Claim address · cover + isotype hero</div></div>
+            <div class="step-row"><div class="num">2</div><div>Live preview animates as user types</div></div>
+            <div class="step-row"><div class="num">3</div><div>Optional benefits markdown step</div></div>
+            <div class="step-row"><div class="num">4</div><div>Login → continue to wallet</div></div>
+          </div>
+        </div>
+
+        <div class="showcase-card purple">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="icon-badge purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div>
+            <div>
+              <div style="font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase;">apps/web · /admin</div>
+              <h3 style="margin-top: 2px;">Admin Home Redesign</h3>
+            </div>
+          </div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 12px; line-height: 1.55;">
+            Replaces the four-stat-card layout. Animated <span class="mono text-purple">username @ domain</span> hero, Lightning-address-first onboarding sequence, Remote Wallet picker inline when none is set.
+          </p>
+          <div class="at-anim">
+            <span class="u">operator</span><span class="at">@</span><span class="d">domain.com</span>
+          </div>
+          <div class="step-list">
+            <div class="step-row"><div class="num">1</div><div>Step 1 · Claim a Lightning address</div></div>
+            <div class="step-row"><div class="num">2</div><div>Step 2 · Connect a Remote Wallet</div></div>
+            <div class="step-row"><div class="num">3</div><div>Step 3 · Issue a card</div></div>
+            <div class="step-row"><div class="num">4</div><div>Stat cards demoted · zero-states hidden</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal reveal-4" style="margin-top: 4px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+          <div class="icon-badge orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg></div>
+          <div>
+            <div style="font-size: 11px; color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase;">Onboarding v2 · infra-aware</div>
+            <h3 style="font-size: 18px; margin-top: 2px;">Copy-pasteable rewrite recipes for <span class="mono text-orange">/.well-known/*</span></h3>
+          </div>
+        </div>
+        <div class="glass" style="padding: 14px 18px;">
+          <table class="infra-table">
+            <thead>
+              <tr><th>Detected stack</th><th>Mechanism</th><th>Snippet hint</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="stack">Cloudflare</span></td><td class="mech">Transform Rule / Worker</td><td><span class="mono">/.well-known/* → origin</span></td></tr>
+              <tr><td><span class="stack">CF Tunnel</span></td><td class="mech"><span class="mono">cloudflared</span> ingress</td><td><span class="mono">path: /.well-known/.*</span></td></tr>
+              <tr><td><span class="stack">Vercel</span></td><td class="mech"><span class="mono">vercel.json</span> rewrites</td><td><span class="mono">/.well-known/:path*</span></td></tr>
+              <tr><td><span class="stack">Netlify</span></td><td class="mech"><span class="mono">_redirects</span></td><td><span class="mono">/.well-known/*  ...  200</span></td></tr>
+              <tr><td><span class="stack">Nginx</span></td><td class="mech"><span class="mono">location</span> + <span class="mono">proxy_pass</span></td><td><span class="mono">location ~ ^/\.well-known/</span></td></tr>
+              <tr><td><span class="stack">Caddy</span></td><td class="mech"><span class="mono">handle_path</span> + <span class="mono">reverse_proxy</span></td><td><span class="mono">handle_path /.well-known/*</span></td></tr>
+              <tr><td><span class="stack">Apache</span></td><td class="mech"><span class="mono">mod_rewrite [P,L]</span></td><td><span class="mono">RewriteRule ^/\.well-known/(.*)$</span></td></tr>
+              <tr><td><span class="stack">Direct origin</span></td><td class="mech">DNS A/AAAA points at host</td><td>— no rewrite needed —</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size: 12px; color: var(--text-dim); margin-top: 8px; line-height: 1.5;">
+          HEAD-probes each path · <span class="mono text-gold">/lnurlp</span> · <span class="mono text-gold">/nostr.json</span> · <span class="mono text-gold">/verify</span> · before the wizard completes. Red/amber/green; cannot finish until all three are green.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================== SLIDE 11: SHIP IT ================== -->
+  <section class="slide ship" data-slide="11">
+    <div class="slide-inner" style="align-items: center;">
+      <div class="reveal reveal-1 eyebrow"><span class="pulse"></span>3 themes · A → B → C</div>
+      <h1 class="display reveal reveal-2">
+        Let's <span class="accent">ship M5.</span>
+      </h1>
+      <p class="lead reveal reveal-3" style="text-align: center; max-width: 680px;">
+        Remote Wallets first, then the card pipeline, then the polish shelf. The
+        <span class="text-gold">RemoteWallet</span> migration is the lock-in — every card downstream binds to one from day one.
+      </p>
+      <div class="big-stats reveal reveal-4" style="margin-top: 8px; width: 100%; max-width: 1100px;">
+        <div class="big-stat gold">
+          <div class="v">3</div>
+          <div class="k">Themes, ordered</div>
+          <div class="s">A · Remote Wallets → B · Card pipeline → C · Polish.</div>
+        </div>
+        <div class="big-stat green">
+          <div class="v">5</div>
+          <div class="k">B-pipeline steps</div>
+          <div class="s">B.0 QR login · B.1 installer · B.2 manager · B.3 activate · B.4 E2E.</div>
+        </div>
+        <div class="big-stat purple">
+          <div class="v">2 × 2</div>
+          <div class="k">Card × QR kinds</div>
+          <div class="s">Cards · <span class="mono">SIMPLE</span> | <span class="mono">MASTER</span>. QRs · <span class="mono">ONE_TIME</span> | <span class="mono">FOREVER</span>. Orthogonal.</div>
+        </div>
+        <div class="big-stat coral">
+          <div class="v">2</div>
+          <div class="k">New repositories</div>
+          <div class="s"><span class="mono">card-installer</span> (Android) · <span class="mono">simple-card-manager</span> (rewrite).</div>
+        </div>
+      </div>
+      <div class="cta-row reveal reveal-5">
+        <a class="cta" href="https://github.com/lawalletio/lawallet-nwc/blob/main/docs/roadmap/MONTH-5.md" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Read MONTH-5.md
+        </a>
+        <a class="cta secondary" href="https://github.com/lawalletio/lawallet-nwc/issues?q=is%3Aopen+%5BM5%5D+in%3Atitle" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+          M5 issues on GitHub
+        </a>
+        <a class="cta secondary" href="https://github.com/lawalletio/lawallet-nwc/blob/main/docs/ROADMAP.md" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          Full roadmap
+        </a>
+      </div>
+      <div class="reveal reveal-6" style="margin-top: 32px; display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--text-dim);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          OpenSats · Wave 15
+        </div>
+        <div style="width: 1px; height: 14px; background: var(--border);"></div>
+        <div>Dec 2025 — Sep 2026</div>
+        <div style="width: 1px; height: 14px; background: var(--border);"></div>
+        <div style="font-family: 'Geist Mono', monospace;">M5 / 8</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="nav" id="nav">
+  <button class="nav-btn" id="prev" aria-label="Previous slide">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+  </button>
+  <div class="dots" id="dots"></div>
+  <button class="nav-btn" id="next" aria-label="Next slide">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>
+</nav>
+
+<kbd class="kb-key-floating left" id="kbLeft" aria-hidden="true">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+</kbd>
+<kbd class="kb-key-floating right" id="kbRight" aria-hidden="true">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+</kbd>
+
+<div class="keys">
+  <span><kbd>←</kbd> <kbd>→</kbd> navigate</span>
+  <span><kbd>1</kbd>…<kbd>9</kbd> jump</span>
+  <span><kbd>F</kbd> fullscreen</span>
+</div>
+
+<script>
+(function () {
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  const dots = document.getElementById('dots');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const progress = document.getElementById('progress');
+  const slideNum = document.getElementById('slideNum');
+  const nav = document.getElementById('nav');
+  const kbLeft = document.getElementById('kbLeft');
+  const kbRight = document.getElementById('kbRight');
+
+  slides.forEach((_, i) => {
+    const dot = document.createElement('button');
+    dot.className = 'dot';
+    dot.setAttribute('aria-label', `Slide ${i + 1}`);
+    dot.addEventListener('click', () => goTo(i));
+    dots.appendChild(dot);
+  });
+
+  let current = 0;
+  let hintDismissed = false;
+
+  function update() {
+    slides.forEach((s, i) => {
+      s.classList.remove('active', 'prev');
+      if (i === current) s.classList.add('active');
+      else if (i < current) s.classList.add('prev');
+      if (i !== current) s.scrollTop = 0;
+    });
+    Array.from(dots.children).forEach((d, i) => { d.classList.toggle('active', i === current); });
+    progress.style.width = ((current + 1) / total * 100) + '%';
+    slideNum.textContent = String(current + 1).padStart(2, '0');
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === total - 1;
+    history.replaceState(null, '', '#slide-' + (current + 1));
+  }
+
+  function dismissHint() {
+    if (hintDismissed) return;
+    hintDismissed = true;
+    kbLeft.classList.add('dismissed');
+    kbRight.classList.add('dismissed');
+  }
+
+  function goTo(i) {
+    current = Math.max(0, Math.min(total - 1, i));
+    dismissHint();
+    update();
+  }
+  function next() { goTo(current + 1); }
+  function prev() { goTo(current - 1); }
+
+  prevBtn.addEventListener('click', prev);
+  nextBtn.addEventListener('click', next);
+
+  let navIdleTimer = null;
+  const NAV_TIMEOUT_MS = 3000;
+  function showNav() {
+    nav.classList.remove('hidden');
+    if (navIdleTimer) clearTimeout(navIdleTimer);
+    navIdleTimer = setTimeout(() => nav.classList.add('hidden'), NAV_TIMEOUT_MS);
+  }
+  showNav();
+  document.addEventListener('mousemove', showNav, { passive: true });
+  document.addEventListener('touchstart', showNav, { passive: true });
+  nav.addEventListener('mouseenter', () => { if (navIdleTimer) clearTimeout(navIdleTimer); });
+  nav.addEventListener('mouseleave', showNav);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+    else if (e.key === 'End')  { e.preventDefault(); goTo(total - 1); }
+    else if (/^[1-9]$/.test(e.key)) { e.preventDefault(); goTo(parseInt(e.key) - 1); }
+    else if (e.key === '0') { e.preventDefault(); goTo(9); }
+    else if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    }
+  });
+
+  let touchStartX = 0, touchEndX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].screenX;
+    const delta = touchEndX - touchStartX;
+    if (Math.abs(delta) > 60) { delta < 0 ? next() : prev(); }
+  }, { passive: true });
+
+  let wheelLock = false;
+  document.addEventListener('wheel', (e) => {
+    if (wheelLock) return;
+    if (Math.abs(e.deltaY) < 40 && Math.abs(e.deltaX) < 40) return;
+    const slide = slides[current];
+    if (slide) {
+      const atTop    = slide.scrollTop <= 2;
+      const atBottom = slide.scrollTop >= slide.scrollHeight - slide.clientHeight - 2;
+      if (e.deltaY > 0 && !atBottom) return;
+      if (e.deltaY < 0 && !atTop)    return;
+    }
+    wheelLock = true;
+    setTimeout(() => wheelLock = false, 700);
+    const main = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+    main > 0 ? next() : prev();
+  }, { passive: true });
+
+  const hash = window.location.hash.match(/slide-(\d+)/);
+  if (hash) goTo(parseInt(hash[1]) - 1);
+  else update();
+})();
+</script>
+</body>
+</html>

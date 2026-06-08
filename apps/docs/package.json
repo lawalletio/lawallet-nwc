@@ -5,7 +5,7 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
-    "start": "next start",
+    "start": "next start --hostname ${DOCS_HOST:-127.0.0.1} --port ${PORT:-3000}",
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
@@ -15,7 +15,7 @@
     "fumadocs-mdx": "14.2.7",
     "fumadocs-ui": "16.6.0",
     "lucide-react": "^0.563.0",
-    "next": "^16.2.3",
+    "next": "^16.2.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwind-merge": "^3.4.0",

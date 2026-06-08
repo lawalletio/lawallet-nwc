@@ -46,7 +46,9 @@ const baseInvoice = {
   expiresAt: FUTURE,
   user: {
     id: 'user-1',
-    nwc: 'nostr+walletconnect://abc',
+    remoteWallets: [
+      { config: { connectionString: 'nostr+walletconnect://abc', mode: 'SEND_RECEIVE' } },
+    ],
     lightningAddresses: [{ username: 'alice' }],
   },
 }
@@ -239,10 +241,10 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(prismaMock.invoice.update).not.toHaveBeenCalled()
   })
 
-  it('returns unsettled when user has no NWC configured', async () => {
+  it('returns unsettled when user has no wallet configured', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      user: { ...baseInvoice.user, nwc: null },
+      user: { ...baseInvoice.user, remoteWallets: [] },
     } as any)
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)

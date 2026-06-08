@@ -46,7 +46,7 @@ Spawning is interactive — no CLI, no migration steps. Operator picks Mode A or
 
 ### Identity Mode A — Autonomous (server-side nsec)
 
-- The agent's nsec is generated server-side and encrypted at rest using the same scheme as the M5 instance nsec
+- The agent's nsec is generated server-side and encrypted at rest using the same scheme as the M6/M7 instance nsec
 - Agent signs Nostr events directly without human approval
 - Required for full automation (heartbeats, autonomous posts at scheduled times)
 - Risk: server compromise leaks the nsec — recommended for low-stakes agents

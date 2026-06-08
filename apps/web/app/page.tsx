@@ -12,7 +12,6 @@ import { ClaimDialog } from '@/components/landing/claim-dialog'
 import { LoginModal } from '@/components/admin/login-modal'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
-import { buildPublicHost } from '@/lib/public-url-utils'
 
 export default function HomePage() {
   const router = useRouter()
@@ -28,10 +27,7 @@ export default function HomePage() {
     fetch('/api/settings')
       .then(res => res.json())
       .then(data => {
-        setDomain(
-          buildPublicHost(data.domain, data.subdomain ?? data.endpoint) ||
-            window.location.hostname
-        )
+        setDomain(data.domain || window.location.hostname)
       })
       .catch(() => {
         setDomain(window.location.hostname)

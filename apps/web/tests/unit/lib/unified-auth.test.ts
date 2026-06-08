@@ -30,6 +30,10 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn(),
 }))
 
+vi.mock('@/lib/public-url', () => ({
+  resolveApiUrl: vi.fn(async () => 'https://app.example.com'),
+}))
+
 import {
   authenticate,
   authenticateWithRole,
@@ -41,6 +45,7 @@ import { validateJwtFromRequest } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
+import { resolveApiUrl } from '@/lib/public-url'
 
 const PUBKEY = 'a'.repeat(64)
 
@@ -262,5 +267,129 @@ describe('withAuth', () => {
     // Bearer request should fail when NIP-98 is required
     await expect(wrapped(mockBearerRequest())).rejects.toThrow(AuthenticationError)
     expect(handler).not.toHaveBeenCalled()
+  })
+})
+
+describe('device-token scopes (B.0)', () => {
+  function mockDeviceToken(role: string, scopes: unknown) {
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'a'.repeat(32) },
+    } as any)
+    vi.mocked(validateJwtFromRequest).mockResolvedValue({
+      payload: { pubkey: PUBKEY, role, scopes, iat: 1000, exp: 2000 },
+      header: { alg: 'HS256' },
+    } as any)
+  }
+
+  it('surfaces a valid scopes array on the AuthResult', async () => {
+    mockDeviceToken('OPERATOR', ['cards:read', 'cards:write'])
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.scopes).toEqual([Permission.CARDS_READ, Permission.CARDS_WRITE])
+  })
+
+  it('narrows permission checks to the scopes claim', async () => {
+    mockDeviceToken('ADMIN', ['cards:read'])
+
+    // In scope → allowed
+    await expect(
+      authenticateWithPermission(mockBearerRequest(), Permission.CARDS_READ),
+    ).resolves.toMatchObject({ pubkey: PUBKEY })
+
+    // Out of scope → denied even though ADMIN would normally hold it
+    await expect(
+      authenticateWithPermission(mockBearerRequest(), Permission.SETTINGS_WRITE),
+    ).rejects.toThrow(AuthorizationError)
+  })
+
+  it('grants a delegated scope beyond the base role (override, not intersection)', async () => {
+    // A USER-role identity normally holds zero permissions, but the admin
+    // explicitly delegated cards:write — the scope claim wins.
+    mockDeviceToken('USER', ['cards:write'])
+
+    await expect(
+      authenticateWithPermission(mockBearerRequest(), Permission.CARDS_WRITE),
+    ).resolves.toMatchObject({ pubkey: PUBKEY })
+  })
+
+  it('ignores a malformed scopes claim and falls back to the role map', async () => {
+    // Not an array → ignored; ADMIN role still grants everything.
+    mockDeviceToken('ADMIN', 'cards:read')
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.scopes).toBeUndefined()
+    await expect(
+      authenticateWithPermission(mockBearerRequest(), Permission.SETTINGS_WRITE),
+    ).resolves.toMatchObject({ pubkey: PUBKEY })
+  })
+
+  it('drops unknown scope strings so a bad claim cannot widen access', async () => {
+    mockDeviceToken('ADMIN', ['cards:read', 'not:a:permission'])
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.scopes).toEqual([Permission.CARDS_READ])
+  })
+})
+
+describe('device-token apiUrl enforcement (B.0)', () => {
+  function mockDeviceTokenWithApiUrl(apiUrl: unknown) {
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'a'.repeat(32) },
+    } as any)
+    vi.mocked(validateJwtFromRequest).mockResolvedValue({
+      payload: {
+        pubkey: PUBKEY,
+        role: 'OPERATOR',
+        kind: 'device',
+        apiUrl,
+        iat: 1000,
+        exp: 2000,
+      },
+      header: { alg: 'HS256' },
+    } as any)
+  }
+
+  it('authenticates when apiUrl matches the serving instance', async () => {
+    mockDeviceTokenWithApiUrl('https://app.example.com')
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.pubkey).toBe(PUBKEY)
+    expect(result.method).toBe('jwt')
+  })
+
+  it('matches despite trailing slash and case differences', async () => {
+    vi.mocked(resolveApiUrl).mockResolvedValueOnce('https://App.Example.com')
+    mockDeviceTokenWithApiUrl('https://app.example.com/')
+
+    await expect(authenticate(mockBearerRequest())).resolves.toMatchObject({
+      pubkey: PUBKEY,
+    })
+  })
+
+  it('rejects a device token whose apiUrl is for another instance', async () => {
+    mockDeviceTokenWithApiUrl('https://other.example.com')
+
+    await expect(authenticate(mockBearerRequest())).rejects.toThrow(
+      AuthenticationError,
+    )
+  })
+
+  it('rejects a device token missing the apiUrl claim', async () => {
+    mockDeviceTokenWithApiUrl(undefined)
+
+    await expect(authenticate(mockBearerRequest())).rejects.toThrow(
+      AuthenticationError,
+    )
+  })
+
+  it('does not enforce apiUrl on a session JWT (no kind claim)', async () => {
+    vi.mocked(validateJwtFromRequest).mockResolvedValue({
+      payload: { pubkey: PUBKEY, role: 'ADMIN', iat: 1000, exp: 2000 },
+      header: { alg: 'HS256' },
+    } as any)
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.pubkey).toBe(PUBKEY)
+    expect(resolveApiUrl).not.toHaveBeenCalled()
   })
 })

@@ -167,7 +167,7 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
 }
 
 /**
- * Hook for performing mutations (POST, PUT, DELETE) with loading/error state.
+ * Hook for performing mutations (POST, PUT, PATCH, DELETE) with loading/error state.
  */
 export function useMutation<TInput, TOutput = void>() {
   const { apiClient } = useAuth()
@@ -176,7 +176,7 @@ export function useMutation<TInput, TOutput = void>() {
 
   const mutate = useCallback(
     async (
-      method: 'post' | 'put' | 'del',
+      method: 'post' | 'put' | 'patch' | 'del',
       path: string,
       body?: TInput
     ): Promise<TOutput> => {

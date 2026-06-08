@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Providers } from './providers'
 import { GoogleAnalytics } from '@/components/analytics/google-analytics'
+import { DevBanner } from '@/components/dev-banner'
 import { getSettings } from '@/lib/settings'
 import './globals.css'
 
@@ -35,6 +36,8 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`min-h-dvh bg-background ${inter.className}`}>
+        {/* Visible only outside production (local `next dev`). */}
+        {process.env.NODE_ENV !== 'production' && <DevBanner />}
         <GoogleAnalytics gtagId={gtagId} />
         <Providers
           attribute="class"

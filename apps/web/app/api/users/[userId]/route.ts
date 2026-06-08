@@ -40,9 +40,9 @@ export const GET = withErrorHandling(
       include: {
         lightningAddresses: {
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
-          include: { nwcConnection: true },
+          include: { remoteWallet: true },
         },
-        nwcConnections: { where: { isPrimary: true }, take: 1 },
+        remoteWallets: { where: { isDefault: true }, take: 1 },
       },
     })
 
@@ -58,7 +58,7 @@ export const GET = withErrorHandling(
       throw new AuthorizationError('Not authorized to view this user')
     }
 
-    const primaryNwc = user.nwcConnections[0] ?? null
+    const defaultWallet = user.remoteWallets[0] ?? null
 
     const [transactionCount, paidInvoices] = await Promise.all([
       prisma.invoice.count({ where: { userId: user.id } }),
@@ -75,7 +75,7 @@ export const GET = withErrorHandling(
       role: user.role,
       createdAt: user.createdAt.toISOString(),
       addresses: user.lightningAddresses.map(a =>
-        toWalletAddressDto(a, primaryNwc),
+        toWalletAddressDto(a, defaultWallet),
       ),
       transactions: {
         total: transactionCount,

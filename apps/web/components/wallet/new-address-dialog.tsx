@@ -61,7 +61,7 @@ interface NewAddressDialogProps {
  * silhouette decoration overflowing the frame, a pill with the claimed
  * lightning address, and a tagline beneath.
  */
-function SuccessHeroCard({ address }: { address: string }) {
+export function SuccessHeroCard({ address }: { address: string }) {
   const [name, domainPart] = address.includes('@')
     ? [address.split('@')[0], `@${address.split('@').slice(1).join('@')}`]
     : [address, '']

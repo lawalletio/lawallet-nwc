@@ -34,18 +34,18 @@ export const GET = withErrorHandling(async (request: Request) => {
     where: { pubkey },
     include: {
       lightningAddresses: {
-        include: { nwcConnection: true },
+        include: { remoteWallet: true },
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
       },
-      nwcConnections: { where: { isPrimary: true }, take: 1 },
+      remoteWallets: { where: { isDefault: true }, take: 1 },
     },
   })
 
   if (!user) throw new NotFoundError('User not found')
-  const primaryNwc = user.nwcConnections[0] ?? null
+  const defaultWallet = user.remoteWallets[0] ?? null
 
   const dtos: WalletAddressDto[] = user.lightningAddresses.map(addr =>
-    toWalletAddressDto(addr, primaryNwc),
+    toWalletAddressDto(addr, defaultWallet),
   )
   return NextResponse.json(dtos)
 })
@@ -82,11 +82,11 @@ export const POST = withErrorHandling(async (request: Request) => {
       mode: mode ?? 'DEFAULT_NWC',
       isPrimary: false,
     },
-    include: { nwcConnection: true },
+    include: { remoteWallet: true },
   })
 
-  const primaryNwc = await prisma.nWCConnection.findFirst({
-    where: { userId: user.id, isPrimary: true },
+  const defaultWallet = await prisma.remoteWallet.findFirst({
+    where: { userId: user.id, isDefault: true },
   })
 
   eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
@@ -101,5 +101,5 @@ export const POST = withErrorHandling(async (request: Request) => {
     userId: user.id,
     metadata: { username: created.username, mode: created.mode },
   })
-  return NextResponse.json(toWalletAddressDto(created, primaryNwc), { status: 201 })
+  return NextResponse.json(toWalletAddressDto(created, defaultWallet), { status: 201 })
 })

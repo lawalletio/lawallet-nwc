@@ -9,6 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { BrandingTab } from '@/components/admin/settings/branding-tab'
 import { WalletTab } from '@/components/admin/settings/wallet-tab'
 import { InfrastructureTab } from '@/components/admin/settings/infrastructure-tab'
+import { DeviceTokensTab } from '@/components/admin/settings/device-tokens-tab'
 import { SettingsFormProvider } from '@/components/admin/settings/settings-form-context'
 import {
   AlertDialog,
@@ -167,66 +168,78 @@ function SettingsContent() {
     )
   }
 
+  // Device Tokens is an action page (generate → QR), not a settings form: it
+  // owns its own submit, so it renders outside the SettingsFormProvider and the
+  // change-tracking wrapper, and hides the global Save / Cancel actions.
+  const isFormTab = activeTab !== 'device-tokens'
+
   return (
     <div className="flex flex-col">
       <AdminTopbar
         title="Settings"
         subtitle="Manage your community configuration."
         actions={
-          <>
-            <Button
-              variant="secondary"
-              disabled={!hasChanges}
-              onClick={handleCancel}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="theme"
-              disabled={!hasChanges || saving || hasInvalid}
-              onClick={handleSave}
-            >
-              {saving ? (
-                <>
-                  <Spinner size={16} className="mr-2" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
-          </>
+          isFormTab ? (
+            <>
+              <Button
+                variant="secondary"
+                disabled={!hasChanges}
+                onClick={handleCancel}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="theme"
+                disabled={!hasChanges || saving || hasInvalid}
+                onClick={handleSave}
+              >
+                {saving ? (
+                  <>
+                    <Spinner size={16} className="mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </Button>
+            </>
+          ) : undefined
         }
         tabs={[
           { label: 'Branding', active: activeTab === 'branding', onClick: () => attemptLeave('/admin/settings?tab=branding') },
           { label: 'Wallet', active: activeTab === 'wallet', onClick: () => attemptLeave('/admin/settings?tab=wallet') },
           { label: 'Infrastructure', active: activeTab === 'infrastructure', onClick: () => attemptLeave('/admin/settings?tab=infrastructure') },
+          { label: 'Device Tokens', active: activeTab === 'device-tokens', onClick: () => attemptLeave('/admin/settings?tab=device-tokens') },
         ]}
       />
 
-      <div
-        onChange={() => setHasChanges(true)}
-        onClick={(e) => {
-          const target = e.target as HTMLElement
-          if (
-            target.closest('[role="switch"]') ||
-            target.closest('[data-track-change]')
-          ) {
-            setHasChanges(true)
-          }
-        }}
-      >
-        <SettingsFormProvider
+      {isFormTab ? (
+        <div
           onChange={() => setHasChanges(true)}
-          onInvalidChange={setHasInvalid}
-          registerRef={saveAllRef}
-          resetRef={resetAllRef}
+          onClick={(e) => {
+            const target = e.target as HTMLElement
+            if (
+              target.closest('[role="switch"]') ||
+              target.closest('[data-track-change]')
+            ) {
+              setHasChanges(true)
+            }
+          }}
         >
-          {activeTab === 'branding' && <BrandingTab />}
-          {activeTab === 'wallet' && <WalletTab />}
-          {activeTab === 'infrastructure' && <InfrastructureTab />}
-        </SettingsFormProvider>
-      </div>
+          <SettingsFormProvider
+            onChange={() => setHasChanges(true)}
+            onInvalidChange={setHasInvalid}
+            registerRef={saveAllRef}
+            resetRef={resetAllRef}
+          >
+            {activeTab === 'branding' && <BrandingTab />}
+            {activeTab === 'wallet' && <WalletTab />}
+            {activeTab === 'infrastructure' && <InfrastructureTab />}
+          </SettingsFormProvider>
+        </div>
+      ) : (
+        <DeviceTokensTab />
+      )}
 
       <AlertDialog
         open={pendingUrl !== null}

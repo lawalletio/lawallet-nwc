@@ -1,5 +1,7 @@
 # lawallet-nwc-proxy: Courtesy NWC Proxy
 
+> **Status note (May 2026):** this document describes an earlier multi-provider design (Alby Hub / LNBits / BTCPayServer / YakiHonne adapters). The current plan — implemented in Month 6 — is a **single-tenant Lite Proxy** that mints invoices through the holder's existing `RemoteWallet` (NWC driver only) and ships the LUD-16 / LUD-21 / LUD-22 / NIP-57 compliance surface. The full multi-provider adapter layer is deferred beyond M8. See [MONTH-6.md](../roadmap/MONTH-6.md) for the current spec; this file will be rewritten when the M6 Proxy ships.
+
 ## Overview
 
 Lightweight standalone Node.js service that acts as a provider-agnostic proxy for provisioning temporary NWC connection strings. Does not hold funds.

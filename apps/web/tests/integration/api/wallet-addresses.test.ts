@@ -40,7 +40,6 @@ import {
 } from '@/app/api/wallet/addresses/[username]/route'
 import { POST as PrimaryPost } from '@/app/api/wallet/addresses/[username]/primary/route'
 import { GET as InvoicesGet } from '@/app/api/wallet/addresses/[username]/invoices/route'
-import { POST as NwcConnectionsPost } from '@/app/api/wallet/nwc-connections/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { eventBus } from '@/lib/events/event-bus'
 
@@ -65,25 +64,33 @@ function makeAddress(overrides: Partial<any> = {}) {
     userId: 'user-1',
     mode: 'DEFAULT_NWC',
     redirect: null,
-    nwcConnectionId: null,
+    remoteWalletId: null,
     isPrimary: true,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
-    nwcConnection: null,
+    remoteWallet: null,
     ...overrides,
   }
 }
 
-function makeConnection(overrides: Partial<any> = {}) {
+/**
+ * RemoteWallet row. `mode` is a convenience param that lands in `config`
+ * (where the NWC driver + DTO read it); `status` defaults ACTIVE so the
+ * derived capability is non-NONE.
+ */
+function makeWallet(overrides: { mode?: string; status?: string } & Record<string, unknown> = {}) {
+  const { mode = 'RECEIVE', status = 'ACTIVE', ...rest } = overrides
   return {
-    id: 'conn-1',
+    id: 'wallet-1',
     userId: 'user-1',
-    connectionString: 'nostr+walletconnect://abc',
-    mode: 'RECEIVE',
-    isPrimary: true,
+    name: 'Wallet',
+    type: 'NWC',
+    config: { connectionString: 'nostr+walletconnect://abc', mode },
+    status,
+    isDefault: true,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
-    ...overrides,
+    ...rest,
   }
 }
 
@@ -103,8 +110,8 @@ describe('GET /api/wallet/addresses', () => {
 
   it('returns the caller\u2019s addresses with derived nwcMode for each', async () => {
     mockAuth()
-    const primaryConn = makeConnection({ id: 'conn-primary', mode: 'SEND_RECEIVE' })
-    const customConn = makeConnection({ id: 'conn-custom', mode: 'RECEIVE', isPrimary: false })
+    const primaryConn = makeWallet({ id: 'conn-primary', mode: 'SEND_RECEIVE' })
+    const customConn = makeWallet({ id: 'conn-custom', mode: 'RECEIVE', isPrimary: false })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
       id: 'user-1',
       lightningAddresses: [
@@ -115,8 +122,8 @@ describe('GET /api/wallet/addresses', () => {
           username: 'bob',
           isPrimary: false,
           mode: 'CUSTOM_NWC',
-          nwcConnectionId: 'conn-custom',
-          nwcConnection: customConn,
+          remoteWalletId: 'conn-custom',
+          remoteWallet: customConn,
         }),
         // ALIAS -> NONE regardless of connections
         makeAddress({
@@ -128,7 +135,7 @@ describe('GET /api/wallet/addresses', () => {
         // IDLE -> NONE
         makeAddress({ username: 'dave', isPrimary: false, mode: 'IDLE' }),
       ],
-      nwcConnections: [primaryConn],
+      remoteWallets: [primaryConn],
     } as any)
 
     const res = await ListGet(createNextRequest('/api/wallet/addresses'))
@@ -145,7 +152,7 @@ describe('GET /api/wallet/addresses', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
       id: 'user-1',
       lightningAddresses: [makeAddress({ mode: 'DEFAULT_NWC' })],
-      nwcConnections: [], // no primary
+      remoteWallets: [], // no primary
     } as any)
 
     const res = await ListGet(createNextRequest('/api/wallet/addresses'))
@@ -206,7 +213,7 @@ describe('POST /api/wallet/addresses', () => {
     vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
       makeAddress({ username: 'bob', isPrimary: false }) as any,
     )
-    vi.mocked(prismaMock.nWCConnection.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
@@ -268,7 +275,7 @@ describe('POST /api/wallet/addresses', () => {
     vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
       makeAddress({ username: 'bob', isPrimary: false }) as any,
     )
-    vi.mocked(prismaMock.nWCConnection.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
@@ -285,13 +292,13 @@ describe('POST /api/wallet/addresses', () => {
 // ── GET /api/wallet/addresses/[username] ────────────────────────────────────
 
 describe('GET /api/wallet/addresses/[username]', () => {
-  it('returns the address plus the user\u2019s connections', async () => {
+  it('returns the address plus the user\u2019s selectable wallets', async () => {
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(makeAddress() as any)
-    vi.mocked(prismaMock.nWCConnection.findMany).mockResolvedValue([
-      makeConnection(),
-      makeConnection({ id: 'conn-2', mode: 'SEND_RECEIVE', isPrimary: false }),
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      makeWallet({ id: 'wallet-1', name: 'Primary', isDefault: true }),
+      makeWallet({ id: 'wallet-2', name: 'Secondary', isDefault: false }),
     ] as any)
 
     const res = await DetailGet(
@@ -300,8 +307,10 @@ describe('GET /api/wallet/addresses/[username]', () => {
     )
     const body: any = await assertResponse(res, 200)
     expect(body.address.username).toBe('alice')
-    expect(body.connections).toHaveLength(2)
-    expect(body.connections[0]).toMatchObject({ id: 'conn-1', mode: 'RECEIVE', isPrimary: true })
+    expect(body.wallets).toHaveLength(2)
+    // DTO exposes id/name/type/status/isDefault \u2014 never the secret config.
+    expect(body.wallets[0]).toMatchObject({ id: 'wallet-1', name: 'Primary', type: 'NWC', isDefault: true })
+    expect(body.wallets[0]).not.toHaveProperty('config')
   })
 
   it('returns 404 when the address belongs to a different user', async () => {
@@ -330,7 +339,7 @@ describe('PUT /api/wallet/addresses/[username]', () => {
       async ({ data }: any) =>
         makeAddress({ ...data, username: 'alice', userId: 'user-1' }),
     )
-    vi.mocked(prismaMock.nWCConnection.findFirst).mockResolvedValue(null)
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
   })
 
   it('switches mode to ALIAS with redirect', async () => {
@@ -368,7 +377,7 @@ describe('PUT /api/wallet/addresses/[username]', () => {
     expect(res.status).toBe(400)
   })
 
-  it('rejects CUSTOM_NWC without nwcConnectionId', async () => {
+  it('rejects CUSTOM_NWC without remoteWalletId', async () => {
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
@@ -380,13 +389,13 @@ describe('PUT /api/wallet/addresses/[username]', () => {
   })
 
   it('rejects CUSTOM_NWC referencing another user\u2019s connection', async () => {
-    vi.mocked(prismaMock.nWCConnection.findUnique).mockResolvedValue(
-      makeConnection({ userId: 'someone-else' }) as any,
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      makeWallet({ userId: 'someone-else' }) as any,
     )
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'CUSTOM_NWC', nwcConnectionId: 'conn-1' },
+        body: { mode: 'CUSTOM_NWC', remoteWalletId: 'conn-1' },
       }),
       createParamsPromise({ username: 'alice' }),
     )
@@ -394,32 +403,32 @@ describe('PUT /api/wallet/addresses/[username]', () => {
   })
 
   it('accepts CUSTOM_NWC with a valid owned connection', async () => {
-    vi.mocked(prismaMock.nWCConnection.findUnique).mockResolvedValue(
-      makeConnection({ id: 'conn-1', userId: 'user-1' }) as any,
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      makeWallet({ id: 'conn-1', userId: 'user-1' }) as any,
     )
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'CUSTOM_NWC', nwcConnectionId: 'conn-1' },
+        body: { mode: 'CUSTOM_NWC', remoteWalletId: 'conn-1' },
       }),
       createParamsPromise({ username: 'alice' }),
     )
     const body: any = await assertResponse(res, 200)
     expect(body.mode).toBe('CUSTOM_NWC')
-    expect(body.nwcConnectionId).toBe('conn-1')
+    expect(body.remoteWalletId).toBe('conn-1')
   })
 
-  it('clears redirect + nwcConnectionId when switching to IDLE/DEFAULT_NWC', async () => {
+  it('clears redirect + remoteWalletId when switching to IDLE/DEFAULT_NWC', async () => {
     await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'IDLE', redirect: 'ignored@x.com', nwcConnectionId: 'conn-1' },
+        body: { mode: 'IDLE', redirect: 'ignored@x.com', remoteWalletId: 'conn-1' },
       }),
       createParamsPromise({ username: 'alice' }),
     )
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { mode: 'IDLE', redirect: null, nwcConnectionId: null },
+        data: { mode: 'IDLE', redirect: null, remoteWalletId: null },
       }),
     )
   })
@@ -588,118 +597,6 @@ describe('GET /api/wallet/addresses/[username]/invoices', () => {
     const res = await InvoicesGet(
       createNextRequest('/api/wallet/addresses/alice/invoices'),
       createParamsPromise({ username: 'alice' }),
-    )
-    expect(res.status).toBe(401)
-  })
-})
-
-// ── POST /api/wallet/nwc-connections ────────────────────────────────────────
-
-describe('POST /api/wallet/nwc-connections', () => {
-  const validUri =
-    'nostr+walletconnect://abcdef0123456789?relay=wss%3A%2F%2Frelay.example&secret=deadbeef'
-
-  it('creates a new connection for the caller', async () => {
-    mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(prismaMock.nWCConnection.findFirst).mockResolvedValue(null)
-    // `$transaction(cb)` hands our callback a pseudo-tx; the real route
-    // only uses it for the isPrimary-flip + create in one atomic step.
-    // Short-circuit with a direct create path for the test.
-    vi.mocked(prismaMock.$transaction).mockImplementation(async (cb: any) =>
-      cb(prismaMock),
-    )
-    vi.mocked(prismaMock.nWCConnection.create).mockResolvedValue({
-      id: 'conn-new',
-      userId: 'user-1',
-      connectionString: validUri,
-      mode: 'RECEIVE',
-      isPrimary: false,
-      createdAt: new Date('2026-02-10'),
-      updatedAt: new Date('2026-02-10'),
-    } as any)
-
-    const res = await NwcConnectionsPost(
-      createNextRequest('/api/wallet/nwc-connections', {
-        method: 'POST',
-        body: { connectionString: validUri },
-      }),
-    )
-    const body: any = await assertResponse(res, 201)
-
-    expect(body).toMatchObject({
-      id: 'conn-new',
-      mode: 'RECEIVE',
-      isPrimary: false,
-    })
-    // Bus event is emitted so the address list (whose derived `nwcMode`
-    // depends on the primary connection) revalidates.
-    expect(eventBus.emit).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'addresses:updated' }),
-    )
-  })
-
-  it('is idempotent — same (userId, connectionString) returns the existing row with 200', async () => {
-    mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(prismaMock.nWCConnection.findFirst).mockResolvedValue({
-      id: 'conn-existing',
-      userId: 'user-1',
-      connectionString: validUri,
-      mode: 'RECEIVE',
-      isPrimary: true,
-      createdAt: new Date('2026-02-01'),
-      updatedAt: new Date('2026-02-01'),
-    } as any)
-
-    const res = await NwcConnectionsPost(
-      createNextRequest('/api/wallet/nwc-connections', {
-        method: 'POST',
-        body: { connectionString: validUri },
-      }),
-    )
-    const body: any = await assertResponse(res, 200)
-
-    expect(body.id).toBe('conn-existing')
-    // No write should happen — retries after a flaky network don't
-    // fabricate duplicate rows.
-    expect(prismaMock.nWCConnection.create).not.toHaveBeenCalled()
-  })
-
-  it('rejects payloads that parseNwc cannot interpret', async () => {
-    mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
-
-    const res = await NwcConnectionsPost(
-      createNextRequest('/api/wallet/nwc-connections', {
-        method: 'POST',
-        // Correct prefix but missing pubkey + relays → parseNwc returns
-        // with empty relays → route returns 409 via ConflictError.
-        body: { connectionString: 'nostr+walletconnect://' },
-      }),
-    )
-    expect(res.status).toBe(409)
-  })
-
-  it('rejects bodies that don\u2019t pass the Zod regex', async () => {
-    mockAuth()
-
-    const res = await NwcConnectionsPost(
-      createNextRequest('/api/wallet/nwc-connections', {
-        method: 'POST',
-        body: { connectionString: 'https://not-an-nwc-uri' },
-      }),
-    )
-    expect(res.status).toBe(400)
-  })
-
-  it('rejects unauthenticated callers', async () => {
-    mockAuthReject()
-    const res = await NwcConnectionsPost(
-      createNextRequest('/api/wallet/nwc-connections', {
-        method: 'POST',
-        body: { connectionString: validUri },
-      }),
     )
     expect(res.status).toBe(401)
   })
