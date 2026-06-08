@@ -192,7 +192,7 @@ export default function CommunityAboutPage() {
                 alt={communityName ? `${communityName} isotypo` : 'Isotypo'}
                 fill
                 sizes="80px"
-                className="object-contain p-2"
+                className="object-cover"
               />
             </div>
 
