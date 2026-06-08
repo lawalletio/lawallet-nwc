@@ -1,0 +1,36 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { authenticateSettingsWriteRequest } from '@/lib/settings-auth'
+import { probeDomainRouting } from '@/lib/domain-onboarding'
+import { withErrorHandling } from '@/types/server/error-handler'
+import { ValidationError } from '@/types/server/errors'
+
+const domainProbeBodySchema = z.object({
+  domain: z.string().min(1),
+  endpoint: z.string().optional(),
+})
+
+export const POST = withErrorHandling(async (request: NextRequest) => {
+  await checkRequestLimits(request, 'json')
+  await authenticateSettingsWriteRequest(request)
+
+  const rawBody = await request.json().catch(() => null)
+  const parsed = domainProbeBodySchema.safeParse(rawBody)
+  if (!parsed.success) {
+    throw new ValidationError('Invalid domain probe request', parsed.error.flatten())
+  }
+
+  const firstAddress = await prisma.lightningAddress.findFirst({
+    orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+    select: { username: true },
+  })
+
+  const result = await probeDomainRouting({
+    ...parsed.data,
+    lnurlUsername: firstAddress?.username,
+  })
+
+  return NextResponse.json(result)
+})

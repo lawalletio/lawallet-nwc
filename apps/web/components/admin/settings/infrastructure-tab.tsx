@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Minus, Trash2 } from 'lucide-react'
+import { Plus, Minus, Trash2, WandSparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,6 +25,7 @@ import { useSettingsForm } from '@/components/admin/settings/settings-form-conte
 import { useAuth } from '@/components/admin/auth-context'
 import { DEFAULT_BLOSSOM_SERVERS } from '@/lib/client/blossom-defaults'
 import { cn } from '@/lib/utils'
+import { DomainOnboardingWizard } from '@/components/admin/settings/domain-onboarding-wizard'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
 
@@ -101,6 +102,7 @@ export function InfrastructureTab() {
   const { updateSettings } = useUpdateSettings()
   const { logout } = useAuth()
   const [wiping, setWiping] = useState(false)
+  const [domainWizardOpen, setDomainWizardOpen] = useState(false)
 
   async function handleWipe() {
     setWiping(true)
@@ -254,9 +256,22 @@ export function InfrastructureTab() {
   // Lightning addresses resolve as `username@<domain>` — the preview shows
   // the raw domain only (no protocol, no endpoint path).
   const previewDomain = domain.trim().toLowerCase() || 'your-domain.com'
+  const hasConfiguredDomain = Boolean(settings?.domain?.trim())
 
   return (
     <div className="flex flex-col gap-8 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">
+      <DomainOnboardingWizard
+        open={domainWizardOpen}
+        onOpenChange={setDomainWizardOpen}
+        initialDomain={domain}
+        initialEndpoint={subdomain}
+        currentOrigin={currentOrigin}
+        updateSettings={updateSettings}
+        onConfigured={({ domain: nextDomain, endpoint }) => {
+          setDomain(nextDomain)
+          setSubdomain(endpoint)
+        }}
+      />
       <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
         <div>
           <h3 className="text-sm font-semibold">Domain</h3>
@@ -265,6 +280,31 @@ export function InfrastructureTab() {
           </p>
         </div>
         <div className="flex flex-col gap-4">
+          {!hasConfiguredDomain && (
+            <div className="flex flex-col gap-3 rounded-md border bg-muted/25 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+                  <WandSparkles className="size-4" />
+                </span>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Domain is not configured</p>
+                  <p className="text-xs text-muted-foreground">
+                    Start a guided check for LNURL and NIP-05 routing.
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setDomainWizardOpen(true)}
+              >
+                <WandSparkles className="mr-2 size-4" />
+                Configure domain
+              </Button>
+            </div>
+          )}
+
           <div className="space-y-1">
             <Label>Domain</Label>
             <InputGroup className={cn(domainInvalid && INVALID_CLASSES)}>

@@ -1,0 +1,362 @@
+'use client'
+
+import React, { useEffect, useMemo, useState } from 'react'
+import {
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  Clipboard,
+  Globe2,
+  Loader2,
+  RefreshCw,
+  Route,
+  Sparkles,
+  WandSparkles,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import type { DomainProbeResult, ProbeCheck } from '@/lib/domain-onboarding'
+import { useAuth } from '@/components/admin/auth-context'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupText } from '@/components/ui/input-group'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
+
+const DOMAIN_PATTERN =
+  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i
+
+type WizardStep = 'input' | 'checking' | 'result'
+
+interface DomainOnboardingWizardProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  initialDomain: string
+  initialEndpoint: string
+  currentOrigin: string
+  onConfigured: (values: { domain: string; endpoint: string }) => void
+  updateSettings: (data: Record<string, string>) => Promise<unknown>
+}
+
+function normalizeEndpoint(endpoint: string, domain: string): string {
+  const cleaned = endpoint.trim().replace(/\/+$/, '').toLowerCase()
+  if (cleaned) return cleaned
+  return domain.trim().toLowerCase()
+}
+
+function StatusIcon({ check }: { check: ProbeCheck }) {
+  if (check.state === 'pass') return <CheckCircle2 className="size-4 text-emerald-500" />
+  if (check.state === 'skip') return <AlertTriangle className="size-4 text-amber-500" />
+  return <AlertTriangle className="size-4 text-destructive" />
+}
+
+function NetworkIllustration({ active }: { active: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 220 120"
+      className="h-28 w-full"
+      role="img"
+      aria-label="Domain routing"
+    >
+      <defs>
+        <linearGradient id="domain-wizard-line" x1="0" x2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.8" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M48 60 C84 18 135 102 172 60"
+        fill="none"
+        stroke="url(#domain-wizard-line)"
+        strokeWidth="4"
+        strokeLinecap="round"
+        className={cn(active && 'animate-pulse')}
+      />
+      <circle cx="44" cy="60" r="23" className="fill-background stroke-border" strokeWidth="2" />
+      <circle cx="176" cy="60" r="23" className="fill-background stroke-border" strokeWidth="2" />
+      <circle cx="44" cy="60" r="7" className="fill-primary" />
+      <path d="M166 60 h20 M176 50 v20" className="stroke-primary" strokeWidth="4" strokeLinecap="round" />
+      <circle
+        cx={active ? '112' : '100'}
+        cy="60"
+        r="8"
+        className={cn('fill-emerald-500 transition-all duration-700', active && 'opacity-80')}
+      />
+    </svg>
+  )
+}
+
+export function DomainOnboardingWizard({
+  open,
+  onOpenChange,
+  initialDomain,
+  initialEndpoint,
+  currentOrigin,
+  onConfigured,
+  updateSettings,
+}: DomainOnboardingWizardProps) {
+  const { apiClient } = useAuth()
+  const [step, setStep] = useState<WizardStep>('input')
+  const [domain, setDomain] = useState(initialDomain)
+  const [endpoint, setEndpoint] = useState(initialEndpoint)
+  const [saving, setSaving] = useState(false)
+  const [probing, setProbing] = useState(false)
+  const [result, setResult] = useState<DomainProbeResult | null>(null)
+
+  const cleanDomain = domain.trim().toLowerCase()
+  const endpointValue = normalizeEndpoint(endpoint, cleanDomain)
+  const invalidDomain = cleanDomain !== '' && !DOMAIN_PATTERN.test(cleanDomain)
+  const lawalletHost = useMemo(
+    () => (cleanDomain ? `lawallet.${cleanDomain}` : 'lawallet.example.com'),
+    [cleanDomain],
+  )
+
+  useEffect(() => {
+    if (!open) return
+    setDomain(initialDomain)
+    setEndpoint(initialEndpoint)
+  }, [initialDomain, initialEndpoint, open])
+
+  async function runProbe(nextDomain = cleanDomain, nextEndpoint = endpointValue) {
+    setProbing(true)
+    setStep('checking')
+    try {
+      const probe = await apiClient.post<DomainProbeResult>('/api/settings/domain-probe', {
+        domain: nextDomain,
+        endpoint: nextEndpoint,
+      })
+      setResult(probe)
+      setStep('result')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Domain check failed')
+      setStep('result')
+    } finally {
+      setProbing(false)
+    }
+  }
+
+  async function handleStart() {
+    if (!cleanDomain || invalidDomain) {
+      toast.error('Enter a valid domain first')
+      return
+    }
+
+    setSaving(true)
+    try {
+      await updateSettings({
+        domain: cleanDomain,
+        endpoint: endpointValue,
+      })
+      onConfigured({ domain: cleanDomain, endpoint: endpointValue })
+      toast.success('Domain saved')
+      setSaving(false)
+      await runProbe(cleanDomain, endpointValue)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save domain')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function copySnippet() {
+    if (!result) return
+    await navigator.clipboard.writeText(result.instructions.snippet)
+    toast.success('Copied')
+  }
+
+  function resetAndClose(nextOpen: boolean) {
+    onOpenChange(nextOpen)
+    if (!nextOpen) {
+      setStep('input')
+      setResult(null)
+      setSaving(false)
+      setProbing(false)
+    }
+  }
+
+  const ready = result?.status === 'ready'
+  const pending = result?.status === 'pending'
+  const rewriteNeeded = result?.status === 'rewrite-needed'
+
+  return (
+    <Dialog open={open} onOpenChange={resetAndClose}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[620px]">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-emerald-500 to-cyan-500" />
+        <DialogHeader className="pr-6">
+          <DialogTitle className="flex items-center gap-2">
+            <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+              <WandSparkles className="size-4" />
+            </span>
+            Domain setup
+          </DialogTitle>
+          <DialogDescription>
+            Save the domain, then check wallet discovery.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex items-center gap-2">
+          {(['input', 'checking', 'result'] as WizardStep[]).map((item, index) => (
+            <div
+              key={item}
+              className={cn(
+                'h-1.5 flex-1 rounded-full transition-colors',
+                index <= ['input', 'checking', 'result'].indexOf(step)
+                  ? 'bg-primary'
+                  : 'bg-muted',
+              )}
+            />
+          ))}
+        </div>
+
+        <div className="min-h-[420px]">
+          {step === 'input' && (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-5">
+              <NetworkIllustration active={false} />
+
+              <div className="grid gap-4">
+                <div className="space-y-1">
+                  <Label>Domain</Label>
+                  <InputGroup className={cn(invalidDomain && 'border-destructive')}>
+                    <InputGroupText>https://</InputGroupText>
+                    <Input
+                      autoFocus
+                      placeholder="example.com"
+                      value={domain}
+                      onChange={event => setDomain(event.target.value)}
+                      className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                  </InputGroup>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>LaWallet endpoint</Label>
+                  <Input
+                    placeholder={currentOrigin || lawalletHost}
+                    value={endpoint}
+                    onChange={event => setEndpoint(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-md border bg-muted/30 p-3">
+                <div className="flex items-start gap-3">
+                  <Route className="mt-0.5 size-4 text-primary" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Flexible hosting</p>
+                    <p className="text-xs text-muted-foreground">
+                      Host LaWallet at <span className="font-mono text-foreground">{lawalletHost}</span> and keep
+                      your main landing page on the root domain.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 'checking' && (
+            <div className="animate-in fade-in zoom-in-95 duration-300 flex min-h-[360px] flex-col items-center justify-center gap-5 text-center">
+              <NetworkIllustration active />
+              <div className="space-y-2">
+                <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+                  {saving ? <Spinner size={24} /> : <Loader2 className="size-5 animate-spin" />}
+                </div>
+                <h3 className="text-base font-semibold">
+                  {saving ? 'Saving domain' : 'Checking routes'}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  LNURL and NIP-05 discovery are being tested from the server.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {step === 'result' && (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
+              <NetworkIllustration active={ready || pending} />
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={ready ? 'default' : rewriteNeeded ? 'destructive' : 'secondary'}>
+                  {ready ? 'Ready' : rewriteNeeded ? 'Rewrite needed' : 'Saved, pending'}
+                </Badge>
+                {result && <Badge variant="outline">{result.platform.label}</Badge>}
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">
+                  {ready
+                    ? 'Discovery is ready'
+                    : rewriteNeeded
+                      ? 'Route .well-known here'
+                      : 'Saved. Check routing next.'}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {result?.instructions.summary ?? 'The domain was saved, but the check could not finish.'}
+                </p>
+              </div>
+
+              {result && (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[result.checks.lnurl, result.checks.nip05].map(check => (
+                      <div key={check.label} className="rounded-md border p-3">
+                        <div className="flex items-center gap-2">
+                          <StatusIcon check={check} />
+                          <span className="text-sm font-medium">{check.label}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">{check.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-md border bg-background">
+                    <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{result.instructions.title}</p>
+                        <p className="truncate text-xs text-muted-foreground">{result.instructions.tip}</p>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={copySnippet}>
+                        <Clipboard className="size-4" />
+                      </Button>
+                    </div>
+                    <pre className="max-h-36 overflow-auto p-3 text-xs">
+                      <code>{result.instructions.snippet}</code>
+                    </pre>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-2">
+          {step === 'input' ? (
+            <Button onClick={handleStart} disabled={saving || !cleanDomain || invalidDomain}>
+              {saving ? <Spinner size={16} className="mr-2" /> : <Sparkles className="mr-2 size-4" />}
+              Save & check
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => runProbe()} disabled={probing || !cleanDomain}>
+                {probing ? <Spinner size={16} className="mr-2" /> : <RefreshCw className="mr-2 size-4" />}
+                Re-check
+              </Button>
+              <Button onClick={() => resetAndClose(false)}>
+                {ready ? <Check className="mr-2 size-4" /> : <Globe2 className="mr-2 size-4" />}
+                Done
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
