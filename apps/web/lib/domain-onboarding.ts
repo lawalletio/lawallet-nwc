@@ -48,6 +48,7 @@ export interface DomainProbeResult {
   direct: boolean
   status: 'ready' | 'rewrite-needed' | 'pending'
   checks: {
+    instance: ProbeCheck
     lnurl: ProbeCheck
     nip05: ProbeCheck
   }
@@ -324,6 +325,25 @@ async function probeLnurl(domain: string, endpoint: string, username: string): P
   }
 }
 
+async function probeLawalletInstance(domain: string): Promise<ProbeCheck> {
+  const probeId = crypto.randomUUID()
+  const url = `${isLocalHost(domain) ? 'http' : 'https'}://${domain}/.well-known/lawallet.json?probe=${encodeURIComponent(probeId)}`
+  try {
+    const response = await fetchWithTimeout(url)
+    const body = await response.json().catch(() => null)
+    if (
+      response.ok &&
+      body?.service === 'lawallet' &&
+      body?.probe === probeId
+    ) {
+      return pass('LaWallet', url, 'Discovery routes to this LaWallet instance.')
+    }
+    return fail('LaWallet', url, 'Discovery is not routed to this LaWallet instance.')
+  } catch {
+    return fail('LaWallet', url, 'LaWallet instance probe failed.')
+  }
+}
+
 async function probeNip05(domain: string): Promise<ProbeCheck> {
   const url = `${isLocalHost(domain) ? 'http' : 'https'}://${domain}/.well-known/nostr.json?name=_`
   try {
@@ -359,21 +379,33 @@ export async function probeDomainRouting(input: DomainProbeRequest): Promise<Dom
       ? apiGatewayEndpoint
       : endpoint
 
-  const [lnurl, nip05] = await Promise.all([
+  const [instance, lnurl, nip05] = await Promise.all([
+    probeLawalletInstance(domain),
     probeLnurl(domain, effectiveEndpoint, lnurlUsername),
     probeNip05(domain),
   ])
-  const direct = platform.kind === 'lawallet' || cleanHost(effectiveEndpoint) === domain
-  const ready = [lnurl, nip05].every(check => check.state === 'pass' || check.state === 'skip')
+  const direct = instance.state === 'pass' && cleanHost(effectiveEndpoint) === domain
+  const ready =
+    instance.state === 'pass' &&
+    [lnurl, nip05].every(check => check.state === 'pass' || check.state === 'skip')
   const status = ready ? 'ready' : direct ? 'pending' : 'rewrite-needed'
+  const instructionPlatform =
+    platform.kind === 'lawallet' && instance.state !== 'pass'
+      ? {
+          kind: 'unknown',
+          label: 'Unknown stack',
+          confidence: 'low',
+          evidence: platform.evidence,
+        } satisfies PlatformDetection
+      : platform
 
   return {
     domain,
     endpoint: effectiveEndpoint,
     direct,
     status,
-    checks: { lnurl, nip05 },
+    checks: { instance, lnurl, nip05 },
     platform,
-    instructions: buildInstructionProfile(platform, domain, effectiveEndpoint),
+    instructions: buildInstructionProfile(instructionPlatform, domain, effectiveEndpoint),
   }
 }
