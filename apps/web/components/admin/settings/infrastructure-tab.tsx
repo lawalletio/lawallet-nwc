@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Minus, Trash2, WandSparkles, Route } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -106,6 +107,8 @@ type DomainProbeState =
   | { status: 'problem'; result?: DomainProbeResult; error?: string }
 
 export function InfrastructureTab() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: settings, loading: settingsLoading } = useSettings()
   const { updateSettings } = useUpdateSettings()
   const { logout, apiClient } = useAuth()
@@ -146,6 +149,16 @@ export function InfrastructureTab() {
       setCurrentOrigin(window.location.origin)
     }
   }, [])
+
+  useEffect(() => {
+    if (searchParams.get('domainSetup') !== 'open') return
+    setDomainWizardOpen(true)
+
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete('domainSetup')
+    const nextQuery = nextParams.toString()
+    router.replace(`/admin/settings${nextQuery ? `?${nextQuery}` : ''}`, { scroll: false })
+  }, [router, searchParams])
 
   // Restore all local form state from the currently stored settings. Called on
   // initial load and whenever the page-level Cancel button is clicked.

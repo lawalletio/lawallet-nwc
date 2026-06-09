@@ -14,6 +14,7 @@ import { AdminSidebar } from '@/components/admin/admin-sidebar'
 import { MobileTabBar } from '@/components/admin/mobile-tab-bar'
 import { LoginPage } from '@/components/admin/login-page'
 import { MaintenanceGate } from '@/components/admin/maintenance-gate'
+import { SetupBanner } from '@/components/admin/setup-banner'
 
 interface DatabaseStatus {
   checking: boolean
@@ -166,7 +167,10 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
               onRetry={() => void database.refetch()}
             />
           ) : (
-            <MaintenanceGate>{children}</MaintenanceGate>
+            <>
+              <SetupBanner />
+              <MaintenanceGate>{children}</MaintenanceGate>
+            </>
           )}
         </main>
       </SidebarInset>
