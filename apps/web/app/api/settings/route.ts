@@ -43,6 +43,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     // visitor (they're contact links, not credentials).
     return NextResponse.json({
       domain: settings.domain,
+      domain_verified: settings.domain_verified,
       endpoint,
       subdomain: endpoint,
       brand_theme: settings.brand_theme,
@@ -81,6 +82,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   ])
 
   const body = await validateBody(request, settingsBodySchema)
+  const shouldResetDomainVerification =
+    body.domain !== undefined ||
+    body.endpoint !== undefined ||
+    body.subdomain !== undefined
+
+  delete body.domain_verified
+  if (shouldResetDomainVerification) {
+    body.domain_verified = 'false'
+  }
 
   // Precondition check: if paid registration is enabled after this save,
   // the configured LN address must be reachable, in-range for the price,

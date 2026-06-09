@@ -12,7 +12,10 @@ export function SetupBanner() {
   const { role } = useAuth()
   const { data: settings, loading } = useSettings()
 
-  if (loading || settings?.domain || role !== 'ADMIN') return null
+  const hasDomain = !!settings?.domain?.trim()
+  const domainVerified = settings?.domain_verified === 'true'
+
+  if (loading || role !== 'ADMIN' || (hasDomain && domainVerified)) return null
 
   return (
     <div
@@ -26,10 +29,10 @@ export function SetupBanner() {
           </div>
           <div className="min-w-0 space-y-1">
             <h3 className="text-sm font-semibold text-foreground">
-              Domain configuration required
+              {hasDomain ? 'Domain verification required' : 'Domain configuration required'}
             </h3>
             <p className="text-sm text-muted-foreground">
-              Fix domain config so LNURL and NIP-05 discovery can route to this instance.
+              Verify .well-known routing so LNURL and NIP-05 discovery reach this instance.
             </p>
           </div>
         </div>

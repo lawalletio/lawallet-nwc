@@ -128,11 +128,16 @@ describe('POST /api/settings', () => {
     const res = await POST(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ message: 'Settings updated successfully', count: 1 })
+    expect(body).toEqual({ message: 'Settings updated successfully', count: 2 })
     expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
       where: { name: 'domain' },
       update: { value: 'new.com' },
       create: { name: 'domain', value: 'new.com' },
+    })
+    expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
+      where: { name: 'domain_verified' },
+      update: { value: 'false' },
+      create: { name: 'domain_verified', value: 'false' },
     })
   })
 
@@ -175,8 +180,8 @@ describe('POST /api/settings', () => {
     const res = await POST(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ message: 'Settings updated successfully', count: 2 })
-    expect(prismaMock.settings.upsert).toHaveBeenCalledTimes(2)
+    expect(body).toEqual({ message: 'Settings updated successfully', count: 3 })
+    expect(prismaMock.settings.upsert).toHaveBeenCalledTimes(3)
   })
 
   it('maps subdomain updates to the endpoint setting', async () => {
@@ -191,12 +196,33 @@ describe('POST /api/settings', () => {
     const res = await POST(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ message: 'Settings updated successfully', count: 1 })
+    expect(body).toEqual({ message: 'Settings updated successfully', count: 2 })
     expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
       where: { name: 'endpoint' },
       update: { value: 'wallet' },
       create: { name: 'endpoint', value: 'wallet' },
     })
+    expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
+      where: { name: 'domain_verified' },
+      update: { value: 'false' },
+      create: { name: 'domain_verified', value: 'false' },
+    })
+  })
+
+  it('does not allow clients to set domain verification directly', async () => {
+    vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+    vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
+
+    const req = createNextRequest('/api/settings', {
+      method: 'POST',
+      body: { domain_verified: 'true' },
+    })
+    const res = await POST(req)
+    const body = await assertResponse(res, 200)
+
+    expect(body).toEqual({ message: 'Settings updated successfully', count: 0 })
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
   })
 
   it('rejects unauthenticated request', async () => {
