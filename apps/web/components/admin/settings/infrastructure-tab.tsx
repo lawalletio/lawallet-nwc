@@ -422,7 +422,7 @@ export function InfrastructureTab() {
           </div>
 
           <div className="space-y-1">
-            <Label>Endpoint</Label>
+            <Label>This instance endpoint</Label>
             <Input
               placeholder={currentOrigin || 'https://app.domain.com'}
               value={subdomain}
