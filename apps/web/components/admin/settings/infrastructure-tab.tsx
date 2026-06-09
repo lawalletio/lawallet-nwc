@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Minus, Trash2 } from 'lucide-react'
+import { Plus, Minus, Trash2, WandSparkles, Route } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,6 +25,8 @@ import { useSettingsForm } from '@/components/admin/settings/settings-form-conte
 import { useAuth } from '@/components/admin/auth-context'
 import { DEFAULT_BLOSSOM_SERVERS } from '@/lib/client/blossom-defaults'
 import { cn } from '@/lib/utils'
+import { DomainOnboardingWizard } from '@/components/admin/settings/domain-onboarding-wizard'
+import type { DomainProbeResult } from '@/lib/domain-onboarding'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
 
@@ -96,11 +98,20 @@ function isValidGtagId(value: string): boolean {
 // tailwind-merge lets the later `border-destructive` win over `border-input`/`border-border`.
 const INVALID_CLASSES = 'border-destructive focus-visible:ring-destructive focus-within:ring-destructive'
 
+type DomainProbeState =
+  | { status: 'idle' }
+  | { status: 'missing' }
+  | { status: 'checking' }
+  | { status: 'ready'; result: DomainProbeResult }
+  | { status: 'problem'; result?: DomainProbeResult; error?: string }
+
 export function InfrastructureTab() {
   const { data: settings, loading: settingsLoading } = useSettings()
   const { updateSettings } = useUpdateSettings()
-  const { logout } = useAuth()
+  const { logout, apiClient } = useAuth()
   const [wiping, setWiping] = useState(false)
+  const [domainWizardOpen, setDomainWizardOpen] = useState(false)
+  const [domainProbe, setDomainProbe] = useState<DomainProbeState>({ status: 'idle' })
 
   async function handleWipe() {
     setWiping(true)
@@ -197,6 +208,12 @@ export function InfrastructureTab() {
   )
   const smtpHostInvalid = smtpHost.trim() !== '' && !isValidDomain(smtpHost)
   const gtagIdInvalid = !isValidGtagId(gtagId)
+  const savedDomain = settings?.domain?.trim().toLowerCase() ?? ''
+  const savedEndpoint = (settings?.endpoint ?? settings?.subdomain ?? '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase()
+  const hasConfiguredDomain = Boolean(savedDomain)
 
   // Collapse all per-field flags into a single primitive so the effect only
   // fires when the aggregate state actually changes (relay/blossom arrays
@@ -212,6 +229,55 @@ export function InfrastructureTab() {
   useEffect(() => {
     setInvalid(anyInvalid)
   }, [anyInvalid, setInvalid])
+
+  useEffect(() => {
+    if (settingsLoading || !settings) {
+      setDomainProbe({ status: 'idle' })
+      return
+    }
+
+    if (!savedDomain) {
+      setDomainProbe({ status: 'missing' })
+      return
+    }
+
+    if (!isValidDomain(savedDomain)) {
+      setDomainProbe({
+        status: 'problem',
+        error: 'Saved domain is malformed.',
+      })
+      return
+    }
+
+    let cancelled = false
+    setDomainProbe({ status: 'checking' })
+
+    apiClient
+      .post<DomainProbeResult>('/api/settings/domain-probe', {
+        domain: savedDomain,
+        endpoint: savedEndpoint,
+        apiGatewayEndpoint: currentOrigin,
+      })
+      .then(result => {
+        if (cancelled) return
+        setDomainProbe(
+          result.status === 'ready'
+            ? { status: 'ready', result }
+            : { status: 'problem', result }
+        )
+      })
+      .catch(error => {
+        if (cancelled) return
+        setDomainProbe({
+          status: 'problem',
+          error: error instanceof Error ? error.message : 'Domain check failed.',
+        })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [apiClient, currentOrigin, savedDomain, savedEndpoint, settings, settingsLoading])
 
   function addRelay() {
     setRelays((prev) => [...prev, ''])
@@ -254,9 +320,38 @@ export function InfrastructureTab() {
   // Lightning addresses resolve as `username@<domain>` — the preview shows
   // the raw domain only (no protocol, no endpoint path).
   const previewDomain = domain.trim().toLowerCase() || 'your-domain.com'
+  const showDomainAction = domainProbe.status !== 'ready'
+  const domainActionChecking = domainProbe.status === 'checking'
+  const domainActionTitle =
+    domainProbe.status === 'missing'
+      ? 'Domain is not configured'
+      : domainActionChecking
+        ? 'Checking domain routing'
+        : 'Domain routing needs attention'
+  const domainActionDescription =
+    domainProbe.status === 'missing'
+      ? 'Start a guided check for LNURL and NIP-05 routing.'
+      : domainActionChecking
+        ? 'Verifying LNURL and NIP-05 discovery now.'
+        : domainProbe.status === 'problem' && domainProbe.error
+          ? domainProbe.error
+          : 'Fix LNURL and NIP-05 discovery for this domain.'
 
   return (
     <div className="flex flex-col gap-8 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">
+      <DomainOnboardingWizard
+        open={domainWizardOpen}
+        onOpenChange={setDomainWizardOpen}
+        initialDomain={domain}
+        initialEndpoint={subdomain}
+        currentOrigin={currentOrigin}
+        updateSettings={updateSettings}
+        onConfigured={({ domain: nextDomain, endpoint }) => {
+          setDomain(nextDomain)
+          setSubdomain(endpoint)
+          setDomainProbe({ status: 'checking' })
+        }}
+      />
       <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
         <div>
           <h3 className="text-sm font-semibold">Domain</h3>
@@ -265,6 +360,41 @@ export function InfrastructureTab() {
           </p>
         </div>
         <div className="flex flex-col gap-4">
+          {showDomainAction && (
+            <div className="flex flex-col gap-3 rounded-md border bg-muted/25 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+                  {domainActionChecking ? (
+                    <Spinner size={16} />
+                  ) : hasConfiguredDomain ? (
+                    <Route className="size-4" />
+                  ) : (
+                    <WandSparkles className="size-4" />
+                  )}
+                </span>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{domainActionTitle}</p>
+                  <p className="text-xs text-muted-foreground">{domainActionDescription}</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant={hasConfiguredDomain ? 'outline' : 'default'}
+                className="shrink-0"
+                disabled={domainActionChecking}
+                onClick={() => setDomainWizardOpen(true)}
+              >
+                {hasConfiguredDomain ? (
+                  <Route className="mr-2 size-4" />
+                ) : (
+                  <WandSparkles className="mr-2 size-4" />
+                )}
+                {hasConfiguredDomain ? 'Fix domain' : 'Configure domain'}
+              </Button>
+            </div>
+          )}
+
           <div className="space-y-1">
             <Label>Domain</Label>
             <InputGroup className={cn(domainInvalid && INVALID_CLASSES)}>
@@ -292,7 +422,7 @@ export function InfrastructureTab() {
           </div>
 
           <div className="space-y-1">
-            <Label>Endpoint</Label>
+            <Label>This instance endpoint</Label>
             <Input
               placeholder={currentOrigin || 'https://app.domain.com'}
               value={subdomain}

@@ -3,26 +3,17 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { AuthorizationError, ValidationError } from '@/types/server/errors'
+import { ValidationError } from '@/types/server/errors'
 import { settingsBodySchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
-import { authenticate } from '@/lib/auth/unified-auth'
-import { validateNip98Auth } from '@/lib/admin-auth'
+import {
+  authenticateSettingsReadRequest,
+  authenticateSettingsWriteRequest,
+} from '@/lib/settings-auth'
 import { eventBus } from '@/lib/events/event-bus'
 import { probeLud21Support } from '@/lib/lnurl-probe'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
-
-async function authenticateSettingsRequest(request: NextRequest): Promise<string> {
-  const authHeader = request.headers.get('authorization')
-
-  if (!authHeader) {
-    return validateNip98Auth(request)
-  }
-
-  const auth = await authenticate(request)
-  return auth.pubkey
-}
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch all settings records from the database
@@ -35,14 +26,15 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   // Validate authentication (JWT or NIP-98). Unauthenticated users only get public settings.
-  let authenticatedPubkey = ''
+  let canReadFullSettings = false
   try {
-    authenticatedPubkey = await authenticateSettingsRequest(request)
+    await authenticateSettingsReadRequest(request)
+    canReadFullSettings = true
   } catch {
-    authenticatedPubkey = ''
+    canReadFullSettings = false
   }
 
-  if (!authenticatedPubkey || authenticatedPubkey !== settings.root) {
+  if (!canReadFullSettings) {
     // Public fields: domain/endpoint for lightning address resolution,
     // branding for a consistent look across all visitors, the
     // maintenance flag so clients can render the maintenance banner
@@ -77,7 +69,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   await checkRequestLimits(request, 'json')
 
   // Validate authentication (JWT or NIP-98)
-  const authenticatedPubkey = await authenticateSettingsRequest(request)
+  const authenticatedPubkey = await authenticateSettingsWriteRequest(request)
 
   // Fetch all settings records from the database
   const settings = await getSettings([
@@ -87,10 +79,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'registration_ln_enabled',
     'maintenance_enabled',
   ])
-
-  if (authenticatedPubkey !== settings.root) {
-    throw new AuthorizationError('Not authorized to update settings')
-  }
 
   const body = await validateBody(request, settingsBodySchema)
 
