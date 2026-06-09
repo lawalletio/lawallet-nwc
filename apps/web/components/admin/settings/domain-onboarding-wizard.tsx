@@ -59,6 +59,24 @@ function StatusIcon({ check }: { check: ProbeCheck }) {
   return <AlertTriangle className="size-4 text-destructive" />
 }
 
+function DiscoveryStatusList({ checks }: { checks: ProbeCheck[] }) {
+  return (
+    <div className="divide-y rounded-md border bg-background">
+      {checks.map(check => (
+        <div key={check.label} className="flex gap-3 p-3">
+          <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-muted">
+            <StatusIcon check={check} />
+          </span>
+          <div className="min-w-0 space-y-0.5">
+            <p className="text-sm font-medium">{check.label}</p>
+            <p className="text-xs leading-5 text-muted-foreground">{check.detail}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function NetworkIllustration({ active }: { active: boolean }) {
   return (
     <svg
@@ -189,7 +207,7 @@ export function DomainOnboardingWizard({
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[620px]">
+      <DialogContent className="max-h-[92vh] overflow-x-hidden overflow-y-auto sm:max-w-[560px]">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-emerald-500 to-cyan-500" />
         <DialogHeader className="pr-6">
           <DialogTitle className="flex items-center gap-2">
@@ -217,7 +235,7 @@ export function DomainOnboardingWizard({
           ))}
         </div>
 
-        <div className="min-h-[420px]">
+        <div className="min-h-[320px]">
           {step === 'input' && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-5">
               <NetworkIllustration active={false} />
@@ -281,8 +299,6 @@ export function DomainOnboardingWizard({
 
           {step === 'result' && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
-              <NetworkIllustration active={ready || pending} />
-
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={ready ? 'default' : rewriteNeeded ? 'destructive' : 'secondary'}>
                   {ready ? 'Ready' : rewriteNeeded ? 'Rewrite needed' : 'Saved, pending'}
@@ -305,17 +321,7 @@ export function DomainOnboardingWizard({
 
               {result && (
                 <>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {[result.checks.lnurl, result.checks.nip05].map(check => (
-                      <div key={check.label} className="rounded-md border p-3">
-                        <div className="flex items-center gap-2">
-                          <StatusIcon check={check} />
-                          <span className="text-sm font-medium">{check.label}</span>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">{check.detail}</p>
-                      </div>
-                    ))}
-                  </div>
+                  <DiscoveryStatusList checks={[result.checks.lnurl, result.checks.nip05]} />
 
                   <div className="rounded-md border bg-background">
                     <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
@@ -327,7 +333,7 @@ export function DomainOnboardingWizard({
                         <Clipboard className="size-4" />
                       </Button>
                     </div>
-                    <pre className="max-h-36 overflow-auto p-3 text-xs">
+                    <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap break-all p-3 text-xs">
                       <code>{result.instructions.snippet}</code>
                     </pre>
                   </div>
