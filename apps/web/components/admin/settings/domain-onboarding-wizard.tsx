@@ -139,7 +139,7 @@ function InstructionChooser({
   onSelect,
 }: {
   options: InstructionProfile[]
-  selected: InstructionProfile
+  selected?: InstructionProfile
   search: string
   onSearchChange: (value: string) => void
   onSelect: (option: InstructionProfile) => void
@@ -169,7 +169,7 @@ function InstructionChooser({
             onClick={() => onSelect(option)}
             className={cn(
               'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors',
-              selected.kind === option.kind
+              selected?.kind === option.kind
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground',
             )}
@@ -319,14 +319,19 @@ export function DomainOnboardingWizard({
   const ready = result?.status === 'ready'
   const pending = result?.status === 'pending'
   const rewriteNeeded = result?.status === 'rewrite-needed'
-  const showInstructionChooser = Boolean(
+  const requiresInstructionChoice = Boolean(
     result &&
     result.status !== 'ready' &&
-    (result.platform.kind === 'unknown' || result.platform.confidence === 'low'),
+    (
+      result.instructions.kind === 'unknown' ||
+      result.platform.kind === 'unknown' ||
+      result.platform.confidence === 'low' ||
+      (result.platform.kind === 'lawallet' && result.checks.instance.state !== 'pass')
+    ),
   )
   const selectedInstruction =
     result?.instructionOptions.find(option => option.kind === selectedInstructionKind) ??
-    result?.instructions
+    (requiresInstructionChoice ? undefined : result?.instructions)
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
@@ -433,7 +438,9 @@ export function DomainOnboardingWizard({
                       : 'Saved. Check routing next.'}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {result?.instructions.summary ?? 'The domain was saved, but the check could not finish.'}
+                  {requiresInstructionChoice && !selectedInstruction
+                    ? 'Choose your backend to see the right rewrite instructions.'
+                    : result?.instructions.summary ?? 'The domain was saved, but the check could not finish.'}
                 </p>
               </div>
 
@@ -441,7 +448,7 @@ export function DomainOnboardingWizard({
                 <>
                   <DiscoveryStatusList checks={[result.checks.lnurl, result.checks.nip05]} />
 
-                  {showInstructionChooser && selectedInstruction && (
+                  {requiresInstructionChoice && (
                     <InstructionChooser
                       options={result.instructionOptions}
                       selected={selectedInstruction}
@@ -451,20 +458,26 @@ export function DomainOnboardingWizard({
                     />
                   )}
 
-                  <div className="rounded-md border bg-background">
-                    <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium">{selectedInstruction?.title}</p>
-                        <p className="text-xs leading-5 text-muted-foreground">{selectedInstruction?.tip}</p>
+                  {selectedInstruction ? (
+                    <div className="rounded-md border bg-background">
+                      <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{selectedInstruction.title}</p>
+                          <p className="text-xs leading-5 text-muted-foreground">{selectedInstruction.tip}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={copySnippet}>
+                          <Clipboard className="size-4" />
+                        </Button>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={copySnippet}>
-                        <Clipboard className="size-4" />
-                      </Button>
+                      <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap break-all p-3 text-xs">
+                        <code>{selectedInstruction.snippet}</code>
+                      </pre>
                     </div>
-                    <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap break-all p-3 text-xs">
-                      <code>{selectedInstruction?.snippet}</code>
-                    </pre>
-                  </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground">
+                      Choose an infrastructure option first.
+                    </div>
+                  )}
                 </>
               )}
             </div>
