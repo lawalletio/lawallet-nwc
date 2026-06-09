@@ -135,7 +135,7 @@ const DEFAULT_SETTINGS_TAB = 'branding'
  * Reading the query reactively here is what keeps the highlight in sync when
  * the user switches tabs — `usePathname` alone never changes on `?tab=` edits.
  */
-function SettingsNav() {
+function SettingsNav({ disabled = false }: { disabled?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -155,7 +155,9 @@ function SettingsNav() {
         <CollapsibleTrigger asChild>
           <SidebarMenuButton
             isActive={pathname.startsWith('/admin/settings')}
+            disabled={disabled}
             onClick={() => {
+              if (disabled) return
               if (!open) {
                 router.push('/admin/settings')
                 closeMobile()
@@ -171,17 +173,26 @@ function SettingsNav() {
           <SidebarMenuSub>
             {settingsSubItems.map((sub) => (
               <SidebarMenuSubItem key={sub.tab}>
-                <SidebarMenuSubButton
-                  asChild
-                  isActive={onSettings && activeTab === sub.tab}
-                >
-                  <Link
-                    href={`/admin/settings?tab=${sub.tab}`}
-                    onClick={closeMobile}
+                {disabled ? (
+                  <SidebarMenuSubButton
+                    aria-disabled="true"
+                    isActive={onSettings && activeTab === sub.tab}
                   >
                     {sub.title}
-                  </Link>
-                </SidebarMenuSubButton>
+                  </SidebarMenuSubButton>
+                ) : (
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={onSettings && activeTab === sub.tab}
+                  >
+                    <Link
+                      href={`/admin/settings?tab=${sub.tab}`}
+                      onClick={closeMobile}
+                    >
+                      {sub.title}
+                    </Link>
+                  </SidebarMenuSubButton>
+                )}
               </SidebarMenuSubItem>
             ))}
           </SidebarMenuSub>
@@ -191,12 +202,12 @@ function SettingsNav() {
   )
 }
 
-export function AdminSidebar() {
+export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const { pubkey, role, loginMethod, logout, isAuthorized } = useAuth()
   const { profile } = useNostrProfile(pubkey)
-  const { data: settings } = useSettings()
+  const { data: settings } = useSettings(!disabled)
   const { isMobile, setOpenMobile } = useSidebar()
 
   // Close the mobile drawer after navigation
@@ -242,7 +253,13 @@ export function AdminSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
-        <Link href="/admin" className="flex items-center gap-2" onClick={closeMobile}>
+        <Link
+          href="/admin"
+          aria-disabled={disabled}
+          tabIndex={disabled ? -1 : undefined}
+          className={`flex items-center gap-2 ${disabled ? 'pointer-events-none opacity-60' : ''}`}
+          onClick={closeMobile}
+        >
           <BrandLogotype width={100} height={24} className="h-6 w-auto" />
         </Link>
       </SidebarHeader>
@@ -255,12 +272,19 @@ export function AdminSidebar() {
               <SidebarMenu>
                 {visiblePlatform.map((item) => (
                   <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={isActive(item.href)}>
-                      <Link href={item.href} onClick={closeMobile}>
+                    {disabled ? (
+                      <SidebarMenuButton disabled isActive={isActive(item.href)}>
                         <item.icon className="size-4" />
                         <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
+                      </SidebarMenuButton>
+                    ) : (
+                      <SidebarMenuButton asChild isActive={isActive(item.href)}>
+                        <Link href={item.href} onClick={closeMobile}>
+                          <item.icon className="size-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    )}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -277,12 +301,19 @@ export function AdminSidebar() {
                 <SidebarMenu>
                   {visibleSystem.map((item) => (
                     <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={isActive(item.href)}>
-                        <Link href={item.href} onClick={closeMobile}>
+                      {disabled ? (
+                        <SidebarMenuButton disabled isActive={isActive(item.href)}>
                           <item.icon className="size-4" />
                           <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
+                        </SidebarMenuButton>
+                      ) : (
+                        <SidebarMenuButton asChild isActive={isActive(item.href)}>
+                          <Link href={item.href} onClick={closeMobile}>
+                            <item.icon className="size-4" />
+                            <span>{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      )}
                     </SidebarMenuItem>
                   ))}
 
@@ -290,7 +321,7 @@ export function AdminSidebar() {
                     // `SettingsNav` reads the active tab from the URL query via
                     // `useSearchParams`, which must sit under a Suspense boundary.
                     <Suspense fallback={null}>
-                      <SettingsNav />
+                      <SettingsNav disabled={disabled} />
                     </Suspense>
                   )}
                 </SidebarMenu>
@@ -303,13 +334,21 @@ export function AdminSidebar() {
       <SidebarFooter className="p-4 space-y-3">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <a href="https://docs.lawallet.io" target="_blank" rel="noopener noreferrer">
+            {disabled ? (
+              <SidebarMenuButton disabled>
                 <HelpCircle className="size-4" />
                 <span>Get Help</span>
                 <ExternalLink className="ml-auto size-3 text-muted-foreground" />
-              </a>
-            </SidebarMenuButton>
+              </SidebarMenuButton>
+            ) : (
+              <SidebarMenuButton asChild>
+                <a href="https://docs.lawallet.io" target="_blank" rel="noopener noreferrer">
+                  <HelpCircle className="size-4" />
+                  <span>Get Help</span>
+                  <ExternalLink className="ml-auto size-3 text-muted-foreground" />
+                </a>
+              </SidebarMenuButton>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
 
@@ -319,7 +358,11 @@ export function AdminSidebar() {
           {pubkey ? (
             <Link
               href={`/admin/users/${pubkey}`}
-              className="flex flex-1 min-w-0 items-center gap-2 rounded-md -m-1 p-1 hover:bg-sidebar-accent transition-colors"
+              className={`flex flex-1 min-w-0 items-center gap-2 rounded-md -m-1 p-1 transition-colors ${
+                disabled ? 'pointer-events-none opacity-60' : 'hover:bg-sidebar-accent'
+              }`}
+              aria-disabled={disabled}
+              tabIndex={disabled ? -1 : undefined}
               aria-label="View my profile"
               onClick={() => setOpenMobile(false)}
             >
@@ -354,7 +397,7 @@ export function AdminSidebar() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0 size-8">
+              <Button variant="ghost" size="icon" className="shrink-0 size-8" disabled={disabled}>
                 <MoreVertical className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -383,7 +426,9 @@ export function AdminSidebar() {
                 variant="theme"
                 size="sm"
                 className="w-full"
+                disabled={disabled}
                 onClick={() => {
+                  if (disabled) return
                   router.push('/admin/settings?tab=infrastructure')
                   closeMobile()
                 }}

@@ -29,7 +29,7 @@ const tabs: Tab[] = [
   { title: 'Settings', href: '/admin/settings', icon: Settings, permission: Permission.SETTINGS_READ },
 ]
 
-export function MobileTabBar() {
+export function MobileTabBar({ disabled = false }: { disabled?: boolean }) {
   const pathname = usePathname()
   const { isAuthorized } = useAuth()
 
@@ -45,17 +45,26 @@ export function MobileTabBar() {
       <div className="flex items-center justify-around h-14">
         {visibleTabs.map((tab) => {
           const active = isActive(tab.href)
+          const className = cn(
+            'flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-xs transition-colors',
+            disabled
+              ? 'cursor-not-allowed text-muted-foreground/50'
+              : active
+                ? 'text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+          )
+
+          if (disabled) {
+            return (
+              <button key={tab.href} className={className} disabled type="button">
+                <tab.icon className="size-5" />
+                <span>{tab.title}</span>
+              </button>
+            )
+          }
+
           return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={cn(
-                'flex flex-col items-center justify-center gap-0.5 flex-1 h-full text-xs transition-colors',
-                active
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
+            <Link key={tab.href} href={tab.href} className={className}>
               <tab.icon className="size-5" />
               <span>{tab.title}</span>
             </Link>

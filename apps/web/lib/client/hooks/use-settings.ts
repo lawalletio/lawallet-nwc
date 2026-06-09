@@ -49,8 +49,8 @@ export interface SettingsData {
 /**
  * Fetch current settings.
  */
-export function useSettings() {
-  return useApi<SettingsData>('/api/settings')
+export function useSettings(enabled = true) {
+  return useApi<SettingsData>(enabled ? '/api/settings' : null)
 }
 
 /**
