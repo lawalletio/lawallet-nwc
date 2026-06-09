@@ -20,33 +20,23 @@ export function SetupBanner() {
   return (
     <div
       role="alert"
-      className="mx-4 mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 shadow-sm md:mx-6"
+      className="flex items-center justify-center gap-3 bg-amber-400 px-3 py-1 text-xs font-semibold text-black"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-md bg-amber-500/15 text-amber-500">
-            <AlertTriangle className="size-4" />
-          </div>
-          <div className="min-w-0 space-y-1">
-            <h3 className="text-sm font-semibold text-foreground">
-              {hasDomain ? 'Domain verification required' : 'Domain configuration required'}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Verify .well-known routing so LNURL and NIP-05 discovery reach this instance.
-            </p>
-          </div>
-        </div>
+      <AlertTriangle className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">
+        {hasDomain ? 'Domain verification required' : 'Domain configuration required'}: verify .well-known routing.
+      </span>
 
-        <Button
-          variant="secondary"
-          size="sm"
-          className="shrink-0"
-          onClick={() => router.push('/admin/settings?tab=infrastructure&domainSetup=open')}
-        >
-          <Route className="mr-2 size-4" />
-          Fix domain config
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-6 shrink-0 rounded px-2 text-xs font-semibold text-black hover:bg-black/10 hover:text-black"
+        onClick={() => router.push('/admin/settings?tab=infrastructure&domainSetup=open')}
+      >
+        <Route className="mr-1.5 size-3.5" />
+        Fix domain
+      </Button>
     </div>
   )
 }
