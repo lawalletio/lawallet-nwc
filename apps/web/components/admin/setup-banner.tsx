@@ -24,7 +24,7 @@ export function SetupBanner() {
     >
       <AlertTriangle className="size-3.5 shrink-0" />
       <span className="min-w-0 truncate">
-        {hasDomain ? 'Domain verification required' : 'Domain configuration required'}: verify .well-known routing.
+        Domain configuration is required
       </span>
 
       <Button
