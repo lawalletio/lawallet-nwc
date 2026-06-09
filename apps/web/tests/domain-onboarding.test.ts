@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  buildInstructionOptions,
   buildInstructionProfile,
   detectPlatform,
   normalizeDomainProbeInput,
@@ -66,6 +67,26 @@ describe('domain onboarding helpers', () => {
       'https://lawallet.example.com',
     )
     expect(nextjs.snippet).toContain('async rewrites')
+  })
+
+  it('returns selectable instruction options', () => {
+    const options = buildInstructionOptions('example.com', 'https://gateway.example.com')
+    const labels = options.map(option => option.label)
+
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        '.htaccess',
+        'Next.js',
+        'Vite',
+        'PHP / Apache',
+        'Nginx',
+        'Vercel',
+        'Netlify',
+        'Cloudflare Worker',
+        'Caddy',
+      ]),
+    )
+    expect(options.find(option => option.kind === 'nextjs')?.snippet).toContain('async rewrites')
   })
 
   it('uses the API gateway as rewrite target when root domain is not LaWallet', async () => {

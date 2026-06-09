@@ -9,11 +9,12 @@ import {
   Globe2,
   RefreshCw,
   Route,
+  Search,
   Sparkles,
   WandSparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { DomainProbeResult, ProbeCheck } from '@/lib/domain-onboarding'
+import type { DomainProbeResult, InstructionProfile, ProbeCheck } from '@/lib/domain-onboarding'
 import { useAuth } from '@/components/admin/auth-context'
 import { Button } from '@/components/ui/button'
 import {
@@ -130,6 +131,60 @@ function PlatformBadge({ platform }: { platform: DomainProbeResult['platform'] }
   return <Badge variant="outline">{platform.label}</Badge>
 }
 
+function InstructionChooser({
+  options,
+  selected,
+  search,
+  onSearchChange,
+  onSelect,
+}: {
+  options: InstructionProfile[]
+  selected: InstructionProfile
+  search: string
+  onSearchChange: (value: string) => void
+  onSelect: (option: InstructionProfile) => void
+}) {
+  const filtered = options.filter(option => {
+    const query = search.trim().toLowerCase()
+    const haystack = `${option.label ?? ''} ${option.title} ${option.summary}`.toLowerCase()
+    return haystack.includes(query)
+  })
+
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+      <div className="flex items-center gap-2 rounded-md border bg-background px-2">
+        <Search className="size-4 shrink-0 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={event => onSearchChange(event.target.value)}
+          placeholder="Search infrastructure"
+          className="h-8 border-0 px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+        />
+      </div>
+      <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
+        {filtered.map(option => (
+          <button
+            key={option.kind ?? option.title}
+            type="button"
+            onClick={() => onSelect(option)}
+            className={cn(
+              'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors',
+              selected.kind === option.kind
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground',
+            )}
+          >
+            {option.label ?? option.title}
+          </button>
+        ))}
+        {filtered.length === 0 && (
+          <p className="px-1 py-2 text-xs text-muted-foreground">No matching infrastructure.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function NetworkIllustration({ active }: { active: boolean }) {
   return (
     <svg
@@ -182,6 +237,8 @@ export function DomainOnboardingWizard({
   const [saving, setSaving] = useState(false)
   const [probing, setProbing] = useState(false)
   const [result, setResult] = useState<DomainProbeResult | null>(null)
+  const [instructionSearch, setInstructionSearch] = useState('')
+  const [selectedInstructionKind, setSelectedInstructionKind] = useState<string | null>(null)
 
   const cleanDomain = domain.trim().toLowerCase()
   const endpointValue = normalizeEndpoint(endpoint, cleanDomain)
@@ -207,6 +264,8 @@ export function DomainOnboardingWizard({
         apiGatewayEndpoint: currentOrigin,
       })
       setResult(probe)
+      setInstructionSearch('')
+      setSelectedInstructionKind(null)
       setStep('result')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Domain check failed')
@@ -240,8 +299,8 @@ export function DomainOnboardingWizard({
   }
 
   async function copySnippet() {
-    if (!result) return
-    await navigator.clipboard.writeText(result.instructions.snippet)
+    if (!selectedInstruction) return
+    await navigator.clipboard.writeText(selectedInstruction.snippet)
     toast.success('Copied')
   }
 
@@ -250,6 +309,8 @@ export function DomainOnboardingWizard({
     if (!nextOpen) {
       setStep('input')
       setResult(null)
+      setInstructionSearch('')
+      setSelectedInstructionKind(null)
       setSaving(false)
       setProbing(false)
     }
@@ -258,6 +319,14 @@ export function DomainOnboardingWizard({
   const ready = result?.status === 'ready'
   const pending = result?.status === 'pending'
   const rewriteNeeded = result?.status === 'rewrite-needed'
+  const showInstructionChooser = Boolean(
+    result &&
+    result.status !== 'ready' &&
+    (result.platform.kind === 'unknown' || result.platform.confidence === 'low'),
+  )
+  const selectedInstruction =
+    result?.instructionOptions.find(option => option.kind === selectedInstructionKind) ??
+    result?.instructions
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
@@ -372,18 +441,28 @@ export function DomainOnboardingWizard({
                 <>
                   <DiscoveryStatusList checks={[result.checks.lnurl, result.checks.nip05]} />
 
+                  {showInstructionChooser && selectedInstruction && (
+                    <InstructionChooser
+                      options={result.instructionOptions}
+                      selected={selectedInstruction}
+                      search={instructionSearch}
+                      onSearchChange={setInstructionSearch}
+                      onSelect={option => setSelectedInstructionKind(option.kind ?? option.title)}
+                    />
+                  )}
+
                   <div className="rounded-md border bg-background">
                     <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium">{result.instructions.title}</p>
-                        <p className="text-xs leading-5 text-muted-foreground">{result.instructions.tip}</p>
+                        <p className="text-sm font-medium">{selectedInstruction?.title}</p>
+                        <p className="text-xs leading-5 text-muted-foreground">{selectedInstruction?.tip}</p>
                       </div>
                       <Button variant="ghost" size="icon" onClick={copySnippet}>
                         <Clipboard className="size-4" />
                       </Button>
                     </div>
                     <pre className="max-h-36 overflow-y-auto whitespace-pre-wrap break-all p-3 text-xs">
-                      <code>{result.instructions.snippet}</code>
+                      <code>{selectedInstruction?.snippet}</code>
                     </pre>
                   </div>
                 </>

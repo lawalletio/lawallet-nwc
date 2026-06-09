@@ -13,6 +13,19 @@ export type PlatformKind =
   | 'cloudflare'
   | 'static'
   | 'unknown'
+export type InstructionKind =
+  | 'wordpress'
+  | 'htaccess'
+  | 'nextjs'
+  | 'vite'
+  | 'php'
+  | 'nginx'
+  | 'vercel'
+  | 'netlify'
+  | 'cloudflare'
+  | 'caddy'
+  | 'static'
+  | 'unknown'
 
 export interface DomainProbeRequest {
   domain: string
@@ -36,6 +49,8 @@ export interface PlatformDetection {
 }
 
 export interface InstructionProfile {
+  kind?: InstructionKind | 'lawallet'
+  label?: string
   title: string
   summary: string
   snippet: string
@@ -54,6 +69,7 @@ export interface DomainProbeResult {
   }
   platform: PlatformDetection
   instructions: InstructionProfile
+  instructionOptions: InstructionProfile[]
 }
 
 export interface RootSample {
@@ -176,71 +192,122 @@ export function buildInstructionProfile(
   domain: string,
   endpoint: string,
 ): InstructionProfile {
-  const target = endpoint.replace(/\/+$/, '')
-  const tip = `You can host LaWallet at lawallet.${domain} and keep ${domain} for a landing page. Only .well-known needs to route here.`
-
-  const snippets: Record<PlatformKind, InstructionProfile> = {
-    lawallet: {
+  if (platform.kind === 'lawallet') {
+    const target = endpoint.replace(/\/+$/, '')
+    const tip = `You can host LaWallet at lawallet.${domain} and keep ${domain} for a landing page. Only .well-known needs to route here.`
+    return {
+      kind: 'lawallet',
+      label: 'LaWallet',
       title: 'Domain is already on LaWallet',
       summary: 'No rewrite is needed. Keep this setup.',
       snippet: `/.well-known/* is already served by ${target}`,
       tip,
-    },
+    }
+  }
+
+  return buildInstructionProfileByKind(platform.kind, domain, endpoint)
+}
+
+export function buildInstructionProfileByKind(
+  kind: InstructionKind,
+  domain: string,
+  endpoint: string,
+): InstructionProfile {
+  const target = endpoint.replace(/\/+$/, '')
+  const tip = `You can host LaWallet at lawallet.${domain} and keep ${domain} for a landing page. Only .well-known needs to route here.`
+
+  const snippets: Record<InstructionKind, InstructionProfile> = {
     wordpress: {
+      kind: 'wordpress',
+      label: 'WordPress',
       title: 'Add a WordPress rewrite',
       summary: 'Route only .well-known to this LaWallet instance.',
       snippet: `# .htaccess before WordPress rules\nRewriteEngine On\nRewriteRule ^\\.well-known/(.*)$ ${target}/.well-known/$1 [R=307,L]`,
       tip,
     },
+    htaccess: {
+      kind: 'htaccess',
+      label: '.htaccess',
+      title: 'Add an Apache .htaccess rewrite',
+      summary: 'Place this before app or CMS rewrite rules.',
+      snippet: `RewriteEngine On\nRewriteRule ^\\.well-known/(.*)$ ${target}/.well-known/$1 [R=307,L]`,
+      tip,
+    },
     nextjs: {
+      kind: 'nextjs',
+      label: 'Next.js',
       title: 'Add a Next.js rewrite',
       summary: 'Keep the site, route wallet discovery to LaWallet.',
       snippet: `// next.config.js\nasync rewrites() {\n  return [\n    { source: '/.well-known/:path*', destination: '${target}/.well-known/:path*' },\n  ]\n}`,
       tip,
     },
     vite: {
+      kind: 'vite',
+      label: 'Vite',
       title: 'Add a hosting rewrite',
       summary: 'Configure your host to proxy .well-known.',
       snippet: `/.well-known/*  ${target}/.well-known/:splat  200`,
       tip,
     },
     php: {
+      kind: 'php',
+      label: 'PHP / Apache',
       title: 'Add an Apache/PHP rewrite',
       summary: 'Proxy discovery requests without moving the website.',
       snippet: `RewriteEngine On\nRewriteRule ^\\.well-known/(.*)$ ${target}/.well-known/$1 [R=307,L]`,
       tip,
     },
     nginx: {
+      kind: 'nginx',
+      label: 'Nginx',
       title: 'Add an Nginx location',
       summary: 'Proxy only the discovery paths.',
       snippet: `location /.well-known/ {\n  proxy_pass ${target}/.well-known/;\n  proxy_set_header Host $host;\n}`,
       tip,
     },
     vercel: {
+      kind: 'vercel',
+      label: 'Vercel',
       title: 'Add a Vercel rewrite',
       summary: 'Place this in vercel.json or Next rewrites.',
       snippet: `{\n  "rewrites": [\n    { "source": "/.well-known/:path*", "destination": "${target}/.well-known/:path*" }\n  ]\n}`,
       tip,
     },
     netlify: {
+      kind: 'netlify',
+      label: 'Netlify',
       title: 'Add a Netlify rewrite',
       summary: 'Place this in _redirects.',
       snippet: `/.well-known/*  ${target}/.well-known/:splat  200`,
       tip,
     },
     cloudflare: {
+      kind: 'cloudflare',
+      label: 'Cloudflare Worker',
       title: 'Add a Cloudflare rule',
       summary: 'Forward .well-known to the LaWallet endpoint.',
       snippet: `if (url.pathname.startsWith('/.well-known/')) {\n  return fetch('${target}' + url.pathname + url.search)\n}`,
       tip,
     },
+    caddy: {
+      kind: 'caddy',
+      label: 'Caddy',
+      title: 'Add a Caddy reverse proxy',
+      summary: 'Proxy only .well-known to LaWallet.',
+      snippet: `handle /.well-known/* {\n  reverse_proxy ${target}\n}`,
+      tip,
+    },
     static: {
+      kind: 'static',
+      label: 'Static host',
       title: 'Add a static-host rewrite',
       summary: 'Most hosts call this redirects or rewrites.',
       snippet: `/.well-known/*  ${target}/.well-known/:splat  200`,
       tip,
     },
     unknown: {
+      kind: 'unknown',
+      label: 'Generic',
       title: 'Add a .well-known rewrite',
       summary: 'Use your web server or DNS proxy to forward discovery.',
       snippet: `/.well-known/* -> ${target}/.well-known/*`,
@@ -248,7 +315,24 @@ export function buildInstructionProfile(
     },
   }
 
-  return snippets[platform.kind]
+  return snippets[kind]
+}
+
+export function buildInstructionOptions(domain: string, endpoint: string): InstructionProfile[] {
+  return ([
+    'wordpress',
+    'htaccess',
+    'nextjs',
+    'vite',
+    'php',
+    'nginx',
+    'vercel',
+    'netlify',
+    'cloudflare',
+    'caddy',
+    'static',
+    'unknown',
+  ] satisfies InstructionKind[]).map(kind => buildInstructionProfileByKind(kind, domain, endpoint))
 }
 
 function pass(label: string, url: string, detail: string): ProbeCheck {
@@ -407,5 +491,6 @@ export async function probeDomainRouting(input: DomainProbeRequest): Promise<Dom
     checks: { instance, lnurl, nip05 },
     platform,
     instructions: buildInstructionProfile(instructionPlatform, domain, effectiveEndpoint),
+    instructionOptions: buildInstructionOptions(domain, effectiveEndpoint),
   }
 }
