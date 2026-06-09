@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Clipboard,
   Globe2,
-  Loader2,
   RefreshCw,
   Route,
   Sparkles,
@@ -66,6 +65,35 @@ function DiscoveryStatusList({ checks }: { checks: ProbeCheck[] }) {
         <div key={check.label} className="flex gap-3 p-3">
           <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-muted">
             <StatusIcon check={check} />
+          </span>
+          <div className="min-w-0 space-y-0.5">
+            <p className="text-sm font-medium">{check.label}</p>
+            <p className="text-xs leading-5 text-muted-foreground">{check.detail}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DiscoveryCheckingList() {
+  const checks = [
+    {
+      label: 'LNURL',
+      detail: 'Checking Lightning Address discovery.',
+    },
+    {
+      label: 'NIP-05',
+      detail: 'Checking Nostr identity discovery.',
+    },
+  ]
+
+  return (
+    <div className="divide-y rounded-md border bg-background text-left">
+      {checks.map(check => (
+        <div key={check.label} className="flex gap-3 p-3">
+          <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-primary/10">
+            <Spinner size={16} />
           </span>
           <div className="min-w-0 space-y-0.5">
             <p className="text-sm font-medium">{check.label}</p>
@@ -282,12 +310,8 @@ export function DomainOnboardingWizard({
           )}
 
           {step === 'checking' && (
-            <div className="animate-in fade-in zoom-in-95 duration-300 flex min-w-0 min-h-[360px] flex-col items-center justify-center gap-5 text-center">
-              <NetworkIllustration active />
-              <div className="space-y-2">
-                <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
-                  {saving ? <Spinner size={24} /> : <Loader2 className="size-5 animate-spin" />}
-                </div>
+            <div className="animate-in fade-in zoom-in-95 duration-300 flex min-w-0 min-h-[320px] flex-col justify-center gap-4">
+              <div className="space-y-2 text-center">
                 <h3 className="text-base font-semibold">
                   {saving ? 'Saving domain' : 'Checking routes'}
                 </h3>
@@ -295,6 +319,7 @@ export function DomainOnboardingWizard({
                   LNURL and NIP-05 discovery are being tested from the server.
                 </p>
               </div>
+              <DiscoveryCheckingList />
             </div>
           )}
 
