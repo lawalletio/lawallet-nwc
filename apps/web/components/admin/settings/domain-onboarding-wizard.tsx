@@ -47,10 +47,8 @@ interface DomainOnboardingWizardProps {
   updateSettings: (data: Record<string, string>) => Promise<unknown>
 }
 
-function normalizeEndpoint(endpoint: string, domain: string): string {
-  const cleaned = endpoint.trim().replace(/\/+$/, '').toLowerCase()
-  if (cleaned) return cleaned
-  return domain.trim().toLowerCase()
+function normalizeEndpoint(endpoint: string): string {
+  return endpoint.trim().replace(/\/+$/, '').toLowerCase()
 }
 
 function StatusIcon({ check }: { check: ProbeCheck }) {
@@ -241,7 +239,8 @@ export function DomainOnboardingWizard({
   const [selectedInstructionKind, setSelectedInstructionKind] = useState<string | null>(null)
 
   const cleanDomain = domain.trim().toLowerCase()
-  const endpointValue = normalizeEndpoint(endpoint, cleanDomain)
+  const endpointValue = normalizeEndpoint(endpoint)
+  const probeEndpointValue = endpointValue || currentOrigin
   const invalidDomain = cleanDomain !== '' && !DOMAIN_PATTERN.test(cleanDomain)
   const lawalletHost = useMemo(
     () => (cleanDomain ? `lawallet.${cleanDomain}` : 'lawallet.example.com'),
@@ -254,7 +253,7 @@ export function DomainOnboardingWizard({
     setEndpoint(initialEndpoint)
   }, [initialDomain, initialEndpoint, open])
 
-  async function runProbe(nextDomain = cleanDomain, nextEndpoint = endpointValue) {
+  async function runProbe(nextDomain = cleanDomain, nextEndpoint = probeEndpointValue) {
     setProbing(true)
     setStep('checking')
     try {
@@ -285,12 +284,12 @@ export function DomainOnboardingWizard({
     try {
       await updateSettings({
         domain: cleanDomain,
-        endpoint: endpointValue,
+        ...(endpointValue ? { endpoint: endpointValue } : {}),
       })
-      onConfigured({ domain: cleanDomain, endpoint: endpointValue })
+      onConfigured({ domain: cleanDomain, endpoint: endpointValue || initialEndpoint })
       toast.success('Domain saved')
       setSaving(false)
-      await runProbe(cleanDomain, endpointValue)
+      await runProbe(cleanDomain, probeEndpointValue)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save domain')
     } finally {
