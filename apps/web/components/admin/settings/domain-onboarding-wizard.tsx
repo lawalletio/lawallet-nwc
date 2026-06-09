@@ -207,9 +207,9 @@ export function DomainOnboardingWizard({
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
-      <DialogContent className="max-h-[92vh] overflow-x-hidden overflow-y-auto sm:max-w-[560px]">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] min-w-0 max-h-[92vh] overflow-x-hidden overflow-y-auto sm:max-w-[560px]">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-emerald-500 to-cyan-500" />
-        <DialogHeader className="pr-6">
+        <DialogHeader className="min-w-0 pr-6">
           <DialogTitle className="flex items-center gap-2">
             <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
               <WandSparkles className="size-4" />
@@ -221,7 +221,7 @@ export function DomainOnboardingWizard({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           {(['input', 'checking', 'result'] as WizardStep[]).map((item, index) => (
             <div
               key={item}
@@ -235,15 +235,15 @@ export function DomainOnboardingWizard({
           ))}
         </div>
 
-        <div className="min-h-[320px]">
+        <div className="min-w-0 min-h-[320px]">
           {step === 'input' && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-5">
               <NetworkIllustration active={false} />
 
-              <div className="grid gap-4">
+              <div className="grid min-w-0 gap-4">
                 <div className="space-y-1">
                   <Label>Domain</Label>
-                  <InputGroup className={cn(invalidDomain && 'border-destructive')}>
+                  <InputGroup className={cn('min-w-0', invalidDomain && 'border-destructive')}>
                     <InputGroupText>https://</InputGroupText>
                     <Input
                       autoFocus
@@ -258,6 +258,7 @@ export function DomainOnboardingWizard({
                 <div className="space-y-1">
                   <Label>LaWallet endpoint</Label>
                   <Input
+                    className="min-w-0"
                     placeholder={currentOrigin || lawalletHost}
                     value={endpoint}
                     onChange={event => setEndpoint(event.target.value)}
@@ -281,7 +282,7 @@ export function DomainOnboardingWizard({
           )}
 
           {step === 'checking' && (
-            <div className="animate-in fade-in zoom-in-95 duration-300 flex min-h-[360px] flex-col items-center justify-center gap-5 text-center">
+            <div className="animate-in fade-in zoom-in-95 duration-300 flex min-w-0 min-h-[360px] flex-col items-center justify-center gap-5 text-center">
               <NetworkIllustration active />
               <div className="space-y-2">
                 <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
@@ -298,7 +299,7 @@ export function DomainOnboardingWizard({
           )}
 
           {step === 'result' && (
-            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 min-w-0 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={ready ? 'default' : rewriteNeeded ? 'destructive' : 'secondary'}>
                   {ready ? 'Ready' : rewriteNeeded ? 'Rewrite needed' : 'Saved, pending'}
@@ -327,7 +328,7 @@ export function DomainOnboardingWizard({
                     <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium">{result.instructions.title}</p>
-                        <p className="truncate text-xs text-muted-foreground">{result.instructions.tip}</p>
+                        <p className="text-xs leading-5 text-muted-foreground">{result.instructions.tip}</p>
                       </div>
                       <Button variant="ghost" size="icon" onClick={copySnippet}>
                         <Clipboard className="size-4" />
