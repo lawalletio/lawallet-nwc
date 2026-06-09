@@ -352,9 +352,6 @@ export function DomainOnboardingWizard({
           {step === 'result' && (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 min-w-0 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={ready ? 'default' : rewriteNeeded ? 'destructive' : 'secondary'}>
-                  {ready ? 'Ready' : rewriteNeeded ? 'Rewrite needed' : 'Saved, pending'}
-                </Badge>
                 {result && <PlatformBadge platform={result.platform} />}
               </div>
 
