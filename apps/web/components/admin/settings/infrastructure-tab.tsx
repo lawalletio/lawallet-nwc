@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Minus, Trash2, WandSparkles } from 'lucide-react'
+import { Plus, Minus, Trash2, WandSparkles, Route } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -280,30 +280,41 @@ export function InfrastructureTab() {
           </p>
         </div>
         <div className="flex flex-col gap-4">
-          {!hasConfiguredDomain && (
-            <div className="flex flex-col gap-3 rounded-md border bg-muted/25 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+          <div className="flex flex-col gap-3 rounded-md border bg-muted/25 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+                {hasConfiguredDomain ? (
+                  <Route className="size-4" />
+                ) : (
                   <WandSparkles className="size-4" />
-                </span>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Domain is not configured</p>
-                  <p className="text-xs text-muted-foreground">
-                    Start a guided check for LNURL and NIP-05 routing.
-                  </p>
-                </div>
+                )}
+              </span>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  {hasConfiguredDomain ? 'Domain routing' : 'Domain is not configured'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {hasConfiguredDomain
+                    ? 'Re-check LNURL and NIP-05 discovery for this domain.'
+                    : 'Start a guided check for LNURL and NIP-05 routing.'}
+                </p>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                className="shrink-0"
-                onClick={() => setDomainWizardOpen(true)}
-              >
-                <WandSparkles className="mr-2 size-4" />
-                Configure domain
-              </Button>
             </div>
-          )}
+            <Button
+              type="button"
+              size="sm"
+              variant={hasConfiguredDomain ? 'outline' : 'default'}
+              className="shrink-0"
+              onClick={() => setDomainWizardOpen(true)}
+            >
+              {hasConfiguredDomain ? (
+                <Route className="mr-2 size-4" />
+              ) : (
+                <WandSparkles className="mr-2 size-4" />
+              )}
+              {hasConfiguredDomain ? 'Check domain' : 'Configure domain'}
+            </Button>
+          </div>
 
           <div className="space-y-1">
             <Label>Domain</Label>
