@@ -17,6 +17,7 @@ export type PlatformKind =
 export interface DomainProbeRequest {
   domain: string
   endpoint?: string
+  apiGatewayEndpoint?: string
   lnurlUsername?: string
 }
 
@@ -339,24 +340,40 @@ async function probeNip05(domain: string): Promise<ProbeCheck> {
 
 export async function probeDomainRouting(input: DomainProbeRequest): Promise<DomainProbeResult> {
   const { domain, endpoint } = normalizeDomainProbeInput(input)
+  const apiGatewayEndpoint = input.apiGatewayEndpoint
+    ? normalizeDomainProbeInput({
+        domain,
+        endpoint: input.apiGatewayEndpoint,
+      }).endpoint
+    : ''
   const lnurlUsername = input.lnurlUsername?.trim().toLowerCase() ?? ''
-  const [root, lnurl, nip05] = await Promise.all([
-    sampleRoot(domain),
-    probeLnurl(domain, endpoint, lnurlUsername),
+  const root = await sampleRoot(domain)
+  const platform = detectPlatform(root)
+  const endpointHost = cleanHost(endpoint)
+  const gatewayHost = apiGatewayEndpoint ? cleanHost(apiGatewayEndpoint) : ''
+  const effectiveEndpoint =
+    platform.kind !== 'lawallet' &&
+    endpointHost === domain &&
+    apiGatewayEndpoint &&
+    gatewayHost !== domain
+      ? apiGatewayEndpoint
+      : endpoint
+
+  const [lnurl, nip05] = await Promise.all([
+    probeLnurl(domain, effectiveEndpoint, lnurlUsername),
     probeNip05(domain),
   ])
-  const platform = detectPlatform(root)
-  const direct = platform.kind === 'lawallet' || cleanHost(endpoint) === domain
+  const direct = platform.kind === 'lawallet' || cleanHost(effectiveEndpoint) === domain
   const ready = [lnurl, nip05].every(check => check.state === 'pass' || check.state === 'skip')
   const status = ready ? 'ready' : direct ? 'pending' : 'rewrite-needed'
 
   return {
     domain,
-    endpoint,
+    endpoint: effectiveEndpoint,
     direct,
     status,
     checks: { lnurl, nip05 },
     platform,
-    instructions: buildInstructionProfile(platform, domain, endpoint),
+    instructions: buildInstructionProfile(platform, domain, effectiveEndpoint),
   }
 }

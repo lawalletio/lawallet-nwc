@@ -256,6 +256,7 @@ export function InfrastructureTab() {
       .post<DomainProbeResult>('/api/settings/domain-probe', {
         domain: savedDomain,
         endpoint: savedEndpoint,
+        apiGatewayEndpoint: currentOrigin,
       })
       .then(result => {
         if (cancelled) return
@@ -276,7 +277,7 @@ export function InfrastructureTab() {
     return () => {
       cancelled = true
     }
-  }, [apiClient, savedDomain, savedEndpoint, settings, settingsLoading])
+  }, [apiClient, currentOrigin, savedDomain, savedEndpoint, settings, settingsLoading])
 
   function addRelay() {
     setRelays((prev) => [...prev, ''])

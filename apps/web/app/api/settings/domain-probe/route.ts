@@ -10,6 +10,7 @@ import { ValidationError } from '@/types/server/errors'
 const domainProbeBodySchema = z.object({
   domain: z.string().min(1),
   endpoint: z.string().optional(),
+  apiGatewayEndpoint: z.string().optional(),
 })
 
 export const POST = withErrorHandling(async (request: NextRequest) => {

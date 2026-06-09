@@ -179,6 +179,7 @@ export function DomainOnboardingWizard({
       const probe = await apiClient.post<DomainProbeResult>('/api/settings/domain-probe', {
         domain: nextDomain,
         endpoint: nextEndpoint,
+        apiGatewayEndpoint: currentOrigin,
       })
       setResult(probe)
       setStep('result')

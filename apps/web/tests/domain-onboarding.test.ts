@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildInstructionProfile,
   detectPlatform,
   normalizeDomainProbeInput,
+  probeDomainRouting,
   type RootSample,
 } from '@/lib/domain-onboarding'
 
@@ -16,6 +17,10 @@ function sample(body: string, headers: Record<string, string> = {}): RootSample 
 }
 
 describe('domain onboarding helpers', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('normalizes domain and endpoint values', () => {
     expect(
       normalizeDomainProbeInput({
@@ -61,5 +66,35 @@ describe('domain onboarding helpers', () => {
       'https://lawallet.example.com',
     )
     expect(nextjs.snippet).toContain('async rewrites')
+  })
+
+  it('uses the API gateway as rewrite target when root domain is not LaWallet', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const href = String(url)
+      if (href === 'https://example.com') {
+        return new Response('<link href="/wp-content/theme.css">', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
+      }
+      if (href.includes('/.well-known/lnurlp/')) {
+        return Response.json({ callback: 'https://gateway.example.com/api/lnurl/callback' })
+      }
+      if (href.includes('/.well-known/nostr.json')) {
+        return Response.json({ names: {} })
+      }
+      return new Response('', { status: 404 })
+    })
+
+    const result = await probeDomainRouting({
+      domain: 'example.com',
+      endpoint: 'https://example.com',
+      apiGatewayEndpoint: 'https://gateway.example.com',
+      lnurlUsername: 'satoshi',
+    })
+
+    expect(result.endpoint).toBe('https://gateway.example.com')
+    expect(result.status).toBe('ready')
+    expect(result.instructions.snippet).toContain('https://gateway.example.com/.well-known/')
   })
 })
