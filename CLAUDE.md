@@ -19,6 +19,7 @@ pnpm workspaces + Turborepo. Node v22.14.0 (`.nvmrc`), pnpm 10.11.0.
 ```
 apps/
   web/          Next.js 16 — frontend, REST API, LUD-16 resolution (main app)
+    plugins/    In-codebase plugin system — extend without core edits (docs/PLUGINS.md)
   docs/         Fumadocs — documentation site
   listener/     NWC Payment Listener (stub; see docs/services/NWC-LISTENER.md)
   cli/          Installer CLI behind the curl|bash bootstrap (install.sh)
@@ -76,5 +77,6 @@ changed TS/TSX files — don't hand-format.
 | UI components | `ui-component-builder` agent; skills: shadcn, tailwind-v4-shadcn, frontend-design |
 | Auth / RBAC / validation audit | `security-auditor` agent (read-only) |
 | Wallet drivers & integrations | `integration-author` agent (the no-core-edits path) |
+| New plugin (pages/routes/hooks) | `pnpm plugin:new <id>` + docs/PLUGINS.md (JSON-first rule) |
 | Docs (Fumadocs, OpenAPI) | `docs-writer` agent; seo/accessibility skills apply to apps/docs + landing only |
 | Log/trace triage | `debug-helper` agent |
