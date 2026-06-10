@@ -218,7 +218,41 @@ async function waitForPostgres(env) {
   throw new Error('Postgres did not become ready in time')
 }
 
-async function bootstrap(env) {
+async function isFreshDatabase(env) {
+  // A database is "fresh" until Prisma has applied at least one migration.
+  // Checked via the managed compose container so no local psql is needed.
+  const check = spawn(
+    'docker',
+    [
+      'compose',
+      '--project-name',
+      env.DEV_COMPOSE_PROJECT,
+      'exec',
+      '-T',
+      'postgres',
+      'psql',
+      '-U',
+      env.POSTGRES_USER,
+      '-d',
+      env.POSTGRES_DB,
+      '-tAc',
+      "SELECT to_regclass('public._prisma_migrations') IS NULL"
+    ],
+    { cwd: root, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'ignore'] }
+  )
+
+  let output = ''
+  check.stdout.on('data', chunk => {
+    output += chunk
+  })
+
+  return new Promise(resolve => {
+    check.once('error', () => resolve(true))
+    check.once('exit', code => resolve(code !== 0 || output.trim() === 't'))
+  })
+}
+
+async function bootstrap(env, { reset }) {
   if (!existsSync(join(root, 'node_modules', '.modules.yaml'))) {
     console.log('Installing workspace dependencies...')
     await runPnpm(['install', '--frozen-lockfile'], { env })
@@ -237,7 +271,9 @@ async function bootstrap(env) {
     env
   })
 
-  if (process.env.DEV_DB_RESET === 'false') {
+  const fresh = await isFreshDatabase(env)
+
+  if (!reset && !fresh) {
     console.log('Applying pending migrations without resetting data...')
     await runPnpm(
       ['--filter', '@lawallet-nwc/web', 'exec', 'prisma', 'migrate', 'deploy'],
@@ -246,20 +282,29 @@ async function bootstrap(env) {
     return
   }
 
-  console.log('Resetting, migrating and seeding the worktree database...')
-  await runPnpm(
-    [
-      '--filter',
-      '@lawallet-nwc/web',
-      'exec',
-      'prisma',
-      'migrate',
-      'reset',
-      '--force',
-      '--skip-seed'
-    ],
-    { env }
-  )
+  if (fresh) {
+    console.log('Fresh database: migrating and seeding...')
+    await runPnpm(
+      ['--filter', '@lawallet-nwc/web', 'exec', 'prisma', 'migrate', 'deploy'],
+      { env }
+    )
+  } else {
+    console.log('Resetting and migrating the worktree database...')
+    await runPnpm(
+      [
+        '--filter',
+        '@lawallet-nwc/web',
+        'exec',
+        'prisma',
+        'migrate',
+        'reset',
+        '--force',
+        '--skip-seed'
+      ],
+      { env }
+    )
+  }
+
   await runPnpm(['--filter', '@lawallet-nwc/web', 'run', 'seed'], { env })
 }
 
@@ -272,8 +317,16 @@ async function main() {
     return
   }
 
-  if (command === 'bootstrap' || command === 'start' || command === 'reset-db') {
-    await bootstrap(env)
+  if (
+    command === 'setup' ||
+    command === 'bootstrap' ||
+    command === 'start' ||
+    command === 'reset-db'
+  ) {
+    // `reset-db` (and the legacy DEV_DB_RESET=true escape hatch) wipes data;
+    // everything else seeds a fresh database and only migrates an existing one.
+    const reset = command === 'reset-db' || process.env.DEV_DB_RESET === 'true'
+    await bootstrap(env, { reset })
   } else {
     throw new Error(`Unknown command: ${command}`)
   }
