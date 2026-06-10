@@ -3,6 +3,13 @@
 > ⚠️ **PROPOSAL - NOT IMPLEMENTED**
 >
 > This documentation describes a **proposed plugin architecture** for LaWallet. These features are **not yet implemented** and are **not included in the current roadmap**. This is a community suggestion that may be developed as a contribution in the future.
+>
+> **Looking to extend LaWallet today?** The implemented in-codebase extension
+> seam is the wallet driver registry — see
+> [docs/FORKING.md](../FORKING.md) and the
+> [add-a-driver guide](../../apps/docs/content/docs/guides/add-a-driver.mdx).
+> The documents below describe a longer-term model of *external* services
+> interoperating via Nostr events and Lightning payments.
 
 ---
 

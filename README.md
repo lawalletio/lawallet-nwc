@@ -115,6 +115,26 @@ Three independent containerized services with no shared infrastructure:
 
 ## Getting Started
 
+### Quick Start (development)
+
+Prerequisites: [Node v22.14](./.nvmrc) (`nvm use`), pnpm 10 (via Corepack), and Docker.
+
+```bash
+git clone https://github.com/lawalletio/lawallet-nwc.git
+cd lawallet-nwc
+pnpm start:dev-server
+```
+
+That single command installs dependencies, writes local env files (including a
+generated `JWT_SECRET`), starts an isolated per-checkout Postgres, migrates and
+seeds a fresh database, and serves the admin dashboard at the printed URL.
+Re-runs are safe: existing data is preserved (`pnpm dev:db:reset` wipes it on
+purpose). Use `pnpm dev:setup` for the same bootstrap without launching the
+server.
+
+The same flow gives every [git worktree](./CONTRIBUTING.md#multi-worktree-local-databases)
+its own database, ports, and env — parallel checkouts never collide.
+
 ### Bootstrap With the CLI
 
 The standalone bootstrap flow is designed for a hosted `curl | bash` install:
@@ -206,8 +226,9 @@ pnpm start:dev-server
 ```
 
 This writes local development env files, starts a per-worktree Postgres service,
-resets and seeds the database, and prints the ready `/admin` URL. Set
-`DEV_DB_RESET=false` when restarting if you want to preserve local data.
+migrates the database (seeding it only when fresh), and prints the ready
+`/admin` URL. Existing data is preserved across restarts — run
+`pnpm dev:db:reset` (or set `DEV_DB_RESET=true`) for an explicit wipe.
 
 ### 5. Open your browser
 
