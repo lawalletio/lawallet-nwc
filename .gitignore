@@ -33,6 +33,9 @@ apps/*/.env.development.local
 *.tsbuildinfo
 next-env.d.ts
 
+# eslint
+.eslintcache
+
 # test coverage
 coverage/
 
