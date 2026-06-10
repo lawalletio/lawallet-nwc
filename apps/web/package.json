@@ -5,8 +5,9 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "db:generate": "prisma generate",
     "format": "prettier --write .",
-    "lint": "eslint .",
+    "lint": "eslint . --cache --cache-location .eslintcache",
     "lint:fix": "eslint . --fix",
     "start": "prisma migrate deploy && next start",
     "service": "node ../cli/src/index.js service",
