@@ -5,7 +5,7 @@ Practical recipes for diagnosing runtime issues in `apps/web`.
 ## Verbose logging
 
 ```bash
-LOG_LEVEL=debug PRETTY_LOG=true pnpm dev:web
+LOG_LEVEL=debug LOG_PRETTY=true pnpm dev:web
 ```
 
 All server logs are structured Pino JSON (`apps/web/lib/logger.ts`). At
@@ -74,7 +74,7 @@ dedicated `*_e2e` database — they never collide with dev.
 
 ## Minimal repro checklist
 
-1. Reproduce with `LOG_LEVEL=debug PRETTY_LOG=true`.
+1. Reproduce with `LOG_LEVEL=debug LOG_PRETTY=true`.
 2. Capture the `x-request-id` and filter with `scripts/logs.mjs`.
 3. Identify the failing layer: auth → validation → handler → Prisma → driver.
 4. Check the matching integration test in `apps/web/tests/integration/api/`
