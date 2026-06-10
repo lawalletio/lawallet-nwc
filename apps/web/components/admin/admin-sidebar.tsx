@@ -12,6 +12,7 @@ import {
   Network,
   Activity,
   Settings,
+  Puzzle,
   HelpCircle,
   MoreVertical,
   Copy,
@@ -55,6 +56,8 @@ import { Permission, Role } from '@/lib/auth/permissions'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { useSettings } from '@/lib/client/hooks/use-settings'
+import { usePlugins } from '@/lib/client/hooks/use-plugins'
+import { pluginNavItems } from '@/plugins/client'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { truncateNpub, npubInitials, toNpub } from '@/lib/client/format'
 import { toast } from 'sonner'
@@ -115,6 +118,13 @@ const systemItems: NavItem[] = [
     href: '/admin/activity',
     icon: Activity,
     permission: Permission.SETTINGS_READ,
+  },
+  // Plugin management — list + enable/disable. ADMIN-gated like Settings.
+  {
+    title: 'Plugins',
+    href: '/admin/plugins',
+    icon: Puzzle,
+    permission: Permission.SETTINGS_WRITE,
   },
 ]
 
@@ -231,8 +241,21 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
     }
   }
 
-  const visiblePlatform = filterByPermission(platformItems)
-  const visibleSystem = filterByPermission(systemItems)
+  // Enabled plugins contribute nav items; the same permission filter below
+  // applies, so plugin entries get RBAC gating for free.
+  const { data: pluginData } = usePlugins(!disabled)
+  const enabledPluginIds = new Set(
+    (pluginData?.plugins ?? []).filter(p => p.enabled).map(p => p.id)
+  )
+
+  const visiblePlatform = filterByPermission([
+    ...platformItems,
+    ...pluginNavItems('platform', enabledPluginIds),
+  ])
+  const visibleSystem = filterByPermission([
+    ...systemItems,
+    ...pluginNavItems('system', enabledPluginIds),
+  ])
   // Settings is ADMIN-only. VIEWER has SETTINGS_READ for API reads (public
   // settings hydrate branding for all authed users) but must not see the
   // settings UI in the nav.

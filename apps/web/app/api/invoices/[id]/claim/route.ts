@@ -14,6 +14,7 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { claimInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { dispatchHookAndForget } from '@/plugins/index'
 import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
 import type { InvoiceMetadata } from '@/lib/invoice-utils'
 
@@ -176,6 +177,16 @@ export const POST = withErrorHandling(
         preimage: body.preimage,
         paidAt: new Date(),
       }),
+    })
+
+    // Plugin lifecycle hook — fire-and-forget; a plugin failure never
+    // affects the claim response (see plugins/_runtime/hooks.ts).
+    dispatchHookAndForget('invoice:paid', {
+      invoiceId: invoice.id,
+      paymentHash: invoice.paymentHash,
+      amountSats: invoice.amountSats,
+      purpose: invoice.purpose,
+      userId: user.id,
     })
 
     if (createsAddress && typeof result.username === 'string') {
