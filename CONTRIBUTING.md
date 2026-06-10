@@ -314,6 +314,34 @@ pnpm --filter @lawallet-nwc/web test:coverage
 pnpm --filter @lawallet-nwc/web test -- tests/unit/lib/jwt.test.ts   # single file
 ```
 
+### Build caching (Turborepo)
+
+Every `build` / `lint` / `typecheck` / `test` run is cached by Turborepo under
+`.turbo/` — unchanged tasks replay from cache in milliseconds (`FULL TURBO`).
+
+**Remote cache (optional, recommended for the core team):** CI and local
+machines can share one cache via Vercel Remote Cache. CI picks it up from the
+`TURBO_TOKEN` / `TURBO_TEAM` / `TURBO_REMOTE_CACHE_SIGNATURE_KEY` repository
+secrets; locally, opt in with:
+
+```bash
+npx turbo login    # authenticate against Vercel
+npx turbo link     # link this repo to the team's remote cache
+```
+
+Forks and contributors without these secrets are unaffected — Turbo silently
+falls back to the local cache. Artifact signing is enabled
+(`remoteCache.signature` in [`turbo.json`](./turbo.json)), so set
+`TURBO_REMOTE_CACHE_SIGNATURE_KEY` in your shell if you link to the shared
+cache.
+
+The local cache grows over time (it can reach a few GB). It is always safe to
+delete:
+
+```bash
+rm -rf .turbo/cache
+```
+
 ---
 
 ## Running Tests
