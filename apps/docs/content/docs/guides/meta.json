@@ -1,2 +1,11 @@
-{ "title": "Guides", "pages": ["index", "sdk", "jwt-authentication", "testing"] }
-
+{
+  "title": "Guides",
+  "pages": [
+    "index",
+    "sdk",
+    "jwt-authentication",
+    "testing",
+    "forking",
+    "add-a-driver"
+  ]
+}

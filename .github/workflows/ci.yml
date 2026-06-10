@@ -68,6 +68,22 @@ jobs:
           path: apps/web/coverage/
           retention-days: 30
 
+  docs:
+    name: Docs Drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      # Fails when an API route lacks an OpenAPI operation (beyond the
+      # ratchet allowlist), an MDX page is orphaned from its meta.json, or
+      # the committed OpenAPI snapshot is stale. Fix: pnpm docs:sync.
+      - run: pnpm docs:check
+
   # Independent peer of lint/typecheck/test: a broken lint must not hide a
   # broken build (and vice versa), and the remote cache already deduplicates
   # any shared work between jobs.

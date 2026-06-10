@@ -421,6 +421,11 @@ Next.js App Router params.
 - New env vars without an entry in `apps/web/.env.example`.
 - Schema changes without a migration committed.
 - `console.log` / dead code / commented-out blocks left behind.
+- New API routes without an OpenAPI operation in
+  `packages/openapi/src/paths/` — the `pnpm docs:check` CI gate fails
+  (regenerate the snapshot with `pnpm docs:sync`).
+- Growing `scripts/docs-sync.allowlist.json` instead of documenting the
+  route — the allowlist is a ratchet for pre-existing gaps only.
 
 ---
 
