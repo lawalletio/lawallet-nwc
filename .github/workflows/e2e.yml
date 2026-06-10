@@ -1,0 +1,75 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright (chromium)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: e2e
+          POSTGRES_PASSWORD: e2e
+          POSTGRES_DB: lawallet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # provision-db.mjs derives lawallet_e2e from this and creates it.
+      DATABASE_URL: postgresql://e2e:e2e@localhost:5432/lawallet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @lawallet-nwc/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @lawallet-nwc/web e2e
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/e2e-results/
+          retention-days: 14
+
+  bench:
+    name: Benchmarks (observational)
+    runs-on: ubuntu-latest
+    # Never gates the PR — numbers are machine-dependent trends, uploaded as
+    # an artifact for comparison.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @lawallet-nwc/web bench
+      - name: Upload bench results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-results
+          path: apps/web/bench-results/latest.json
+          retention-days: 30
