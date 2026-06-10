@@ -10,6 +10,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Turborepo Remote Cache (Vercel). Forks without these secrets fall back to
+# the local cache automatically — every step below still works.
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
 jobs:
   lint:
     name: Lint
@@ -61,10 +68,12 @@ jobs:
           path: apps/web/coverage/
           retention-days: 30
 
+  # Independent peer of lint/typecheck/test: a broken lint must not hide a
+  # broken build (and vice versa), and the remote cache already deduplicates
+  # any shared work between jobs.
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

@@ -8,6 +8,7 @@
     ],
     "allowJs": true,
     "jsx": "react-jsx",
+    "tsBuildInfoFile": ".tsbuildinfo",
     "plugins": [
       {
         "name": "next"

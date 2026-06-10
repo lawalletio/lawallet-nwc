@@ -19,6 +19,8 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
+    "e2e": "turbo run e2e --filter=@lawallet-nwc/web",
+    "bench": "turbo run bench --filter=@lawallet-nwc/web",
     "format": "prettier --write .",
     "clean": "turbo run clean",
     "studio": "pnpm --filter @lawallet-nwc/web exec prisma studio"

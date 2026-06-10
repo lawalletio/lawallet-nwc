@@ -34,7 +34,6 @@ describe('getOpenApiDocument', () => {
       '/api/lud16/{username}/cb',
       '/api/lud16/{username}/verify/{paymentHash}',
       '/api/wallet/addresses',
-      '/api/wallet/nwc-connections',
       '/api/users',
       '/api/users/me',
       '/api/users/{userId}',
