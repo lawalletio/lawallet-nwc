@@ -129,6 +129,15 @@ const envSchema = z.object({
     )
     .describe('Log level (fatal, error, warn, info, debug, trace, silent)'),
 
+  SLOW_QUERY_THRESHOLD_MS: z
+    .string()
+    .default('100')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().nonnegative())
+    .describe(
+      'Prisma queries slower than this log at warn level (0 disables slow-query logging)'
+    ),
+
   // Request Size Limits
   REQUEST_MAX_BODY_SIZE: z
     .string()

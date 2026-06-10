@@ -398,6 +398,10 @@ Next.js App Router params.
 
 ## Debugging Tips
 
+> Full runbook: [docs/DEBUGGING.md](./docs/DEBUGGING.md) — request tracing by
+> `x-request-id`, `scripts/logs.mjs` filters, slow-query logging
+> (`SLOW_QUERY_THRESHOLD_MS`), timing spans, and the auth-failure decode table.
+
 ### Server logs
 
 Pino is configured in [`apps/web/lib/logger.ts`](./apps/web/lib/logger.ts).
