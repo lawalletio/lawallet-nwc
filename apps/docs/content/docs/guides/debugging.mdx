@@ -1,0 +1,42 @@
+---
+title: Debugging
+description: Diagnose runtime issues — structured logs, request tracing by reqId, slow queries, auth failures
+---
+
+# Debugging
+
+The web app emits structured Pino JSON logs with per-request correlation.
+This page is the quick reference; the full runbook lives in the repo at
+[`docs/DEBUGGING.md`](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/DEBUGGING.md).
+
+## Verbose logging
+
+```bash
+LOG_LEVEL=debug LOG_PRETTY=true pnpm dev:web
+```
+
+## Follow one request
+
+Every response carries an `x-request-id` header. Filter the server logs to
+that single request:
+
+```bash
+pnpm dev:web 2>&1 | node scripts/logs.mjs --reqId=<id>
+```
+
+Other filters: `--module=prisma`, `--span=nwc.pay_invoice`, `--minMs=100`,
+`--level=warn`.
+
+## Slow queries
+
+Prisma queries slower than `SLOW_QUERY_THRESHOLD_MS` (default 100ms) log at
+**warn** with the SQL and duration. Set `0` to disable.
+
+## Common auth failures
+
+| Symptom | Cause |
+|---------|-------|
+| 401 "Invalid or expired JWT" | Issuer (`lawallet-nwc`) / audience (`lawallet-users`) / secret mismatch — each worktree has its own `JWT_SECRET` |
+| 401 on NIP-98 | `created_at` skew, URL mismatch, or method casing |
+| 403 `AUTHORIZATION_ERROR` | Role lacks the required permission |
+| 503 from `/api/health` | Server can't reach the database — check `pnpm dev:env` output |

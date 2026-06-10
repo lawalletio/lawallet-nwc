@@ -5,6 +5,7 @@
     "sdk",
     "jwt-authentication",
     "testing",
+    "debugging",
     "forking",
     "add-a-driver"
   ]
