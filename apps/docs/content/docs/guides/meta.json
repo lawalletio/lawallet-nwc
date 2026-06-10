@@ -1,4 +1,12 @@
 {
   "title": "Guides",
-  "pages": ["index", "sdk", "jwt-authentication", "testing", "debugging"]
+  "pages": [
+    "index",
+    "sdk",
+    "jwt-authentication",
+    "testing",
+    "debugging",
+    "forking",
+    "add-a-driver"
+  ]
 }

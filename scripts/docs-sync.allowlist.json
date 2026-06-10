@@ -1,0 +1,17 @@
+[
+  "POST /api/card-designs/import-veintiuno",
+  "DELETE /api/card-designs/import-veintiuno",
+  "PATCH /api/cards/{id}",
+  "POST /api/dev/reset",
+  "GET /api/health",
+  "GET /api/openapi.json",
+  "GET /api/remote-wallets/{id}/balance",
+  "GET /api/remote-wallets/{id}/connection-string",
+  "GET /api/remote-wallets/{id}",
+  "PATCH /api/remote-wallets/{id}",
+  "DELETE /api/remote-wallets/{id}",
+  "GET /api/remote-wallets",
+  "POST /api/remote-wallets",
+  "POST /api/settings/domain-probe",
+  "GET /api/users/{userId}/role"
+]

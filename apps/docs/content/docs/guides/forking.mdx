@@ -1,0 +1,24 @@
+---
+title: Forking
+description: Fork to a running, extended instance in 10 minutes
+---
+
+# Forking LaWallet NWC
+
+```bash
+git clone https://github.com/<you>/lawallet-nwc.git
+cd lawallet-nwc
+pnpm start:dev-server
+```
+
+One command boots everything: dependencies, env files, an isolated Postgres,
+migrations, seed data, and the dev server. Re-runs never wipe data.
+
+The full golden path — verification gates, the extension seam
+(wallet drivers), the merge-safety rule, and staying in sync with upstream —
+lives in the repo at
+[`docs/FORKING.md`](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/FORKING.md).
+
+To add support for a new wallet protocol, follow
+[Add a Wallet Driver](/docs/guides/add-a-driver) — one module, one
+registration line, zero core edits.

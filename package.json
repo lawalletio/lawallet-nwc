@@ -23,6 +23,8 @@
     "bench": "turbo run bench --filter=@lawallet-nwc/web",
     "format": "prettier --write .",
     "clean": "turbo run clean",
+    "docs:check": "node scripts/docs-sync.mjs --check",
+    "docs:sync": "node scripts/docs-sync.mjs --write",
     "studio": "pnpm --filter @lawallet-nwc/web exec prisma studio"
   },
   "devDependencies": {
