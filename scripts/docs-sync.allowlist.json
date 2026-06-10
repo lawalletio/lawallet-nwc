@@ -7,11 +7,8 @@
   "GET /api/openapi.json",
   "GET /api/remote-wallets/{id}/balance",
   "GET /api/remote-wallets/{id}/connection-string",
-  "GET /api/remote-wallets/{id}",
-  "PATCH /api/remote-wallets/{id}",
-  "DELETE /api/remote-wallets/{id}",
-  "GET /api/remote-wallets",
-  "POST /api/remote-wallets",
   "POST /api/settings/domain-probe",
-  "GET /api/users/{userId}/role"
+  "GET /api/users/{userId}/role",
+  "GET /api/plugins",
+  "PATCH /api/plugins/{plugin}"
 ]
