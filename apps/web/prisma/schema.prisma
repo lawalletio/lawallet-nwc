@@ -289,3 +289,20 @@ model ActivityLog {
   @@index([userId, createdAt])
   @@index([reqId])
 }
+
+// Generic JSON-first storage for in-codebase plugins (apps/web/plugins/).
+// Plugins persist ALL state here, validated by their own Zod schemas —
+// never as new models/columns/enums, which are the merge-conflict seam for
+// forks. See docs/PLUGINS.md.
+model PluginRecord {
+  id        String   @id @default(cuid())
+  pluginId  String
+  kind      String
+  key       String
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pluginId, kind, key])
+  @@index([pluginId, kind])
+}
