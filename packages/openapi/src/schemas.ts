@@ -7,6 +7,7 @@ import {
   createCardSchema,
   createInvoiceSchema,
   createRemoteCardSchema,
+  createRemoteWalletSchema,
   createWalletAddressSchema,
   externalDeviceKeyParam,
   idParam,
@@ -17,10 +18,12 @@ import {
   lud16UsernameParam,
   otcParam,
   payActionQuerySchema,
+  remoteWalletListQuerySchema,
   scanCardQuerySchema,
   settingsBodySchema,
   updateCardDesignSchema,
   updateLightningAddressSchema,
+  updateRemoteWalletSchema,
   updateRoleSchema,
   updateWalletAddressSchema,
   userIdParam,
@@ -107,6 +110,22 @@ export const schemas = {
   // ── Remote Connections ────────────────────────────────────────────────
   ExternalDeviceKeyParam: registry.register('ExternalDeviceKeyParam', externalDeviceKeyParam),
   RemoteCardCreateRequest: registry.register('RemoteCardCreateRequest', createRemoteCardSchema),
+
+  // ── Remote Wallets ────────────────────────────────────────────────────
+  RemoteWalletCreateRequest: registry.register(
+    'RemoteWalletCreateRequest',
+    createRemoteWalletSchema,
+  ),
+  RemoteWalletUpdateRequest: registry.register(
+    'RemoteWalletUpdateRequest',
+    // Same .refine() situation as updateCardDesignSchema: at-least-one-field
+    // can't be expressed in JSON Schema, so we document it instead.
+    updateRemoteWalletSchema.openapi({
+      description:
+        'Partial update for a remote wallet. At least one field must be present, otherwise the route returns 400.',
+    }),
+  ),
+  RemoteWalletListQuery: registry.register('RemoteWalletListQuery', remoteWalletListQuerySchema),
 
   // ── Invoices ──────────────────────────────────────────────────────────
   InvoiceCreateRequest: registry.register('InvoiceCreateRequest', createInvoiceSchema),
