@@ -153,7 +153,7 @@ with a readable error. Source of truth: [`apps/web/.env.example`](./apps/web/.en
 |----------|---------|
 | `NODE_ENV` | `development` \| `test` \| `production` |
 | `LOG_LEVEL` | `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` \| `silent` |
-| `PRETTY_LOG` | `true` for human-readable logs in dev |
+| `LOG_PRETTY` | `true` for human-readable logs in dev |
 | `MAINTENANCE_MODE` | `true` returns 503 for non-admin requests |
 | `ALBY_API_URL` / `ALBY_BEARER_TOKEN` / `AUTO_GENERATE_ALBY_SUBACCOUNTS` | Enable courtesy NWC subaccount provisioning |
 | `NEXT_PUBLIC_LAWALLET_LANDING_URL` | Where `/` redirects (defaults to `https://lawallet.io`) |
@@ -404,7 +404,7 @@ Pino is configured in [`apps/web/lib/logger.ts`](./apps/web/lib/logger.ts).
 
 ```bash
 # Verbose, human-readable logs in dev
-LOG_LEVEL=debug PRETTY_LOG=true pnpm dev:web
+LOG_LEVEL=debug LOG_PRETTY=true pnpm dev:web
 ```
 
 Every request gets a `reqId` propagated via `AsyncLocalStorage` — grep your
