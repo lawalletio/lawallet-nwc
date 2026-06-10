@@ -62,6 +62,33 @@ will be activated automatically. Otherwise install it with
 
 ## Local Setup
 
+### Fast path (one command)
+
+```bash
+git clone https://github.com/lawalletio/lawallet-nwc.git
+cd lawallet-nwc
+pnpm start:dev-server
+```
+
+[`scripts/dev-worktree.mjs`](./scripts/dev-worktree.mjs) installs dependencies,
+writes local env files (`.env.development.local` + `apps/web/.env.local`) with
+a generated `JWT_SECRET`, starts an **isolated per-checkout Postgres** (its own
+compose project, port, and volume), migrates the database — seeding it only
+when fresh — and serves the admin at the printed URL. Related commands:
+
+```bash
+pnpm dev:setup      # same bootstrap, without launching the dev server
+pnpm dev:env        # only (re)write the env files — never overwrites values
+pnpm dev:db:reset   # explicit destructive reset + reseed of this checkout's DB
+```
+
+Every git worktree gets its own database, ports, and env automatically, so
+parallel checkouts never collide (see
+[Multi-worktree local databases](#multi-worktree-local-databases) for the
+lighter shared-Postgres alternative).
+
+### Manual path (step by step)
+
 ```bash
 # 1. Clone and enter the repo
 git clone https://github.com/lawalletio/lawallet-nwc.git
@@ -196,6 +223,17 @@ those files by hand.
 
 ### Multi-worktree local databases
 
+There are two supported models for running multiple git worktrees in parallel:
+
+1. **Fully isolated stack (recommended)** — run `pnpm start:dev-server` (or
+   `pnpm dev:setup`) inside each worktree. Each checkout gets its own Postgres
+   container, port, volume, env files, and seeded database, all derived from a
+   hash of the worktree path. Nothing to coordinate; nothing collides.
+2. **Shared Postgres, one database per worktree (lighter)** — one Postgres
+   server with a deterministic database per worktree via
+   `scripts/worktree-db.sh`, described below. Uses less memory than one
+   container per worktree, but you manage ports and env exports yourself.
+
 If you want multiple git worktrees open at the same time, the simplest setup is
 one shared Postgres server with one database per worktree.
 
@@ -274,6 +312,34 @@ pnpm --filter @lawallet-nwc/web test:watch
 pnpm --filter @lawallet-nwc/web test:ui          # Vitest UI
 pnpm --filter @lawallet-nwc/web test:coverage
 pnpm --filter @lawallet-nwc/web test -- tests/unit/lib/jwt.test.ts   # single file
+```
+
+### Build caching (Turborepo)
+
+Every `build` / `lint` / `typecheck` / `test` run is cached by Turborepo under
+`.turbo/` — unchanged tasks replay from cache in milliseconds (`FULL TURBO`).
+
+**Remote cache (optional, recommended for the core team):** CI and local
+machines can share one cache via Vercel Remote Cache. CI picks it up from the
+`TURBO_TOKEN` / `TURBO_TEAM` / `TURBO_REMOTE_CACHE_SIGNATURE_KEY` repository
+secrets; locally, opt in with:
+
+```bash
+npx turbo login    # authenticate against Vercel
+npx turbo link     # link this repo to the team's remote cache
+```
+
+Forks and contributors without these secrets are unaffected — Turbo silently
+falls back to the local cache. Artifact signing is enabled
+(`remoteCache.signature` in [`turbo.json`](./turbo.json)), so set
+`TURBO_REMOTE_CACHE_SIGNATURE_KEY` in your shell if you link to the shared
+cache.
+
+The local cache grows over time (it can reach a few GB). It is always safe to
+delete:
+
+```bash
+rm -rf .turbo/cache
 ```
 
 ---
