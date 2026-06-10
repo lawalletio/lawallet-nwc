@@ -1,26 +1,49 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["tsconfig.base.json", ".nvmrc"],
+  "globalEnv": ["NODE_ENV"],
+  "remoteCache": { "signature": true },
   "tasks": {
+    "topo": {
+      "dependsOn": ["^topo"]
+    },
+    "db:generate": {
+      "inputs": ["prisma/schema.prisma", "prisma.config.ts"],
+      "outputs": ["lib/generated/prisma/**"]
+    },
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "db:generate"],
+      "inputs": ["$TURBO_DEFAULT$", "!tests/**", "!**/*.test.*"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
       "env": ["DATABASE_URL", "JWT_SECRET", "NODE_ENV", "SKIP_ENV_VALIDATION"]
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "dependsOn": ["db:generate"]
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "outputs": [".eslintcache"]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^topo", "db:generate"],
+      "outputs": ["*.tsbuildinfo", "dist/**/*.tsbuildinfo"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^topo", "db:generate"]
     },
     "test:coverage": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^topo", "db:generate"],
+      "outputs": ["coverage/**"]
+    },
+    "e2e": {
+      "cache": false,
+      "dependsOn": ["db:generate"],
+      "env": ["DATABASE_URL", "JWT_SECRET", "E2E_BASE_URL", "CI"]
+    },
+    "bench": {
+      "cache": false,
+      "dependsOn": ["db:generate"]
     },
     "clean": {
       "cache": false

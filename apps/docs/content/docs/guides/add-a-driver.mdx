@@ -1,0 +1,86 @@
+---
+title: Add a Wallet Driver
+description: Support a new wallet protocol without touching core — the driver registry pattern
+---
+
+# Add a Wallet Driver
+
+Wallet drivers translate the platform's protocol-agnostic operations
+(`getBalance`, `payInvoice`, `makeInvoice`) into a specific wallet protocol.
+NWC is the built-in driver; LND, CLN, or BTCPay would each be a new driver.
+Call sites never change — they look up drivers by type at runtime.
+
+Everything lives in `apps/web/lib/wallet/drivers/`:
+
+| File | Role |
+|------|------|
+| `types.ts` | `RemoteWalletDriver<TConfig>` interface — your contract |
+| `registry.ts` | Module-level registry: `registerDriver` / `getDriver` |
+| `index.ts` | Self-registration at import time |
+| `nwc-driver.ts` | The reference implementation to model yours on |
+
+## 1. Implement the driver
+
+Create `apps/web/lib/wallet/drivers/myproto-driver.ts`:
+
+```ts
+import { z } from 'zod'
+import { DriverRemoteError } from './errors'
+import type { RemoteWalletDriver } from './types'
+
+const configSchema = z
+  .object({
+    endpoint: z.string().url(),
+    apiKey: z.string().min(1)
+  })
+  .strict()
+
+export type MyProtoConfig = z.infer<typeof configSchema>
+
+export const myProtoDriver: RemoteWalletDriver<MyProtoConfig> = {
+  type: 'MYPROTO',
+  configSchema,
+
+  async getBalance(config) {
+    try {
+      // ...call your protocol; normalize to sats at the boundary
+      return { balanceSats: 0 }
+    } catch (err) {
+      throw new DriverRemoteError('MYPROTO get_balance failed', { cause: err })
+    }
+  }
+  // payInvoice, makeInvoice — same shape; see nwc-driver.ts
+}
+```
+
+Rules the NWC driver establishes:
+
+- **Sats at the boundary** — if your protocol speaks msats, divide by 1000
+  inside the driver.
+- **All state in the config JSON** — validated by your Zod schema; no new
+  tables or columns.
+- **Errors become `DriverRemoteError`** so callers handle wallet failures
+  uniformly.
+
+## 2. Register it (one line)
+
+In `lib/wallet/drivers/index.ts`:
+
+```ts
+registerDriver(myProtoDriver)
+```
+
+## 3. Add the enum value
+
+Add `MYPROTO` to `RemoteWalletType` in `apps/web/prisma/schema.prisma` and
+create a migration (`pnpm exec prisma migrate dev --name add_myproto_driver`
+from `apps/web/`). This is the only core edit — keep it to exactly that.
+
+## 4. Test and document
+
+- Unit tests mirroring `tests/unit/lib/wallet/drivers/nwc-driver.test.ts`.
+- New env vars (if any) documented in `apps/web/.env.example`.
+- `pnpm typecheck && pnpm test` green; `pnpm docs:check` if you added routes.
+
+That's the whole surface: one module, one registration line, one enum value.
+Upstream merges won't conflict with your driver.

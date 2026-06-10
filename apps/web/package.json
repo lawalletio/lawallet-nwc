@@ -5,8 +5,9 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "db:generate": "prisma generate",
     "format": "prettier --write .",
-    "lint": "eslint .",
+    "lint": "eslint . --cache --cache-location .eslintcache",
     "lint:fix": "eslint . --fix",
     "start": "prisma migrate deploy && next start",
     "service": "node ../cli/src/index.js service",
@@ -17,6 +18,11 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
+    "e2e": "node e2e/provision-db.mjs && playwright test",
+    "e2e:ui": "node e2e/provision-db.mjs && playwright test --ui",
+    "e2e:headed": "node e2e/provision-db.mjs && playwright test --headed",
+    "e2e:update": "node e2e/provision-db.mjs && playwright test --update-snapshots",
+    "bench": "vitest bench --run --config vitest.bench.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -99,6 +105,7 @@
     "@eslint/eslintrc": "^3.3.3",
     "@eslint/js": "^9.39.2",
     "@faker-js/faker": "^10.2.0",
+    "@playwright/test": "^1.60.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
