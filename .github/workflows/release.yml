@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump'
+        required: true
+        default: 'minor'
+        type: choice
+        options: [patch, minor, major]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
+jobs:
+  release:
+    name: Bump, tag, and publish release notes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0 # full history: tags + merge log feed the changelog
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      # The same quality gates as CI — a release never ships red.
+      - run: pnpm turbo run lint typecheck test
+      - run: pnpm docs:check
+
+      - name: Bump versions + scaffold changelog
+        id: bump
+        run: node scripts/release.mjs --bump ${{ inputs.bump }}
+
+      - name: Commit, tag, push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json apps/web/package.json apps/cli/package.json docs/changelogs/
+          git commit -m "chore(release): v${{ steps.bump.outputs.version }}"
+          git tag "v${{ steps.bump.outputs.version }}"
+          git push origin main --follow-tags
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          # Generated notes (PR list) + a pointer to the narrative changelog.
+          gh api "repos/${{ github.repository }}/releases/generate-notes" \
+            -f tag_name="v${VERSION}" --jq .body > /tmp/notes.md
+          {
+            echo "Narrative changelog: [docs/changelogs/v${VERSION}.md](https://github.com/${{ github.repository }}/blob/main/docs/changelogs/v${VERSION}.md)"
+            echo ""
+            cat /tmp/notes.md
+          } > /tmp/release-notes.md
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --notes-file /tmp/release-notes.md
