@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Minus, Trash2, WandSparkles, Route } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -106,12 +107,15 @@ type DomainProbeState =
   | { status: 'problem'; result?: DomainProbeResult; error?: string }
 
 export function InfrastructureTab() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: settings, loading: settingsLoading } = useSettings()
   const { updateSettings } = useUpdateSettings()
   const { logout, apiClient } = useAuth()
   const [wiping, setWiping] = useState(false)
   const [domainWizardOpen, setDomainWizardOpen] = useState(false)
   const [domainProbe, setDomainProbe] = useState<DomainProbeState>({ status: 'idle' })
+  const lastAutoProbeKey = useRef<string | null>(null)
 
   async function handleWipe() {
     setWiping(true)
@@ -146,6 +150,16 @@ export function InfrastructureTab() {
       setCurrentOrigin(window.location.origin)
     }
   }, [])
+
+  useEffect(() => {
+    if (searchParams.get('domainSetup') !== 'open') return
+    setDomainWizardOpen(true)
+
+    const nextParams = new URLSearchParams(searchParams.toString())
+    nextParams.delete('domainSetup')
+    const nextQuery = nextParams.toString()
+    router.replace(`/admin/settings${nextQuery ? `?${nextQuery}` : ''}`, { scroll: false })
+  }, [router, searchParams])
 
   // Restore all local form state from the currently stored settings. Called on
   // initial load and whenever the page-level Cancel button is clicked.
@@ -237,17 +251,30 @@ export function InfrastructureTab() {
     }
 
     if (!savedDomain) {
+      lastAutoProbeKey.current = null
       setDomainProbe({ status: 'missing' })
       return
     }
 
     if (!isValidDomain(savedDomain)) {
+      lastAutoProbeKey.current = null
       setDomainProbe({
         status: 'problem',
         error: 'Saved domain is malformed.',
       })
       return
     }
+
+    if (!currentOrigin) {
+      setDomainProbe({ status: 'idle' })
+      return
+    }
+
+    const probeKey = `${savedDomain}|${savedEndpoint}|${currentOrigin}`
+    if (lastAutoProbeKey.current === probeKey) {
+      return
+    }
+    lastAutoProbeKey.current = probeKey
 
     let cancelled = false
     setDomainProbe({ status: 'checking' })
@@ -277,7 +304,7 @@ export function InfrastructureTab() {
     return () => {
       cancelled = true
     }
-  }, [apiClient, currentOrigin, savedDomain, savedEndpoint, settings, settingsLoading])
+  }, [apiClient, currentOrigin, savedDomain, savedEndpoint, settingsLoading])
 
   function addRelay() {
     setRelays((prev) => [...prev, ''])
@@ -349,6 +376,7 @@ export function InfrastructureTab() {
         onConfigured={({ domain: nextDomain, endpoint }) => {
           setDomain(nextDomain)
           setSubdomain(endpoint)
+          lastAutoProbeKey.current = null
           setDomainProbe({ status: 'checking' })
         }}
       />

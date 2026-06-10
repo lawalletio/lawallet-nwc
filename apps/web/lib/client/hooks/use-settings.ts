@@ -4,6 +4,7 @@ import { useApi, useMutation } from '@/lib/client/hooks/use-api'
 
 export interface SettingsData {
   domain?: string
+  domain_verified?: string
   endpoint?: string
   subdomain?: string
   root?: string

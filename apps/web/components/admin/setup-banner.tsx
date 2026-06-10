@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, X } from 'lucide-react'
+import { AlertTriangle, Route } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useAuth } from '@/components/admin/auth-context'
@@ -11,47 +11,32 @@ export function SetupBanner() {
   const router = useRouter()
   const { role } = useAuth()
   const { data: settings, loading } = useSettings()
-  const [dismissed, setDismissed] = useState(false)
 
-  if (loading || dismissed || settings?.domain || role !== 'ADMIN') return null
+  const hasDomain = !!settings?.domain?.trim()
+  const domainVerified = settings?.domain_verified === 'true'
+
+  if (loading || role !== 'ADMIN' || (hasDomain && domainVerified)) return null
 
   return (
-    <div className="relative bg-card/60 dark:bg-card/40 dark:bg-gradient-to-br dark:from-primary/10 dark:to-transparent backdrop-blur-xl rounded-2xl p-6 border border-primary/20 shadow-xl shadow-black/5 dark:shadow-black/10 transition-all duration-300 ease-out animate-in slide-in-from-top-4">
-      <div className="relative flex items-start gap-4">
-        {/* Icon */}
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-muted/60">
-          <Sparkles className="size-6 text-foreground" />
-        </div>
+    <div
+      role="alert"
+      className="flex items-center justify-center gap-3 bg-amber-400 px-3 py-1 text-xs font-semibold text-black"
+    >
+      <AlertTriangle className="size-3.5 shrink-0" />
+      <span className="min-w-0 truncate">
+        Domain configuration is required
+      </span>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0 space-y-3">
-          <div className="space-y-1 pr-8">
-            <h3 className="text-base font-semibold text-foreground">
-              Finish your domain configuration
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Configure your domain so LaWallet can handle Nostr identities and Lightning Addresses
-              for your community. It&apos;s automatic and takes less than 3 minutes.
-            </p>
-          </div>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => router.push('/admin/settings?tab=infrastructure')}
-          >
-            Configure now
-          </Button>
-        </div>
-
-        {/* Close button */}
-        <button
-          onClick={() => setDismissed(true)}
-          className="absolute top-4 right-4 flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-6 shrink-0 rounded px-2 text-xs font-semibold text-black hover:bg-black/10 hover:text-black"
+        onClick={() => router.push('/admin/settings?tab=infrastructure&domainSetup=open')}
+      >
+        <Route className="mr-1.5 size-3.5" />
+        Fix domain
+      </Button>
     </div>
   )
 }

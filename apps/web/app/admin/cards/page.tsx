@@ -163,7 +163,9 @@ export default function CardsPage() {
     }
   }
 
-  const showDomainAlert = settings && !settings.domain
+  const showDomainAlert =
+    settings &&
+    (!settings.domain?.trim() || settings.domain_verified !== 'true')
   // The Sync button calls /api/card-designs/import, which pulls designs from
   // veintiuno.lat filtered by `community_id`. It rejects with a 400 when the
   // community isn't configured, so hide the button entirely until both
@@ -186,9 +188,9 @@ export default function CardsPage() {
           showDomainAlert
             ? {
                 title: 'Configure your domain',
-                message: 'This action is required to use this function',
+                message: 'Verify domain routing to use this function',
                 action: 'Configure now',
-                onAction: () => router.push('/admin/settings?tab=infrastructure'),
+                onAction: () => router.push('/admin/settings?tab=infrastructure&domainSetup=open'),
               }
             : undefined
         }

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticateSettingsWriteRequest } from '@/lib/settings-auth'
 import { probeDomainRouting } from '@/lib/domain-onboarding'
+import { eventBus } from '@/lib/events/event-bus'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ValidationError } from '@/types/server/errors'
 
@@ -32,6 +33,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     ...parsed.data,
     lnurlUsername: firstAddress?.username,
   })
+
+  const domainVerified = result.checks.instance.state === 'pass'
+  await prisma.settings.upsert({
+    where: { name: 'domain_verified' },
+    update: { value: domainVerified ? 'true' : 'false' },
+    create: { name: 'domain_verified', value: domainVerified ? 'true' : 'false' },
+  })
+  eventBus.emit({ type: 'settings:updated', timestamp: Date.now() })
 
   return NextResponse.json(result)
 })

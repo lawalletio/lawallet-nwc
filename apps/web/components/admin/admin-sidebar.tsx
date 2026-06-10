@@ -237,7 +237,9 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
   // settings hydrate branding for all authed users) but must not see the
   // settings UI in the nav.
   const showSettings = role === Role.ADMIN
-  const needsDomainSetup = role === Role.ADMIN && !settings?.domain
+  const hasDomain = !!settings?.domain?.trim()
+  const domainVerified = settings?.domain_verified === 'true'
+  const needsDomainSetup = role === Role.ADMIN && (!hasDomain || !domainVerified)
 
   const loginMethodLabel = loginMethod === 'extension'
     ? 'Extension'
@@ -420,7 +422,7 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
             <CardContent className="p-4 space-y-2">
               <p className="text-sm font-semibold">Setup Domain</p>
               <p className="text-xs text-muted-foreground line-clamp-2">
-                Configure your domain to enable Lightning Addresses and wallet features.
+                Verify .well-known routing to enable Lightning Addresses and wallet features.
               </p>
               <Button
                 variant="theme"
