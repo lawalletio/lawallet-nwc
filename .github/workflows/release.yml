@@ -47,27 +47,26 @@ jobs:
         run: node scripts/release.mjs --bump ${{ inputs.bump }}
 
       - name: Commit, tag, push
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json apps/web/package.json apps/cli/package.json docs/changelogs/
-          git commit -m "chore(release): v${{ steps.bump.outputs.version }}"
-          git tag "v${{ steps.bump.outputs.version }}"
-          git push origin main --follow-tags
+          git commit -m "chore(release): v${VERSION}"
+          # Annotated tag, pushed explicitly — `--follow-tags` skips
+          # lightweight tags, which silently dropped the tag in v0.11.0.
+          git tag -a "v${VERSION}" -m "v${VERSION}"
+          git push origin main "refs/tags/v${VERSION}"
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.bump.outputs.version }}
         run: |
-          # Generated notes (PR list) + a pointer to the narrative changelog.
-          gh api "repos/${{ github.repository }}/releases/generate-notes" \
-            -f tag_name="v${VERSION}" --jq .body > /tmp/notes.md
-          {
-            echo "Narrative changelog: [docs/changelogs/v${VERSION}.md](https://github.com/${{ github.repository }}/blob/main/docs/changelogs/v${VERSION}.md)"
-            echo ""
-            cat /tmp/notes.md
-          } > /tmp/release-notes.md
+          # Notes come from the scaffolded changelog (merged-PR list) — the
+          # generate-notes API endpoint rejects auth in this environment, so
+          # the flow never depends on it.
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
-            --notes-file /tmp/release-notes.md
+            --notes-file "docs/changelogs/v${VERSION}.md"
