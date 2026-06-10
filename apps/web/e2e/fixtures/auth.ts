@@ -58,13 +58,15 @@ interface AuthFixtures {
 }
 
 export const test = base.extend<AuthFixtures>({
-  adminPage: async ({ page }, use) => {
+  // The fixture callback's second argument is conventionally named `use`,
+  // but that trips eslint's react-hooks rule — `provide` is the same thing.
+  adminPage: async ({ page }, provide) => {
     await loginAs(page, SEEDED_ADMIN_PUBKEY, Role.ADMIN)
-    await use(page)
+    await provide(page)
   },
-  userPage: async ({ page }, use) => {
+  userPage: async ({ page }, provide) => {
     await loginAs(page, SEEDED_USER_PUBKEY, Role.USER)
-    await use(page)
+    await provide(page)
   }
 })
 
