@@ -172,7 +172,7 @@ export default function AdminDashboardPage() {
             />
           ) : null
         ) : (
-          <NwcCard />
+          <NwcCard username={me.primaryUsername} onUpdated={refetchMe} />
         )}
 
         {!canViewStats ? (

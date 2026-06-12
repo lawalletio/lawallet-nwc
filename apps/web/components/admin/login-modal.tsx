@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
+import { useIsMobile } from '@/components/ui/use-mobile'
 import { cn } from '@/lib/utils'
 import { useAuth, type LoginMethod } from '@/components/admin/auth-context'
 import {
@@ -48,8 +49,11 @@ interface LoginModalProps {
   onSuccess?: () => void
 }
 
+type BunkerConnectionStatus = 'generating' | 'waiting' | 'connecting' | 'error'
+
 export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const dismissible = !!onOpenChange
+  const [bunkerBusy, setBunkerBusy] = useState(false)
 
   return (
     <Dialog open={open} onOpenChange={dismissible ? onOpenChange : undefined}>
@@ -71,20 +75,22 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
         </DialogHeader>
 
         <Tabs defaultValue="extension" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="extension" className="text-xs">
-              <Globe className="mr-1.5 size-3.5" />
-              Extension
-            </TabsTrigger>
-            <TabsTrigger value="nsec" className="text-xs">
-              <Key className="mr-1.5 size-3.5" />
-              Secret Key
-            </TabsTrigger>
-            <TabsTrigger value="bunker" className="text-xs">
-              <Plug className="mr-1.5 size-3.5" />
-              Bunker
-            </TabsTrigger>
-          </TabsList>
+          {!bunkerBusy && (
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="extension" className="text-xs">
+                <Globe className="mr-1.5 size-3.5" />
+                Extension
+              </TabsTrigger>
+              <TabsTrigger value="nsec" className="text-xs">
+                <Key className="mr-1.5 size-3.5" />
+                Secret Key
+              </TabsTrigger>
+              <TabsTrigger value="bunker" className="text-xs">
+                <Plug className="mr-1.5 size-3.5" />
+                Bunker
+              </TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="extension">
             <ExtensionTab />
@@ -93,7 +99,7 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
             <NsecTab />
           </TabsContent>
           <TabsContent value="bunker">
-            <BunkerTab />
+            <BunkerTab onBusyChange={setBunkerBusy} />
           </TabsContent>
         </Tabs>
       </DialogContent>
@@ -276,51 +282,70 @@ function NsecTab() {
 
 // ─── Bunker Tab (NIP-46) ──────────────────────────────────────────────────
 
-function BunkerTab() {
+function BunkerTab({ onBusyChange }: { onBusyChange?: (busy: boolean) => void }) {
   const [mode, setMode] = useState<'qr' | 'paste'>('qr')
+  const [qrStatus, setQrStatus] = useState<BunkerConnectionStatus>('generating')
+  const [pasteLoading, setPasteLoading] = useState(false)
+  const busy = pasteLoading || (mode === 'qr' && qrStatus === 'connecting')
+
+  useEffect(() => {
+    onBusyChange?.(busy)
+    return () => onBusyChange?.(false)
+  }, [busy, onBusyChange])
 
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <div className="flex gap-1 rounded-lg bg-muted p-1">
-        <button
-          type="button"
-          onClick={() => setMode('qr')}
-          className={cn(
-            'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-            mode === 'qr'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <QrCode className="mr-1.5 inline size-3.5" />
-          Show QR
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('paste')}
-          className={cn(
-            'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-            mode === 'paste'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <Link className="mr-1.5 inline size-3.5" />
-          Paste URL
-        </button>
-      </div>
+      {!busy && (
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
+          <button
+            type="button"
+            onClick={() => setMode('qr')}
+            className={cn(
+              'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+              mode === 'qr'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <QrCode className="mr-1.5 inline size-3.5" />
+            Show QR
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('paste')}
+            className={cn(
+              'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+              mode === 'paste'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Link className="mr-1.5 inline size-3.5" />
+            Paste URL
+          </button>
+        </div>
+      )}
 
-      {mode === 'qr' ? <BunkerQRMode /> : <BunkerPasteMode />}
+      {mode === 'qr' ? (
+        <BunkerQRMode onStatusChange={setQrStatus} />
+      ) : (
+        <BunkerPasteMode onLoadingChange={setPasteLoading} />
+      )}
     </div>
   )
 }
 
 // ─── Bunker QR Mode (nostrconnect://) ─────────────────────────────────────
 
-function BunkerQRMode() {
+function BunkerQRMode({
+  onStatusChange,
+}: {
+  onStatusChange?: (status: BunkerConnectionStatus) => void
+}) {
   const { login } = useAuth()
+  const isMobile = useIsMobile()
   const [uri, setUri] = useState<string | null>(null)
-  const [status, setStatus] = useState<'generating' | 'waiting' | 'connecting' | 'error'>('generating')
+  const [status, setStatus] = useState<BunkerConnectionStatus>('generating')
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -367,6 +392,10 @@ function BunkerQRMode() {
     return () => { cancelAnimationFrame(id); abortRef.current?.abort() }
   }, [startConnection])
 
+  useEffect(() => {
+    onStatusChange?.(status)
+  }, [onStatusChange, status])
+
   async function handleCopy() {
     if (!uri) return
     await navigator.clipboard.writeText(uri)
@@ -412,15 +441,17 @@ function BunkerQRMode() {
       </div>
 
       <div className="flex w-full flex-col gap-2 sm:flex-row">
-        <Button
-          asChild
-          className="flex-1 bg-amber-400 text-black hover:bg-amber-300"
-        >
-          <a href={uri!}>
-            <Smartphone className="mr-2 size-4" />
-            Login with Amber
-          </a>
-        </Button>
+        {isMobile && (
+          <Button
+            asChild
+            className="flex-1 bg-amber-400 text-black hover:bg-amber-300"
+          >
+            <a href={uri!}>
+              <Smartphone className="mr-2 size-4" />
+              Login with Amber
+            </a>
+          </Button>
+        )}
 
         <Button
           variant="ghost"
@@ -451,7 +482,11 @@ function BunkerQRMode() {
 
 // ─── Bunker Paste Mode (bunker://) ────────────────────────────────────────
 
-function BunkerPasteMode() {
+function BunkerPasteMode({
+  onLoadingChange,
+}: {
+  onLoadingChange?: (loading: boolean) => void
+}) {
   const { login } = useAuth()
   const [bunkerUrl, setBunkerUrl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -467,6 +502,7 @@ function BunkerPasteMode() {
     }
 
     setLoading(true)
+    onLoadingChange?.(true)
     trackEvent(AnalyticsEvent.LOGIN_STARTED, { method: 'bunker', flow: 'paste' })
     try {
       const signer = await createBunkerSigner(bunkerUrl, { timeout: 30_000 })
@@ -478,6 +514,7 @@ function BunkerPasteMode() {
       toast.error(message)
     } finally {
       setLoading(false)
+      onLoadingChange?.(false)
     }
   }
 

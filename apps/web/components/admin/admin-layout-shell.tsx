@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/components/admin/auth-context'
 import { AdminSidebar } from '@/components/admin/admin-sidebar'
 import { MobileTabBar } from '@/components/admin/mobile-tab-bar'
-import { LoginPage } from '@/components/admin/login-page'
+import { LoginModal } from '@/components/admin/login-modal'
 import { MaintenanceGate } from '@/components/admin/maintenance-gate'
 import { SetupBanner } from '@/components/admin/setup-banner'
 
@@ -107,6 +107,12 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const database = useDatabaseStatus(status === 'authenticated')
   const databaseDown = !!database.error
+  const handleLoginOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) router.push('/')
+    },
+    [router]
+  )
 
   useEffect(() => {
     if (databaseDown && pathname !== '/admin') {
@@ -142,9 +148,14 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Unauthenticated - full-page login
+  // Unauthenticated - use the shared login modal so all sign-in flows stay
+  // consistent across landing and admin entry points.
   if (status === 'unauthenticated') {
-    return <LoginPage />
+    return (
+      <div className="min-h-dvh bg-background">
+        <LoginModal open onOpenChange={handleLoginOpenChange} />
+      </div>
+    )
   }
 
   // Authenticated - render full layout. MaintenanceGate wraps children so

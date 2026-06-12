@@ -3,22 +3,44 @@
 import React, { useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ChevronDown, Radio, Key, Tag, Calendar, ArrowDownLeft, ArrowUpRight, WifiOff, Loader2, Wallet } from 'lucide-react'
+import {
+  ArrowDownLeft,
+  ArrowRight,
+  ArrowUpRight,
+  Calendar,
+  ChevronDown,
+  Forward,
+  Key,
+  Loader2,
+  Radio,
+  Tag,
+  Wallet,
+  WifiOff,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { useApi } from '@/lib/client/hooks/use-api'
 import { useAuth } from '@/components/admin/auth-context'
+import { useAddressMutations } from '@/lib/client/hooks/use-wallet-addresses'
 import { parseNwc, truncatePubkey } from '@/lib/client/nwc'
 import { useNwcBalance } from '@/lib/client/use-nwc-balance'
 import { formatRelativeTime } from '@/lib/client/format'
+import { isLightningAddress } from '@/lib/ln-address'
 
 interface UserMe {
   userId: string
   lightningAddress: string | null
+  primaryUsername: string | null
   /** Connection string of the user's default RemoteWallet (or ''). */
   nwcString: string
   nwcUpdatedAt: string | null
+}
+
+interface NwcCardProps {
+  username?: string | null
+  onUpdated?: () => void | Promise<void>
 }
 
 /**
@@ -28,22 +50,23 @@ interface UserMe {
  * truth. The connection string is the owner's own default wallet, returned
  * by /api/users/me, so the balance is still read client-side via NWC.
  */
-export function NwcCard() {
+export function NwcCard({ username, onUpdated }: NwcCardProps = {}) {
   const { status } = useAuth()
   const { data: me } = useApi<UserMe>(
     status === 'authenticated' ? '/api/users/me' : null
   )
 
   const [expanded, setExpanded] = useState(false)
+  const nwcString = me?.nwcString ?? ''
 
   const parsedNwc = useMemo(
-    () => (me?.nwcString ? parseNwc(me.nwcString) : null),
-    [me?.nwcString]
+    () => (nwcString ? parseNwc(nwcString) : null),
+    [nwcString]
   )
 
   // Real-time balance via NWC — polls every 30s plus subscribes to
   // NIP-47 payment notifications for instant updates.
-  const balance = useNwcBalance(me?.nwcString || null, {
+  const balance = useNwcBalance(nwcString || null, {
     onTransaction: tx => {
       const isIncoming = tx.type === 'incoming'
       const amount = `${tx.amountSats.toLocaleString()} sats`
@@ -60,25 +83,16 @@ export function NwcCard() {
   // Don't show the card unless the user has a lightning address
   if (!me || !me.lightningAddress) return null
 
-  const hasWallet = Boolean(me.nwcString)
+  const hasWallet = Boolean(nwcString)
+  const primaryUsername = username ?? me.primaryUsername
 
   // No primary wallet — point the user at the Remote Wallets page to add one.
   if (!hasWallet) {
     return (
-      <Link
-        href="/admin/remote-wallets"
-        className="flex items-center gap-3 rounded-xl border border-dashed border-border px-5 py-5 transition-colors hover:bg-muted/40"
-      >
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#897FFF]/10">
-          <Wallet className="size-5 text-muted-foreground" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-medium">Connect a wallet</span>
-          <span className="text-xs text-muted-foreground">
-            Add a wallet to receive payments at your lightning address.
-          </span>
-        </div>
-      </Link>
+      <NoWalletRoutingOptions
+        username={primaryUsername}
+        onUpdated={onUpdated}
+      />
     )
   }
 
@@ -196,6 +210,120 @@ export function NwcCard() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function NoWalletRoutingOptions({
+  username,
+  onUpdated,
+}: {
+  username: string | null | undefined
+  onUpdated?: () => void | Promise<void>
+}) {
+  const { updateAddress } = useAddressMutations()
+  const [redirect, setRedirect] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const trimmed = redirect.trim().toLowerCase()
+  const redirectInvalid = trimmed.length > 0 && !isLightningAddress(trimmed)
+  const canForward = Boolean(username) && trimmed.length > 0 && !redirectInvalid && !saving
+
+  async function handleForward() {
+    if (!username || !canForward) return
+
+    setSaving(true)
+    try {
+      await updateAddress(username, {
+        mode: 'ALIAS',
+        redirect: trimmed,
+        remoteWalletId: null,
+      })
+      toast.success('Forwarding enabled')
+      setRedirect('')
+      await onUpdated?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to set forwarding')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <Link
+        href="/admin/remote-wallets"
+        className="flex items-center gap-3 rounded-xl border border-dashed border-border px-5 py-5 transition-colors hover:bg-muted/40"
+      >
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#897FFF]/10">
+          <Wallet className="size-5 text-muted-foreground" />
+        </div>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-sm font-medium">Connect a wallet</span>
+          <span className="text-xs text-muted-foreground">
+            Add a wallet to receive payments at your lightning address.
+          </span>
+        </div>
+      </Link>
+
+      <div className="rounded-xl border border-border bg-card px-5 py-5">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <Forward className="size-5 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-3">
+            <div>
+              <h3 className="text-sm font-semibold">Redirect to existing address</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Forward payments to another Lightning Address.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <label className="sr-only" htmlFor="dashboard-forwarding-target">
+                Existing Lightning Address
+              </label>
+              <Input
+                id="dashboard-forwarding-target"
+                placeholder="someone@example.com"
+                value={redirect}
+                disabled={!username || saving}
+                onChange={e => setRedirect(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && canForward) handleForward()
+                }}
+                className={redirectInvalid ? 'border-destructive' : undefined}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <Button
+                variant="theme"
+                disabled={!canForward}
+                onClick={handleForward}
+                className="shrink-0"
+              >
+                {saving ? (
+                  <Spinner size={16} className="mr-2" />
+                ) : (
+                  <ArrowRight className="mr-2 size-4" />
+                )}
+                Forward
+              </Button>
+            </div>
+
+            {redirectInvalid ? (
+              <p className="text-xs text-destructive">
+                Enter a valid lightning address (user@host).
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                This switches @{username ?? 'your address'} to redirect mode.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
