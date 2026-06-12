@@ -51,6 +51,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       community_name: settings.community_name,
       logotype_url: settings.logotype_url,
       isotypo_url: settings.isotypo_url,
+      community_cover_url: settings.community_cover_url,
       maintenance_enabled: settings.maintenance_enabled,
       social_whatsapp: settings.social_whatsapp,
       social_telegram: settings.social_telegram,

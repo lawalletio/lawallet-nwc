@@ -1,15 +1,19 @@
 'use client'
 
+import { useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
+  Camera,
   ExternalLink,
   Globe,
+  ImageUp,
   Mail,
   Send,
   Twitter,
 } from 'lucide-react'
-import type { ComponentType, SVGProps } from 'react'
+import { toast } from 'sonner'
+import type { ChangeEvent, ComponentType, SVGProps } from 'react'
 
 /**
  * Discord brand mark. Lucide dropped most brand icons so we inline the
@@ -65,9 +69,30 @@ function WhatsAppIcon(props: SVGProps<SVGSVGElement>) {
 }
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Button } from '@/components/ui/button'
-import { useSettings } from '@/lib/client/hooks/use-settings'
+import { Progress } from '@/components/ui/progress'
+import { Spinner } from '@/components/ui/spinner'
+import { useAuth } from '@/components/admin/auth-context'
+import { Permission } from '@/lib/auth/permissions'
+import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
 import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
+import { useBlossomUpload } from '@/lib/client/hooks/use-blossom-upload'
 import { cn } from '@/lib/utils'
+
+const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
+const ACCEPT_ATTR = '.jpg,.jpeg,.png,.webp,.svg'
+
+function validateImageFile(file: File) {
+  if (!ACCEPTED_TYPES.includes(file.type)) {
+    toast.error('Only JPG, PNG, WebP or SVG files are accepted.')
+    return false
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    toast.error('File must be smaller than 2MB.')
+    return false
+  }
+  return true
+}
 
 interface SocialLink {
   key:
@@ -145,15 +170,72 @@ const SOCIAL_LINKS: SocialLink[] = [
  */
 export default function CommunityAboutPage() {
   const { data: settings, loading } = useSettings()
+  const { updateSettings } = useUpdateSettings()
+  const { isAuthorized } = useAuth()
   const { logotype, isotypo } = useBrandLogotypes()
+  const avatarUpload = useBlossomUpload()
+  const coverUpload = useBlossomUpload()
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
 
   const communityName = settings?.community_name?.trim()
   const domain = settings?.domain?.trim()
+  const cover = coverPreview ?? settings?.community_cover_url?.trim() ?? ''
+  const avatar = avatarPreview ?? isotypo
+  const canEditBranding = isAuthorized(Permission.SETTINGS_WRITE)
   const links = SOCIAL_LINKS.flatMap(s => {
     const raw = settings?.[s.key]?.trim()
     if (!raw) return []
     return [{ ...s, raw, href: s.hrefFor(raw) }]
   })
+
+  async function handleAvatarChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !validateImageFile(file) || avatarUpload.uploading) return
+
+    const previous = avatarPreview
+    const localUrl = URL.createObjectURL(file)
+    setAvatarPreview(localUrl)
+
+    try {
+      const { url } = await avatarUpload.upload(file)
+      setAvatarPreview(url)
+      if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
+      await updateSettings({ isotypo_url: url })
+      toast.success('Avatar updated')
+    } catch (err) {
+      setAvatarPreview(previous)
+      if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
+      const message = err instanceof Error ? err.message : 'Upload failed'
+      if (message !== 'Upload aborted') toast.error(message)
+    }
+  }
+
+  async function handleCoverChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !validateImageFile(file) || coverUpload.uploading) return
+
+    const previous = coverPreview
+    const localUrl = URL.createObjectURL(file)
+    setCoverPreview(localUrl)
+
+    try {
+      const { url } = await coverUpload.upload(file)
+      setCoverPreview(url)
+      if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
+      await updateSettings({ community_cover_url: url })
+      toast.success('Cover updated')
+    } catch (err) {
+      setCoverPreview(previous)
+      if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
+      const message = err instanceof Error ? err.message : 'Upload failed'
+      if (message !== 'Upload aborted') toast.error(message)
+    }
+  }
 
   return (
     <div className="flex flex-col">
@@ -167,9 +249,22 @@ export default function CommunityAboutPage() {
 
       <div className="flex flex-col gap-6 px-4 pb-8 sm:px-6">
         <div className="overflow-hidden rounded-xl border bg-card">
-          {/* Hero — logotype banner over the muted card bg so the
-              admin sees exactly what members see on the login page. */}
-          <div className="relative flex h-40 w-full items-center justify-center bg-gradient-to-br from-primary/20 via-primary/5 to-muted p-6 sm:h-48">
+          {/* Hero — cover image behind the logotype, falling back to the
+              existing brand gradient until admins upload one. */}
+          <div className="relative flex h-40 w-full items-center justify-center overflow-hidden bg-gradient-to-br from-primary/20 via-primary/5 to-muted p-6 sm:h-48">
+            {cover && (
+              <>
+                <Image
+                  src={cover}
+                  alt=""
+                  fill
+                  sizes="(min-width: 1024px) 872px, 100vw"
+                  className="object-cover"
+                  priority
+                />
+                <div className="absolute inset-0 bg-background/35" />
+              </>
+            )}
             <div className="relative h-16 w-full max-w-[360px] sm:h-20">
               <Image
                 src={logotype}
@@ -180,6 +275,38 @@ export default function CommunityAboutPage() {
                 priority
               />
             </div>
+            {canEditBranding && (
+              <>
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept={ACCEPT_ATTR}
+                  className="hidden"
+                  onChange={handleCoverChange}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={coverUpload.uploading}
+                  onClick={() => coverInputRef.current?.click()}
+                  className="absolute right-3 top-3 border border-border/60 bg-background/80 text-xs shadow-sm backdrop-blur"
+                >
+                  {coverUpload.uploading ? (
+                    <Spinner size={16} />
+                  ) : (
+                    <ImageUp className="size-4" />
+                  )}
+                  {coverUpload.uploading ? `${coverUpload.progress}%` : 'Cover'}
+                </Button>
+                {coverUpload.uploading && (
+                  <Progress
+                    value={coverUpload.progress}
+                    className="absolute bottom-0 left-0 right-0 h-1 rounded-none"
+                  />
+                )}
+              </>
+            )}
           </div>
 
           {/* Body — isotypo overlaps the hero/body boundary, matching
@@ -188,12 +315,38 @@ export default function CommunityAboutPage() {
           <div className="relative px-4 pb-6 pt-0 sm:px-6">
             <div className="absolute -top-8 left-4 size-16 overflow-hidden rounded-full bg-background ring-4 ring-card sm:-top-10 sm:left-6 sm:size-20">
               <Image
-                src={isotypo}
+                src={avatar}
                 alt={communityName ? `${communityName} isotypo` : 'Isotypo'}
                 fill
                 sizes="80px"
                 className="object-cover"
               />
+              {avatarUpload.uploading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/65">
+                  <Spinner size={16} />
+                </div>
+              )}
+              {canEditBranding && (
+                <>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept={ACCEPT_ATTR}
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Change avatar"
+                    title="Change avatar"
+                    disabled={avatarUpload.uploading}
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="absolute inset-x-0 bottom-0 flex h-7 items-center justify-center bg-background/80 text-foreground transition-colors hover:bg-background disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Camera className="size-3.5" />
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="pt-10 sm:pt-12">

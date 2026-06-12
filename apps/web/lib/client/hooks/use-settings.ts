@@ -23,6 +23,8 @@ export interface SettingsData {
   logotype_url?: string
   /** Absolute URL to the Blossom-hosted isotypo (square icon). */
   isotypo_url?: string
+  /** Absolute URL to the Blossom-hosted community profile cover image. */
+  community_cover_url?: string
   /** SMTP server hostname (no protocol, e.g. `smtp.example.com`). */
   smtp_host?: string
   smtp_port?: string
