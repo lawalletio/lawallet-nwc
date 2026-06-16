@@ -1,9 +1,9 @@
 'use client'
 
-import React, { useEffect, useState, use } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useEffect, useRef, useState, use } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, Forward } from 'lucide-react'
+import { ChevronDown, ExternalLink, Forward, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Button } from '@/components/ui/button'
@@ -59,10 +59,13 @@ interface PageProps {
  */
 export default function AdminAddressEditPage({ params }: PageProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { username } = use(params)
   const { data: settings } = useSettings()
   const { data, loading, refetch } = useMyAddress(username)
   const { updateAddress, updating } = useAddressMutations()
+  const redirectInputRef = useRef<HTMLInputElement>(null)
+  const appliedConfigureRef = useRef<string | null>(null)
 
   const [mode, setMode] = useState<LightningAddressMode>('DEFAULT_NWC')
   const [redirect, setRedirect] = useState('')
@@ -91,6 +94,41 @@ export default function AdminAddressEditPage({ params }: PageProps) {
     setRedirect(data.address.redirect ?? '')
     setRemoteWalletId(data.address.remoteWalletId ?? '')
   }, [data, updatedAt])
+
+  useEffect(() => {
+    if (!data) return
+
+    const configure = searchParams.get('configure')
+    if (configure !== 'wallet' && configure !== 'redirect') return
+
+    const applyKey = `${username}:${configure}`
+    if (appliedConfigureRef.current === applyKey) return
+    appliedConfigureRef.current = applyKey
+
+    setModeOpen(true)
+
+    window.setTimeout(() => {
+      document
+        .getElementById('address-mode-settings')
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 0)
+
+    if (configure === 'redirect') {
+      setMode('ALIAS')
+      setRemoteWalletId('')
+      window.setTimeout(() => redirectInputRef.current?.focus(), 0)
+      return
+    }
+
+    const preferredWallet =
+      data.wallets.find(w => w.isDefault && w.status !== 'DISABLED') ??
+      data.wallets.find(w => w.status !== 'DISABLED') ??
+      null
+
+    setMode('CUSTOM_NWC')
+    setRedirect('')
+    setRemoteWalletId(preferredWallet?.id ?? '')
+  }, [data, searchParams, username])
 
   const domain = settings?.domain || 'your-domain'
   const fullAddress = `${username}@${domain}`
@@ -201,6 +239,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
             open={modeOpen}
             onOpenChange={setModeOpen}
             className="rounded-lg border border-border bg-card"
+            id="address-mode-settings"
           >
             <CollapsibleTrigger
               className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/40"
@@ -270,6 +309,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               <div className="space-y-2">
                 <Label htmlFor="redirect">Redirect to</Label>
                 <Input
+                  ref={redirectInputRef}
                   id="redirect"
                   placeholder="someone@example.com"
                   value={redirect}
@@ -329,11 +369,53 @@ export default function AdminAddressEditPage({ params }: PageProps) {
             )}
 
                 {mode === 'DEFAULT_NWC' && (
-                  <p className="text-xs text-muted-foreground">
-                    {defaultWallet
-                      ? `Will use your primary wallet (${defaultWallet.name}).`
-                      : 'You haven\u2019t set a primary wallet yet.'}
-                  </p>
+                  <div className="rounded-md border border-border bg-muted/30 p-3">
+                    {defaultWallet ? (
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                            <Wallet className="size-4 text-primary" aria-hidden />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">Primary wallet</p>
+                            <Link
+                              href={`/admin/remote-wallets#wallet-${defaultWallet.id}`}
+                              className="block truncate text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                            >
+                              {defaultWallet.name}
+                            </Link>
+                          </div>
+                        </div>
+                        <Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5">
+                          <Link href={`/admin/remote-wallets#wallet-${defaultWallet.id}`}>
+                            View wallet
+                            <ExternalLink className="size-3.5" aria-hidden />
+                          </Link>
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">
+                            {data.wallets.length > 0
+                              ? 'No primary wallet selected'
+                              : 'No remote wallet linked'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {data.wallets.length > 0
+                              ? 'Pick a primary wallet in Remote Wallets to use this mode.'
+                              : 'Link a Remote Wallet before using the default wallet mode.'}
+                          </p>
+                        </div>
+                        <Button asChild variant="theme" size="sm" className="shrink-0 gap-1.5">
+                          <Link href="/admin/remote-wallets">
+                            {data.wallets.length > 0 ? 'Set primary wallet' : 'Link Remote Wallets'}
+                            <ExternalLink className="size-3.5" aria-hidden />
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Save/Cancel live inside the collapsible — once the user

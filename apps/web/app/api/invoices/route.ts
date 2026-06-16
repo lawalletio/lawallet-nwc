@@ -4,6 +4,7 @@ import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ValidationError } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { requireUserAddressRegistration } from '@/lib/auth/paid-registration-guard'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createInvoiceSchema } from '@/lib/validation/schemas'
@@ -16,13 +17,36 @@ export const dynamic = 'force-dynamic'
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   await checkRequestLimits(request, 'json')
-  const { pubkey } = await authenticate(request)
+  const { pubkey, role } = await authenticate(request)
   const body = await validateBody(request, createInvoiceSchema)
 
   // Resolve the user
   const user = await prisma.user.findUnique({ where: { pubkey } })
   if (!user) {
     throw new ValidationError('User not found')
+  }
+
+  // Purpose-specific validation. Both registration (primary claim) and
+  // wallet-address (secondary claim) mint a bolt11 for a requested username
+  // and must fail fast if self-service registration is disabled or the
+  // username is already taken.
+  const mintsAddress =
+    body.purpose === 'registration' || body.purpose === 'wallet-address'
+  if (mintsAddress) {
+    await requireUserAddressRegistration(role)
+
+    const username = body.metadata?.username
+    if (!username) {
+      throw new ValidationError('Username is required')
+    }
+
+    // Check username availability
+    const existing = await prisma.lightningAddress.findUnique({
+      where: { username },
+    })
+    if (existing) {
+      throw new ValidationError('Username is already taken')
+    }
   }
 
   // Load registration settings
@@ -39,26 +63,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // If no LN address configured or not enabled, registration is free
   if (!lnAddress || !enabled) {
     return NextResponse.json({ free: true })
-  }
-
-  // Purpose-specific validation. Both registration (primary claim) and
-  // wallet-address (secondary claim) mint a bolt11 for a requested username
-  // and must fail fast if it's already taken before we hit the provider.
-  const mintsAddress =
-    body.purpose === 'registration' || body.purpose === 'wallet-address'
-  if (mintsAddress) {
-    const username = body.metadata?.username
-    if (!username) {
-      throw new ValidationError('Username is required')
-    }
-
-    // Check username availability
-    const existing = await prisma.lightningAddress.findUnique({
-      where: { username },
-    })
-    if (existing) {
-      throw new ValidationError('Username is already taken')
-    }
   }
 
   // Generate invoice from the platform's lightning address

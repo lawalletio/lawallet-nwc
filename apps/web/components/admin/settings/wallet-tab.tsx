@@ -21,6 +21,7 @@ export function WalletTab() {
   const [disableAddress, setDisableAddress] = useState(false)
   const [registrationLnAddress, setRegistrationLnAddress] = useState('')
   const [registrationPrice, setRegistrationPrice] = useState('21')
+  const [registrationUserEnabled, setRegistrationUserEnabled] = useState(true)
   const [registrationEnabled, setRegistrationEnabled] = useState(false)
   const [registrationAdminBypass, setRegistrationAdminBypass] = useState(true)
 
@@ -35,6 +36,9 @@ export function WalletTab() {
     setDisableAddress(settings.disable_address === 'true')
     setRegistrationLnAddress(settings.registration_ln_address ?? '')
     setRegistrationPrice(settings.registration_price ?? '21')
+    setRegistrationUserEnabled(
+      (settings.registration_user_enabled ?? 'true') === 'true'
+    )
     setRegistrationEnabled(settings.registration_ln_enabled === 'true')
     setRegistrationAdminBypass(
       (settings.registration_admin_bypass ?? 'true') === 'true'
@@ -55,6 +59,7 @@ export function WalletTab() {
       disable_address: disableAddress ? 'true' : 'false',
       registration_ln_address: registrationLnAddress.trim(),
       registration_price: registrationPrice || '21',
+      registration_user_enabled: registrationUserEnabled ? 'true' : 'false',
       registration_ln_enabled: registrationEnabled ? 'true' : 'false',
       registration_admin_bypass: registrationAdminBypass ? 'true' : 'false',
     })
@@ -67,6 +72,7 @@ export function WalletTab() {
     disableAddress,
     registrationLnAddress,
     registrationPrice,
+    registrationUserEnabled,
     registrationEnabled,
     registrationAdminBypass,
   ])
@@ -185,6 +191,19 @@ export function WalletTab() {
           </p>
         </div>
         <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">User Registration</p>
+              <p className="text-sm text-muted-foreground">
+                Allow non-admin users to create Lightning Addresses. When off,
+                only admins can create them.
+              </p>
+            </div>
+            <Switch
+              checked={registrationUserEnabled}
+              onCheckedChange={v => { setRegistrationUserEnabled(v); markChanged() }}
+            />
+          </div>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">Paid Registration</p>

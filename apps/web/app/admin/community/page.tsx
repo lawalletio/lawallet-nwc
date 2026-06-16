@@ -319,7 +319,7 @@ export default function CommunityAboutPage() {
                 alt={communityName ? `${communityName} isotypo` : 'Isotypo'}
                 fill
                 sizes="80px"
-                className="object-cover"
+                className="object-contain p-2"
               />
               {avatarUpload.uploading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/65">

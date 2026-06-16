@@ -3,6 +3,7 @@ import {
   buildInstructionOptions,
   buildInstructionProfile,
   detectPlatform,
+  LNURL_VERIFY_USERNAME,
   normalizeDomainProbeInput,
   probeDomainRouting,
   type RootSample,
@@ -99,7 +100,10 @@ describe('domain onboarding helpers', () => {
         })
       }
       if (href.includes('/.well-known/lnurlp/')) {
-        return Response.json({ callback: 'https://gateway.example.com/api/lnurl/callback' })
+        return Response.json({
+          tag: 'payRequest',
+          callback: 'https://gateway.example.com/api/lnurl/callback',
+        })
       }
       if (href.includes('/.well-known/lawallet.json')) {
         const probe = new URL(href).searchParams.get('probe')
@@ -121,6 +125,48 @@ describe('domain onboarding helpers', () => {
     expect(result.endpoint).toBe('https://gateway.example.com')
     expect(result.status).toBe('ready')
     expect(result.instructions.snippet).toContain('https://gateway.example.com/.well-known/')
+  })
+
+  it('probes LNURL routing without requiring a real lightning address', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const href = String(url)
+      if (href === 'https://example.com') {
+        return new Response('<link href="/wp-content/theme.css">', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
+      }
+      if (href.includes('/.well-known/lnurlp/')) {
+        const parsed = new URL(href)
+        const probe = parsed.searchParams.get('probe')
+        expect(parsed.pathname).toBe(`/.well-known/lnurlp/${LNURL_VERIFY_USERNAME}`)
+        expect(probe).toBeTruthy()
+
+        return Response.json({
+          tag: 'payRequest',
+          callback: `https://gateway.example.com/api/lud16/${LNURL_VERIFY_USERNAME}/cb?probe=${probe}`,
+        })
+      }
+      if (href.includes('/.well-known/lawallet.json')) {
+        const probe = new URL(href).searchParams.get('probe')
+        return Response.json({ service: 'lawallet', probe })
+      }
+      if (href.includes('/.well-known/nostr.json')) {
+        return Response.json({ names: {} })
+      }
+      return new Response('', { status: 404 })
+    })
+
+    const result = await probeDomainRouting({
+      domain: 'example.com',
+      endpoint: 'https://example.com',
+      apiGatewayEndpoint: 'https://gateway.example.com',
+    })
+
+    expect(result.checks.lnurl.state).toBe('pass')
+    expect(result.checks.lnurl.url).toContain(
+      `/.well-known/lnurlp/${LNURL_VERIFY_USERNAME}`,
+    )
   })
 
   it('does not trust LaWallet-looking root pages without the instance probe', async () => {

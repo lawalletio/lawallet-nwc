@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { lud16UsernameParam, LUD12_MAX_COMMENT_LENGTH } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { resolvePublicEndpoint } from '@/lib/public-url'
+import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import {
   parseLightningAddress,
   resolveWalletRoute,
@@ -21,6 +22,22 @@ export const GET = withErrorHandling(
     const username = _username.trim().toLowerCase()
 
     logger.info({ username }, 'LUD16 lookup request')
+
+    const probe = req.nextUrl.searchParams.get('probe')?.trim()
+    if (username === LNURL_VERIFY_USERNAME && probe) {
+      const { host, url } = await resolvePublicEndpoint(req)
+
+      return NextResponse.json({
+        status: 'OK',
+        tag: 'payRequest',
+        callback: `${url}/api/lud16/${LNURL_VERIFY_USERNAME}/cb?probe=${encodeURIComponent(probe)}`,
+        minSendable: 1000,
+        maxSendable: 1000,
+        metadata: JSON.stringify([
+          ['text/plain', `LaWallet LNURL verification for ${host}: ${probe}`],
+        ]),
+      } as LUD06Response & { status: 'OK' })
+    }
 
     // Load the address along with every piece resolveWalletRoute needs: its
     // bound RemoteWallet (CUSTOM) and the owner's default RemoteWallet

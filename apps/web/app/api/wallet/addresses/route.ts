@@ -7,7 +7,7 @@ import {
   NotFoundError,
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
-import { requirePaidRegistration } from '@/lib/auth/paid-registration-guard'
+import { requireAddressRegistration } from '@/lib/auth/paid-registration-guard'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createWalletAddressSchema } from '@/lib/validation/schemas'
@@ -66,14 +66,13 @@ export const POST = withErrorHandling(async (request: Request) => {
   const user = await prisma.user.findUnique({ where: { pubkey } })
   if (!user) throw new AuthenticationError('User not found')
 
+  // Gate self-service address creation behind the instance policy. When user
+  // registration is disabled only admins pass; when paid registration is on,
+  // non-bypassing actors must go through /api/invoices + preimage claim.
+  await requireAddressRegistration(role)
+
   const existing = await prisma.lightningAddress.findUnique({ where: { username } })
   if (existing) throw new ConflictError('Username is already taken')
-
-  // Gate secondary-address creation behind paid registration. Without this
-  // an authenticated user could mint unlimited free addresses via this
-  // endpoint even when the operator has paid mode enabled, completely
-  // bypassing the /api/invoices + preimage flow used for primary claims.
-  await requirePaidRegistration(role)
 
   const created = await prisma.lightningAddress.create({
     data: {

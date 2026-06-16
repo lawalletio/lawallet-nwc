@@ -29,7 +29,7 @@ import { RegisterAddressBanner } from '@/components/admin/register-address-banne
 import { EndpointError } from '@/components/admin/endpoint-error'
 import { IdentityCircles } from '@/components/admin/identity-circles'
 import { NwcCard } from '@/components/admin/nwc-card'
-import { ForwardingCard } from '@/components/admin/forwarding-card'
+import { AddressRoutingShortcuts } from '@/components/admin/address-routing-shortcuts'
 import { useApi } from '@/lib/client/hooks/use-api'
 
 const sourceIcons = {
@@ -164,15 +164,10 @@ export default function AdminDashboardPage() {
         {me?.primaryAddressMode === 'IDLE' ||
         me?.primaryAddressMode === 'ALIAS' ? (
           me.primaryUsername ? (
-            <ForwardingCard
-              username={me.primaryUsername}
-              mode={me.primaryAddressMode}
-              redirect={me.primaryRedirect}
-              onUpdated={refetchMe}
-            />
+            <AddressRoutingShortcuts username={me.primaryUsername} />
           ) : null
         ) : (
-          <NwcCard username={me.primaryUsername} onUpdated={refetchMe} />
+          <NwcCard username={me.primaryUsername} />
         )}
 
         {!canViewStats ? (

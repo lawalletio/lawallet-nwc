@@ -5,7 +5,13 @@ import { useSettings } from '@/lib/client/hooks/use-settings'
 /** Static LaWallet fallback used when no community logotype has been uploaded. */
 export const DEFAULT_LOGOTYPE_SRC = '/logos/lawallet.svg'
 /** Static LaWallet isotypo fallback. */
-export const DEFAULT_ISOTYPO_SRC = '/logos/lawallet.svg'
+export const DEFAULT_ISOTYPO_SRC = '/logos/lawallet-isotypo.svg'
+
+function resolveIsotypoSrc(value: string | undefined | null) {
+  const src = value?.trim()
+  if (!src || src.endsWith(DEFAULT_LOGOTYPE_SRC)) return DEFAULT_ISOTYPO_SRC
+  return src
+}
 
 /**
  * Resolved brand-logo URLs for the current community.
@@ -24,6 +30,6 @@ export const DEFAULT_ISOTYPO_SRC = '/logos/lawallet.svg'
 export function useBrandLogotypes() {
   const { data: settings, loading } = useSettings()
   const logotype = settings?.logotype_url?.trim() || DEFAULT_LOGOTYPE_SRC
-  const isotypo = settings?.isotypo_url?.trim() || DEFAULT_ISOTYPO_SRC
+  const isotypo = resolveIsotypoSrc(settings?.isotypo_url)
   return { logotype, isotypo, loading }
 }

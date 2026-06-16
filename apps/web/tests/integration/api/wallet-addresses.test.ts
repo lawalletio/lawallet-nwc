@@ -42,6 +42,7 @@ import { POST as PrimaryPost } from '@/app/api/wallet/addresses/[username]/prima
 import { GET as InvoicesGet } from '@/app/api/wallet/addresses/[username]/invoices/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { eventBus } from '@/lib/events/event-bus'
+import { getSettings } from '@/lib/settings'
 
 const mockPubkey = 'a'.repeat(64)
 const otherPubkey = 'b'.repeat(64)
@@ -236,8 +237,52 @@ describe('POST /api/wallet/addresses', () => {
     )
   })
 
+  it('rejects USER creation when user address registration is disabled', async () => {
+    vi.mocked(getSettings).mockResolvedValueOnce({
+      registration_user_enabled: 'false',
+    })
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob' },
+      })
+    )
+
+    expect(res.status).toBe(403)
+    expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
+  })
+
+  it('lets ADMIN create when user address registration is disabled', async () => {
+    vi.mocked(getSettings).mockResolvedValueOnce({
+      registration_user_enabled: 'false',
+    })
+    vi.mocked(authenticate).mockResolvedValue({
+      pubkey: mockPubkey,
+      role: 'ADMIN' as any,
+      method: 'jwt',
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+      makeAddress({ username: 'bob', isPrimary: false }) as any,
+    )
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob' },
+      })
+    )
+
+    expect(res.status).toBe(201)
+    expect(prismaMock.lightningAddress.create).toHaveBeenCalled()
+  })
+
   it('rejects with 402 when paid registration is on and caller is USER', async () => {
-    const { getSettings } = await import('@/lib/settings')
     vi.mocked(getSettings).mockResolvedValueOnce({
       registration_ln_enabled: 'true',
       registration_ln_address: 'admin@provider.com',
@@ -259,7 +304,6 @@ describe('POST /api/wallet/addresses', () => {
   })
 
   it('lets ADMIN bypass payment when admin bypass toggle is on', async () => {
-    const { getSettings } = await import('@/lib/settings')
     vi.mocked(getSettings).mockResolvedValueOnce({
       registration_ln_enabled: 'true',
       registration_ln_address: 'admin@provider.com',
