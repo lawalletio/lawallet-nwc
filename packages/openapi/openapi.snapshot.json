@@ -6243,6 +6243,73 @@
         }
       }
     },
+    "/api/version": {
+      "get": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Version"
+        ],
+        "summary": "Check the running web app version and latest GitHub release.",
+        "operationId": "version.get",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Current version and latest release status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "currentVersion": {
+                      "type": "string"
+                    },
+                    "latestVersion": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "releaseUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "updateAvailable": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "currentVersion",
+                    "latestVersion",
+                    "releaseUrl",
+                    "updateAvailable"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/remote-connections/{externalDeviceKey}": {
       "get": {
         "x-required-role": "PUBLIC",

@@ -41,6 +41,7 @@ describe('getOpenApiDocument', () => {
       '/api/settings',
       '/api/admin/assign',
       '/api/setup/status',
+      '/api/version',
       '/api/remote-connections/{externalDeviceKey}',
       '/api/remote-wallets',
       '/api/remote-wallets/{id}',
