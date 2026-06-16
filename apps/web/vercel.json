@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm exec prisma migrate deploy && next build",
+  "buildCommand": "if [ -n \"$DATABASE_URL\" ]; then pnpm exec prisma migrate deploy; else echo \"Skipping prisma migrate deploy: DATABASE_URL is not set\"; fi && next build",
   "git": {
     "deploymentEnabled": {
       "main": true
