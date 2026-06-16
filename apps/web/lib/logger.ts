@@ -36,12 +36,12 @@ function asLogLevel(value: string | undefined): LogLevel | undefined {
 function getDefaultLogLevel(): LogLevel {
   const fromEnv = asLogLevel(process.env.LOG_LEVEL)
   if (fromEnv) return fromEnv
-  return getConfig().isProduction ? 'info' : 'debug'
+  return getConfig(false).isProduction ? 'info' : 'debug'
 }
 
 function isPrettyEnabled(): boolean {
   // Acceptance criteria: JSON in production, pretty in dev
-  return getConfig().logPretty
+  return getConfig(false).logPretty
 }
 
 function getReqIdFromContext(): string | undefined {

@@ -69,7 +69,8 @@ export interface AppConfig {
   }
 }
 
-let cachedConfig: AppConfig | null = null
+let strictConfig: AppConfig | null = null
+let relaxedConfig: AppConfig | null = null
 
 /**
  * Get application configuration
@@ -78,8 +79,12 @@ let cachedConfig: AppConfig | null = null
  * @param strict - If true, validates all required env vars. If false, uses defaults where possible.
  */
 export function getConfig(strict: boolean = true): AppConfig {
-  if (cachedConfig) {
-    return cachedConfig
+  if (strict && strictConfig) {
+    return strictConfig
+  }
+
+  if (!strict && relaxedConfig) {
+    return relaxedConfig
   }
 
   const env = getEnv(strict)
@@ -145,7 +150,13 @@ export function getConfig(strict: boolean = true): AppConfig {
     }
   }
 
-  cachedConfig = config
+  if (strict) {
+    strictConfig = config
+    relaxedConfig = config
+  } else {
+    relaxedConfig = config
+  }
+
   return config
 }
 
@@ -154,7 +165,8 @@ export function getConfig(strict: boolean = true): AppConfig {
  * Useful for testing or when environment variables change
  */
 export function resetConfig(): void {
-  cachedConfig = null
+  strictConfig = null
+  relaxedConfig = null
 }
 
 // Configuration is validated lazily when getConfig() is called
