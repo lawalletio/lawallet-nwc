@@ -159,17 +159,41 @@ function SettingsNav({ disabled = false }: { disabled?: boolean }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isMobile, setOpenMobile } = useSidebar()
+  const submenuRef = React.useRef<HTMLUListElement>(null)
 
   const onSettings = pathname === '/admin/settings'
   const activeTab = searchParams.get('tab') || DEFAULT_SETTINGS_TAB
   const [open, setOpen] = React.useState(pathname.startsWith('/admin/settings'))
+
+  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+    setOpen(nextOpen)
+
+    if (!nextOpen) return
+
+    requestAnimationFrame(() => {
+      const submenu = submenuRef.current
+      const content = submenu?.closest<HTMLElement>('[data-sidebar="content"]')
+      if (!submenu || !content) return
+
+      const contentRect = content.getBoundingClientRect()
+      const submenuRect = submenu.getBoundingClientRect()
+      const hiddenBottom = submenuRect.bottom - contentRect.bottom
+
+      if (hiddenBottom > 0) {
+        content.scrollTo({
+          top: content.scrollTop + hiddenBottom + 12,
+          behavior: 'smooth',
+        })
+      }
+    })
+  }, [])
 
   function closeMobile() {
     if (isMobile) setOpenMobile(false)
   }
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} asChild>
+    <Collapsible open={open} onOpenChange={handleOpenChange} asChild>
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuButton
@@ -189,7 +213,7 @@ function SettingsNav({ disabled = false }: { disabled?: boolean }) {
           </SidebarMenuButton>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <SidebarMenuSub>
+          <SidebarMenuSub ref={submenuRef}>
             {settingsSubItems.map((sub) => (
               <SidebarMenuSubItem key={sub.tab}>
                 {disabled ? (
