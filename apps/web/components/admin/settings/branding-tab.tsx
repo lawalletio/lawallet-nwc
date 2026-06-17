@@ -14,13 +14,19 @@ import { cn } from '@/lib/utils'
 import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
 import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
 import { useBlossomUpload } from '@/lib/client/hooks/use-blossom-upload'
+import {
+  DEFAULT_ISOTYPO_SRC,
+  DEFAULT_LOGOTYPE_SRC,
+} from '@/lib/client/hooks/use-brand'
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
+const ACCEPT_ATTR = '.jpg,.jpeg,.png,.webp,.svg'
+const ACCEPTED_HINT = 'JPG, PNG, WebP or SVG'
 
 function validateImageFile(file: File) {
   if (!ACCEPTED_TYPES.includes(file.type)) {
-    toast.error('Only JPG, PNG or WebP files are accepted.')
+    toast.error('Only JPG, PNG, WebP or SVG files are accepted.')
     return false
   }
   if (file.size > MAX_FILE_SIZE) {
@@ -54,8 +60,8 @@ export function BrandingTab() {
   const loadFromSettings = useCallback(() => {
     if (!settings) return
     setCommunityName(settings.community_name ?? '')
-    if (settings.logotype_url) setLogotypePreview(settings.logotype_url)
-    if (settings.isotypo_url) setIsotypoPreview(settings.isotypo_url)
+    setLogotypePreview(settings.logotype_url?.trim() || null)
+    setIsotypoPreview(settings.isotypo_url?.trim() || null)
     setWhatsapp(settings.social_whatsapp ?? '')
     setTelegram(settings.social_telegram ?? '')
     setDiscord(settings.social_discord ?? '')
@@ -110,6 +116,8 @@ export function BrandingTab() {
   ])
 
   const { markChanged } = useSettingsForm('branding', save, loadFromSettings)
+  const logotypeSrc = logotypePreview ?? DEFAULT_LOGOTYPE_SRC
+  const isotypoSrc = isotypoPreview ?? DEFAULT_ISOTYPO_SRC
 
   async function handleLogotypeChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -162,6 +170,36 @@ export function BrandingTab() {
     }
   }
 
+  async function handleLogotypeRemove() {
+    if (logo.uploading) return
+    const previous = logotypePreview
+    setLogotypePreview(null)
+    if (previous?.startsWith('blob:')) URL.revokeObjectURL(previous)
+    try {
+      await updateSettings({ logotype_url: '' })
+      toast.success('Logotype removed')
+    } catch (err) {
+      setLogotypePreview(previous ?? null)
+      const message = err instanceof Error ? err.message : 'Remove failed'
+      toast.error(message)
+    }
+  }
+
+  async function handleIsotypoRemove() {
+    if (iso.uploading) return
+    const previous = isotypoPreview
+    setIsotypoPreview(null)
+    if (previous?.startsWith('blob:')) URL.revokeObjectURL(previous)
+    try {
+      await updateSettings({ isotypo_url: '' })
+      toast.success('Isotypo removed')
+    } catch (err) {
+      setIsotypoPreview(previous ?? null)
+      const message = err instanceof Error ? err.message : 'Remove failed'
+      toast.error(message)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">
       {/* Customization */}
@@ -177,17 +215,16 @@ export function BrandingTab() {
           {/* Logotype */}
           <div className="flex flex-col gap-4">
             <p className="text-sm text-foreground">Logotype</p>
-            <div className="flex items-center gap-4 max-w-[320px]">
-              <div className="w-32 h-12 shrink-0 rounded-md bg-muted relative overflow-hidden">
-                {logotypePreview && (
-                  <Image
-                    src={logotypePreview}
-                    alt="Logotype"
-                    fill
-                    unoptimized
-                    className="object-contain"
-                  />
-                )}
+            <div className="flex items-center gap-4 max-w-[360px]">
+              <div className="relative flex h-12 w-40 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-black/40 px-3 py-2">
+                <img
+                  src={logotypeSrc}
+                  alt={logotypePreview ? 'Logotype' : 'Default LaWallet logotype'}
+                  className="h-full w-full object-contain"
+                  onError={() => {
+                    if (logotypePreview) setLogotypePreview(null)
+                  }}
+                />
                 {logo.uploading && (
                   <>
                     <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
@@ -204,22 +241,34 @@ export function BrandingTab() {
                 <input
                   ref={logotypeInputRef}
                   type="file"
-                  accept=".jpg,.jpeg,.png,.webp"
+                  accept={ACCEPT_ATTR}
                   className="hidden"
                   onChange={handleLogotypeChange}
                   data-track-change
                 />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="text-xs w-auto"
-                  disabled={logo.uploading}
-                  onClick={() => logotypeInputRef.current?.click()}
-                >
-                  {logo.uploading ? `Uploading… ${logo.progress}%` : 'Change'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="text-xs w-auto"
+                    disabled={logo.uploading}
+                    onClick={() => logotypeInputRef.current?.click()}
+                  >
+                    {logo.uploading ? `Uploading… ${logo.progress}%` : 'Change'}
+                  </Button>
+                  {logotypePreview && !logo.uploading && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs w-auto text-muted-foreground"
+                      onClick={handleLogotypeRemove}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  JPG, PNG or WebP. 400x100px. Max 2mb.
+                  {ACCEPTED_HINT}. 400x100px. Max 2mb.
                 </p>
               </div>
             </div>
@@ -230,15 +279,13 @@ export function BrandingTab() {
             <p className="text-sm text-foreground">Isotypo</p>
             <div className="flex items-center gap-4 max-w-[320px]">
               <div className="size-16 shrink-0 rounded-md bg-muted relative overflow-hidden">
-                {isotypoPreview && (
-                  <Image
-                    src={isotypoPreview}
-                    alt="Isotypo"
-                    fill
-                    unoptimized
-                    className="object-cover"
-                  />
-                )}
+                <Image
+                  src={isotypoSrc}
+                  alt={isotypoPreview ? 'Isotypo' : 'Default LaWallet isotypo'}
+                  fill
+                  unoptimized
+                  className="object-contain p-2"
+                />
                 {iso.uploading && (
                   <>
                     <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
@@ -255,22 +302,34 @@ export function BrandingTab() {
                 <input
                   ref={isotypoInputRef}
                   type="file"
-                  accept=".jpg,.jpeg,.png,.webp"
+                  accept={ACCEPT_ATTR}
                   className="hidden"
                   onChange={handleIsotypoChange}
                   data-track-change
                 />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="text-xs w-auto"
-                  disabled={iso.uploading}
-                  onClick={() => isotypoInputRef.current?.click()}
-                >
-                  {iso.uploading ? `Uploading… ${iso.progress}%` : 'Change'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="text-xs w-auto"
+                    disabled={iso.uploading}
+                    onClick={() => isotypoInputRef.current?.click()}
+                  >
+                    {iso.uploading ? `Uploading… ${iso.progress}%` : 'Change'}
+                  </Button>
+                  {isotypoPreview && !iso.uploading && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs w-auto text-muted-foreground"
+                      onClick={handleIsotypoRemove}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  JPG, PNG or WebP. 200x200px. Max 2mb.
+                  {ACCEPTED_HINT}. 200x200px. Max 2mb.
                 </p>
               </div>
             </div>

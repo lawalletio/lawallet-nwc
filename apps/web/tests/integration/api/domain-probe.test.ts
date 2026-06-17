@@ -56,10 +56,10 @@ function probeResult(instanceState: 'pass' | 'fail'): DomainProbeResult {
             : 'Discovery is not routed to this LaWallet instance.',
       },
       lnurl: {
-        state: 'skip',
+        state: 'pass',
         label: 'LNURL',
-        url: '',
-        detail: 'No Lightning Address user found yet.',
+        url: 'https://example.com/.well-known/lnurlp/lawalletverify',
+        detail: 'Discovery reaches this instance.',
       },
       nip05: {
         state: 'skip',
@@ -88,7 +88,6 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   vi.mocked(authenticateSettingsWriteRequest).mockResolvedValue('a'.repeat(64))
-  vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({ username: 'alice' } as any)
   vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
 })
 
@@ -103,6 +102,11 @@ describe('POST /api/settings/domain-probe', () => {
     const res = await POST(req)
 
     await assertResponse(res, 200)
+    expect(probeDomainRouting).toHaveBeenCalledWith({
+      domain: 'example.com',
+      endpoint: 'https://gateway.example.com',
+    })
+    expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
     expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
       where: { name: 'domain_verified' },
       update: { value: 'true' },

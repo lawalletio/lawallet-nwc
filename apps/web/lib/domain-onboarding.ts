@@ -80,6 +80,8 @@ export interface RootSample {
   error?: string
 }
 
+export const LNURL_VERIFY_USERNAME = 'lawalletverify'
+
 const DOMAIN_PATTERN =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i
 
@@ -386,26 +388,40 @@ async function sampleRoot(domain: string): Promise<RootSample> {
   }
 }
 
-async function probeLnurl(domain: string, endpoint: string, username: string): Promise<ProbeCheck> {
-  if (!username) {
-    return skip(
-      'LNURL',
-      `https://${domain}/.well-known/lnurlp/{username}`,
-      'Create a Lightning Address to run this check.',
-    )
+async function probeLnurl(
+  domain: string,
+  endpoint: string,
+  username: string,
+  probeId?: string,
+): Promise<ProbeCheck> {
+  const url = new URL(
+    `${isLocalHost(domain) ? 'http' : 'https'}://${domain}/.well-known/lnurlp/${encodeURIComponent(username)}`,
+  )
+  if (probeId) {
+    url.searchParams.set('probe', probeId)
   }
 
-  const url = `${isLocalHost(domain) ? 'http' : 'https'}://${domain}/.well-known/lnurlp/${encodeURIComponent(username)}`
   try {
-    const response = await fetchWithTimeout(url)
+    const response = await fetchWithTimeout(url.toString())
     const body = await response.json().catch(() => null)
     const callback = typeof body?.callback === 'string' ? body.callback : ''
-    if (response.ok && callback.startsWith(endpoint)) {
-      return pass('LNURL', url, 'Discovery reaches this instance.')
+    const metadata = typeof body?.metadata === 'string' ? body.metadata : ''
+    const callbackUrl = callback ? new URL(callback) : null
+    const probeMatches =
+      !probeId ||
+      callbackUrl?.searchParams.get('probe') === probeId ||
+      metadata.includes(probeId)
+    if (
+      response.ok &&
+      body?.tag === 'payRequest' &&
+      callback.startsWith(endpoint) &&
+      probeMatches
+    ) {
+      return pass('LNURL', url.toString(), 'Discovery reaches this instance.')
     }
-    return fail('LNURL', url, 'Discovery did not return this instance callback.')
+    return fail('LNURL', url.toString(), 'Discovery did not return this instance callback.')
   } catch {
-    return fail('LNURL', url, 'Discovery request failed.')
+    return fail('LNURL', url.toString(), 'Discovery request failed.')
   }
 }
 
@@ -450,7 +466,9 @@ export async function probeDomainRouting(input: DomainProbeRequest): Promise<Dom
         endpoint: input.apiGatewayEndpoint,
       }).endpoint
     : ''
-  const lnurlUsername = input.lnurlUsername?.trim().toLowerCase() ?? ''
+  const lnurlUsername =
+    input.lnurlUsername?.trim().toLowerCase() || LNURL_VERIFY_USERNAME
+  const lnurlProbeId = input.lnurlUsername ? undefined : crypto.randomUUID()
   const root = await sampleRoot(domain)
   const platform = detectPlatform(root)
   const endpointHost = cleanHost(endpoint)
@@ -465,7 +483,7 @@ export async function probeDomainRouting(input: DomainProbeRequest): Promise<Dom
 
   const [instance, lnurl, nip05] = await Promise.all([
     probeLawalletInstance(domain),
-    probeLnurl(domain, effectiveEndpoint, lnurlUsername),
+    probeLnurl(domain, effectiveEndpoint, lnurlUsername, lnurlProbeId),
     probeNip05(domain),
   ])
   const direct = instance.state === 'pass' && cleanHost(effectiveEndpoint) === domain

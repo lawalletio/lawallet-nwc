@@ -8,8 +8,8 @@ import { AdminLayoutShell } from '@/components/admin/admin-layout-shell'
  * Admin-specific providers. AuthProvider and Toaster live at the root layout
  * level so they're shared with the landing page.
  *
- * LoginPage is now rendered by AdminLayoutShell when unauthenticated
- * (full-page login instead of modal overlay).
+ * AdminLayoutShell opens the shared LoginModal when unauthenticated so
+ * landing and admin entry points use the same sign-in surface.
  */
 export function AdminProviders({ children }: { children: React.ReactNode }) {
   return (

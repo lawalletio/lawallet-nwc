@@ -57,6 +57,7 @@ vi.mock('light-bolt11-decoder', () => ({
 
 import { GET as Lud16Get } from '@/app/api/lud16/[username]/route'
 import { GET as Lud16CbGet } from '@/app/api/lud16/[username]/cb/route'
+import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 import { getSettings } from '@/lib/settings'
 
@@ -77,6 +78,30 @@ beforeEach(() => {
 })
 
 describe('GET /api/lud16/[username]', () => {
+  it('returns a verification pay request without a real address', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'example.com',
+      endpoint: 'https://gateway.example.com',
+    })
+
+    const req = createNextRequest(`/api/lud16/${LNURL_VERIFY_USERNAME}`, {
+      searchParams: { probe: 'probe-123' },
+    })
+    const res = await Lud16Get(
+      req,
+      createParamsPromise({ username: LNURL_VERIFY_USERNAME }),
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(prismaMock.lightningAddress.findUnique).not.toHaveBeenCalled()
+    expect(body.status).toBe('OK')
+    expect(body.tag).toBe('payRequest')
+    expect(body.callback).toBe(
+      `https://gateway.example.com/api/lud16/${LNURL_VERIFY_USERNAME}/cb?probe=probe-123`,
+    )
+    expect(body.metadata).toContain('probe-123')
+  })
+
   it('returns LUD-06 pay response for valid username', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',

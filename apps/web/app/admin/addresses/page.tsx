@@ -73,7 +73,7 @@ const MODE_LABEL: Record<WalletAddress['mode'], string> = {
  */
 export default function AdminAddressesPage() {
   const router = useRouter()
-  const { data: settings } = useSettings()
+  const { data: settings, loading: settingsLoading } = useSettings()
   const { role } = useAuth()
   const isAdmin = role === Role.ADMIN
   const [showAllUsers, setShowAllUsers] = useState(false)
@@ -87,6 +87,21 @@ export default function AdminAddressesPage() {
   const [createOpen, setCreateOpen] = useState(false)
 
   const domain = settings?.domain || 'your-domain'
+  const userRegistrationEnabled =
+    (settings?.registration_user_enabled ?? 'true') === 'true'
+  const creationRestricted =
+    !settingsLoading && !isAdmin && !userRegistrationEnabled
+  const createDisabled = settingsLoading || creationRestricted
+  const createDisabledMessage = creationRestricted
+    ? 'Only admins can create Lightning Addresses on this instance.'
+    : settingsLoading
+      ? 'Checking registration policy...'
+      : null
+
+  function openCreateDialog() {
+    if (createDisabled) return
+    setCreateOpen(true)
+  }
 
   // Optimistic override for Set-as-primary. When the user clicks "Set as
   // primary" we flip the star visually before the POST returns — on success
@@ -176,10 +191,30 @@ export default function AdminAddressesPage() {
               </div>
             )}
             {!adminView && (
-              <Button variant="theme" onClick={() => setCreateOpen(true)}>
-                <Plus className="size-4" />
-                New address
-              </Button>
+              createDisabledMessage ? (
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex" tabIndex={0}>
+                        <Button
+                          variant="theme"
+                          disabled
+                          title={createDisabledMessage}
+                        >
+                          <Plus className="size-4" />
+                          New address
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{createDisabledMessage}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <Button variant="theme" onClick={openCreateDialog}>
+                  <Plus className="size-4" />
+                  New address
+                </Button>
+              )
             )}
           </div>
         }
@@ -221,17 +256,24 @@ export default function AdminAddressesPage() {
                     {adminView ? (
                       <>No lightning addresses exist yet.</>
                     ) : (
-                      <>
-                        You don&rsquo;t have any addresses yet.{' '}
-                        <button
-                          type="button"
-                          onClick={() => setCreateOpen(true)}
-                          className="text-foreground underline-offset-4 hover:underline"
-                        >
-                          Create your first one
-                        </button>
-                        .
-                      </>
+                      creationRestricted ? (
+                        <>
+                          You don&rsquo;t have any addresses yet. Ask an admin to
+                          create one for you.
+                        </>
+                      ) : (
+                        <>
+                          You don&rsquo;t have any addresses yet.{' '}
+                          <button
+                            type="button"
+                            onClick={openCreateDialog}
+                            className="text-foreground underline-offset-4 hover:underline"
+                          >
+                            Create your first one
+                          </button>
+                          .
+                        </>
+                      )
                     )}
                   </TableCell>
                 </TableRow>
@@ -402,7 +444,7 @@ export default function AdminAddressesPage() {
       </TooltipProvider>
 
       <NewAddressDialog
-        open={createOpen}
+        open={createOpen && !creationRestricted}
         onOpenChange={setCreateOpen}
         onCreated={refetch}
       />

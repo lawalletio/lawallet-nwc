@@ -10,6 +10,7 @@ import {
   ValidationError,
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { requireUserAddressRegistration } from '@/lib/auth/paid-registration-guard'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { claimInvoiceSchema } from '@/lib/validation/schemas'
@@ -33,7 +34,7 @@ export const POST = withErrorHandling(
     { params }: { params: Promise<{ id: string }> }
   ) => {
     await checkRequestLimits(request, 'json')
-    const { pubkey } = await authenticate(request)
+    const { pubkey, role } = await authenticate(request)
     const { id } = await params
     const body = await validateBody(request, claimInvoiceSchema)
 
@@ -83,6 +84,13 @@ export const POST = withErrorHandling(
       throw new ValidationError('Invoice has expired')
     }
 
+    const createsAddress =
+      invoice.purpose === 'REGISTRATION' || invoice.purpose === 'WALLET_ADDRESS'
+
+    if (createsAddress) {
+      await requireUserAddressRegistration(role)
+    }
+
     // Verify preimage. A valid preimage proves the bolt11 was paid; the
     // invoice itself was only minted while paid registration was enabled.
     // We intentionally do NOT re-check `registration_ln_enabled` here — if
@@ -104,9 +112,6 @@ export const POST = withErrorHandling(
 
     // Execute purpose-specific action
     let result: Record<string, unknown> = { success: true }
-
-    const createsAddress =
-      invoice.purpose === 'REGISTRATION' || invoice.purpose === 'WALLET_ADDRESS'
 
     if (createsAddress) {
       const metadata = invoice.metadata as InvoiceMetadata | null

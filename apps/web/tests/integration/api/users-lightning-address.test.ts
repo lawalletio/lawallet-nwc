@@ -197,6 +197,50 @@ describe('PUT /api/users/[userId]/lightning-address', () => {
   })
 
   describe('paid registration enforcement', () => {
+    it('rejects USER creation when user address registration is disabled', async () => {
+      const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
+      mockAuth()
+      vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+      vi.mocked(getSettings).mockResolvedValue({
+        domain: 'test.com',
+        registration_user_enabled: 'false',
+      })
+
+      const req = createNextRequest(`/api/users/${user.id}/lightning-address`, {
+        method: 'PUT',
+        body: { username: 'alice' },
+      })
+      const res = await PUT(req, createParamsPromise({ userId: user.id }))
+
+      expect(res.status).toBe(403)
+      expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
+    })
+
+    it('lets ADMIN create when user address registration is disabled', async () => {
+      const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
+      vi.mocked(authenticate).mockResolvedValue({
+        pubkey: mockPubkey,
+        role: 'ADMIN' as any,
+        method: 'jwt',
+      })
+      vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+      vi.mocked(getSettings).mockResolvedValue({
+        domain: 'test.com',
+        registration_user_enabled: 'false',
+      })
+      vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue({} as any)
+
+      const req = createNextRequest(`/api/users/${user.id}/lightning-address`, {
+        method: 'PUT',
+        body: { username: 'alice' },
+      })
+      const res = await PUT(req, createParamsPromise({ userId: user.id }))
+
+      expect(res.status).toBe(200)
+      expect(prismaMock.lightningAddress.create).toHaveBeenCalled()
+    })
+
     it('rejects first-time registration with 402 when paid mode is on and actor is USER', async () => {
       const user = createUserFixture({ pubkey: mockPubkey, lightningAddresses: [] })
       mockAuth()

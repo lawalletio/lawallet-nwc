@@ -92,6 +92,14 @@ describe('getEnv', () => {
     const env = getEnv(false)
     expect(env.DATABASE_URL).toBe('file:./dev.db')
   })
+
+  it('does not reuse non-strict fallback for later strict validation', async () => {
+    delete process.env.DATABASE_URL
+    setNodeEnv('development')
+    const { getEnv } = await import('@/lib/config/env')
+    expect(getEnv(false).DATABASE_URL).toBe('file:./dev.db')
+    expect(() => getEnv(true)).toThrow('Environment variable validation failed')
+  })
 })
 
 describe('getEnvVar', () => {
@@ -201,6 +209,14 @@ describe('getConfig', () => {
     expect(config.rateLimit.windowMs).toBe(60000)
     expect(config.rateLimit.maxRequests).toBe(60)
     expect(config.rateLimit.maxRequestsAuth).toBe(300)
+  })
+
+  it('does not reuse non-strict fallback for later strict config validation', async () => {
+    delete process.env.DATABASE_URL
+    setNodeEnv('development')
+    const { getConfig } = await import('@/lib/config')
+    expect(getConfig(false).database.url).toBe('file:./dev.db')
+    expect(() => getConfig(true)).toThrow('Environment variable validation failed')
   })
 
 })

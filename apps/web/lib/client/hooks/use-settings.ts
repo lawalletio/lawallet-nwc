@@ -23,6 +23,8 @@ export interface SettingsData {
   logotype_url?: string
   /** Absolute URL to the Blossom-hosted isotypo (square icon). */
   isotypo_url?: string
+  /** Absolute URL to the Blossom-hosted community profile cover image. */
+  community_cover_url?: string
   /** SMTP server hostname (no protocol, e.g. `smtp.example.com`). */
   smtp_host?: string
   smtp_port?: string
@@ -42,6 +44,12 @@ export interface SettingsData {
   disable_transfers?: string
   disable_registers?: string
   disable_address?: string
+  /** Whether non-admin users can create Lightning Addresses. Defaults to true when absent. */
+  registration_user_enabled?: string
+  registration_ln_address?: string
+  registration_price?: string
+  registration_ln_enabled?: string
+  registration_admin_bypass?: string
   /** Google Tag ID (e.g. `G-XXXXXXXXXX`). Empty string disables analytics. */
   gtag_id?: string
   [key: string]: string | undefined

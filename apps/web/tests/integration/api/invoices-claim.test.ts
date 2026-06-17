@@ -39,6 +39,7 @@ vi.mock('@/lib/events/event-bus', () => ({
 }))
 
 import { POST } from '@/app/api/invoices/[id]/claim/route'
+import { getSettings } from '@/lib/settings'
 
 // Deterministic preimage + matching payment hash
 const PREIMAGE = 'a'.repeat(64)
@@ -65,6 +66,7 @@ const baseInvoice = {
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
   vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
     id: 'user-1',
     pubkey: 'a'.repeat(64),
@@ -187,6 +189,24 @@ describe('POST /api/invoices/[id]/claim', () => {
         data: { username: 'alice', userId: 'user-1', isPrimary: true },
       })
     )
+  })
+
+  it('rejects address-creating claims when user address registration is disabled', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      registration_user_enabled: 'false',
+    })
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
+
+    const req = createNextRequest('/api/invoices/inv-1/claim', {
+      method: 'POST',
+      body: { preimage: PREIMAGE },
+    })
+    const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
+
+    expect(res.status).toBe(403)
+    expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+    expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
   })
 
   it('returns 409 when username was taken between invoice + claim', async () => {

@@ -127,7 +127,11 @@ function WalletsTable({
         </TableHeader>
         <TableBody>
           {wallets.map(w => (
-            <TableRow key={w.id}>
+            <TableRow
+              key={w.id}
+              id={`wallet-${w.id}`}
+              className="scroll-mt-24 transition-colors target:bg-primary/10 target:ring-1 target:ring-primary/40"
+            >
               <TableCell className="font-medium">
                 <span className="flex items-center gap-1.5">
                   {w.name}

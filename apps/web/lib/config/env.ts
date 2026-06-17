@@ -174,7 +174,8 @@ const envSchema = z.object({
  */
 export type Env = z.infer<typeof envSchema>
 
-let validatedEnv: Env | null = null
+let strictEnv: Env | null = null
+let relaxedEnv: Env | null = null
 
 /**
  * Validates and returns environment variables
@@ -182,8 +183,12 @@ let validatedEnv: Env | null = null
  * @throws {Error} If validation fails and strict is true
  */
 export function getEnv(strict: boolean = true): Env {
-  if (validatedEnv) {
-    return validatedEnv
+  if (strict && strictEnv) {
+    return strictEnv
+  }
+
+  if (!strict && relaxedEnv) {
+    return relaxedEnv
   }
 
   // Parse and validate environment variables
@@ -210,8 +215,8 @@ export function getEnv(strict: boolean = true): Env {
       })
 
       if (resultWithDefaults.success) {
-        validatedEnv = resultWithDefaults.data
-        return validatedEnv
+        relaxedEnv = resultWithDefaults.data
+        return relaxedEnv
       }
 
       // If still failing, throw in non-strict mode too for critical errors
@@ -221,8 +226,9 @@ export function getEnv(strict: boolean = true): Env {
     }
   }
 
-  validatedEnv = result.data
-  return validatedEnv
+  strictEnv = result.data
+  relaxedEnv = result.data
+  return result.data
 }
 
 /**

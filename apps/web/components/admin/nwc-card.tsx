@@ -3,7 +3,17 @@
 import React, { useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ChevronDown, Radio, Key, Tag, Calendar, ArrowDownLeft, ArrowUpRight, WifiOff, Loader2, Wallet } from 'lucide-react'
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Calendar,
+  ChevronDown,
+  Key,
+  Loader2,
+  Radio,
+  Tag,
+  WifiOff,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -12,13 +22,19 @@ import { useAuth } from '@/components/admin/auth-context'
 import { parseNwc, truncatePubkey } from '@/lib/client/nwc'
 import { useNwcBalance } from '@/lib/client/use-nwc-balance'
 import { formatRelativeTime } from '@/lib/client/format'
+import { AddressRoutingShortcuts } from '@/components/admin/address-routing-shortcuts'
 
 interface UserMe {
   userId: string
   lightningAddress: string | null
+  primaryUsername: string | null
   /** Connection string of the user's default RemoteWallet (or ''). */
   nwcString: string
   nwcUpdatedAt: string | null
+}
+
+interface NwcCardProps {
+  username?: string | null
 }
 
 /**
@@ -28,22 +44,23 @@ interface UserMe {
  * truth. The connection string is the owner's own default wallet, returned
  * by /api/users/me, so the balance is still read client-side via NWC.
  */
-export function NwcCard() {
+export function NwcCard({ username }: NwcCardProps = {}) {
   const { status } = useAuth()
   const { data: me } = useApi<UserMe>(
     status === 'authenticated' ? '/api/users/me' : null
   )
 
   const [expanded, setExpanded] = useState(false)
+  const nwcString = me?.nwcString ?? ''
 
   const parsedNwc = useMemo(
-    () => (me?.nwcString ? parseNwc(me.nwcString) : null),
-    [me?.nwcString]
+    () => (nwcString ? parseNwc(nwcString) : null),
+    [nwcString]
   )
 
   // Real-time balance via NWC — polls every 30s plus subscribes to
   // NIP-47 payment notifications for instant updates.
-  const balance = useNwcBalance(me?.nwcString || null, {
+  const balance = useNwcBalance(nwcString || null, {
     onTransaction: tx => {
       const isIncoming = tx.type === 'incoming'
       const amount = `${tx.amountSats.toLocaleString()} sats`
@@ -60,26 +77,12 @@ export function NwcCard() {
   // Don't show the card unless the user has a lightning address
   if (!me || !me.lightningAddress) return null
 
-  const hasWallet = Boolean(me.nwcString)
+  const hasWallet = Boolean(nwcString)
+  const primaryUsername = username ?? me.primaryUsername
 
   // No primary wallet — point the user at the Remote Wallets page to add one.
   if (!hasWallet) {
-    return (
-      <Link
-        href="/admin/remote-wallets"
-        className="flex items-center gap-3 rounded-xl border border-dashed border-border px-5 py-5 transition-colors hover:bg-muted/40"
-      >
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#897FFF]/10">
-          <Wallet className="size-5 text-muted-foreground" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-medium">Connect a wallet</span>
-          <span className="text-xs text-muted-foreground">
-            Add a wallet to receive payments at your lightning address.
-          </span>
-        </div>
-      </Link>
-    )
+    return <AddressRoutingShortcuts username={primaryUsername} />
   }
 
   return (

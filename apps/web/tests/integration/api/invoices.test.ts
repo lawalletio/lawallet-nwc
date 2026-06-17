@@ -136,6 +136,24 @@ describe('POST /api/invoices', () => {
     expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
+  it('rejects address-registration invoices when user address registration is disabled', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      registration_user_enabled: 'false',
+      registration_ln_address: 'admin@getalby.com',
+      registration_price: '21',
+      registration_ln_enabled: 'true',
+    })
+
+    const req = createNextRequest('/api/invoices', {
+      method: 'POST',
+      body: { purpose: 'registration', metadata: { username: 'alice' } },
+    })
+    const res = await POST(req)
+
+    expect(res.status).toBe(403)
+    expect(prismaMock.invoice.create).not.toHaveBeenCalled()
+  })
+
   it('generates invoice via LUD-16 and persists it', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@getalby.com',

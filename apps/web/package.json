@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "node scripts/check-db-online.mjs && next dev",
+    "db:check": "node scripts/check-db-online.mjs",
     "db:generate": "prisma generate",
     "format": "prettier --write .",
     "lint": "eslint . --cache --cache-location .eslintcache",

@@ -52,6 +52,8 @@ interface NewAddressDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreated: () => void
+  initialUsername?: string
+  onSuccessAction?: (address: string) => void
 }
 
 /**
@@ -131,14 +133,20 @@ export function SuccessHeroCard({ address }: { address: string }) {
  * `verify` URL reports settled, we claim with the preimage and the server
  * creates the address (non-primary) on the claim route.
  */
-export function NewAddressDialog({ open, onOpenChange, onCreated }: NewAddressDialogProps) {
+export function NewAddressDialog({
+  open,
+  onOpenChange,
+  onCreated,
+  initialUsername = '',
+  onSuccessAction,
+}: NewAddressDialogProps) {
   const router = useRouter()
   const { data: settings } = useSettings()
   const { apiClient } = useAuth()
   const { createAddress, creating } = useAddressMutations()
 
   const [step, setStep] = useState<Step>('username')
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState(initialUsername)
   const [available, setAvailable] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(false)
   // Local submitting flag covers BOTH legs of the create path — the
@@ -212,7 +220,7 @@ export function NewAddressDialog({ open, onOpenChange, onCreated }: NewAddressDi
     if (!open) {
       abortRef.current?.abort()
       setStep('username')
-      setUsername('')
+      setUsername(initialUsername)
       setAvailable(null)
       setChecking(false)
       setInvoice(null)
@@ -222,7 +230,7 @@ export function NewAddressDialog({ open, onOpenChange, onCreated }: NewAddressDi
       setSubmitting(false)
       setPayingWithWallet(false)
     }
-  }, [open])
+  }, [initialUsername, open])
 
   // Cleanup polling on unmount.
   useEffect(() => {
@@ -537,6 +545,10 @@ export function NewAddressDialog({ open, onOpenChange, onCreated }: NewAddressDi
                 type="button"
                 variant="theme"
                 onClick={() => {
+                  if (onSuccessAction) {
+                    onSuccessAction(claimedAddress)
+                    return
+                  }
                   const justUsername = claimedAddress.split('@')[0]
                   onOpenChange(false)
                   router.push(

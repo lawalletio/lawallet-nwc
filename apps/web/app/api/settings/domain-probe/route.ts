@@ -24,15 +24,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new ValidationError('Invalid domain probe request', parsed.error.flatten())
   }
 
-  const firstAddress = await prisma.lightningAddress.findFirst({
-    orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-    select: { username: true },
-  })
-
-  const result = await probeDomainRouting({
-    ...parsed.data,
-    lnurlUsername: firstAddress?.username,
-  })
+  const result = await probeDomainRouting(parsed.data)
 
   const domainVerified = result.checks.instance.state === 'pass'
   await prisma.settings.upsert({
