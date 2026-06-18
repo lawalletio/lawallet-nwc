@@ -20,6 +20,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "e2e": "node e2e/provision-db.mjs && playwright test",
+    "e2e:domain": "node e2e/provision-db.mjs && E2E_DOMAIN_LIVE=1 playwright test e2e/domain-routing.spec.ts",
     "e2e:ui": "node e2e/provision-db.mjs && playwright test --ui",
     "e2e:headed": "node e2e/provision-db.mjs && playwright test --headed",
     "e2e:update": "node e2e/provision-db.mjs && playwright test --update-snapshots",

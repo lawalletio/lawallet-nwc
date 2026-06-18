@@ -63,6 +63,28 @@ function getEventTypeForPath(path: string): SSEEventType | null {
  *     refetches via `useSSEVersion`, same as before.
  */
 const apiCache = new Map<string, unknown>()
+const apiInflight = new Map<string, Promise<unknown>>()
+const apiInvalidationVersions = new Map<string, number>()
+const API_CACHE_INVALIDATED_EVENT = 'lawallet:api-cache-invalidated'
+let apiCacheEpoch = 0
+
+function fetchWithDedupe<T>(path: string, loader: () => Promise<T>): Promise<T> {
+  const existing = apiInflight.get(path) as Promise<T> | undefined
+  if (existing) return existing
+
+  let next: Promise<T>
+  next = loader().finally(() => {
+    if (apiInflight.get(path) === next) {
+      apiInflight.delete(path)
+    }
+  })
+  apiInflight.set(path, next)
+  return next
+}
+
+function getInvalidationVersion(path: string) {
+  return apiInvalidationVersions.get(path) ?? 0
+}
 
 /**
  * Invalidate every cached entry. Called by `AuthProvider.logout` so the
@@ -72,6 +94,9 @@ const apiCache = new Map<string, unknown>()
  */
 export function clearApiCache() {
   apiCache.clear()
+  apiInflight.clear()
+  apiInvalidationVersions.clear()
+  apiCacheEpoch += 1
 }
 
 /**
@@ -84,6 +109,13 @@ export function clearApiCache() {
  */
 export function invalidateApiPath(path: string) {
   apiCache.delete(path)
+  apiInflight.delete(path)
+  apiInvalidationVersions.set(path, getInvalidationVersion(path) + 1)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent(API_CACHE_INVALIDATED_EVENT, { detail: { path } }),
+    )
+  }
 }
 
 /**
@@ -110,6 +142,8 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
     path ? !apiCache.has(path) : false,
   )
   const [error, setError] = useState<Error | null>(null)
+  const dataRef = useRef(data)
+  const dataPathRef = useRef<string | null>(data !== null ? path : null)
   const fetchIdRef = useRef(0)
 
   // SSE invalidation: version bumps trigger refetch
@@ -130,22 +164,47 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
     }
 
     const fetchId = ++fetchIdRef.current
-    // Only show the loading skeleton when there's nothing cached to show.
-    // Background revalidations stay silent so the page doesn't flash on
-    // every navigation.
-    if (!apiCache.has(path)) {
+    const hasCachedData = apiCache.has(path)
+    const hasCurrentData = dataPathRef.current === path && dataRef.current !== null
+
+    // Only show the loading skeleton when there's truly nothing to show for
+    // this path. Manual invalidations delete the cache so the next request
+    // refetches, but mounted consumers can keep rendering their current data.
+    if (hasCachedData) {
+      const cachedData = apiCache.get(path) as T
+      dataRef.current = cachedData
+      dataPathRef.current = path
+      setData(cachedData)
+      setLoading(false)
+    } else if (!hasCurrentData) {
+      if (dataPathRef.current !== path && dataRef.current !== null) {
+        dataRef.current = null
+        dataPathRef.current = path
+        setData(null)
+      }
       setLoading(true)
+    } else {
+      setLoading(false)
     }
     setError(null)
 
     try {
-      const result = await apiClient.get<T>(path)
-      // Populate the cache even if a newer fetch superseded this one —
-      // the newest response always wins in `fetchIdRef` but we still want
-      // all fresh payloads reflected in the cache for the next consumer.
+      const requestEpoch = apiCacheEpoch
+      const requestVersion = getInvalidationVersion(path)
+      const result = await fetchWithDedupe(path, () => apiClient.get<T>(path))
+      const responseIsCurrent =
+        requestEpoch === apiCacheEpoch &&
+        requestVersion === getInvalidationVersion(path)
+
+      if (!responseIsCurrent) return
+      // Keep the shared cache in the same invalidation generation as this
+      // request. A newer fetch for this hook can still supersede the state
+      // update below via `fetchIdRef`.
       apiCache.set(path, result)
       // Only update if this is still the latest fetch
       if (fetchId === fetchIdRef.current) {
+        dataRef.current = result
+        dataPathRef.current = path
         setData(result)
       }
     } catch (err) {
@@ -162,6 +221,20 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
   useEffect(() => {
     fetchData()
   }, [fetchData, sseVersion])
+
+  useEffect(() => {
+    if (!path || typeof window === 'undefined') return
+
+    function handleInvalidation(event: Event) {
+      const invalidatedPath = (event as CustomEvent<{ path?: string }>).detail?.path
+      if (invalidatedPath === path) {
+        void fetchData()
+      }
+    }
+
+    window.addEventListener(API_CACHE_INVALIDATED_EVENT, handleInvalidation)
+    return () => window.removeEventListener(API_CACHE_INVALIDATED_EVENT, handleInvalidation)
+  }, [fetchData, path])
 
   return { data, loading, error, refetch: fetchData }
 }

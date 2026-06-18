@@ -15,7 +15,7 @@ export function SetupBanner() {
   const hasDomain = !!settings?.domain?.trim()
   const domainVerified = settings?.domain_verified === 'true'
 
-  if (loading || role !== 'ADMIN' || (hasDomain && domainVerified)) return null
+  if (role !== 'ADMIN' || (!settings && loading) || (hasDomain && domainVerified)) return null
 
   return (
     <div

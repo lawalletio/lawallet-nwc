@@ -26,7 +26,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const result = await probeDomainRouting(parsed.data)
 
-  const domainVerified = result.checks.instance.state === 'pass'
+  const domainVerified = result.status === 'ready'
   await prisma.settings.upsert({
     where: { name: 'domain_verified' },
     update: { value: domainVerified ? 'true' : 'false' },
