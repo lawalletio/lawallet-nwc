@@ -1,0 +1,18 @@
+{
+  "name": "@lawallet-nwc/domain-tester",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node --check src/server.mjs && node --check src/start-ngrok.mjs && node --check src/start-tunnel.mjs",
+    "dev": "node src/server.mjs",
+    "start": "node src/server.mjs",
+    "start:tunnel": "node src/start-tunnel.mjs",
+    "start:ngrok": "DOMAIN_TUNNEL_PROVIDER=ngrok node src/start-tunnel.mjs",
+    "typecheck": "node --check src/server.mjs && node --check src/start-ngrok.mjs && node --check src/start-tunnel.mjs",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@ngrok/ngrok": "^1.7.0"
+  }
+}

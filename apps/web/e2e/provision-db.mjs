@@ -75,6 +75,33 @@ if (!new URL(databaseUrl).pathname.endsWith('_e2e')) {
 const env = { ...process.env, DATABASE_URL: databaseUrl }
 const run = cmd => execSync(cmd, { cwd: webRoot, env, stdio: 'inherit' })
 
+function quotePgIdentifier(value) {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
+async function ensureDatabaseExists() {
+  const targetUrl = new URL(databaseUrl)
+  const databaseName = targetUrl.pathname.slice(1)
+  const adminUrl = new URL(databaseUrl)
+  adminUrl.pathname = targetUrl.pathname.replace(/_e2e$/, '')
+
+  const { PrismaClient } = require(
+    path.join(webRoot, 'lib', 'generated', 'prisma', 'index.js')
+  )
+  const prisma = new PrismaClient({ datasources: { db: { url: adminUrl.toString() } } })
+
+  try {
+    const existing = await prisma.$queryRawUnsafe(
+      `SELECT 1 FROM pg_database WHERE datname = '${databaseName.replace(/'/g, "''")}'`
+    )
+    if (existing.length === 0) {
+      await prisma.$executeRawUnsafe(`CREATE DATABASE ${quotePgIdentifier(databaseName)}`)
+    }
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
 async function truncateAllTables() {
   const { PrismaClient } = require(
     path.join(webRoot, 'lib', 'generated', 'prisma', 'index.js')
@@ -97,6 +124,7 @@ async function truncateAllTables() {
 }
 
 console.log(`E2E database: ${databaseUrl.replace(/:[^:@/]+@/, ':***@')}`)
+await ensureDatabaseExists()
 run('pnpm exec prisma migrate deploy')
 await truncateAllTables()
 run('pnpm run seed')

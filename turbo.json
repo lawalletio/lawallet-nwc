@@ -41,6 +41,20 @@
       "dependsOn": ["db:generate"],
       "env": ["DATABASE_URL", "JWT_SECRET", "E2E_BASE_URL", "CI"]
     },
+    "e2e:domain": {
+      "cache": false,
+      "dependsOn": ["db:generate"],
+      "env": [
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "E2E_BASE_URL",
+        "E2E_DOMAIN_LIVE",
+        "E2E_PORT",
+        "NGROK_AUTHTOKEN",
+        "NGROK_DOMAIN",
+        "CI"
+      ]
+    },
     "bench": {
       "cache": false,
       "dependsOn": ["db:generate"]

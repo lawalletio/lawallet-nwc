@@ -39,12 +39,22 @@ import { POST } from '@/app/api/settings/domain-probe/route'
 import { authenticateSettingsWriteRequest } from '@/lib/settings-auth'
 import { probeDomainRouting } from '@/lib/domain-onboarding'
 
-function probeResult(instanceState: 'pass' | 'fail'): DomainProbeResult {
+function probeResult({
+  status,
+  instanceState = status === 'ready' ? 'pass' : 'fail',
+  lnurlState = status === 'ready' ? 'pass' : 'fail',
+  nip05State = status === 'ready' ? 'pass' : 'fail',
+}: {
+  status: DomainProbeResult['status']
+  instanceState?: 'pass' | 'fail'
+  lnurlState?: 'pass' | 'fail' | 'skip'
+  nip05State?: 'pass' | 'fail' | 'skip'
+}): DomainProbeResult {
   return {
     domain: 'example.com',
     endpoint: 'https://gateway.example.com',
     direct: false,
-    status: instanceState === 'pass' ? 'ready' : 'rewrite-needed',
+    status,
     checks: {
       instance: {
         state: instanceState,
@@ -56,16 +66,22 @@ function probeResult(instanceState: 'pass' | 'fail'): DomainProbeResult {
             : 'Discovery is not routed to this LaWallet instance.',
       },
       lnurl: {
-        state: 'pass',
+        state: lnurlState,
         label: 'LNURL',
         url: 'https://example.com/.well-known/lnurlp/lawalletverify',
-        detail: 'Discovery reaches this instance.',
+        detail:
+          lnurlState === 'pass'
+            ? 'Discovery reaches this instance.'
+            : 'No Lightning Address user found yet.',
       },
       nip05: {
-        state: 'skip',
+        state: nip05State,
         label: 'NIP-05',
         url: '',
-        detail: 'No Lightning Address user found yet.',
+        detail:
+          nip05State === 'pass'
+            ? 'Nostr discovery is reachable.'
+            : 'No Lightning Address user found yet.',
       },
     },
     platform: {
@@ -92,8 +108,8 @@ beforeEach(() => {
 })
 
 describe('POST /api/settings/domain-probe', () => {
-  it('marks the domain verified when the instance probe passes', async () => {
-    vi.mocked(probeDomainRouting).mockResolvedValue(probeResult('pass'))
+  it('marks the domain verified when the probe result is ready', async () => {
+    vi.mocked(probeDomainRouting).mockResolvedValue(probeResult({ status: 'ready' }))
 
     const req = createNextRequest('/api/settings/domain-probe', {
       method: 'POST',
@@ -115,7 +131,31 @@ describe('POST /api/settings/domain-probe', () => {
   })
 
   it('marks the domain unverified when the instance probe fails', async () => {
-    vi.mocked(probeDomainRouting).mockResolvedValue(probeResult('fail'))
+    vi.mocked(probeDomainRouting).mockResolvedValue(probeResult({ status: 'rewrite-needed' }))
+
+    const req = createNextRequest('/api/settings/domain-probe', {
+      method: 'POST',
+      body: { domain: 'example.com', endpoint: 'https://gateway.example.com' },
+    })
+    const res = await POST(req)
+
+    await assertResponse(res, 200)
+    expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
+      where: { name: 'domain_verified' },
+      update: { value: 'false' },
+      create: { name: 'domain_verified', value: 'false' },
+    })
+  })
+
+  it('keeps the domain unverified when only the instance probe passes', async () => {
+    vi.mocked(probeDomainRouting).mockResolvedValue(
+      probeResult({
+        status: 'rewrite-needed',
+        instanceState: 'pass',
+        lnurlState: 'fail',
+        nip05State: 'pass',
+      }),
+    )
 
     const req = createNextRequest('/api/settings/domain-probe', {
       method: 'POST',

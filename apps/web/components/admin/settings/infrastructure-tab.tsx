@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Minus, Trash2, WandSparkles, Route } from 'lucide-react'
+import { CheckCircle2, Plus, Minus, Trash2, WandSparkles, Route } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,6 +24,7 @@ import {
 import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
 import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
 import { useAuth } from '@/components/admin/auth-context'
+import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { DEFAULT_BLOSSOM_SERVERS } from '@/lib/client/blossom-defaults'
 import { cn } from '@/lib/utils'
 import { DomainOnboardingWizard } from '@/components/admin/settings/domain-onboarding-wizard'
@@ -82,6 +83,14 @@ function isValidEndpoint(value: string): boolean {
   return isValidUrlWithProtocol(`https://${trimmed}`, HTTP_PROTOCOLS)
 }
 
+function cleanHost(value?: string): string {
+  return value
+    ?.trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase() ?? ''
+}
+
 const HTTP_PROTOCOLS = ['http:', 'https:'] as const
 const WS_PROTOCOLS = ['ws:', 'wss:'] as const
 
@@ -98,11 +107,12 @@ function isValidGtagId(value: string): boolean {
 // Classes to apply an error state to an Input or InputGroup border.
 // tailwind-merge lets the later `border-destructive` win over `border-input`/`border-border`.
 const INVALID_CLASSES = 'border-destructive focus-visible:ring-destructive focus-within:ring-destructive'
+const DOMAIN_AUTO_PROBE_TIMEOUT_MS = 15_000
 
 type DomainProbeState =
   | { status: 'idle' }
   | { status: 'missing' }
-  | { status: 'checking' }
+  | { status: 'verified' }
   | { status: 'ready'; result: DomainProbeResult }
   | { status: 'problem'; result?: DomainProbeResult; error?: string }
 
@@ -114,6 +124,7 @@ export function InfrastructureTab() {
   const { logout, apiClient } = useAuth()
   const [wiping, setWiping] = useState(false)
   const [domainWizardOpen, setDomainWizardOpen] = useState(false)
+  const [domainConnectionEditorOpen, setDomainConnectionEditorOpen] = useState(false)
   const [domainProbe, setDomainProbe] = useState<DomainProbeState>({ status: 'idle' })
   const lastAutoProbeKey = useRef<string | null>(null)
 
@@ -184,9 +195,20 @@ export function InfrastructureTab() {
   // Endpoint: trim whitespace and any trailing slashes before persisting.
   // Relays and blossom servers are stored as JSON-stringified arrays of non-empty trimmed entries.
   const save = useCallback(async () => {
+    const nextDomain = domain.trim().toLowerCase()
+    const nextEndpoint = subdomain.trim().replace(/\/+$/, '').toLowerCase()
+    const currentSavedDomain = settings?.domain?.trim().toLowerCase() ?? ''
+    const currentSavedEndpoint = (settings?.endpoint ?? settings?.subdomain ?? '')
+      .trim()
+      .replace(/\/+$/, '')
+      .toLowerCase()
+    const domainRoutingChanged =
+      nextDomain !== currentSavedDomain || nextEndpoint !== currentSavedEndpoint
+
     await updateSettings({
-      domain: domain.trim().toLowerCase(),
-      endpoint: subdomain.trim().replace(/\/+$/, '').toLowerCase(),
+      domain: nextDomain,
+      endpoint: nextEndpoint,
+      ...(domainRoutingChanged ? { domain_verified: 'false' } : {}),
       relays: JSON.stringify(relays.map(r => r.trim()).filter(Boolean)),
       blossom_servers: JSON.stringify(blossomServers.map(s => s.trim()).filter(Boolean)),
       smtp_host: smtpHost.trim().toLowerCase(),
@@ -197,6 +219,7 @@ export function InfrastructureTab() {
     })
   }, [
     updateSettings,
+    settings,
     domain,
     subdomain,
     relays,
@@ -208,7 +231,12 @@ export function InfrastructureTab() {
     gtagId,
   ])
 
-  const { markChanged, setInvalid } = useSettingsForm('infrastructure', save, loadFromSettings)
+  const resetForm = useCallback(() => {
+    loadFromSettings()
+    setDomainConnectionEditorOpen(false)
+  }, [loadFromSettings])
+
+  const { markChanged, setInvalid } = useSettingsForm('infrastructure', save, resetForm)
 
   // Per-field validity — empty inputs are treated as valid (they're simply
   // not included in the save payload). Only non-empty, malformed values flag.
@@ -228,6 +256,12 @@ export function InfrastructureTab() {
     .replace(/\/+$/, '')
     .toLowerCase()
   const hasConfiguredDomain = Boolean(savedDomain)
+  const domainVerified = settings?.domain_verified === 'true'
+  const instanceHostedOnDomain =
+    hasConfiguredDomain &&
+    (cleanHost(currentOrigin) === savedDomain || cleanHost(savedEndpoint) === savedDomain)
+  const initialSettingsLoading = settingsLoading && !settings
+  const settingsReady = Boolean(settings)
 
   // Collapse all per-field flags into a single primitive so the effect only
   // fires when the aggregate state actually changes (relay/blossom arrays
@@ -245,8 +279,21 @@ export function InfrastructureTab() {
   }, [anyInvalid, setInvalid])
 
   useEffect(() => {
-    if (settingsLoading || !settings) {
+    if (!settingsReady) {
       setDomainProbe({ status: 'idle' })
+      return
+    }
+
+    if (
+      hasConfiguredDomain &&
+      domainVerified &&
+      domainProbe.status !== 'ready' &&
+      domainProbe.status !== 'verified'
+    ) {
+      setDomainProbe({ status: 'verified' })
+    }
+
+    if (domainWizardOpen) {
       return
     }
 
@@ -277,7 +324,16 @@ export function InfrastructureTab() {
     lastAutoProbeKey.current = probeKey
 
     let cancelled = false
-    setDomainProbe({ status: 'checking' })
+    let settled = false
+    let timedOut = false
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled || settled) return
+      timedOut = true
+      setDomainProbe({
+        status: 'problem',
+        error: 'Domain check is taking longer than expected. Open setup to check again.',
+      })
+    }, DOMAIN_AUTO_PROBE_TIMEOUT_MS)
 
     apiClient
       .post<DomainProbeResult>('/api/settings/domain-probe', {
@@ -286,14 +342,19 @@ export function InfrastructureTab() {
         apiGatewayEndpoint: currentOrigin,
       })
       .then(result => {
+        settled = true
+        window.clearTimeout(timeoutId)
         if (cancelled) return
         setDomainProbe(
           result.status === 'ready'
             ? { status: 'ready', result }
             : { status: 'problem', result }
         )
+        invalidateApiPath('/api/settings')
       })
       .catch(error => {
+        settled = true
+        window.clearTimeout(timeoutId)
         if (cancelled) return
         setDomainProbe({
           status: 'problem',
@@ -303,8 +364,22 @@ export function InfrastructureTab() {
 
     return () => {
       cancelled = true
+      window.clearTimeout(timeoutId)
+      if (!settled && !timedOut && lastAutoProbeKey.current === probeKey) {
+        lastAutoProbeKey.current = null
+      }
     }
-  }, [apiClient, currentOrigin, savedDomain, savedEndpoint, settingsLoading])
+  }, [
+    apiClient,
+    currentOrigin,
+    domainProbe.status,
+    domainVerified,
+    domainWizardOpen,
+    hasConfiguredDomain,
+    savedDomain,
+    savedEndpoint,
+    settingsReady,
+  ])
 
   function addRelay() {
     setRelays((prev) => [...prev, ''])
@@ -336,7 +411,7 @@ export function InfrastructureTab() {
     markChanged()
   }
 
-  if (settingsLoading) {
+  if (initialSettingsLoading) {
     return (
       <div className="flex items-center justify-center py-24">
         <Spinner size={24} />
@@ -347,22 +422,42 @@ export function InfrastructureTab() {
   // Lightning addresses resolve as `username@<domain>` — the preview shows
   // the raw domain only (no protocol, no endpoint path).
   const previewDomain = domain.trim().toLowerCase() || 'your-domain.com'
-  const showDomainAction = domainProbe.status !== 'ready'
-  const domainActionChecking = domainProbe.status === 'checking'
+  const visibleDomainMatchesSaved = domain.trim().toLowerCase() === savedDomain
+  const visibleEndpointMatchesSaved =
+    subdomain.trim().replace(/\/+$/, '').toLowerCase() === savedEndpoint
+  const domainRoutingEdited =
+    hasConfiguredDomain && (!visibleDomainMatchesSaved || !visibleEndpointMatchesSaved)
+  const showDomainSuccess =
+    hasConfiguredDomain &&
+    !domainConnectionEditorOpen &&
+    visibleDomainMatchesSaved &&
+    visibleEndpointMatchesSaved &&
+    (domainVerified || domainProbe.status === 'ready' || instanceHostedOnDomain)
+  const showDomainConnectionFields = !showDomainSuccess || domainConnectionEditorOpen
+  const showFullWidthDomainSummary = showDomainSuccess
+  const showDomainAction =
+    (domainConnectionEditorOpen || !showDomainSuccess) &&
+    (domainConnectionEditorOpen || domainRoutingEdited || domainProbe.status !== 'ready') &&
+    (domainConnectionEditorOpen ||
+      !(domainProbe.status === 'verified' && domainVerified && !domainRoutingEdited))
   const domainActionTitle =
-    domainProbe.status === 'missing'
+    domainConnectionEditorOpen || domainRoutingEdited
+      ? 'Domain needs verification'
+      : domainProbe.status === 'missing'
       ? 'Domain is not configured'
-      : domainActionChecking
-        ? 'Checking domain routing'
-        : 'Domain routing needs attention'
+      : 'Domain routing needs attention'
   const domainActionDescription =
-    domainProbe.status === 'missing'
+    domainConnectionEditorOpen || domainRoutingEdited
+      ? 'Save and check this domain before marking discovery as ready.'
+      : domainProbe.status === 'missing'
       ? 'Start a guided check for LNURL and NIP-05 routing.'
-      : domainActionChecking
-        ? 'Verifying LNURL and NIP-05 discovery now.'
-        : domainProbe.status === 'problem' && domainProbe.error
-          ? domainProbe.error
-          : 'Fix LNURL and NIP-05 discovery for this domain.'
+      : 'Fix LNURL and NIP-05 discovery for this domain.'
+  const latestDomainProbeResult =
+    domainProbe.status === 'ready' || domainProbe.status === 'problem'
+      ? domainProbe.result ?? null
+      : null
+  const latestDomainProbeError =
+    domainProbe.status === 'problem' ? domainProbe.error ?? null : null
 
   return (
     <div className="flex flex-col gap-8 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">
@@ -372,29 +467,90 @@ export function InfrastructureTab() {
         initialDomain={domain}
         initialEndpoint={subdomain}
         currentOrigin={currentOrigin}
+        latestProbeResult={latestDomainProbeResult}
+        latestProbeError={latestDomainProbeError}
+        latestProbeChecking={false}
         updateSettings={updateSettings}
         onConfigured={({ domain: nextDomain, endpoint }) => {
           setDomain(nextDomain)
           setSubdomain(endpoint)
+          setDomainConnectionEditorOpen(false)
           lastAutoProbeKey.current = null
-          setDomainProbe({ status: 'checking' })
         }}
       />
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
-        <div>
-          <h3 className="text-sm font-semibold">Domain</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure the domain and optional subdomain for your instance.
-          </p>
-        </div>
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-8',
+          !showFullWidthDomainSummary && 'md:grid-cols-[280px_1fr]',
+        )}
+      >
+        {!showFullWidthDomainSummary && <div className="hidden md:block" aria-hidden="true" />}
         <div className="flex flex-col gap-4">
+          {showDomainSuccess && (
+            <div className="relative min-w-0 overflow-hidden rounded-md border border-emerald-500/30 bg-emerald-500/[0.06] p-4">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/80 to-transparent" />
+              <div className="grid min-w-0 gap-4">
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <span
+                    className="relative grid size-20 shrink-0 place-items-center rounded-full sm:size-16"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--theme-300) 14%, transparent)',
+                      boxShadow:
+                        'inset 0 0 0 1px color-mix(in srgb, var(--theme-300) 24%, transparent)',
+                      color: 'var(--theme-400)',
+                    }}
+                  >
+                    <span
+                      className="absolute inset-3 rounded-full"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--theme-400) 8%, transparent)',
+                      }}
+                    />
+                    <CheckCircle2 className="relative size-11 sm:size-9" strokeWidth={2.5} />
+                  </span>
+                  {!domainConnectionEditorOpen && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 max-w-[calc(100%-6rem)] shrink-0 border-emerald-500/25 bg-background/70 text-xs"
+                      onClick={() => setDomainConnectionEditorOpen(true)}
+                    >
+                      <Route className="mr-2 size-3.5" />
+                      Change domain connection
+                    </Button>
+                  )}
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <p className="text-2xl font-semibold leading-tight text-emerald-50 sm:text-xl">
+                    Domain connected
+                  </p>
+                  <p className="max-w-prose text-sm leading-6 text-muted-foreground">
+                    {domainVerified || domainProbe.status === 'ready'
+                      ? 'LNURL and NIP-05 discovery are verified for this domain.'
+                      : 'This instance is currently hosted on the configured domain.'}
+                  </p>
+                </div>
+                <div className="min-w-0 rounded-md border border-emerald-500/20 bg-background/70 px-3 py-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Domain
+                  </p>
+                  <p
+                    className="mt-1 min-w-0 truncate font-mono text-sm text-foreground"
+                    title={savedDomain}
+                  >
+                    {savedDomain}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showDomainAction && (
             <div className="flex flex-col gap-3 rounded-md border bg-muted/25 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
                 <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
-                  {domainActionChecking ? (
-                    <Spinner size={16} />
-                  ) : hasConfiguredDomain ? (
+                  {hasConfiguredDomain ? (
                     <Route className="size-4" />
                   ) : (
                     <WandSparkles className="size-4" />
@@ -410,7 +566,6 @@ export function InfrastructureTab() {
                 size="sm"
                 variant={hasConfiguredDomain ? 'outline' : 'default'}
                 className="shrink-0"
-                disabled={domainActionChecking}
                 onClick={() => setDomainWizardOpen(true)}
               >
                 {hasConfiguredDomain ? (
@@ -418,66 +573,74 @@ export function InfrastructureTab() {
                 ) : (
                   <WandSparkles className="mr-2 size-4" />
                 )}
-                {hasConfiguredDomain ? 'Fix domain' : 'Configure domain'}
+                {domainConnectionEditorOpen || domainRoutingEdited
+                  ? 'Verify domain'
+                  : hasConfiguredDomain
+                    ? 'Fix domain'
+                    : 'Configure domain'}
               </Button>
             </div>
           )}
 
-          <div className="space-y-1">
-            <Label>Domain</Label>
-            <InputGroup className={cn(domainInvalid && INVALID_CLASSES)}>
-              <InputGroupText>https://</InputGroupText>
-              <Input
-                placeholder="example.com"
-                value={domain}
-                onChange={e => {
-                  setDomain(e.target.value)
-                  markChanged()
-                }}
-                aria-invalid={domainInvalid || undefined}
-                className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
-            </InputGroup>
-            {domainInvalid ? (
-              <p className="text-xs text-destructive">
-                Enter a valid domain (e.g. example.com) — no protocol.
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                The official domain for your users.
-              </p>
-            )}
-          </div>
+          {!showDomainSuccess && showDomainConnectionFields && (
+            <>
+              <div className="space-y-1">
+                <Label>Domain</Label>
+                <InputGroup className={cn(domainInvalid && INVALID_CLASSES)}>
+                  <InputGroupText>https://</InputGroupText>
+                  <Input
+                    placeholder="example.com"
+                    value={domain}
+                    onChange={e => {
+                      setDomain(e.target.value)
+                      markChanged()
+                    }}
+                    aria-invalid={domainInvalid || undefined}
+                    className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </InputGroup>
+                {domainInvalid ? (
+                  <p className="text-xs text-destructive">
+                    Enter a valid domain (e.g. example.com) — no protocol.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    The official domain for your users.
+                  </p>
+                )}
+              </div>
 
-          <div className="space-y-1">
-            <Label>This instance endpoint</Label>
-            <Input
-              placeholder={currentOrigin || 'https://app.domain.com'}
-              value={subdomain}
-              onChange={e => {
-                setSubdomain(e.target.value)
-                markChanged()
-              }}
-              aria-invalid={endpointInvalid || undefined}
-              className={cn(endpointInvalid && INVALID_CLASSES)}
-            />
-            {endpointInvalid ? (
-              <p className="text-xs text-destructive">
-                Enter a full URL or hostname (e.g. app.example.com).
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Public URL where this instance is running. Defaults to https:// if no protocol is provided.
-              </p>
-            )}
-          </div>
+              <div className="space-y-1">
+                <Label>This instance endpoint</Label>
+                <Input
+                  placeholder={currentOrigin || 'https://app.domain.com'}
+                  value={subdomain}
+                  onChange={e => {
+                    setSubdomain(e.target.value)
+                    markChanged()
+                  }}
+                  aria-invalid={endpointInvalid || undefined}
+                  className={cn(endpointInvalid && INVALID_CLASSES)}
+                />
+                {endpointInvalid ? (
+                  <p className="text-xs text-destructive">
+                    Enter a full URL or hostname (e.g. app.example.com).
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Public URL where this instance is running. Defaults to https:// if no protocol is provided.
+                  </p>
+                )}
+              </div>
 
-          <div className="rounded-md bg-muted/40 px-3 py-2">
-            <p className="text-xs text-muted-foreground">
-              Lightning addresses will resolve as{' '}
-              <span className="font-mono text-foreground">username@{previewDomain}</span>
-            </p>
-          </div>
+              <div className="rounded-md bg-muted/40 px-3 py-2">
+                <p className="text-xs text-muted-foreground">
+                  Lightning addresses will resolve as{' '}
+                  <span className="font-mono text-foreground">username@{previewDomain}</span>
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
