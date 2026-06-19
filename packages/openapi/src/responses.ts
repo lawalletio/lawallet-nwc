@@ -23,7 +23,12 @@ export const ErrorEnvelope = registry.register(
     }),
 )
 
-const errorResponse = (description: string) => ({
+/**
+ * Builds an error-envelope response with a custom description. Exported so a
+ * route can document a status code with endpoint-specific wording (e.g. *why*
+ * a 409 happens) instead of the generic shared `responses.*` entries.
+ */
+export const errorResponse = (description: string) => ({
   description,
   content: {
     'application/json': {

@@ -28,10 +28,8 @@ vi.mock('@/lib/auth/unified-auth', () => ({
 }))
 
 vi.mock('@/lib/public-url', () => ({
-  resolvePublicEndpoint: vi.fn(async () => ({
-    host: 'test.example',
-    url: 'https://test.example',
-  })),
+  // Activation URLs use the instance API endpoint, not the LUD-16 domain.
+  resolveApiUrl: vi.fn(async () => 'https://test.example'),
 }))
 
 import {
@@ -65,7 +63,7 @@ function mockAuthReject() {
 describe('POST /api/cards/[id]/activation-tokens', () => {
   it('mints a ONE_TIME token with a QR payload built from the public URL', async () => {
     mockAuth()
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({ id: 'card1', kind: 'SIMPLE' } as any)
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({ id: 'card1', kind: 'SIMPLE', blockedAt: null } as any)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null as any)
     vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({ count: 0 } as any)
     vi.mocked(prismaMock.cardActivationToken.create).mockImplementation(
@@ -80,7 +78,7 @@ describe('POST /api/cards/[id]/activation-tokens', () => {
     const body: any = await assertResponse(res, 201)
 
     expect(body.qrKind).toBe('ONE_TIME')
-    expect(body.qrPayload).toMatch(/^https:\/\/test\.example\/activate\/[0-9a-f]{32}$/)
+    expect(body.qrPayload).toMatch(/^https:\/\/test\.example\/wallet\/activate\/[0-9a-f]{32}$/)
     // Replaces any prior active ONE_TIME token before inserting.
     expect(prismaMock.cardActivationToken.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -93,7 +91,7 @@ describe('POST /api/cards/[id]/activation-tokens', () => {
 
   it('rejects FOREVER QRs as not yet supported (400)', async () => {
     mockAuth()
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({ id: 'card1', kind: 'MASTER' } as any)
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({ id: 'card1', kind: 'MASTER', blockedAt: null } as any)
 
     const req = createNextRequest('/api/cards/card1/activation-tokens', {
       method: 'POST',
@@ -139,7 +137,7 @@ describe('GET /api/cards/[id]/activation-tokens', () => {
       {
         id: 'live',
         qrKind: 'ONE_TIME',
-        qrPayload: 'https://test.example/activate/live',
+        qrPayload: 'https://test.example/wallet/activate/live',
         status: 'PENDING',
         expiresAt: null,
         createdAt: new Date(),
@@ -147,7 +145,7 @@ describe('GET /api/cards/[id]/activation-tokens', () => {
       {
         id: 'stale',
         qrKind: 'ONE_TIME',
-        qrPayload: 'https://test.example/activate/stale',
+        qrPayload: 'https://test.example/wallet/activate/stale',
         status: 'PENDING',
         expiresAt: new Date(Date.now() - 1000),
         createdAt: new Date(),
@@ -166,7 +164,7 @@ describe('GET /api/cards/[id]/activation-tokens', () => {
 describe('POST /api/cards/[id]/rescue', () => {
   it('revokes outstanding tokens, unassigns the card, and mints a fresh ONE_TIME token', async () => {
     mockAuth()
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({ id: 'card1' } as any)
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({ id: 'card1', blockedAt: null } as any)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null as any)
     vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({ count: 2 } as any)
     vi.mocked(prismaMock.card.update).mockResolvedValue({ id: 'card1' } as any)
@@ -179,12 +177,12 @@ describe('POST /api/cards/[id]/rescue', () => {
     const body: any = await assertResponse(res, 201)
 
     expect(body.qrKind).toBe('ONE_TIME')
-    expect(body.qrPayload).toMatch(/^https:\/\/test\.example\/activate\/[0-9a-f]{32}$/)
-    // Card unassigned: holder + bound wallet cleared.
+    expect(body.qrPayload).toMatch(/^https:\/\/test\.example\/wallet\/activate\/[0-9a-f]{32}$/)
+    // Card unassigned: holder, lightning address, and bound wallet cleared.
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'card1' },
-        data: { userId: null, remoteWalletId: null },
+        data: { userId: null, username: null, remoteWalletId: null },
       }),
     )
   })
@@ -197,5 +195,17 @@ describe('POST /api/cards/[id]/rescue', () => {
     const res = await RescueCard(req, createParamsPromise({ id: 'missing' }))
 
     expect(res.status).toBe(404)
+  })
+
+  it('refuses to rescue a blocked card (409) and mints nothing', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({ id: 'card1', blockedAt: new Date() } as any)
+
+    const req = createNextRequest('/api/cards/card1/rescue', { method: 'POST' })
+    const res = await RescueCard(req, createParamsPromise({ id: 'card1' }))
+
+    expect(res.status).toBe(409)
+    expect(prismaMock.cardActivationToken.updateMany).not.toHaveBeenCalled()
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
   })
 })

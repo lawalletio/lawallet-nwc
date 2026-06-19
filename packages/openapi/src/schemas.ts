@@ -44,7 +44,16 @@ export const schemas = {
   UserIdParam: registry.register('UserIdParam', userIdParam),
 
   // ── Cards ──────────────────────────────────────────────────────────────
-  CardCreateRequest: registry.register('CardCreateRequest', createCardSchema),
+  CardCreateRequest: registry.register(
+    'CardCreateRequest',
+    createCardSchema.openapi({
+      description:
+        'Create-card payload. `id` is the card UID (4- or 7-byte hex, colons ' +
+        'optional); it is normalized to uppercase hex and used as the unique ' +
+        'NTAG424 key, so re-using a UID returns 409 Conflict. `designId` must ' +
+        'reference an existing design; `kind` defaults to `SIMPLE`.',
+    }),
+  ),
   CardListQuery: registry.register('CardListQuery', cardListQuerySchema),
   ScanCardQuery: registry.register('ScanCardQuery', scanCardQuerySchema),
   PayActionQuery: registry.register('PayActionQuery', payActionQuerySchema),
@@ -117,6 +126,13 @@ export const schemas = {
     'RemoteWalletCreateRequest',
     createRemoteWalletSchema,
   ),
+  RemoteWalletLncurlCreateRequest: registry.register(
+    'RemoteWalletLncurlCreateRequest',
+    createLncurlWalletSchema.openapi({
+      description:
+        'Provision a disposable LNCurl wallet. The server mints the NWC connection string; the new wallet becomes the default and inherits the previous wallet’s bindings.',
+    }),
+  ),
   RemoteWalletUpdateRequest: registry.register(
     'RemoteWalletUpdateRequest',
     // Same .refine() situation as updateCardDesignSchema: at-least-one-field
@@ -124,13 +140,6 @@ export const schemas = {
     updateRemoteWalletSchema.openapi({
       description:
         'Partial update for a remote wallet. At least one field must be present, otherwise the route returns 400.',
-    }),
-  ),
-  RemoteWalletLncurlCreateRequest: registry.register(
-    'RemoteWalletLncurlCreateRequest',
-    createLncurlWalletSchema.openapi({
-      description:
-        'Provision a disposable LNCurl wallet. The server mints the NWC connection string; the new wallet becomes the default and inherits the previous wallet’s bindings.',
     }),
   ),
   RemoteWalletListQuery: registry.register('RemoteWalletListQuery', remoteWalletListQuerySchema),

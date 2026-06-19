@@ -13,9 +13,9 @@ export type ActivationQrKind = 'ONE_TIME' | 'FOREVER'
 /** A token's lifecycle status as stored on the row. */
 export type ActivationTokenStatus = 'PENDING' | 'CLAIMED' | 'REVOKED' | 'EXPIRED'
 
-/** Builds the activation URL a wallet scans for `tokenId`. */
+/** Builds the wallet-side activation URL a wallet scans for `tokenId`. */
 export function buildActivationUrl(baseUrl: string, tokenId: string): string {
-  return `${baseUrl.replace(/\/+$/, '')}/activate/${tokenId}`
+  return `${baseUrl.replace(/\/+$/, '')}/wallet/activate/${tokenId}`
 }
 
 /**
@@ -90,4 +90,63 @@ export async function mintActivationToken(
       expiresAt: expiresAt ?? null,
     },
   })
+}
+
+/**
+ * Unassigns a card from any user — clears the holder (`userId`), the
+ * lightning-address link (`username`), and the bound wallet (`remoteWalletId`),
+ * plus the NTAG424's own `userId` link.
+ *
+ * Called whenever a card's keys are exported for (re)programming or reset
+ * (`/write`, `/wipe`): once the physical card's secrets have been handed out it
+ * can no longer be safely tied to a user. Idempotent — clearing already-null
+ * fields is a no-op, so repeated key exports stay harmless.
+ */
+export async function unpairCard(
+  tx: Prisma.TransactionClient,
+  cardId: string,
+  ntag424Cid?: string | null,
+) {
+  await tx.card.update({
+    where: { id: cardId },
+    data: { userId: null, username: null, remoteWalletId: null },
+  })
+  if (ntag424Cid) {
+    await tx.ntag424.update({
+      where: { cid: ntag424Cid },
+      data: { userId: null },
+    })
+  }
+}
+
+/**
+ * **Blocks** a card: unpairs it (like {@link unpairCard}) and stamps
+ * `blockedAt`. Called when the card's NTAG424 keys are exported for *reset*
+ * (the `/wipe` flow) — once those keys are out, the card is decommissioned and
+ * can never be re-paired, activated, or programmed again; it can only be
+ * re-wiped (the reset keys stay re-fetchable) until an operator explicitly
+ * deletes it. Idempotent: `blockedAt` is preserved across repeated wipes so the
+ * "blocked since" timestamp reflects the first export.
+ */
+export async function blockCard(
+  tx: Prisma.TransactionClient,
+  cardId: string,
+  ntag424Cid: string | null | undefined,
+  currentBlockedAt: Date | null,
+) {
+  await tx.card.update({
+    where: { id: cardId },
+    data: {
+      userId: null,
+      username: null,
+      remoteWalletId: null,
+      blockedAt: currentBlockedAt ?? new Date(),
+    },
+  })
+  if (ntag424Cid) {
+    await tx.ntag424.update({
+      where: { cid: ntag424Cid },
+      data: { userId: null },
+    })
+  }
 }

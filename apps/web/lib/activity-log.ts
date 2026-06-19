@@ -48,6 +48,7 @@ export const ActivityEvent = {
   CARD_ACTIVATION_TOKEN_ISSUED: 'card.activation_token_issued',
   CARD_CLAIMED: 'card.claimed',
   CARD_RESCUED: 'card.rescued',
+  CARD_KEYS_EXPORTED: 'card.keys_exported',
   CARD_ERROR: 'card.error',
   // SERVER
   SERVER_UNHANDLED_ERROR: 'server.unhandled_error',

@@ -7,9 +7,9 @@ import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
-import { NotFoundError } from '@/types/server/errors'
-import { resolvePublicEndpoint } from '@/lib/public-url'
-import { mintActivationToken } from '@/lib/card-activation'
+import { ConflictError, NotFoundError } from '@/types/server/errors'
+import { resolveApiUrl } from '@/lib/public-url'
+import { mintActivationToken, unpairCard } from '@/lib/card-activation'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
@@ -32,27 +32,33 @@ export const POST = withErrorHandling(
 
     const card = await prisma.card.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, blockedAt: true },
     })
     if (!card) throw new NotFoundError('Card not found')
+    // A blocked card (reset keys exported via /wipe) is decommissioned — it
+    // can't be rescued/re-issued, only deleted.
+    if (card.blockedAt !== null) {
+      throw new ConflictError(
+        'This card has been blocked (reset keys exported) and can no longer be rescued — delete it instead.',
+      )
+    }
 
-    const { url } = await resolvePublicEndpoint(request)
+    // Activation links target the wallet app — use the instance endpoint, not
+    // the LUD-16 domain.
+    const url = await resolveApiUrl(request)
     const issuer = await prisma.user.findUnique({
       where: { pubkey: auth.pubkey },
       select: { id: true },
     })
 
     const token = await prisma.$transaction(async tx => {
-      // Revoke every outstanding token and unassign the card. `remoteWalletId`
-      // FK is SetNull-safe; clearing `userId` returns the card to inventory.
+      // Revoke every outstanding token and unassign the card (holder, lightning
+      // address, and bound wallet all cleared) to return it to inventory.
       await tx.cardActivationToken.updateMany({
         where: { cardId: id, status: 'PENDING' },
         data: { status: 'REVOKED' },
       })
-      await tx.card.update({
-        where: { id },
-        data: { userId: null, remoteWalletId: null },
-      })
+      await unpairCard(tx, id)
       // mintActivationToken re-runs the same-kind revoke (now a no-op) then
       // inserts the fresh PENDING token.
       return mintActivationToken(tx, {

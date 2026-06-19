@@ -164,6 +164,17 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
     expect(JSON.stringify(body)).not.toContain('k0')
   })
 
+  it('refuses to claim a blocked card and does not burn the token', async () => {
+    mockClaimer('w1')
+    mockPendingToken({ card: { blockedAt: new Date() } })
+
+    const req = createNextRequest('/api/activation-tokens/tok1/claim', { method: 'POST', body: {} })
+    const res = await ClaimToken(req, createParamsPromise({ id: 'tok1' }))
+
+    expect(res.status).toBe(409)
+    expect(prismaMock.cardActivationToken.updateMany).not.toHaveBeenCalled()
+  })
+
   it('leaves the card unbound when the claimer has no ACTIVE default wallet', async () => {
     // The ACTIVE-default filter returns no rows (e.g. the default is disabled).
     vi.mocked(authenticate).mockResolvedValue({

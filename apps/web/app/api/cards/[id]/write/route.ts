@@ -3,9 +3,17 @@ import type { Ntag424WriteData } from '@/types/ntag424'
 
 import { prisma } from '@/lib/prisma'
 import { cardToNtag424WriteData } from '@/lib/ntag424'
+import { unpairCard } from '@/lib/card-activation'
+import { isWriteTokenValid } from '@/lib/card-write-token'
+import { eventBus } from '@/lib/events/event-bus'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { resolvePublicEndpoint } from '@/lib/public-url'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { NotFoundError, ValidationError } from '@/types/server/errors'
+import {
+  AuthorizationError,
+  NotFoundError,
+  ValidationError,
+} from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
@@ -24,6 +32,7 @@ export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = validateParams(await params, idParam)
+    const token = new URL(req.url).searchParams.get('token')
     logger.info({ cardId: id }, 'Card write data request')
 
     // Find card by id with related data
@@ -43,21 +52,40 @@ export const GET = withErrorHandling(
       throw new ValidationError('Card does not have NTAG424 data')
     }
 
-    // Transform the Prisma result to match the expected Card type
-    const cardData = {
-      id: card.id,
-      design: card.design,
-      ntag424: card.ntag424,
-      createdAt: card.createdAt,
-      title: card.title || undefined,
-      lastUsedAt: card.lastUsedAt || undefined,
-      username: card.username || undefined,
-      otc: card.otc || undefined
+    // Replay protection: the writer must present the single-use token minted by
+    // `POST /api/cards/[id]/write-token`. It is honoured only while the card is
+    // still fresh (never tapped) and not yet consumed/expired. Everything else —
+    // including the legacy untokenized URL — is rejected so the keys can't be
+    // re-fetched and the card cloned.
+    if (!isWriteTokenValid(card, token)) {
+      throw new AuthorizationError(
+        'A valid one-time programming token is required.'
+      )
     }
+
+    // Handing out the keys means the physical card is about to be
+    // (re)programmed, so it can no longer belong to a user — unpair it. In the
+    // same transaction, consume the token (clear it) so the URL is single-use.
+    await prisma.$transaction(async tx => {
+      await unpairCard(tx, card.id, card.ntag424!.cid)
+      await tx.card.update({
+        where: { id: card.id },
+        data: { writeToken: null, writeTokenExpiresAt: null }
+      })
+    })
+    eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
+    logActivity.fireAndForget({
+      category: 'CARD',
+      event: ActivityEvent.CARD_KEYS_EXPORTED,
+      message: `Card ${id} keys exported for programming — unpaired`,
+      metadata: { cardId: id, endpoint: 'write' }
+    })
 
     const { host } = await resolvePublicEndpoint(req)
     const writeData: Ntag424WriteData = cardToNtag424WriteData(
-      cardData,
+      card.ntag424,
+      card.id,
+      card.title,
       host
     )
 

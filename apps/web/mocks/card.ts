@@ -95,11 +95,6 @@ export const mockCardData: Card[] = [
     createdAt: new Date('2024-02-25T12:00:00Z'),
     ntag424: {
       cid: '04D63AFA442B56',
-      k0: '55667788990011223344AABBCCDDEEFF',
-      k1: 'AA99887766554433221100000000FEDC',
-      k2: '6789ABCDEF0123456789ABCDEF012345',
-      k3: '9876543210FEDCBA9876543210FEDCBA',
-      k4: 'F6789ABCDEF6789ABCDEF5E4D3C2B1A0',
       ctr: 5,
       createdAt: new Date('2024-02-25T12:05:00Z')
     },
@@ -113,11 +108,6 @@ export const mockCardData: Card[] = [
     createdAt: new Date('2024-02-28T15:30:00Z'),
     ntag424: {
       cid: '04E74BFB331C47',
-      k0: '66778899001122334455AABBCCDDEEFF',
-      k1: '9988776655443322110000000000FEDC',
-      k2: '789ABCDEF0123456789ABCDEF0123456',
-      k3: '876543210FEDCBA9876543210FEDCBA9',
-      k4: '6789ABCDEF6789ABCDEF6F5E4D3C2B1A',
       ctr: 2048,
       createdAt: new Date('2024-02-28T15:35:00Z')
     },

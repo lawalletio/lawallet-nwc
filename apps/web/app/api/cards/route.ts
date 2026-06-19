@@ -4,6 +4,7 @@ import type { Card } from '@/types/card'
 import { generateNtag424Values } from '@/lib/ntag424'
 import { randomBytes } from 'crypto'
 import { withErrorHandling } from '@/types/server/error-handler'
+import { ConflictError } from '@/types/server/errors'
 import { createCardSchema, cardListQuerySchema } from '@/lib/validation/schemas'
 import { validateBody, validateQuery } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -31,11 +32,13 @@ export const GET = withErrorHandling(async (request: Request) => {
   // Build where clause based on filters
   const where: any = {}
 
+  // "Paired" === the card has an owner (`userId`). `otc` is unrelated — every
+  // card is minted with one — so it must not drive this filter.
   if (filters.paired !== undefined) {
     if (filters.paired) {
-      where.otc = { not: null }
+      where.userId = { not: null }
     } else {
-      where.otc = { equals: null }
+      where.userId = { equals: null }
     }
   }
 
@@ -58,6 +61,7 @@ export const GET = withErrorHandling(async (request: Request) => {
       otc: true,
       remoteWalletId: true,
       kind: true,
+      blockedAt: true,
       design: {
         select: {
           id: true,
@@ -69,18 +73,20 @@ export const GET = withErrorHandling(async (request: Request) => {
       ntag424: {
         select: {
           cid: true,
-          k0: true,
-          k1: true,
-          k2: true,
-          k3: true,
-          k4: true,
           ctr: true,
           createdAt: true
         }
       },
       user: {
         select: {
-          pubkey: true
+          pubkey: true,
+          // Card identity = the owner's primary lightning address, resolved
+          // through the `userId` relation (not the dead `Card.username`).
+          lightningAddresses: {
+            where: { isPrimary: true },
+            take: 1,
+            select: { username: true }
+          }
         }
       }
     },
@@ -103,10 +109,11 @@ export const GET = withErrorHandling(async (request: Request) => {
     title: card.title || undefined,
     lastUsedAt: card.lastUsedAt || undefined,
     pubkey: card.user?.pubkey,
-    username: card.username || undefined,
+    username: card.user?.lightningAddresses?.[0]?.username || undefined,
     otc: card.otc || undefined,
     remoteWalletId: card.remoteWalletId ?? null,
     kind: card.kind,
+    blocked: card.blockedAt !== null,
   }))
 
   return NextResponse.json(transformedCards)
@@ -125,10 +132,37 @@ export const POST = withErrorHandling(async (request: Request) => {
     // Generate random 16-byte string for otc
     const otc = randomBytes(16).toString('hex')
 
-    // Create the ntag424 record first
-    const ntag424 = await prisma.ntag424.create({
-      data: ntag424Values
+    // The UID is the NTAG424 primary key, so re-using one would otherwise blow
+    // up as a 500 from the unique-constraint violation. Reject it up front with
+    // a clear 409 instead.
+    const conflictMessage = `A card with UID ${serial} already exists`
+    const existingNtag = await prisma.ntag424.findUnique({
+      where: { cid: serial },
+      select: { cid: true }
     })
+    if (existingNtag) {
+      throw new ConflictError(conflictMessage)
+    }
+
+    // Create the ntag424 record first. The pre-check above handles the common
+    // case; this catch covers the race where two creates share a UID — Prisma
+    // maps the duplicate primary key to P2002.
+    let ntag424
+    try {
+      ntag424 = await prisma.ntag424.create({
+        data: ntag424Values
+      })
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        'code' in err &&
+        (err as { code?: string }).code === 'P2002'
+      ) {
+        throw new ConflictError(conflictMessage)
+      }
+      throw err
+    }
 
     // Then create the card and link it to the ntag424
     const card = await prisma.card.create({

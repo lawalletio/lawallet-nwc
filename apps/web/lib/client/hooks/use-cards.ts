@@ -14,20 +14,29 @@ export interface CardData {
     image: string | null
   } | null
   ntag424: {
-    k0: string
-    k1: string
-    k2: string
-    k3: string
-    k4: string
+    cid: string
     ctr: number
     otc: string | null
   } | null
+  /**
+   * The card's owner, present once the card is claimed/activated (i.e. it has a
+   * `userId`). A card is "paired" iff this is non-null. `username` is the owner's
+   * lightning-address local part when they have one — it can be null (a freshly
+   * activated user may not have claimed an address yet), so don't gate "paired"
+   * on it.
+   */
   lightningAddress: {
-    username: string
+    username: string | null
     pubkey: string
   } | null
   /** RemoteWallet this card spends from (or null if unbound). */
   remoteWalletId: string | null
+  /**
+   * True once the card's reset (wipe) keys have been exported — it's
+   * decommissioned and can only be re-wiped or deleted, never re-used. Takes
+   * display precedence over paired/unpaired.
+   */
+  blocked: boolean
   createdAt: string
   updatedAt: string
 }
@@ -38,6 +47,7 @@ export interface CardCounts {
   unpaired: number
   used: number
   unused: number
+  blocked: number
 }
 
 export interface CardFilters {
@@ -61,11 +71,6 @@ interface ApiCardDesign {
 
 interface ApiCardNtag424 {
   cid: string
-  k0: string
-  k1: string
-  k2: string
-  k3: string
-  k4: string
   ctr: number
   createdAt: string
 }
@@ -81,6 +86,7 @@ interface ApiCard {
   username?: string
   otc?: string | null
   remoteWalletId?: string | null
+  blocked?: boolean
 }
 
 function toCardData(c: ApiCard): CardData {
@@ -97,20 +103,19 @@ function toCardData(c: ApiCard): CardData {
       : null,
     ntag424: c.ntag424
       ? {
-          k0: c.ntag424.k0,
-          k1: c.ntag424.k1,
-          k2: c.ntag424.k2,
-          k3: c.ntag424.k3,
-          k4: c.ntag424.k4,
+          cid: c.ntag424.cid,
           ctr: c.ntag424.ctr,
           otc: c.otc ?? null,
         }
       : null,
-    lightningAddress:
-      c.username && c.pubkey
-        ? { username: c.username, pubkey: c.pubkey }
-        : null,
+    // Paired === the card has an owner (server sets `userId`, surfaced here as
+    // `pubkey`). The lightning-address `username` is optional — a just-activated
+    // user may not have claimed one yet, so it must not gate "paired".
+    lightningAddress: c.pubkey
+      ? { username: c.username ?? null, pubkey: c.pubkey }
+      : null,
     remoteWalletId: c.remoteWalletId ?? null,
+    blocked: c.blocked ?? false,
     createdAt: c.createdAt,
     // Legacy API has no `updatedAt` — fall back to lastUsedAt/createdAt so
     // the "Last used" column still shows something sensible.
@@ -146,10 +151,34 @@ export function useCards(filters?: CardFilters, options?: { enabled?: boolean })
 }
 
 /**
- * Fetch card counts/stats.
+ * Fetch the *authenticated caller's own* cards — the ones paired to them.
+ *
+ * Backed by the per-caller `GET /api/wallet/cards`, which ANY authenticated
+ * role can read (the admin `/api/cards` needs `CARDS_READ` and returns every
+ * card). The Connection Map + the user Cards view use this so a plain user —
+ * or an admin — sees exactly the cards paired to themselves, with no
+ * client-side pubkey matching that could silently hide a freshly paired card.
  */
-export function useCardCounts() {
-  return useApi<CardCounts>('/api/cards/counts')
+export function useMyCards(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true
+  const result = useApi<ApiCard[]>(enabled ? '/api/wallet/cards' : null)
+  const data = useMemo(
+    () => (result.data ? result.data.map(toCardData) : null),
+    [result.data],
+  )
+  return { ...result, data }
+}
+
+/**
+ * Fetch card counts/stats.
+ *
+ * `/api/cards/counts` is admin-scoped (`CARDS_READ`). Pass `{ enabled: false }`
+ * to skip the fetch for callers without the permission (e.g. the user-facing
+ * Cards view, which shows no instance-wide stats) so they don't fire a 403.
+ */
+export function useCardCounts(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true
+  return useApi<CardCounts>(enabled ? '/api/cards/counts' : null)
 }
 
 /**

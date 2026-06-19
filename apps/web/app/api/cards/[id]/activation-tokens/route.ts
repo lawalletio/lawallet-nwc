@@ -8,7 +8,7 @@ import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { ConflictError, NotFoundError, ValidationError } from '@/types/server/errors'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { resolveApiUrl } from '@/lib/public-url'
 import {
   effectiveTokenStatus,
   mintActivationToken,
@@ -40,9 +40,15 @@ export const POST = withErrorHandling(
 
     const card = await prisma.card.findUnique({
       where: { id },
-      select: { id: true, kind: true },
+      select: { id: true, kind: true, blockedAt: true },
     })
     if (!card) throw new NotFoundError('Card not found')
+
+    if (card.blockedAt !== null) {
+      throw new ConflictError(
+        'This card has been blocked (reset keys exported) and can no longer be activated — delete it instead.',
+      )
+    }
 
     if (qrKind === 'FOREVER') {
       throw new ValidationError(
@@ -52,7 +58,9 @@ export const POST = withErrorHandling(
     }
 
     const expiresAt = resolveExpiresAt(expiresIn)
-    const { url } = await resolvePublicEndpoint(request)
+    // Activation links point at the wallet app, so use this instance's API
+    // endpoint (or request host) — never the LUD-16 lightning-address domain.
+    const url = await resolveApiUrl(request)
     // Audit-only: resolve the minting operator's user row if they have one.
     const issuer = await prisma.user.findUnique({
       where: { pubkey: auth.pubkey },

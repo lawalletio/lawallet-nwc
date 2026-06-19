@@ -4,6 +4,7 @@ import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
+  ConflictError,
   ValidationError
 } from '@/types/server/errors'
 import { otcParam } from '@/lib/validation/schemas'
@@ -49,6 +50,13 @@ export const POST = withErrorHandling(
       })
 
       if (card) {
+        // A blocked card (reset keys exported) is decommissioned — it can't be
+        // re-activated, only deleted.
+        if (card.blockedAt !== null) {
+          throw new ConflictError(
+            'This card has been blocked and can no longer be activated.'
+          )
+        }
         await prisma.card.update({
           where: { id: card.id },
           data: { userId: user.id }

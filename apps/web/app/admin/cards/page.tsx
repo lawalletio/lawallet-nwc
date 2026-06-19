@@ -15,11 +15,15 @@ import {
   RotateCcw,
   Pencil,
   Check,
+  Nfc,
+  Smartphone,
   X as XIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { CreateCardDialog } from '@/components/admin/create-card-dialog'
+import { BulkCardGuideDialog } from '@/components/admin/bulk-card-guide-dialog'
+import { DevRemoveAllCards } from '@/components/admin/dev-remove-all-cards'
 import { UploadDesignDialog } from '@/components/admin/upload-design-dialog'
 import { DesignImage } from '@/components/admin/design-image'
 import { PermissionGuard } from '@/components/admin/permission-guard'
@@ -53,8 +57,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import { Permission } from '@/lib/auth/permissions'
-import { useCards, useCardCounts } from '@/lib/client/hooks/use-cards'
+import { Permission, Role } from '@/lib/auth/permissions'
+import { useAuth } from '@/components/admin/auth-context'
+import { useCards, useMyCards, useCardCounts } from '@/lib/client/hooks/use-cards'
 import {
   useDesigns,
   useDesignMutations,
@@ -70,10 +75,23 @@ const PAGE_SIZE = 10
 
 export default function CardsPage() {
   const router = useRouter()
+  const { role, isAuthorized } = useAuth()
+  // Plain users (Role.USER) reach this page too — they see only the cards
+  // paired to themselves (per-caller `/api/wallet/cards`), with no Create
+  // action, no instance-wide stats, and no Designs section. The admin roles
+  // (which hold CARDS_READ) keep the full instance-wide view.
+  const canReadAll = isAuthorized(Permission.CARDS_READ)
+  const canReadDesigns = isAuthorized(Permission.CARD_DESIGNS_READ)
   const { data: settings } = useSettings()
-  const { data: cards, loading: cardsLoading, refetch: refetchCards } = useCards()
-  const { data: counts, loading: countsLoading } = useCardCounts()
-  const { data: designs, loading: designsLoading, refetch: refetchDesigns } = useDesigns()
+  const adminCards = useCards(undefined, { enabled: canReadAll })
+  const ownCards = useMyCards({ enabled: !canReadAll })
+  const cards = canReadAll ? adminCards.data : ownCards.data
+  const cardsLoading = canReadAll ? adminCards.loading : ownCards.loading
+  const refetchCards = canReadAll ? adminCards.refetch : ownCards.refetch
+  const { data: counts, loading: countsLoading, refetch: refetchCounts } =
+    useCardCounts({ enabled: canReadAll })
+  const { data: designs, loading: designsLoading, refetch: refetchDesigns } =
+    useDesigns({ enabled: canReadDesigns })
   const {
     importDesigns,
     importFromVeintiuno,
@@ -88,6 +106,7 @@ export default function CardsPage() {
   const [page, setPage] = useState(1)
   const [designTab, setDesignTab] = useState('active')
   const [uploadDesignOpen, setUploadDesignOpen] = useState(false)
+  const [bulkGuideOpen, setBulkGuideOpen] = useState(false)
 
   const filtered = useMemo(() => {
     if (!cards) return []
@@ -163,7 +182,10 @@ export default function CardsPage() {
     }
   }
 
+  // Domain setup is an admin concern (the alert links into admin settings), so
+  // only surface it to callers with the full instance-wide cards view.
   const showDomainAlert =
+    canReadAll &&
     settings &&
     (!settings.domain?.trim() || settings.domain_verified !== 'true')
   // The Sync button calls /api/card-designs/import, which pulls designs from
@@ -195,36 +217,70 @@ export default function CardsPage() {
             : undefined
         }
         actions={
-          <PermissionGuard permission={Permission.CARDS_WRITE}>
-            <CreateCardDialog onSuccess={refetchCards} />
-          </PermissionGuard>
+          <div className="flex items-center gap-2">
+            {/* Dev-only: wipe all cards to re-test the flow. Tree-shaken out of
+                production builds; the endpoint also 404s outside development.
+                Also gated to the admin (all-cards) view — a plain user managing
+                only their own cards shouldn't see an instance-wide wipe. */}
+            {process.env.NODE_ENV === 'development' && canReadAll && (
+              <DevRemoveAllCards
+                onRemoved={() => {
+                  refetchCards()
+                  refetchCounts()
+                }}
+              />
+            )}
+            {/* ADMIN-only shortcut to the card emulator (forges NTAG424 taps
+                with raw keys), matching the sidebar's tighter gating. */}
+            {role === Role.ADMIN && (
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/admin/emulator">
+                  <Nfc className="size-4" />
+                  Emulator
+                </Link>
+              </Button>
+            )}
+            <PermissionGuard permission={Permission.CARDS_WRITE}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkGuideOpen(true)}
+              >
+                <Smartphone className="size-4" />
+                Bulk initialize
+              </Button>
+            </PermissionGuard>
+            <PermissionGuard permission={Permission.CARDS_WRITE}>
+              <CreateCardDialog onSuccess={refetchCards} />
+            </PermissionGuard>
+          </div>
         }
       />
 
       <div className="p-6 flex flex-col gap-6">
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
-          <StatCard
-            title="Total cards"
-            value={counts?.total}
-            description="Cards written and saved in database"
-            loading={countsLoading}
-          />
-          <StatCard
-            title="Paired cards"
-            value={counts?.paired}
-            description="Activated cards (by user)"
-            loading={countsLoading}
-          />
-          <StatCard
-            title="Paused cards"
-            value={
-              counts ? counts.total - counts.paired : undefined
-            }
-            description="Cards temporarily disabled"
-            loading={countsLoading}
-          />
-        </div>
+        {/* Stats — instance-wide aggregates, only for the admin cards view. */}
+        {canReadAll && (
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <StatCard
+              title="Total cards"
+              value={counts?.total}
+              description="Cards written and saved in database"
+              loading={countsLoading}
+            />
+            <StatCard
+              title="Paired cards"
+              value={counts?.paired}
+              description="Activated cards (by user)"
+              loading={countsLoading}
+            />
+            <StatCard
+              title="Blocked cards"
+              value={counts?.blocked}
+              description="Reset keys exposed — delete to remove"
+              loading={countsLoading}
+            />
+          </div>
+        )}
 
         {/* Search + Filter */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -237,19 +293,21 @@ export default function CardsPage() {
               onChange={(e) => handleSearchChange(e.target.value)}
             />
           </div>
-          <Select value={designFilter} onValueChange={handleDesignFilterChange}>
-            <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="All designs" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All designs</SelectItem>
-              {designs?.map((design) => (
-                <SelectItem key={design.id} value={design.id}>
-                  {design.description || design.id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {canReadDesigns && (
+            <Select value={designFilter} onValueChange={handleDesignFilterChange}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="All designs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All designs</SelectItem>
+                {designs?.map((design) => (
+                  <SelectItem key={design.id} value={design.id}>
+                    {design.description || design.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {/* Cards Table */}
@@ -293,18 +351,37 @@ export default function CardsPage() {
                               </div>
                             )}
                             <div className="flex flex-col gap-0.5">
-                              <Link
-                                href={`/admin/cards/${card.id}`}
-                                className="text-sm font-medium hover:underline"
-                              >
-                                {truncateHex(card.id)}
-                              </Link>
+                              {/* The detail page reads the admin-scoped
+                                  /api/cards/[id]; plain users (own-cards view)
+                                  get the id as plain text, no broken link. */}
+                              {canReadAll ? (
+                                <Link
+                                  href={`/admin/cards/${card.id}`}
+                                  className="text-sm font-medium hover:underline"
+                                >
+                                  {truncateHex(card.id)}
+                                </Link>
+                              ) : (
+                                <span className="text-sm font-medium">
+                                  {truncateHex(card.id)}
+                                </span>
+                              )}
                               <div className="flex items-center gap-1.5">
                                 <Badge
-                                  variant={isPaired ? 'default' : 'secondary'}
+                                  variant={
+                                    card.blocked
+                                      ? 'destructive'
+                                      : isPaired
+                                        ? 'default'
+                                        : 'secondary'
+                                  }
                                   className="text-xs"
                                 >
-                                  {isPaired ? 'Paired' : 'Unpaired'}
+                                  {card.blocked
+                                    ? 'Blocked'
+                                    : isPaired
+                                      ? 'Paired'
+                                      : 'Unpaired'}
                                 </Badge>
                                 <span className="text-xs text-muted-foreground">
                                   {formatRelativeTime(card.createdAt)}
@@ -314,26 +391,33 @@ export default function CardsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm font-mono">
-                          {card.lightningAddress?.pubkey
-                            ? truncateNpub(card.lightningAddress.pubkey)
-                            : '—'}
+                          {/* Prefer the owner's lightning address (resolved via
+                              userId); fall back to the npub only when they
+                              haven't claimed an address yet. */}
+                          {card.lightningAddress?.username
+                            ? card.lightningAddress.username
+                            : card.lightningAddress?.pubkey
+                              ? truncateNpub(card.lightningAddress.pubkey)
+                              : '—'}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {formatRelativeTime(card.updatedAt)}
                         </TableCell>
                         <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="size-8">
-                                <MoreHorizontal className="size-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/cards/${card.id}`}>View Details</Link>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {canReadAll && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="size-8">
+                                  <MoreHorizontal className="size-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/admin/cards/${card.id}`}>View Details</Link>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </TableCell>
                       </TableRow>
                     )
@@ -383,7 +467,9 @@ export default function CardsPage() {
           </>
         )}
 
-        {/* Designs Section */}
+        {/* Designs Section — hidden entirely from callers without
+            CARD_DESIGNS_READ (plain users managing only their own cards). */}
+        {canReadDesigns && (
         <div className="mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -504,6 +590,7 @@ export default function CardsPage() {
             )
           })()}
         </div>
+        )}
       </div>
 
       <UploadDesignDialog
@@ -511,6 +598,8 @@ export default function CardsPage() {
         onOpenChange={setUploadDesignOpen}
         onCreated={refetchDesigns}
       />
+
+      <BulkCardGuideDialog open={bulkGuideOpen} onOpenChange={setBulkGuideOpen} />
     </div>
   )
 }

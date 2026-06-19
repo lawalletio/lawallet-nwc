@@ -83,3 +83,69 @@
   0% { transform: translateX(-100%); }
   100% { transform: translateX(200%); }
 }
+
+/* ─── Card activation (/activate/[id]) — 3D card + success FX ─────────────── */
+
+/* Gentle Y-axis sway for the 3D card — stays well within ±90° so the design
+   face never turns away (no back face). Applied to a preserve-3d layer. */
+@keyframes card-sway {
+  0%, 100% { transform: rotateY(-16deg); }
+  50% { transform: rotateY(16deg); }
+}
+.animate-card-sway { animation: card-sway 7s ease-in-out infinite; }
+
+/* Gentle vertical bob, kept on a separate layer so it composes with the spin. */
+@keyframes card-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+.animate-card-bob { animation: card-bob 5.5s ease-in-out infinite; }
+
+/* Specular sheen sweeping across the card front. */
+@keyframes glare-sweep {
+  0% { transform: translateX(-160%) rotate(20deg); opacity: 0; }
+  15% { opacity: 0.55; }
+  45% { opacity: 0; }
+  100% { transform: translateX(160%) rotate(20deg); opacity: 0; }
+}
+.animate-glare { animation: glare-sweep 5.5s ease-in-out infinite; }
+
+/* Soft pulsing ambient glow behind the card. */
+@keyframes activate-glow {
+  0%, 100% { opacity: 0.30; transform: scale(1); }
+  50% { opacity: 0.65; transform: scale(1.12); }
+}
+.animate-activate-glow { animation: activate-glow 4s ease-in-out infinite; }
+
+/* Confetti fall — relies on --dx / --rot / duration set inline per piece. */
+@keyframes confetti-fall {
+  0% { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--dx, 0px), 112vh, 0) rotate(var(--rot, 720deg)); opacity: 1; }
+}
+
+/* Success badge pop + expanding rings. */
+@keyframes success-pop {
+  0% { transform: scale(0); opacity: 0; }
+  55% { transform: scale(1.18); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-success-pop { animation: success-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes ring-expand {
+  0% { transform: scale(0.35); opacity: 0.7; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+.animate-ring-expand { animation: ring-expand 1.6s ease-out infinite; }
+
+/* SVG checkmark stroke draw. */
+@keyframes draw-check {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-sway,
+  .animate-card-bob,
+  .animate-glare,
+  .animate-activate-glow,
+  .animate-ring-expand { animation: none; }
+}

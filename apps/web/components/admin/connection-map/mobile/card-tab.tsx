@@ -13,8 +13,6 @@ import { WalletPickerDrawer, type PickerRow } from './wallet-picker-drawer'
 interface Props {
   cards: CardData[]
   wallets: RemoteWalletData[]
-  /** True when the caller has CARDS_READ (the cards data is admin-scoped). */
-  canRead: boolean
   onOpenDetail: (cardId: string) => void
 }
 
@@ -37,10 +35,10 @@ function chipFor(
  * "use default" which clears `remoteWalletId`). Row body → detail
  * dialog.
  *
- * `/api/cards` is admin-scoped, so non-admins see a locked empty state
- * rather than an (always-empty) list.
+ * Cards come from the per-caller `/api/wallet/cards`, so the list is always
+ * the cards paired to the logged-in account (an admin sees only their own).
  */
-export function CardTab({ cards, wallets, canRead, onOpenDetail }: Props) {
+export function CardTab({ cards, wallets, onOpenDetail }: Props) {
   const { updateCard, updating } = useCardMutations()
   const [picker, setPicker] = useState<CardData | null>(null)
 
@@ -74,14 +72,6 @@ export function CardTab({ cards, wallets, canRead, onOpenDetail }: Props) {
         },
       ]
     : []
-
-  if (!canRead) {
-    return (
-      <p className="px-1 py-8 text-center text-sm text-muted-foreground">
-        You don&apos;t have access to cards.
-      </p>
-    )
-  }
 
   if (cards.length === 0) {
     return (
@@ -119,10 +109,20 @@ export function CardTab({ cards, wallets, canRead, onOpenDetail }: Props) {
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm font-medium">{title}</span>
                   <Badge
-                    variant={card.ntag424 ? 'default' : 'secondary'}
+                    variant={
+                      card.blocked
+                        ? 'destructive'
+                        : card.lightningAddress
+                          ? 'default'
+                          : 'secondary'
+                    }
                     className="mt-0.5 w-fit text-[10px] font-normal"
                   >
-                    {card.ntag424 ? 'Paired' : 'Unpaired'}
+                    {card.blocked
+                      ? 'Blocked'
+                      : card.lightningAddress
+                        ? 'Paired'
+                        : 'Unpaired'}
                   </Badge>
                 </div>
                 <BindingChip

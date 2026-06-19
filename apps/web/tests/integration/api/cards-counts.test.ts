@@ -41,12 +41,13 @@ describe('GET /api/cards/counts', () => {
       .mockResolvedValueOnce(5)  // unpaired
       .mockResolvedValueOnce(8)  // used
       .mockResolvedValueOnce(7)  // unused
+      .mockResolvedValueOnce(2)  // blocked
 
     const req = createNextRequest('/api/cards/counts')
     const res = await GET(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ total: 15, paired: 10, unpaired: 5, used: 8, unused: 7 })
+    expect(body).toEqual({ total: 15, paired: 10, unpaired: 5, used: 8, unused: 7, blocked: 2 })
   })
 
   it('returns zero counts when no cards', async () => {
@@ -61,7 +62,7 @@ describe('GET /api/cards/counts', () => {
     const res = await GET(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ total: 0, paired: 0, unpaired: 0, used: 0, unused: 0 })
+    expect(body).toEqual({ total: 0, paired: 0, unpaired: 0, used: 0, unused: 0, blocked: 0 })
   })
 
   it('rejects callers without CARDS_READ permission', async () => {

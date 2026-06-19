@@ -19,10 +19,15 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
+vi.mock('@/lib/settings', () => ({
+  getSettings: vi.fn(),
+}))
+
 import { checkMaintenance } from '@/lib/middleware/maintenance'
 import { getConfig } from '@/lib/config'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { prisma } from '@/lib/prisma'
+import { getSettings } from '@/lib/settings'
 
 function mockRequest(url = 'http://localhost:3000/api/test') {
   return new Request(url)
@@ -30,6 +35,8 @@ function mockRequest(url = 'http://localhost:3000/api/test') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Default: instance is configured (root claimed) so maintenance applies.
+  vi.mocked(getSettings).mockResolvedValue({ root: 'rootpubkey' } as any)
 })
 
 describe('checkMaintenance', () => {
@@ -86,5 +93,18 @@ describe('checkMaintenance', () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
 
     await expect(checkMaintenance(mockRequest())).rejects.toThrow(ServiceUnavailableError)
+  })
+
+  it('skips maintenance until a root admin is configured (no first-run lockout)', async () => {
+    vi.mocked(getConfig).mockReturnValue({
+      maintenance: { enabled: true },
+    } as any)
+    // Unconfigured instance — `root` setting absent.
+    vi.mocked(getSettings).mockResolvedValue({} as any)
+    vi.mocked(validateNip98Auth).mockRejectedValue(new Error('no auth'))
+
+    // The setup/login flow must stay reachable so the operator can claim root.
+    await expect(checkMaintenance(mockRequest())).resolves.toBeUndefined()
+    expect(validateNip98Auth).not.toHaveBeenCalled()
   })
 })

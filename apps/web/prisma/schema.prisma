@@ -203,6 +203,17 @@ model Card {
   otc            String?
   remoteWalletId String?
   kind           CardKind  @default(SIMPLE)
+  // One-time, replay-protected programming token for the BoltCard QR. Minted
+  // only while the card is still "fresh" (never tapped) and consumed by the
+  // first `/write` fetch, so the key-export URL can't be replayed. Null when
+  // no token is outstanding; the expiry bounds an un-used token's lifetime.
+  writeToken          String?   @unique
+  writeTokenExpiresAt DateTime?
+  // Set when the card's NTAG424 keys have been exported for *reset* (the
+  // `/wipe` flow). A "blocked" card is decommissioned: it can no longer be
+  // re-paired, activated, or programmed — only re-wiped (the reset keys stay
+  // re-fetchable) until an operator explicitly deletes it. Null = not blocked.
+  blockedAt           DateTime?
 
   design           CardDesign            @relation(fields: [designId], references: [id])
   ntag424          Ntag424?              @relation(fields: [ntag424Cid], references: [cid])
