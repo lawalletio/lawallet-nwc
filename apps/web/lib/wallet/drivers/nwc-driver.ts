@@ -31,6 +31,13 @@ const nwcConfigSchema = z
         message: 'connectionString must be a nostr+walletconnect:// URI',
       }),
     mode: z.enum(['RECEIVE', 'SEND_RECEIVE']).default('RECEIVE'),
+    // When the wallet was provisioned by LNCurl we tag it so the LUD-16 +
+    // signup flows can transparently re-provision a dead wallet. Optional so
+    // every pre-LNCurl payload still parses.
+    provider: z.literal('lncurl').optional(),
+    // The LNCurl origin this wallet was minted from, so re-provisioning hits
+    // the same deployment. Optional + URL-validated.
+    lncurlServerUrl: z.string().url().optional(),
   })
   .strict()
 

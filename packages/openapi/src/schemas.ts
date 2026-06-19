@@ -6,6 +6,7 @@ import {
   createCardDesignSchema,
   createCardSchema,
   createInvoiceSchema,
+  createLncurlWalletSchema,
   createRemoteCardSchema,
   createRemoteWalletSchema,
   createWalletAddressSchema,
@@ -123,6 +124,13 @@ export const schemas = {
     updateRemoteWalletSchema.openapi({
       description:
         'Partial update for a remote wallet. At least one field must be present, otherwise the route returns 400.',
+    }),
+  ),
+  RemoteWalletLncurlCreateRequest: registry.register(
+    'RemoteWalletLncurlCreateRequest',
+    createLncurlWalletSchema.openapi({
+      description:
+        'Provision a disposable LNCurl wallet. The server mints the NWC connection string; the new wallet becomes the default and inherits the previous wallet’s bindings.',
     }),
   ),
   RemoteWalletListQuery: registry.register('RemoteWalletListQuery', remoteWalletListQuerySchema),

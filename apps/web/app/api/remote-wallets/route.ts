@@ -32,9 +32,17 @@ interface RemoteWalletDto {
   isDefault: boolean
   createdAt: string
   updatedAt: string
+  /** Set only for archived (DEAD) wallets — when the wallet was detected dead. */
+  diedAt: string | null
+  /** `'lncurl'` for a disposable LNCurl-provisioned wallet, else null. Drives the UI tag + countdown. */
+  provider: 'lncurl' | null
+  /** For LNCurl wallets, the server that minted THIS wallet (stored per-wallet, so a later settings change doesn't move it). Null otherwise. */
+  lncurlServerUrl: string | null
 }
 
 function toDto(w: RemoteWallet): RemoteWalletDto {
+  const cfg = w.config as { provider?: unknown; lncurlServerUrl?: unknown } | null
+  const isLncurl = cfg?.provider === 'lncurl'
   return {
     id: w.id,
     name: w.name,
@@ -43,6 +51,10 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
     isDefault: w.isDefault,
     createdAt: w.createdAt.toISOString(),
     updatedAt: w.updatedAt.toISOString(),
+    diedAt: w.diedAt ? w.diedAt.toISOString() : null,
+    provider: isLncurl ? 'lncurl' : null,
+    lncurlServerUrl:
+      isLncurl && typeof cfg?.lncurlServerUrl === 'string' ? cfg.lncurlServerUrl : null,
   }
 }
 
@@ -61,9 +73,10 @@ async function resolveUserId(pubkey: string): Promise<string> {
 /**
  * `GET /api/remote-wallets` — list the caller's wallets.
  *
- * Hides REVOKED rows by default (the UI typically doesn't want to render
- * dead wallets); pass `?status=REVOKED` to get them. `?type=NWC` narrows by
- * driver type — the upcoming "add wallet" picker uses this to preview which
+ * Hides the terminal states — REVOKED (manual soft-delete) and DEAD (archived
+ * disposable wallet) — by default; pass `?status=REVOKED` or `?status=DEAD`
+ * to fetch them (the latter powers the archived "graveyard"). `?type=NWC`
+ * narrows by driver type — the "add wallet" picker uses this to preview which
  * driver types are available.
  *
  * Default ordering: default wallet first, then by creation date desc.
@@ -80,10 +93,11 @@ export const GET = withErrorHandling(async (request: Request) => {
   if (query.status) {
     where.status = query.status
   } else {
-    // Default: anything except REVOKED so the UI shows ACTIVE + DISABLED.
-    // Prisma doesn't let us inline `NOT REVOKED` cleanly without a typed
-    // workaround, so we fall through and filter REVOKED in memory if the
-    // list ever grows past a handful. For now keep it simple.
+    // Default: anything except the terminal/hidden states (REVOKED manual
+    // soft-delete, DEAD archived disposable wallet) so the UI shows ACTIVE +
+    // DISABLED. The archived "graveyard" is fetched explicitly via
+    // `?status=DEAD`. Prisma doesn't let us inline `NOT IN (...)` cleanly
+    // without a typed workaround, so we fall through and filter in memory.
   }
   if (query.type) where.type = query.type
 
@@ -92,7 +106,9 @@ export const GET = withErrorHandling(async (request: Request) => {
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
   })
 
-  const filtered = query.status ? rows : rows.filter(r => r.status !== 'REVOKED')
+  const filtered = query.status
+    ? rows
+    : rows.filter(r => r.status !== 'REVOKED' && r.status !== 'DEAD')
 
   return NextResponse.json(filtered.map(toDto))
 })

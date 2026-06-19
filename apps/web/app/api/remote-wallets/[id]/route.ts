@@ -26,9 +26,17 @@ interface RemoteWalletDto {
   isDefault: boolean
   createdAt: string
   updatedAt: string
+  /** Set only for archived (DEAD) wallets — when the wallet was detected dead. */
+  diedAt: string | null
+  /** `'lncurl'` for a disposable LNCurl-provisioned wallet, else null. Drives the UI tag + countdown. */
+  provider: 'lncurl' | null
+  /** For LNCurl wallets, the server that minted THIS wallet (stored per-wallet, so a later settings change doesn't move it). Null otherwise. */
+  lncurlServerUrl: string | null
 }
 
 function toDto(w: RemoteWallet): RemoteWalletDto {
+  const cfg = w.config as { provider?: unknown; lncurlServerUrl?: unknown } | null
+  const isLncurl = cfg?.provider === 'lncurl'
   return {
     id: w.id,
     name: w.name,
@@ -37,6 +45,10 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
     isDefault: w.isDefault,
     createdAt: w.createdAt.toISOString(),
     updatedAt: w.updatedAt.toISOString(),
+    diedAt: w.diedAt ? w.diedAt.toISOString() : null,
+    provider: isLncurl ? 'lncurl' : null,
+    lncurlServerUrl:
+      isLncurl && typeof cfg?.lncurlServerUrl === 'string' ? cfg.lncurlServerUrl : null,
   }
 }
 
@@ -137,14 +149,17 @@ export const PATCH = withErrorHandling(
 )
 
 /**
- * `DELETE /api/remote-wallets/[id]` — soft delete by flipping status to
- * `REVOKED`. The row sticks around so we can keep `Card.remoteWalletId` and
- * `LightningAddress.remoteWalletId` references intact for audit; both
- * relations are `onDelete: SetNull` so a future hard-delete is safe too,
- * but we prefer the audit trail for now.
+ * `DELETE /api/remote-wallets/[id]` — by default a **soft delete** that flips
+ * status to `REVOKED` and keeps the row for audit (both `Card.remoteWalletId`
+ * and `LightningAddress.remoteWalletId` are `onDelete: SetNull`).
  *
- * Also clears `isDefault` so a revoked wallet never sneaks back into the
- * default slot via a stale flag.
+ * `?permanent=true` performs a **hard delete** — used to clear an archived
+ * (DEAD) or otherwise retired wallet out of the list for good. It's refused
+ * for ACTIVE wallets so we never drop a live wallet (and its bindings) without
+ * first retiring it; the SetNull relations make the row drop itself safe.
+ *
+ * Either way, `isDefault` is implicitly cleared (soft via the update, hard via
+ * the row removal) so a stale flag can't resurrect a dead default slot.
  */
 export const DELETE = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -152,7 +167,20 @@ export const DELETE = withErrorHandling(
     const userId = await resolveUserId(auth.pubkey)
 
     const { id } = validateParams(await params, idParam)
-    await loadOwnedWallet(id, userId)
+    const wallet = await loadOwnedWallet(id, userId)
+
+    const permanent =
+      new URL(request.url).searchParams.get('permanent') === 'true'
+
+    if (permanent) {
+      if (wallet.status === 'ACTIVE') {
+        throw new ValidationError(
+          'Disable or delete the wallet before removing it permanently',
+        )
+      }
+      await prisma.remoteWallet.delete({ where: { id } })
+      return new NextResponse(null, { status: 204 })
+    }
 
     await prisma.remoteWallet.update({
       where: { id },

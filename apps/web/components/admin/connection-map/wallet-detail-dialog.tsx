@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowDownLeft,
   ArrowRight,
   ArrowUpRight,
+  CheckCircle2,
   Copy,
   ExternalLink,
   QrCode,
@@ -36,6 +37,7 @@ import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import type { CardData } from '@/lib/client/hooks/use-cards'
 import {
+  lookupInvoice,
   makeInvoice,
   parseDestination,
   payInvoice,
@@ -82,6 +84,8 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
   const isLive = wallet.status !== 'REVOKED'
   const balance = useLiveRemoteWalletBalance(isLive ? wallet.id : null)
   const animatedSats = useAnimatedNumber(balance.data?.balanceSats ?? null)
+  // Incoming-payment loading state for the balance (WebLN-funded receive).
+  const [receiving, setReceiving] = useState(false)
 
   const boundLas = addresses.filter(a => {
     if (a.mode === 'CUSTOM_NWC') return a.remoteWalletId === wallet.id
@@ -166,11 +170,22 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
                 className="flex items-baseline justify-center gap-2 tabular-nums"
                 aria-label={`Balance ${state}`}
               >
-                <span className="text-4xl font-semibold leading-none">
+                <span
+                  className={cn(
+                    'text-4xl font-semibold leading-none transition-colors',
+                    receiving && 'animate-pulse text-emerald-500',
+                  )}
+                >
                   {hasBalance ? animatedSats.toLocaleString() : '—'}
                 </span>
                 <span className="text-base text-muted-foreground">sats</span>
               </div>
+              {receiving && (
+                <div className="flex items-center justify-center gap-1.5 pt-1 text-xs font-medium text-emerald-500 animate-in fade-in-0 duration-200">
+                  <Spinner className="size-3" />
+                  Incoming payment…
+                </div>
+              )}
             </div>
 
             {/* `AutoHeight` smooths the dialog as WalletActions swaps
@@ -187,6 +202,8 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
                   walletId={wallet.id}
                   walletName={wallet.name}
                   disabled={!isLive}
+                  onPaid={() => balance.refetch()}
+                  onReceivingChange={setReceiving}
                 />
               </AutoHeight>
             </div>
@@ -233,8 +250,8 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
 
       <DialogFooter>
         <Button variant="secondary" asChild>
-          <Link href="/admin/remote-wallets">
-            Manage wallet
+          <Link href={`/admin/remote-wallets/${wallet.id}`}>
+            Open wallet
             <ExternalLink className="ml-1 size-3" />
           </Link>
         </Button>
@@ -245,7 +262,7 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
 
 // ── Receive + Send inline actions ────────────────────────────────────────
 
-type ReceiveStep = 'idle' | 'amount' | 'invoice'
+type ReceiveStep = 'idle' | 'amount' | 'invoice' | 'paid'
 type SendStep =
   | 'idle'
   // destination paste / type. WebLN shortcut also surfaces here.
@@ -255,6 +272,8 @@ type SendStep =
   // send into their Alby wallet).
   | 'amount'
   | 'amount-alby'
+  // Terminal success screen shown once a send settles.
+  | 'sent'
 
 /**
  * Receive + Send action row with inline sub-flows that morph in place
@@ -274,14 +293,24 @@ type SendStep =
  *   amount step is identical to the LA path, just with a different
  *   submit handler.
  */
-function WalletActions({
+export function WalletActions({
   walletId,
   walletName,
   disabled,
+  onPaid,
+  onReceivingChange,
 }: {
   walletId: string
   walletName: string
   disabled: boolean
+  /** Fired when a minted receive invoice is detected settled — lets the host
+   *  page refresh balance / transactions immediately instead of waiting for
+   *  the next poll. */
+  onPaid?: () => void
+  /** Fired while a WebLN-funded receive is in flight (true once the WebLN
+   *  payment is sent, false once it arrives or the flow resets) so the host
+   *  can show the balance "incoming" loading state. */
+  onReceivingChange?: (receiving: boolean) => void
 }) {
   // Receive state
   const [receiveStep, setReceiveStep] = useState<ReceiveStep>('idle')
@@ -292,12 +321,16 @@ function WalletActions({
   // want to copy the bolt11 to paste somewhere else. Reset on resetReceive
   // so the next mint starts back in text mode.
   const [showQr, setShowQr] = useState(false)
+  // True after a WebLN-funded receive is sent, until it lands (or is reset).
+  const [awaitingReceipt, setAwaitingReceipt] = useState(false)
 
   // Send state
   const [sendStep, setSendStep] = useState<SendStep>('idle')
   const [destinationInput, setDestinationInput] = useState('')
   const [destination, setDestination] = useState<ParsedDestination | null>(null)
   const [sendAmount, setSendAmount] = useState('')
+  // Amount of the just-settled send, shown on the success screen.
+  const [sentAmount, setSentAmount] = useState<number | null>(null)
   const [paying, setPaying] = useState(false)
 
   // Shared
@@ -313,6 +346,49 @@ function WalletActions({
     setHasWebLn(!!(window as WebLnWindow).webln)
   }, [receiveStep, sendStep])
 
+  // ── Live payment detection ─────────────────────────────────────────────
+  // While the minted invoice is on screen, poll `lookup_invoice` until the
+  // wallet reports it settled, then flip to the success state. Kept in a ref
+  // so a changing `onPaid` closure doesn't tear down the poll mid-wait.
+  const onPaidRef = useRef(onPaid)
+  useEffect(() => {
+    onPaidRef.current = onPaid
+  }, [onPaid])
+
+  const onReceivingChangeRef = useRef(onReceivingChange)
+  useEffect(() => {
+    onReceivingChangeRef.current = onReceivingChange
+  }, [onReceivingChange])
+
+  useEffect(() => {
+    if (receiveStep !== 'invoice' || !invoice) return
+    const nwc = connection.data?.connectionString
+    if (!nwc) return
+    const hash = invoice.paymentHash
+    let cancelled = false
+
+    const check = async () => {
+      try {
+        const { settled } = await lookupInvoice(nwc, hash)
+        if (!cancelled && settled) {
+          setReceiveStep('paid')
+          setAwaitingReceipt(false)
+          onReceivingChangeRef.current?.(false)
+          onPaidRef.current?.()
+        }
+      } catch {
+        // Transport hiccup — keep polling; the invoice is still valid.
+      }
+    }
+
+    void check()
+    const interval = setInterval(check, 2500)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [receiveStep, invoice, connection.data])
+
   // ── Resets ─────────────────────────────────────────────────────────
   const resetReceive = useCallback(() => {
     setReceiveStep('idle')
@@ -320,6 +396,8 @@ function WalletActions({
     setInvoice(null)
     setShowQr(false)
     setPayingWebLn(false)
+    setAwaitingReceipt(false)
+    onReceivingChangeRef.current?.(false)
   }, [])
 
   const resetSend = useCallback(() => {
@@ -327,6 +405,7 @@ function WalletActions({
     setDestinationInput('')
     setDestination(null)
     setSendAmount('')
+    setSentAmount(null)
     setPaying(false)
   }, [])
 
@@ -387,8 +466,11 @@ function WalletActions({
     try {
       await w.webln.enable()
       await w.webln.sendPayment(invoice.bolt11)
-      toast.success('Payment sent')
-      resetReceive()
+      // Don't close the flow — stay on the invoice and let the settlement poll
+      // confirm arrival. Flag "awaiting receipt" so the balance shows an
+      // incoming-loading state until the funds land.
+      setAwaitingReceipt(true)
+      onReceivingChangeRef.current?.(true)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'WebLN payment failed')
     } finally {
@@ -416,15 +498,16 @@ function WalletActions({
         } else {
           throw new Error('Unsupported destination')
         }
-        toast.success('Payment sent')
-        resetSend()
+        setSentAmount(amountSats)
+        setSendStep('sent')
+        onPaidRef.current?.()
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Payment failed')
       } finally {
         setPaying(false)
       }
     },
-    [connection.data, resetSend],
+    [connection.data],
   )
 
   // ── Send: parse destination + dispatch to next step ────────────────
@@ -489,8 +572,9 @@ function WalletActions({
             defaultMemo: `From ${walletName}`,
           })
           await payInvoice(nwc, paymentRequest)
-          toast.success(`Sent ${sats.toLocaleString()} sats to Alby`)
-          resetSend()
+          setSentAmount(sats)
+          setSendStep('sent')
+          onPaidRef.current?.()
         } catch (err) {
           toast.error(err instanceof Error ? err.message : 'Send failed')
         } finally {
@@ -506,8 +590,64 @@ function WalletActions({
       }
       await payDestination(destination, sats)
     },
-    [sendAmount, sendStep, destination, connection.data, walletName, payDestination, resetSend],
+    [sendAmount, sendStep, destination, connection.data, walletName, payDestination],
   )
+
+  // ── Render: Send SENT state — success animation ────────────────────
+  if (sendStep === 'sent') {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-md border border-emerald-500/40 bg-emerald-500/5 p-5 text-center animate-in fade-in-0 zoom-in-95 duration-300">
+        <div className="relative flex items-center justify-center">
+          <span className="absolute inline-flex size-14 animate-ping rounded-full bg-emerald-500/30" />
+          <CheckCircle2 className="relative size-14 text-emerald-500 animate-in zoom-in-50 duration-500" />
+        </div>
+        <div className="space-y-0.5">
+          <p className="font-semibold">Payment sent</p>
+          {sentAmount != null && (
+            <p className="text-sm tabular-nums text-muted-foreground">
+              −{sentAmount.toLocaleString()} sats
+            </p>
+          )}
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          className="h-10 w-full"
+          onClick={resetSend}
+        >
+          Done
+        </Button>
+      </div>
+    )
+  }
+
+  // ── Render: Receive PAID state — success animation ─────────────────
+  if (receiveStep === 'paid') {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-md border border-emerald-500/40 bg-emerald-500/5 p-5 text-center animate-in fade-in-0 zoom-in-95 duration-300">
+        <div className="relative flex items-center justify-center">
+          <span className="absolute inline-flex size-14 animate-ping rounded-full bg-emerald-500/30" />
+          <CheckCircle2 className="relative size-14 text-emerald-500 animate-in zoom-in-50 duration-500" />
+        </div>
+        <div className="space-y-0.5">
+          <p className="font-semibold">Payment received</p>
+          {invoice && (
+            <p className="text-sm tabular-nums text-muted-foreground">
+              +{invoice.amountSats.toLocaleString()} sats
+            </p>
+          )}
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          className="h-10 w-full"
+          onClick={resetReceive}
+        >
+          Done
+        </Button>
+      </div>
+    )
+  }
 
   // ── Render: Receive INVOICE state (takes over the action area) ─────
   if (receiveStep === 'invoice' && invoice) {
@@ -565,34 +705,51 @@ function WalletActions({
             <QrCode className="size-4" />
           </Button>
         </div>
-        <div className="flex gap-2">
-          {hasWebLn && (
+        {awaitingReceipt ? (
+          <div className="flex flex-col gap-2 animate-in fade-in-0 duration-200">
+            <div className="flex items-center justify-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 py-2.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+              <Spinner size={16} />
+              Waiting for payment to arrive…
+            </div>
             <Button
               type="button"
-              variant="theme"
-              className="h-10 flex-1"
-              onClick={handleWebLnPayInvoice}
-              disabled={payingWebLn}
+              variant="secondary"
+              className="h-10"
+              onClick={resetReceive}
             >
-              {payingWebLn ? (
-                <Spinner size={16} />
-              ) : (
-                <>
-                  <Zap className="size-4" />
-                  Pay with WebLN
-                </>
-              )}
+              Dismiss
             </Button>
-          )}
-          <Button
-            type="button"
-            variant="secondary"
-            className={cn('h-10', hasWebLn ? '' : 'flex-1')}
-            onClick={resetReceive}
-          >
-            Done
-          </Button>
-        </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            {hasWebLn && (
+              <Button
+                type="button"
+                variant="theme"
+                className="h-10 flex-1"
+                onClick={handleWebLnPayInvoice}
+                disabled={payingWebLn}
+              >
+                {payingWebLn ? (
+                  <Spinner size={16} />
+                ) : (
+                  <>
+                    <Zap className="size-4" />
+                    Pay with WebLN
+                  </>
+                )}
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              className={cn('h-10', hasWebLn ? '' : 'flex-1')}
+              onClick={resetReceive}
+            >
+              Done
+            </Button>
+          </div>
+        )}
       </div>
     )
   }

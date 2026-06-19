@@ -3,6 +3,8 @@ import { AlbyHub } from './albyhub'
 import { prisma } from './prisma'
 import { getSettings } from './settings'
 import { ActivityEvent, logActivity } from './activity-log'
+import { logger } from './logger'
+import { createLncurlRemoteWallet } from './wallet/lncurl-wallet'
 
 /**
  * Creates a brand-new `User` record for an authenticated pubkey, optionally
@@ -21,12 +23,19 @@ import { ActivityEvent, logActivity } from './activity-log'
  * Also fires (best-effort, non-blocking) a `USER_SIGNUP` activity log entry.
  */
 export async function createNewUser(pubkey: string) {
-  const { alby_api_url, alby_bearer_token, alby_auto_generate } =
-    await getSettings([
-      'alby_api_url',
-      'alby_bearer_token',
-      'alby_auto_generate'
-    ])
+  const {
+    alby_api_url,
+    alby_bearer_token,
+    alby_auto_generate,
+    lncurl_auto_create,
+    lncurl_server_url,
+  } = await getSettings([
+    'alby_api_url',
+    'alby_bearer_token',
+    'alby_auto_generate',
+    'lncurl_auto_create',
+    'lncurl_server_url',
+  ])
   const userId = randomUUID()
 
   const albyHub = new AlbyHub(alby_api_url, alby_bearer_token)
@@ -82,6 +91,27 @@ export async function createNewUser(pubkey: string) {
       remoteWallets: { where: { isDefault: true }, take: 1 },
     }
   })
+
+  // When there's no Alby sub-account but LNCurl auto-provisioning is on, give
+  // the fresh user a working default wallet so they can receive immediately.
+  // Best-effort: any failure (LNCurl down, etc.) must NOT break signup — we
+  // swallow it and the user simply starts with no wallet.
+  if (!subAccount && lncurl_auto_create === 'true') {
+    try {
+      const lncurlWallet = await createLncurlRemoteWallet({
+        userId: user.id,
+        serverUrl: lncurl_server_url || undefined,
+      })
+      user.remoteWallets = [lncurlWallet]
+    } catch (err) {
+      // Structured log so the operator can spot intermittent provider outages
+      // (the user just starts wallet-less and can connect one later).
+      logger.error(
+        { userId: user.id, err: String(err) },
+        'LNCurl auto-create failed during signup',
+      )
+    }
+  }
 
   logActivity.fireAndForget({
     category: 'USER',

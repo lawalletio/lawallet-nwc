@@ -50,6 +50,14 @@ export interface SettingsData {
   registration_price?: string
   registration_ln_enabled?: string
   registration_admin_bypass?: string
+  /** LNCurl disposable-wallet integration. All persisted as 'true' / 'false' strings except the URL. */
+  lncurl_enabled?: string
+  /** LNCurl provider base URL (default `https://lncurl.lol/`). */
+  lncurl_server_url?: string
+  /** Provision an LNCurl wallet as the default for every new account at signup. */
+  lncurl_auto_create?: string
+  /** When an LNCurl wallet is destroyed, mint a replacement on the next incoming payment. */
+  lncurl_auto_recreate?: string
   /** Google Tag ID (e.g. `G-XXXXXXXXXX`). Empty string disables analytics. */
   gtag_id?: string
   [key: string]: string | undefined

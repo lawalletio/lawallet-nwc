@@ -2,8 +2,12 @@
 
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { AtSign, Star, Wallet } from 'lucide-react'
+import { AtSign, Plus, Star, Wallet } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
+import { useRemoteWalletMutations } from '@/lib/client/hooks/use-remote-wallets'
 import { useHover } from './hover-context'
 import { WalletLiveBalance } from './wallet-live-balance'
 
@@ -223,6 +227,48 @@ export function RemoteWalletNode({ id, data }: NodeProps) {
   )
 }
 
+/**
+ * Placeholder "ghost" wallet — shown in the middle column when the user has
+ * no remote wallets yet AND the operator has enabled LNCurl. It's a pure
+ * call-to-action: tap the button to mint a free disposable LNCurl wallet,
+ * which (via `createLncurlWallet`'s cache invalidation) re-renders the map
+ * with a real wallet node in its place. No handles — there's nothing to bind
+ * to a wallet that doesn't exist yet.
+ */
+export function GhostWalletNode({ id }: NodeProps) {
+  const dimmed = useDimmed(id)
+  const { createLncurlWallet, loading } = useRemoteWalletMutations()
+
+  async function handleCreate() {
+    try {
+      await createLncurlWallet()
+      toast.success('LNCurl wallet created')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not create LNCurl wallet')
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        'flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-card/40 px-3 py-4 text-center transition-opacity duration-150',
+        dimmed && 'opacity-30',
+      )}
+      style={{ width: NODE_WIDTH }}
+    >
+      <Wallet className="size-5 text-muted-foreground" />
+      <p className="text-xs text-muted-foreground">
+        No wallet yet. Spin up a free disposable LNCurl wallet to start
+        receiving.
+      </p>
+      <Button size="sm" className="gap-2" onClick={handleCreate} disabled={loading}>
+        {loading ? <Spinner className="size-4" /> : <Plus className="size-4" />}
+        Create LNCurl wallet
+      </Button>
+    </div>
+  )
+}
+
 /** Inline column header rendered as an unselectable, non-draggable node. */
 export function ColumnHeaderNode({ data }: NodeProps) {
   const d = data as unknown as { label: string }
@@ -241,6 +287,7 @@ export const nodeTypes = {
   'lightning-address': LightningAddressNode,
   card: CardNode,
   'remote-wallet': RemoteWalletNode,
+  'ghost-wallet': GhostWalletNode,
   header: ColumnHeaderNode,
 }
 

@@ -120,7 +120,7 @@ export const PATCH = withErrorHandling(
       // no owner yet (orphan in the inventory), only an ADMIN can be
       // hitting this endpoint anyway (CARDS_WRITE), and we let the
       // wallet match against whatever user the wallet belongs to.
-      if (!wallet || wallet.status === 'REVOKED') {
+      if (!wallet || wallet.status === 'REVOKED' || wallet.status === 'DEAD') {
         throw new ValidationError('Unknown wallet')
       }
       if (card.userId && wallet.userId !== card.userId) {

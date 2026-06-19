@@ -109,6 +109,49 @@ describe('nwcDriver', () => {
       })
       expect(r.success).toBe(false)
     })
+
+    // ── LNCurl provenance fields ──────────────────────────────────────────
+    // LNCurl-minted wallets tag themselves so the LUD-16 + signup flows can
+    // re-provision a dead one. Both fields are optional → back-compat holds.
+
+    it('accepts the LNCurl provider tag + server URL', () => {
+      const r = nwcDriver.configSchema.safeParse({
+        connectionString: VALID_URI,
+        provider: 'lncurl',
+        lncurlServerUrl: 'https://lncurl.lol',
+      })
+      expect(r.success).toBe(true)
+    })
+
+    it('still parses a config WITHOUT the LNCurl fields (back-compat)', () => {
+      const r = nwcDriver.configSchema.safeParse({ connectionString: VALID_URI })
+      expect(r.success).toBe(true)
+    })
+
+    it('rejects a non-URL lncurlServerUrl', () => {
+      const r = nwcDriver.configSchema.safeParse({
+        connectionString: VALID_URI,
+        lncurlServerUrl: 'not a url',
+      })
+      expect(r.success).toBe(false)
+    })
+
+    it('rejects a provider other than "lncurl"', () => {
+      const r = nwcDriver.configSchema.safeParse({
+        connectionString: VALID_URI,
+        provider: 'someoneelse',
+      })
+      expect(r.success).toBe(false)
+    })
+
+    it('still rejects an unknown extra key with the LNCurl fields present (strict)', () => {
+      const r = nwcDriver.configSchema.safeParse({
+        connectionString: VALID_URI,
+        provider: 'lncurl',
+        bogus: 'nope',
+      })
+      expect(r.success).toBe(false)
+    })
   })
 
   describe('getBalance', () => {

@@ -37,3 +37,32 @@ export async function makeInvoice(
     expiresAt,
   }
 }
+
+export interface InvoiceStatus {
+  /** True once the wallet reports the invoice settled. */
+  settled: boolean
+  /** Settled amount in sats (0 until paid). */
+  amountSats: number
+}
+
+/**
+ * Polls NWC `lookup_invoice` by payment hash to detect settlement, so the
+ * receive flow can flip to a "paid" state in real time without the user
+ * refreshing. Returns `settled: false` (rather than throwing) when the wallet
+ * hasn't seen the payment yet; genuine relay/transport errors still throw so
+ * callers can decide whether to keep polling.
+ */
+export async function lookupInvoice(
+  nwcString: string,
+  paymentHash: string,
+): Promise<InvoiceStatus> {
+  const client = await getNwcClient(nwcString)
+  const res = (await client.lookupInvoice({ payment_hash: paymentHash })) as {
+    settled_at?: number | null
+    amount?: number
+  }
+  return {
+    settled: res.settled_at != null,
+    amountSats: Math.floor((res.amount ?? 0) / 1000),
+  }
+}

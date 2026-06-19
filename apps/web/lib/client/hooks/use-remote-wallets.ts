@@ -13,10 +13,16 @@ export interface RemoteWalletData {
   id: string
   name: string
   type: 'NWC' | 'LND' | 'CLN' | 'BTCPAY'
-  status: 'ACTIVE' | 'DISABLED' | 'REVOKED'
+  status: 'ACTIVE' | 'DISABLED' | 'REVOKED' | 'DEAD'
   isDefault: boolean
   createdAt: string
   updatedAt: string
+  /** Always present; non-null only for archived (DEAD) wallets — when it was detected dead. */
+  diedAt: string | null
+  /** `'lncurl'` for a disposable LNCurl wallet (drives the tag + countdown); null otherwise. */
+  provider: 'lncurl' | null
+  /** For LNCurl wallets, the server that minted it (the tag links here); null otherwise. */
+  lncurlServerUrl: string | null
 }
 
 /** Optional filters. Mirrors `remoteWalletListQuerySchema`. */
@@ -120,6 +126,14 @@ export function useRemoteWallets(filters?: RemoteWalletFilters) {
 }
 
 /**
+ * Fetch a single Remote Wallet by id (the detail page). Pass `null` to skip.
+ * Returns the same DTO shape as the list — `config` secrets never travel here.
+ */
+export function useRemoteWallet(id: string | null) {
+  return useApi<RemoteWalletData>(id ? `/api/remote-wallets/${id}` : null)
+}
+
+/**
  * Body shape for `POST /api/remote-wallets`. The `config` is typed loosely
  * so different driver types can plug their own shapes — the server runs
  * each through the matching driver's Zod schema.
@@ -151,12 +165,30 @@ export interface UpdateRemoteWalletInput {
  */
 export function useRemoteWalletMutations() {
   const create = useMutation<CreateRemoteWalletInput, RemoteWalletData>()
+  const createLncurl = useMutation<{ name?: string }, RemoteWalletData>()
   const update = useMutation<UpdateRemoteWalletInput, RemoteWalletData>()
   const remove = useMutation<void, void>()
+  const removePermanent = useMutation<void, void>()
 
   return {
     createWallet: async (input: CreateRemoteWalletInput) => {
       const created = await create.mutate('post', '/api/remote-wallets', input)
+      invalidateApiPath('/api/remote-wallets')
+      return created
+    },
+
+    /**
+     * Provision a disposable LNCurl wallet. The server mints the NWC string,
+     * makes it the default, and re-points the caller's Lightning Address +
+     * Cards onto it (see the `/api/remote-wallets/lncurl` route). Available
+     * only when the operator has enabled LNCurl in Settings → Wallet.
+     */
+    createLncurlWallet: async (input?: { name?: string }) => {
+      const created = await createLncurl.mutate(
+        'post',
+        '/api/remote-wallets/lncurl',
+        input ?? {},
+      )
       invalidateApiPath('/api/remote-wallets')
       return created
     },
@@ -212,8 +244,29 @@ export function useRemoteWalletMutations() {
       invalidateApiPath('/api/remote-wallets')
     },
 
-    /** Aggregate spinner — true while ANY of the three helpers is in flight. */
-    loading: create.loading || update.loading || remove.loading,
-    error: create.error || update.error || remove.error,
+    /**
+     * Hard-delete an already-retired wallet (DEAD / REVOKED / DISABLED) — the
+     * row is physically removed. Used by the archived "graveyard" to clear a
+     * dead disposable wallet for good. The server refuses this for ACTIVE
+     * wallets.
+     */
+    permanentlyDeleteWallet: async (id: string) => {
+      await removePermanent.mutate('del', `/api/remote-wallets/${id}?permanent=true`)
+      invalidateApiPath('/api/remote-wallets')
+    },
+
+    /** Aggregate spinner — true while ANY of the helpers is in flight. */
+    loading:
+      create.loading ||
+      createLncurl.loading ||
+      update.loading ||
+      remove.loading ||
+      removePermanent.loading,
+    error:
+      create.error ||
+      createLncurl.error ||
+      update.error ||
+      remove.error ||
+      removePermanent.error,
   }
 }

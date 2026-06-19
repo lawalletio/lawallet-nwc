@@ -1,12 +1,19 @@
 'use client'
 
 import React from 'react'
-import { AtSign, CreditCard, Star, Wallet } from 'lucide-react'
+import { AtSign, CreditCard, Plus, Star, Wallet } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { truncateHex } from '@/lib/client/format'
+import { useSettings } from '@/lib/client/hooks/use-settings'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import type { CardData } from '@/lib/client/hooks/use-cards'
-import type { RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
+import {
+  useRemoteWalletMutations,
+  type RemoteWalletData,
+} from '@/lib/client/hooks/use-remote-wallets'
 import { WalletLiveBalance } from '../wallet-live-balance'
 
 interface Props {
@@ -26,11 +33,7 @@ interface Props {
  */
 export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
   if (wallets.length === 0) {
-    return (
-      <p className="px-1 py-8 text-center text-sm text-muted-foreground">
-        No remote wallets yet.
-      </p>
-    )
+    return <EmptyWalletsState />
   }
 
   return (
@@ -116,5 +119,47 @@ export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
         )
       })}
     </ul>
+  )
+}
+
+/**
+ * Empty state for the Wallets tab. When the operator has enabled LNCurl, it
+ * doubles as a one-tap CTA to mint a free disposable wallet — mirroring the
+ * desktop ghost wallet node.
+ */
+function EmptyWalletsState() {
+  const { data: settings } = useSettings()
+  const lncurlEnabled = settings?.lncurl_enabled === 'true'
+  const { createLncurlWallet, loading } = useRemoteWalletMutations()
+
+  async function handleCreate() {
+    try {
+      await createLncurlWallet()
+      toast.success('LNCurl wallet created')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not create LNCurl wallet')
+    }
+  }
+
+  if (!lncurlEnabled) {
+    return (
+      <p className="px-1 py-8 text-center text-sm text-muted-foreground">
+        No remote wallets yet.
+      </p>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-card/40 px-4 py-8 text-center">
+      <Wallet className="size-6 text-muted-foreground" />
+      <p className="text-sm text-muted-foreground">
+        No wallet yet. Spin up a free disposable LNCurl wallet to start
+        receiving.
+      </p>
+      <Button className="gap-2" onClick={handleCreate} disabled={loading}>
+        {loading ? <Spinner className="size-4" /> : <Plus className="size-4" />}
+        Create LNCurl wallet
+      </Button>
+    </div>
   )
 }

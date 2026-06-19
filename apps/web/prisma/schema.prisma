@@ -46,6 +46,11 @@ enum RemoteWalletStatus {
   ACTIVE
   DISABLED
   REVOKED
+  /// Terminal "archived" state for a disposable LNCurl wallet that ran out of
+  /// sats and was destroyed by the provider. The row is kept (with `diedAt`)
+  /// so the user can see its death stats; it can't be bound to anything and
+  /// can be permanently removed.
+  DEAD
 }
 
 /// A card's kind, declared at creation. SIMPLE cards only support
@@ -170,6 +175,9 @@ model RemoteWallet {
   isDefault Boolean            @default(false)
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
+  /// When a disposable LNCurl wallet was detected dead and archived (status
+  /// DEAD). Null for every other wallet. Drives the "graveyard" death stats.
+  diedAt    DateTime?
 
   lightningAddresses LightningAddress[]
   cards              Card[]

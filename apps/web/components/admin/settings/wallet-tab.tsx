@@ -9,6 +9,7 @@ import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
 import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
+import { DEFAULT_LNCURL_SERVER } from '@/lib/lncurl'
 
 export function WalletTab() {
   const { data: settings, loading: settingsLoading } = useSettings()
@@ -24,6 +25,10 @@ export function WalletTab() {
   const [registrationUserEnabled, setRegistrationUserEnabled] = useState(true)
   const [registrationEnabled, setRegistrationEnabled] = useState(false)
   const [registrationAdminBypass, setRegistrationAdminBypass] = useState(true)
+  const [lncurlEnabled, setLncurlEnabled] = useState(false)
+  const [lncurlServerUrl, setLncurlServerUrl] = useState(DEFAULT_LNCURL_SERVER)
+  const [lncurlAutoCreate, setLncurlAutoCreate] = useState(false)
+  const [lncurlAutoRecreate, setLncurlAutoRecreate] = useState(false)
 
   // Restore all local form state from the currently stored settings. Called on
   // initial load and whenever the page-level Cancel button is clicked.
@@ -43,6 +48,10 @@ export function WalletTab() {
     setRegistrationAdminBypass(
       (settings.registration_admin_bypass ?? 'true') === 'true'
     )
+    setLncurlEnabled(settings.lncurl_enabled === 'true')
+    setLncurlServerUrl(settings.lncurl_server_url ?? DEFAULT_LNCURL_SERVER)
+    setLncurlAutoCreate(settings.lncurl_auto_create === 'true')
+    setLncurlAutoRecreate(settings.lncurl_auto_recreate === 'true')
   }, [settings])
 
   useEffect(() => {
@@ -62,6 +71,10 @@ export function WalletTab() {
       registration_user_enabled: registrationUserEnabled ? 'true' : 'false',
       registration_ln_enabled: registrationEnabled ? 'true' : 'false',
       registration_admin_bypass: registrationAdminBypass ? 'true' : 'false',
+      lncurl_enabled: lncurlEnabled ? 'true' : 'false',
+      lncurl_server_url: lncurlServerUrl.trim() || DEFAULT_LNCURL_SERVER,
+      lncurl_auto_create: lncurlEnabled && lncurlAutoCreate ? 'true' : 'false',
+      lncurl_auto_recreate: lncurlEnabled && lncurlAutoRecreate ? 'true' : 'false',
     })
   }, [
     updateSettings,
@@ -75,6 +88,10 @@ export function WalletTab() {
     registrationUserEnabled,
     registrationEnabled,
     registrationAdminBypass,
+    lncurlEnabled,
+    lncurlServerUrl,
+    lncurlAutoCreate,
+    lncurlAutoRecreate,
   ])
 
   const { markChanged } = useSettingsForm('wallet', save, loadFromSettings)
@@ -254,6 +271,85 @@ export function WalletTab() {
                 <Switch
                   checked={registrationAdminBypass}
                   onCheckedChange={v => { setRegistrationAdminBypass(v); markChanged() }}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
+        <div>
+          <h3 className="text-sm font-semibold">LNCurl Wallets</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Let users spin up a disposable custodial wallet instead of pasting an
+            NWC connection string.
+          </p>
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Enable LNCurl</p>
+              <p className="text-sm text-muted-foreground">
+                Show a “Create an LNCurl wallet” option when connecting a wallet.
+              </p>
+            </div>
+            <Switch
+              checked={lncurlEnabled}
+              onCheckedChange={v => { setLncurlEnabled(v); markChanged() }}
+            />
+          </div>
+
+          {lncurlEnabled && (
+            <>
+              <div className="space-y-1">
+                <Label>Server URL</Label>
+                <Input
+                  type="url"
+                  placeholder={DEFAULT_LNCURL_SERVER}
+                  value={lncurlServerUrl}
+                  onChange={e => { setLncurlServerUrl(e.target.value); markChanged() }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  LNCurl provider that mints the wallets. Defaults to{' '}
+                  <code>{DEFAULT_LNCURL_SERVER}</code>.
+                </p>
+              </div>
+
+              <div className="rounded-md border border-yellow-500/40 bg-yellow-500/5 p-3 text-xs text-yellow-700 dark:text-yellow-400">
+                LNCurl wallets cost <strong>1 sat per hour</strong> to stay alive —
+                the <strong>first hour is free</strong>. If the balance runs out
+                and hits <strong>0 sats the wallet is permanently destroyed</strong>.
+                They&apos;re for quick, low-value use — not for storing funds.
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">Autocreate wallet on new account</p>
+                  <p className="text-sm text-muted-foreground">
+                    Give every new account a default LNCurl wallet at signup.
+                  </p>
+                </div>
+                <Switch
+                  checked={lncurlAutoCreate}
+                  onCheckedChange={v => { setLncurlAutoCreate(v); markChanged() }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">Recreate when a wallet dies</p>
+                  <p className="text-sm text-muted-foreground">
+                    If an LNCurl wallet is destroyed, mint a replacement on the
+                    next incoming payment so the Lightning Address keeps
+                    receiving.
+                  </p>
+                </div>
+                <Switch
+                  checked={lncurlAutoRecreate}
+                  onCheckedChange={v => { setLncurlAutoRecreate(v); markChanged() }}
                 />
               </div>
             </>

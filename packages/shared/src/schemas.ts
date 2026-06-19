@@ -269,8 +269,12 @@ const remoteWalletName = z
 /** Driver discriminator. Mirrors the `RemoteWalletType` enum in Prisma. */
 const remoteWalletType = z.enum(['NWC', 'LND', 'CLN', 'BTCPAY'])
 
-/** Soft-state. `REVOKED` is terminal — clients should not flip back from it. */
-const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED'])
+/**
+ * Soft-state. `REVOKED` (manual soft-delete) and `DEAD` (an auto-archived
+ * disposable LNCurl wallet that ran out of sats) are both terminal — clients
+ * should not flip back from them.
+ */
+const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED', 'DEAD'])
 
 /**
  * Body for `POST /api/remote-wallets`. `config` is passed through as
@@ -284,6 +288,17 @@ export const createRemoteWalletSchema = z.object({
   config: z.unknown(),
   /** When `true`, the new wallet becomes the user's default (un-marks the previous one in the same transaction). */
   isDefault: z.boolean().optional().default(false),
+})
+
+/**
+ * Body for `POST /api/remote-wallets/lncurl`. The server mints the NWC
+ * connection string from the configured LNCurl provider, so the client only
+ * supplies an optional display name. The new wallet always becomes the
+ * caller's default and inherits the previous wallet's address/card bindings,
+ * so there's no `isDefault` flag here.
+ */
+export const createLncurlWalletSchema = z.object({
+  name: remoteWalletName.optional(),
 })
 
 /**
