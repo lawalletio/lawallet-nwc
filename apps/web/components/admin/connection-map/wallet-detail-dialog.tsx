@@ -45,7 +45,10 @@ import {
   type MakeInvoiceResult,
   type ParsedDestination,
 } from '@/lib/client/nwc'
+import { useAuth } from '@/components/admin/auth-context'
 import { toast } from 'sonner'
+
+const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 import { AutoHeight } from './auto-height'
 import { InfoField } from './info-field'
 
@@ -340,6 +343,56 @@ export function WalletActions({
   const needsNwc = receiveStep !== 'idle' || sendStep !== 'idle'
   const connection = useRemoteWalletConnectionString(needsNwc ? walletId : null)
 
+  // ── Robust send settlement detection ───────────────────────────────────
+  // The client NWC link can get congested behind a slow `pay_invoice`, so we
+  // also watch the *server* balance endpoint (an independent NWC connection)
+  // and treat a balance drop as confirmation — the signal that always works.
+  const { apiClient } = useAuth()
+
+  const fetchServerBalance = useCallback(async (): Promise<number | null> => {
+    try {
+      const r = await apiClient.get<{ balanceSats: number }>(
+        `/api/remote-wallets/${walletId}/balance`,
+      )
+      return typeof r?.balanceSats === 'number' ? r.balanceSats : null
+    } catch {
+      return null
+    }
+  }, [apiClient, walletId])
+
+  const waitForSend = useCallback(
+    async (
+      baseline: number | null,
+      amountSats: number,
+      isPayOk: () => boolean,
+      getPayError: () => unknown,
+    ): Promise<boolean> => {
+      // Require the balance to fall by ~the sent amount (not just any sat) so a
+      // stray 1-sat LNCurl maintenance tick can't be mistaken for the send.
+      const threshold = Math.max(1, Math.floor(amountSats))
+      const deadline = Date.now() + 120_000
+      while (Date.now() < deadline) {
+        if (isPayOk()) return true
+        if (baseline != null) {
+          const now = await fetchServerBalance()
+          if (now != null && baseline - now >= threshold) return true
+        }
+        if (getPayError()) {
+          // Pay errored — one last balance check (settled-but-response-lost)
+          // before we declare failure.
+          if (baseline != null) {
+            const now = await fetchServerBalance()
+            if (now != null && baseline - now >= threshold) return true
+          }
+          return false
+        }
+        await delay(2500)
+      }
+      return isPayOk()
+    },
+    [fetchServerBalance],
+  )
+
   // WebLN feature-detect on any mode change.
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -490,24 +543,37 @@ export function WalletActions({
         return
       }
       setPaying(true)
-      try {
-        if (dest.kind === 'invoice') {
-          await payInvoice(nwc, dest.bolt11, dest.amountSats ? undefined : amountSats)
-        } else if (dest.kind === 'lnurl-pay') {
-          await payLnurl(nwc, dest, amountSats)
-        } else {
-          throw new Error('Unsupported destination')
-        }
+      // Snapshot the server balance, fire the pay, then resolve on whichever
+      // confirms first — the pay response OR the balance dropping. This is what
+      // unblocks the "settled but the pay_invoice response never came" hang.
+      const baseline = await fetchServerBalance()
+      let payOk = false
+      let payError: unknown = null
+      void (
+        dest.kind === 'invoice'
+          ? payInvoice(nwc, dest.bolt11, dest.amountSats ? undefined : amountSats)
+          : dest.kind === 'lnurl-pay'
+            ? payLnurl(nwc, dest, amountSats)
+            : Promise.reject(new Error('Unsupported destination'))
+      )
+        .then(() => {
+          payOk = true
+        })
+        .catch(err => {
+          payError = err
+        })
+
+      const settled = await waitForSend(baseline, amountSats, () => payOk, () => payError)
+      setPaying(false)
+      if (settled) {
         setSentAmount(amountSats)
         setSendStep('sent')
         onPaidRef.current?.()
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Payment failed')
-      } finally {
-        setPaying(false)
+      } else {
+        toast.error(payError instanceof Error ? payError.message : 'Payment failed')
       }
     },
-    [connection.data],
+    [connection.data, fetchServerBalance, waitForSend],
   )
 
   // ── Send: parse destination + dispatch to next step ────────────────
@@ -571,10 +637,24 @@ export function WalletActions({
             amount: sats,
             defaultMemo: `From ${walletName}`,
           })
-          await payInvoice(nwc, paymentRequest)
-          setSentAmount(sats)
-          setSendStep('sent')
-          onPaidRef.current?.()
+          const baseline = await fetchServerBalance()
+          let payOk = false
+          let payError: unknown = null
+          void payInvoice(nwc, paymentRequest)
+            .then(() => {
+              payOk = true
+            })
+            .catch(err => {
+              payError = err
+            })
+          const settled = await waitForSend(baseline, sats, () => payOk, () => payError)
+          if (settled) {
+            setSentAmount(sats)
+            setSendStep('sent')
+            onPaidRef.current?.()
+          } else {
+            toast.error(payError instanceof Error ? payError.message : 'Send failed')
+          }
         } catch (err) {
           toast.error(err instanceof Error ? err.message : 'Send failed')
         } finally {
@@ -590,7 +670,16 @@ export function WalletActions({
       }
       await payDestination(destination, sats)
     },
-    [sendAmount, sendStep, destination, connection.data, walletName, payDestination],
+    [
+      sendAmount,
+      sendStep,
+      destination,
+      connection.data,
+      walletName,
+      payDestination,
+      fetchServerBalance,
+      waitForSend,
+    ],
   )
 
   // ── Render: Send SENT state — success animation ────────────────────
