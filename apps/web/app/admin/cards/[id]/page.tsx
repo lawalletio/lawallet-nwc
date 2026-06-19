@@ -7,12 +7,12 @@ import { QrCode, Trash2 } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { DesignImage } from '@/components/admin/design-image'
 import { BoltcardQrDialog } from '@/components/admin/boltcard-qr-dialog'
+import { CardWipeDialog } from '@/components/admin/card-wipe-dialog'
 import { PermissionGuard } from '@/components/admin/permission-guard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Separator } from '@/components/ui/separator'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,15 +22,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import { Permission } from '@/lib/auth/permissions'
 import { useCard, useCardMutations } from '@/lib/client/hooks/use-cards'
+import { invalidateApiPath } from '@/lib/client/hooks/use-api'
+import { truncateNpub } from '@/lib/client/format'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -44,12 +40,19 @@ export default function CardDetailPage({
   const { data: card, loading } = useCard(id)
   const { deleteCard, loading: deleteLoading } = useCardMutations()
   const [qrOpen, setQrOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   async function handleDelete() {
     try {
       await deleteCard(id)
       trackEvent(AnalyticsEvent.CARD_DELETED)
       toast.success('Card deleted')
+      // Drop the cached list/counts so /admin/cards mounts on fresh data
+      // instead of painting the just-deleted card for a frame. The SSE
+      // `cards:updated` event refetches any *already-open* list tab; this
+      // covers the navigate-back-after-delete path the redirect takes.
+      invalidateApiPath('/api/cards')
+      invalidateApiPath('/api/cards/counts')
       router.push('/admin/cards')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to delete card')
@@ -67,33 +70,15 @@ export default function CardDetailPage({
         onBack={() => router.push('/admin/cards')}
         actions={
           <PermissionGuard permission={Permission.CARDS_WRITE}>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={deleteLoading}
-                >
-                  <Trash2 className="mr-2 size-4" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this card?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. The card and its
-                    associated NTAG424 keys will be permanently removed.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete}>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deleteLoading || !card}
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="mr-2 size-4" />
+              Delete
+            </Button>
           </PermissionGuard>
         }
       />
@@ -103,6 +88,39 @@ export default function CardDetailPage({
         open={qrOpen}
         onOpenChange={setQrOpen}
       />
+
+      {/* Delete flow. When the card has an NTAG424, surface the BoltCard reset
+          QR first so the operator can wipe (and thereby unpair) the physical
+          card before the record is gone. Keys are fetched from /wipe on demand,
+          not carried in the card data. */}
+      {card?.ntag424 ? (
+        <CardWipeDialog
+          cardId={id}
+          uid={card.ntag424.cid}
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          onConfirmDelete={handleDelete}
+          deleting={deleteLoading}
+        />
+      ) : (
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this card?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. The card will be permanently
+                removed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       <div className="p-6 flex flex-col gap-6">
         {loading ? (
@@ -140,8 +158,20 @@ export default function CardDetailPage({
                     label="Status"
                     value={
                       <div className="flex gap-1.5">
-                        <Badge variant={isPaired ? 'default' : 'secondary'}>
-                          {isPaired ? 'Paired' : 'Unpaired'}
+                        <Badge
+                          variant={
+                            card?.blocked
+                              ? 'destructive'
+                              : isPaired
+                                ? 'default'
+                                : 'secondary'
+                          }
+                        >
+                          {card?.blocked
+                            ? 'Blocked'
+                            : isPaired
+                              ? 'Paired'
+                              : 'Unpaired'}
                         </Badge>
                         {isUsed && <Badge variant="outline">Used</Badge>}
                       </div>
@@ -149,7 +179,12 @@ export default function CardDetailPage({
                   />
                   <InfoField
                     label="User"
-                    value={card.lightningAddress?.username || 'Not paired'}
+                    value={
+                      card.lightningAddress
+                        ? card.lightningAddress.username ||
+                          truncateNpub(card.lightningAddress.pubkey)
+                        : 'Not paired'
+                    }
                   />
                   <InfoField label="Created" value={new Date(card.createdAt).toLocaleString()} />
                   <InfoField label="Updated" value={new Date(card.updatedAt).toLocaleString()} />
@@ -157,51 +192,40 @@ export default function CardDetailPage({
               </CardContent>
             </Card>
 
-            {/* NTAG424 Keys (collapsible, sensitive). The BoltCard QR
-                belongs here rather than on the topbar — it's the
-                hardware-programming affordance paired directly with the
-                keys it would write. */}
+            {/* Card chip (NTAG424). Keys are never shown here — they only ever
+                leave the server when the card is (re)programmed or reset, via
+                the BoltCard QR (`/write`) or the Delete → Reset flow (`/wipe`),
+                both of which unpair the card. */}
             {card.ntag424 && (
-              <Collapsible>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between gap-2">
-                    <CardTitle className="text-base">NTAG424 Keys</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <PermissionGuard permission={Permission.CARDS_WRITE}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setQrOpen(true)}
-                        >
-                          <QrCode className="mr-2 size-4" />
-                          BoltCard QR
-                        </Button>
-                      </PermissionGuard>
-                      <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          Show/Hide
-                        </Button>
-                      </CollapsibleTrigger>
-                    </div>
-                  </CardHeader>
-                  <CollapsibleContent>
-                    <CardContent className="space-y-4">
-                      <Separator />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <InfoField label="K0" value={card.ntag424.k0} mono />
-                        <InfoField label="K1" value={card.ntag424.k1} mono />
-                        <InfoField label="K2" value={card.ntag424.k2} mono />
-                        <InfoField label="K3" value={card.ntag424.k3} mono />
-                        <InfoField label="K4" value={card.ntag424.k4} mono />
-                        <InfoField label="Counter" value={String(card.ntag424.ctr)} />
-                        {card.ntag424.otc && (
-                          <InfoField label="OTC" value={card.ntag424.otc} mono />
-                        )}
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-2">
+                  <CardTitle className="text-base">Card chip (NTAG424)</CardTitle>
+                  <PermissionGuard permission={Permission.CARDS_WRITE}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setQrOpen(true)}
+                    >
+                      <QrCode className="mr-2 size-4" />
+                      BoltCard QR
+                    </Button>
+                  </PermissionGuard>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <InfoField label="UID" value={card.ntag424.cid} mono />
+                    <InfoField label="Counter" value={String(card.ntag424.ctr)} />
+                    {card.ntag424.otc && (
+                      <InfoField label="OTC" value={card.ntag424.otc} mono />
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Keys are never displayed. Programming the card (BoltCard QR)
+                    or resetting it (Delete → Reset) exports the keys and unpairs
+                    the card from its user.
+                  </p>
+                </CardContent>
+              </Card>
             )}
           </>
         )}

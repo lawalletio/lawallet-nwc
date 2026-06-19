@@ -63,6 +63,11 @@ describe('GET /api/cards/[id]', () => {
 
     expect(body.id).toBe(card.id)
     expect(body.design).toBeDefined()
+
+    // The detail view must never select the NTAG424 keys.
+    const arg: any = vi.mocked(prismaMock.card.findUnique).mock.calls[0][0]
+    expect(arg.select.ntag424.select.cid).toBe(true)
+    expect(arg.select.ntag424.select.k0).toBeUndefined()
   })
 
   it('returns 404 for nonexistent card', async () => {

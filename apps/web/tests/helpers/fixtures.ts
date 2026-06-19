@@ -30,6 +30,7 @@ export function createCardFixture(overrides: Record<string, unknown> = {}) {
     title: faker.commerce.productName(),
     createdAt: faker.date.past(),
     lastUsedAt: null,
+    blockedAt: null,
     username: null,
     otc: faker.string.hexadecimal({ length: 32, prefix: '' }),
     ntag424Cid: faker.string.hexadecimal({ length: 14, prefix: '' }),

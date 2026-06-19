@@ -97,8 +97,20 @@ export function CardDetailBody({
             <InfoField
               label="Pairing"
               value={
-                <Badge variant={card.ntag424 ? 'default' : 'secondary'}>
-                  {card.ntag424 ? 'Paired' : 'Unpaired'}
+                <Badge
+                  variant={
+                    card.blocked
+                      ? 'destructive'
+                      : card.lightningAddress
+                        ? 'default'
+                        : 'secondary'
+                  }
+                >
+                  {card.blocked
+                    ? 'Blocked'
+                    : card.lightningAddress
+                      ? 'Paired'
+                      : 'Unpaired'}
                 </Badge>
               }
             />
@@ -106,7 +118,7 @@ export function CardDetailBody({
             {/* Lightning Address — only when the card is claimed by a
                 user. Clickable when the parent provides a handler so
                 the user can hop straight into the LA detail dialog. */}
-            {card.lightningAddress && (
+            {card.lightningAddress?.username && (
               <InfoField
                 label="Lightning Address"
                 value={
@@ -114,7 +126,7 @@ export function CardDetailBody({
                     <button
                       type="button"
                       onClick={() =>
-                        onOpenAddress(card.lightningAddress!.username)
+                        onOpenAddress(card.lightningAddress!.username!)
                       }
                       className="text-left hover:underline"
                     >

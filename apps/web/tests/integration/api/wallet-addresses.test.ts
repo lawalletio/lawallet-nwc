@@ -207,10 +207,42 @@ describe('POST /api/wallet/addresses', () => {
     expect(res.status).toBe(409)
   })
 
-  it('creates a new address as non-primary by default', async () => {
+  it('auto-sets the first address as primary', async () => {
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    // No existing addresses for this user → the new one becomes primary.
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+    vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+      makeAddress({ username: 'bob', isPrimary: true }) as any,
+    )
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob' },
+      })
+    )
+    const body: any = await assertResponse(res, 201)
+    expect(body.username).toBe('bob')
+    expect(body.isPrimary).toBe(true)
+    expect(prismaMock.lightningAddress.count).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'user-1' } }),
+    )
+    expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ username: 'bob', isPrimary: true }),
+      }),
+    )
+  })
+
+  it('creates a secondary address as non-primary when the user already has one', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    // User already owns an address → the new one must not steal primary.
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(1)
     vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
       makeAddress({ username: 'bob', isPrimary: false }) as any,
     )
@@ -223,7 +255,6 @@ describe('POST /api/wallet/addresses', () => {
       })
     )
     const body: any = await assertResponse(res, 201)
-    expect(body.username).toBe('bob')
     expect(body.isPrimary).toBe(false)
     expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({

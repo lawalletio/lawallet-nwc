@@ -78,9 +78,16 @@ describe('GET /api/cards', () => {
 
     expect(body).toHaveLength(1)
     expect(body[0].id).toBe(card.id)
+
+    // The list must never select the NTAG424 keys — only the public UID/counter.
+    const arg: any = vi.mocked(prismaMock.card.findMany).mock.calls[0][0]
+    expect(arg.select.ntag424.select.cid).toBe(true)
+    expect(arg.select.ntag424.select.ctr).toBe(true)
+    expect(arg.select.ntag424.select.k0).toBeUndefined()
+    expect(arg.select.ntag424.select.k1).toBeUndefined()
   })
 
-  it('filters by paired=true', async () => {
+  it('filters by paired=true (cards with an owner)', async () => {
     mockAdminAuth()
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([])
 
@@ -88,9 +95,10 @@ describe('GET /api/cards', () => {
     const res = await GET(req)
     await assertResponse(res, 200)
 
+    // Paired === has an owner (`userId`), not `otc` (which every card has).
     expect(prismaMock.card.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ otc: { not: null } }),
+        where: expect.objectContaining({ userId: { not: null } }),
       })
     )
   })
@@ -229,5 +237,39 @@ describe('POST /api/cards', () => {
     const res = await POST(req)
 
     expect(res.status).toBe(400)
+  })
+
+  it('returns 409 (not 500) when a card with the same UID already exists', async () => {
+    mockAdminAuth()
+    // The UID is the NTAG424 primary key — a re-used one is a conflict.
+    vi.mocked(prismaMock.ntag424.findUnique).mockResolvedValue({
+      cid: 'AABBCCDDEE1122',
+    } as any)
+
+    const req = createNextRequest('/api/cards', {
+      method: 'POST',
+      body: { id: 'AA:BB:CC:DD:EE:11:22', designId: 'design-1' },
+    })
+    const res = await POST(req)
+    const body: any = await assertResponse(res, 409)
+
+    expect(body.error.code).toBe('CONFLICT')
+    expect(body.error.message).toMatch(/already exists/i)
+    expect(prismaMock.ntag424.create).not.toHaveBeenCalled()
+  })
+
+  it('maps a P2002 unique-constraint race to a 409, not a 500', async () => {
+    mockAdminAuth()
+    vi.mocked(prismaMock.ntag424.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.ntag424.create).mockRejectedValue({ code: 'P2002' })
+
+    const req = createNextRequest('/api/cards', {
+      method: 'POST',
+      body: { id: 'AABBCCDDEE1122', designId: 'design-1' },
+    })
+    const res = await POST(req)
+    const body: any = await assertResponse(res, 409)
+
+    expect(body.error.code).toBe('CONFLICT')
   })
 })

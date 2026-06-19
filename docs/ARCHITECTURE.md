@@ -506,6 +506,63 @@ NFC cards use NTAG424 DNA chips with SUN (Secure Unique NFC) authentication.
 2. Write LNURL-withdraw URL to chip NFC data
 3. Store keys + chip ID in database
 
+### Key Exposure (security)
+
+The AES keys are held server-side and are **never returned by read endpoints** —
+`GET /api/cards` and `GET /api/cards/[id]` expose only the public UID (`cid`) and
+tap counter. Keys are exported by exactly two hardware-programming endpoints:
+
+- `GET /api/cards/[id]/write?token=…` — program a blank chip with this card's
+  keys. **Replay-protected**: requires a single-use token minted by
+  `POST /api/cards/[id]/write-token` (valid only while the card is *fresh* —
+  never tapped — and consumed on the first fetch); returns **403** otherwise.
+- `GET /api/cards/[id]/wipe` — reset the chip's keys to factory defaults.
+
+Both **unpair the card** from any user as a side effect (clearing `Card.userId`,
+`Card.username`, `Card.remoteWalletId`, and `Ntag424.userId`) — once a card's
+secrets have been handed out it can no longer be safely owned. The admin card
+emulator never receives keys either: it calls `POST /api/cards/[id]/emulate-tap`,
+which signs a SUN tap server-side and returns only the public `p`/`c` params.
+
+#### Card lifecycle status
+
+A card's status is derived, not stored as an enum:
+
+- **Paired** — has an owner (`Card.userId !== null`).
+- **Unpaired** — no owner; can still be activated/programmed.
+- **Used** — tapped at least once (`Ntag424.ctr > 0` / `lastUsedAt` set).
+- **Blocked** — `Card.blockedAt` is set, stamped the first time `/wipe` exports
+  the *reset* keys. A blocked card is **decommissioned**: it can never be
+  re-paired, activated (`/otc/activate`, activation-token mint + claim, and
+  `/rescue` all **409**), or programmed (`/write-token` **409**) again. Its reset keys stay
+  **re-fetchable** indefinitely (so the operator can finish resetting the
+  physical chip), and it lingers in the DB — shown as **Blocked** in the admin —
+  until the operator **explicitly deletes** it, which permanently removes the
+  record and loses the keys. (`/write` does *not* block — programming a fresh
+  card leaves it re-usable.)
+
+#### Programming integration (external NFC apps)
+
+A programming app (e.g. [card-installer](https://github.com/lawalletio/card-installer))
+provisions a card like this:
+
+1. `POST /api/cards` (JWT, `CARDS_WRITE`) — create the card. The response
+   includes the NTAG424 keys for the fresh chip.
+2. `POST /api/cards/[id]/write-token` (JWT) — mint a single-use token. The
+   response is `{ token, url, expiresAt }`: `url` is the public-domain
+   `/write?token=…` (the same URL the admin "Program BoltCard" QR encodes), and
+   `token` is also returned **raw**.
+3. `GET <base>/api/cards/[id]/write?token=…` — fetch the keys + `lnurlw_base`
+   and program the chip. Anchor this on the **instance host the app can reach**
+   (its own `baseUrl`) using the raw `token`, because the public LUD-16 domain
+   in `url` can differ from (and be unreachable from) the API host. The
+   `/write` response's `lnurlw_base` is always the server-derived **public scan
+   host**, so the chip is programmed with the correct tap URL regardless of
+   which host fetched the keys.
+
+`/wipe` (reset) is fetched directly with the device JWT and is not token-gated.
+Neither flow uses the card read endpoint, which never returns keys.
+
 ### Card Tap Verification
 
 ```
@@ -690,13 +747,17 @@ Pino-based structured logging with AsyncLocalStorage for request ID correlation.
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| GET | `/api/cards` | ADMIN | List all cards (filter: paired, used) |
+| GET | `/api/cards` | ADMIN | List **all** cards (filter: paired, used). "Paired" === the card has an owner (`userId`) |
+| GET | `/api/wallet/cards` | Auth | List only the caller's **own** cards (paired to them). Any role; powers the per-user Cards view + Connection Map (**no keys**) |
 | POST | `/api/cards` | Auth | Create card with NTAG424 + OTC |
-| GET | `/api/cards/[id]` | Auth | Get card details |
-| GET | `/api/cards/counts` | Auth | Count paired/unpaired/used |
-| GET | `/api/cards/[id]/scan` | Public | LUD-03 withdraw request (NFC tap) |
+| GET | `/api/cards/[id]` | Auth | Get card details (**no keys**) |
+| GET | `/api/cards/counts` | Auth | Count paired/unpaired/used (paired === has `userId`) |
+| GET | `/api/cards/[id]/scan` | Public | LUD-03 withdraw request (NFC tap); with request header `x-request-action: info` returns card status JSON instead (design, image, owner, paired/used — no keys/OTC) |
 | GET | `/api/cards/[id]/scan/cb` | Public | LUD-03 callback, issue invoice |
-| POST | `/api/cards/[id]/write` | Auth | Prepare NFC write payload |
+| POST | `/api/cards/[id]/write-token` | OPERATOR | Mint a single-use BoltCard programming URL — only while the card is **fresh** (never tapped); **409** otherwise |
+| GET | `/api/cards/[id]/write` | Public | NFC program payload (keys). **Requires** the single-use `?token=` from `/write-token` (replay-protected; **403** without it or once tapped); **unpairs** the card and **consumes** the token |
+| GET | `/api/cards/[id]/wipe` | Public | NFC reset payload (keys); **blocks** the card (unpairs + marks `Blocked`, decommissioned). Re-fetchable; delete to remove |
+| POST | `/api/cards/[id]/emulate-tap` | Auth | Server-side SUN signing for the card emulator (no keys) |
 | GET | `/api/cards/otc/[otc]` | Public | Lookup card by one-time code |
 | POST | `/api/cards/otc/[otc]/activate` | Auth | Activate card with username |
 

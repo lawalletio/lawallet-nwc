@@ -74,12 +74,21 @@ export const POST = withErrorHandling(async (request: Request) => {
   const existing = await prisma.lightningAddress.findUnique({ where: { username } })
   if (existing) throw new ConflictError('Username is already taken')
 
+  // A user's first/only address becomes their primary automatically — nobody
+  // should end up with a single, non-primary address. Subsequent adds never
+  // touch the existing primary. The DB's partial-unique index (one primary per
+  // userId) makes this safe: when the count is 0 there's no primary to clash.
+  const ownedCount = await prisma.lightningAddress.count({
+    where: { userId: user.id },
+  })
+  const isPrimary = ownedCount === 0
+
   const created = await prisma.lightningAddress.create({
     data: {
       username,
       userId: user.id,
       mode: mode ?? 'DEFAULT_NWC',
-      isPrimary: false,
+      isPrimary,
     },
     include: { remoteWallet: true },
   })

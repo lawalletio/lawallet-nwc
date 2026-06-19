@@ -1,4 +1,4 @@
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { resolveApiUrl } from '@/lib/public-url'
 import { Card } from '@/types'
 import { User } from '@/types/user'
 import { NextRequest, NextResponse } from 'next/server'
@@ -19,7 +19,8 @@ export default async function newOTC(
     data: { otc }
   })
 
-  const { url } = await resolvePublicEndpoint(req)
+  // Activation link targets the wallet app — instance endpoint, not LUD-16 domain.
+  const url = await resolveApiUrl(req)
 
   logger.info({ cardId: card.id, otc }, 'Generated new OTC for card')
 

@@ -45,38 +45,103 @@ describe('OPTIONS /api/cards/[id]/write', () => {
 })
 
 describe('GET /api/cards/[id]/write', () => {
-  it('returns NTAG424 write data for card', async () => {
-    const ntag424 = createNtag424Fixture()
-    const design = createCardDesignFixture()
-    const card = { ...createCardFixture(), design, ntag424 }
+  const VALID_TOKEN = 'tok_valid_123'
+
+  // A fresh (never-tapped) card carrying a valid, unexpired write token.
+  function tokenedCard(overrides: Record<string, unknown> = {}) {
+    return {
+      ...createCardFixture(),
+      design: createCardDesignFixture(),
+      ntag424: createNtag424Fixture(),
+      writeToken: VALID_TOKEN,
+      writeTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      ...overrides,
+    }
+  }
+
+  it('returns NTAG424 write data with a valid token, unpairing + consuming it', async () => {
+    const card = tokenedCard()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: '' })
     vi.mocked(cardToNtag424WriteData).mockReturnValue({
       card_name: 'Test Card',
-      id: ntag424.cid,
-      k0: ntag424.k0,
-      k1: ntag424.k1,
-      k2: ntag424.k2,
-      k3: ntag424.k3,
-      k4: ntag424.k4,
+      k0: card.ntag424.k0,
       lnurlw_base: `lnurlw://test.com/api/cards/${card.id}/scan`,
       protocol_name: 'new_bolt_card_response',
       protocol_version: '1',
     } as any)
 
-    const req = createNextRequest(`/api/cards/${card.id}/write`)
+    const req = createNextRequest(`/api/cards/${card.id}/write?token=${VALID_TOKEN}`)
     const res = await GET(req, createParamsPromise({ id: card.id }))
     const body: any = await assertResponse(res, 200)
 
     expect(body.protocol_name).toBe('new_bolt_card_response')
     expect(body.k0).toBeDefined()
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    // Exporting the keys unpairs the card from any user...
+    expect(prismaMock.card.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: card.id },
+        data: { userId: null, username: null, remoteWalletId: null },
+      })
+    )
+    // ...and consumes the one-time token (single-use replay protection).
+    expect(prismaMock.card.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: card.id },
+        data: { writeToken: null, writeTokenExpiresAt: null },
+      })
+    )
+  })
+
+  it('returns 403 (and exports nothing) when no token is supplied', async () => {
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(tokenedCard() as any)
+
+    const req = createNextRequest('/api/cards/card-1/write')
+    const res = await GET(req, createParamsPromise({ id: 'card-1' }))
+
+    expect(res.status).toBe(403)
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when the token does not match', async () => {
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(tokenedCard() as any)
+
+    const req = createNextRequest('/api/cards/card-1/write?token=wrong')
+    const res = await GET(req, createParamsPromise({ id: 'card-1' }))
+
+    expect(res.status).toBe(403)
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 when the token is expired', async () => {
+    const expired = tokenedCard({ writeTokenExpiresAt: new Date(Date.now() - 1000) })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(expired as any)
+
+    const req = createNextRequest(`/api/cards/card-1/write?token=${VALID_TOKEN}`)
+    const res = await GET(req, createParamsPromise({ id: 'card-1' }))
+
+    expect(res.status).toBe(403)
+  })
+
+  it('returns 403 when the card has already been tapped, even with a matching token', async () => {
+    const tapped = tokenedCard({
+      lastUsedAt: new Date(),
+      ntag424: { ...createNtag424Fixture(), ctr: 3 },
+    })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(tapped as any)
+
+    const req = createNextRequest(`/api/cards/card-1/write?token=${VALID_TOKEN}`)
+    const res = await GET(req, createParamsPromise({ id: 'card-1' }))
+
+    expect(res.status).toBe(403)
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
   })
 
   it('returns 404 for nonexistent card', async () => {
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(null)
 
-    const req = createNextRequest('/api/cards/nonexistent/write')
+    const req = createNextRequest(`/api/cards/nonexistent/write?token=${VALID_TOKEN}`)
     const res = await GET(req, createParamsPromise({ id: 'nonexistent' }))
 
     expect(res.status).toBe(404)
@@ -86,31 +151,31 @@ describe('GET /api/cards/[id]/write', () => {
     const card = { ...createCardFixture(), design: createCardDesignFixture(), ntag424: null }
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
 
-    const req = createNextRequest(`/api/cards/${card.id}/write`)
+    const req = createNextRequest(`/api/cards/${card.id}/write?token=${VALID_TOKEN}`)
     const res = await GET(req, createParamsPromise({ id: card.id }))
 
     expect(res.status).toBe(400)
   })
 
   it('uses domain setting for lnurlw_base host', async () => {
-    const ntag424 = createNtag424Fixture()
-    const card = { ...createCardFixture(), design: createCardDesignFixture(), ntag424 }
+    const card = tokenedCard()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'example.com', endpoint: '' })
     vi.mocked(cardToNtag424WriteData).mockReturnValue({ lnurlw_base: 'test' } as any)
 
-    const req = createNextRequest(`/api/cards/${card.id}/write`)
+    const req = createNextRequest(`/api/cards/${card.id}/write?token=${VALID_TOKEN}`)
     await GET(req, createParamsPromise({ id: card.id }))
 
     expect(cardToNtag424WriteData).toHaveBeenCalledWith(
-      expect.anything(),
-      'example.com'
+      expect.anything(), // ntag424
+      expect.anything(), // cardId
+      expect.anything(), // title
+      'example.com' // host
     )
   })
 
   it('uses endpoint URL host for lnurlw_base host', async () => {
-    const ntag424 = createNtag424Fixture()
-    const card = { ...createCardFixture(), design: createCardDesignFixture(), ntag424 }
+    const card = tokenedCard()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'example.com',
@@ -118,12 +183,14 @@ describe('GET /api/cards/[id]/write', () => {
     })
     vi.mocked(cardToNtag424WriteData).mockReturnValue({ lnurlw_base: 'test' } as any)
 
-    const req = createNextRequest(`/api/cards/${card.id}/write`)
+    const req = createNextRequest(`/api/cards/${card.id}/write?token=${VALID_TOKEN}`)
     await GET(req, createParamsPromise({ id: card.id }))
 
     expect(cardToNtag424WriteData).toHaveBeenCalledWith(
-      expect.anything(),
-      'app.example.com'
+      expect.anything(), // ntag424
+      expect.anything(), // cardId
+      expect.anything(), // title
+      'app.example.com' // host
     )
   })
 })

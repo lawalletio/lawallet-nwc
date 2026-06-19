@@ -1,6 +1,5 @@
-import { Card } from '@/types'
 import { Ntag424WriteData, Ntag424WipeData, Ntag424 } from '@/types/ntag424'
-import { createDecipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { AesCmac } from 'aes-cmac'
 
 const debug = (message: string) => {
@@ -11,22 +10,29 @@ const debug = (message: string) => {
  * Builds the Boltcard "write" payload used to provision a blank NTAG424 with
  * this card's keys and the LNURLW base pointing at our scan endpoint.
  *
- * @param card - Card record with its `ntag424` keys eagerly loaded.
+ * Takes the raw `ntag424` (keys) directly rather than a `Card`, since the public
+ * `Card` type no longer carries keys.
+ *
+ * @param ntag424 - The card's NTAG424 record (with keys).
+ * @param cardId - The card id, for the `lnurlw://` scan URL.
+ * @param cardTitle - Optional card title for `card_name`.
  * @param domain - The platform's public host (used in the `lnurlw://` URL).
  */
 export function cardToNtag424WriteData(
-  card: Card,
+  ntag424: Ntag424,
+  cardId: string,
+  cardTitle: string | null | undefined,
   domain: string
 ): Ntag424WriteData {
   return {
-    card_name: card.title || 'Unnamed',
-    id: card.ntag424!.cid,
-    k0: card.ntag424!.k0,
-    k1: card.ntag424!.k1,
-    k2: card.ntag424!.k2,
-    k3: card.ntag424!.k3,
-    k4: card.ntag424!.k4,
-    lnurlw_base: `lnurlw://${domain}/api/cards/${card.id}/scan`,
+    card_name: cardTitle || 'Unnamed',
+    id: ntag424.cid,
+    k0: ntag424.k0,
+    k1: ntag424.k1,
+    k2: ntag424.k2,
+    k3: ntag424.k3,
+    k4: ntag424.k4,
+    lnurlw_base: `lnurlw://${domain}/api/cards/${cardId}/scan`,
     protocol_name: 'new_bolt_card_response',
     protocol_version: '1'
   }
@@ -36,15 +42,15 @@ export function cardToNtag424WriteData(
  * Builds the Boltcard "wipe" payload that resets an NTAG424 back to factory
  * defaults using the card's recorded keys.
  */
-export function cardToNtag424WipeData(card: Card): Ntag424WipeData {
+export function cardToNtag424WipeData(ntag424: Ntag424): Ntag424WipeData {
   return {
     action: 'wipe',
-    k0: card.ntag424!.k0,
-    k1: card.ntag424!.k1,
-    k2: card.ntag424!.k2,
-    k3: card.ntag424!.k3,
-    k4: card.ntag424!.k4,
-    uid: card.ntag424!.cid,
+    k0: ntag424.k0,
+    k1: ntag424.k1,
+    k2: ntag424.k2,
+    k3: ntag424.k3,
+    k4: ntag424.k4,
+    uid: ntag424.cid,
     version: 1
   }
 }
@@ -187,4 +193,46 @@ export const consumeNtag424FromPC = async (
   }
 
   return { ok: ntag424, ctrOld, ctrNew }
+}
+
+/**
+ * Signs a simulated SUN tap for `ctr` — the inverse of
+ * {@link consumeNtag424FromPC}. Used by the admin card emulator's server-side
+ * signing endpoint so the card's `k1`/`k2` never leave the server; only the
+ * public `p`/`c` URL params are returned.
+ *
+ * - `p` = AES-128-CBC encrypt (zero IV, no padding) under `k1` of the 16-byte
+ *   block `0xC7 ‖ cid(7) ‖ ctr(3, little-endian) ‖ 00×5`.
+ * - `c` = the SDMMAC over the same `cid`/`ctr` under `k2` (reuses {@link sdmmac}).
+ *
+ * Returns uppercase hex (`p` 32 chars, `c` 16 chars) matching the format
+ * `consumeNtag424FromPC` validates.
+ */
+export const signNtag424Tap = async (
+  ntag424: Pick<Ntag424, 'cid' | 'k1' | 'k2'>,
+  ctr: number
+): Promise<{ p: string; c: string }> => {
+  const cidBytes: Buffer = Buffer.from(ntag424.cid, 'hex')
+  const ctrBytes: Buffer = Buffer.from([
+    ctr & 0xff,
+    (ctr >> 8) & 0xff,
+    (ctr >> 16) & 0xff
+  ])
+  const block: Buffer = Buffer.concat([
+    Buffer.from([0xc7]),
+    cidBytes,
+    ctrBytes,
+    Buffer.alloc(5)
+  ])
+  const cipher = createCipheriv(
+    'aes128',
+    Buffer.from(ntag424.k1, 'hex'),
+    zeroIv
+  ).setAutoPadding(false)
+  const p: Buffer = Buffer.concat([cipher.update(block), cipher.final()])
+  const c: string = await sdmmac(ntag424.k2, cidBytes, ctrBytes)
+  return {
+    p: p.toString('hex').toUpperCase(),
+    c: c.toUpperCase()
+  }
 }

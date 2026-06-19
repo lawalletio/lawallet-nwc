@@ -9,6 +9,17 @@ export type Ntag424 = {
   createdAt: Date
 }
 
+/**
+ * The NTAG424 fields safe to return in card read responses — the public UID and
+ * tap counter, never the AES keys. Keys only ever leave the server via the
+ * programming/reset endpoints (`/write`, `/wipe`).
+ */
+export type Ntag424Public = {
+  cid: string
+  ctr: number
+  createdAt: Date
+}
+
 export type Ntag424WriteData = {
   card_name: string
   id: string

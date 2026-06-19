@@ -81,9 +81,10 @@ Not implemented in the current repo:
 
 ### Cards and Card Designs
 
-- `GET /api/cards` and `POST /api/cards` — Card listing and creation
+- `GET /api/cards` and `POST /api/cards` — Card listing and creation (creation returns the NTAG424 keys for the fresh card)
 - `GET /api/cards/:id` and `DELETE /api/cards/:id` — Card detail and deletion
-- `GET /api/cards/:id/write` — Card write payload
+- `POST /api/cards/:id/write-token` — Mint a single-use BoltCard programming URL (only while the card is fresh/never-tapped; 409 otherwise). Returns `{ token, url, expiresAt }`
+- `GET /api/cards/:id/write` — Card write payload (NTAG424 keys). **Requires** the single-use `?token=` from `/write-token`; replay-protected (403 without it or once tapped), consumes the token, and unpairs the card
 - `GET /api/cards/:id/scan` — LNURL-withdraw style card scan response
 - `GET /api/cards/:id/scan/cb` — Card scan callback
 - `GET /api/cards/otc/:otc` — OTC lookup

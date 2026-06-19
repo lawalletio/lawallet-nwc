@@ -1,10 +1,10 @@
 import type { CardDesign } from './card-design'
-import type { Ntag424 } from './ntag424'
+import type { Ntag424Public } from './ntag424'
 
 export type Card = {
   id: string
   design: CardDesign
-  ntag424?: Ntag424
+  ntag424?: Ntag424Public
   createdAt: Date
   title?: string
   lastUsedAt?: Date
@@ -15,4 +15,9 @@ export type Card = {
   remoteWalletId?: string | null
   /** Card kind. SIMPLE supports ownership-transfer; MASTER reserved for sharing. */
   kind?: 'SIMPLE' | 'MASTER'
+  /**
+   * True once the card's reset (wipe) keys have been exported — it's
+   * decommissioned and can only be re-wiped or deleted, never re-used.
+   */
+  blocked?: boolean
 }

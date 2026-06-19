@@ -1,12 +1,14 @@
 'use client'
 
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Background,
   Controls,
   Panel,
   ReactFlow,
   ReactFlowProvider,
+  useEdgesState,
+  useNodesState,
   type Connection,
   type Edge,
   type Node,
@@ -23,7 +25,7 @@ import {
   type WalletAddress,
 } from '@/lib/client/hooks/use-wallet-addresses'
 import {
-  useCards,
+  useMyCards,
   useCardMutations,
   type CardData,
 } from '@/lib/client/hooks/use-cards'
@@ -38,8 +40,6 @@ import {
   ConnectionDetailDialog,
   type ConnectionSelection,
 } from './connection-detail-dialog'
-import { useAuth } from '@/components/admin/auth-context'
-import { Permission } from '@/lib/auth/permissions'
 
 /** Stable id helpers — used by both nodes and edges so they always agree. */
 const walletNodeId = (id: string) => `wallet:${id}`
@@ -96,23 +96,16 @@ const edgeTypes = { highlight: HighlightEdge }
  *   otherwise fire a constant stream of enter/leave events.
  */
 function ConnectionMapInner() {
-  const { isAuthorized } = useAuth()
   const { data: settings } = useSettings()
   const { data: wallets, loading: walletsLoading } = useRemoteWallets()
   const { data: addresses, loading: addressesLoading } = useMyAddresses()
-  // The page is reachable by EVERY authenticated role (the admin layout
-  // only gates on auth, not role). `/api/remote-wallets` and
-  // `/api/wallet/addresses` are per-caller, so they're fine for anyone.
-  //
-  // `/api/cards` is admin-scoped (`CARDS_READ`), so we only fetch it when
-  // the caller actually has the permission — otherwise we'd fire a 403
-  // on every non-admin page load. Without the permission the cards
-  // column just doesn't render (a per-user cards endpoint that would let
-  // plain users see their own cards bound to wallets is out of scope).
-  const canReadCards = isAuthorized(Permission.CARDS_READ)
-  const { data: cards, loading: cardsLoading } = useCards(undefined, {
-    enabled: canReadCards,
-  })
+  // The page is reachable by EVERY authenticated role (the admin layout only
+  // gates on auth, not role). All three sources are per-caller, so they're
+  // fine for anyone: `/api/remote-wallets`, `/api/wallet/addresses`, and
+  // `/api/wallet/cards` — the last returns only the cards paired to the
+  // logged-in account, so even an admin sees just their own here (and there's
+  // no client-side pubkey matching that could hide a freshly paired card).
+  const { data: cards, loading: cardsLoading } = useMyCards()
 
   const loading = walletsLoading || addressesLoading || cardsLoading
   const domain = settings?.domain || 'your-domain'
@@ -156,10 +149,39 @@ function ConnectionMapInner() {
     [wallets],
   )
 
-  const { nodes, edges } = useMemo(
+  const { nodes: computedNodes, edges: computedEdges } = useMemo(
     () => buildGraph({ wallets, addresses, cards, defaultWallet, domain, lncurlEnabled }),
     [wallets, addresses, cards, defaultWallet, domain, lncurlEnabled],
   )
+
+  // ReactFlow needs to OWN the node/edge state (via these hooks) rather than
+  // being fully controlled off the `buildGraph` memo. Fully-controlled mode
+  // without `onNodesChange` can't persist each node's *measured* dimensions —
+  // so when a data refetch (e.g. an SSE `cards:updated` after a drag-rebind)
+  // hands ReactFlow a brand-new `nodes` array, the fresh objects arrive
+  // unmeasured and every edge loses its handle anchoring and disappears until
+  // a full reload. Owning the state + re-applying the freshly computed graph
+  // while carrying the measured dimensions forward keeps the edges anchored.
+  const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges)
+
+  useEffect(() => {
+    setNodes(prev => {
+      const prevById = new Map(prev.map(n => [n.id, n]))
+      return computedNodes.map(n => {
+        const old = prevById.get(n.id)
+        // Carry xyflow's measured size (+ width/height) forward by id so the
+        // replacement nodes can anchor their handles immediately.
+        return old?.measured
+          ? { ...n, measured: old.measured, width: old.width, height: old.height }
+          : n
+      })
+    })
+  }, [computedNodes, setNodes])
+
+  useEffect(() => {
+    setEdges(computedEdges)
+  }, [computedEdges, setEdges])
 
   // Compute the highlight set. When nothing is hovered, everything renders
   // at full opacity (no dimming).
@@ -412,6 +434,8 @@ function ConnectionMapInner() {
         <ReactFlow
           nodes={nodes}
           edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           // The admin shell is `forcedTheme="dark"` via next-themes, so we
@@ -647,7 +671,10 @@ function buildGraph({
             card.title ?? card.lightningAddress?.username ?? truncateHex(card.id),
           designName: card.design?.description ?? null,
           designImage: card.design?.image ?? null,
-          paired: !!card.ntag424,
+          // "Paired" === linked to a user (the card has an owner), never
+          // "has an NFC chip". Matches the userId-based semantics used by the
+          // counts + /api/cards `paired` filter.
+          paired: !!card.lightningAddress,
         },
       })
       y += cardRowGap

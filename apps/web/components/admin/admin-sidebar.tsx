@@ -14,6 +14,7 @@ import {
   Settings,
   Puzzle,
   ChevronLeft,
+  Nfc,
   MoreVertical,
   Copy,
   LogOut,
@@ -82,11 +83,14 @@ const platformItems: NavItem[] = [
     icon: Users,
     permission: Permission.ADDRESSES_READ,
   },
+  // Cards is shown to every authenticated user — no `permission` set. The
+  // page adapts: admins (CARDS_READ) get the instance-wide list, while a plain
+  // USER sees only the cards paired to themselves (via /api/wallet/cards), with
+  // no create action and no Designs section.
   {
     title: 'Cards',
     href: '/admin/cards',
     icon: CreditCard,
-    permission: Permission.CARDS_READ,
   },
   // Addresses is shown to every authenticated user — no `permission` set.
   // The page itself is per-user (driven by the caller's pubkey via
@@ -105,7 +109,8 @@ const platformItems: NavItem[] = [
     icon: Wallet,
   },
   // Connection Map — visual graph of address/card → wallet bindings.
-  // Per-user view of own bindings; cards section is admin-scoped today.
+  // Fully per-user now: every column (addresses, cards, wallets) shows only
+  // what the logged-in account owns, even for admins.
   {
     title: 'Connections',
     href: '/admin/connections',
@@ -446,6 +451,26 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
                     </SidebarMenuItem>
                   ))}
 
+                  {/* Card Emulator — ADMIN-only dev/test tool (forges NTAG424
+                      taps with raw keys), so it's gated tighter than Cards. */}
+                  {role === Role.ADMIN && (
+                    <SidebarMenuItem>
+                      {disabled ? (
+                        <SidebarMenuButton disabled isActive={isActive('/admin/emulator')}>
+                          <Nfc className="size-4" />
+                          <span>Card Emulator</span>
+                        </SidebarMenuButton>
+                      ) : (
+                        <SidebarMenuButton asChild isActive={isActive('/admin/emulator')}>
+                          <Link href="/admin/emulator" onClick={closeMobile}>
+                            <Nfc className="size-4" />
+                            <span>Card Emulator</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      )}
+                    </SidebarMenuItem>
+                  )}
+
                   {showSettings && (
                     // `SettingsNav` reads the active tab from the URL query via
                     // `useSearchParams`, which must sit under a Suspense boundary.
@@ -515,6 +540,18 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top">
+              {/* Mirror of the wallet avatar's "Admin dashboard" item — lets
+                  the user hop to their personal wallet without logging out. */}
+              <DropdownMenuItem
+                onClick={() => {
+                  closeMobile()
+                  router.push('/wallet')
+                }}
+              >
+                <Wallet className="size-4 mr-2" />
+                Switch to wallet view
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={copyPubkey}>
                 <Copy className="size-4 mr-2" />
                 Copy npub

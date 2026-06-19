@@ -8,6 +8,8 @@ import {
   ArrowUpRight,
   Eye,
   EyeOff,
+  LayoutDashboard,
+  LogOut,
   QrCode,
   Sparkles,
 } from 'lucide-react'
@@ -32,6 +34,13 @@ import {
   type Currency as CurrencyDef,
 } from '@/lib/client/currencies-store'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { RelayErrorBadge } from '@/components/wallet/shared/relay-error-badge'
@@ -98,23 +107,43 @@ export function HomeScreen() {
   return (
     <div className="flex flex-1 flex-col">
       <header className="flex items-center justify-between gap-3 px-4 pt-4">
-        <button
-          type="button"
-          onClick={logout}
-          aria-label={pubkey ? `Logged in as ${pubkey.slice(0, 8)}…${pubkey.slice(-4)}` : 'Profile'}
-          className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-card transition-colors hover:opacity-90"
-        >
-          <Image
-            src={avatarSrc}
-            alt=""
-            fill
-            sizes="44px"
-            className={cn(
-              profile?.picture ? 'object-cover' : 'object-contain p-1.5',
-            )}
-            unoptimized
-          />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={pubkey ? `Account · ${pubkey.slice(0, 8)}…${pubkey.slice(-4)}` : 'Account'}
+              className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-card transition-colors hover:opacity-90"
+            >
+              <Image
+                src={avatarSrc}
+                alt=""
+                fill
+                sizes="44px"
+                className={cn(
+                  profile?.picture ? 'object-cover' : 'object-contain p-1.5',
+                )}
+                unoptimized
+              />
+            </button>
+          </DropdownMenuTrigger>
+          {/* Tapping the avatar used to log the user straight out. Now it opens
+              a small menu — the primary action is jumping to the admin
+              dashboard; logout stays available but is no longer a one-tap
+              accident. */}
+          <DropdownMenuContent align="start" className="w-52">
+            <DropdownMenuItem asChild>
+              <Link href="/admin">
+                <LayoutDashboard className="size-4" />
+                Admin dashboard
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={logout}>
+              <LogOut className="size-4" />
+              Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <div className="relative flex h-11 flex-1 items-center justify-center rounded-2xl bg-card px-4">
           <Image

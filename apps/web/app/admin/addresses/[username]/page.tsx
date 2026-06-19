@@ -33,6 +33,7 @@ import {
   type WalletRemoteWalletSummary,
 } from '@/lib/client/hooks/use-wallet-addresses'
 import { isLightningAddress } from '@/lib/ln-address'
+import { ApiClientError } from '@/lib/client/api-client'
 import { cn } from '@/lib/utils'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
@@ -62,7 +63,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   const searchParams = useSearchParams()
   const { username } = use(params)
   const { data: settings } = useSettings()
-  const { data, loading, refetch } = useMyAddress(username)
+  const { data, loading, error, refetch } = useMyAddress(username)
   const { updateAddress, updating } = useAddressMutations()
   const redirectInputRef = useRef<HTMLInputElement>(null)
   const appliedConfigureRef = useRef<string | null>(null)
@@ -188,12 +189,31 @@ export default function AdminAddressEditPage({ params }: PageProps) {
           <Spinner size={24} />
         </div>
       ) : !data ? (
-        <div className="space-y-3 py-12 text-center">
-          <p className="text-muted-foreground">Address not found.</p>
-          <Button variant="secondary" onClick={() => router.push('/admin/addresses')}>
-            Back to addresses
-          </Button>
-        </div>
+        // Distinguish a genuine 404 from a server/transport error. A DB or
+        // upstream failure (e.g. an unapplied migration) used to surface here
+        // as "Address not found", which hid the real cause — so only call it
+        // "not found" on an actual 404; everything else offers a retry.
+        (() => {
+          const isNotFound =
+            !error || (error instanceof ApiClientError && error.status === 404)
+          return (
+            <div className="space-y-3 py-12 text-center">
+              <p className="text-muted-foreground">
+                {isNotFound
+                  ? 'Address not found.'
+                  : 'Couldn’t load this address. Please try again.'}
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  isNotFound ? router.push('/admin/addresses') : refetch()
+                }
+              >
+                {isNotFound ? 'Back to addresses' : 'Retry'}
+              </Button>
+            </div>
+          )
+        })()
       ) : (() => {
         // `effectiveConnectionString` is resolved server-side by
         // `resolvePaymentRoute`, so it already handles the full fallback

@@ -41,9 +41,15 @@ function toDesignData(d: ApiDesign): DesignData {
 
 /**
  * Fetch all card designs.
+ *
+ * `/api/card-designs/list` is gated on `CARD_DESIGNS_READ`. Pass
+ * `{ enabled: false }` to skip the fetch for callers without the permission
+ * (e.g. the user-facing Cards view, which hides the Designs section entirely)
+ * so they don't fire a guaranteed 403.
  */
-export function useDesigns() {
-  const result = useApi<ApiDesign[]>('/api/card-designs/list')
+export function useDesigns(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true
+  const result = useApi<ApiDesign[]>(enabled ? '/api/card-designs/list' : null)
   const data = useMemo(
     () => (result.data ? result.data.map(toDesignData) : null),
     [result.data],

@@ -28,6 +28,9 @@ function getEventTypeForPath(path: string): SSEEventType | null {
   // be tied to the `addresses:updated` event instead of `invoices:updated`.
   if (/^\/api\/wallet\/addresses\/[^/]+\/invoices/.test(path)) return 'invoices:updated'
   if (path.startsWith('/api/wallet/addresses')) return 'addresses:updated'
+  // The caller's own cards feed mirrors the admin `/api/cards` → `cards:updated`
+  // so a newly paired/unpaired card refreshes the Connection Map + Cards view.
+  if (path.startsWith('/api/wallet/cards')) return 'cards:updated'
   // `/api/card-designs` must come *before* the `/api/cards` rule because
   // `cards`.startsWith test would otherwise claim it. Designs emit their
   // own `designs:updated` bus event; wiring them to `cards:updated` meant

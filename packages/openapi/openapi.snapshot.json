@@ -183,7 +183,8 @@
         "required": [
           "id",
           "designId"
-        ]
+        ],
+        "description": "Create-card payload. `id` is the card UID (4- or 7-byte hex, colons optional); it is normalized to uppercase hex and used as the unique NTAG424 key, so re-using a UID returns 409 Conflict. `designId` must reference an existing design; `kind` defaults to `SIMPLE`."
       },
       "CardListQuery": {
         "type": "object",
@@ -513,6 +514,17 @@
           "type"
         ]
       },
+      "RemoteWalletLncurlCreateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "description": "Provision a disposable LNCurl wallet. The server mints the NWC connection string; the new wallet becomes the default and inherits the previous wallet’s bindings."
+      },
       "RemoteWalletUpdateRequest": {
         "type": "object",
         "properties": {
@@ -529,7 +541,8 @@
             "enum": [
               "ACTIVE",
               "DISABLED",
-              "REVOKED"
+              "REVOKED",
+              "DEAD"
             ]
           }
         },
@@ -543,7 +556,8 @@
             "enum": [
               "ACTIVE",
               "DISABLED",
-              "REVOKED"
+              "REVOKED",
+              "DEAD"
             ]
           },
           "type": {
@@ -1277,6 +1291,10 @@
                           "used": {
                             "type": "boolean"
                           },
+                          "blocked": {
+                            "type": "boolean",
+                            "description": "True once the card’s reset (wipe) keys were exported — decommissioned and pending delete; can no longer be re-used."
+                          },
                           "createdAt": {
                             "type": "string",
                             "format": "date-time"
@@ -1347,6 +1365,7 @@
           "Cards"
         ],
         "summary": "Create a card.",
+        "description": "Provisions a card and its NTAG424 key material. The request `id` is the card UID (4- or 7-byte hex, colons optional); it is normalized to uppercase hex and stored as the NTAG424 primary key, so a UID can back at most one card. Submitting a UID that already exists returns **409 Conflict** (`error.code` = `CONFLICT`) rather than a 500 — the same is true for a `MASTER`/`SIMPLE` card on a re-used UID.",
         "operationId": "cards.create",
         "security": [
           {
@@ -1387,6 +1406,10 @@
                     },
                     "used": {
                       "type": "boolean"
+                    },
+                    "blocked": {
+                      "type": "boolean",
+                      "description": "True once the card’s reset (wipe) keys were exported — decommissioned and pending delete; can no longer be re-used."
                     },
                     "createdAt": {
                       "type": "string",
@@ -1435,7 +1458,7 @@
             }
           },
           "409": {
-            "description": "Request conflicts with current resource state.",
+            "description": "A card with the supplied UID already exists. The error envelope carries `error.code` = `CONFLICT` and `error.message` = `A card with UID <uid> already exists`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1492,12 +1515,17 @@
                     "used": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "blocked": {
+                      "type": "integer",
+                      "minimum": 0
                     }
                   },
                   "required": [
                     "total",
                     "paired",
-                    "used"
+                    "used",
+                    "blocked"
                   ]
                 }
               }
@@ -1595,6 +1623,10 @@
                     },
                     "used": {
                       "type": "boolean"
+                    },
+                    "blocked": {
+                      "type": "boolean",
+                      "description": "True once the card’s reset (wipe) keys were exported — decommissioned and pending delete; can no longer be re-used."
                     },
                     "createdAt": {
                       "type": "string",
@@ -1754,6 +1786,7 @@
           "Cards"
         ],
         "summary": "Get NTAG424 write payload for an admin programming device.",
+        "description": "Returns the card keys so a programming device can write them. **Requires a single-use `token`** minted by `POST /api/cards/{id}/write-token`: the token is valid only while the card is still fresh (never tapped) and is consumed by this request, so the URL cannot be replayed to re-extract the keys. Requests without a valid/unexpired token, or for a card that has already been tapped, return **403**. **Side effect:** exporting the keys unpairs the card from any user (holder, lightning address, and bound wallet are cleared).",
         "operationId": "cards.write",
         "security": [],
         "parameters": [
@@ -1765,6 +1798,15 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Single-use programming token from /write-token."
+            },
+            "required": true,
+            "name": "token",
+            "in": "query"
           }
         ],
         "responses": {
@@ -1830,6 +1872,16 @@
               }
             }
           },
+          "403": {
+            "description": "Missing, invalid, expired, or already-consumed programming token, or the card has already been tapped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found.",
             "content": {
@@ -1878,6 +1930,369 @@
         }
       }
     },
+    "/api/cards/{id}/write-token": {
+      "post": {
+        "x-required-role": "OPERATOR",
+        "tags": [
+          "Cards"
+        ],
+        "summary": "Mint a single-use BoltCard programming URL.",
+        "description": "Mints a fresh, replay-protected `GET /api/cards/{id}/write?token=…` URL for the admin BoltCard QR. Allowed only while the card is still fresh (never tapped); a card already in use returns **409** and cannot be re-programmed. Each call replaces any outstanding token, so re-opening the modal invalidates the previous QR. Gated to `CARDS_WRITE`.",
+        "operationId": "cards.writeToken",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tokenized programming URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "url",
+                    "expiresAt"
+                  ],
+                  "description": "Single-use /write URL + its expiry. `token` is also returned raw so a client on a different host than the public domain can build its own `<base>/api/cards/{id}/write?token=…` URL."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The card has already been tapped and can no longer be programmed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/wipe": {
+      "get": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Cards"
+        ],
+        "summary": "Get NTAG424 reset payload for an admin programming device.",
+        "description": "Returns the card keys so a programming device can reset the NTAG424 to factory defaults. **Side effect:** exporting the keys unpairs the card from any user (holder, lightning address, and bound wallet are cleared). Idempotent.",
+        "operationId": "cards.wipe",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "NTAG424 reset payload for NFC programming.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "action": {
+                      "type": "string",
+                      "enum": [
+                        "wipe"
+                      ]
+                    },
+                    "k0": {
+                      "type": "string"
+                    },
+                    "k1": {
+                      "type": "string"
+                    },
+                    "k2": {
+                      "type": "string"
+                    },
+                    "k3": {
+                      "type": "string"
+                    },
+                    "k4": {
+                      "type": "string"
+                    },
+                    "uid": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    }
+                  },
+                  "required": [
+                    "action",
+                    "k0",
+                    "k1",
+                    "k2",
+                    "k3",
+                    "k4",
+                    "uid",
+                    "version"
+                  ],
+                  "description": "BoltCard wipe payload: the current keys + UID a programming device uses to reset the card to factory defaults."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Cards"
+        ],
+        "summary": "CORS preflight for /api/cards/{id}/wipe.",
+        "operationId": "cards.wipe.options",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Preflight OK."
+          }
+        }
+      }
+    },
+    "/api/cards/{id}/emulate-tap": {
+      "post": {
+        "x-required-role": "OPERATOR",
+        "tags": [
+          "Cards"
+        ],
+        "summary": "Sign a simulated NTAG424 tap (admin card emulator).",
+        "description": "Server-side SUN signing for the admin card emulator. Returns the public `p`/`c` params for the card’s next counter so a tap can be replayed through the scan flow — the NTAG424 keys never leave the server. Does not export keys, so it does not unpair the card.",
+        "operationId": "cards.emulateTap",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed tap params.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "p": {
+                      "type": "string"
+                    },
+                    "c": {
+                      "type": "string"
+                    },
+                    "ctr": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "p",
+                    "c",
+                    "ctr"
+                  ],
+                  "description": "Public SUN params (no keys)."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cards/{id}/scan": {
       "get": {
         "x-required-role": "PUBLIC",
@@ -1885,6 +2300,7 @@
           "Cards"
         ],
         "summary": "Resolve a scanned card and return the LNURL-pay flow entry point.",
+        "description": "The first LNURL request on tap. Send the request header `x-request-action: info` to get the card’s public status JSON (design, image, owner, paired/used) instead of the LNURL withdraw request — so a client can show the card identity without running the withdraw flow. Non-sensitive only (never keys/OTC/SUN params).",
         "operationId": "cards.scan",
         "security": [],
         "parameters": [
@@ -1918,38 +2334,135 @@
         ],
         "responses": {
           "200": {
-            "description": "LNURL-pay request.",
+            "description": "LNURL withdraw request, or the card status JSON when `x-request-action: info`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "callback": {
-                      "type": "string",
-                      "format": "uri"
-                    },
-                    "maxSendable": {
-                      "type": "integer"
-                    },
-                    "minSendable": {
-                      "type": "integer"
-                    },
-                    "metadata": {
-                      "type": "string"
-                    },
-                    "tag": {
-                      "type": "string",
-                      "enum": [
-                        "payRequest"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "callback": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "maxSendable": {
+                          "type": "integer"
+                        },
+                        "minSendable": {
+                          "type": "integer"
+                        },
+                        "metadata": {
+                          "type": "string"
+                        },
+                        "tag": {
+                          "type": "string",
+                          "enum": [
+                            "payRequest"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "callback",
+                        "maxSendable",
+                        "minSendable",
+                        "metadata",
+                        "tag"
                       ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "SIMPLE",
+                            "MASTER"
+                          ]
+                        },
+                        "paired": {
+                          "type": "boolean"
+                        },
+                        "used": {
+                          "type": "boolean"
+                        },
+                        "blocked": {
+                          "type": "boolean"
+                        },
+                        "design": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "description": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "imageUrl": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "description",
+                            "imageUrl"
+                          ]
+                        },
+                        "user": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "pubkey": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "pubkey",
+                            "username"
+                          ]
+                        },
+                        "lastUsedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "kind",
+                        "paired",
+                        "used",
+                        "blocked",
+                        "design",
+                        "user",
+                        "lastUsedAt"
+                      ],
+                      "description": "Non-sensitive card status (no keys/OTC/SUN params)."
                     }
-                  },
-                  "required": [
-                    "callback",
-                    "maxSendable",
-                    "minSendable",
-                    "metadata",
-                    "tag"
                   ]
                 }
               }
@@ -4378,6 +4891,124 @@
         }
       }
     },
+    "/api/wallet/cards": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "List the cards paired to the caller.",
+        "description": "Returns only the cards paired to the authenticated user (`Card.userId === caller`). ANY authenticated role can read their own cards — unlike the admin-scoped `/api/cards` (gated on `CARDS_READ`), which returns every card. Powers the per-user Cards view and the Connection Map. Never returns NTAG424 keys.",
+        "operationId": "wallet.cards.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cards.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "pubkey": {
+                        "type": "string"
+                      },
+                      "username": {
+                        "type": "string"
+                      },
+                      "remoteWalletId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "SIMPLE",
+                          "MASTER"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id"
+                    ],
+                    "description": "A card paired to the caller. Never includes NTAG424 keys (only the public `cid`/`ctr` on `ntag424`)."
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/wallet/addresses/{username}": {
       "get": {
         "x-required-role": "USER",
@@ -6489,7 +7120,8 @@
               "enum": [
                 "ACTIVE",
                 "DISABLED",
-                "REVOKED"
+                "REVOKED",
+                "DEAD"
               ]
             },
             "required": false,
@@ -6541,7 +7173,8 @@
                         "enum": [
                           "ACTIVE",
                           "DISABLED",
-                          "REVOKED"
+                          "REVOKED",
+                          "DEAD"
                         ]
                       },
                       "isDefault": {
@@ -6554,6 +7187,31 @@
                       "updatedAt": {
                         "type": "string",
                         "format": "date-time"
+                      },
+                      "diedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time",
+                        "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                      },
+                      "provider": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "lncurl"
+                        ],
+                        "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
+                      },
+                      "lncurlServerUrl": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "For LNCurl wallets, the server that minted this wallet; null otherwise."
                       }
                     },
                     "required": [
@@ -6563,7 +7221,10 @@
                       "status",
                       "isDefault",
                       "createdAt",
-                      "updatedAt"
+                      "updatedAt",
+                      "diedAt",
+                      "provider",
+                      "lncurlServerUrl"
                     ],
                     "description": "Remote wallet record. The secret `config` is never returned."
                   }
@@ -6675,7 +7336,8 @@
                       "enum": [
                         "ACTIVE",
                         "DISABLED",
-                        "REVOKED"
+                        "REVOKED",
+                        "DEAD"
                       ]
                     },
                     "isDefault": {
@@ -6688,6 +7350,31 @@
                     "updatedAt": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "diedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                    },
+                    "provider": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "lncurl"
+                      ],
+                      "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
+                    },
+                    "lncurlServerUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "For LNCurl wallets, the server that minted this wallet; null otherwise."
                     }
                   },
                   "required": [
@@ -6697,7 +7384,184 @@
                     "status",
                     "isDefault",
                     "createdAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "diedAt",
+                    "provider",
+                    "lncurlServerUrl"
+                  ],
+                  "description": "Remote wallet record. The secret `config` is never returned."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/lncurl": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Provision a disposable LNCurl wallet (mints the NWC string server-side, makes it default, inherits previous bindings).",
+        "operationId": "remoteWallets.createLncurl",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteWalletLncurlCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "LNCurl wallet created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "NWC",
+                        "LND",
+                        "CLN",
+                        "BTCPAY"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ACTIVE",
+                        "DISABLED",
+                        "REVOKED",
+                        "DEAD"
+                      ]
+                    },
+                    "isDefault": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "diedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                    },
+                    "provider": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "lncurl"
+                      ],
+                      "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
+                    },
+                    "lncurlServerUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "For LNCurl wallets, the server that minted this wallet; null otherwise."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "type",
+                    "status",
+                    "isDefault",
+                    "createdAt",
+                    "updatedAt",
+                    "diedAt",
+                    "provider",
+                    "lncurlServerUrl"
                   ],
                   "description": "Remote wallet record. The secret `config` is never returned."
                 }
@@ -6822,7 +7686,8 @@
                       "enum": [
                         "ACTIVE",
                         "DISABLED",
-                        "REVOKED"
+                        "REVOKED",
+                        "DEAD"
                       ]
                     },
                     "isDefault": {
@@ -6835,6 +7700,31 @@
                     "updatedAt": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "diedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                    },
+                    "provider": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "lncurl"
+                      ],
+                      "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
+                    },
+                    "lncurlServerUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "For LNCurl wallets, the server that minted this wallet; null otherwise."
                     }
                   },
                   "required": [
@@ -6844,7 +7734,10 @@
                     "status",
                     "isDefault",
                     "createdAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "diedAt",
+                    "provider",
+                    "lncurlServerUrl"
                   ],
                   "description": "Remote wallet record. The secret `config` is never returned."
                 }
@@ -6966,7 +7859,8 @@
                       "enum": [
                         "ACTIVE",
                         "DISABLED",
-                        "REVOKED"
+                        "REVOKED",
+                        "DEAD"
                       ]
                     },
                     "isDefault": {
@@ -6979,6 +7873,31 @@
                     "updatedAt": {
                       "type": "string",
                       "format": "date-time"
+                    },
+                    "diedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                    },
+                    "provider": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "lncurl"
+                      ],
+                      "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
+                    },
+                    "lncurlServerUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "For LNCurl wallets, the server that minted this wallet; null otherwise."
                     }
                   },
                   "required": [
@@ -6988,7 +7907,10 @@
                     "status",
                     "isDefault",
                     "createdAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "diedAt",
+                    "provider",
+                    "lncurlServerUrl"
                   ],
                   "description": "Remote wallet record. The secret `config` is never returned."
                 }

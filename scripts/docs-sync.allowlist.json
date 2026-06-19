@@ -3,6 +3,8 @@
   "DELETE /api/card-designs/import-veintiuno",
   "PATCH /api/cards/{id}",
   "POST /api/dev/reset",
+  "POST /api/dev/login",
+  "DELETE /api/dev/cards",
   "GET /api/health",
   "GET /api/openapi.json",
   "GET /api/remote-wallets/{id}/balance",

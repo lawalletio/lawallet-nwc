@@ -5,10 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
 import { useRemoteWallets } from '@/lib/client/hooks/use-remote-wallets'
 import { useMyAddresses } from '@/lib/client/hooks/use-wallet-addresses'
-import { useCards } from '@/lib/client/hooks/use-cards'
+import { useMyCards } from '@/lib/client/hooks/use-cards'
 import { useSettings } from '@/lib/client/hooks/use-settings'
-import { useAuth } from '@/components/admin/auth-context'
-import { Permission } from '@/lib/auth/permissions'
 import {
   ConnectionDetailDialog,
   type ConnectionSelection,
@@ -26,16 +24,12 @@ import { WalletTab } from './wallet-tab'
  * receive behaviour is identical across layouts.
  */
 export function ConnectionMapMobile() {
-  const { isAuthorized } = useAuth()
   const { data: settings } = useSettings()
   const { data: wallets, loading: walletsLoading } = useRemoteWallets()
   const { data: addresses, loading: addressesLoading } = useMyAddresses()
-  // `/api/cards` is admin-scoped — skip the fetch (and the guaranteed
-  // 403) for callers without the permission. Mirrors the desktop map.
-  const canReadCards = isAuthorized(Permission.CARDS_READ)
-  const { data: cards, loading: cardsLoading } = useCards(undefined, {
-    enabled: canReadCards,
-  })
+  // `/api/wallet/cards` is per-caller — every authenticated user gets the
+  // cards paired to themselves (an admin included). Mirrors the desktop map.
+  const { data: cards, loading: cardsLoading } = useMyCards()
 
   const domain = settings?.domain || 'your-domain'
   const loading = walletsLoading || addressesLoading || cardsLoading
@@ -101,7 +95,6 @@ export function ConnectionMapMobile() {
             <CardTab
               cards={cardList}
               wallets={walletList}
-              canRead={canReadCards}
               onOpenDetail={id => setSelected({ kind: 'card', id })}
             />
           </TabsContent>

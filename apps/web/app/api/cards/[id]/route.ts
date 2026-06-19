@@ -26,6 +26,7 @@ export const GET = withErrorHandling(
         username: true,
         otc: true,
         kind: true,
+        blockedAt: true,
         design: {
           select: {
             id: true,
@@ -37,18 +38,20 @@ export const GET = withErrorHandling(
         ntag424: {
           select: {
             cid: true,
-            k0: true,
-            k1: true,
-            k2: true,
-            k3: true,
-            k4: true,
             ctr: true,
             createdAt: true
           }
         },
         user: {
           select: {
-            pubkey: true
+            pubkey: true,
+            // Card identity = the owner's primary lightning address, resolved
+            // through the `userId` relation (not the dead `Card.username`).
+            lightningAddresses: {
+              where: { isPrimary: true },
+              take: 1,
+              select: { username: true }
+            }
           }
         }
       }
@@ -72,9 +75,10 @@ export const GET = withErrorHandling(
     title: card.title || undefined,
     lastUsedAt: card.lastUsedAt || undefined,
     pubkey: card.user?.pubkey,
-    username: card.username || undefined,
+    username: card.user?.lightningAddresses?.[0]?.username || undefined,
     otc: card.otc || undefined,
-    kind: card.kind
+    kind: card.kind,
+    blocked: card.blockedAt !== null
   }
 
     return NextResponse.json(transformedCard)
@@ -141,12 +145,13 @@ export const PATCH = withErrorHandling(
         otc: true,
         remoteWalletId: true,
         kind: true,
+        blockedAt: true,
         design: {
           select: { id: true, imageUrl: true, description: true, createdAt: true },
         },
         ntag424: {
           select: {
-            cid: true, k0: true, k1: true, k2: true, k3: true, k4: true, ctr: true, createdAt: true,
+            cid: true, ctr: true, createdAt: true,
           },
         },
         user: { select: { pubkey: true } },
@@ -201,6 +206,7 @@ export const PATCH = withErrorHandling(
       otc: updated.otc || undefined,
       remoteWalletId: updated.remoteWalletId ?? null,
       kind: updated.kind,
+      blocked: updated.blockedAt !== null,
     }
 
     return NextResponse.json(transformedCard)

@@ -59,11 +59,17 @@ export const POST = withErrorHandling(
         qrKind: true,
         status: true,
         expiresAt: true,
+        card: { select: { blockedAt: true } },
       },
     })
     if (!token) throw new NotFoundError('Activation token not found')
 
     // Claimability checks (cheap, pre-transaction).
+    if (token.card?.blockedAt) {
+      throw new ConflictError(
+        'This card has been blocked (reset keys exported) and can no longer be activated.',
+      )
+    }
     if (token.status === 'CLAIMED') throw new ConflictError('Already claimed')
     if (token.status !== 'PENDING') {
       throw new ConflictError('Activation token is no longer valid')

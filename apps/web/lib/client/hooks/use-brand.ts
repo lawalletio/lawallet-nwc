@@ -4,7 +4,7 @@ import { useSettings } from '@/lib/client/hooks/use-settings'
 
 /** Static LaWallet fallback used when no community logotype has been uploaded. */
 export const DEFAULT_LOGOTYPE_SRC = '/logos/lawallet.svg'
-/** Static LaWallet isotypo fallback. */
+/** Static LaWallet isotypo fallback — the square icon-only mark, not the wordmark. */
 export const DEFAULT_ISOTYPO_SRC = '/logos/lawallet-isotypo.svg'
 
 function resolveIsotypoSrc(value: string | undefined | null) {

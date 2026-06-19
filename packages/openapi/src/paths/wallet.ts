@@ -36,6 +36,43 @@ registry.registerPath({
   },
 })
 
+const walletCardSchema = z
+  .object({
+    id: z.string(),
+    title: z.string().nullable().optional(),
+    pubkey: z.string().optional(),
+    username: z.string().optional(),
+    remoteWalletId: z.string().nullable().optional(),
+    kind: z.enum(['SIMPLE', 'MASTER']).optional(),
+  })
+  .passthrough()
+  .openapi({
+    description:
+      'A card paired to the caller. Never includes NTAG424 keys (only the ' +
+      'public `cid`/`ctr` on `ntag424`).',
+  })
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'get',
+  path: '/api/wallet/cards',
+  tags: [TAG],
+  summary: 'List the cards paired to the caller.',
+  description:
+    'Returns only the cards paired to the authenticated user (`Card.userId === ' +
+    'caller`). ANY authenticated role can read their own cards — unlike the ' +
+    'admin-scoped `/api/cards` (gated on `CARDS_READ`), which returns every ' +
+    'card. Powers the per-user Cards view and the Connection Map. Never returns ' +
+    'NTAG424 keys.',
+  operationId: 'wallet.cards.list',
+  security: protectedSecurity,
+  responses: {
+    200: inlineJsonResponse('Cards.', z.array(walletCardSchema)),
+    ...commonErrorResponses,
+    404: responses.notFound,
+  },
+})
+
 registry.registerPath({
   ...withRole('USER'),
   method: 'post',

@@ -52,10 +52,14 @@ describe('OPTIONS /api/cards/[id]/scan', () => {
 })
 
 describe('GET /api/cards/[id]/scan', () => {
-  it('returns LUD-03 withdraw request', async () => {
-    const user = createUserFixture()
-    const design = createCardDesignFixture()
-    const card = { ...createCardFixture(), design, user }
+  it('returns a LUD-03 withdraw request with a payable range for a configured card', async () => {
+    const card = {
+      ...createCardFixture(),
+      design: createCardDesignFixture(),
+      user: createUserFixture(),
+      // Card bound to an ACTIVE wallet → it can pay.
+      remoteWallet: { type: 'NWC', config: {}, status: 'ACTIVE' },
+    }
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'app' })
 
@@ -68,9 +72,63 @@ describe('GET /api/cards/[id]/scan', () => {
     expect(body.tag).toBe('withdrawRequest')
     expect(body.callback).toContain(`/api/cards/${card.id}/scan/cb`)
     expect(body.callback).toContain('p=' + 'A'.repeat(32))
-    expect(body.minWithdrawable).toBeDefined()
-    expect(body.maxWithdrawable).toBeDefined()
+    expect(body.minWithdrawable).toBeGreaterThan(0)
+    expect(body.maxWithdrawable).toBeGreaterThan(0)
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
+  it('returns public card status JSON when x-request-action: info', async () => {
+    const card = {
+      ...createCardFixture(),
+      userId: 'owner-1',
+      design: createCardDesignFixture(),
+      user: { pubkey: 'pk-1', lightningAddresses: [] },
+      remoteWallet: null,
+    }
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+
+    const req = createNextRequest(`/api/cards/${card.id}/scan`, {
+      headers: { 'x-request-action': 'info' },
+    })
+    const res = await ScanGet(req, createParamsPromise({ id: card.id }))
+    const body: any = await assertResponse(res, 200)
+
+    // Card status, NOT the LNURL withdraw request.
+    expect(body.tag).toBeUndefined()
+    expect(body.callback).toBeUndefined()
+    expect(body).toMatchObject({
+      id: card.id,
+      paired: true,
+      design: { imageUrl: expect.any(String) },
+      user: { pubkey: 'pk-1', username: null },
+    })
+    // Never leaks secrets.
+    for (const k of ['k0', 'k1', 'k2', 'k3', 'k4', 'otc', 'cid']) {
+      expect(body).not.toHaveProperty(k)
+    }
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
+  it('advertises a 0–0 withdraw range when the card has no usable wallet', async () => {
+    // Unpaired / unconfigured card: no bound wallet, no owner default.
+    const card = {
+      ...createCardFixture(),
+      design: createCardDesignFixture(),
+      user: null,
+      remoteWallet: null,
+    }
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com', endpoint: 'app' })
+
+    const req = createNextRequest(`/api/cards/${card.id}/scan`, {
+      searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) },
+    })
+    const res = await ScanGet(req, createParamsPromise({ id: card.id }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.tag).toBe('withdrawRequest')
+    expect(body.minWithdrawable).toBe(0)
+    expect(body.maxWithdrawable).toBe(0)
   })
 
   it('returns 404 for nonexistent card', async () => {

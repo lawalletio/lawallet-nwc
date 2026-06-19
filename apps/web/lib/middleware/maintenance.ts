@@ -25,14 +25,27 @@ export async function checkMaintenance(request: Request): Promise<void> {
   const envEnabled = getConfig(false).maintenance.enabled
 
   let dbEnabled = false
+  // Default to "configured" so a transient DB error can't silently lift
+  // maintenance on an instance that already has a root admin.
+  let hasRoot = true
   try {
-    const settings = await getSettings(['maintenance_enabled'])
+    const settings = await getSettings(['maintenance_enabled', 'root'])
     dbEnabled = settings.maintenance_enabled === 'true'
+    hasRoot = !!settings.root
   } catch {
     // DB unreachable — fall back to the env flag only.
   }
 
   if (!envEnabled && !dbEnabled) {
+    return
+  }
+
+  // First-run safety valve: until a root admin exists, the setup + login flow
+  // that *creates* that admin must stay reachable. Otherwise enabling
+  // maintenance on a fresh instance is an unrecoverable lockout — there's no
+  // admin yet to bypass the gate, and the setup endpoints would all 503. Once
+  // root is claimed, maintenance applies normally and the admin bypasses below.
+  if (!hasRoot) {
     return
   }
 
