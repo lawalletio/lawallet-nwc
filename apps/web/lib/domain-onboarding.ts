@@ -487,9 +487,11 @@ export async function probeDomainRouting(input: DomainProbeRequest): Promise<Dom
     probeNip05(domain),
   ])
   const direct = instance.state === 'pass' && cleanHost(effectiveEndpoint) === domain
-  const ready =
-    instance.state === 'pass' &&
-    [lnurl, nip05].every(check => check.state === 'pass' || check.state === 'skip')
+  // The domain is verified once both LNURL and NIP-05 discovery resolve to this
+  // instance — these are the two checks surfaced to the user. The lawallet.json
+  // instance probe stays informational (platform detection, direct hosting) and
+  // no longer gates success.
+  const ready = [lnurl, nip05].every(check => check.state === 'pass' || check.state === 'skip')
   const status = ready ? 'ready' : direct ? 'pending' : 'rewrite-needed'
   const instructionPlatform =
     platform.kind === 'lawallet' && instance.state !== 'pass'
