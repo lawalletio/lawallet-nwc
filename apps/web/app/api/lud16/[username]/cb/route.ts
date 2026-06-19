@@ -23,6 +23,8 @@ import { logger } from '@/lib/logger'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { DriverError, driverForWallet } from '@/lib/wallet/drivers'
 import { eventBus } from '@/lib/events/event-bus'
+import { getSettings } from '@/lib/settings'
+import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
@@ -52,13 +54,13 @@ export const GET = withErrorHandling(
     const lightningAddress = await prisma.lightningAddress.findUnique({
       where: { username },
       include: {
-        remoteWallet: { select: { type: true, config: true, status: true } },
+        remoteWallet: { select: { id: true, type: true, config: true, status: true } },
         user: {
           select: {
             id: true,
             remoteWallets: {
               where: { isDefault: true },
-              select: { type: true, config: true, status: true },
+              select: { id: true, type: true, config: true, status: true },
               take: 1,
             },
           },
@@ -105,10 +107,54 @@ export const GET = withErrorHandling(
       // corrupt config) shouldn't surface as a 500 — they're an upstream
       // dependency being unavailable, not a bug in our handler.
       if (err instanceof DriverError) {
-        logger.error({ username, walletType: route.type, err: String(err) }, 'LUD16 invoice mint failed')
-        throw new ServiceUnavailableError('Wallet is currently unavailable')
+        // Self-heal: LNCurl wallets are ephemeral/custodial, so a dead one is
+        // expected. When the routed wallet is an LNCurl wallet and auto-recreate
+        // is on, re-provision a fresh LNCurl wallet (revoking the dead one),
+        // re-point the user's bindings, and retry the mint once.
+        const provider = (route.config as { provider?: string } | null)?.provider
+        if (provider === 'lncurl') {
+          const { lncurl_auto_recreate, lncurl_server_url } = await getSettings([
+            'lncurl_auto_recreate',
+            'lncurl_server_url',
+          ])
+          // The dead wallet is the address's bound wallet (CUSTOM_NWC) or the
+          // user's default wallet (DEFAULT_NWC).
+          const deadWalletId =
+            lightningAddress.remoteWallet?.id ??
+            lightningAddress.user.remoteWallets[0]?.id ??
+            null
+
+          if (lncurl_auto_recreate === 'true' && deadWalletId) {
+            try {
+              const replacement = await createLncurlRemoteWallet({
+                userId: lightningAddress.user.id,
+                previousWalletId: deadWalletId,
+                revokePrevious: true,
+                serverUrl: lncurl_server_url || undefined,
+              })
+              const { driver, config } = driverForWallet({
+                type: replacement.type,
+                config: replacement.config,
+              })
+              made = await driver.makeInvoice(config, { amountSats, description })
+            } catch (recoveryErr) {
+              logger.error(
+                { username, err: String(recoveryErr) },
+                'LNCurl auto-recreate recovery failed',
+              )
+              throw new ServiceUnavailableError('Wallet is currently unavailable')
+            }
+          } else {
+            logger.error({ username, walletType: route.type, err: String(err) }, 'LUD16 invoice mint failed')
+            throw new ServiceUnavailableError('Wallet is currently unavailable')
+          }
+        } else {
+          logger.error({ username, walletType: route.type, err: String(err) }, 'LUD16 invoice mint failed')
+          throw new ServiceUnavailableError('Wallet is currently unavailable')
+        }
+      } else {
+        throw err
       }
-      throw err
     }
 
     const pr = made.bolt11

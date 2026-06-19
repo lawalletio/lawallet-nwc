@@ -22,7 +22,7 @@ export interface WalletRemoteWalletSummary {
   id: string
   name: string
   type: 'NWC' | 'LND' | 'CLN' | 'BTCPAY'
-  status: 'ACTIVE' | 'DISABLED' | 'REVOKED'
+  status: 'ACTIVE' | 'DISABLED' | 'REVOKED' | 'DEAD'
   isDefault: boolean
 }
 

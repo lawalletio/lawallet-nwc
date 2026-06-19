@@ -29,6 +29,11 @@ interface LnurlPayCallbackResponse {
  * Pays an already-decoded bolt11 invoice through the connected NWC wallet.
  * The caller is responsible for confirming the amount with the user before
  * calling this — `pay_invoice` is irrevocable once broadcast.
+ *
+ * Note: this resolves only when the wallet returns the `pay_invoice` response,
+ * which some wallets (LNCurl/Alby) deliver slowly or drop. Callers that need
+ * resilient "did it settle?" UX should ALSO watch the balance out-of-band — see
+ * `WalletActions`, which races this against the server balance endpoint.
  */
 export async function payInvoice(
   nwcString: string,

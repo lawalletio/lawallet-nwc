@@ -22,10 +22,14 @@ import type { RemoteWallet } from '@/lib/generated/prisma'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** RemoteWallets the address-detail picker can bind to: active, non-revoked. */
+/**
+ * RemoteWallets the address-detail picker can bind to. Excludes REVOKED
+ * (manual soft-delete) and DEAD (archived disposable wallets) — neither can
+ * be assigned to anything.
+ */
 function selectableWallets(userId: string): Promise<RemoteWallet[]> {
   return prisma.remoteWallet.findMany({
-    where: { userId, status: { not: 'REVOKED' } },
+    where: { userId, status: { notIn: ['REVOKED', 'DEAD'] } },
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
   })
 }
@@ -135,7 +139,12 @@ export const PUT = withErrorHandling(
       const wallet = await prisma.remoteWallet.findUnique({
         where: { id: body.remoteWalletId },
       })
-      if (!wallet || wallet.userId !== user.id || wallet.status === 'REVOKED') {
+      if (
+        !wallet ||
+        wallet.userId !== user.id ||
+        wallet.status === 'REVOKED' ||
+        wallet.status === 'DEAD'
+      ) {
         throw new ValidationError('Unknown wallet')
       }
       remoteWalletId = wallet.id

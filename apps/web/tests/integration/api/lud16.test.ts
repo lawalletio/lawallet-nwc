@@ -25,6 +25,12 @@ vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() },
 }))
 
+// LNCurl re-provisioning is exercised in dedicated suites; here we stub it so
+// the cb route's self-heal branch is testable without a network call.
+vi.mock('@/lib/wallet/lncurl-wallet', () => ({
+  createLncurlRemoteWallet: vi.fn(),
+}))
+
 // The cb route now mints through the driver registry → NWC driver →
 // `getServerNwcClient` → `@getalby/sdk` NWCClient.makeInvoice. Mock the
 // NWCClient so we never touch a relay; the response shape mirrors NIP-47
@@ -60,6 +66,7 @@ import { GET as Lud16CbGet } from '@/app/api/lud16/[username]/cb/route'
 import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 import { getSettings } from '@/lib/settings'
+import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
 
 /** A user's default RemoteWallet — the DEFAULT_NWC success path now needs one. */
 const DEFAULT_WALLET = {
@@ -597,6 +604,139 @@ describe('GET /api/lud16/[username]/cb', () => {
     const res = await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
 
     expect(res.status).toBe(404)
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  // ─── LNCurl self-heal ─────────────────────────────────────────────────
+  // LNCurl wallets are ephemeral/custodial; when one dies and
+  // `lncurl_auto_recreate` is on, the cb route re-provisions a fresh LNCurl
+  // wallet (revoking the dead one) and retries the mint once.
+
+  /** A DEFAULT_NWC default wallet that LNCurl provisioned (id + provider tag). */
+  const LNCURL_DEFAULT_WALLET = {
+    id: 'wallet-dead',
+    type: 'NWC' as const,
+    config: { connectionString: 'nostr+walletconnect://dead-lncurl', mode: 'SEND_RECEIVE', provider: 'lncurl' },
+    status: 'ACTIVE' as const,
+  }
+
+  it('self-heals an LNCurl wallet: re-provisions, retries, returns 200 with bolt11', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'DEFAULT_NWC',
+      redirect: null,
+      remoteWallet: null,
+      nwcConnection: null,
+      user: { id: 'user-1', remoteWallets: [LNCURL_DEFAULT_WALLET] },
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_auto_recreate: 'true',
+      lncurl_server_url: 'https://my.lncurl.example',
+    })
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64),
+    } as any)
+
+    // The replacement wallet the route mints through on retry.
+    vi.mocked(createLncurlRemoteWallet).mockResolvedValue({
+      id: 'wallet-fresh',
+      type: 'NWC',
+      config: { connectionString: 'nostr+walletconnect://fresh-lncurl', mode: 'SEND_RECEIVE', provider: 'lncurl' },
+      status: 'ACTIVE',
+    } as any)
+
+    // First mint (dead wallet) fails, retry (fresh wallet) succeeds.
+    makeInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+
+    const req = createNextRequest('/api/lud16/alice/cb', { searchParams: { amount: '10000' } })
+    const res = await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.pr).toBe('lnbc100n1test')
+    expect(createLncurlRemoteWallet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        previousWalletId: 'wallet-dead',
+        revokePrevious: true,
+        serverUrl: 'https://my.lncurl.example',
+      }),
+    )
+    // Two mint attempts: the dead wallet, then the fresh replacement.
+    expect(makeInvoiceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does NOT self-heal when lncurl_auto_recreate is off → 503', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'DEFAULT_NWC',
+      redirect: null,
+      remoteWallet: null,
+      nwcConnection: null,
+      user: { id: 'user-1', remoteWallets: [LNCURL_DEFAULT_WALLET] },
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_auto_recreate: 'false',
+    })
+    makeInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+
+    const req = createNextRequest('/api/lud16/alice/cb', { searchParams: { amount: '10000' } })
+    const res = await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
+
+    expect(res.status).toBe(503)
+    expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('does NOT self-heal a non-LNCurl wallet → 503 (unchanged behaviour)', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'DEFAULT_NWC',
+      redirect: null,
+      remoteWallet: null,
+      nwcConnection: null,
+      // No provider tag → a normal NWC wallet, never auto-recreated.
+      user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] },
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_auto_recreate: 'true',
+    })
+    makeInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+
+    const req = createNextRequest('/api/lud16/alice/cb', { searchParams: { amount: '10000' } })
+    const res = await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
+
+    expect(res.status).toBe(503)
+    expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
+  })
+
+  it('returns 503 when LNCurl re-provisioning itself fails during recovery', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'DEFAULT_NWC',
+      redirect: null,
+      remoteWallet: null,
+      nwcConnection: null,
+      user: { id: 'user-1', remoteWallets: [LNCURL_DEFAULT_WALLET] },
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_auto_recreate: 'true',
+    })
+    makeInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+    vi.mocked(createLncurlRemoteWallet).mockRejectedValue(new Error('LNCurl unreachable'))
+
+    const req = createNextRequest('/api/lud16/alice/cb', { searchParams: { amount: '10000' } })
+    const res = await Lud16CbGet(req, createParamsPromise({ username: 'alice' }))
+
+    expect(res.status).toBe(503)
     expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
   })
 })

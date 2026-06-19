@@ -1,9 +1,12 @@
 'use client'
 
 import React from 'react'
-import { Star, Wallet } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Star, Wallet } from 'lucide-react'
+import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import {
   Table,
@@ -22,11 +25,14 @@ import {
 import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
 import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
 import { RemoteWalletRowActions } from '@/components/admin/remote-wallet-row-actions'
+import { ArchivedWalletsSection } from '@/components/admin/archived-wallets-section'
 import {
   useRemoteWallets,
   useRemoteWalletBalance,
+  useRemoteWalletMutations,
   type RemoteWalletData,
 } from '@/lib/client/hooks/use-remote-wallets'
+import { useSettings } from '@/lib/client/hooks/use-settings'
 
 /**
  * `/admin/remote-wallets` — the signed-in user's external wallets.
@@ -42,40 +48,69 @@ import {
  */
 export default function RemoteWalletsPage() {
   const { data: wallets, loading, error, refetch } = useRemoteWallets()
+  // The live list hides DEAD wallets; fetch the archived "graveyard" separately.
+  const { data: archived, refetch: refetchArchived } = useRemoteWallets({
+    status: 'DEAD',
+  })
+
+  const refetchAll = () => {
+    refetch()
+    refetchArchived()
+  }
 
   return (
     <div className="flex flex-col">
       <AdminTopbar title="Remote Wallets" />
 
-      <div className="flex flex-col gap-6 p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Your wallets</h2>
-            <p className="text-sm text-muted-foreground">
-              External wallets your Lightning addresses and Cards can route
-              payments through.
-            </p>
+      <div className="flex flex-col gap-8 p-6">
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Your wallets</h2>
+              <p className="text-sm text-muted-foreground">
+                External wallets your Lightning addresses and Cards can route
+                payments through.
+              </p>
+            </div>
+            <CreateRemoteWalletDialog onCreated={refetchAll} />
           </div>
-          <CreateRemoteWalletDialog onCreated={refetch} />
+
+          {error ? (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+              Couldn’t load your wallets: {error.message}
+            </div>
+          ) : loading ? (
+            <TableSkeleton rows={3} columns={6} />
+          ) : !wallets || wallets.length === 0 ? (
+            <EmptyState onCreated={refetchAll} />
+          ) : (
+            <WalletsTable wallets={wallets} onChanged={refetchAll} />
+          )}
         </div>
 
-        {error ? (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-            Couldn’t load your wallets: {error.message}
-          </div>
-        ) : loading ? (
-          <TableSkeleton rows={3} columns={6} />
-        ) : !wallets || wallets.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <WalletsTable wallets={wallets} onChanged={refetch} />
-        )}
+        <ArchivedWalletsSection wallets={archived ?? []} onChanged={refetchAll} />
       </div>
     </div>
   )
 }
 
-function EmptyState() {
+function EmptyState({ onCreated }: { onCreated: () => void }) {
+  const { data: settings } = useSettings()
+  const lncurlEnabled = settings?.lncurl_enabled === 'true'
+  const { createLncurlWallet, loading } = useRemoteWalletMutations()
+
+  async function handleCreate() {
+    try {
+      await createLncurlWallet()
+      toast.success('LNCurl wallet created — your address and cards are ready')
+      onCreated()
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Could not create LNCurl wallet',
+      )
+    }
+  }
+
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed py-16 text-center">
       <div className="rounded-full bg-muted p-3">
@@ -83,11 +118,18 @@ function EmptyState() {
       </div>
       <div>
         <p className="font-medium">No wallets yet</p>
-        <p className="text-sm text-muted-foreground">
-          Add an NWC wallet to start routing payments through your Lightning
-          addresses and Cards.
+        <p className="mx-auto max-w-sm text-sm text-muted-foreground">
+          {lncurlEnabled
+            ? 'Spin up a free disposable LNCurl wallet to start receiving — it becomes your primary wallet and binds to your Lightning address and cards automatically. Or add your own NWC wallet above.'
+            : 'Add an NWC wallet to start routing payments through your Lightning addresses and Cards.'}
         </p>
       </div>
+      {lncurlEnabled && (
+        <Button className="gap-2" onClick={handleCreate} disabled={loading}>
+          {loading ? <Spinner className="size-4" /> : <Plus className="size-4" />}
+          Create LNCurl wallet
+        </Button>
+      )}
     </div>
   )
 }
@@ -99,6 +141,7 @@ const STATUS_VARIANT: Record<
   ACTIVE: 'default',
   DISABLED: 'secondary',
   REVOKED: 'outline',
+  DEAD: 'destructive',
 }
 
 function WalletsTable({
@@ -134,7 +177,12 @@ function WalletsTable({
             >
               <TableCell className="font-medium">
                 <span className="flex items-center gap-1.5">
-                  {w.name}
+                  <Link
+                    href={`/admin/remote-wallets/${w.id}`}
+                    className="hover:text-primary hover:underline"
+                  >
+                    {w.name}
+                  </Link>
                   {w.isDefault && (
                     <TooltipProvider>
                       <Tooltip>

@@ -20,10 +20,23 @@ const remoteWalletSchema = z
     id: z.string(),
     name: z.string(),
     type: z.enum(['NWC', 'LND', 'CLN', 'BTCPAY']),
-    status: z.enum(['ACTIVE', 'DISABLED', 'REVOKED']),
+    status: z.enum(['ACTIVE', 'DISABLED', 'REVOKED', 'DEAD']),
     isDefault: z.boolean(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
+    diedAt: z
+      .string()
+      .datetime()
+      .nullable()
+      .openapi({ description: 'When an archived (DEAD) disposable wallet was detected dead; null otherwise.' }),
+    provider: z
+      .enum(['lncurl'])
+      .nullable()
+      .openapi({ description: "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection." }),
+    lncurlServerUrl: z
+      .string()
+      .nullable()
+      .openapi({ description: 'For LNCurl wallets, the server that minted this wallet; null otherwise.' }),
   })
   .openapi({ description: 'Remote wallet record. The secret `config` is never returned.' })
 
@@ -58,6 +71,30 @@ registry.registerPath({
   },
   responses: {
     201: inlineJsonResponse('Remote wallet created.', remoteWalletSchema),
+    ...commonErrorResponses,
+    404: responses.notFound,
+    409: responses.conflict,
+  },
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'post',
+  path: '/api/remote-wallets/lncurl',
+  tags: [TAG],
+  summary:
+    'Provision a disposable LNCurl wallet (mints the NWC string server-side, makes it default, inherits previous bindings).',
+  operationId: 'remoteWallets.createLncurl',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: schemas.RemoteWalletLncurlCreateRequest },
+      },
+    },
+  },
+  responses: {
+    201: inlineJsonResponse('LNCurl wallet created.', remoteWalletSchema),
     ...commonErrorResponses,
     404: responses.notFound,
     409: responses.conflict,

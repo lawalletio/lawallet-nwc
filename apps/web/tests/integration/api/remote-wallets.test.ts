@@ -100,6 +100,43 @@ describe('GET /api/remote-wallets', () => {
     expect(body[0].status).toBe('REVOKED')
   })
 
+  it('filters out DEAD (archived) wallets by default', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+
+    const active = createRemoteWalletFixture({ userId: user.id, name: 'Active', status: 'ACTIVE' })
+    const dead = createRemoteWalletFixture({ userId: user.id, name: 'Dead', status: 'DEAD' })
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([active, dead] as never)
+
+    const res = await listHandler(createNextRequest('/api/remote-wallets'))
+    const body = (await assertResponse(res, 200)) as Array<{ name: string }>
+
+    expect(body.map(w => w.name)).toEqual(['Active'])
+  })
+
+  it('returns DEAD wallets (with diedAt) via ?status=DEAD', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const dead = createRemoteWalletFixture({
+      userId: user.id,
+      name: 'Ghost',
+      status: 'DEAD',
+      diedAt: new Date('2026-06-01T00:00:00Z'),
+    })
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([dead] as never)
+
+    const res = await listHandler(
+      createNextRequest('/api/remote-wallets', { searchParams: { status: 'DEAD' } }),
+    )
+    const body = (await assertResponse(res, 200)) as Array<{ status: string; diedAt: string | null }>
+
+    expect(body).toHaveLength(1)
+    expect(body[0].status).toBe('DEAD')
+    expect(body[0].diedAt).toBe('2026-06-01T00:00:00.000Z')
+  })
+
   it('passes type filter through to the Prisma query', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
@@ -525,6 +562,47 @@ describe('DELETE /api/remote-wallets/[id]', () => {
       where: { id: 'w1' },
       data: { status: 'REVOKED', isDefault: false },
     })
+  })
+
+  it('?permanent=true hard-deletes an archived (DEAD) wallet', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id, status: 'DEAD' })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    vi.mocked(prismaMock.remoteWallet.delete).mockResolvedValue(wallet as never)
+
+    const res = await deleteHandler(
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'DELETE',
+        searchParams: { permanent: 'true' },
+      }),
+      createParamsPromise({ id: 'w1' }),
+    )
+
+    expect(res.status).toBe(204)
+    expect(prismaMock.remoteWallet.delete).toHaveBeenCalledWith({ where: { id: 'w1' } })
+    // A hard delete must NOT also run the soft-delete update.
+    expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
+  })
+
+  it('?permanent=true refuses to hard-delete an ACTIVE wallet (400)', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id, status: 'ACTIVE' })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+
+    const res = await deleteHandler(
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'DELETE',
+        searchParams: { permanent: 'true' },
+      }),
+      createParamsPromise({ id: 'w1' }),
+    )
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.remoteWallet.delete).not.toHaveBeenCalled()
   })
 
   it('returns 404 when the wallet belongs to another user', async () => {

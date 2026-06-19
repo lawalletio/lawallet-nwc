@@ -116,6 +116,9 @@ function ConnectionMapInner() {
 
   const loading = walletsLoading || addressesLoading || cardsLoading
   const domain = settings?.domain || 'your-domain'
+  // When the user has no wallets, offer a one-tap LNCurl wallet (ghost node)
+  // — but only if the operator enabled the integration.
+  const lncurlEnabled = settings?.lncurl_enabled === 'true'
 
   // Hover lives in local state, NOT folded into the nodes/edges arrays.
   // Hovering a node highlights its edges + the nodes on the other end;
@@ -154,8 +157,8 @@ function ConnectionMapInner() {
   )
 
   const { nodes, edges } = useMemo(
-    () => buildGraph({ wallets, addresses, cards, defaultWallet, domain }),
-    [wallets, addresses, cards, defaultWallet, domain],
+    () => buildGraph({ wallets, addresses, cards, defaultWallet, domain, lncurlEnabled }),
+    [wallets, addresses, cards, defaultWallet, domain, lncurlEnabled],
   )
 
   // Compute the highlight set. When nothing is hovered, everything renders
@@ -498,6 +501,8 @@ interface BuildGraphInput {
   cards: CardData[] | null
   defaultWallet: RemoteWalletData | null
   domain: string
+  /** When the wallet column is empty, render a ghost LNCurl create-CTA node. */
+  lncurlEnabled: boolean
 }
 
 interface BuiltGraph {
@@ -525,6 +530,7 @@ function buildGraph({
   cards,
   defaultWallet,
   domain,
+  lncurlEnabled,
 }: BuildGraphInput): BuiltGraph {
   const { addressX, walletX, cardX, rowGap, cardRowGap, topY } = NODE_LAYOUT
   const nodes: Node[] = []
@@ -588,6 +594,27 @@ function buildGraph({
       })
       y += rowGap
     }
+  } else if (lncurlEnabled) {
+    // No wallets yet — offer a one-tap LNCurl wallet in the wallet column.
+    // The `ghost:` prefix doesn't match any node-id parser, so clicking the
+    // node body is inert (the button inside owns the action).
+    nodes.push({
+      id: 'header:wallets',
+      type: 'header',
+      position: { x: walletX, y },
+      data: { label: 'Remote Wallets' },
+      draggable: false,
+      selectable: false,
+    })
+    y += rowGap
+    nodes.push({
+      id: 'ghost:wallet',
+      type: 'ghost-wallet',
+      position: { x: walletX, y },
+      data: {},
+      draggable: false,
+      selectable: false,
+    })
   }
 
   // ── Column 3 (right): Cards ─────────────────────────────────────────────

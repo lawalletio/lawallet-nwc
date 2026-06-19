@@ -25,10 +25,12 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Spinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 import {
   useRemoteWalletMutations,
   type RemoteWalletData,
 } from '@/lib/client/hooks/use-remote-wallets'
+import { useSettings } from '@/lib/client/hooks/use-settings'
 import { ApiClientError } from '@/lib/client/api-client'
 import {
   probeNwcCapabilities,
@@ -83,24 +85,35 @@ type ProbeState =
 
 const PROBE_DEBOUNCE_MS = 600
 
+/** Which connection method the dialog is currently in. */
+type CreateMethod = 'nwc' | 'lncurl'
+
 export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialogProps) {
+  const { data: settings } = useSettings()
+  const lncurlEnabled = settings?.lncurl_enabled === 'true'
+
   const [open, setOpen] = useState(false)
+  const [method, setMethod] = useState<CreateMethod>('nwc')
   const [name, setName] = useState('')
   const [type, setType] = useState<RemoteWalletData['type']>('NWC')
   const [connectionString, setConnectionString] = useState('')
   const [isDefault, setIsDefault] = useState(false)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
-  const { createWallet, loading } = useRemoteWalletMutations()
+  const { createWallet, createLncurlWallet, loading } = useRemoteWalletMutations()
 
   const trimmedName = name.trim()
   const trimmedUri = connectionString.trim()
+  // LNCurl mints the connection server-side, so the only requirement is "not
+  // already submitting" (the name is optional — the server defaults it).
   const canSubmit =
-    !loading &&
-    trimmedName.length > 0 &&
-    trimmedName.length <= 120 &&
-    type === 'NWC' && // only NWC writes today; switch unlocks once other drivers ship
-    trimmedUri.length > 0 &&
-    looksLikeNwcUri(trimmedUri)
+    method === 'lncurl'
+      ? !loading
+      : !loading &&
+        trimmedName.length > 0 &&
+        trimmedName.length <= 120 &&
+        type === 'NWC' && // only NWC writes today; switch unlocks once other drivers ship
+        trimmedUri.length > 0 &&
+        looksLikeNwcUri(trimmedUri)
 
   // ── Auto-probe ────────────────────────────────────────────────────────
   //
@@ -152,6 +165,9 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
   }, [trimmedUri, type])
 
   function resetForm() {
+    // Default to the LNCurl flow when the operator has enabled it — that's the
+    // frictionless path the feature exists to offer.
+    setMethod(lncurlEnabled ? 'lncurl' : 'nwc')
     setName('')
     setType('NWC')
     setConnectionString('')
@@ -176,13 +192,18 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
     if (!canSubmit) return
 
     try {
-      await createWallet({
-        name: trimmedName,
-        type,
-        config: { connectionString: trimmedUri, mode: submitMode },
-        isDefault,
-      })
-      toast.success('Wallet added')
+      if (method === 'lncurl') {
+        await createLncurlWallet({ name: trimmedName || undefined })
+        toast.success('LNCurl wallet created')
+      } else {
+        await createWallet({
+          name: trimmedName,
+          type,
+          config: { connectionString: trimmedUri, mode: submitMode },
+          isDefault,
+        })
+        toast.success('Wallet added')
+      }
       setOpen(false)
       resetForm()
       onCreated?.()
@@ -209,7 +230,8 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
       open={open}
       onOpenChange={next => {
         setOpen(next)
-        if (!next) resetForm()
+        if (next) setMethod(lncurlEnabled ? 'lncurl' : 'nwc')
+        else resetForm()
       }}
     >
       <DialogTrigger asChild>
@@ -229,11 +251,45 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {lncurlEnabled && (
+            <div className="grid grid-cols-2 gap-2 rounded-lg border p-1">
+              <button
+                type="button"
+                onClick={() => setMethod('lncurl')}
+                className={cn(
+                  'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  method === 'lncurl'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted',
+                )}
+              >
+                Create LNCurl wallet
+              </button>
+              <button
+                type="button"
+                onClick={() => setMethod('nwc')}
+                className={cn(
+                  'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  method === 'nwc'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted',
+                )}
+              >
+                Paste connection string
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-col gap-2">
-            <Label htmlFor="wallet-name">Name</Label>
+            <Label htmlFor="wallet-name">
+              Name
+              {method === 'lncurl' && (
+                <span className="font-normal text-muted-foreground"> (optional)</span>
+              )}
+            </Label>
             <Input
               id="wallet-name"
-              placeholder="e.g. Alby Hub"
+              placeholder={method === 'lncurl' ? 'LNCurl wallet' : 'e.g. Alby Hub'}
               value={name}
               onChange={e => setName(e.target.value)}
               maxLength={120}
@@ -241,89 +297,110 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="wallet-type">Type</Label>
-            <Select value={type} onValueChange={v => setType(v as RemoteWalletData['type'])}>
-              <SelectTrigger id="wallet-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DRIVER_OPTIONS.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value} disabled={!opt.enabled}>
-                    <span className="flex items-center gap-2">
-                      {!opt.enabled && <Lock className="size-3.5 text-muted-foreground" />}
-                      <span>{opt.label}</span>
-                      {opt.hint && (
-                        <span className="text-xs text-muted-foreground">— {opt.hint}</span>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {type === 'NWC' && (
+          {method === 'nwc' ? (
             <>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="wallet-uri">Connection string</Label>
-                <InputWithQrScanner
-                  id="wallet-uri"
-                  // `type="password"` masks the URI on screen (it carries a
-                  // shared secret) and disables browser autofill — matches
-                  // the existing NWC input pattern in `nwc-card.tsx`.
-                  type="password"
-                  placeholder="nostr+walletconnect://..."
-                  value={connectionString}
-                  onChange={setConnectionString}
-                  onScan={text => setConnectionString(text.trim())}
-                  onScanError={err => toast.error(err)}
-                  scanLabel="Scan NWC QR code"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  disabled={loading}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Paste or scan the NWC pairing QR from your wallet (Alby,
-                  Mutiny, Phoenix, …). It’s stored encrypted and never
-                  displayed again.
-                </p>
+                <Label htmlFor="wallet-type">Type</Label>
+                <Select value={type} onValueChange={v => setType(v as RemoteWalletData['type'])}>
+                  <SelectTrigger id="wallet-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DRIVER_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value} disabled={!opt.enabled}>
+                        <span className="flex items-center gap-2">
+                          {!opt.enabled && <Lock className="size-3.5 text-muted-foreground" />}
+                          <span>{opt.label}</span>
+                          {opt.hint && (
+                            <span className="text-xs text-muted-foreground">— {opt.hint}</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Only surface Capabilities once there's a URI worth probing —
-                  the section stays hidden while the field is empty or the
-                  input doesn't yet look like an NWC URI (probe `idle`). */}
-              {probe.status !== 'idle' && (
-                <div className="flex flex-col gap-2">
-                  <Label>Capabilities</Label>
-                  <CapabilitiesPanel probe={probe} />
+              {type === 'NWC' && (
+                <>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="wallet-uri">Connection string</Label>
+                    <InputWithQrScanner
+                      id="wallet-uri"
+                      // `type="password"` masks the URI on screen (it carries a
+                      // shared secret) and disables browser autofill — matches
+                      // the existing NWC input pattern in `nwc-card.tsx`.
+                      type="password"
+                      placeholder="nostr+walletconnect://..."
+                      value={connectionString}
+                      onChange={setConnectionString}
+                      onScan={text => setConnectionString(text.trim())}
+                      onScanError={err => toast.error(err)}
+                      scanLabel="Scan NWC QR code"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      disabled={loading}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Paste or scan the NWC pairing QR from your wallet (Alby,
+                      Mutiny, Phoenix, …). It’s stored encrypted and never
+                      displayed again.
+                    </p>
+                  </div>
+
+                  {/* Only surface Capabilities once there's a URI worth probing —
+                      the section stays hidden while the field is empty or the
+                      input doesn't yet look like an NWC URI (probe `idle`). */}
+                  {probe.status !== 'idle' && (
+                    <div className="flex flex-col gap-2">
+                      <Label>Capabilities</Label>
+                      <CapabilitiesPanel probe={probe} />
+                      <p className="text-xs text-muted-foreground">
+                        Detected automatically from the wallet’s NIP-47 <code>get_info</code>{' '}
+                        response. We use this to decide whether the wallet can both send
+                        and receive, or receive only.
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div className="flex flex-col gap-0.5">
+                  <Label htmlFor="wallet-default" className="cursor-pointer">
+                    Set as default
+                  </Label>
                   <p className="text-xs text-muted-foreground">
-                    Detected automatically from the wallet’s NIP-47 <code>get_info</code>{' '}
-                    response. We use this to decide whether the wallet can both send
-                    and receive, or receive only.
+                    Lightning addresses with no explicit wallet will route through
+                    this one.
                   </p>
                 </div>
-              )}
+                <Switch
+                  id="wallet-default"
+                  checked={isDefault}
+                  onCheckedChange={setIsDefault}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/5 p-3 text-sm text-yellow-700 dark:text-yellow-400">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  LNCurl wallets cost <strong>1 sat per hour</strong> to stay
+                  alive — your <strong>first hour is free</strong>. If the balance
+                  runs out and hits{' '}
+                  <strong>0 sats, the wallet is permanently destroyed</strong>.
+                  Don’t store large amounts.
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This becomes your active wallet — your Lightning Address and Cards
+                will route to it, replacing the previous connection.
+              </p>
             </>
           )}
-
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div className="flex flex-col gap-0.5">
-              <Label htmlFor="wallet-default" className="cursor-pointer">
-                Set as default
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Lightning addresses with no explicit wallet will route through
-                this one.
-              </p>
-            </div>
-            <Switch
-              id="wallet-default"
-              checked={isDefault}
-              onCheckedChange={setIsDefault}
-            />
-          </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
@@ -331,7 +408,7 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
             </Button>
             <Button type="submit" disabled={!canSubmit} className="gap-2">
               {loading && <Spinner className="size-4" />}
-              Add wallet
+              {method === 'lncurl' ? 'Create wallet' : 'Add wallet'}
             </Button>
           </DialogFooter>
         </form>
