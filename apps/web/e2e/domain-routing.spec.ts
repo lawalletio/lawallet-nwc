@@ -184,7 +184,7 @@ test('verified .well-known rewrite clears domain setup alerts', async ({
   await dialog.getByRole('button', { name: /Verify/i }).click()
 
   await expect(
-    dialog.getByRole('heading', { name: /Discovery is ready/i }),
+    dialog.getByRole('heading', { name: /Domain successfully connected/i }),
   ).toBeVisible({ timeout: 30_000 })
 
   const probeId = `e2e-${Date.now()}`

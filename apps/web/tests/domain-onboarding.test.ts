@@ -169,6 +169,44 @@ describe('domain onboarding helpers', () => {
     )
   })
 
+  it('verifies the domain when LNURL and NIP-05 resolve, even if lawallet.json does not', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      const href = String(url)
+      if (href === 'https://example.com') {
+        return new Response('<link href="/wp-content/theme.css">', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        })
+      }
+      if (href.includes('/.well-known/lnurlp/')) {
+        const probe = new URL(href).searchParams.get('probe')
+        return Response.json({
+          tag: 'payRequest',
+          callback: `https://gateway.example.com/api/lud16/${LNURL_VERIFY_USERNAME}/cb?probe=${probe}`,
+        })
+      }
+      if (href.includes('/.well-known/nostr.json')) {
+        return Response.json({ names: {} })
+      }
+      // lawallet.json is not routed (e.g. the rewrite only forwards lnurlp + nostr.json)
+      if (href.includes('/.well-known/lawallet.json')) {
+        return new Response('', { status: 404 })
+      }
+      return new Response('', { status: 404 })
+    })
+
+    const result = await probeDomainRouting({
+      domain: 'example.com',
+      endpoint: 'https://example.com',
+      apiGatewayEndpoint: 'https://gateway.example.com',
+    })
+
+    expect(result.checks.lnurl.state).toBe('pass')
+    expect(result.checks.nip05.state).toBe('pass')
+    expect(result.checks.instance.state).toBe('fail')
+    expect(result.status).toBe('ready')
+  })
+
   it('does not trust LaWallet-looking root pages without the instance probe', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
       const href = String(url)
