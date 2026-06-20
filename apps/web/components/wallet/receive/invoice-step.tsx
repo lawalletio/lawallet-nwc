@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApi } from '@/lib/client/hooks/use-api'
+import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useNwcBalance } from '@/lib/client/use-nwc-balance'
 import { QrDisplay } from '@/components/wallet/shared/qr-display'
 import {
@@ -12,13 +13,14 @@ import {
 
 interface UserMeResponse {
   effectiveNwcString: string | null
+  nwcString: string
 }
 
 export function ReceiveInvoiceStep() {
   const router = useRouter()
   const flow = useReceiveFlow()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
-  const effectiveNwc = me?.effectiveNwcString ?? null
+  const effectiveNwc = resolveUserNwc(me)
 
   // Subscribe to NIP-47 notifications; when we see a payment_received whose
   // payment hash matches the minted invoice, advance to the summary screen.

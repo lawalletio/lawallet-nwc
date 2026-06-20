@@ -3,10 +3,11 @@
 import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { QrCode, Trash2 } from 'lucide-react'
+import { QrCode, Ticket, Trash2 } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { DesignImage } from '@/components/admin/design-image'
 import { BoltcardQrDialog } from '@/components/admin/boltcard-qr-dialog'
+import { CardActivationDialog } from '@/components/admin/card-activation-dialog'
 import { CardWipeDialog } from '@/components/admin/card-wipe-dialog'
 import { PermissionGuard } from '@/components/admin/permission-guard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,6 +41,7 @@ export default function CardDetailPage({
   const { data: card, loading } = useCard(id)
   const { deleteCard, loading: deleteLoading } = useCardMutations()
   const [qrOpen, setQrOpen] = useState(false)
+  const [activationOpen, setActivationOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   async function handleDelete() {
@@ -68,25 +70,18 @@ export default function CardDetailPage({
         title="Single Card"
         type="subpage"
         onBack={() => router.push('/admin/cards')}
-        actions={
-          <PermissionGuard permission={Permission.CARDS_WRITE}>
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={deleteLoading || !card}
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 className="mr-2 size-4" />
-              Delete
-            </Button>
-          </PermissionGuard>
-        }
       />
 
       <BoltcardQrDialog
         cardId={id}
         open={qrOpen}
         onOpenChange={setQrOpen}
+      />
+
+      <CardActivationDialog
+        cardId={id}
+        open={activationOpen}
+        onOpenChange={setActivationOpen}
       />
 
       {/* Delete flow. When the card has an NTAG424, surface the BoltCard reset
@@ -192,6 +187,33 @@ export default function CardDetailPage({
               </CardContent>
             </Card>
 
+            {/* Activation. Mints a one-time activation link/QR the cardholder
+                scans to claim the card. Operator-only; unavailable once the
+                card is blocked (the mint route 409s). */}
+            <PermissionGuard permission={Permission.CARDS_WRITE}>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-2">
+                  <CardTitle className="text-base">Activation</CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={card.blocked}
+                    onClick={() => setActivationOpen(true)}
+                  >
+                    <Ticket className="mr-2 size-4" />
+                    Activation URL
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground">
+                    {card.blocked
+                      ? 'This card is blocked and can no longer be activated.'
+                      : 'Generate a one-time link or QR. The cardholder scans it with their wallet to claim this card and link it to their account.'}
+                  </p>
+                </CardContent>
+              </Card>
+            </PermissionGuard>
+
             {/* Card chip (NTAG424). Keys are never shown here — they only ever
                 leave the server when the card is (re)programmed or reset, via
                 the BoltCard QR (`/write`) or the Delete → Reset flow (`/wipe`),
@@ -227,6 +249,36 @@ export default function CardDetailPage({
                 </CardContent>
               </Card>
             )}
+
+            {/* Danger zone — destructive, irreversible actions, isolated at the
+                bottom of the page behind a destructive-tinted card and a confirm
+                dialog (the BoltCard reset flow for chipped cards). */}
+            <PermissionGuard permission={Permission.CARDS_WRITE}>
+              <Card className="border-destructive/50">
+                <CardHeader>
+                  <CardTitle className="text-base text-destructive">
+                    Danger zone
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Permanently delete this card. This action cannot be undone.
+                    {card.ntag424 &&
+                      ' Reset the physical card first to export its keys and unpair it from its user.'}
+                  </p>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={deleteLoading}
+                    onClick={() => setDeleteOpen(true)}
+                    className="shrink-0"
+                  >
+                    <Trash2 className="mr-2 size-4" />
+                    Delete card
+                  </Button>
+                </CardContent>
+              </Card>
+            </PermissionGuard>
           </>
         )}
       </div>

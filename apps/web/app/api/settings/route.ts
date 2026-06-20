@@ -53,6 +53,13 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       isotypo_url: settings.isotypo_url,
       community_cover_url: settings.community_cover_url,
       maintenance_enabled: settings.maintenance_enabled,
+      // LNCurl flags are non-secret feature signals the wallet UI (open to
+      // every authenticated user, not just admins/operators with SETTINGS_READ)
+      // needs: `lncurl_enabled` gates the "Create LNCurl wallet" option, and
+      // `lncurl_auto_create` tells the wallet to offer receive (auto-minting a
+      // wallet) instead of an empty "no wallet connected" state.
+      lncurl_enabled: settings.lncurl_enabled,
+      lncurl_auto_create: settings.lncurl_auto_create,
       social_whatsapp: settings.social_whatsapp,
       social_telegram: settings.social_telegram,
       social_discord: settings.social_discord,

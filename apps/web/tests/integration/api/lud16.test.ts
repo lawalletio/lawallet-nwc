@@ -27,7 +27,10 @@ vi.mock('@/lib/events/event-bus', () => ({
 
 // LNCurl re-provisioning is exercised in dedicated suites; here we stub it so
 // the cb route's self-heal branch is testable without a network call.
-vi.mock('@/lib/wallet/lncurl-wallet', () => ({
+// Keep the real `lncurlHealTarget` (pure eligibility logic the LUD-16 routes
+// call before 404ing / self-healing) and stub only the network+DB writer.
+vi.mock('@/lib/wallet/lncurl-wallet', async importActual => ({
+  ...(await importActual<typeof import('@/lib/wallet/lncurl-wallet')>()),
   createLncurlRemoteWallet: vi.fn(),
 }))
 
@@ -78,6 +81,15 @@ const DEFAULT_WALLET = {
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  // Sane default so every route that reads settings gets an object, not
+  // `undefined`. The LUD-16 routes now consult the `lncurl_*` flags before
+  // 404ing an unroutable address (lazy auto-heal), so the 404 paths exercise
+  // `getSettings` too. With no lncurl flags here, auto-heal stays off and those
+  // 404 assertions hold; tests that need auto-heal override this.
+  vi.mocked(getSettings).mockResolvedValue({
+    domain: 'test.com',
+    endpoint: 'https://app.test.com',
+  })
   // The driver caches one NWCClient per connection string; clear it so each
   // test's `nwcCtorMock` assertions see a fresh constructor call rather than
   // a cache hit from a prior test.
@@ -155,6 +167,34 @@ describe('GET /api/lud16/[username]', () => {
     const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
 
     expect(res.status).toBe(404)
+  })
+
+  it('serves a callback (200) for a no-wallet address when LNCurl auto-recreate is on, without provisioning', async () => {
+    // pelo's exact case: DEFAULT_NWC, no wallet at all. Instead of 404, the
+    // lookup promises a callback — the wallet is minted lazily in /cb.
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'pelo',
+      mode: 'DEFAULT_NWC',
+      redirect: null,
+      nwcConnection: null,
+      remoteWallet: null,
+      user: { id: 'user-1', remoteWallets: [] },
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_enabled: 'true',
+      lncurl_auto_recreate: 'true',
+    })
+
+    const req = createNextRequest('/api/lud16/pelo')
+    const res = await Lud16Get(req, createParamsPromise({ username: 'pelo' }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.tag).toBe('payRequest')
+    expect(body.callback).toContain('/api/lud16/pelo/cb')
+    // A bare lookup must never mint a wallet.
+    expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
   })
 
   it('handles case-insensitive username lookup', async () => {
@@ -666,6 +706,48 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
     // Two mint attempts: the dead wallet, then the fresh replacement.
     expect(makeInvoiceMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('provisions a fresh LNCurl wallet on the invoice request for an address that never had one → 200', async () => {
+    // pelo's case: DEFAULT_NWC, zero wallets. With LNCurl + auto-recreate on,
+    // /cb mints a wallet now and invoices through it (no prior wallet to revoke).
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'pelo',
+      mode: 'DEFAULT_NWC',
+      redirect: null,
+      remoteWallet: null,
+      nwcConnection: null,
+      user: { id: 'user-1', remoteWallets: [] },
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'test.com',
+      endpoint: 'https://app.test.com',
+      lncurl_enabled: 'true',
+      lncurl_auto_recreate: 'true',
+      lncurl_server_url: 'https://my.lncurl.example',
+    })
+    vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
+      id: 'invoice-1',
+      paymentHash: 'a'.repeat(64),
+    } as any)
+    vi.mocked(createLncurlRemoteWallet).mockResolvedValue({
+      id: 'wallet-fresh',
+      type: 'NWC',
+      config: { connectionString: 'nostr+walletconnect://fresh-lncurl', mode: 'SEND_RECEIVE', provider: 'lncurl' },
+      status: 'ACTIVE',
+    } as any)
+
+    const req = createNextRequest('/api/lud16/pelo/cb', { searchParams: { amount: '10000' } })
+    const res = await Lud16CbGet(req, createParamsPromise({ username: 'pelo' }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.pr).toBe('lnbc100n1test')
+    // Fresh create: no previous wallet to revoke; minted through exactly once.
+    expect(createLncurlRemoteWallet).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1', revokePrevious: false }),
+    )
+    expect(makeInvoiceMock).toHaveBeenCalledTimes(1)
+    expect(prismaMock.invoice.upsert).toHaveBeenCalled()
   })
 
   it('does NOT self-heal when lncurl_auto_recreate is off → 503', async () => {

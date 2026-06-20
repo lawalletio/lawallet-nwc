@@ -39,11 +39,7 @@ export interface SettingsData {
   social_nostr?: string
   social_email?: string
   /** Feature toggles persisted as the strings 'true' / 'false'. */
-  wallet_enabled?: string
   maintenance_enabled?: string
-  disable_transfers?: string
-  disable_registers?: string
-  disable_address?: string
   /** Whether non-admin users can create Lightning Addresses. Defaults to true when absent. */
   registration_user_enabled?: string
   registration_ln_address?: string
