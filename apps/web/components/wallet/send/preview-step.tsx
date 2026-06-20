@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useApi } from '@/lib/client/hooks/use-api'
+import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import {
   useSendFlow,
   sendActions,
@@ -13,13 +14,14 @@ import { pay } from '@/lib/client/nwc'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
+  nwcString: string
 }
 
 export function SendPreviewStep() {
   const router = useRouter()
   const flow = useSendFlow()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
-  const effectiveNwc = me?.effectiveNwcString ?? null
+  const effectiveNwc = resolveUserNwc(me)
 
   useEffect(() => {
     if (!flow.recipient || flow.amountSats === null) {

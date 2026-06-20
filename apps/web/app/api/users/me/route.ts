@@ -59,11 +59,12 @@ export const GET = withErrorHandling(async (request: Request) => {
   const nwcUpdatedAt = defaultWallet?.updatedAt.toISOString() ?? null
 
   // Run the same resolver the LUD-16 endpoint uses, but against the
-  // *primary* lightning address. The dashboard balance widget should only
-  // pull funds info when the primary address is actually routable:
+  // *primary* lightning address. This is the wallet the address routes to —
+  // NOT necessarily the user's spendable wallet (the client falls back to
+  // `nwcString`, the default wallet, when this is null):
   //   - CUSTOM_NWC → the address's bound RemoteWallet
   //   - DEFAULT_NWC → the user's default RemoteWallet
-  //   - IDLE / ALIAS / unconfigured → null, caller renders empty state
+  //   - IDLE / ALIAS / unconfigured → null
   // `primaryAddressMode` is returned alongside so the UI can phrase the
   // empty-state reason accurately.
   const effectiveNwcString = primaryAddress

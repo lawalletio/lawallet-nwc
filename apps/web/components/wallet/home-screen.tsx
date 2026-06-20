@@ -14,6 +14,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useApi } from '@/lib/client/hooks/use-api'
+import { useSettings } from '@/lib/client/hooks/use-settings'
+import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useNwcBalance } from '@/lib/client/use-nwc-balance'
 import { listTransactions, type NwcTransaction } from '@/lib/client/nwc'
 import { nwcCacheKey } from '@/lib/client/cache/key'
@@ -65,7 +67,10 @@ export function HomeScreen() {
   const { rates } = useYadioRates()
   const activeCurrencies = useActiveCurrencies()
   const { data: me, loading: meLoading } = useApi<UserMeResponse>('/api/users/me')
-  const effectiveNwc = me?.effectiveNwcString ?? null
+  // The user's spendable wallet: the address-routed wallet, else their default
+  // RemoteWallet. Falling back here is what stops the home screen from showing
+  // "No wallet connected" when the user has a wallet but no routable address.
+  const effectiveNwc = resolveUserNwc(me)
   // Bump on each NIP-47 notification so the recent-activity preview can
   // refetch without spinning up its own relay subscription. `useNwcBalance`
   // already maintains one — piggyback on that.
@@ -81,8 +86,16 @@ export function HomeScreen() {
     onTransaction: () => setTxTick(t => t + 1),
   })
 
+  const { data: settings } = useSettings()
+  // When the operator auto-creates wallets, a user without one yet isn't
+  // "unconnected" — receiving mints an LNCurl wallet on demand. So we surface a
+  // friendly message instead of the dead-end empty state and let them receive.
+  const autoCreate = settings?.lncurl_auto_create === 'true'
+
   const hasAddress = Boolean(me?.lightningAddress)
   const hasNwc = Boolean(effectiveNwc)
+  // Receiving works when a wallet exists OR one will be auto-created on demand.
+  const canReceive = hasAddress && (hasNwc || autoCreate)
   // Only show the first-paint spinner when there's literally nothing to
   // render. With cached `sats` we want the cached number visible
   // immediately, animated via the pulse state inside `BalanceText`.
@@ -210,12 +223,12 @@ export function HomeScreen() {
 
       <div className="flex gap-3 px-4">
         <Button
-          asChild={hasNwc && hasAddress}
+          asChild={canReceive}
           variant="secondary"
           className="h-12 flex-1"
-          disabled={!hasNwc || !hasAddress}
+          disabled={!canReceive}
         >
-          {hasNwc && hasAddress ? (
+          {canReceive ? (
             <Link href="/wallet/receive">Receive</Link>
           ) : (
             <span>Receive</span>
@@ -276,16 +289,30 @@ export function HomeScreen() {
       )}
 
       {!hasNwc && !meLoading && (
-        <div className="mx-4 mt-4 rounded-xl border border-border bg-card/60 p-4 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">No wallet connected</p>
-          <p className="mt-1 text-xs">
-            Connect a Nostr Wallet Connect URI from the admin settings page to
-            start sending and receiving.
-          </p>
-          <Button asChild variant="secondary" size="sm" className="mt-3">
-            <Link href="/admin">Open admin</Link>
-          </Button>
-        </div>
+        autoCreate ? (
+          // Auto-create on: receiving mints a wallet on demand, so this is an
+          // invitation, not a dead end.
+          <div className="mx-4 mt-4 rounded-xl border border-dashed border-nwc-purple/40 bg-nwc-purple/5 p-4 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">
+              Your wallet is created when you receive
+            </p>
+            <p className="mt-1 text-xs">
+              No setup needed — tap Receive and we&apos;ll spin up a wallet
+              automatically for your first payment.
+            </p>
+          </div>
+        ) : (
+          <div className="mx-4 mt-4 rounded-xl border border-border bg-card/60 p-4 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">No wallet connected</p>
+            <p className="mt-1 text-xs">
+              Connect a Nostr Wallet Connect URI from the admin settings page to
+              start sending and receiving.
+            </p>
+            <Button asChild variant="secondary" size="sm" className="mt-3">
+              <Link href="/admin">Open admin</Link>
+            </Button>
+          </div>
+        )
       )}
 
       <ActivityPreview nwcString={effectiveNwc} refreshKey={txTick} />

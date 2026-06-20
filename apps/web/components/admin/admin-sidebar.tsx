@@ -12,7 +12,6 @@ import {
   Network,
   Activity,
   Settings,
-  Puzzle,
   ChevronLeft,
   Nfc,
   MoreVertical,
@@ -124,13 +123,6 @@ const systemItems: NavItem[] = [
     href: '/admin/activity',
     icon: Activity,
     permission: Permission.SETTINGS_READ,
-  },
-  // Plugin management — list + enable/disable. ADMIN-gated like Settings.
-  {
-    title: 'Plugins',
-    href: '/admin/plugins',
-    icon: Puzzle,
-    permission: Permission.SETTINGS_WRITE,
   },
 ]
 

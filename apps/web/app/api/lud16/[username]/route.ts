@@ -12,6 +12,8 @@ import {
   parseLightningAddress,
   resolveWalletRoute,
 } from '@/lib/wallet/resolve-payment-route'
+import { getSettings } from '@/lib/settings'
+import { lncurlHealTarget } from '@/lib/wallet/lncurl-wallet'
 
 /** Abort the remote LUD-16 fetch for ALIAS mode after this many ms. */
 const ALIAS_FETCH_TIMEOUT_MS = 5000
@@ -47,13 +49,13 @@ export const GET = withErrorHandling(
     const lightningAddress = await prisma.lightningAddress.findUnique({
       where: { username },
       include: {
-        remoteWallet: { select: { type: true, config: true, status: true } },
+        remoteWallet: { select: { id: true, type: true, config: true, status: true } },
         user: {
           select: {
             id: true,
             remoteWallets: {
               where: { isDefault: true },
-              select: { type: true, config: true, status: true },
+              select: { id: true, type: true, config: true, status: true },
               take: 1,
             },
           },
@@ -72,14 +74,44 @@ export const GET = withErrorHandling(
       defaultRemoteWallet: lightningAddress.user.remoteWallets[0] ?? null,
     })
 
-    // IDLE (disabled by the owner) and unconfigured (missing connection /
-    // missing redirect) both look the same to the caller: no LNURL here.
-    if (route.kind === 'idle' || route.kind === 'unconfigured') {
+    // IDLE (disabled by the owner) is always a dead end — no LNURL here.
+    if (route.kind === 'idle') {
       logger.info(
         { username, mode: lightningAddress.mode, reason: route.kind },
         'LUD16 lookup rejected',
       )
       throw new NotFoundError('User not configured for payments')
+    }
+
+    // `unconfigured` (no usable wallet) normally 404s too — UNLESS the operator
+    // runs LNCurl with auto-recreate, in which case we promise a callback and
+    // defer provisioning to /cb (so a bare lookup never mints a wallet). Stays
+    // in lockstep with the /cb route, which performs the actual heal.
+    if (route.kind === 'unconfigured') {
+      const settings = await getSettings([
+        'lncurl_enabled',
+        'lncurl_auto_create',
+        'lncurl_auto_recreate',
+      ])
+      const heal = lncurlHealTarget(
+        {
+          mode: lightningAddress.mode,
+          boundWallet: lightningAddress.remoteWallet,
+          defaultWallet: lightningAddress.user.remoteWallets[0] ?? null,
+        },
+        settings,
+      )
+      if (!heal) {
+        logger.info(
+          { username, mode: lightningAddress.mode, reason: route.kind },
+          'LUD16 lookup rejected',
+        )
+        throw new NotFoundError('User not configured for payments')
+      }
+      logger.info(
+        { username, mode: lightningAddress.mode },
+        'LUD16 lookup served via LNCurl auto-heal (deferred provisioning)',
+      )
     }
 
     // ALIAS: proxy the remote address's LUD-16 response verbatim. We return

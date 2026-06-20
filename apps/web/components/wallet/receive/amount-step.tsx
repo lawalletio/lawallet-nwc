@@ -12,7 +12,10 @@ import {
   parseKeypadValue,
 } from '@/components/wallet/shared/amount-keypad'
 import { AmountDisplay } from '@/components/wallet/shared/amount-display'
-import { useApi } from '@/lib/client/hooks/use-api'
+import { useApi, invalidateApiPath } from '@/lib/client/hooks/use-api'
+import { useSettings } from '@/lib/client/hooks/use-settings'
+import { resolveUserNwc } from '@/lib/client/wallet-nwc'
+import { useAuth } from '@/components/admin/auth-context'
 import { makeInvoice } from '@/lib/client/nwc'
 import {
   useReceiveFlow,
@@ -23,13 +26,17 @@ import { AnalyticsEvent } from '@/lib/analytics/events'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
+  nwcString: string
 }
 
 export function ReceiveAmountStep() {
   const router = useRouter()
   const flow = useReceiveFlow()
+  const { apiClient } = useAuth()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
-  const effectiveNwc = me?.effectiveNwcString ?? null
+  const { data: settings } = useSettings()
+  const effectiveNwc = resolveUserNwc(me)
+  const autoCreate = settings?.lncurl_auto_create === 'true'
 
   const [value, setValue] = useState<string>(
     flow.amountSats ? String(flow.amountSats) : '0',
@@ -45,15 +52,26 @@ export function ReceiveAmountStep() {
 
   async function create() {
     if (amount === null) return
-    if (!effectiveNwc) {
-      toast.error('No wallet connected')
-      return
-    }
     setLoading(true)
     receiveActions.setAmount(amount)
     receiveActions.setDescription(description)
     try {
-      const invoice = await makeInvoice(effectiveNwc, amount, description)
+      // Auto-create on receive: no wallet yet but the operator auto-creates
+      // them → mint an LNCurl wallet now, then re-read /me for its connection
+      // string. Other surfaces refresh off the invalidated caches.
+      let nwc = effectiveNwc
+      if (!nwc && autoCreate) {
+        await apiClient.post('/api/remote-wallets/lncurl', {})
+        const fresh = await apiClient.get<UserMeResponse>('/api/users/me')
+        nwc = resolveUserNwc(fresh)
+        invalidateApiPath('/api/users/me')
+        invalidateApiPath('/api/remote-wallets')
+      }
+      if (!nwc) {
+        toast.error('No wallet connected')
+        return
+      }
+      const invoice = await makeInvoice(nwc, amount, description)
       trackEvent(AnalyticsEvent.WALLET_RECEIVE_INVOICE_GENERATED)
       receiveActions.setInvoice(invoice)
       router.push('/wallet/receive/invoice')
@@ -83,7 +101,7 @@ export function ReceiveAmountStep() {
         <Button
           type="button"
           onClick={create}
-          disabled={amount === null || loading || !effectiveNwc}
+          disabled={amount === null || loading || (!effectiveNwc && !autoCreate)}
           className="h-12 w-full"
         >
           {loading ? (

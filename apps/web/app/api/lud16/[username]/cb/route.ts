@@ -24,7 +24,10 @@ import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { DriverError, driverForWallet } from '@/lib/wallet/drivers'
 import { eventBus } from '@/lib/events/event-bus'
 import { getSettings } from '@/lib/settings'
-import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
+import {
+  createLncurlRemoteWallet,
+  lncurlHealTarget,
+} from '@/lib/wallet/lncurl-wallet'
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
@@ -79,9 +82,74 @@ export const GET = withErrorHandling(
       defaultRemoteWallet: lightningAddress.user.remoteWallets[0] ?? null,
     })
 
-    if (route.kind !== 'wallet') {
+    // Lazy LNCurl self-heal: an address that can't currently route — no wallet
+    // yet (e.g. signup with auto-create off), or a dead disposable wallet —
+    // provisions a fresh LNCurl wallet NOW, on the real invoice request, when
+    // the operator runs LNCurl + auto-recreate. This is what the metadata route
+    // promised when it served a callback for such addresses instead of 404ing.
+    let mintRoute = route
+    if (route.kind === 'unconfigured') {
+      const {
+        lncurl_enabled,
+        lncurl_auto_create,
+        lncurl_auto_recreate,
+        lncurl_server_url,
+      } = await getSettings([
+        'lncurl_enabled',
+        'lncurl_auto_create',
+        'lncurl_auto_recreate',
+        'lncurl_server_url',
+      ])
+      const heal = lncurlHealTarget(
+        {
+          mode: lightningAddress.mode,
+          boundWallet: lightningAddress.remoteWallet,
+          defaultWallet: lightningAddress.user.remoteWallets[0] ?? null,
+        },
+        { lncurl_enabled, lncurl_auto_create, lncurl_auto_recreate },
+      )
+      if (heal) {
+        try {
+          const provisioned = await createLncurlRemoteWallet({
+            userId: lightningAddress.user.id,
+            previousWalletId: heal.previousWalletId ?? undefined,
+            revokePrevious: heal.previousWalletId != null,
+            serverUrl: lncurl_server_url || undefined,
+          })
+          // DEFAULT_NWC routes through the new default automatically. A
+          // CUSTOM_NWC address with no prior wallet to re-point needs an
+          // explicit binding to the freshly minted wallet.
+          if (
+            lightningAddress.mode === 'CUSTOM_NWC' &&
+            heal.previousWalletId == null
+          ) {
+            await prisma.lightningAddress.update({
+              where: { username },
+              data: { remoteWalletId: provisioned.id },
+            })
+          }
+          mintRoute = {
+            kind: 'wallet',
+            type: provisioned.type,
+            config: provisioned.config,
+          }
+          logger.info(
+            { username, walletId: provisioned.id },
+            'LNCurl auto-heal provisioned wallet on invoice request',
+          )
+        } catch (healErr) {
+          logger.error(
+            { username, err: String(healErr) },
+            'LNCurl auto-heal provisioning failed',
+          )
+          throw new ServiceUnavailableError('Wallet is currently unavailable')
+        }
+      }
+    }
+
+    if (mintRoute.kind !== 'wallet') {
       logger.info(
-        { username, mode: lightningAddress.mode, reason: route.kind },
+        { username, mode: lightningAddress.mode, reason: mintRoute.kind },
         'LUD16 callback rejected',
       )
       throw new NotFoundError('User not configured for payments')
@@ -100,7 +168,7 @@ export const GET = withErrorHandling(
     const amountSats = Math.floor(Number(amount) / 1000)
     let made
     try {
-      const { driver, config } = driverForWallet({ type: route.type, config: route.config })
+      const { driver, config } = driverForWallet({ type: mintRoute.type, config: mintRoute.config })
       made = await driver.makeInvoice(config, { amountSats, description })
     } catch (err) {
       // Driver/transport failures (relay down, wallet rejected make_invoice,
@@ -111,7 +179,7 @@ export const GET = withErrorHandling(
         // expected. When the routed wallet is an LNCurl wallet and auto-recreate
         // is on, re-provision a fresh LNCurl wallet (revoking the dead one),
         // re-point the user's bindings, and retry the mint once.
-        const provider = (route.config as { provider?: string } | null)?.provider
+        const provider = (mintRoute.config as { provider?: string } | null)?.provider
         if (provider === 'lncurl') {
           const { lncurl_auto_recreate, lncurl_server_url } = await getSettings([
             'lncurl_auto_recreate',
@@ -145,11 +213,11 @@ export const GET = withErrorHandling(
               throw new ServiceUnavailableError('Wallet is currently unavailable')
             }
           } else {
-            logger.error({ username, walletType: route.type, err: String(err) }, 'LUD16 invoice mint failed')
+            logger.error({ username, walletType: mintRoute.type, err: String(err) }, 'LUD16 invoice mint failed')
             throw new ServiceUnavailableError('Wallet is currently unavailable')
           }
         } else {
-          logger.error({ username, walletType: route.type, err: String(err) }, 'LUD16 invoice mint failed')
+          logger.error({ username, walletType: mintRoute.type, err: String(err) }, 'LUD16 invoice mint failed')
           throw new ServiceUnavailableError('Wallet is currently unavailable')
         }
       } else {
