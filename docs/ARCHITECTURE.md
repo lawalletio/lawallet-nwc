@@ -543,8 +543,9 @@ A card's status is derived, not stored as an enum:
 
 #### Programming integration (external NFC apps)
 
-A programming app (e.g. [card-installer](https://github.com/lawalletio/card-installer))
-provisions a card like this:
+[card-installer](https://github.com/lawalletio/card-installer) (Android, NFC) runs these
+steps in **bulk** — tapping one blank chip after another to provision a batch of cards and
+register each in the system as *initialized* (ready to activate). Per chip it:
 
 1. `POST /api/cards` (JWT, `CARDS_WRITE`) — create the card. The response
    includes the NTAG424 keys for the fresh chip.
@@ -562,6 +563,12 @@ provisions a card like this:
 
 `/wipe` (reset) is fetched directly with the device JWT and is not token-gated.
 Neither flow uses the card read endpoint, which never returns keys.
+
+Once a card is *initialized*, [card-manager](https://github.com/lawalletio/card-manager)
+takes any such card and prints an **Activation QR** (the same artifact `card-installer` can
+emit at write time). An end user scans it to open the wallet at `/wallet`, where they create
+a new account or sign into an existing one and the card pairs to them — if the card had a
+previous owner, it is unpaired first and readied for the new user.
 
 ### Card Tap Verification
 
