@@ -87,6 +87,13 @@ USER nextjs
 EXPOSE 2288
 
 ENV NODE_ENV=production
+# Next.js standalone server.js binds to $HOSTNAME:$PORT. Docker auto-sets
+# HOSTNAME to the container id, so without this the server binds only to the
+# container's eth0 IP — `localhost`/127.0.0.1 healthchecks fail and a bare
+# `docker run -p 2288:2288` can't reach it. Pin both so the image listens on
+# all interfaces at the EXPOSEd port out of the box (overridable at runtime).
+ENV HOSTNAME=0.0.0.0
+ENV PORT=2288
 
 WORKDIR /app/apps/web
 CMD ["sh", "-c", "prisma migrate deploy && node server.js"]
