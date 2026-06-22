@@ -7,6 +7,7 @@ import { HeroSection } from '@/components/landing/hero-section'
 import { FeaturesSection } from '@/components/landing/features-section'
 import { ShowcaseSection } from '@/components/landing/showcase-section'
 import { CtaSection } from '@/components/landing/cta-section'
+import { DomainCta } from '@/components/landing/domain-cta'
 import { Footer } from '@/components/landing/footer'
 import { ClaimDialog } from '@/components/landing/claim-dialog'
 import { LoginModal } from '@/components/admin/login-modal'
@@ -66,13 +67,14 @@ export default function HomePage() {
         domain={domain}
         loading={loading}
       />
-      <FeaturesSection />
       <ShowcaseSection />
+      <FeaturesSection />
       <CtaSection
         onClaim={openClaim}
         onSetup={openLogin}
         setupNeeded={setupNeeded}
       />
+      <DomainCta />
       <Footer />
 
       <ClaimDialog open={claimOpen} onOpenChange={setClaimOpen} domain={domain} />
