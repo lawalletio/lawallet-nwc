@@ -21,8 +21,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
-import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
+import { useSettings } from '@/lib/client/hooks/use-settings'
+import {
+  useSettingSaver,
+  useSaveStatus,
+  useDebouncedCallback,
+  SettingTextInput,
+  SettingInputGroup,
+  SaveStatusIcon,
+  INVALID_CLASSES,
+  SETTING_DEBOUNCE_MS,
+} from '@/components/admin/settings/auto-save-controls'
 import { useAuth } from '@/components/admin/auth-context'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { DEFAULT_BLOSSOM_SERVERS } from '@/lib/client/blossom-defaults'
@@ -104,9 +113,6 @@ function isValidGtagId(value: string): boolean {
   return GTAG_ID_PATTERN.test(trimmed)
 }
 
-// Classes to apply an error state to an Input or InputGroup border.
-// tailwind-merge lets the later `border-destructive` win over `border-input`/`border-border`.
-const INVALID_CLASSES = 'border-destructive focus-visible:ring-destructive focus-within:ring-destructive'
 const DOMAIN_AUTO_PROBE_TIMEOUT_MS = 15_000
 
 type DomainProbeState =
@@ -120,8 +126,10 @@ export function InfrastructureTab() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: settings, loading: settingsLoading } = useSettings()
-  const { updateSettings } = useUpdateSettings()
+  const saveSetting = useSettingSaver()
   const { logout, apiClient } = useAuth()
+  const { status: relaysStatus, run: runRelaysSave } = useSaveStatus()
+  const { status: blossomStatus, run: runBlossomSave } = useSaveStatus()
   const [wiping, setWiping] = useState(false)
   const [domainWizardOpen, setDomainWizardOpen] = useState(false)
   const [domainConnectionEditorOpen, setDomainConnectionEditorOpen] = useState(false)
@@ -187,56 +195,41 @@ export function InfrastructureTab() {
     setGtagId(settings.gtag_id ?? '')
   }, [settings])
 
+  // With per-field auto-save there's no Cancel/reset path, so we hydrate exactly
+  // once — re-running on every settings refetch would clobber a field the user
+  // is actively editing.
+  const hydratedRef = useRef(false)
   useEffect(() => {
+    if (hydratedRef.current || !settings) return
+    hydratedRef.current = true
     loadFromSettings()
-  }, [loadFromSettings])
+  }, [settings, loadFromSettings])
 
-  // Register save handler with the page-level Save Changes button.
-  // Endpoint: trim whitespace and any trailing slashes before persisting.
-  // Relays and blossom servers are stored as JSON-stringified arrays of non-empty trimmed entries.
-  const save = useCallback(async () => {
-    const nextDomain = domain.trim().toLowerCase()
-    const nextEndpoint = subdomain.trim().replace(/\/+$/, '').toLowerCase()
-    const currentSavedDomain = settings?.domain?.trim().toLowerCase() ?? ''
-    const currentSavedEndpoint = (settings?.endpoint ?? settings?.subdomain ?? '')
-      .trim()
-      .replace(/\/+$/, '')
-      .toLowerCase()
-    const domainRoutingChanged =
-      nextDomain !== currentSavedDomain || nextEndpoint !== currentSavedEndpoint
+  // Relays and blossom servers map to a single JSON-stringified list each, so
+  // they persist at the section level: debounced while typing in a row,
+  // immediately on add/remove. Malformed entries block the save (the invalid
+  // row shows a red border) until corrected.
+  const persistRelays = useCallback(
+    (next: string[]) => {
+      if (next.some(r => r.trim() !== '' && !isValidUrlWithProtocol(r, WS_PROTOCOLS))) return
+      void runRelaysSave(() =>
+        saveSetting({ relays: JSON.stringify(next.map(r => r.trim()).filter(Boolean)) })
+      )
+    },
+    [runRelaysSave, saveSetting]
+  )
+  const queueRelaysSave = useDebouncedCallback(persistRelays, SETTING_DEBOUNCE_MS)
 
-    await updateSettings({
-      domain: nextDomain,
-      endpoint: nextEndpoint,
-      ...(domainRoutingChanged ? { domain_verified: 'false' } : {}),
-      relays: JSON.stringify(relays.map(r => r.trim()).filter(Boolean)),
-      blossom_servers: JSON.stringify(blossomServers.map(s => s.trim()).filter(Boolean)),
-      smtp_host: smtpHost.trim().toLowerCase(),
-      smtp_port: smtpPort.trim(),
-      smtp_username: smtpUsername.trim(),
-      smtp_password: smtpPassword,
-      gtag_id: gtagId.trim(),
-    })
-  }, [
-    updateSettings,
-    settings,
-    domain,
-    subdomain,
-    relays,
-    blossomServers,
-    smtpHost,
-    smtpPort,
-    smtpUsername,
-    smtpPassword,
-    gtagId,
-  ])
-
-  const resetForm = useCallback(() => {
-    loadFromSettings()
-    setDomainConnectionEditorOpen(false)
-  }, [loadFromSettings])
-
-  const { markChanged, setInvalid } = useSettingsForm('infrastructure', save, resetForm)
+  const persistBlossom = useCallback(
+    (next: string[]) => {
+      if (next.some(s => s.trim() !== '' && !isValidUrlWithProtocol(s, HTTP_PROTOCOLS))) return
+      void runBlossomSave(() =>
+        saveSetting({ blossom_servers: JSON.stringify(next.map(s => s.trim()).filter(Boolean)) })
+      )
+    },
+    [runBlossomSave, saveSetting]
+  )
+  const queueBlossomSave = useDebouncedCallback(persistBlossom, SETTING_DEBOUNCE_MS)
 
   // Per-field validity — empty inputs are treated as valid (they're simply
   // not included in the save payload). Only non-empty, malformed values flag.
@@ -262,21 +255,6 @@ export function InfrastructureTab() {
     (cleanHost(currentOrigin) === savedDomain || cleanHost(savedEndpoint) === savedDomain)
   const initialSettingsLoading = settingsLoading && !settings
   const settingsReady = Boolean(settings)
-
-  // Collapse all per-field flags into a single primitive so the effect only
-  // fires when the aggregate state actually changes (relay/blossom arrays
-  // would otherwise be new references every render).
-  const anyInvalid =
-    domainInvalid ||
-    endpointInvalid ||
-    relayInvalid.some(Boolean) ||
-    blossomInvalid.some(Boolean) ||
-    smtpHostInvalid ||
-    gtagIdInvalid
-
-  useEffect(() => {
-    setInvalid(anyInvalid)
-  }, [anyInvalid, setInvalid])
 
   useEffect(() => {
     if (!settingsReady) {
@@ -381,34 +359,38 @@ export function InfrastructureTab() {
     settingsReady,
   ])
 
+  // Adding an empty row doesn't change the persisted set (empties are filtered
+  // out), so it doesn't trigger a save. Editing and removing rows do.
   function addRelay() {
     setRelays((prev) => [...prev, ''])
-    markChanged()
   }
 
   function removeRelay(index: number) {
-    setRelays((prev) => prev.filter((_, i) => i !== index))
-    markChanged()
+    const next = relays.filter((_, i) => i !== index)
+    setRelays(next)
+    persistRelays(next)
   }
 
   function updateRelay(index: number, value: string) {
-    setRelays((prev) => prev.map((r, i) => (i === index ? value : r)))
-    markChanged()
+    const next = relays.map((r, i) => (i === index ? value : r))
+    setRelays(next)
+    queueRelaysSave(next)
   }
 
   function addBlossom() {
     setBlossomServers((prev) => [...prev, ''])
-    markChanged()
   }
 
   function removeBlossom(index: number) {
-    setBlossomServers((prev) => prev.filter((_, i) => i !== index))
-    markChanged()
+    const next = blossomServers.filter((_, i) => i !== index)
+    setBlossomServers(next)
+    persistBlossom(next)
   }
 
   function updateBlossom(index: number, value: string) {
-    setBlossomServers((prev) => prev.map((b, i) => (i === index ? value : b)))
-    markChanged()
+    const next = blossomServers.map((b, i) => (i === index ? value : b))
+    setBlossomServers(next)
+    queueBlossomSave(next)
   }
 
   if (initialSettingsLoading) {
@@ -470,7 +452,7 @@ export function InfrastructureTab() {
         latestProbeResult={latestDomainProbeResult}
         latestProbeError={latestDomainProbeError}
         latestProbeChecking={false}
-        updateSettings={updateSettings}
+        updateSettings={saveSetting}
         onConfigured={({ domain: nextDomain, endpoint }) => {
           setDomain(nextDomain)
           setSubdomain(endpoint)
@@ -591,10 +573,7 @@ export function InfrastructureTab() {
                   <Input
                     placeholder="example.com"
                     value={domain}
-                    onChange={e => {
-                      setDomain(e.target.value)
-                      markChanged()
-                    }}
+                    onChange={e => setDomain(e.target.value)}
                     aria-invalid={domainInvalid || undefined}
                     className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
@@ -615,10 +594,7 @@ export function InfrastructureTab() {
                 <Input
                   placeholder={currentOrigin || 'https://app.domain.com'}
                   value={subdomain}
-                  onChange={e => {
-                    setSubdomain(e.target.value)
-                    markChanged()
-                  }}
+                  onChange={e => setSubdomain(e.target.value)}
                   aria-invalid={endpointInvalid || undefined}
                   className={cn(endpointInvalid && INVALID_CLASSES)}
                 />
@@ -670,10 +646,13 @@ export function InfrastructureTab() {
               )}
             </div>
           ))}
-          <Button variant="outline" size="sm" className="w-fit" onClick={addRelay}>
-            <Plus className="size-4 mr-1" />
-            Add Relay
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="w-fit" onClick={addRelay}>
+              <Plus className="size-4 mr-1" />
+              Add Relay
+            </Button>
+            <SaveStatusIcon status={relaysStatus} />
+          </div>
         </div>
       </div>
 
@@ -703,10 +682,13 @@ export function InfrastructureTab() {
               )}
             </div>
           ))}
-          <Button variant="outline" size="sm" className="w-fit" onClick={addBlossom}>
-            <Plus className="size-4 mr-1" />
-            Add Server
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="w-fit" onClick={addBlossom}>
+              <Plus className="size-4 mr-1" />
+              Add Server
+            </Button>
+            <SaveStatusIcon status={blossomStatus} />
+          </div>
         </div>
       </div>
 
@@ -722,19 +704,15 @@ export function InfrastructureTab() {
         <div className="flex flex-col gap-4">
           <div className="space-y-1">
             <Label>Host</Label>
-            <InputGroup className={cn(smtpHostInvalid && INVALID_CLASSES)}>
-              <InputGroupText>https://</InputGroupText>
-              <Input
-                placeholder="smtp.example.com"
-                value={smtpHost}
-                onChange={e => {
-                  setSmtpHost(e.target.value)
-                  markChanged()
-                }}
-                aria-invalid={smtpHostInvalid || undefined}
-                className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
-            </InputGroup>
+            <SettingInputGroup
+              prefix="https://"
+              placeholder="smtp.example.com"
+              value={smtpHost}
+              onValueChange={setSmtpHost}
+              save={v => saveSetting({ smtp_host: v.trim().toLowerCase() })}
+              invalid={smtpHostInvalid}
+              isInvalidValue={v => v.trim() !== '' && !isValidDomain(v)}
+            />
             {smtpHostInvalid && (
               <p className="text-xs text-destructive">
                 Enter a valid host (e.g. smtp.example.com) — no protocol.
@@ -743,28 +721,31 @@ export function InfrastructureTab() {
           </div>
           <div className="space-y-1">
             <Label>Port</Label>
-            <Input
+            <SettingTextInput
               placeholder="587"
               inputMode="numeric"
               value={smtpPort}
-              onChange={e => { setSmtpPort(e.target.value); markChanged() }}
+              onValueChange={setSmtpPort}
+              save={v => saveSetting({ smtp_port: v.trim() })}
             />
           </div>
           <div className="space-y-1">
             <Label>Username</Label>
-            <Input
+            <SettingTextInput
               placeholder="user@example.com"
               value={smtpUsername}
-              onChange={e => { setSmtpUsername(e.target.value); markChanged() }}
+              onValueChange={setSmtpUsername}
+              save={v => saveSetting({ smtp_username: v.trim() })}
             />
           </div>
           <div className="space-y-1">
             <Label>Password</Label>
-            <Input
+            <SettingTextInput
               type="password"
               placeholder="••••••••"
               value={smtpPassword}
-              onChange={e => { setSmtpPassword(e.target.value); markChanged() }}
+              onValueChange={setSmtpPassword}
+              save={v => saveSetting({ smtp_password: v })}
             />
           </div>
         </div>
@@ -782,15 +763,13 @@ export function InfrastructureTab() {
         <div className="flex flex-col gap-4">
           <div className="space-y-1">
             <Label>Google Tag ID</Label>
-            <Input
+            <SettingTextInput
               placeholder="G-XXXXXXXXXX"
               value={gtagId}
-              onChange={e => {
-                setGtagId(e.target.value)
-                markChanged()
-              }}
-              aria-invalid={gtagIdInvalid || undefined}
-              className={cn(gtagIdInvalid && INVALID_CLASSES)}
+              onValueChange={setGtagId}
+              save={v => saveSetting({ gtag_id: v.trim() })}
+              invalid={gtagIdInvalid}
+              isInvalidValue={v => !isValidGtagId(v)}
             />
             {gtagIdInvalid ? (
               <p className="text-xs text-destructive">

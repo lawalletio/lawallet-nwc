@@ -4,15 +4,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { Check } from 'lucide-react'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
-import { useTheme } from '@/lib/client/theme-context'
+import { useTheme, type ThemePreset, type RoundingOption } from '@/lib/client/theme-context'
 import { cn } from '@/lib/utils'
-import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
-import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
+import { useSettings } from '@/lib/client/hooks/use-settings'
+import {
+  useSettingSaver,
+  SettingTextInput,
+  SettingInputGroup,
+} from '@/components/admin/settings/auto-save-controls'
 import { useBlossomUpload } from '@/lib/client/hooks/use-blossom-upload'
 import {
   DEFAULT_ISOTYPO_SRC,
@@ -39,7 +41,7 @@ function validateImageFile(file: File) {
 export function BrandingTab() {
   const { activePreset, setTheme, presets, rounding, setRounding, roundingOptions } = useTheme()
   const { data: settings } = useSettings()
-  const { updateSettings } = useUpdateSettings()
+  const saveSetting = useSettingSaver()
   const [logotypePreview, setLogotypePreview] = useState<string | null>(null)
   const [isotypoPreview, setIsotypoPreview] = useState<string | null>(null)
   const [communityName, setCommunityName] = useState('')
@@ -50,13 +52,16 @@ export function BrandingTab() {
   const [website, setWebsite] = useState('')
   const [nostr, setNostr] = useState('')
   const [email, setEmail] = useState('')
+  const [roundingSaving, setRoundingSaving] = useState(false)
+  const [themeSaving, setThemeSaving] = useState(false)
   const logotypeInputRef = useRef<HTMLInputElement>(null)
   const isotypoInputRef = useRef<HTMLInputElement>(null)
   const logo = useBlossomUpload()
   const iso = useBlossomUpload()
 
-  // Restore local form state from the currently stored settings. Runs on
-  // initial load and again when the page-level Cancel button is pressed.
+  // Restore local form state from the currently stored settings. With per-field
+  // auto-save there's no Cancel/reset path, so we hydrate exactly once —
+  // re-running on every refetch would clobber a field being actively edited.
   const loadFromSettings = useCallback(() => {
     if (!settings) return
     setCommunityName(settings.community_name ?? '')
@@ -71,9 +76,12 @@ export function BrandingTab() {
     setEmail(settings.social_email ?? '')
   }, [settings])
 
+  const hydratedRef = useRef(false)
   useEffect(() => {
+    if (hydratedRef.current || !settings) return
+    hydratedRef.current = true
     loadFromSettings()
-  }, [loadFromSettings])
+  }, [settings, loadFromSettings])
 
   // Revoke blob: object URLs on unmount to avoid memory leaks.
   useEffect(() => {
@@ -85,39 +93,38 @@ export function BrandingTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Persist branding to the Settings table when the page-level Save Changes
-  // button is pressed. Theme and rounding come from useTheme; community name
-  // lives in local state. Logo URLs are persisted inline on upload success.
-  const save = useCallback(async () => {
-    await updateSettings({
-      brand_theme: activePreset.hex,
-      brand_rounding: rounding,
-      community_name: communityName.trim(),
-      social_whatsapp: whatsapp.trim(),
-      social_telegram: telegram.trim(),
-      social_discord: discord.trim(),
-      social_twitter: twitter.trim(),
-      social_website: website.trim(),
-      social_nostr: nostr.trim(),
-      social_email: email.trim(),
-    })
-  }, [
-    updateSettings,
-    activePreset.hex,
-    rounding,
-    communityName,
-    whatsapp,
-    telegram,
-    discord,
-    twitter,
-    website,
-    nostr,
-    email,
-  ])
-
-  const { markChanged } = useSettingsForm('branding', save, loadFromSettings)
   const logotypeSrc = logotypePreview ?? DEFAULT_LOGOTYPE_SRC
   const isotypoSrc = isotypoPreview ?? DEFAULT_ISOTYPO_SRC
+
+  // Theme + rounding persist on selection. Optimistically apply for instant
+  // preview, then revert if the save fails.
+  async function handleRoundingChange(opt: RoundingOption) {
+    const prev = rounding
+    setRounding(opt)
+    setRoundingSaving(true)
+    try {
+      await saveSetting({ brand_rounding: opt })
+    } catch (err) {
+      setRounding(prev)
+      toast.error(err instanceof Error ? err.message : 'Failed to save rounding')
+    } finally {
+      setRoundingSaving(false)
+    }
+  }
+
+  async function handleThemeChange(preset: ThemePreset) {
+    const prev = activePreset
+    setTheme(preset)
+    setThemeSaving(true)
+    try {
+      await saveSetting({ brand_theme: preset.hex })
+    } catch (err) {
+      setTheme(prev)
+      toast.error(err instanceof Error ? err.message : 'Failed to save theme')
+    } finally {
+      setThemeSaving(false)
+    }
+  }
 
   async function handleLogotypeChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -134,7 +141,7 @@ export function BrandingTab() {
       const { url } = await logo.upload(file)
       setLogotypePreview(url)
       if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
-      await updateSettings({ logotype_url: url })
+      await saveSetting({ logotype_url: url })
       toast.success('Logotype updated')
     } catch (err) {
       // Restore the previous preview on failure; keep the blob around briefly
@@ -160,7 +167,7 @@ export function BrandingTab() {
       const { url } = await iso.upload(file)
       setIsotypoPreview(url)
       if (localUrl.startsWith('blob:')) URL.revokeObjectURL(localUrl)
-      await updateSettings({ isotypo_url: url })
+      await saveSetting({ isotypo_url: url })
       toast.success('Isotypo updated')
     } catch (err) {
       setIsotypoPreview(previous)
@@ -176,7 +183,7 @@ export function BrandingTab() {
     setLogotypePreview(null)
     if (previous?.startsWith('blob:')) URL.revokeObjectURL(previous)
     try {
-      await updateSettings({ logotype_url: '' })
+      await saveSetting({ logotype_url: '' })
       toast.success('Logotype removed')
     } catch (err) {
       setLogotypePreview(previous ?? null)
@@ -191,7 +198,7 @@ export function BrandingTab() {
     setIsotypoPreview(null)
     if (previous?.startsWith('blob:')) URL.revokeObjectURL(previous)
     try {
-      await updateSettings({ isotypo_url: '' })
+      await saveSetting({ isotypo_url: '' })
       toast.success('Isotypo removed')
     } catch (err) {
       setIsotypoPreview(previous ?? null)
@@ -244,7 +251,6 @@ export function BrandingTab() {
                   accept={ACCEPT_ATTR}
                   className="hidden"
                   onChange={handleLogotypeChange}
-                  data-track-change
                 />
                 <div className="flex items-center gap-2">
                   <Button
@@ -305,7 +311,6 @@ export function BrandingTab() {
                   accept={ACCEPT_ATTR}
                   className="hidden"
                   onChange={handleIsotypoChange}
-                  data-track-change
                 />
                 <div className="flex items-center gap-2">
                   <Button
@@ -338,27 +343,28 @@ export function BrandingTab() {
           {/* Community Name */}
           <div className="flex flex-col gap-4 max-w-[320px]">
             <p className="text-sm text-foreground">Community Name</p>
-            <Input
+            <SettingTextInput
               placeholder="eg: My Community"
               value={communityName}
-              onChange={e => {
-                setCommunityName(e.target.value)
-                markChanged()
-              }}
+              onValueChange={setCommunityName}
+              save={v => saveSetting({ community_name: v.trim() })}
             />
           </div>
 
           {/* Rounded */}
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-foreground">Rounded</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-foreground">Rounded</p>
+              {roundingSaving && <Spinner size={16} className="text-muted-foreground" />}
+            </div>
             <div className="inline-flex items-center gap-1 bg-card border border-border rounded-lg p-1 w-fit">
               {roundingOptions.map((opt) => (
                 <button
                   key={opt}
-                  data-track-change
-                  onClick={() => { setRounding(opt); markChanged() }}
+                  disabled={roundingSaving}
+                  onClick={() => handleRoundingChange(opt)}
                   className={cn(
-                    'px-3 py-2.5 text-xs font-semibold rounded-md transition-colors shadow-sm',
+                    'px-3 py-2.5 text-xs font-semibold rounded-md transition-colors shadow-sm disabled:opacity-50',
                     rounding === opt
                       ? 'bg-secondary text-secondary-foreground'
                       : 'text-foreground hover:bg-secondary/50'
@@ -372,17 +378,20 @@ export function BrandingTab() {
 
           {/* Theme */}
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-foreground">Theme</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-foreground">Theme</p>
+              {themeSaving && <Spinner size={16} className="text-muted-foreground" />}
+            </div>
             <div className="inline-flex items-center gap-1 bg-card border border-border rounded-lg p-1 w-fit">
               {presets.map((preset) => {
                 const isActive = activePreset.hex === preset.hex
                 return (
                   <button
                     key={preset.hex}
-                    data-track-change
-                    onClick={() => { setTheme(preset); markChanged() }}
+                    disabled={themeSaving}
+                    onClick={() => handleThemeChange(preset)}
                     className={cn(
-                      'flex items-center justify-center p-2 rounded-md shadow-sm transition-colors',
+                      'flex items-center justify-center p-2 rounded-md shadow-sm transition-colors disabled:opacity-50',
                       isActive ? 'bg-secondary' : 'hover:bg-secondary/50'
                     )}
                     title={preset.name}
@@ -426,53 +435,60 @@ export function BrandingTab() {
             prefix="wa.me/"
             placeholder="+1 555 000 0000"
             value={whatsapp}
-            onChange={v => { setWhatsapp(v); markChanged() }}
+            onValueChange={setWhatsapp}
+            save={v => saveSetting({ social_whatsapp: v.trim() })}
           />
           <SocialField
             label="Telegram"
             prefix="t.me/"
             placeholder="you-handle"
             value={telegram}
-            onChange={v => { setTelegram(v); markChanged() }}
+            onValueChange={setTelegram}
+            save={v => saveSetting({ social_telegram: v.trim() })}
           />
           <SocialField
             label="Discord"
             prefix="discord.gg/"
             placeholder="invite-code"
             value={discord}
-            onChange={v => { setDiscord(v); markChanged() }}
+            onValueChange={setDiscord}
+            save={v => saveSetting({ social_discord: v.trim() })}
           />
           <SocialField
             label="X/Twitter"
             prefix="twitter.com/"
             placeholder="you-handle"
             value={twitter}
-            onChange={v => { setTwitter(v); markChanged() }}
+            onValueChange={setTwitter}
+            save={v => saveSetting({ social_twitter: v.trim() })}
           />
           <SocialField
             label="Website"
             prefix="https://"
             placeholder="domain.com"
             value={website}
-            onChange={v => { setWebsite(v); markChanged() }}
+            onValueChange={setWebsite}
+            save={v => saveSetting({ social_website: v.trim() })}
           />
 
           <div className="flex flex-col gap-4 max-w-[320px]">
             <p className="text-sm text-foreground">Nostr</p>
-            <Input
+            <SettingTextInput
               placeholder="npub..."
               value={nostr}
-              onChange={e => { setNostr(e.target.value); markChanged() }}
+              onValueChange={setNostr}
+              save={v => saveSetting({ social_nostr: v.trim() })}
             />
           </div>
 
           <div className="flex flex-col gap-4 max-w-[320px]">
             <p className="text-sm text-foreground">Email</p>
-            <Input
+            <SettingTextInput
               type="email"
               placeholder="you@email.com"
               value={email}
-              onChange={e => { setEmail(e.target.value); markChanged() }}
+              onValueChange={setEmail}
+              save={v => saveSetting({ social_email: v.trim() })}
             />
           </div>
         </div>
@@ -486,26 +502,26 @@ function SocialField({
   prefix,
   placeholder,
   value,
-  onChange,
+  onValueChange,
+  save,
 }: {
   label: string
   prefix: string
   placeholder: string
   value: string
-  onChange: (value: string) => void
+  onValueChange: (value: string) => void
+  save: (value: string) => Promise<void>
 }) {
   return (
     <div className="flex flex-col gap-4 max-w-[320px]">
       <p className="text-sm text-foreground">{label}</p>
-      <InputGroup>
-        <InputGroupText>{prefix}</InputGroupText>
-        <Input
-          placeholder={placeholder}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-        />
-      </InputGroup>
+      <SettingInputGroup
+        prefix={prefix}
+        placeholder={placeholder}
+        value={value}
+        onValueChange={onValueChange}
+        save={save}
+      />
     </div>
   )
 }
