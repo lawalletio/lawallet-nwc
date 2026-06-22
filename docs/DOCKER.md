@@ -15,32 +15,31 @@ etc.) from the same tag.
 
 ## Run a published image
 
-The fastest path — no build, just pull and run:
+The fastest path — no build, no clone. `docker-compose.hub.yml` is
+self-contained (published image + Postgres only), so grab that one file and
+start:
 
 ```bash
-docker compose up -d
+curl -O https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/docker-compose.hub.yml
+JWT_SECRET=$(openssl rand -hex 32) docker compose -f docker-compose.hub.yml up -d
 ```
 
-`docker-compose.yml` builds from source by default. To run the **published**
-image instead of building locally, point the `web` service at it:
-
-```yaml
-services:
-  web:
-    image: masize/lawallet-nwc:latest   # replace the `build:` block
-```
+Override `LAWALLET_TAG`, `PORT`, `JWT_SECRET` (≥ 32 chars), or the `POSTGRES_*`
+credentials via env / a `.env` file. Note: the repo's default
+`docker-compose.yml` *builds from source* instead — use `docker-compose.hub.yml`
+to run the prebuilt image.
 
 Or run the container directly against your own Postgres:
 
 ```bash
 docker run -d --name lawallet-web -p 2288:2288 \
   -e DATABASE_URL="postgresql://user:pass@host:5432/lawallet" \
-  -e JWT_SECRET="<a-32+-char-secret>" \
+  -e JWT_SECRET="$(openssl rand -hex 32)" \
   masize/lawallet-nwc:latest
 ```
 
 The container runs `prisma migrate deploy` on startup, then `node server.js`,
-listening on port **2288**.
+listening on `0.0.0.0:2288`.
 
 ## Publish a new multi-arch image
 
