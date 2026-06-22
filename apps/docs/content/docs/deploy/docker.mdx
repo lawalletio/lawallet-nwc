@@ -1,16 +1,39 @@
 ---
 title: "Docker Deployment"
-description: "Build and run LaWallet NWC with Docker and Docker Compose."
+description: "Run LaWallet NWC from the prebuilt multi-arch image, or build it yourself."
 ---
 
-## Clone
+The web app is published to Docker Hub as a multi-architecture image —
+[`masize/lawallet-nwc`](https://hub.docker.com/r/masize/lawallet-nwc) — built
+for both `linux/amd64` and `linux/arm64`. The same tag runs natively on Intel/AMD
+servers and on ARM (Apple Silicon, AWS Graviton, Raspberry Pi).
+
+## Run with Docker Compose
 
 ```bash
 git clone https://github.com/lawalletio/lawallet-nwc
-```
-
-## Run
-
-```bash
+cd lawallet-nwc
 docker compose up -d
 ```
+
+By default Compose builds the image from source. To run the **published** image
+instead, set `image: masize/lawallet-nwc:latest` on the `web` service.
+
+## Run the published image directly
+
+```bash
+docker run -d --name lawallet-web -p 2288:2288 \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/lawallet" \
+  -e JWT_SECRET="<a-32+-char-secret>" \
+  masize/lawallet-nwc:latest
+```
+
+The container applies pending Prisma migrations on startup, then serves on
+port **2288**.
+
+## Publishing the image
+
+Maintainers building and pushing new multi-arch images should follow the
+[Docker publishing guide](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/DOCKER.md),
+which covers the Buildx multi-platform builder, tagging, and the automated
+`docker-publish` GitHub Actions workflow.
