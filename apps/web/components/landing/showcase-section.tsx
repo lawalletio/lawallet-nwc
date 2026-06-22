@@ -1,58 +1,77 @@
 'use client'
 
-import { Monitor, Smartphone } from 'lucide-react'
+import { ConnectionMapMock } from '@/components/landing/mockups/connection-map-mock'
+import { WalletHomeMock } from '@/components/landing/mockups/wallet-home-mock'
 
 export function ShowcaseSection() {
   return (
-    <section className="max-w-5xl mx-auto px-4 py-24">
-      <div className="text-center mb-16">
-        <h2 className="text-3xl md:text-4xl font-bold mb-3">See it in action</h2>
-        <p className="text-muted-foreground text-lg">
-          A complete platform for managing Lightning Addresses and payments.
+    <section className="relative mx-auto max-w-6xl px-4 py-28">
+      <div className="mb-16 text-center">
+        <span
+          className="mb-4 inline-block text-xs font-semibold uppercase tracking-[0.22em]"
+          style={{ color: 'var(--theme-400)' }}
+        >
+          One platform
+        </span>
+        <h2 className="mb-3 text-3xl font-bold tracking-tight md:text-5xl">
+          All in one solution
+        </h2>
+        <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
+          Wire Lightning Addresses, remote wallets and NFC cards together from
+          the admin canvas — Easily Receive and Pay organically.
         </p>
       </div>
 
-      <div className="relative flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-0">
-        {/* Ambient glow behind mockups */}
+      <div className="relative flex flex-col items-center justify-center gap-10 lg:flex-row lg:items-center lg:gap-0">
+        {/* Ambient theme glow behind the mockups */}
         <div
-          className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] rounded-full blur-3xl opacity-[0.08]"
-          style={{ background: 'radial-gradient(circle, var(--theme-400), transparent 70%)' }}
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[460px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+          style={{
+            background:
+              'radial-gradient(circle, color-mix(in srgb, var(--theme-400) 18%, transparent), transparent 70%)',
+          }}
         />
 
-        {/* Browser frame mockup */}
-        <div className="relative w-full max-w-3xl rounded-2xl border border-white/[0.06] bg-[rgba(10,10,15,0.8)] overflow-hidden shadow-2xl">
+        {/* Desktop — connection map */}
+        <div
+          className="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-white/[0.08] bg-[rgba(10,10,15,0.85)] shadow-2xl"
+          style={{
+            boxShadow:
+              '0 40px 80px -40px color-mix(in srgb, var(--theme-400) 30%, transparent), 0 24px 48px -24px rgba(0,0,0,0.8)',
+          }}
+        >
           {/* Browser chrome */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-3">
             <div className="flex gap-1.5">
               <div className="size-3 rounded-full bg-white/10" />
               <div className="size-3 rounded-full bg-white/10" />
               <div className="size-3 rounded-full bg-white/10" />
             </div>
-            <div className="flex-1 rounded-md bg-white/[0.04] px-3 py-1 text-xs text-muted-foreground font-mono">
-              admin.community.com
+            <div className="flex flex-1 items-center justify-center">
+              <span className="rounded-md bg-white/[0.04] px-3 py-1 font-mono text-xs text-muted-foreground">
+                app.lawallet.io/admin/connections
+              </span>
             </div>
           </div>
-          {/* Dashboard placeholder */}
-          <div className="aspect-[16/10] bg-black/40 flex items-center justify-center text-muted-foreground text-sm">
-            <div className="text-center space-y-2">
-              <Monitor className="size-12 mx-auto text-muted-foreground/30" />
-              <p className="text-muted-foreground/50">Admin Dashboard</p>
-            </div>
+          <div className="aspect-[16/10]">
+            <ConnectionMapMock />
           </div>
         </div>
 
-        {/* Phone frame mockup */}
-        <div className="relative w-[260px] shrink-0 rounded-[2.5rem] border-[3px] border-white/[0.06] bg-[rgba(10,10,15,0.8)] overflow-hidden shadow-2xl lg:-ml-16 lg:-mt-12">
-          {/* Notch */}
-          <div className="flex justify-center pt-2 pb-1 bg-black/40">
-            <div className="w-20 h-5 bg-white/[0.06] rounded-full" />
+        {/* Mobile — wallet front, overlapping the desktop frame */}
+        <div
+          className="relative w-[244px] shrink-0 overflow-hidden rounded-[2.25rem] border-[5px] border-[#15151c] bg-[#0a0a0f] shadow-2xl lg:-ml-20 lg:-mt-16"
+          style={{
+            boxShadow:
+              '0 30px 60px -24px color-mix(in srgb, var(--theme-400) 28%, transparent), 0 20px 40px -20px rgba(0,0,0,0.85)',
+          }}
+        >
+          {/* Status notch */}
+          <div className="flex justify-center bg-[#0a0a0f] pb-1 pt-2">
+            <div className="h-4 w-16 rounded-full bg-[#15151c]" />
           </div>
-          {/* Mobile placeholder */}
-          <div className="aspect-[9/18] bg-black/40 flex items-center justify-center text-muted-foreground text-sm">
-            <div className="text-center space-y-2">
-              <Smartphone className="size-10 mx-auto text-muted-foreground/30" />
-              <p className="text-xs text-muted-foreground/50">Mobile Wallet</p>
-            </div>
+          <div className="aspect-[9/18]">
+            <WalletHomeMock />
           </div>
         </div>
       </div>

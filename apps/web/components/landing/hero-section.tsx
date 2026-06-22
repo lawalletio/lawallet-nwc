@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
-import { Zap, Hash, Radio, CreditCard, ArrowRight } from 'lucide-react'
+import { Zap, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface HeroSectionProps {
@@ -12,13 +12,6 @@ interface HeroSectionProps {
   domain: string
   loading: boolean
 }
-
-const badges = [
-  { icon: Zap, label: 'Lightning' },
-  { icon: Hash, label: 'Nostr' },
-  { icon: Radio, label: 'NWC' },
-  { icon: CreditCard, label: 'BoltCard' },
-]
 
 const usernames = ['user', 'agent', 'bot', 'member', 'volunteer', 'friend', 'father', 'brother']
 const SCRAMBLE_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%&*'
@@ -122,19 +115,6 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center gap-8 max-w-3xl mx-auto text-center">
-        {/* Badge pills */}
-        <div className="flex items-center gap-3 justify-center flex-wrap">
-          {badges.map((b) => (
-            <span
-              key={b.label}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 text-sm text-muted-foreground"
-            >
-              <b.icon className="size-3.5" />
-              {b.label}
-            </span>
-          ))}
-        </div>
-
         {/* Headline */}
         <h1 className="text-6xl md:text-8xl lg:text-[96px] font-black tracking-[-0.025em] leading-none">
           <span
@@ -144,7 +124,7 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Lightning Addresses
+            Get your
           </span>
           <br />
           <span
@@ -154,22 +134,9 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
               WebkitTextFillColor: 'transparent',
             }}
           >
-            for Everyone.
+            Lightning Address
           </span>
         </h1>
-
-        {/* Subtitle */}
-        <p className="text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
-          Get your own{' '}
-          <span className="font-mono font-semibold" style={{ color: 'var(--theme-400)' }}>
-            your-name@{displayDomain}
-          </span>.
-          <br />
-          Setup a{' '}
-          <span style={{ color: 'var(--theme-400)' }}>lightning web wallet</span>{' '}
-          and spend with{' '}
-          <span style={{ color: 'var(--theme-400)' }}>nfc cards</span>.
-        </p>
 
         {/* Address display */}
         <div className="relative rounded-2xl border border-white/[0.08] bg-[rgba(10,10,15,0.6)] px-8 py-4 backdrop-blur-sm">
