@@ -80,7 +80,7 @@ const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] = [
   },
 ]
 
-/** Everything `card-installer` / `simple-card-manager` need to provision cards. */
+/** Everything `card-installer` / `card-manager` need to provision cards. */
 const CARD_PROVISIONING_PRESET: Permission[] = [
   Permission.CARDS_READ,
   Permission.CARDS_WRITE,
@@ -152,7 +152,7 @@ export function DeviceTokensTab() {
           <h3 className="text-lg font-semibold">Scan to sign in</h3>
           <p className="text-sm text-muted-foreground mt-1">
             Open <span className="font-medium">card-installer</span> or{' '}
-            <span className="font-medium">simple-card-manager</span> and scan
+            <span className="font-medium">card-manager</span> and scan
             this code. The token is also copyable below.
           </p>
         </div>
@@ -209,7 +209,7 @@ export function DeviceTokensTab() {
           <h3 className="text-sm font-semibold">Device Tokens</h3>
           <p className="text-sm text-muted-foreground mt-1">
             Generate a scoped, stateless login token for the card apps
-            (card-installer, simple-card-manager). Shown as a QR to scan.
+            (card-installer, card-manager). Shown as a QR to scan.
           </p>
         </div>
         <div className="space-y-2">

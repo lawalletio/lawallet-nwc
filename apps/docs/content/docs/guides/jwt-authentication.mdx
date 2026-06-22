@@ -275,7 +275,7 @@ generates a new QR.
 ## Device Tokens (QR login)
 
 Device tokens are **stateless, scoped JWTs** an admin mints for the third-party card apps
-(`card-installer`, `simple-card-manager`). The admin generates one from the dashboard, renders it
+(`card-installer`, `card-manager`). The admin generates one from the dashboard, renders it
 as a QR, and the card app scans it to authenticate — no shared password, no per-device account.
 
 They follow the [stateless expiry model above](#how-tokens-expire): validation is signature + `exp`

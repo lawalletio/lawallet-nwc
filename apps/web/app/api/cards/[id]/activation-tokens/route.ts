@@ -21,7 +21,7 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
  * `POST /api/cards/[id]/activation-tokens` — mint an activation QR for a card.
  *
  * Operator-scoped (`CARDS_WRITE`); reachable by a device token carrying that
- * scope, which is how `simple-card-manager` "starts" a card. Only `ONE_TIME`
+ * scope, which is how `card-manager` "starts" a card. Only `ONE_TIME`
  * (ownership transfer) is wired this round — `FOREVER` (MASTER account share)
  * is rejected until that milestone lands. Minting replaces any prior active
  * token of the same kind on the card.

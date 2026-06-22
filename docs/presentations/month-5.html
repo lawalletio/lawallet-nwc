@@ -868,7 +868,7 @@
       </h1>
       <p class="lead reveal reveal-3" style="margin-top: 12px; max-width: 760px;">
         <strong class="text-gold">Remote Wallets</strong> land first as the named Lightning-source abstraction every card downstream draws from.
-        Then the <strong class="text-green">Card pipeline</strong> — QR JWT login, <span class="mono text-muted">card-installer</span>, the <span class="mono text-muted">simple-card-manager</span> rewrite, and the end-user "Activate Card" flow. Cards are <span class="text-green">SIMPLE</span> or <span class="text-purple">MASTER</span>; QRs are <span class="text-green">ONE_TIME</span> or <span class="text-purple">FOREVER</span> — orthogonal.
+        Then the <strong class="text-green">Card pipeline</strong> — QR JWT login, <span class="mono text-muted">card-installer</span> (bulk-writes and initializes cards), <span class="mono text-muted">card-manager</span> (prints the Activation QR), and the end-user "Activate Card" flow. Cards are <span class="text-green">SIMPLE</span> or <span class="text-purple">MASTER</span>; QRs are <span class="text-green">ONE_TIME</span> or <span class="text-purple">FOREVER</span> — orthogonal.
         Topped with the <strong class="text-purple">Platform Polish</strong> shelf: NIP-05, customizable domain landing, admin home redesign, infra-aware onboarding.
       </p>
       <div class="cover-meta reveal reveal-4">
@@ -949,7 +949,7 @@
           <ul class="theme-list b">
             <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>B.0 · QR-based JWT login in <span class="mono">apps/web</span></div></li>
             <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>B.1 · <span class="mono">card-installer</span> Android</div></li>
-            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>B.2 · <span class="mono">simple-card-manager</span> rewrite + activation QR + rescue</div></li>
+            <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>B.2 · <span class="mono">card-manager</span> · prints Activation QR + rescue</div></li>
             <li><span class="ico"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span><div>B.3 · Activate Card · ONE_TIME / FOREVER QR</div></li>
           </ul>
         </div>
@@ -1134,13 +1134,13 @@
         <div class="seq-step">
           <div class="ord">B.1</div>
           <h4><span class="mono">card-installer</span></h4>
-          <p>Android app provisions blank NTAG424s in the field; pair-call carries <span class="mono">remoteWalletId</span>.</p>
+          <p>Android app (NFC) bulk-writes blank NTAG424s against a chosen design and registers each card as <span class="mono">initialized</span>; optional activation-QR at write time.</p>
           <span class="pill p0">P0</span>
         </div>
         <div class="seq-step">
           <div class="ord">B.2</div>
-          <h4><span class="mono">simple-card-manager</span></h4>
-          <p>Rewrite. Drives the E2E. Re-issues activation QR for any card (ONE_TIME / FOREVER) + rescue path.</p>
+          <h4><span class="mono">card-manager</span></h4>
+          <p>Takes any initialized card and prints its Activation QR (ONE_TIME / FOREVER) for on-demand activation; rescue / re-issue unpairs a prior owner.</p>
           <span class="pill p1">P1</span>
         </div>
         <div class="seq-step">
@@ -1152,7 +1152,7 @@
         <div class="seq-step">
           <div class="ord">B.4</div>
           <h4>Connect E2E</h4>
-          <p><span class="mono">issue → install → activate-QR → claim → pair → pay</span>. Playwright + simulated NFC.</p>
+          <p><span class="mono">design → write/initialize → activate-QR → claim → pair → pay</span>. Playwright + simulated NFC.</p>
           <span class="pill p0">P0</span>
         </div>
       </div>
@@ -1292,7 +1292,7 @@
         </div>
         <div class="glass" style="padding: 14px 16px;">
           <div class="text-coral mono" style="font-size: 11px; font-weight: 700;">Re-issue</div>
-          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">Any card holder mints a fresh QR via <span class="mono">simple-card-manager</span>. Cards transfer only via their own QR.</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">Any card holder mints a fresh QR via <span class="mono">card-manager</span>. Cards transfer only via their own QR.</div>
         </div>
       </div>
     </div>
@@ -1498,7 +1498,7 @@
         <div class="big-stat coral">
           <div class="v">2</div>
           <div class="k">New repositories</div>
-          <div class="s"><span class="mono">card-installer</span> (Android) · <span class="mono">simple-card-manager</span> (rewrite).</div>
+          <div class="s"><span class="mono">card-installer</span> (Android) · <span class="mono">card-manager</span>.</div>
         </div>
       </div>
       <div class="cta-row reveal reveal-5">
