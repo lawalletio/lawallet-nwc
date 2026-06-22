@@ -3,13 +3,24 @@
 import React, { useEffect, useRef, useState, use } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, ExternalLink, Forward, Wallet } from 'lucide-react'
+import { ChevronDown, ExternalLink, Forward, Trash2, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Select,
@@ -26,6 +37,7 @@ import {
 import { BalanceCard } from '@/components/wallet/balance-card'
 import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
 import { useSettings } from '@/lib/client/hooks/use-settings'
+import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import {
   useMyAddress,
   useAddressMutations,
@@ -64,7 +76,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   const { username } = use(params)
   const { data: settings } = useSettings()
   const { data, loading, error, refetch } = useMyAddress(username)
-  const { updateAddress, updating } = useAddressMutations()
+  const { updateAddress, updating, deleteAddress, deleting } = useAddressMutations()
   const redirectInputRef = useRef<HTMLInputElement>(null)
   const appliedConfigureRef = useRef<string | null>(null)
 
@@ -83,6 +95,8 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   // Successful save collapses it again so the user returns to a glanceable
   // summary without an extra click.
   const [modeOpen, setModeOpen] = useState(false)
+  // Delete confirmation dialog — irreversible, so it's gated behind a prompt.
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   // Sync local form state once the address loads. Re-running on `data` covers
   // SSE-driven refetches: we only reset when the loaded record actually
@@ -172,6 +186,23 @@ export default function AdminAddressEditPage({ params }: PageProps) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await deleteAddress(username)
+      trackEvent(AnalyticsEvent.ADDRESS_DELETED)
+      // Drop the cached lists so /admin/addresses mounts on fresh data instead
+      // of painting the just-deleted address for a frame. The owner list and
+      // the global admin list both surface this address.
+      invalidateApiPath('/api/wallet/addresses')
+      invalidateApiPath('/api/lightning-addresses')
+      invalidateApiPath('/api/lightning-addresses/counts')
+      toast.success('Address deleted')
+      router.push('/admin/addresses')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete address')
     }
   }
 
@@ -472,6 +503,62 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               NWC `list_transactions` can't give us per-address scoping
               and is blocked by several wallet providers anyway. */}
           <AddressInvoicesCard username={username} />
+
+          {/* Danger zone — deleting an address is irreversible, so it's
+              isolated at the bottom behind a destructive-tinted card and a
+              confirm dialog. Mirrors the card detail page convention. */}
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="text-base text-destructive">
+                Danger zone
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Permanently delete {fullAddress}. This action cannot be undone,
+                and payments sent to it will no longer be received.
+              </p>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deleting}
+                onClick={() => setDeleteOpen(true)}
+                className="shrink-0"
+              >
+                <Trash2 className="mr-2 size-4" />
+                Delete address
+              </Button>
+            </CardContent>
+          </Card>
+
+          <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {fullAddress}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. The address will be permanently
+                  removed and can no longer receive payments.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={deleting}
+                  onClick={event => {
+                    // Keep the dialog mounted through the async delete so its
+                    // disabled/spinner state is visible; close + navigate run
+                    // inside handleDelete once the request resolves.
+                    event.preventDefault()
+                    handleDelete()
+                  }}
+                  className="bg-destructive text-white hover:bg-destructive/90"
+                >
+                  {deleting && <Spinner size={16} className="mr-2" />}
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
         )
       })()}

@@ -98,6 +98,7 @@ export function useAddressMutations() {
   const create = useMutation<CreateWalletAddressInput, WalletAddress>()
   const update = useMutation<UpdateWalletAddressInput, WalletAddress>()
   const setPrimary = useMutation<undefined, { success: boolean; username: string }>()
+  const remove = useMutation<undefined, { success: boolean; username: string }>()
 
   return {
     createAddress: (input: CreateWalletAddressInput) =>
@@ -114,9 +115,16 @@ export function useAddressMutations() {
         `/api/wallet/addresses/${encodeURIComponent(username)}/primary`,
         undefined,
       ),
+    deleteAddress: (username: string) =>
+      remove.mutate(
+        'del',
+        `/api/wallet/addresses/${encodeURIComponent(username)}`,
+        undefined,
+      ),
     creating: create.loading,
     updating: update.loading,
     settingPrimary: setPrimary.loading,
-    error: create.error ?? update.error ?? setPrimary.error,
+    deleting: remove.loading,
+    error: create.error ?? update.error ?? setPrimary.error ?? remove.error,
   }
 }
