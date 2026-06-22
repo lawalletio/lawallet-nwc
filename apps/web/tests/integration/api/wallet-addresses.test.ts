@@ -37,6 +37,7 @@ import { GET as ListGet, POST as ListPost } from '@/app/api/wallet/addresses/rou
 import {
   GET as DetailGet,
   PUT as DetailPut,
+  DELETE as DetailDelete,
 } from '@/app/api/wallet/addresses/[username]/route'
 import { POST as PrimaryPost } from '@/app/api/wallet/addresses/[username]/primary/route'
 import { GET as InvoicesGet } from '@/app/api/wallet/addresses/[username]/invoices/route'
@@ -520,6 +521,112 @@ describe('PUT /api/wallet/addresses/[username]', () => {
       createParamsPromise({ username: 'alice' }),
     )
     expect(res.status).toBe(404)
+  })
+})
+
+// ── DELETE /api/wallet/addresses/[username] ─────────────────────────────────
+
+describe('DELETE /api/wallet/addresses/[username]', () => {
+  it('deletes a non-primary address without promoting a survivor', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress({ username: 'bob', isPrimary: false }) as any,
+    )
+
+    const res = await DetailDelete(
+      createNextRequest('/api/wallet/addresses/bob', { method: 'DELETE' }),
+      createParamsPromise({ username: 'bob' }),
+    )
+    const body: any = await assertResponse(res, 200)
+    expect(body).toEqual({ success: true, username: 'bob' })
+    expect(prismaMock.lightningAddress.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { username: 'bob' } }),
+    )
+    // No primary was removed → no survivor lookup or promotion.
+    expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
+    expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'addresses:updated' }),
+    )
+  })
+
+  it('promotes the oldest survivor when deleting the primary', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress({ username: 'alice', isPrimary: true }) as any,
+    )
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
+      makeAddress({ username: 'bob', isPrimary: false }) as any,
+    )
+
+    const res = await DetailDelete(
+      createNextRequest('/api/wallet/addresses/alice', { method: 'DELETE' }),
+      createParamsPromise({ username: 'alice' }),
+    )
+    await assertResponse(res, 200)
+
+    // Oldest remaining address is looked up and promoted to primary.
+    expect(prismaMock.lightningAddress.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user-1', username: { not: 'alice' } },
+        orderBy: { createdAt: 'asc' },
+      }),
+    )
+    expect(prismaMock.lightningAddress.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { username: 'alice' } }),
+    )
+    expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { username: 'bob' },
+        data: { isPrimary: true },
+      }),
+    )
+  })
+
+  it('deletes the primary without promotion when no survivors remain', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress({ username: 'alice', isPrimary: true }) as any,
+    )
+    // No other address owned by the user.
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
+
+    const res = await DetailDelete(
+      createNextRequest('/api/wallet/addresses/alice', { method: 'DELETE' }),
+      createParamsPromise({ username: 'alice' }),
+    )
+    await assertResponse(res, 200)
+    expect(prismaMock.lightningAddress.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { username: 'alice' } }),
+    )
+    expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 when the address is not owned by caller', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress({ userId: 'someone-else' }) as any,
+    )
+
+    const res = await DetailDelete(
+      createNextRequest('/api/wallet/addresses/alice', { method: 'DELETE' }),
+      createParamsPromise({ username: 'alice' }),
+    )
+    expect(res.status).toBe(404)
+    expect(prismaMock.lightningAddress.delete).not.toHaveBeenCalled()
+  })
+
+  it('rejects unauthenticated requests', async () => {
+    mockAuthReject()
+    const res = await DetailDelete(
+      createNextRequest('/api/wallet/addresses/alice', { method: 'DELETE' }),
+      createParamsPromise({ username: 'alice' }),
+    )
+    expect(res.status).toBe(401)
   })
 })
 

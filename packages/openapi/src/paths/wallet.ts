@@ -132,6 +132,25 @@ registry.registerPath({
 
 registry.registerPath({
   ...withRole('USER'),
+  method: 'delete',
+  path: '/api/wallet/addresses/{username}',
+  tags: [TAG],
+  summary: 'Delete one of the caller’s own wallet addresses.',
+  operationId: 'wallet.addresses.delete',
+  security: protectedSecurity,
+  request: { params: schemas.WalletAddressUsernameParam },
+  responses: {
+    200: inlineJsonResponse(
+      'Address deleted.',
+      z.object({ success: z.literal(true), username: z.string() }),
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound,
+  },
+})
+
+registry.registerPath({
+  ...withRole('USER'),
   method: 'post',
   path: '/api/wallet/addresses/{username}/primary',
   tags: [TAG],

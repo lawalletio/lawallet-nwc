@@ -198,3 +198,72 @@ export const PUT = withErrorHandling(
     return NextResponse.json(toWalletAddressDto(updated, defaultWallet))
   },
 )
+
+/**
+ * DELETE /api/wallet/addresses/[username]
+ *
+ * Permanently removes one of the caller's own addresses. Ownership is checked
+ * the same way as GET/PUT — a non-owner (or unknown username) gets a 404 so we
+ * don't reveal other users' addresses.
+ *
+ * If the deleted address was the user's primary and other addresses remain,
+ * the oldest survivor is promoted to primary in the same transaction so the
+ * account is never left with addresses but no primary. Deleting the row first
+ * then promoting respects the partial-unique index (one primary per userId).
+ */
+export const DELETE = withErrorHandling(
+  async (request: Request, { params }: { params: Promise<{ username: string }> }) => {
+    const { pubkey } = await authenticate(request)
+    const { username } = validateParams(await params, walletAddressUsernameParam)
+
+    const user = await prisma.user.findUnique({
+      where: { pubkey },
+      select: { id: true },
+    })
+    if (!user) throw new AuthenticationError('User not found')
+
+    const existing = await prisma.lightningAddress.findUnique({ where: { username } })
+    if (!existing || existing.userId !== user.id) {
+      throw new NotFoundError('Address not found')
+    }
+
+    const nextPrimary = existing.isPrimary
+      ? await prisma.lightningAddress.findFirst({
+          where: { userId: user.id, username: { not: username } },
+          orderBy: { createdAt: 'asc' },
+          select: { username: true },
+        })
+      : null
+
+    await prisma.$transaction([
+      prisma.lightningAddress.delete({ where: { username } }),
+      ...(nextPrimary
+        ? [
+            prisma.lightningAddress.update({
+              where: { username: nextPrimary.username },
+              data: { isPrimary: true },
+            }),
+          ]
+        : []),
+    ])
+
+    eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+    // The user's primary may have shifted — bump users:updated so consumers
+    // like the admin "claim your first address" banner refresh their state.
+    eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+
+    logActivity.fireAndForget({
+      category: 'ADDRESS',
+      event: ActivityEvent.ADDRESS_DELETED,
+      message: `Lightning address deleted: ${username}`,
+      userId: user.id,
+      metadata: {
+        username,
+        wasPrimary: existing.isPrimary,
+        promotedPrimary: nextPrimary?.username ?? null,
+      },
+    })
+
+    return NextResponse.json({ success: true, username })
+  },
+)
