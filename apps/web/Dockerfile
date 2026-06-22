@@ -40,10 +40,19 @@ COPY apps/web ./apps/web
 COPY packages ./packages
 
 # Generate Prisma client and build
-ENV SKIP_ENV_VALIDATION=1
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV CI=1
+# Build-time-only placeholders. `next build` imports route modules that
+# instantiate PrismaClient at import time (lib/prisma.ts) and run strict env
+# validation (lib/config/env.ts), so DATABASE_URL must be a valid Postgres URL
+# and JWT_SECRET >= 32 chars or the build fails with "Environment variable not
+# found: DATABASE_URL". The build never connects to the DB (mirrors CI), and
+# these live only in this discarded builder stage — the runtime image takes the
+# real values at `docker run`. (SKIP_ENV_VALIDATION is not read anywhere in the
+# codebase, so it cannot bypass validation.)
+ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
+ENV JWT_SECRET=docker-build-only-placeholder-secret-not-used-at-runtime
 
 WORKDIR /app/apps/web
 RUN pnpm exec prisma generate && pnpm run build
@@ -78,6 +87,13 @@ USER nextjs
 EXPOSE 2288
 
 ENV NODE_ENV=production
+# Next.js standalone server.js binds to $HOSTNAME:$PORT. Docker auto-sets
+# HOSTNAME to the container id, so without this the server binds only to the
+# container's eth0 IP — `localhost`/127.0.0.1 healthchecks fail and a bare
+# `docker run -p 2288:2288` can't reach it. Pin both so the image listens on
+# all interfaces at the EXPOSEd port out of the box (overridable at runtime).
+ENV HOSTNAME=0.0.0.0
+ENV PORT=2288
 
 WORKDIR /app/apps/web
 CMD ["sh", "-c", "prisma migrate deploy && node server.js"]

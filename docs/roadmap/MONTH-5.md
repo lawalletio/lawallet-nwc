@@ -7,7 +7,7 @@
 ## Summary
 
 1. **Remote Wallet Providers (Connections Manager)** — Source abstraction with a `provider` field. We'll start with NWC as the initial provider in M5; support for LND, Core Lightning, BTCPayServer will be added in future work.
-2. **Card System Apps & Flows** — (0) QR-based JWT login in `apps/web`, (1) `card-installer` Android, (2) `simple-card-manager` rewrite (drives the E2E), (3) end-user "Activate Card" flow in the wallet UI.
+2. **Card System Apps & Flows** — (0) QR-based JWT login in `apps/web`, (1) `card-installer` Android (bulk-writes blank NTAG424 cards and registers them as *initialized*), (2) `card-manager` (prints an Activation QR for any initialized card), (3) end-user "Activate Card" flow in the wallet UI.
 3. **Platform Polish** — full NIP-05, relay picker, user data cache, onboarding v2, dashboard cache, PWA wallet, bug fixes, landing CRM swap.
 
 ---
@@ -26,10 +26,10 @@
 ### B. Card System Apps & Flows
 
 0. QR-based JWT login in `apps/web` — shared login surface for both card-side apps
-1. `card-installer` (Android) — NTAG424 provisioning + JWT login
-2. `simple-card-manager` rewrite — JWT login, dep upgrades, bug fixes, activation-QR generation, card rescue, E2E coverage
+1. `card-installer` (Android) — bulk NTAG424 provisioning + JWT login; writes blank cards against a chosen design and registers each in the system as *initialized* (ready to activate); optional activation-QR generation at write time
+2. `card-manager` — JWT login; takes any *initialized* card and prints an Activation QR for on-demand, individual activation; card rescue / re-issue, E2E coverage
 3. End-user "Activate Card" flow in the wallet UI — scan QR; pick new or existing user; `ONE_TIME` QRs burn and transfer the card's ownership; `FOREVER` QRs (MASTER cards only) grant share access to the card holder's LAs + Remote Wallets without burning. Card kind (`SIMPLE` / `MASTER`) and QR kind (`ONE_TIME` / `FOREVER`) are independent — max one active QR of each kind per card.
-4. Connect Card E2E: issue → install → activate-QR → claim → pair → pay
+4. Connect Card E2E: design → token → bulk-write/initialize → activation-QR → claim → pair → pay
 
 ### C. Platform Polish
 
@@ -125,7 +125,7 @@ Both edge types render with the same Bézier curve but tinted differently.
 
 ### B.0 QR-based JWT Login
 
-Shared login surface for `card-installer` and `simple-card-manager`. The admin mints a JWT in the lawallet-nwc dashboard and shows it as a QR; the third-party app scans it. Stateless — the JWT is self-contained, no server-side session record, no revocation.
+Shared login surface for `card-installer` and `card-manager`. The admin mints a JWT in the lawallet-nwc dashboard and shows it as a QR; the third-party app scans it. Stateless — the JWT is self-contained, no server-side session record, no revocation.
 
 **Flow:**
 
@@ -133,7 +133,7 @@ Shared login surface for `card-installer` and `simple-card-manager`. The admin m
 2. Form: pick **user**, tick **permissions** (RBAC subset), pick **expiration** (preset list: 1h · 8h · 24h · 7d · custom)
 3. Admin calls `POST /api/auth/qr-jwt/generate` → backend signs a JWT with `{ sub: userId, scopes, exp }` and returns `{ jwt }`
 4. Admin UI renders the JWT inside a **QR code** on screen
-5. `card-installer` / `simple-card-manager` scans the QR → JWT lands in the app → it makes authenticated requests
+5. `card-installer` / `card-manager` scans the QR → JWT lands in the app → it makes authenticated requests
 
 **Backend route (new in `apps/web`):**
 
@@ -154,25 +154,26 @@ Shared login surface for `card-installer` and `simple-card-manager`. The admin m
 
 ### B.1 `card-installer` (Android App)
 
-Native (or PWA-shell) Android app for the two NTAG424 field operations:
+[lawalletio/card-installer](https://github.com/lawalletio/card-installer) — native Android app (NFC enabled) for **bulk** NTAG424 provisioning:
 
-- Provision / install — write keys, set up OTC activation, bind to a design
-- Login — authenticates via B.0
+- **Login** — authenticates via B.0 by scanning the device-JWT QR minted in lawallet-web
+- **Select a design** — picks one of the card designs created in the lawallet-web dashboard
+- **Bulk write / initialize** — taps blank NTAG424 chips one after another, writing keys (and OTC activation state) and registering each card in the system as **initialized** (ready to be activated). This is the step that creates the card records: designs come from lawallet-web, the physical write + system registration happen here.
+- **Optional activation-QR** — can emit an Activation QR for a freshly written card on the spot (the same artifact `card-manager` prints later)
 
-When `card-installer` pairs a card to a holder, the pairing call includes `remoteWalletId`. Tokens stored in Android Keystore via `EncryptedSharedPreferences`; when the JWT expires, the operator generates a fresh one from the admin.
+`card-installer` does **not** bind a card to a holder — initialized cards are unowned until someone claims them through the "Activate Card" flow. Tokens stored in Android Keystore via `EncryptedSharedPreferences`; when the JWT expires, the operator generates a fresh one from the admin.
 
-### B.2 `simple-card-manager` Rewrite
+### B.2 `card-manager`
 
-Rewrite of [lawalletio/simple-card-manager](https://github.com/lawalletio/simple-card-manager).
+[lawalletio/card-manager](https://github.com/lawalletio/card-manager) — takes any **initialized** card (written by `card-installer`) and prints an **Activation QR** so anyone can activate it for their account. Individual, on-demand activation — the counterpart to the installer's bulk write.
 
-- B.0 QR-based JWT login
+- B.0 QR-based JWT login (needs a device JWT to reach the API)
 - Wire to current LaWallet API (cards, designs, NTAG424, Remote Wallets)
-- Dependency upgrade pass (Next.js / React / shadcn-ui / nostr-tools)
-- Testing pass, fixes for bugs surfaced during testing
-- Activation-QR generation (B.2.1)
-- Card rescue path (B.2.2)
+- Look up any initialized card and generate its Activation QR (B.2.1)
+- Display the QR on screen or print it (poster mode, design-aligned) for any user to scan
+- Card rescue / re-issue path — unpairs a card from any previous owner and readies it for a new user (B.2.2)
 - E2E coverage for login + activation + rescue
-- Republish under `@lawalletio` org with M3-aligned branding
+- Published under `@lawalletio` org with M3-aligned branding
 
 #### B.2.1 Cards & QRs — two separate concepts
 
@@ -195,7 +196,7 @@ There are **two orthogonal concepts** in the card flow: the **card kind** (a pro
 - Generating a new QR of the same kind on the same card invalidates the previous one
 - A MASTER card can therefore have up to **two QRs live concurrently** (one of each kind); a SIMPLE card has at most one
 
-**Every card can re-issue a fresh QR via simple-card-manager.** Cards transfer (or share, for MASTER) only via their own QR.
+**Every card can re-issue a fresh QR via `card-manager` (or directly from `card-installer` at write time).** Cards transfer (or share, for MASTER) only via their own QR.
 
 QR can be shown on screen or printed (poster mode, design-aligned).
 
@@ -203,7 +204,7 @@ QR can be shown on screen or printed (poster mode, design-aligned).
 
 - "Rescue this card" action invalidates any prior outstanding activation tokens for the card
 - Generates a fresh `ONE_TIME` (`SIMPLE`) activation QR — card returns to a fresh, unassigned, no-attachments state
-- Available on **any card** the current holder controls via simple-card-manager — this is the standard "re-issue" path; "rescue" is just the wording when a previous QR was lost / leaked
+- Available on **any card** via `card-manager` — if the card had a previous owner, rescuing it unpairs that owner and readies the card for a new user. This is the standard "re-issue" path; "rescue" is just the wording when a previous QR was lost / leaked
 
 ### B.3 "Activate Card" Flow (End-User Wallet UI)
 
@@ -291,14 +292,15 @@ RemoteWalletShare {
 
 ### B.4 Connect Card E2E
 
-- **Issue** — admin creates a card with a design in `simple-card-manager`
-- **Install** — `card-installer` writes the NTAG424
-- **Activation-QR generation** — simple-card-manager produces a `ONE_TIME` QR for a `SIMPLE` card (MASTER + FOREVER variant in a separate branch)
-- **Activate / claim** — wallet "Activate Card" flow scans the QR; claimer picks "new user" or "existing user"; ONE_TIME burns and transfers card ownership; FOREVER grants share access without burning
+- **Design** — admin creates the card design(s) in the lawallet-web dashboard
+- **Token** — admin mints a device JWT in lawallet-web and shows it as a QR
+- **Bulk write / initialize** — `card-installer` (Android, NFC) scans the JWT, picks a design, and writes blank NTAG424 chips in bulk, registering each card in the system as *initialized*
+- **Activation-QR generation** — `card-manager` takes an initialized card and prints a `ONE_TIME` QR for a `SIMPLE` card (or `card-installer` emits one at write time; MASTER + FOREVER variant in a separate branch)
+- **Activate / claim** — the user scans the QR, which opens lawallet `/wallet`; the claimer creates a fresh account or signs into an existing one; ONE_TIME burns and transfers card ownership (if the card had a previous owner it is unpaired first); FOREVER grants share access without burning
 - **Pair** — backend stores `(card, npub, remoteWalletId)`
 - **Pay** — tap-to-pay over BoltCard NFC → LNURL-pay → invoice minted via the holder's Remote Wallet
 - Playwright + simulated NFC covers the happy path; separate `FOREVER` (MASTER) claim branch asserts share rows are created and the claimer sees the granted resources
-- Re-issue path covered too: an existing card's holder generates a new `ONE_TIME` QR via simple-card-manager and hands the card off to a new user
+- Re-issue path covered too: `card-manager` mints a new `ONE_TIME` QR for an already-owned card, unpairing the previous holder so it can be handed off to a new user
 
 ---
 
@@ -459,7 +461,7 @@ In the `lawallet-landing` repo. Marketing-side polish; deep technical detail sta
 - Admin dashboard
 - User wallet
 - Connection Map UI
-- `simple-card-manager`
+- `card-manager`
 - NFC card tap lifestyle shot
 
 **Admin features section:**
@@ -504,17 +506,17 @@ In the `lawallet-landing` repo. Marketing-side polish; deep technical detail sta
 | Card → Remote Wallet binding | A | Cards reference a `RemoteWallet`; payment flow resolves through the NWC driver | P0 |
 | Non-NWC drivers (LND / CLN / BTCPay / others) | A | Deferred — no driver shipped this month | — |
 | QR-based JWT login (B.0) | B | Admin `Settings → Device Tokens`: pick user + permissions + expiration → `POST /api/auth/qr-jwt/generate` → JWT rendered as QR; third-party app scans + uses it. Stateless (no revocation). | P0 |
-| `card-installer` Android app | B | Provisions NTAG424; authenticates via B.0; pair sends `remoteWalletId` | P0 |
-| `simple-card-manager` rewrite | B | Authenticates via B.0, deps upgraded, bugs fixed, E2E green, published | P1 |
+| `card-installer` Android app | B | Bulk-writes NTAG424 against a chosen design and registers each card as *initialized*; authenticates via B.0; optional activation-QR at write time | P0 |
+| `card-manager` | B | Authenticates via B.0; prints an Activation QR for any initialized card; rescue/re-issue unpairs prior owner; E2E green; published | P1 |
 | Card kinds | B | `Card.kind` declared at creation: `SIMPLE` (ownership transfer only) or `MASTER` (transfer + account share) | P0 |
 | Activation tokens model + endpoints | B | `CardActivationToken.qrKind` is `ONE_TIME` or `FOREVER`; max one active token per (cardId, qrKind); FOREVER rejected on SIMPLE cards; claim enforces burn for ONE_TIME and share-grant for FOREVER | P0 |
-| Re-issue / activation-QR generation | B | Any card holder can produce a fresh QR via simple-card-manager; new QR of same kind invalidates the previous on that card | P0 |
+| Re-issue / activation-QR generation | B | Any card holder can produce a fresh QR via `card-manager`; new QR of same kind invalidates the previous on that card | P0 |
 | Card rescue path | B | `POST /api/cards/[id]/rescue` invalidates outstanding tokens and issues a fresh `ONE_TIME` QR | P0 |
 | Claim identity options | B | Claimer can scan as a brand-new user (fresh nsec) or sign in as an existing user | P0 |
 | "Activate Card" flow — `ONE_TIME` | B | Wallet scans QR → picks Remote Wallet → claim transfers card ownership only → token burns; second scan sees "already claimed" | P0 |
 | "Activate Card" flow — `FOREVER` (MASTER only) | B | Wallet scans FOREVER QR → claim succeeds without burning → claimer gains share access to card holder's LAs + Remote Wallets | P0 |
 | Share revocation | B | Master holder can revoke a specific share per (resource, grantee) | P1 |
-| Connect Card E2E | B | Issue → install → activate-QR → claim → pair → pay; separate `FOREVER` (MASTER) branch covered; re-issue path covered (card holder mints a new QR via simple-card-manager) | P0 |
+| Connect Card E2E | B | Design → token → bulk-write/initialize → activate-QR → claim → pair → pay; separate `FOREVER` (MASTER) branch covered; re-issue path covered (`card-manager` mints a new QR, unpairing the prior holder) | P0 |
 | NIP-05 | C | `.well-known/nostr.json` resolves with relays + avatar | P0 |
 | Relay picker | C | Persisted per user, used by NIP-05 cache | P1 |
 | User data cache | C | Cached kind:0 + relay-list with TTL refresh | P1 |

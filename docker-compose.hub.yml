@@ -1,0 +1,52 @@
+# Run LaWallet NWC straight from the published Docker Hub image — no local
+# build, exactly how an external user deploys it.
+#
+#   docker compose -f docker-compose.hub.yml up -d
+#
+# Override the tag/port/secret via env or a .env file, e.g.:
+#   LAWALLET_TAG=1.0.0 PORT=2288 JWT_SECRET=<32+ chars> docker compose -f docker-compose.hub.yml up -d
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lawallet}
+      POSTGRES_USER: ${POSTGRES_USER:-lawallet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lawallet_password}
+    volumes:
+      - lawallet_hub_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    image: masize/lawallet-nwc:${LAWALLET_TAG:-latest}
+    pull_policy: always
+    ports:
+      - '${PORT:-2288}:2288'
+    environment:
+      # The container runs `prisma migrate deploy` on startup, then `node server.js`.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lawallet}:${POSTGRES_PASSWORD:-lawallet_password}@postgres:5432/${POSTGRES_DB:-lawallet}
+      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_secure_secret_at_least_32_chars}
+      NODE_ENV: production
+      PORT: 2288
+      # Next standalone binds to $HOSTNAME; Docker defaults it to the container
+      # id, so force all-interfaces or localhost healthchecks/port-mapping miss
+      # the server. (Baked into the image from the next release; kept here so
+      # this compose also works against older published tags.)
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:2288/api/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+volumes:
+  lawallet_hub_pgdata:
