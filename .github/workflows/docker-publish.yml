@@ -1,0 +1,71 @@
+name: Docker Publish
+
+# Builds the apps/web image for linux/amd64 + linux/arm64 and pushes it to
+# Docker Hub. Runs on a published GitHub Release (tagging the release version +
+# latest) or on manual dispatch. Never runs on PR/push, so normal CI is
+# unaffected and missing secrets only surface when this workflow is invoked.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag to push (e.g. 1.0.0). Defaults to package.json version.'
+        required: false
+        type: string
+
+concurrency:
+  group: docker-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: masize/lawallet-nwc
+
+jobs:
+  publish:
+    name: Build + push multi-arch image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image tags
+        id: tags
+        env:
+          TAG_INPUT: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -n "$TAG_INPUT" ]; then
+            VERSION="$TAG_INPUT"
+          elif [ -n "$RELEASE_TAG" ]; then
+            VERSION="${RELEASE_TAG#v}"   # strip leading v (e.g. v1.0.0 -> 1.0.0)
+          else
+            VERSION="$(node -p "require('./package.json').version")"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Publishing ${IMAGE}:${VERSION} and ${IMAGE}:latest"
+
+      # QEMU lets the amd64/arm64 builds run on the amd64 runner.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.tags.outputs.version }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
