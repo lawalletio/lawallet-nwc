@@ -1,19 +1,23 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
-import { Input } from '@/components/ui/input'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
-import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
-import { useSettings, useUpdateSettings } from '@/lib/client/hooks/use-settings'
-import { useSettingsForm } from '@/components/admin/settings/settings-form-context'
+import { useSettings } from '@/lib/client/hooks/use-settings'
+import {
+  useSettingSaver,
+  SettingSwitch,
+  SettingTextInput,
+  SettingInputGroup,
+} from '@/components/admin/settings/auto-save-controls'
 import { DEFAULT_LNCURL_SERVER } from '@/lib/lncurl'
 
 export function WalletTab() {
   const { data: settings, loading: settingsLoading } = useSettings()
-  const { updateSettings } = useUpdateSettings()
+  const saveSetting = useSettingSaver()
 
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false)
   const [registrationLnAddress, setRegistrationLnAddress] = useState('')
@@ -25,9 +29,11 @@ export function WalletTab() {
   const [lncurlServerUrl, setLncurlServerUrl] = useState(DEFAULT_LNCURL_SERVER)
   const [lncurlAutoCreate, setLncurlAutoCreate] = useState(false)
   const [lncurlAutoRecreate, setLncurlAutoRecreate] = useState(false)
+  const [paidToggleSaving, setPaidToggleSaving] = useState(false)
 
-  // Restore all local form state from the currently stored settings. Called on
-  // initial load and whenever the page-level Cancel button is clicked.
+  // Restore local form state from the currently stored settings. With per-field
+  // auto-save there's no Cancel/reset path, so we hydrate exactly once — re-running
+  // on every settings refetch would clobber a field the user is actively editing.
   const loadFromSettings = useCallback(() => {
     if (!settings) return
     setMaintenanceEnabled(settings.maintenance_enabled === 'true')
@@ -46,39 +52,54 @@ export function WalletTab() {
     setLncurlAutoRecreate(settings.lncurl_auto_recreate === 'true')
   }, [settings])
 
+  const hydratedRef = useRef(false)
   useEffect(() => {
+    if (hydratedRef.current || !settings) return
+    hydratedRef.current = true
     loadFromSettings()
-  }, [loadFromSettings])
+  }, [settings, loadFromSettings])
 
-  // Register save handler with the page-level Save Changes button
-  const save = useCallback(async () => {
-    await updateSettings({
-      maintenance_enabled: maintenanceEnabled ? 'true' : 'false',
-      registration_ln_address: registrationLnAddress.trim(),
-      registration_price: registrationPrice || '21',
-      registration_user_enabled: registrationUserEnabled ? 'true' : 'false',
-      registration_ln_enabled: registrationEnabled ? 'true' : 'false',
-      registration_admin_bypass: registrationAdminBypass ? 'true' : 'false',
-      lncurl_enabled: lncurlEnabled ? 'true' : 'false',
-      lncurl_server_url: lncurlServerUrl.trim() || DEFAULT_LNCURL_SERVER,
-      lncurl_auto_create: lncurlEnabled && lncurlAutoCreate ? 'true' : 'false',
-      lncurl_auto_recreate: lncurlEnabled && lncurlAutoRecreate ? 'true' : 'false',
-    })
-  }, [
-    updateSettings,
-    maintenanceEnabled,
-    registrationLnAddress,
-    registrationPrice,
-    registrationUserEnabled,
-    registrationEnabled,
-    registrationAdminBypass,
-    lncurlEnabled,
-    lncurlServerUrl,
-    lncurlAutoCreate,
-    lncurlAutoRecreate,
-  ])
+  // Paid registration is interdependent: the API rejects `enabled` without a
+  // reachable payment address (and re-probes when the address/price changes),
+  // so the toggle + address + price persist together as one unit.
+  const persistPaid = useCallback(
+    async (patch: { enabled?: boolean; address?: string; price?: string }) => {
+      const enabled = patch.enabled ?? registrationEnabled
+      const address = (patch.address ?? registrationLnAddress).trim()
+      const price = (patch.price ?? registrationPrice) || '21'
+      // Can't enable paid registration without a payment address — keep the DB
+      // consistent (disabled) until one is provided; the inline hint explains it.
+      if (enabled && !address) {
+        await saveSetting({ registration_ln_enabled: 'false' })
+        return
+      }
+      await saveSetting({
+        registration_ln_enabled: enabled ? 'true' : 'false',
+        registration_ln_address: address,
+        registration_price: price,
+      })
+    },
+    [saveSetting, registrationEnabled, registrationLnAddress, registrationPrice]
+  )
 
-  const { markChanged } = useSettingsForm('wallet', save, loadFromSettings)
+  async function handlePaidToggle(next: boolean) {
+    const prev = registrationEnabled
+    setRegistrationEnabled(next)
+    // Turning on with no address yet just reveals the fields — persistence
+    // happens once a valid address is entered. Turning off persists at once.
+    if (next && !registrationLnAddress.trim()) return
+    setPaidToggleSaving(true)
+    try {
+      await persistPaid({ enabled: next })
+    } catch (err) {
+      setRegistrationEnabled(prev)
+      toast.error(err instanceof Error ? err.message : 'Failed to update setting')
+    } finally {
+      setPaidToggleSaving(false)
+    }
+  }
+
+  const paidNeedsAddress = registrationEnabled && !registrationLnAddress.trim()
 
   if (settingsLoading) {
     return (
@@ -105,9 +126,10 @@ export function WalletTab() {
                 Enable maintenance mode for all services.
               </p>
             </div>
-            <Switch
+            <SettingSwitch
               checked={maintenanceEnabled}
-              onCheckedChange={v => { setMaintenanceEnabled(v); markChanged() }}
+              onCheckedChange={setMaintenanceEnabled}
+              save={next => saveSetting({ maintenance_enabled: next ? 'true' : 'false' })}
             />
           </div>
         </div>
@@ -131,9 +153,12 @@ export function WalletTab() {
                 only admins can create them.
               </p>
             </div>
-            <Switch
+            <SettingSwitch
               checked={registrationUserEnabled}
-              onCheckedChange={v => { setRegistrationUserEnabled(v); markChanged() }}
+              onCheckedChange={setRegistrationUserEnabled}
+              save={next =>
+                saveSetting({ registration_user_enabled: next ? 'true' : 'false' })
+              }
             />
           </div>
           <div className="flex items-center justify-between">
@@ -143,38 +168,45 @@ export function WalletTab() {
                 Charge users a fee to register a Lightning Address.
               </p>
             </div>
-            <Switch
-              checked={registrationEnabled}
-              onCheckedChange={v => { setRegistrationEnabled(v); markChanged() }}
-            />
+            <span className="inline-flex items-center gap-2">
+              {paidToggleSaving && (
+                <Spinner size={16} className="text-muted-foreground" />
+              )}
+              <Switch
+                checked={registrationEnabled}
+                disabled={paidToggleSaving}
+                onCheckedChange={handlePaidToggle}
+              />
+            </span>
           </div>
           {registrationEnabled && (
             <>
               <div className="space-y-1">
                 <Label>Payment Address</Label>
-                <Input
+                <SettingTextInput
                   type="text"
                   placeholder="admin@getalby.com"
                   value={registrationLnAddress}
-                  onChange={e => { setRegistrationLnAddress(e.target.value); markChanged() }}
+                  onValueChange={setRegistrationLnAddress}
+                  save={addr => persistPaid({ address: addr })}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Lightning address where registration payments will be sent.
+                <p className={paidNeedsAddress ? 'text-xs text-amber-500' : 'text-xs text-muted-foreground'}>
+                  {paidNeedsAddress
+                    ? 'Enter a payment address to activate paid registration.'
+                    : 'Lightning address where registration payments will be sent.'}
                 </p>
               </div>
               <div className="space-y-1">
                 <Label>Price</Label>
-                <InputGroup>
-                  <Input
-                    type="number"
-                    placeholder="21"
-                    min={1}
-                    value={registrationPrice}
-                    onChange={e => { setRegistrationPrice(e.target.value); markChanged() }}
-                    className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                  />
-                  <InputGroupText>sats</InputGroupText>
-                </InputGroup>
+                <SettingInputGroup
+                  type="number"
+                  placeholder="21"
+                  min={1}
+                  value={registrationPrice}
+                  onValueChange={setRegistrationPrice}
+                  save={price => persistPaid({ price })}
+                  suffix="sats"
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div>
@@ -183,9 +215,12 @@ export function WalletTab() {
                     When an admin or operator creates an address, skip the registration fee.
                   </p>
                 </div>
-                <Switch
+                <SettingSwitch
                   checked={registrationAdminBypass}
-                  onCheckedChange={v => { setRegistrationAdminBypass(v); markChanged() }}
+                  onCheckedChange={setRegistrationAdminBypass}
+                  save={next =>
+                    saveSetting({ registration_admin_bypass: next ? 'true' : 'false' })
+                  }
                 />
               </div>
             </>
@@ -211,9 +246,24 @@ export function WalletTab() {
                 Show a “Create an LNCurl wallet” option when connecting a wallet.
               </p>
             </div>
-            <Switch
+            <SettingSwitch
               checked={lncurlEnabled}
-              onCheckedChange={v => { setLncurlEnabled(v); markChanged() }}
+              onCheckedChange={setLncurlEnabled}
+              save={async next => {
+                if (next) {
+                  await saveSetting({ lncurl_enabled: 'true' })
+                } else {
+                  // Disabling LNCurl also clears its dependent auto-* flags so
+                  // they can't fire while the feature is off.
+                  setLncurlAutoCreate(false)
+                  setLncurlAutoRecreate(false)
+                  await saveSetting({
+                    lncurl_enabled: 'false',
+                    lncurl_auto_create: 'false',
+                    lncurl_auto_recreate: 'false',
+                  })
+                }
+              }}
             />
           </div>
 
@@ -221,11 +271,14 @@ export function WalletTab() {
             <>
               <div className="space-y-1">
                 <Label>Server URL</Label>
-                <Input
+                <SettingTextInput
                   type="url"
                   placeholder={DEFAULT_LNCURL_SERVER}
                   value={lncurlServerUrl}
-                  onChange={e => { setLncurlServerUrl(e.target.value); markChanged() }}
+                  onValueChange={setLncurlServerUrl}
+                  save={url =>
+                    saveSetting({ lncurl_server_url: url.trim() || DEFAULT_LNCURL_SERVER })
+                  }
                 />
                 <p className="text-xs text-muted-foreground">
                   LNCurl provider that mints the wallets. Defaults to{' '}
@@ -247,9 +300,12 @@ export function WalletTab() {
                     Give every new account a default LNCurl wallet at signup.
                   </p>
                 </div>
-                <Switch
+                <SettingSwitch
                   checked={lncurlAutoCreate}
-                  onCheckedChange={v => { setLncurlAutoCreate(v); markChanged() }}
+                  onCheckedChange={setLncurlAutoCreate}
+                  save={next =>
+                    saveSetting({ lncurl_auto_create: next ? 'true' : 'false' })
+                  }
                 />
               </div>
 
@@ -262,9 +318,12 @@ export function WalletTab() {
                     receiving.
                   </p>
                 </div>
-                <Switch
+                <SettingSwitch
                   checked={lncurlAutoRecreate}
-                  onCheckedChange={v => { setLncurlAutoRecreate(v); markChanged() }}
+                  onCheckedChange={setLncurlAutoRecreate}
+                  save={next =>
+                    saveSetting({ lncurl_auto_recreate: next ? 'true' : 'false' })
+                  }
                 />
               </div>
             </>
