@@ -16,9 +16,9 @@ export interface ServerOption {
 const STORAGE_KEY = 'lawallet-nwc.api-docs.server-selection'
 const CUSTOM_KEY = 'lawallet-nwc.api-docs.custom-servers'
 
-const DEFAULTS: ServerOption[] = [
-  { id: 'lawallet-prod', label: 'lawallet.io (production)', url: 'https://lawallet.io', builtIn: true },
-]
+// Built-in (locked) servers beyond the docs host. The docs site's own origin
+// is added separately as the "Public Beta" option in `localOption`.
+const DEFAULTS: ServerOption[] = []
 
 interface Props {
   /** URL of this docs site, used as the default "Local" entry. */
@@ -101,7 +101,7 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
 
   const localOption: ServerOption = {
     id: 'local',
-    label: 'rest-docs',
+    label: 'Public Beta',
     url: localUrl,
     builtIn: true,
   }
