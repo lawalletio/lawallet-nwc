@@ -1,6 +1,6 @@
 {
   "name": "@lawallet-nwc/cli",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Standalone CLI for installing and managing a local LaWallet stack",
   "private": false,
   "type": "module",
