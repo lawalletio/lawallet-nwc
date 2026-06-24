@@ -1,10 +1,22 @@
 name: Docker Publish
 
 # Builds the apps/web image for linux/amd64 + linux/arm64 and pushes it to
-# Docker Hub. Runs on a published GitHub Release (tagging the release version +
-# latest) or on manual dispatch. Never runs on PR/push, so normal CI is
-# unaffected and missing secrets only surface when this workflow is invoked.
+# Docker Hub. Invoked by the Release workflow (workflow_call) right after the
+# GitHub Release is cut, on a published GitHub Release (for releases created by
+# hand in the UI), or on manual dispatch. Never runs on PR/push, so normal CI
+# is unaffected and missing secrets only surface when this workflow is invoked.
+#
+# Note: the `release: published` event does NOT fire for releases created by the
+# Release workflow, because GitHub suppresses workflow triggers from events made
+# with the default GITHUB_TOKEN. The automated path therefore relies on
+# workflow_call, not on the release event.
 on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Image tag to push (e.g. 1.0.0). Defaults to package.json version.'
+        required: false
+        type: string
   release:
     types: [published]
   workflow_dispatch:
