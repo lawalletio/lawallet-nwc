@@ -40,8 +40,14 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
 
-      # The same quality gates as CI — a release never ships red.
-      - run: pnpm turbo run lint typecheck test
+      # The same quality gates as CI — a release never ships red. `build` is
+      # included because lint/typecheck/test do NOT exercise the Next.js bundle:
+      # a client/server import split that only breaks `next build` (as in
+      # v1.0.1) would otherwise sail through and tag an unbuildable release.
+      - run: pnpm turbo run lint typecheck test build
+        env:
+          DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
+          JWT_SECRET: 'ci-build-secret-minimum-32-characters-long'
       - run: pnpm docs:check
 
       - name: Bump versions + scaffold changelog
