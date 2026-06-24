@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import type { NostrSigner } from '@nostrify/nostrify'
 import { createBrowserSigner } from '@/lib/client/nostr-signer'
-import { createNip98Token } from '@/lib/nip98'
+import { createNip98Token } from '@/lib/nip98-client'
 
 export interface Nip07Connection {
   signer: NostrSigner

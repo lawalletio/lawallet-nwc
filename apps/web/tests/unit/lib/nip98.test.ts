@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { generateAbsoluteUrl, bodyToPayload, validateNip98 } from '@/lib/nip98'
+import { generateAbsoluteUrl, bodyToPayload } from '@/lib/nip98-client'
+import { validateNip98 } from '@/lib/nip98'
 
 // Mock nostr-tools nip98
 vi.mock('nostr-tools', async (importOriginal) => {

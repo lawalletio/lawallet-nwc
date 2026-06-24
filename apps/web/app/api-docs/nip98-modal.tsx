@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { NostrSigner } from '@nostrify/nostrify'
 import { createBrowserSigner } from '@/lib/client/nostr-signer'
-import { createNip98Token } from '@/lib/nip98'
+import { createNip98Token } from '@/lib/nip98-client'
 
 export interface Nip98ModalProps {
   method: string

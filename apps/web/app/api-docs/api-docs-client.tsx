@@ -7,7 +7,7 @@ import { Nip98Modal } from './nip98-modal'
 import { ServerSelector, loadStoredServer } from './server-selector'
 import { Nip07Connect, type Nip07Connection } from './nip07-connect'
 import { LawalletLogo } from './lawallet-logo'
-import { createNip98Token } from '@/lib/nip98'
+import { createNip98Token } from '@/lib/nip98-client'
 
 type RequiredRole = 'PUBLIC' | 'USER' | 'VIEWER' | 'OPERATOR' | 'ADMIN'
 
