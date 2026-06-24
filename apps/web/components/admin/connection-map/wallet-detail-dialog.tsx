@@ -529,7 +529,7 @@ export function WalletActions({
     } finally {
       setPayingWebLn(false)
     }
-  }, [invoice, resetReceive])
+  }, [invoice])
 
   // ── Send: pay a parsed destination ─────────────────────────────────
   // Declared first so `handleDestinationSubmit` can capture it cleanly
