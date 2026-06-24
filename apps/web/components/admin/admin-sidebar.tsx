@@ -127,14 +127,14 @@ const systemItems: NavItem[] = [
 ]
 
 const settingsSubItems = [
-  { title: 'Wallet', tab: 'wallet' },
-  { title: 'Branding', tab: 'branding' },
   { title: 'Infrastructure', tab: 'infrastructure' },
+  { title: 'Branding', tab: 'branding' },
+  { title: 'Wallet', tab: 'wallet' },
   { title: 'Device Tokens', tab: 'device-tokens' },
 ]
 
 /** Default tab the settings page lands on when no `?tab=` is present. */
-const DEFAULT_SETTINGS_TAB = 'branding'
+const DEFAULT_SETTINGS_TAB = 'infrastructure'
 const APP_VERSION = packageJson.version
 
 type VersionCheck = {

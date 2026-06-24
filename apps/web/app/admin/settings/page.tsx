@@ -14,7 +14,7 @@ import { Role } from '@/lib/auth/permissions'
 
 function SettingsContent() {
   const searchParams = useSearchParams()
-  const activeTab = searchParams.get('tab') || 'branding'
+  const activeTab = searchParams.get('tab') || 'infrastructure'
   const router = useRouter()
   const { status, role } = useAuth()
 
@@ -56,16 +56,16 @@ function SettingsContent() {
         title="Settings"
         subtitle="Manage your community configuration."
         tabs={[
+          { label: 'Infrastructure', active: activeTab === 'infrastructure', onClick: () => navigate('/admin/settings?tab=infrastructure') },
           { label: 'Branding', active: activeTab === 'branding', onClick: () => navigate('/admin/settings?tab=branding') },
           { label: 'Wallet', active: activeTab === 'wallet', onClick: () => navigate('/admin/settings?tab=wallet') },
-          { label: 'Infrastructure', active: activeTab === 'infrastructure', onClick: () => navigate('/admin/settings?tab=infrastructure') },
           { label: 'Device Tokens', active: activeTab === 'device-tokens', onClick: () => navigate('/admin/settings?tab=device-tokens') },
         ]}
       />
 
+      {activeTab === 'infrastructure' && <InfrastructureTab />}
       {activeTab === 'branding' && <BrandingTab />}
       {activeTab === 'wallet' && <WalletTab />}
-      {activeTab === 'infrastructure' && <InfrastructureTab />}
       {activeTab === 'device-tokens' && <DeviceTokensTab />}
     </div>
   )
