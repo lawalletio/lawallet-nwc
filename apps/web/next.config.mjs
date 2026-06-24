@@ -13,12 +13,24 @@ const allowedDevOrigins = [
     .filter(Boolean) ?? [])
 ]
 
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
     unoptimized: true
   },
   output: 'standalone',
+  // Pin the file-tracing root to the monorepo root (apps/web -> ../..).
+  // Without this Next infers the root from the nearest lockfile, which in a
+  // nested git worktree resolves to the OUTER repo and bloats the standalone
+  // path. Pinning it keeps the standalone layout deterministic (apps/web/
+  // server.js) so the Dockerfile COPY stays correct, and silences the
+  // "inferred workspace root" warning.
+  outputFileTracingRoot: join(__dirname, '../..'),
   allowedDevOrigins,
   async rewrites() {
     return [

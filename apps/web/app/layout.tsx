@@ -15,9 +15,13 @@ export const metadata: Metadata = {
 }
 
 // The Google Tag ID lives in the DB so admins can set it without a redeploy.
-// Failures here (no DB at build time, transient outage, etc.) just mean we
-// skip the analytics tag — the rest of the layout must keep rendering.
+// Failures here (transient outage, etc.) just mean we skip the analytics tag —
+// the rest of the layout must keep rendering.
 async function loadGtagId(): Promise<string | null> {
+  // `next build` prerenders this layout with no DB reachable. Skip the query
+  // outright during the build phase so it doesn't spam connection errors into
+  // the build log — the real value is fetched per-request at runtime.
+  if (process.env.NEXT_PHASE === 'phase-production-build') return null
   try {
     const settings = await getSettings(['gtag_id'])
     return settings.gtag_id?.trim() || null

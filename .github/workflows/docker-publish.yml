@@ -6,6 +6,11 @@ name: Docker Publish
 # hand in the UI), or on manual dispatch. Never runs on PR/push, so normal CI
 # is unaffected and missing secrets only surface when this workflow is invoked.
 #
+# Each architecture builds on its OWN native runner (amd64 on ubuntu-latest,
+# arm64 on ubuntu-24.04-arm) and pushes by digest; a final `merge` job stitches
+# the per-arch digests into one multi-arch manifest. This replaces the previous
+# single-runner QEMU emulation of arm64, which dominated build time.
+#
 # Note: the `release: published` event does NOT fire for releases created by the
 # Release workflow, because GitHub suppresses workflow triggers from events made
 # with the default GITHUB_TOKEN. The automated path therefore relies on
@@ -45,17 +50,94 @@ env:
   IMAGE: masize/lawallet-nwc
 
 jobs:
-  publish:
-    name: Build + push multi-arch image
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Empty ref → default (the triggering commit). The release flow passes
+          # the bump commit SHA so the image bakes the just-released version
+          # (without this it would build the pre-bump commit — the bug #53 fixed).
+          ref: ${{ inputs.ref }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build natively for this arch and push the image by digest (untagged).
+      # The merge job assembles the tagged manifest from the per-arch digests.
+      # provenance/sbom are disabled so each push is a single clean image
+      # manifest (no "unknown/unknown" attestation entries), keeping the final
+      # manifest list to exactly amd64 + arm64.
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          sbom: false
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=docker-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.arch }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge multi-arch manifest
     runs-on: ubuntu-latest
+    needs: build
     outputs:
       version: ${{ steps.tags.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      # Checkout the same ref the build job used so the package.json version
+      # fallback resolves the just-released version, not the dispatch commit's.
+      - uses: actions/checkout@v7
         with:
-          # Empty ref → default (the triggering commit). The release flow passes
-          # the bump commit SHA so the image bakes the just-released version.
           ref: ${{ inputs.ref }}
+
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Resolve image tags
         id: tags
@@ -74,33 +156,21 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Publishing ${IMAGE}:${VERSION} and ${IMAGE}:latest"
 
-      # QEMU lets the amd64/arm64 builds run on the amd64 runner.
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - name: Create and push manifest list
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t "${IMAGE}:${{ steps.tags.outputs.version }}" \
+            -t "${IMAGE}:latest" \
+            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: apps/web/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.IMAGE }}:${{ steps.tags.outputs.version }}
-            ${{ env.IMAGE }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Inspect published manifest
+        run: docker buildx imagetools inspect "${IMAGE}:${{ steps.tags.outputs.version }}"
 
   notify-umbrel-app-store:
     name: Request Umbrel app package update
     runs-on: ubuntu-latest
-    needs: publish
+    needs: merge
     steps:
       # Requires a repository secret with write access to
       # lawalletio/umbrel-app-store contents so repository_dispatch can cross
@@ -108,7 +178,7 @@ jobs:
       - name: Dispatch package update
         env:
           GH_TOKEN: ${{ secrets.UMBREL_APP_STORE_DISPATCH_TOKEN }}
-          VERSION: ${{ needs.publish.outputs.version }}
+          VERSION: ${{ needs.merge.outputs.version }}
           IMAGE_REPOSITORY: ${{ env.IMAGE }}
           SOURCE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |

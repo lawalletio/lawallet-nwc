@@ -1,8 +1,26 @@
+# Build context excludes for `docker build -f apps/web/Dockerfile .` (context
+# is the repo root, so this root .dockerignore is the one BuildKit reads).
 .git
 .github
+.claude
 .lawallet
 .pnpm-store
 **/node_modules
 **/.next
 **/.turbo
 **/coverage
+
+# Local env files must never enter the build context: `next build` would read
+# them and inline NEXT_PUBLIC_* values, and any secret could bleed into a layer.
+# The image takes real values at `docker run`. (.env.example is harmless docs.)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Test/CI artifacts and caches — never needed to build the runtime image.
+**/playwright-report
+**/e2e-results
+**/test-results
+**/bench-results
+**/*.tsbuildinfo
+**/.vercel
