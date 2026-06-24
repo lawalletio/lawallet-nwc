@@ -9,10 +9,12 @@ import {
   CreditCard,
   Activity,
   Settings,
+  AtSign,
+  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/admin/auth-context'
-import { Permission } from '@/lib/auth/permissions'
+import { Permission, Role } from '@/lib/auth/permissions'
 
 interface Tab {
   title: string
@@ -29,16 +31,26 @@ const tabs: Tab[] = [
   { title: 'Settings', href: '/admin/settings', icon: Settings, permission: Permission.SETTINGS_READ },
 ]
 
+// Plain end users (USER role) aren't managing the instance, so they get a
+// wallet-holder nav — their own addresses, home, and their wallets — instead of
+// the admin tabs above. These pages are already per-user scoped by pubkey.
+const userTabs: Tab[] = [
+  { title: 'Addresses', href: '/admin/addresses', icon: AtSign },
+  { title: 'Home', href: '/admin', icon: Home },
+  { title: 'Wallets', href: '/admin/remote-wallets', icon: Wallet },
+]
+
 export function MobileTabBar({ disabled = false }: { disabled?: boolean }) {
   const pathname = usePathname()
-  const { isAuthorized } = useAuth()
+  const { isAuthorized, role } = useAuth()
 
   function isActive(href: string): boolean {
     if (href === '/admin') return pathname === '/admin'
     return pathname.startsWith(href)
   }
 
-  const visibleTabs = tabs.filter(tab => !tab.permission || isAuthorized(tab.permission))
+  const activeTabs = role === Role.USER ? userTabs : tabs
+  const visibleTabs = activeTabs.filter(tab => !tab.permission || isAuthorized(tab.permission))
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background md:hidden">
