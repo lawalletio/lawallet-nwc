@@ -17,12 +17,20 @@ on:
         description: 'Image tag to push (e.g. 1.0.0). Defaults to package.json version.'
         required: false
         type: string
+      ref:
+        description: 'Git ref/SHA to build. Defaults to the triggering commit — but the release flow MUST pass the bump commit, else the image bakes the previous version.'
+        required: false
+        type: string
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
         description: 'Image tag to push (e.g. 1.0.0). Defaults to package.json version.'
+        required: false
+        type: string
+      ref:
+        description: 'Git ref/SHA to build (defaults to the triggering commit).'
         required: false
         type: string
 
@@ -44,6 +52,10 @@ jobs:
       version: ${{ steps.tags.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Empty ref → default (the triggering commit). The release flow passes
+          # the bump commit SHA so the image bakes the just-released version.
+          ref: ${{ inputs.ref }}
 
       - name: Resolve image tags
         id: tags

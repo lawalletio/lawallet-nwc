@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.bump.outputs.version }}
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,6 +56,7 @@ jobs:
         run: node scripts/release.mjs --bump ${{ inputs.bump }}
 
       - name: Commit, tag, push
+        id: commit
         env:
           VERSION: ${{ steps.bump.outputs.version }}
         run: |
@@ -66,6 +68,10 @@ jobs:
           # lightweight tags, which silently dropped the tag in v0.11.0.
           git tag -a "v${VERSION}" -m "v${VERSION}"
           git push origin main "refs/tags/v${VERSION}"
+          # Hand the bump commit's SHA to the docker job. Without this it would
+          # check out github.sha (the pre-bump dispatch commit) and bake the
+          # PREVIOUS version into the image — e.g. the 1.0.5 image reported 1.0.4.
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         env:
@@ -88,4 +94,5 @@ jobs:
     uses: ./.github/workflows/docker-publish.yml
     with:
       tag: ${{ needs.release.outputs.version }}
+      ref: ${{ needs.release.outputs.sha }}
     secrets: inherit
