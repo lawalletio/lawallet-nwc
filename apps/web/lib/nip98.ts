@@ -160,22 +160,54 @@ export async function validateNip98(
     throw new Error('Invalid event format')
   }
 
-  // Validate the event using nostr-tools nip98 functions
-  // Handle tunnel scenarios by reconstructing the URL from headers
-  const host =
-    request.headers.get('x-forwarded-host') ||
-    request.headers.get('host') ||
-    'localhost:3000'
-  const protocol =
-    request.headers.get('x-forwarded-proto') ||
-    (request.url.startsWith('https') ? 'https' : 'http')
-
-  // Reconstruct the URL using the public host and protocol
+  // The signed `u` tag commits to the *public* URL the client used, which is
+  // not the internal one Next.js sees behind a proxy/tunnel. Reverse proxies
+  // (e.g. Cloudflare Tunnel + Umbrel's app_proxy) frequently rewrite the `Host`
+  // header to the internal origin and don't forward `x-forwarded-host`, so we
+  // anchor on the admin-configured `endpoint` setting (this instance's true
+  // public URL) and accept forwarded/host headers only as fallbacks.
   const originalUrl = new URL(request.url)
-  const publicUrl = new URL(
-    originalUrl.pathname + originalUrl.search,
-    `${protocol}://${host}`
+  const pathAndQuery = originalUrl.pathname + originalUrl.search
+
+  const origins = new Set<string>()
+
+  // 1. Admin-configured public endpoint — authoritative behind proxies/tunnels.
+  //    Dynamically imported so this server-only path never pulls DB code into
+  //    client bundles that use the token-creation helpers above.
+  try {
+    const { resolveApiUrl } = await import('@/lib/public-url')
+    const apiUrl = await resolveApiUrl(request)
+    if (apiUrl) origins.add(apiUrl)
+  } catch {
+    // Settings unavailable (e.g. fresh install or unit context) — fall back to
+    // the request headers below.
+  }
+
+  // 2. Headers set by a reverse proxy that forwards the original host.
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const forwardedProto = request.headers.get('x-forwarded-proto')
+  if (forwardedHost) {
+    origins.add(`${forwardedProto || 'https'}://${forwardedHost}`)
+  }
+
+  // 3. The raw `Host` header / the URL Next.js actually received.
+  const host = request.headers.get('host')
+  if (host) {
+    const protocol =
+      forwardedProto || (request.url.startsWith('https') ? 'https' : 'http')
+    origins.add(`${protocol}://${host}`)
+  }
+  origins.add(originalUrl.origin)
+
+  // The `u` tag must equal one of the candidate public URLs. Pick the matching
+  // one so nostr-tools validates against it; otherwise fall back to the first
+  // candidate so the resulting error message stays meaningful.
+  const uTag = event.tags.find(tag => tag[0] === 'u')?.[1]
+  const candidateUrls = Array.from(origins, origin =>
+    new URL(pathAndQuery, origin).toString()
   )
+  const publicUrl =
+    candidateUrls.find(candidate => candidate === uTag) ?? candidateUrls[0]
 
   const method = request.method
 
@@ -184,7 +216,7 @@ export async function validateNip98(
 
     const isValid = await nip98.validateEvent(
       event,
-      publicUrl.toString(),
+      publicUrl,
       method,
       requestBody
     )

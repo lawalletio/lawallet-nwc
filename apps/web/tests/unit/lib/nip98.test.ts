@@ -12,6 +12,13 @@ vi.mock('nostr-tools', async (importOriginal) => {
   }
 })
 
+// Mock the public-url resolver so unit tests don't touch the DB. By default the
+// configured `endpoint` is unavailable, so URL reconstruction falls back to the
+// request headers — individual tests override it to assert the endpoint anchor.
+vi.mock('@/lib/public-url', () => ({
+  resolveApiUrl: vi.fn().mockRejectedValue(new Error('settings unavailable')),
+}))
+
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
@@ -199,6 +206,71 @@ describe('validateNip98', () => {
     expect(nip98.validateEvent).toHaveBeenCalledWith(
       event,
       'https://public.example.com/api/test',
+      'GET',
+      expect.any(String)
+    )
+  })
+
+  it('anchors URL reconstruction on the configured endpoint behind a tunnel', async () => {
+    // Simulates Cloudflare Tunnel + Umbrel app_proxy: the request reaches the
+    // app on an internal host with no forwarded headers, but the signed `u` tag
+    // commits to the public endpoint configured in settings.
+    const { nip98 } = await import('nostr-tools')
+    vi.mocked(nip98.validateEvent).mockResolvedValue(true)
+    const { resolveApiUrl } = await import('@/lib/public-url')
+    vi.mocked(resolveApiUrl).mockResolvedValue('https://lawallet.masize.com')
+
+    const event = createNip98Event({
+      tags: [
+        ['u', 'https://lawallet.masize.com/api/jwt'],
+        ['method', 'GET'],
+      ],
+    })
+    const request = new Request('http://internal-app:2288/api/jwt', {
+      method: 'GET',
+      headers: {
+        Authorization: `Nostr ${btoa(JSON.stringify(event))}`,
+        host: 'internal-app:2288',
+      },
+    })
+
+    await validateNip98(request)
+
+    expect(nip98.validateEvent).toHaveBeenCalledWith(
+      event,
+      'https://lawallet.masize.com/api/jwt',
+      'GET',
+      expect.any(String)
+    )
+  })
+
+  it('matches the u tag against the configured endpoint over a mismatched host header', async () => {
+    const { nip98 } = await import('nostr-tools')
+    vi.mocked(nip98.validateEvent).mockResolvedValue(true)
+    const { resolveApiUrl } = await import('@/lib/public-url')
+    vi.mocked(resolveApiUrl).mockResolvedValue('https://lawallet.masize.com')
+
+    // The `u` tag matches the host header, not the configured endpoint — the
+    // host-header candidate must still be selected so validation succeeds.
+    const event = createNip98Event({
+      tags: [
+        ['u', 'http://internal-app:2288/api/jwt'],
+        ['method', 'GET'],
+      ],
+    })
+    const request = new Request('http://internal-app:2288/api/jwt', {
+      method: 'GET',
+      headers: {
+        Authorization: `Nostr ${btoa(JSON.stringify(event))}`,
+        host: 'internal-app:2288',
+      },
+    })
+
+    await validateNip98(request)
+
+    expect(nip98.validateEvent).toHaveBeenCalledWith(
+      event,
+      'http://internal-app:2288/api/jwt',
       'GET',
       expect.any(String)
     )
