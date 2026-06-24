@@ -26,6 +26,8 @@ jobs:
   release:
     name: Bump, tag, and publish release notes
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,3 +72,14 @@ jobs:
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
             --notes-file "docs/changelogs/v${VERSION}.md"
+
+  # Publish the Docker image and notify the Umbrel app store. Called directly
+  # (not via the `release: published` event) because GitHub does not trigger
+  # workflows from releases the bot creates with GITHUB_TOKEN.
+  docker:
+    name: Publish Docker image
+    needs: release
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      tag: ${{ needs.release.outputs.version }}
+    secrets: inherit
