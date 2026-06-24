@@ -1,5 +1,5 @@
 import type { NostrSigner } from '@nostrify/nostrify'
-import { createNip98Token } from '@/lib/nip98'
+import { createNip98Token } from '@/lib/nip98-client'
 import type { Role, Permission } from '@/lib/auth/permissions'
 
 export interface JwtResponse {
