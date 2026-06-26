@@ -233,7 +233,39 @@ describe('POST /api/wallet/addresses', () => {
     )
     expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ username: 'bob', isPrimary: true }),
+        // No active default wallet → the new address defaults to IDLE.
+        data: expect.objectContaining({
+          username: 'bob',
+          isPrimary: true,
+          mode: 'IDLE',
+        }),
+      }),
+    )
+  })
+
+  it('defaults a new address to DEFAULT_NWC when the user has an ACTIVE default wallet', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+    vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+      makeAddress({ username: 'bob', isPrimary: true, mode: 'DEFAULT_NWC' }) as any,
+    )
+    // An ACTIVE default wallet exists → route through it from the start.
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(
+      makeWallet({ id: 'conn-default', status: 'ACTIVE' }) as any,
+    )
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob' },
+      }),
+    )
+    await assertResponse(res, 201)
+    expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ mode: 'DEFAULT_NWC' }),
       }),
     )
   })
@@ -262,7 +294,8 @@ describe('POST /api/wallet/addresses', () => {
         data: expect.objectContaining({
           username: 'bob',
           userId: 'user-1',
-          mode: 'DEFAULT_NWC',
+          // No active default wallet mocked → defaults to IDLE.
+          mode: 'IDLE',
           isPrimary: false,
         }),
       }),

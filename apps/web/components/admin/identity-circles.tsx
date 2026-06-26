@@ -1,13 +1,28 @@
 'use client'
 
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { AtSign } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
 import { cn } from '@/lib/utils'
+
+// Press feedback: a springy zoom-out on tap that bounces back on release.
+const PRESS_CLASSES =
+  'transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-90 motion-reduce:transition-none motion-reduce:active:scale-100'
+
+/** Centered loading veil shown over a circle while its page is navigating in. */
+function NavigatingVeil() {
+  return (
+    <span className="absolute inset-0 z-10 flex items-center justify-center rounded-full bg-background/60 backdrop-blur-sm animate-in fade-in-0 duration-150">
+      <Spinner size={24} />
+    </span>
+  )
+}
 
 interface IdentityCirclesProps {
   className?: string
@@ -50,6 +65,11 @@ export function IdentityCircles({
   const { pubkey } = useAuth()
   const { profile } = useNostrProfile(pubkey)
   const { isotypo } = useBrandLogotypes()
+  // Which circle is navigating, so we can veil it with a spinner until the
+  // next page renders (which unmounts this component and clears the state).
+  const [navigatingTo, setNavigatingTo] = useState<'profile' | 'community' | null>(
+    null,
+  )
 
   const displayName =
     profile?.displayName || profile?.name || (pubkey ? pubkey.slice(0, 8) : '')
@@ -85,9 +105,14 @@ export function IdentityCircles({
         <Link
           href={`/admin/users/${pubkey}`}
           aria-label="View my profile"
-          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          onClick={() => setNavigatingTo('profile')}
+          className={cn(
+            'relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+            PRESS_CLASSES,
+          )}
         >
           {avatar}
+          {navigatingTo === 'profile' && <NavigatingVeil />}
         </Link>
       ) : (
         avatar
@@ -106,10 +131,12 @@ export function IdentityCircles({
       <Link
         href="/admin/community"
         aria-label="About this community"
+        onClick={() => setNavigatingTo('community')}
         className={cn(
           sizeClass,
           'relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-card ring-2 ring-border',
-          'transition-transform hover:scale-105 hover:ring-ring focus-visible:outline-none focus-visible:ring-ring',
+          'hover:scale-105 hover:ring-ring focus-visible:outline-none focus-visible:ring-ring',
+          PRESS_CLASSES,
         )}
       >
         <Image
@@ -119,6 +146,7 @@ export function IdentityCircles({
           sizes="96px"
           className="object-contain p-2"
         />
+        {navigatingTo === 'community' && <NavigatingVeil />}
       </Link>
     </div>
   )

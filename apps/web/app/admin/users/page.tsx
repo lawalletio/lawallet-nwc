@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useUsers, type AdminUser } from '@/lib/client/hooks/use-users'
+import { ImpersonateUserButton } from '@/components/admin/impersonate-user-button'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { truncateNpub, formatRelativeTime, npubInitials } from '@/lib/client/format'
 import { Role } from '@/lib/auth/permissions'
@@ -64,7 +65,7 @@ export default function UsersPage() {
     <div className="flex flex-col">
       <AdminTopbar title="Users" subtitle="Everyone who has signed in." />
 
-      <div className="flex flex-col gap-6 p-6">
+      <div className="flex flex-col gap-6 px-4 py-6 sm:px-6">
         <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total users"
@@ -223,9 +224,13 @@ function UserRow({ user, onClick }: { user: AdminUser; onClick: () => void }) {
         )}
       </TableCell>
       <TableCell>
-        <Badge variant={ROLE_VARIANT[user.role]} className="text-xs">
-          {user.role}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={ROLE_VARIANT[user.role]} className="text-xs">
+            {user.role}
+          </Badge>
+          {/* Dev-only: view the app as this user. Renders nothing in prod. */}
+          <ImpersonateUserButton pubkey={user.pubkey} className="-my-1" />
+        </div>
       </TableCell>
       <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
         {formatRelativeTime(user.createdAt)}

@@ -50,6 +50,14 @@ export function AdminTopbar({
     return <MobilePageTopbar title={title} subtitle={subtitle} actions={actions} tabs={tabs} />
   }
 
+  // Desktop: drop a "chromeless" bar — one with no title, subtitle, tabs, or
+  // alert (at most a lone action like a Back button). The sidebar already
+  // provides navigation, so an otherwise-empty bar is just a border + wasted
+  // height. Titled / tabbed / alerting pages keep their topbar. Mobile is
+  // unaffected: its bar carries the logo + hamburger nav.
+  const isChromeless = !title && !subtitle && (!tabs || tabs.length === 0) && !alert
+  if (isChromeless) return null
+
   return (
     <Topbar
       title={title}
@@ -78,7 +86,7 @@ function MobilePageTopbar({
   return (
     <div className="flex flex-col">
       {/* Logo bar: logo left + hamburger right */}
-      <div className="flex items-center justify-between px-4 h-[56px]">
+      <div className="flex items-center justify-between px-4 sm:px-6 h-[56px]">
         <BrandLogotype width={100} height={24} className="h-6 w-auto" />
         <button
           onClick={() => setOpenMobile(true)}
@@ -93,7 +101,7 @@ function MobilePageTopbar({
           row below the title so it never crowds or overlaps the heading;
           `flex-wrap` lets the buttons wrap on narrow screens. */}
       {(title || subtitle || actions) && (
-        <div className="flex flex-col gap-3 px-4 py-3">
+        <div className="flex flex-col gap-3 px-4 sm:px-6 py-3">
           <div className="flex min-w-0 flex-col gap-0.5">
             {title && <h1 className="text-base font-semibold">{title}</h1>}
             {subtitle && (
@@ -101,7 +109,7 @@ function MobilePageTopbar({
             )}
           </div>
           {actions && (
-            <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 [&>*]:shrink-0">
+            <div className="-mx-4 sm:-mx-6 flex items-center gap-2 overflow-x-auto px-4 sm:px-6 [&>*]:shrink-0">
               {actions}
             </div>
           )}
@@ -110,7 +118,7 @@ function MobilePageTopbar({
 
       {/* Tabs */}
       {tabs && tabs.length > 0 && (
-        <div className="flex items-center gap-1 px-4 py-1 border-b border-border overflow-x-auto">
+        <div className="flex items-center gap-1 px-4 sm:px-6 py-1 border-b border-border overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.label}

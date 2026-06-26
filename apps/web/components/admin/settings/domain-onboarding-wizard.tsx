@@ -37,7 +37,8 @@ import { cn } from '@/lib/utils'
 
 const DOMAIN_PATTERN =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i
-const WORDPRESS_PLUGIN_URL = 'https://wordpress.lawallet.io'
+const WORDPRESS_PLUGIN_URL =
+  'https://wordpress.org/plugins/lawallet-lightning-address/'
 
 type WizardStep = 'input' | 'checking' | 'result'
 

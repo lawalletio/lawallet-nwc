@@ -62,7 +62,7 @@ export default function RemoteWalletsPage() {
     <div className="flex flex-col">
       <AdminTopbar title="Remote Wallets" />
 
-      <div className="flex flex-col gap-8 p-6">
+      <div className="flex flex-col gap-8 px-4 py-6 sm:px-6">
         <div className="flex flex-col gap-6">
           <div className="flex items-center justify-between gap-4">
             <div>

@@ -17,6 +17,7 @@ import { claimInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
 import { dispatchHookAndForget } from '@/plugins/index'
 import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
+import { resolveDefaultAddressMode } from '@/lib/wallet/default-address-mode'
 import type { InvoiceMetadata } from '@/lib/invoice-utils'
 
 /**
@@ -142,12 +143,22 @@ export const POST = withErrorHandling(
           })
         }
         await prisma.lightningAddress.create({
-          data: { username, userId: user.id, isPrimary: true },
+          data: {
+            username,
+            userId: user.id,
+            isPrimary: true,
+            mode: await resolveDefaultAddressMode(user.id),
+          },
         })
       } else {
         // Secondary add: never touches the existing primary.
         await prisma.lightningAddress.create({
-          data: { username, userId: user.id, isPrimary: false },
+          data: {
+            username,
+            userId: user.id,
+            isPrimary: false,
+            mode: await resolveDefaultAddressMode(user.id),
+          },
         })
       }
 

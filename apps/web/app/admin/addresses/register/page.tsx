@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
+import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import { NewAddressDialog } from '@/components/wallet/new-address-dialog'
 import { Role } from '@/lib/auth/permissions'
 
@@ -16,12 +17,10 @@ function sanitizeUsername(raw: string | null): string {
   return raw.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
 }
 
-const noop = () => undefined
-
 function RegisterAddressInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { status, role } = useAuth()
+  const { status, role, apiClient } = useAuth()
   const { data: settings, loading: settingsLoading } = useSettings(
     status === 'authenticated',
   )
@@ -30,6 +29,25 @@ function RegisterAddressInner() {
     () => sanitizeUsername(searchParams.get('username')),
     [searchParams]
   )
+
+  // Snapshot whether the user already has any Lightning address *before* they
+  // create one here, so we can tell if this is their first. A one-shot fetch
+  // (not a live `useApi` subscription) means the post-claim refetch can't flip
+  // the value mid-flow. `fetchedRef` keeps it to a single request; left null on
+  // error, which is treated as "not first" (safe default → keep Configure).
+  const [priorAddressCount, setPriorAddressCount] = useState<number | null>(null)
+  const fetchedRef = useRef(false)
+  useEffect(() => {
+    if (status !== 'authenticated' || fetchedRef.current) return
+    fetchedRef.current = true
+    apiClient
+      .get<WalletAddress[]>('/api/wallet/addresses')
+      .then(list =>
+        setPriorAddressCount(Array.isArray(list) ? list.length : 0),
+      )
+      .catch(() => undefined)
+  }, [status, apiClient])
+  const isFirstAddress = priorAddressCount === 0
 
   if (status !== 'authenticated') return null
 
@@ -85,8 +103,14 @@ function RegisterAddressInner() {
         open={open}
         onOpenChange={handleOpenChange}
         initialUsername={initialUsername || undefined}
-        onCreated={noop}
-        onSuccessAction={handleSuccessAction}
+        onCreated={() => undefined}
+        // First address: flash the success modal for 2s then drop the user on
+        // the dashboard. Otherwise keep the Configure → address-detail path.
+        onSuccessAction={isFirstAddress ? undefined : handleSuccessAction}
+        successAutoAdvanceMs={isFirstAddress ? 2000 : undefined}
+        onSuccessAutoAdvance={
+          isFirstAddress ? () => router.replace('/admin') : undefined
+        }
       />
     </div>
   )

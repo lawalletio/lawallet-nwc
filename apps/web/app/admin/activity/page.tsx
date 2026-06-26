@@ -95,7 +95,7 @@ export default function ActivityPage() {
     <div className="flex flex-col">
       <AdminTopbar title="Activity" />
 
-      <div className="p-6 flex flex-col gap-6">
+      <div className="px-4 py-6 sm:px-6 flex flex-col gap-6">
         <div>
           <h2 className="text-lg font-semibold">Logs</h2>
           <p className="text-sm text-muted-foreground">

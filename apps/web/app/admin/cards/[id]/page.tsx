@@ -117,7 +117,7 @@ export default function CardDetailPage({
         </AlertDialog>
       )}
 
-      <div className="p-6 flex flex-col gap-6">
+      <div className="px-4 py-6 sm:px-6 flex flex-col gap-6">
         {loading ? (
           <div className="flex flex-col gap-4">
             <Skeleton className="h-40 w-full rounded-lg" />

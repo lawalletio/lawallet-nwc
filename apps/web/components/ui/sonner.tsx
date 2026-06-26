@@ -13,6 +13,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps['theme']}
       className="toaster group"
+      // On phones, lift toasts above the fixed bottom tab bar (h-14 = 3.5rem)
+      // plus the safe-area inset and a small gap, so they don't overlap it.
+      // Desktop positioning is unchanged.
+      mobileOffset={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom) + 1rem)' }}
       toastOptions={{
         classNames: {
           toast:

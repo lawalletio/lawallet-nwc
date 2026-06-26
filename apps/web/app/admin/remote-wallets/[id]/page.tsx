@@ -58,7 +58,7 @@ export default function RemoteWalletDetailPage() {
     <div className="flex flex-col">
       <AdminTopbar title={wallet?.name ?? 'Wallet'} subtitle="Remote wallet" />
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6">
         <Link
           href="/admin/remote-wallets"
           className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
