@@ -4,14 +4,17 @@ import React, { useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
+  AlertTriangle,
   ArrowDownLeft,
   ArrowUpRight,
+  ArrowRight,
   Calendar,
   ChevronDown,
   Key,
   Loader2,
   Radio,
   Tag,
+  Wallet,
   WifiOff,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,6 +26,7 @@ import { parseNwc, truncatePubkey } from '@/lib/client/nwc'
 import { useNwcBalance } from '@/lib/client/use-nwc-balance'
 import { formatRelativeTime } from '@/lib/client/format'
 import { AddressRoutingShortcuts } from '@/components/admin/address-routing-shortcuts'
+import { cn } from '@/lib/utils'
 
 interface UserMe {
   userId: string
@@ -51,6 +55,9 @@ export function NwcCard({ username }: NwcCardProps = {}) {
   )
 
   const [expanded, setExpanded] = useState(false)
+  // Spinner + dimmed state while the wallet-view navigation loads; cleared
+  // naturally when this page unmounts.
+  const [navigating, setNavigating] = useState(false)
   const nwcString = me?.nwcString ?? ''
 
   const parsedNwc = useMemo(
@@ -87,29 +94,32 @@ export function NwcCard({ username }: NwcCardProps = {}) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4 rounded-xl border border-yellow-500/20 bg-gradient-to-br from-yellow-500/15 via-yellow-500/5 to-transparent px-5 py-5">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#897FFF]/10">
-            <Image src="/logos/nwc.svg" alt="NWC" width={28} height={28} className="size-7" />
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#897FFF]/10">
+              <Image src="/logos/nwc.svg" alt="NWC" width={28} height={28} className="size-7" />
+              {/* Balance couldn't be read → a warning badge on the icon
+                  replaces the old "Unavailable" text. */}
+              {balance.error && (
+                <span
+                  title="Balance unavailable"
+                  className="absolute -left-1.5 -top-1.5 flex items-center justify-center rounded-full bg-card p-0.5"
+                >
+                  <AlertTriangle
+                    className="size-4 text-destructive"
+                    aria-label="Balance unavailable"
+                  />
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                Balance
+              </span>
+              <span className="text-xs text-muted-foreground">Primary wallet</span>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">
-              Balance
-            </span>
-            <span className="text-xs text-muted-foreground">Primary wallet</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {balance.sats !== null ? (
-            <span className="text-3xl font-semibold tabular-nums leading-none">
-              {balance.sats.toLocaleString()}
-              <span className="ml-1.5 text-sm text-muted-foreground font-normal">sats</span>
-            </span>
-          ) : balance.error ? (
-            <span className="text-sm text-destructive">Unavailable</span>
-          ) : (
-            <Spinner size={24} className="text-muted-foreground" />
-          )}
           {parsedNwc && (
             <button
               type="button"
@@ -117,12 +127,46 @@ export function NwcCard({ username }: NwcCardProps = {}) {
               aria-label={expanded ? 'Hide connection details' : 'Show connection details'}
               aria-expanded={expanded}
               title={expanded ? 'Hide connection details' : 'Show connection details'}
-              className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+              className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
             >
               <ChevronDown className={`size-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
             </button>
           )}
         </div>
+
+        {/* Balance value */}
+        <div className="mt-4 flex min-h-9 items-baseline gap-1.5">
+          {balance.sats !== null ? (
+            <>
+              <span className="text-4xl font-semibold tabular-nums leading-none">
+                {balance.sats.toLocaleString()}
+              </span>
+              <span className="text-sm text-muted-foreground">sats</span>
+            </>
+          ) : balance.error ? (
+            // Error is surfaced by the warning badge on the NWC icon above.
+            <span className="text-sm text-muted-foreground">—</span>
+          ) : (
+            <Spinner size={24} className="text-muted-foreground" />
+          )}
+        </div>
+
+        {/* Jump to the full end-user wallet experience (send / receive / activity). */}
+        <Button
+          asChild
+          variant="theme"
+          className={cn('mt-5 w-full', navigating && 'pointer-events-none opacity-70')}
+        >
+          <Link
+            href="/wallet"
+            onClick={() => setNavigating(true)}
+            aria-disabled={navigating}
+          >
+            {navigating ? <Spinner size={16} /> : <Wallet className="size-4" />}
+            Switch to Wallet View
+            {!navigating && <ArrowRight className="size-4" />}
+          </Link>
+        </Button>
       </div>
 
       {parsedNwc && expanded && (

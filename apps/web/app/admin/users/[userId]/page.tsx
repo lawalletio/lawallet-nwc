@@ -3,7 +3,7 @@
 import { use, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Copy, Forward, MoreHorizontal, Pencil, Star } from 'lucide-react'
+import { ArrowLeft, Camera, Copy, Forward, MoreHorizontal, Pencil, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
@@ -189,7 +189,7 @@ export default function UserDetailPage({
         }
       />
 
-      <div className="flex flex-col gap-6 px-4 pb-6 sm:px-6">
+      <div className="flex flex-col gap-6 px-4 pb-6 pt-4 sm:px-6 sm:pt-6">
         {loading || !user ? (
           <div className="flex h-48 items-center justify-center">
             <Spinner size={24} />
@@ -211,18 +211,53 @@ export default function UserDetailPage({
                       }
                     : undefined
                 }
-              />
+              >
+                {/* When viewing your own profile, the cover is a shortcut into
+                    the editor (same Blossom upload flow as the dialog). */}
+                {isSelf && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingProfile(true)}
+                    aria-label="Change cover image"
+                    className="group absolute inset-0 flex items-center justify-center focus-visible:outline-none"
+                  >
+                    <span className="flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+                      <Camera className="size-4" />
+                      Change cover
+                    </span>
+                  </button>
+                )}
+              </div>
 
               <div className="relative px-4 pb-4 pt-0 sm:px-6 sm:pb-6">
                 {/* Avatar overlaps the cover/body boundary. The ring creates
                     a clean cutout against the card bg, matching the common
                     social-media treatment. */}
-                <Avatar className="absolute -top-10 left-4 size-20 shrink-0 ring-4 ring-card sm:-top-12 sm:left-6 sm:size-24">
-                  {profile?.picture && (
-                    <AvatarImage src={profile.picture} alt={displayName} />
-                  )}
-                  <AvatarFallback className="text-lg">{fallback}</AvatarFallback>
-                </Avatar>
+                {isSelf ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditingProfile(true)}
+                    aria-label="Change avatar"
+                    className="group absolute -top-10 left-4 size-20 rounded-full ring-4 ring-card focus-visible:outline-none sm:-top-12 sm:left-6 sm:size-24"
+                  >
+                    <Avatar className="size-full">
+                      {profile?.picture && (
+                        <AvatarImage src={profile.picture} alt={displayName} />
+                      )}
+                      <AvatarFallback className="text-lg">{fallback}</AvatarFallback>
+                    </Avatar>
+                    <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 opacity-0 transition-all duration-200 group-hover:bg-black/50 group-hover:opacity-100 group-focus-visible:bg-black/50 group-focus-visible:opacity-100">
+                      <Camera className="size-5 text-white" />
+                    </span>
+                  </button>
+                ) : (
+                  <Avatar className="absolute -top-10 left-4 size-20 shrink-0 ring-4 ring-card sm:-top-12 sm:left-6 sm:size-24">
+                    {profile?.picture && (
+                      <AvatarImage src={profile.picture} alt={displayName} />
+                    )}
+                    <AvatarFallback className="text-lg">{fallback}</AvatarFallback>
+                  </Avatar>
+                )}
 
                 {/* Action row sits to the right of the avatar so the
                     overlap doesn't steal space from the edit/role button. */}

@@ -186,7 +186,12 @@ describe('POST /api/invoices/[id]/claim', () => {
     // Lightning address created as the user's primary
     expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { username: 'alice', userId: 'user-1', isPrimary: true },
+        data: expect.objectContaining({
+          username: 'alice',
+          userId: 'user-1',
+          isPrimary: true,
+          mode: 'IDLE',
+        }),
       })
     )
   })
@@ -251,7 +256,12 @@ describe('POST /api/invoices/[id]/claim', () => {
     )
     expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { username: 'alice', userId: 'user-1', isPrimary: true },
+        data: expect.objectContaining({
+          username: 'alice',
+          userId: 'user-1',
+          isPrimary: true,
+          mode: 'IDLE',
+        }),
       })
     )
   })
@@ -294,7 +304,12 @@ describe('POST /api/invoices/[id]/claim', () => {
       expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
       expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { username: 'secondary1', userId: 'user-1', isPrimary: false },
+          data: expect.objectContaining({
+          username: 'secondary1',
+          userId: 'user-1',
+          isPrimary: false,
+          mode: 'IDLE',
+        }),
         })
       )
     })

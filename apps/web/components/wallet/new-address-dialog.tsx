@@ -54,6 +54,14 @@ interface NewAddressDialogProps {
   onCreated: () => void
   initialUsername?: string
   onSuccessAction?: (address: string) => void
+  /**
+   * When set, the success step shows the celebratory card for this many
+   * milliseconds with no action button, then fires `onSuccessAutoAdvance`.
+   * Used by the new-user first-address flow to flash the modal then route to
+   * the dashboard. Takes precedence over the Configure button / `onSuccessAction`.
+   */
+  successAutoAdvanceMs?: number
+  onSuccessAutoAdvance?: () => void
 }
 
 /**
@@ -139,6 +147,8 @@ export function NewAddressDialog({
   onCreated,
   initialUsername = '',
   onSuccessAction,
+  successAutoAdvanceMs,
+  onSuccessAutoAdvance,
 }: NewAddressDialogProps) {
   const router = useRouter()
   const { data: settings } = useSettings()
@@ -174,6 +184,20 @@ export function NewAddressDialog({
 
   // Success step state
   const [claimedAddress, setClaimedAddress] = useState<string | null>(null)
+
+  // Optional auto-advance: when the caller treats the success step as a brief
+  // confirmation (the new-user first-address flow), hold the hero card for
+  // `successAutoAdvanceMs` then fire `onSuccessAutoAdvance`. Kept in a ref so a
+  // parent re-render with a fresh callback identity doesn't restart the timer.
+  const autoAdvanceRef = useRef(onSuccessAutoAdvance)
+  useEffect(() => {
+    autoAdvanceRef.current = onSuccessAutoAdvance
+  }, [onSuccessAutoAdvance])
+  useEffect(() => {
+    if (step !== 'success' || !successAutoAdvanceMs) return
+    const timer = setTimeout(() => autoAdvanceRef.current?.(), successAutoAdvanceMs)
+    return () => clearTimeout(timer)
+  }, [step, successAutoAdvanceMs])
 
   const domain = settings?.domain || 'your-domain'
   const formatError =
@@ -540,25 +564,32 @@ export function NewAddressDialog({
 
             <SuccessHeroCard address={claimedAddress} />
 
-            <DialogFooter className="flex-row justify-end space-x-2">
-              <Button
-                type="button"
-                variant="theme"
-                onClick={() => {
-                  if (onSuccessAction) {
-                    onSuccessAction(claimedAddress)
-                    return
-                  }
-                  const justUsername = claimedAddress.split('@')[0]
-                  onOpenChange(false)
-                  router.push(
-                    `/admin/addresses/${encodeURIComponent(justUsername)}`,
-                  )
-                }}
-              >
-                Configure
-              </Button>
-            </DialogFooter>
+            {successAutoAdvanceMs ? (
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Spinner size={12} />
+                Taking you to your dashboard…
+              </div>
+            ) : (
+              <DialogFooter className="flex-row justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="theme"
+                  onClick={() => {
+                    if (onSuccessAction) {
+                      onSuccessAction(claimedAddress)
+                      return
+                    }
+                    const justUsername = claimedAddress.split('@')[0]
+                    onOpenChange(false)
+                    router.push(
+                      `/admin/addresses/${encodeURIComponent(justUsername)}`,
+                    )
+                  }}
+                >
+                  Configure
+                </Button>
+              </DialogFooter>
+            )}
           </div>
         )}
       </DialogContent>

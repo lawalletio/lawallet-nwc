@@ -33,22 +33,44 @@ const AvatarImage = React.forwardRef<
 ))
 AvatarImage.displayName = AvatarPrimitive.Image.displayName
 
+/**
+ * Deterministic hue (0–359) from the monogram letters, so the same identity
+ * always gets the same color — like a stable colored-initials avatar.
+ */
+function hueFromString(value: string): number {
+  let hash = 0
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) % 360
+  }
+  return hash
+}
+
 const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Fallback
-    ref={ref}
-    className={cn(
-      // `select-none` keeps the initials/placeholder non-selectable so
-      // dragging the cursor across an avatar doesn't highlight "DB" /
-      // "82" / etc. — they're decorative, not content.
-      'flex h-full w-full items-center justify-center rounded-full bg-muted select-none',
-      className
-    )}
-    {...props}
-  />
-))
+>(({ className, children, style, ...props }, ref) => {
+  // No avatar → a per-identity diagonal gradient (two related hues for depth)
+  // instead of a flat grey, with crisp monogram letters on top.
+  const seed = typeof children === 'string' ? children : ''
+  const hue = hueFromString(seed)
+  const gradient = `linear-gradient(135deg, hsl(${hue} 68% 52%), hsl(${(hue + 42) % 360} 70% 38%))`
+  return (
+    <AvatarPrimitive.Fallback
+      ref={ref}
+      className={cn(
+        // `select-none` keeps the initials non-selectable — they're decorative,
+        // not content. Letters: bold, slightly tracked, white with a soft
+        // shadow so they read on any hue.
+        'flex h-full w-full items-center justify-center rounded-full select-none font-semibold uppercase tracking-wide text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]',
+        className
+      )}
+      style={{ backgroundImage: gradient, ...style }}
+      {...props}
+    >
+      {children}
+    </AvatarPrimitive.Fallback>
+  )
+})
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
 
 export { Avatar, AvatarImage, AvatarFallback }

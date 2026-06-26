@@ -37,7 +37,7 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
   ) => (
     <div ref={ref} className={cn('w-full', className)} {...props}>
       {alert && (
-        <div className="bg-destructive text-destructive-foreground px-4 py-2 flex items-center justify-between">
+        <div className="bg-destructive text-destructive-foreground px-4 sm:px-6 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold">{alert.title}</span>
             <span>{alert.message}</span>
@@ -53,7 +53,7 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
         </div>
       )}
 
-      <div className="flex items-center justify-between px-4 py-2 min-h-[60px] border-b border-border">
+      <div className="flex items-center justify-between px-4 sm:px-6 py-2 min-h-[60px] border-b border-border">
         <div className="flex flex-col">
           {title && (
             <span className="text-base font-semibold text-foreground">
@@ -68,7 +68,7 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
       </div>
 
       {tabs && tabs.length > 0 && (
-        <div className="flex items-center justify-center gap-4 px-4 py-2 bg-accent border-b border-border">
+        <div className="flex items-center justify-center gap-4 px-4 sm:px-6 py-2 bg-accent border-b border-border">
           {tabs.map((tab) => (
             <button
               key={tab.label}

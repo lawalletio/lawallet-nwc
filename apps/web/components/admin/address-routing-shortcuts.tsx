@@ -73,3 +73,45 @@ export function AddressRoutingShortcuts({
     </div>
   )
 }
+
+interface AddressRedirectCardProps {
+  username: string | null | undefined
+  redirect: string
+  className?: string
+}
+
+/**
+ * Status card shown on the admin home when the primary address is already set
+ * to forward (mode ALIAS). Replaces the "Connect wallet / Redirect" choice
+ * cards: the redirect target is configured, so we surface where it points and
+ * link to the config to change or remove it.
+ */
+export function AddressRedirectCard({
+  username,
+  redirect,
+  className,
+}: AddressRedirectCardProps) {
+  return (
+    <Link
+      href={addressConfigureHref(username, 'redirect')}
+      className={cn(
+        'group relative isolate flex w-full items-center gap-4 overflow-hidden rounded-xl border border-primary/30 bg-[radial-gradient(circle_at_22%_18%,hsl(var(--primary)/0.22),transparent_38%),linear-gradient(135deg,hsl(var(--primary)/0.14),hsl(var(--primary)/0.035)_62%,rgba(255,255,255,0.035))] p-5 text-left transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/70 hover:shadow-[0_18px_44px_rgba(0,0,0,0.22)]',
+        className,
+      )}
+    >
+      <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+        <Forward className="size-6" aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">Redirecting to</p>
+        <p className="truncate text-base font-semibold text-foreground sm:text-lg">
+          {redirect}
+        </p>
+      </div>
+      <Forward
+        className="pointer-events-none absolute -bottom-[22%] -right-[4%] z-[-1] size-[55%] stroke-[1.05] text-primary opacity-15 transition-opacity duration-300 group-hover:opacity-25"
+        aria-hidden
+      />
+    </Link>
+  )
+}

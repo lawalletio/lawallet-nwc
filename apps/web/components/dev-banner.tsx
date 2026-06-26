@@ -14,6 +14,7 @@
  * so the shortcut is double-gated.
  */
 import { DevAdminLogin } from '@/components/dev-admin-login'
+import { DevImpersonationControl } from '@/components/dev-impersonation-control'
 
 export function DevBanner() {
   return (
@@ -25,7 +26,12 @@ export function DevBanner() {
         <span className="inline-block size-1.5 animate-pulse rounded-full bg-black/70" />
         Local development — not production
       </span>
-      {process.env.NODE_ENV === 'development' && <DevAdminLogin />}
+      {process.env.NODE_ENV === 'development' && (
+        <>
+          <DevImpersonationControl />
+          <DevAdminLogin />
+        </>
+      )}
     </div>
   )
 }

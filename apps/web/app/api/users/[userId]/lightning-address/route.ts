@@ -12,6 +12,7 @@ import { validateParams, validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { requireAddressRegistration } from '@/lib/auth/paid-registration-guard'
+import { resolveDefaultAddressMode } from '@/lib/wallet/default-address-mode'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
@@ -84,6 +85,7 @@ export const PUT = withErrorHandling(
         username,
         userId,
         isPrimary: true,
+        mode: await resolveDefaultAddressMode(userId),
       }
     })
 

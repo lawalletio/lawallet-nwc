@@ -4,6 +4,7 @@
   "PATCH /api/cards/{id}",
   "POST /api/dev/reset",
   "POST /api/dev/login",
+  "POST /api/dev/impersonate",
   "DELETE /api/dev/cards",
   "GET /api/health",
   "GET /api/openapi.json",

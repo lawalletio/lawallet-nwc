@@ -257,7 +257,7 @@ export default function CardsPage() {
         }
       />
 
-      <div className="p-6 flex flex-col gap-6">
+      <div className="px-4 py-6 sm:px-6 flex flex-col gap-6">
         {/* Stats — instance-wide aggregates, only for the admin cards view. */}
         {canReadAll && (
           <div className="grid grid-cols-3 gap-2 sm:gap-4">

@@ -17,6 +17,7 @@ import {
   toWalletAddressDto,
   type WalletAddressDto,
 } from '@/lib/wallet/wallet-address-dto'
+import { resolveDefaultAddressMode } from '@/lib/wallet/default-address-mode'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -83,11 +84,13 @@ export const POST = withErrorHandling(async (request: Request) => {
   })
   const isPrimary = ownedCount === 0
 
+  // Default a brand-new address to IDLE unless the user has an ACTIVE default
+  // wallet to route through — then it can safely start in DEFAULT_NWC.
   const created = await prisma.lightningAddress.create({
     data: {
       username,
       userId: user.id,
-      mode: mode ?? 'DEFAULT_NWC',
+      mode: mode ?? (await resolveDefaultAddressMode(user.id)),
       isPrimary,
     },
     include: { remoteWallet: true },
