@@ -142,10 +142,7 @@ export default function CardDetailPage({
                     unassigned cards don't show an empty stage. */}
                 {card.design && (
                   <div className="flex justify-center py-4">
-                    <Card3D
-                      imageUrl={card.design.image}
-                      title={card.design.description ?? undefined}
-                    />
+                    <Card3D imageUrl={card.design.image} />
                   </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

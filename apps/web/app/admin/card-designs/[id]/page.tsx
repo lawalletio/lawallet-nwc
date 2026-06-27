@@ -96,10 +96,7 @@ export default function CardDesignDetailPage({
               <CardContent className="flex flex-col items-center gap-6 sm:flex-row sm:items-stretch">
                 <div className="flex shrink-0 items-center justify-center py-2 sm:w-80">
                   {design ? (
-                    <Card3D
-                      imageUrl={design.image}
-                      title={design.description ?? undefined}
-                    />
+                    <Card3D imageUrl={design.image} />
                   ) : (
                     <Skeleton className="h-48 w-72 rounded-2xl" />
                   )}

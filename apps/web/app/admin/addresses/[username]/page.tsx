@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ChevronDown, ExternalLink, Forward, Trash2, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
+import { LightningAddressHero } from '@/components/admin/lightning-address-hero'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -209,8 +210,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   return (
     <div className="flex flex-col">
       <AdminTopbar
-        title={fullAddress}
-        subtitle="Configure how this address handles incoming payments."
+        title="Lightning Address"
         type="subpage"
         onBack={() => router.push('/admin/addresses')}
       />
@@ -266,6 +266,16 @@ export default function AdminAddressEditPage({ params }: PageProps) {
 
         return (
         <div className="space-y-6 px-4 py-6 sm:px-6">
+          {/* Centered address hero — the address now leads the page content
+              (mirroring the /admin dashboard's centered display) instead of
+              sitting in the navbar. */}
+          <div className="flex flex-col items-center gap-2 pt-2 text-center">
+            <LightningAddressHero address={fullAddress} label="" />
+            <p className="max-w-md text-sm text-muted-foreground">
+              Configure how this address handles incoming payments.
+            </p>
+          </div>
+
           {/* Layout order: balance first (glanceable hero), then Mode so the
               configuration is reachable without scrolling past the whole
               transaction list, then the transactions feed at the bottom. */}
