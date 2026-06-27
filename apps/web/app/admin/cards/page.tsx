@@ -579,10 +579,17 @@ export default function CardsPage() {
                   <Card key={design.id} className="overflow-hidden">
                     <DesignCardHeader design={design} onUpdated={refetchDesigns} />
                     <CardContent className="p-4">
-                      <DesignImage
-                        src={design.image}
-                        alt={design.description || 'Card design'}
-                      />
+                      <Link
+                        href={`/admin/card-designs/${design.id}`}
+                        className="group block"
+                        aria-label={`View cards using ${design.description || 'this design'}`}
+                      >
+                        <DesignImage
+                          src={design.image}
+                          alt={design.description || 'Card design'}
+                          className="transition-transform duration-200 group-hover:scale-[1.02]"
+                        />
+                      </Link>
                     </CardContent>
                   </Card>
                 ))}
@@ -739,9 +746,15 @@ function DesignCardHeader({
             </PermissionGuard>
           </CardTitle>
         )}
-        <p className="text-xs text-muted-foreground">
-          {formatRelativeTime(design.createdAt)}
-        </p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>{formatRelativeTime(design.createdAt)}</span>
+          <Link
+            href={`/admin/card-designs/${design.id}`}
+            className="text-primary hover:underline"
+          >
+            View instances →
+          </Link>
+        </div>
       </div>
       <PermissionGuard permission={Permission.CARD_DESIGNS_WRITE}>
         <Button
