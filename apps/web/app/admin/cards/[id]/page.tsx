@@ -1,11 +1,12 @@
 'use client'
 
 import { use, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { QrCode, Ticket, Trash2 } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
-import { DesignImage } from '@/components/admin/design-image'
+import { Card3D } from '@/components/activate/card-3d'
 import { BoltcardQrDialog } from '@/components/admin/boltcard-qr-dialog'
 import { CardActivationDialog } from '@/components/admin/card-activation-dialog'
 import { CardWipeDialog } from '@/components/admin/card-wipe-dialog'
@@ -67,7 +68,7 @@ export default function CardDetailPage({
   return (
     <div className="flex flex-col">
       <AdminTopbar
-        title="Single Card"
+        title={card?.design?.description || 'Single Card'}
         type="subpage"
         onBack={() => router.push('/admin/cards')}
       />
@@ -135,20 +136,35 @@ export default function CardDetailPage({
                 <CardTitle className="text-base">Card Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Design preview — skeleton → fade-in via the shared
-                    `DesignImage`. Rendered only when the card has an
-                    associated design so unassigned cards don't show a
-                    permanent "No image" block. */}
+                {/* Design preview — a floating 3D card (perspective + bob +
+                    sway, always front-facing) reused from the activation flow.
+                    Rendered only when the card has an associated design so
+                    unassigned cards don't show an empty stage. */}
                 {card.design && (
-                  <DesignImage
-                    src={card.design.image}
-                    alt={card.design.description || 'Card design'}
-                    className="max-w-sm"
-                  />
+                  <div className="flex justify-center py-4">
+                    <Card3D
+                      imageUrl={card.design.image}
+                      title={card.design.description ?? undefined}
+                    />
+                  </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <InfoField label="Card ID" value={card.id} mono />
-                  <InfoField label="Design" value={card.design?.description || 'None'} />
+                  <InfoField
+                    label="Design"
+                    value={
+                      card.design ? (
+                        <Link
+                          href={`/admin/card-designs/${card.design.id}`}
+                          className="text-primary hover:underline"
+                        >
+                          {card.design.description || 'Untitled'}
+                        </Link>
+                      ) : (
+                        'None'
+                      )
+                    }
+                  />
                   <InfoField
                     label="Status"
                     value={

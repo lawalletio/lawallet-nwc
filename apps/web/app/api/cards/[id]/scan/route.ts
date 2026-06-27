@@ -6,7 +6,7 @@ import { NotFoundError } from '@/types/server/errors'
 import { idParam, scanCardQuerySchema } from '@/lib/validation/schemas'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { resolveApiUrl } from '@/lib/public-url'
 import { resolveCardWallet } from '@/lib/wallet/resolve-payment-route'
 import { buildCardInfo } from '@/lib/card-info'
 
@@ -77,7 +77,10 @@ export const GET = withErrorHandling(
 
   // Regular first LNURL request — `sun` is the validated `p`/`c`.
   const { p, c } = sun!
-  const { url } = await resolvePublicEndpoint(req)
+  // The callback is hit directly by the wallet/device, so it must be prefixed
+  // with this instance's API URL (the `endpoint` setting / request host) — NOT
+  // the lightning-address `domain`, which need not serve the API.
+  const url = await resolveApiUrl(req)
 
   // An unconfigured card (no usable wallet) advertises a 0–0 withdraw range so
   // a wallet sees up front that nothing can be withdrawn, rather than only
