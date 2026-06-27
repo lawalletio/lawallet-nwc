@@ -91,7 +91,10 @@ export default function CardDesignDetailPage({
             {/* Hero — floating 3D card + design meta */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Card Information</CardTitle>
+                <CardTitle className="text-base">
+                  Card Design
+                  {design ? `: ${design.description || 'Untitled'}` : ''}
+                </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col items-center gap-6 sm:flex-row sm:items-stretch">
                 <div className="flex shrink-0 items-center justify-center py-2 sm:w-80">
