@@ -64,8 +64,32 @@ export const GET = withErrorHandling(
   const ntag424Response = await consumeNtag424FromPC(card!.ntag424!, p, c)
 
   if ('error' in ntag424Response) {
+    // Surface *why* the SUN was rejected (replay / stale counter / malformed /
+    // key mismatch) plus the stored counter, so intermittent 400s are
+    // diagnosable from logs instead of only the HTTP body. `counter value too
+    // old` here means the same p/c was replayed (wallet retry, double-fetch, or
+    // a retry after a failed payment, which already advanced the counter).
+    logger.warn(
+      {
+        cardId,
+        action,
+        reason: ntag424Response.error,
+        ctrStored: card.ntag424?.ctr ?? null
+      },
+      'Card scan rejected: SUN verification failed'
+    )
     throw new ValidationError(ntag424Response.error)
   }
+
+  logger.info(
+    {
+      cardId,
+      action,
+      ctrOld: ntag424Response.ctrOld,
+      ctrNew: ntag424Response.ctrNew
+    },
+    'Card scan verified; advancing counter'
+  )
 
   // Update lastUsedAt timestamp and ntag.ctr
   await prisma.card.update({

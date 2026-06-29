@@ -9,6 +9,7 @@ import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { resolveApiUrl } from '@/lib/public-url'
 import { resolveCardWallet } from '@/lib/wallet/resolve-payment-route'
 import { buildCardInfo } from '@/lib/card-info'
+import { logger } from '@/lib/logger'
 
 // LUD-03 withdraw bounds (millisatoshis) for a payable card.
 const MIN_WITHDRAWABLE = 1
@@ -90,6 +91,12 @@ export const GET = withErrorHandling(
       remoteWallet: card.remoteWallet ?? null,
       defaultRemoteWallet: card.user?.remoteWallets?.[0] ?? null
     }).kind === 'wallet'
+
+  // Trace the LNURL-withdraw request so the scan → scan/cb sequence is
+  // correlatable in logs. `configured=false` means the card has no ACTIVE
+  // wallet, so the advertised 0–0 range tells the wallet nothing is payable
+  // up front (the eventual cb would 400 with "not configured for payments").
+  logger.info({ cardId, configured }, 'Card scan: LNURL-withdraw request')
 
   const response = {
     tag: 'withdrawRequest',
