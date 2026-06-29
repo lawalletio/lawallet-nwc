@@ -11,6 +11,9 @@ import { payActionQuerySchema } from '@/lib/validation/schemas'
 import { validateQuery } from '@/lib/validation/middleware'
 import { resolveCardWallet, type RemoteWalletRef } from '@/lib/wallet/resolve-payment-route'
 import { DriverError, driverForWallet } from '@/lib/wallet/drivers'
+import { extractAmountSats } from '@/lib/invoice-utils'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import { eventBus } from '@/lib/events/event-bus'
 
 /**
  * Card scan "pay" action. The card spends through its bound RemoteWallet
@@ -27,6 +30,8 @@ type CardWithWallet = Card & {
 
 export default async function pay(req: NextRequest, card: CardWithWallet) {
   const { pr } = validateQuery(req.url, payActionQuerySchema)
+  // Amount comes from the merchant's bolt11 (null for a zero-amount invoice).
+  const amountSats = extractAmountSats(pr)
 
   const route = resolveCardWallet({
     remoteWallet: card.remoteWallet ?? null,
@@ -45,8 +50,39 @@ export default async function pay(req: NextRequest, card: CardWithWallet) {
     // so we don't pass an override amount.
     await driver.payInvoice(config, { bolt11: pr })
     logger.info({ cardId: card.id }, 'Payment successful')
+    // Record the spend so it appears in the card's Transactions tab, and nudge
+    // any open admin views to refetch (the `/api/cards` family → cards:updated).
+    logActivity.fireAndForget({
+      category: 'CARD',
+      event: ActivityEvent.CARD_PAYMENT,
+      message: `Card payment of ${amountSats ?? '?'} sats`,
+      metadata: {
+        cardId: card.id,
+        amountSats,
+        status: 'success',
+        walletType: route.type,
+        bolt11: pr,
+      },
+    })
+    eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
   } catch (error) {
     logger.error({ err: error, cardId: card.id }, 'Payment failed')
+    // Record the failed attempt too, so the Transactions tab reflects it.
+    logActivity.fireAndForget({
+      category: 'CARD',
+      event: ActivityEvent.CARD_PAYMENT,
+      level: 'ERROR',
+      message: `Card payment failed${amountSats != null ? ` (${amountSats} sats)` : ''}`,
+      metadata: {
+        cardId: card.id,
+        amountSats,
+        status: 'failed',
+        walletType: route.type,
+        bolt11: pr,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+    })
+    eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
     // DriverError covers wallet/relay failures + bad config; everything else
     // is unexpected. Both surface as a 500 to the scanning device, but we
     // keep the message generic so we don't leak connection details.

@@ -193,6 +193,34 @@ export function useCard(id: string | null) {
   return { ...result, data }
 }
 
+export interface CardTransaction {
+  id: string
+  createdAt: string
+  /** Amount in sats; null for a zero-amount invoice. */
+  amountSats: number | null
+  status: 'success' | 'failed'
+  /** Failure reason when `status === 'failed'`. */
+  error: string | null
+  /** Wallet type that settled the spend (e.g. NWC). */
+  walletType: string | null
+  /** The merchant bolt11 the card paid. */
+  bolt11: string | null
+  /** Decoded invoice fields for the details view. */
+  description: string | null
+  paymentHash: string | null
+}
+
+/**
+ * Fetch a card's spend history (the LNURL-withdraw payments made by tapping it),
+ * newest first. Backed by `/api/cards/[id]/transactions`; the `/api/cards`
+ * family maps to `cards:updated`, so it auto-refetches when a new tap is paid.
+ */
+export function useCardTransactions(id: string | null) {
+  return useApi<{ items: CardTransaction[] }>(
+    id ? `/api/cards/${id}/transactions` : null,
+  )
+}
+
 export interface UpdateCardInput {
   /** New wallet to bind; pass `null` to unbind. */
   remoteWalletId: string | null

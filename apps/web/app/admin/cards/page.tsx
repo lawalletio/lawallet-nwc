@@ -32,6 +32,8 @@ import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -72,6 +74,7 @@ import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
 const PAGE_SIZE = 10
+const DESIGN_PAGE_SIZE = 6
 
 export default function CardsPage() {
   const router = useRouter()
@@ -82,14 +85,20 @@ export default function CardsPage() {
   // (which hold CARDS_READ) keep the full instance-wide view.
   const canReadAll = isAuthorized(Permission.CARDS_READ)
   const canReadDesigns = isAuthorized(Permission.CARD_DESIGNS_READ)
+  // Default to the caller's OWN cards (the ones paired to them). Admins
+  // (CARDS_READ) get a toggle to switch to the full instance-wide view —
+  // all cards, stats, and the Designs section. The toggle is hidden for
+  // everyone else (a plain user only ever sees their own cards).
+  const [showAll, setShowAll] = useState(false)
+  const viewingAll = canReadAll && showAll
   const { data: settings } = useSettings()
-  const adminCards = useCards(undefined, { enabled: canReadAll })
-  const ownCards = useMyCards({ enabled: !canReadAll })
-  const cards = canReadAll ? adminCards.data : ownCards.data
-  const cardsLoading = canReadAll ? adminCards.loading : ownCards.loading
-  const refetchCards = canReadAll ? adminCards.refetch : ownCards.refetch
+  const adminCards = useCards(undefined, { enabled: viewingAll })
+  const ownCards = useMyCards({ enabled: !viewingAll })
+  const cards = viewingAll ? adminCards.data : ownCards.data
+  const cardsLoading = viewingAll ? adminCards.loading : ownCards.loading
+  const refetchCards = viewingAll ? adminCards.refetch : ownCards.refetch
   const { data: counts, loading: countsLoading, refetch: refetchCounts } =
-    useCardCounts({ enabled: canReadAll })
+    useCardCounts({ enabled: viewingAll })
   const { data: designs, loading: designsLoading, refetch: refetchDesigns } =
     useDesigns({ enabled: canReadDesigns })
   const {
@@ -105,6 +114,8 @@ export default function CardsPage() {
   const [designFilter, setDesignFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [designTab, setDesignTab] = useState('active')
+  const [designSearch, setDesignSearch] = useState('')
+  const [designPage, setDesignPage] = useState(1)
   const [uploadDesignOpen, setUploadDesignOpen] = useState(false)
   const [bulkGuideOpen, setBulkGuideOpen] = useState(false)
 
@@ -130,7 +141,6 @@ export default function CardsPage() {
   }, [cards, search, designFilter])
 
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
 
   function handleSearchChange(value: string) {
     setSearch(value)
@@ -258,8 +268,29 @@ export default function CardsPage() {
       />
 
       <div className="px-4 py-6 sm:px-6 flex flex-col gap-6">
-        {/* Stats — instance-wide aggregates, only for the admin cards view. */}
+        {/* View toggle — admins only. Off = the caller's own cards; on = the
+            full instance-wide view (all cards + stats + Designs). */}
         {canReadAll && (
+          <div className="flex items-center justify-end gap-2">
+            <Label
+              htmlFor="show-all-cards"
+              className="text-sm text-muted-foreground"
+            >
+              Show all cards
+            </Label>
+            <Switch
+              id="show-all-cards"
+              checked={viewingAll}
+              onCheckedChange={(next) => {
+                setShowAll(next)
+                setPage(1)
+              }}
+            />
+          </div>
+        )}
+
+        {/* Stats — instance-wide aggregates, only in the all-cards view. */}
+        {viewingAll && (
           <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <StatCard
               title="Total cards"
@@ -426,50 +457,18 @@ export default function CardsPage() {
               </Table>
             </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Showing {(page - 1) * PAGE_SIZE + 1}–
-                  {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
-                </p>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page === 1}
-                    onClick={() => setPage(page - 1)}
-                  >
-                    Previous
-                  </Button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <Button
-                      key={p}
-                      variant={p === page ? 'default' : 'outline'}
-                      size="sm"
-                      className="w-9"
-                      onClick={() => setPage(p)}
-                    >
-                      {p}
-                    </Button>
-                  ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page === totalPages}
-                    onClick={() => setPage(page + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
+            <Pagination
+              page={page}
+              total={filtered.length}
+              pageSize={PAGE_SIZE}
+              onPage={setPage}
+            />
           </>
         )}
 
-        {/* Designs Section — hidden entirely from callers without
-            CARD_DESIGNS_READ (plain users managing only their own cards). */}
-        {canReadDesigns && (
+        {/* Designs Section — instance-wide template management, shown only in
+            the all-cards view and only to callers with CARD_DESIGNS_READ. */}
+        {viewingAll && canReadDesigns && (
         <div className="mt-4 flex flex-col gap-4">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -537,21 +536,53 @@ export default function CardsPage() {
             </div>
           </div>
 
-          <Tabs value={designTab} onValueChange={setDesignTab}>
-            <TabsList>
-              <TabsTrigger value="active">Active</TabsTrigger>
-              <TabsTrigger value="archived">Archived</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Tabs
+              value={designTab}
+              onValueChange={value => {
+                setDesignTab(value)
+                setDesignPage(1)
+              }}
+            >
+              <TabsList>
+                <TabsTrigger value="active">Active</TabsTrigger>
+                <TabsTrigger value="archived">Archived</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="relative sm:w-64">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search designs..."
+                className="pl-9"
+                value={designSearch}
+                onChange={e => {
+                  setDesignSearch(e.target.value)
+                  setDesignPage(1)
+                }}
+              />
+            </div>
+          </div>
 
           {(() => {
-            // Split the designs list by archive state. The server returns
-            // every design; filtering client-side keeps one fetch per page
-            // load and lets the SSE `designs:updated` event refresh both
-            // tabs at once.
-            const visibleDesigns = designs?.filter(d =>
-              designTab === 'archived' ? !!d.archivedAt : !d.archivedAt,
-            ) ?? []
+            // Filter by archive state (Active/Archived tab) and the search box,
+            // then paginate client-side. The server returns every design; doing
+            // it here keeps one fetch per page load and lets the SSE
+            // `designs:updated` event refresh everything at once.
+            const q = designSearch.trim().toLowerCase()
+            const filteredDesigns = (designs ?? []).filter(d => {
+              const matchesTab =
+                designTab === 'archived' ? !!d.archivedAt : !d.archivedAt
+              if (!matchesTab) return false
+              if (!q) return true
+              return (
+                (d.description || '').toLowerCase().includes(q) ||
+                d.id.toLowerCase().includes(q)
+              )
+            })
+            const pageDesigns = filteredDesigns.slice(
+              (designPage - 1) * DESIGN_PAGE_SIZE,
+              designPage * DESIGN_PAGE_SIZE,
+            )
 
             if (designsLoading) {
               return (
@@ -562,38 +593,51 @@ export default function CardsPage() {
                 </div>
               )
             }
-            if (visibleDesigns.length === 0) {
+            if (filteredDesigns.length === 0) {
               return (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <p className="text-sm text-muted-foreground">
-                    {designTab === 'archived'
-                      ? 'No archived designs'
-                      : 'No designs found'}
+                    {designSearch.trim()
+                      ? 'No designs match your search'
+                      : designTab === 'archived'
+                        ? 'No archived designs'
+                        : 'No designs found'}
                   </p>
                 </div>
               )
             }
             return (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {visibleDesigns.map(design => (
-                  <Card key={design.id} className="overflow-hidden">
-                    <DesignCardHeader design={design} onUpdated={refetchDesigns} />
-                    <CardContent className="p-4">
-                      <Link
-                        href={`/admin/card-designs/${design.id}`}
-                        className="group block"
-                        aria-label={`View cards using ${design.description || 'this design'}`}
-                      >
-                        <DesignImage
-                          src={design.image}
-                          alt={design.description || 'Card design'}
-                          className="transition-transform duration-200 group-hover:scale-[1.02]"
-                        />
-                      </Link>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {pageDesigns.map(design => (
+                    <Card key={design.id} className="overflow-hidden">
+                      <DesignCardHeader
+                        design={design}
+                        onUpdated={refetchDesigns}
+                      />
+                      <CardContent className="p-4">
+                        <Link
+                          href={`/admin/card-designs/${design.id}`}
+                          className="group block"
+                          aria-label={`View cards using ${design.description || 'this design'}`}
+                        >
+                          <DesignImage
+                            src={design.image}
+                            alt={design.description || 'Card design'}
+                            className="transition-transform duration-200 group-hover:scale-[1.02]"
+                          />
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                <Pagination
+                  page={designPage}
+                  total={filteredDesigns.length}
+                  pageSize={DESIGN_PAGE_SIZE}
+                  onPage={setDesignPage}
+                />
+              </>
             )
           })()}
         </div>
@@ -607,6 +651,62 @@ export default function CardsPage() {
       />
 
       <BulkCardGuideDialog open={bulkGuideOpen} onOpenChange={setBulkGuideOpen} />
+    </div>
+  )
+}
+
+/**
+ * Shared pager for the cards table and the designs grid: a "showing X–Y of N"
+ * summary plus numbered page buttons. Renders nothing for a single page.
+ */
+function Pagination({
+  page,
+  total,
+  pageSize,
+  onPage,
+}: {
+  page: number
+  total: number
+  pageSize: number
+  onPage: (page: number) => void
+}) {
+  const totalPages = Math.ceil(total / pageSize)
+  if (totalPages <= 1) return null
+  return (
+    <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+      <p className="text-sm text-muted-foreground">
+        Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of{' '}
+        {total}
+      </p>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page === 1}
+          onClick={() => onPage(page - 1)}
+        >
+          Previous
+        </Button>
+        {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+          <Button
+            key={p}
+            variant={p === page ? 'default' : 'outline'}
+            size="sm"
+            className="w-9"
+            onClick={() => onPage(p)}
+          >
+            {p}
+          </Button>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page === totalPages}
+          onClick={() => onPage(page + 1)}
+        >
+          Next
+        </Button>
+      </div>
     </div>
   )
 }

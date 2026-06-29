@@ -28,6 +28,39 @@ export function extractPaymentHash(bolt11: string): string | null {
 }
 
 /**
+ * Extracts the amount from a bolt11 invoice, in satoshis. Returns `null` for a
+ * zero-amount invoice or anything that can't be decoded.
+ */
+export function extractAmountSats(bolt11: string): number | null {
+  try {
+    const decoded = decode(bolt11)
+    const section = decoded.sections.find(s => s.name === 'amount')
+    if (!section || !('value' in section)) return null
+    const msats = Number(section.value)
+    if (!Number.isFinite(msats) || msats <= 0) return null
+    return Math.floor(msats / 1000)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Extracts the human-readable description/memo from a bolt11 invoice.
+ * Returns `null` when absent or undecodable.
+ */
+export function extractDescription(bolt11: string): string | null {
+  try {
+    const decoded = decode(bolt11)
+    const section = decoded.sections.find(s => s.name === 'description')
+    if (!section || !('value' in section)) return null
+    const value = section.value
+    return typeof value === 'string' && value.length > 0 ? value : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Extracts the expiry timestamp from a bolt11 invoice as a `Date`.
  * Falls back to 10 minutes from now if expiry can't be parsed.
  */
