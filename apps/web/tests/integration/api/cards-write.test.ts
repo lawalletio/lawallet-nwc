@@ -157,9 +157,12 @@ describe('GET /api/cards/[id]/write', () => {
     expect(res.status).toBe(400)
   })
 
-  it('uses domain setting for lnurlw_base host', async () => {
+  it('ignores the domain for lnurlw_base host — falls back to the request host when no endpoint', async () => {
     const card = tokenedCard()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    // domain is set but endpoint is NOT: the chip's lnurlw_base host must be the
+    // API host the wallet can actually reach on tap (here the request host),
+    // never the lightning-address domain (which need not serve the API).
     vi.mocked(getSettings).mockResolvedValue({ domain: 'example.com', endpoint: '' })
     vi.mocked(cardToNtag424WriteData).mockReturnValue({ lnurlw_base: 'test' } as any)
 
@@ -170,7 +173,7 @@ describe('GET /api/cards/[id]/write', () => {
       expect.anything(), // ntag424
       expect.anything(), // cardId
       expect.anything(), // title
-      'example.com' // host
+      'localhost:3000' // request-host fallback — NOT 'example.com'
     )
   })
 

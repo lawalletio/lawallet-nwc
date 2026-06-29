@@ -7,7 +7,7 @@ import { unpairCard } from '@/lib/card-activation'
 import { isWriteTokenValid } from '@/lib/card-write-token'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { resolveApiUrl } from '@/lib/public-url'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthorizationError,
@@ -81,7 +81,11 @@ export const GET = withErrorHandling(
       metadata: { cardId: id, endpoint: 'write' }
     })
 
-    const { host } = await resolvePublicEndpoint(req)
+    // The host burned into the chip's `lnurlw_base` is what the wallet hits on
+    // every tap, so it must be this instance's API URL (the `endpoint` setting /
+    // request host) — NOT the lightning-address `domain`, which need not serve
+    // the API. Same logic as the `/scan` callback and the LUD-16 callback.
+    const host = new URL(await resolveApiUrl(req)).host
     const writeData: Ntag424WriteData = cardToNtag424WriteData(
       card.ntag424,
       card.id,

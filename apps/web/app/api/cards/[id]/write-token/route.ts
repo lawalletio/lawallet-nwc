@@ -11,7 +11,7 @@ import {
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { resolveApiUrl } from '@/lib/public-url'
 import { isCardFresh, mintWriteToken } from '@/lib/card-write-token'
 
 /**
@@ -58,16 +58,15 @@ export const POST = withErrorHandling(
     }
 
     const { token, expiresAt } = await mintWriteToken(card.id)
-    const { url } = await resolvePublicEndpoint(request)
-
-    // `url` is the public LUD-16 domain (correct for the QR a phone scans).
-    // `token` is also returned raw so a programming client that talks to the
-    // instance on a *different* host than the public domain (e.g. the
-    // card-installer, bound to its own `baseUrl`) can build a reachable
-    // `<their-base>/api/cards/{id}/write?token=…` URL itself. The `/write`
-    // response still carries the server-derived public `lnurlw_base`, so the
-    // host burned onto the chip stays correct regardless of which host the
-    // client fetched from.
+    // `url` points at this instance's API (the `endpoint` setting / request
+    // host), not the lightning-address `domain` — the `/write` endpoint it
+    // targets is an API call the programming client must actually reach, and
+    // the domain need not serve the API. Same logic as the `/scan` + LUD-16
+    // callbacks and the chip's `lnurlw_base`.
+    // `token` is also returned raw so a programming client bound to its own
+    // `baseUrl` (e.g. the card-installer) can build a reachable
+    // `<their-base>/api/cards/{id}/write?token=…` URL itself.
+    const url = await resolveApiUrl(request)
     return NextResponse.json({
       token,
       url: `${url}/api/cards/${card.id}/write?token=${token}`,
