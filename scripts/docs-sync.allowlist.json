@@ -13,5 +13,6 @@
   "POST /api/settings/domain-probe",
   "GET /api/users/{userId}/role",
   "GET /api/plugins",
-  "PATCH /api/plugins/{plugin}"
+  "PATCH /api/plugins/{plugin}",
+  "GET /api/cards/{id}/transactions"
 ]

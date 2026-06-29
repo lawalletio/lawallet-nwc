@@ -49,6 +49,10 @@ export const ActivityEvent = {
   CARD_CLAIMED: 'card.claimed',
   CARD_RESCUED: 'card.rescued',
   CARD_KEYS_EXPORTED: 'card.keys_exported',
+  // A spend (LNURL-withdraw) made by tapping the card. Recorded per tap with
+  // `{ cardId, amountSats, status }` metadata so the card-detail Transactions
+  // tab can list them.
+  CARD_PAYMENT: 'card.payment',
   CARD_ERROR: 'card.error',
   // SERVER
   SERVER_UNHANDLED_ERROR: 'server.unhandled_error',
