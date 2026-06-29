@@ -12,7 +12,7 @@ import {
   LUD12_MAX_COMMENT_LENGTH,
 } from '@/lib/validation/schemas'
 import { validateQuery } from '@/lib/validation/middleware'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { resolveApiUrl } from '@/lib/public-url'
 import {
   extractPaymentHash,
   extractExpiry,
@@ -285,9 +285,10 @@ export const GET = withErrorHandling(
     // the dashboard / wallet surfaces stay in sync too.
     eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
 
-    // Build LUD-21 verify URL
-    const { url } = await resolvePublicEndpoint(req)
-    const verify = `${url}/api/lud16/${username}/verify/${paymentHash}`
+    // Build LUD-21 verify URL. Polled directly by the sender's wallet, so it
+    // must use this instance's API URL (the `endpoint` setting / request host),
+    // not the public address `domain` — same reason as the `callback` above.
+    const verify = `${await resolveApiUrl(req)}/api/lud16/${username}/verify/${paymentHash}`
 
     const response: LUD06CallbackSuccess = {
       pr,
