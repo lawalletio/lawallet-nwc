@@ -687,7 +687,7 @@ export function NewAddressDialog({
                         disabled={manualChecking}
                       >
                         {manualChecking ? (
-                          <Spinner size={14} className="mr-1.5" />
+                          <Spinner size={12} className="mr-1.5" />
                         ) : (
                           <RefreshCw className="mr-1.5 size-3.5" />
                         )}
