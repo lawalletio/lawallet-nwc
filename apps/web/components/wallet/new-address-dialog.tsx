@@ -21,10 +21,16 @@ import { Spinner } from '@/components/ui/spinner'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useAddressMutations } from '@/lib/client/hooks/use-wallet-addresses'
 import { useAuth } from '@/components/admin/auth-context'
-import { pollVerifyUrl } from '@/lib/client/lnurl'
+import { pollVerifyUrl, checkVerifyOnce } from '@/lib/client/lnurl'
 import { ApiClientError } from '@/lib/client/api-client'
 
 const USERNAME_RE = /^[a-z0-9]+$/
+
+// Key under which the in-flight invoice is stashed so a page refresh (or an
+// accidental tab reload after a network drop) can restore the QR and resume
+// polling instead of stranding a user who already paid. sessionStorage, not
+// localStorage: scoped to the tab, cleared when it closes.
+const PENDING_INVOICE_KEY = 'lawallet:pending-invoice'
 
 /**
  * Minimal shape of the `window.webln` object (WebLN / LNURL-auth browser
@@ -46,6 +52,9 @@ interface InvoiceData {
   amountSats: number
   verify?: string
   expiresAt: string
+  // Carried only in the sessionStorage copy so a refresh can restore the
+  // claimed username in the payment header. Absent from the API response.
+  username?: string
 }
 
 interface NewAddressDialogProps {
@@ -167,11 +176,15 @@ export function NewAddressDialog({
 
   // Payment step state
   const [invoice, setInvoice] = useState<InvoiceData | null>(null)
-  const [paymentStatus, setPaymentStatus] = useState<'waiting' | 'detected' | 'timeout'>('waiting')
+  const [paymentStatus, setPaymentStatus] = useState<'waiting' | 'detected' | 'expired'>('waiting')
   const [copied, setCopied] = useState(false)
   const [hasWebLn, setHasWebLn] = useState(false)
   const [payingWithWallet, setPayingWithWallet] = useState(false)
+  const [manualChecking, setManualChecking] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  // Guards against two settlement signals (poller + manual check / WebLN)
+  // racing to claim the same invoice and double-firing the claim request.
+  const claimingRef = useRef(false)
 
   // Detect a WebLN provider (Alby / other Lightning browser extension).
   // Some extensions inject `window.webln` asynchronously, so we re-check
@@ -243,6 +256,10 @@ export function NewAddressDialog({
   useEffect(() => {
     if (!open) {
       abortRef.current?.abort()
+      claimingRef.current = false
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(PENDING_INVOICE_KEY)
+      }
       setStep('username')
       setUsername(initialUsername)
       setAvailable(null)
@@ -253,6 +270,7 @@ export function NewAddressDialog({
       setClaimedAddress(null)
       setSubmitting(false)
       setPayingWithWallet(false)
+      setManualChecking(false)
     }
   }, [initialUsername, open])
 
@@ -263,45 +281,87 @@ export function NewAddressDialog({
     }
   }, [])
 
+  // Single entry point for turning a settlement preimage into a claimed
+  // address. Shared by the background poller, the manual "check now" button,
+  // and the WebLN payment path so they can't race or diverge. The claimingRef
+  // guard makes concurrent calls a no-op rather than a double claim.
+  const claimWithPreimage = useCallback(
+    async (invoiceId: string, preimage: string) => {
+      if (claimingRef.current) return
+      claimingRef.current = true
+      setPaymentStatus('detected')
+      const finishSuccess = (address: string) => {
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem(PENDING_INVOICE_KEY)
+        }
+        abortRef.current?.abort()
+        setClaimedAddress(address)
+        setStep('success')
+        onCreated()
+      }
+      try {
+        const claimResult = await apiClient.post<{
+          success: boolean
+          lightningAddress?: string
+        }>(`/api/invoices/${invoiceId}/claim`, { preimage })
+        if (claimResult.success) {
+          finishSuccess(claimResult.lightningAddress ?? `${username}@${domain}`)
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to claim address'
+        // The invoice was already claimed (e.g. a prior claim succeeded but its
+        // response was lost to a dropped connection). The address exists and is
+        // ours — treat as success rather than surfacing a scary error.
+        if (msg.toLowerCase().includes('already been claimed')) {
+          finishSuccess(`${username}@${domain}`)
+          return
+        }
+        toast.error(msg)
+        if (msg.toLowerCase().includes('taken')) {
+          setStep('username')
+        } else {
+          // Transient (likely network) claim failure — drop back to waiting so
+          // the poller or a manual re-check can retry with the same preimage.
+          setPaymentStatus('waiting')
+        }
+      } finally {
+        claimingRef.current = false
+      }
+    },
+    [apiClient, domain, onCreated, username],
+  )
+
   const startLud21Polling = useCallback(
     (invoiceData: InvoiceData) => {
+      if (!invoiceData.verify) return
       const controller = new AbortController()
       abortRef.current = controller
 
-      pollVerifyUrl(invoiceData.verify!, { signal: controller.signal })
-        .then(async result => {
+      // Poll for the FULL lifetime of the invoice rather than a fixed window.
+      // A short hard timeout was the root cause of "I paid but nothing
+      // happened": settlement that landed after the old 5-minute cutoff was
+      // silently dropped even though the bolt11 was still valid.
+      const msUntilExpiry =
+        new Date(invoiceData.expiresAt).getTime() - Date.now()
+
+      pollVerifyUrl(invoiceData.verify, {
+        signal: controller.signal,
+        timeout: Math.max(msUntilExpiry, 0),
+      })
+        .then(result => {
           if (result.settled && result.preimage) {
-            setPaymentStatus('detected')
-            try {
-              const claimResult = await apiClient.post<{
-                success: boolean
-                lightningAddress?: string
-              }>(`/api/invoices/${invoiceData.id}/claim`, {
-                preimage: result.preimage,
-              })
-              if (claimResult.success) {
-                setClaimedAddress(
-                  claimResult.lightningAddress ?? `${username}@${domain}`,
-                )
-                setStep('success')
-                onCreated()
-              }
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : 'Failed to claim address'
-              toast.error(msg)
-              if (msg.toLowerCase().includes('taken')) {
-                setStep('username')
-              }
-            }
+            void claimWithPreimage(invoiceData.id, result.preimage)
           }
         })
         .catch(err => {
+          // Anything other than an explicit abort means the invoice ran out
+          // its clock without settling — surface the expired state.
           if (err?.message !== 'Polling aborted') {
-            setPaymentStatus('timeout')
+            setPaymentStatus('expired')
           }
         })
     },
-    [apiClient, domain, onCreated, username],
+    [claimWithPreimage],
   )
 
   async function mintInvoiceAndShowQr() {
@@ -318,14 +378,49 @@ export function NewAddressDialog({
         return
       }
       const invoiceData = result as InvoiceData
+      // Persist before showing the QR so a refresh mid-payment can recover.
+      // Tag the username so the restored payment header stays accurate.
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(
+          PENDING_INVOICE_KEY,
+          JSON.stringify({ ...invoiceData, username }),
+        )
+      }
+      claimingRef.current = false
       setInvoice(invoiceData)
       setPaymentStatus('waiting')
       setStep('payment')
-      if (invoiceData.verify) startLud21Polling(invoiceData)
+      startLud21Polling(invoiceData)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to generate invoice')
     }
   }
+
+  // Restore a pending invoice after a page refresh / reconnect. Runs once per
+  // mount: if a non-expired invoice is stashed, drop straight back onto the
+  // payment step and resume polling so a user who already paid isn't stranded.
+  const restoreAttemptedRef = useRef(false)
+  useEffect(() => {
+    if (restoreAttemptedRef.current || !open) return
+    restoreAttemptedRef.current = true
+    if (typeof window === 'undefined') return
+    const raw = sessionStorage.getItem(PENDING_INVOICE_KEY)
+    if (!raw) return
+    try {
+      const saved = JSON.parse(raw) as InvoiceData
+      if (new Date(saved.expiresAt).getTime() <= Date.now()) {
+        sessionStorage.removeItem(PENDING_INVOICE_KEY)
+        return
+      }
+      if (saved.username) setUsername(saved.username)
+      setInvoice(saved)
+      setPaymentStatus('waiting')
+      setStep('payment')
+      startLud21Polling(saved)
+    } catch {
+      sessionStorage.removeItem(PENDING_INVOICE_KEY)
+    }
+  }, [open, startLud21Polling])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -376,14 +471,47 @@ export function NewAddressDialog({
     setPayingWithWallet(true)
     try {
       await w.webln.enable()
-      await w.webln.sendPayment(invoice.bolt11)
-      // Payment sent — LUD-21 polling will detect settlement and claim.
+      const res = await w.webln.sendPayment(invoice.bolt11)
+      // The extension returns the payment preimage — claim straight away
+      // instead of waiting for the next poll tick. Falls back to the poller
+      // if the extension didn't hand one back.
+      if (res?.preimage) {
+        await claimWithPreimage(invoice.id, res.preimage)
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Wallet payment failed'
       // Most common case: user clicked "reject" in the extension.
       if (!/reject|cancel|denied/i.test(msg)) toast.error(msg)
     } finally {
       setPayingWithWallet(false)
+    }
+  }
+
+  /**
+   * Manual settlement check — for "I paid but the screen didn't move", a lost
+   * connection, or impatience. Does a one-shot LUD-21 verify and claims if the
+   * payment has landed. Distinct from the background poller so the user always
+   * has an explicit way to force a re-check.
+   */
+  async function handleManualCheck() {
+    if (!invoice?.verify) {
+      toast.error('This invoice can’t be re-checked — generate a new one.')
+      return
+    }
+    setManualChecking(true)
+    try {
+      const result = await checkVerifyOnce(invoice.verify)
+      if (result.settled && result.preimage) {
+        await claimWithPreimage(invoice.id, result.preimage)
+      } else {
+        toast('No payment detected yet. If you just paid, give it a few seconds.')
+      }
+    } catch {
+      toast.error(
+        'Couldn’t reach the payment verifier — check your connection and try again.',
+      )
+    } finally {
+      setManualChecking(false)
     }
   }
 
@@ -401,9 +529,14 @@ export function NewAddressDialog({
   function handleOpenChange(next: boolean) {
     if (!next && step === 'payment') {
       abortRef.current?.abort()
+      claimingRef.current = false
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(PENDING_INVOICE_KEY)
+      }
       setStep('username')
       setInvoice(null)
       setPaymentStatus('waiting')
+      setManualChecking(false)
       return
     }
     onOpenChange(next)
@@ -480,76 +613,97 @@ export function NewAddressDialog({
               </DialogDescription>
             </DialogHeader>
 
-            {/* QR centered in a fixed-width frame so the layout stays
-                stable regardless of the dialog's content width. */}
-            <div className="flex justify-center">
-              <div className="rounded-xl bg-white p-4 shadow-sm">
-                <QRCodeSVG
-                  value={invoice.bolt11}
-                  size={224}
-                  level="M"
-                  marginSize={0}
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              {hasWebLn && (
-                <Button
-                  type="button"
-                  variant="theme"
-                  className="w-full"
-                  onClick={handleWebLnPay}
-                  disabled={payingWithWallet || paymentStatus === 'detected'}
-                >
-                  {payingWithWallet ? (
-                    <Spinner size={16} className="mr-2" />
-                  ) : (
-                    <Wallet className="mr-2 size-4" />
-                  )}
-                  {payingWithWallet ? 'Confirm in wallet…' : 'Pay with Wallet'}
+            {paymentStatus === 'expired' ? (
+              // Invoice ran out its clock without settling. Drop the QR so a
+              // stale code can't be paid into a void, and offer a fresh one.
+              <div className="flex flex-col items-center gap-3 py-2 text-center">
+                <p className="text-sm text-muted-foreground">
+                  This invoice expired before a payment was detected. If you
+                  were charged, contact the operator — otherwise generate a
+                  fresh invoice.
+                </p>
+                <Button variant="theme" onClick={() => mintInvoiceAndShowQr()}>
+                  <RefreshCw className="mr-1.5 size-3.5" />
+                  Generate new invoice
                 </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleCopy}
-              >
-                <Copy className="mr-2 size-4" />
-                {copied ? 'Copied!' : 'Copy Invoice'}
-              </Button>
-            </div>
+              </div>
+            ) : (
+              <>
+                {/* QR centered in a fixed-width frame so the layout stays
+                    stable regardless of the dialog's content width. */}
+                <div className="flex justify-center">
+                  <div className="rounded-xl bg-white p-4 shadow-sm">
+                    <QRCodeSVG
+                      value={invoice.bolt11}
+                      size={224}
+                      level="M"
+                      marginSize={0}
+                    />
+                  </div>
+                </div>
 
-            <div className="min-h-5">
-              {paymentStatus === 'waiting' && (
-                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                  <Spinner size={12} />
-                  Waiting for payment…
-                </div>
-              )}
-              {paymentStatus === 'detected' && (
-                <div className="flex items-center justify-center gap-2 text-xs text-green-500">
-                  <Check className="size-3.5" />
-                  Payment detected! Claiming address…
-                </div>
-              )}
-              {paymentStatus === 'timeout' && (
-                <div className="flex flex-col items-center gap-2">
-                  <p className="text-xs text-muted-foreground">
-                    Payment verification timed out.
-                  </p>
+                <div className="flex flex-col gap-2">
+                  {hasWebLn && (
+                    <Button
+                      type="button"
+                      variant="theme"
+                      className="w-full"
+                      onClick={handleWebLnPay}
+                      disabled={payingWithWallet || paymentStatus === 'detected'}
+                    >
+                      {payingWithWallet ? (
+                        <Spinner size={16} className="mr-2" />
+                      ) : (
+                        <Wallet className="mr-2 size-4" />
+                      )}
+                      {payingWithWallet
+                        ? 'Confirm in wallet…'
+                        : 'Pay with Wallet'}
+                    </Button>
+                  )}
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => mintInvoiceAndShowQr()}
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleCopy}
                   >
-                    <RefreshCw className="mr-1.5 size-3.5" />
-                    Generate new invoice
+                    <Copy className="mr-2 size-4" />
+                    {copied ? 'Copied!' : 'Copy Invoice'}
                   </Button>
                 </div>
-              )}
-            </div>
+
+                <div className="flex min-h-5 flex-col items-center gap-2">
+                  {paymentStatus === 'waiting' && (
+                    <>
+                      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                        <Spinner size={12} />
+                        Waiting for payment…
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleManualCheck}
+                        disabled={manualChecking}
+                      >
+                        {manualChecking ? (
+                          <Spinner size={14} className="mr-1.5" />
+                        ) : (
+                          <RefreshCw className="mr-1.5 size-3.5" />
+                        )}
+                        {manualChecking ? 'Checking…' : 'I’ve paid — check now'}
+                      </Button>
+                    </>
+                  )}
+                  {paymentStatus === 'detected' && (
+                    <div className="flex items-center justify-center gap-2 text-xs text-green-500">
+                      <Check className="size-3.5" />
+                      Payment detected! Claiming address…
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
