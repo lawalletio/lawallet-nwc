@@ -77,3 +77,19 @@ export function pollVerifyUrl(
     timer = setInterval(check, interval)
   })
 }
+
+/**
+ * Single-shot LUD-21 verify check. Used for manual "I've paid — check now"
+ * recovery and after a WebLN payment, independent of the long-lived poller.
+ *
+ * Resolves with the verify result (which may report `settled: false` if the
+ * payment hasn't landed yet). Rejects only on a network / HTTP failure so the
+ * caller can distinguish "not paid yet" from "couldn't reach the verifier".
+ */
+export async function checkVerifyOnce(verifyUrl: string): Promise<VerifyResult> {
+  const res = await fetch(verifyUrl)
+  if (!res.ok) {
+    throw new Error(`Verify request failed (${res.status})`)
+  }
+  return (await res.json()) as VerifyResult
+}
