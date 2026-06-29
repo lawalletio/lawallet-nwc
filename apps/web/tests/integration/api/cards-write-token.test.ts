@@ -21,10 +21,9 @@ vi.mock('@/lib/auth/unified-auth', () => ({
   authenticateWithPermission: vi.fn(),
 }))
 vi.mock('@/lib/public-url', () => ({
-  resolvePublicEndpoint: vi.fn(async () => ({
-    url: 'https://test.com',
-    host: 'test.com',
-  })),
+  // The write-token URL now derives from the API endpoint, not the public
+  // lightning-address domain (so the `/write` call it targets is reachable).
+  resolveApiUrl: vi.fn(async () => 'https://test.com'),
 }))
 
 import { POST } from '@/app/api/cards/[id]/write-token/route'

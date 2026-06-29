@@ -6,7 +6,7 @@ import { NotFoundError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { lud16UsernameParam, LUD12_MAX_COMMENT_LENGTH } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import { resolvePublicEndpoint, resolveApiUrl } from '@/lib/public-url'
 import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import {
   parseLightningAddress,
@@ -158,8 +158,15 @@ export const GET = withErrorHandling(
 
     // route.kind === 'wallet' — return our own LUD-16 so /cb can mint an
     // invoice through the resolved wallet's driver.
-    const { host, url } = await resolvePublicEndpoint(req)
-    const callback = `${url}/api/lud16/${username}/cb`
+    //
+    // `host` labels the address in the metadata (the public LN-address domain),
+    // but the `callback` is fetched directly by the sender's wallet, so it must
+    // point at this instance's API URL (the `endpoint` setting / request host) —
+    // NOT the `domain`, which need not serve the API. Mirrors the card `/scan`
+    // fix; without it, payments to `user@domain` fail when the domain doesn't
+    // serve the API.
+    const { host } = await resolvePublicEndpoint(req)
+    const callback = `${await resolveApiUrl(req)}/api/lud16/${username}/cb`
 
     return NextResponse.json({
       status: 'OK',
