@@ -6,7 +6,7 @@ import { defineConfig } from 'prisma/config'
 const configDir = dirname(fileURLToPath(import.meta.url))
 
 loadEnvFile(resolve(configDir, '.env'))
-loadEnvFile(resolve(configDir, '.env.local'))
+loadEnvFile(resolve(configDir, '.env.local'), { override: true })
 
 // NOTE: `env('DATABASE_URL')` from `prisma/config` throws at config-load
 // time when the variable is missing, which breaks `prisma generate` in
@@ -30,7 +30,7 @@ export default defineConfig({
   }
 })
 
-function loadEnvFile(path: string) {
+function loadEnvFile(path: string, options: { override?: boolean } = {}) {
   if (!existsSync(path)) {
     return
   }
@@ -53,7 +53,7 @@ function loadEnvFile(path: string) {
     }
 
     const key = line.slice(0, separatorIndex).trim()
-    if (!key || process.env[key] !== undefined) {
+    if (!key || (!options.override && process.env[key] !== undefined)) {
       continue
     }
 

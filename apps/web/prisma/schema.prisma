@@ -93,6 +93,11 @@ enum ActivityLevel {
   ERROR
 }
 
+enum NostrProfileImageKind {
+  AVATAR
+  COVER
+}
+
 model User {
   id                 String             @id
   pubkey             String             @unique
@@ -307,6 +312,49 @@ model ActivityLog {
   @@index([level, createdAt])
   @@index([userId, createdAt])
   @@index([reqId])
+}
+
+model NostrProfileCache {
+  npub               String                    @id
+  pubkey             String                    @unique
+  name               String?
+  displayName        String?
+  about              String?
+  nip05              String?
+  lud16              String?
+  website            String?
+  pictureUrl         String?
+  bannerUrl          String?
+  kind0CreatedAt     DateTime?
+  rawMetadata        Json?
+  fetchedAt          DateTime?
+  lastFetchAttemptAt DateTime?
+  lastFetchError     String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  images             NostrProfileImageCache[]
+
+  @@index([fetchedAt])
+}
+
+model NostrProfileImageCache {
+  npub        String
+  kind        NostrProfileImageKind
+  remoteUrl   String
+  cachePath   String?
+  contentType String?
+  byteSize    Int?
+  sha256      String?
+  cachedAt    DateTime?
+  failedAt    DateTime?
+  lastError   String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  profile     NostrProfileCache     @relation(fields: [npub], references: [npub], onDelete: Cascade)
+
+  @@id([npub, kind])
+  @@index([remoteUrl])
+  @@index([cachedAt])
 }
 
 // Generic JSON-first storage for in-codebase plugins (apps/web/plugins/).

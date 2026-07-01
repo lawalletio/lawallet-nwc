@@ -75,7 +75,9 @@ export default function UserDetailPage({
   const { userId } = use(params)
   const { data: user, loading, refetch } = useUser(userId)
   const { data: settings } = useSettings()
-  const { profile, updateProfile } = useNostrProfile(user?.pubkey ?? null)
+  const { profile, updateProfile } = useNostrProfile(user?.pubkey ?? null, {
+    force: true,
+  })
   const { pubkey: callerPubkey, role: callerRole, isAuthorized } = useAuth()
   const { updateUserRole, loading: roleUpdating } = useUserMutations()
   const { setAsPrimary, settingPrimary } = useAddressMutations()

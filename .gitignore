@@ -18,6 +18,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .dev/
+apps/*/.cache/
 
 # env files
 .env

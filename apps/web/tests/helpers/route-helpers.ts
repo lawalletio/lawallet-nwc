@@ -20,6 +20,7 @@ export function createDefaultConfig(overrides: Partial<AppConfig> = {}): AppConf
     github: { token: undefined, projectNumber: undefined, enabled: false },
     maintenance: { enabled: false },
     requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576, maxFileSize: 10485760, maxFiles: 5 },
+    nostrProfileCache: { dir: undefined },
     rateLimit: {
       enabled: false,
       windowMs: 60000,

@@ -165,7 +165,13 @@ const envSchema = z.object({
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().positive())
     .default('10')
-    .describe('Maximum number of files per upload request (default: 10)')
+    .describe('Maximum number of files per upload request (default: 10)'),
+
+  NOSTR_PROFILE_CACHE_DIR: z
+    .string()
+    .min(1, 'NOSTR_PROFILE_CACHE_DIR must not be empty')
+    .optional()
+    .describe('Optional filesystem directory for cached Nostr profile images')
 })
 
 /**
