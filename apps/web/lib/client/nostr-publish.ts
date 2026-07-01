@@ -1,7 +1,7 @@
 'use client'
 
 import type { NostrSigner } from '@nostrify/nostrify'
-import { DEFAULT_NOSTR_RELAYS, parseKind0Content, type NostrProfile } from './nostr-profile'
+import { DEFAULT_NOSTR_RELAYS, parseKind0Content, type NostrProfile } from '@/lib/nostr/profile'
 
 export interface ProfileFields {
   name?: string

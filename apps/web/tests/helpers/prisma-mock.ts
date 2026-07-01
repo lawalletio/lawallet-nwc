@@ -35,6 +35,8 @@ function createPrismaMock(): PrismaClient {
     nWCConnection: createModelMock(),
     cardActivationToken: createModelMock(),
     pluginRecord: createModelMock(),
+    nostrProfileCache: createModelMock(),
+    nostrProfileImageCache: createModelMock(),
     $transaction: vi.fn((fn) => {
       if (typeof fn === 'function') {
         return fn(prismaMock)
@@ -57,7 +59,7 @@ vi.mock('@/lib/prisma', () => ({
 // Uses mockReset() on each model method to clear both calls and implementations,
 // then re-applies the $transaction behavior
 export function resetPrismaMock() {
-  const models = ['user', 'card', 'cardDesign', 'lightningAddress', 'ntag424', 'settings', 'remoteConnection', 'remoteWallet', 'invoice', 'albySubAccount', 'nWCConnection', 'cardActivationToken', 'pluginRecord'] as const
+  const models = ['user', 'card', 'cardDesign', 'lightningAddress', 'ntag424', 'settings', 'remoteConnection', 'remoteWallet', 'invoice', 'albySubAccount', 'nWCConnection', 'cardActivationToken', 'pluginRecord', 'nostrProfileCache', 'nostrProfileImageCache'] as const
   for (const model of models) {
     const m = (prismaMock as any)[model] as Record<string, ReturnType<typeof vi.fn>>
     for (const method of Object.values(m)) {

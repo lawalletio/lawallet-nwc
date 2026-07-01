@@ -2,25 +2,36 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import {
   NostrProfileProvider,
+  useNostrProfile,
   useNostrProfiles,
 } from '@/lib/client/nostr-profile'
+import { normalizeNostrPubkey } from '@/lib/nostr/profile'
 
-// The provider dynamically imports SimplePool from nostr-tools/pool; mock it so
-// no real relay traffic happens and we control what kind-0 events come back.
-const { querySyncMock } = vi.hoisted(() => ({ querySyncMock: vi.fn() }))
-vi.mock('nostr-tools/pool', () => ({
-  SimplePool: class {
-    querySync = querySyncMock
-    get = vi.fn()
-    close = vi.fn()
-  },
+const { apiPostMock } = vi.hoisted(() => ({ apiPostMock: vi.fn() }))
+
+vi.mock('@/components/admin/auth-context', () => ({
+  useAuth: () => ({
+    status: 'authenticated',
+    apiClient: {
+      post: apiPostMock,
+    },
+  }),
 }))
 
 const PK_A = 'a'.repeat(64)
 const PK_B = 'b'.repeat(64)
+const NPUB_A = normalizeNostrPubkey(PK_A)?.npub ?? 'npub-a'
+const NPUB_B = normalizeNostrPubkey(PK_B)?.npub ?? 'npub-b'
 
-function kind0(pubkey: string, created_at: number, meta: Record<string, unknown>) {
-  return { pubkey, created_at, kind: 0, content: JSON.stringify(meta) }
+function apiProfile(pubkey: string, name: string) {
+  const normalized = normalizeNostrPubkey(pubkey)
+  if (!normalized) throw new Error('bad pubkey')
+  return {
+    pubkey: normalized.pubkey,
+    npub: normalized.npub,
+    name,
+    fetchedAt: Date.now(),
+  }
 }
 
 function Probe({ pubkeys }: { pubkeys: string[] }) {
@@ -36,6 +47,15 @@ function Probe({ pubkeys }: { pubkeys: string[] }) {
   )
 }
 
+function SingleProbe({ pubkey, force = false }: { pubkey: string; force?: boolean }) {
+  const { profile, loading } = useNostrProfile(pubkey, { force })
+  return (
+    <div data-testid="single" data-loading={loading}>
+      {profile?.name ?? 'missing'}
+    </div>
+  )
+}
+
 function renderProbe(pubkeys: string[]) {
   return render(
     <NostrProfileProvider>
@@ -46,15 +66,14 @@ function renderProbe(pubkeys: string[]) {
 
 beforeEach(() => {
   window.localStorage.clear()
-  querySyncMock.mockReset()
+  apiPostMock.mockReset()
 })
 
 describe('useNostrProfiles', () => {
-  it('resolves many pubkeys in one batched query', async () => {
-    querySyncMock.mockResolvedValue([
-      kind0(PK_A, 100, { name: 'alice', picture: 'https://x/a.png' }),
-      kind0(PK_B, 100, { name: 'bob' }),
-    ])
+  it('resolves many pubkeys in one batched API request', async () => {
+    apiPostMock.mockResolvedValue({
+      profiles: [apiProfile(PK_A, 'alice'), apiProfile(PK_B, 'bob')],
+    })
 
     renderProbe([PK_A, PK_B])
 
@@ -63,30 +82,15 @@ describe('useNostrProfiles', () => {
       expect(out[PK_A]).toBe('alice')
       expect(out[PK_B]).toBe('bob')
     })
-    // A single relay round-trip for the whole list.
-    expect(querySyncMock).toHaveBeenCalledTimes(1)
-    expect(querySyncMock.mock.calls[0][1]).toMatchObject({
-      kinds: [0],
-      authors: expect.arrayContaining([PK_A, PK_B]),
+    expect(apiPostMock).toHaveBeenCalledTimes(1)
+    expect(apiPostMock).toHaveBeenCalledWith('/api/nostr/profiles', {
+      pubkeys: expect.arrayContaining([PK_A, PK_B]),
+      force: false,
     })
   })
 
-  it('keeps the latest event per author', async () => {
-    querySyncMock.mockResolvedValue([
-      kind0(PK_A, 100, { name: 'old-name' }),
-      kind0(PK_A, 200, { name: 'new-name' }),
-    ])
-
-    renderProbe([PK_A])
-
-    await waitFor(() => {
-      const out = JSON.parse(screen.getByTestId('out').textContent || '{}')
-      expect(out[PK_A]).toBe('new-name')
-    })
-  })
-
-  it('serves from cache on a later mount without re-querying', async () => {
-    querySyncMock.mockResolvedValue([kind0(PK_A, 100, { name: 'alice' })])
+  it('serves from localStorage on a later mount without re-querying', async () => {
+    apiPostMock.mockResolvedValue({ profiles: [apiProfile(PK_A, 'alice')] })
 
     const first = renderProbe([PK_A])
     await waitFor(() => {
@@ -95,23 +99,86 @@ describe('useNostrProfiles', () => {
     })
     first.unmount()
 
-    // Fresh provider instance: it should hydrate from localStorage and skip the relay.
-    querySyncMock.mockClear()
+    apiPostMock.mockClear()
     renderProbe([PK_A])
 
     await waitFor(() => {
       const out = JSON.parse(screen.getByTestId('out').textContent || '{}')
       expect(out[PK_A]).toBe('alice')
     })
-    expect(querySyncMock).not.toHaveBeenCalled()
+    expect(apiPostMock).not.toHaveBeenCalled()
+  })
+
+  it('force-refreshes direct profile visits even with a fresh local cache', async () => {
+    window.localStorage.setItem(
+      'lawallet-nostr-profiles',
+      JSON.stringify({
+        [PK_A]: {
+          pubkey: PK_A,
+          npub: NPUB_A,
+          name: 'cached',
+          fetchedAt: Date.now(),
+        },
+      }),
+    )
+    apiPostMock.mockResolvedValue({ profiles: [apiProfile(PK_A, 'fresh')] })
+
+    render(
+      <NostrProfileProvider>
+        <SingleProbe pubkey={PK_A} force />
+      </NostrProfileProvider>,
+    )
+
+    expect(screen.getByTestId('single').textContent).toBe('cached')
+    await waitFor(() => {
+      expect(screen.getByTestId('single').textContent).toBe('fresh')
+    })
+    expect(apiPostMock).toHaveBeenCalledWith('/api/nostr/profiles', {
+      pubkeys: [PK_A],
+      force: true,
+    })
   })
 
   it('throws when used outside the provider', () => {
-    // Silence the expected React error boundary console noise.
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => render(<Probe pubkeys={[PK_A]} />)).toThrow(
       /must be used within a NostrProfileProvider/,
     )
     spy.mockRestore()
+  })
+
+  it('normalizes npub responses back under the hex cache key', async () => {
+    apiPostMock.mockResolvedValue({
+      profiles: [{ pubkey: PK_B, npub: NPUB_B, name: 'bob', fetchedAt: Date.now() }],
+    })
+
+    renderProbe([NPUB_B])
+
+    await waitFor(() => {
+      const out = JSON.parse(screen.getByTestId('out').textContent || '{}')
+      expect(out[NPUB_B]).toBe('bob')
+    })
+  })
+
+  it('keeps the UI stable when the profile API fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    apiPostMock.mockRejectedValue(new Error('database not ready'))
+
+    renderProbe([PK_A])
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('out').getAttribute('data-loading')).toBe('false')
+    })
+
+    const out = JSON.parse(screen.getByTestId('out').textContent || '{}')
+    expect(out[PK_A]).toBeNull()
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to refresh Nostr profiles from server cache',
+      expect.any(Error),
+    )
+    warn.mockRestore()
   })
 })

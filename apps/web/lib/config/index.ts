@@ -55,6 +55,10 @@ export interface AppConfig {
     maxFiles: number
   }
 
+  nostrProfileCache: {
+    dir: string | undefined
+  }
+
   // Rate Limiting
   rateLimit: {
     enabled: boolean
@@ -135,6 +139,10 @@ export function getConfig(strict: boolean = true): AppConfig {
       maxJsonSize: env.REQUEST_MAX_JSON_SIZE,
       maxFileSize: env.REQUEST_MAX_FILE_SIZE,
       maxFiles: env.REQUEST_MAX_FILES
+    },
+
+    nostrProfileCache: {
+      dir: env.NOSTR_PROFILE_CACHE_DIR
     },
 
     rateLimit: {
