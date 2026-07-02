@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { BrowserMultiFormatReader } from '@zxing/library'
+import type { BrowserMultiFormatReader } from '@zxing/library'
 import { AlertCircle, Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -38,6 +38,10 @@ export function ScanScreen() {
         if (cancelled) return
         setPermission('granted')
 
+        // Load the (heavy) zxing decoder only now that the scan screen is open,
+        // keeping it out of the shared wallet bundle.
+        const { BrowserMultiFormatReader } = await import('@zxing/library')
+        if (cancelled) return
         const reader = new BrowserMultiFormatReader()
         readerRef.current = reader
         await reader.decodeFromVideoDevice(

@@ -1,8 +1,23 @@
 import type React from 'react'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 
 export const metadata: Metadata = {
   title: 'Wallet - LaWallet',
+  // Standalone / home-screen install hints. The web manifest (`app/manifest.ts`)
+  // carries the full install config; these cover iOS Safari, which ignores the
+  // manifest's `display` and relies on apple-specific meta instead.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'LaWallet'
+  },
+  icons: {
+    apple: '/icons/icon-192.png'
+  }
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0a0a0a'
 }
 
 /**
