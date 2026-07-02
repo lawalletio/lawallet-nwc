@@ -14,6 +14,10 @@ import {
 } from '@/lib/wallet/resolve-payment-route'
 import { getSettings } from '@/lib/settings'
 import { lncurlHealTarget } from '@/lib/wallet/lncurl-wallet'
+import {
+  getLud16AvatarMetadataEntry,
+  warmNostrProfileForLud16,
+} from '@/lib/nostr/lud16-avatar'
 
 /** Abort the remote LUD-16 fetch for ALIAS mode after this many ms. */
 const ALIAS_FETCH_TIMEOUT_MS = 5000
@@ -53,6 +57,9 @@ export const GET = withErrorHandling(
         user: {
           select: {
             id: true,
+            // pubkey drives the cached-Nostr-avatar embed in the payRequest
+            // metadata below.
+            pubkey: true,
             remoteWallets: {
               where: { isDefault: true },
               select: { id: true, type: true, config: true, status: true },
@@ -168,15 +175,29 @@ export const GET = withErrorHandling(
     const { host } = await resolvePublicEndpoint(req)
     const callback = `${await resolveApiUrl(req)}/api/lud16/${username}/cb`
 
+    // Embed the user's cached Nostr avatar (kind:0) as a base64 image so payer
+    // wallets show it next to the address — the same shape lacrypta.ar serves.
+    // Read-only from the local cache (never blocks on a relay); `warm` kicks the
+    // profile fetch the first time so the next payRequest can include it.
+    // NOTE: the `/cb` route mints with a plain description (no description-hash
+    // of this metadata), so enriching it here has no effect on invoice minting.
+    const pubkey = lightningAddress.user.pubkey
+    const avatarEntry = pubkey ? await getLud16AvatarMetadataEntry(pubkey) : null
+    if (pubkey && !avatarEntry) warmNostrProfileForLud16(pubkey)
+
+    const metadata: [string, string][] = [
+      ['text/identifier', `${username}@${host}`],
+      ['text/plain', `Payment to @${username} on ${host}`],
+      ...(avatarEntry ? [avatarEntry] : []),
+    ]
+
     return NextResponse.json({
       status: 'OK',
       tag: 'payRequest',
       callback,
       minSendable: 1000, // 1 satoshi in msats
       maxSendable: 1000000000, // 1,000,000 sats in msats
-      metadata: JSON.stringify([
-        ['text/plain', `Payment to @${username} on ${host}`]
-      ]),
+      metadata: JSON.stringify(metadata),
       // LUD-12: declare the max comment length we accept on the callback.
       // See: https://github.com/lnurl/luds/blob/luds/12.md
       commentAllowed: LUD12_MAX_COMMENT_LENGTH,
