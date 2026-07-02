@@ -15,7 +15,13 @@ loadEnvFile(resolve(configDir, '.env.local'), { override: true })
 // URL is resolved from the env at runtime via the schema's own
 // `env("DATABASE_URL")` binding, so falling back to a placeholder here
 // keeps generate working without masking a real misconfiguration.
+// `E2E_DATABASE_URL` wins when present: the E2E provisioner targets a dedicated
+// `_e2e` database, but the `.env.local` override above would otherwise clobber
+// the `DATABASE_URL` it passes to `prisma migrate deploy`, silently migrating
+// the dev DB instead. This mirrors the precedence in `e2e/env.ts`. No effect on
+// normal dev/CI, where `E2E_DATABASE_URL` is unset.
 const DATABASE_URL =
+  process.env.E2E_DATABASE_URL ||
   process.env.DATABASE_URL ||
   'postgresql://placeholder:placeholder@localhost:5432/placeholder'
 
