@@ -26,6 +26,7 @@ import {
 import { useAuth } from '@/components/admin/auth-context'
 import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
+import { useFirstLoadProgress } from '@/components/pwa/first-load-progress'
 import {
   convertSats,
   useYadioRates,
@@ -44,6 +45,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { RelayErrorBadge } from '@/components/wallet/shared/relay-error-badge'
 import { TransactionRow } from '@/components/wallet/shared/transaction-row'
@@ -87,6 +89,17 @@ export function HomeScreen() {
   })
 
   const { data: settings } = useSettings()
+
+  // Feed the first-load progress bar: profile lands when `/api/users/me`
+  // resolves; balance lands as soon as we have a number (cache or live) or a
+  // definitive error. Reports are idempotent no-ops after the first load.
+  const { report } = useFirstLoadProgress()
+  useEffect(() => {
+    if (!meLoading) report('profile')
+  }, [meLoading, report])
+  useEffect(() => {
+    if (sats !== null || fromCache || error) report('balance')
+  }, [sats, fromCache, error, report])
   // When the operator auto-creates wallets, a user without one yet isn't
   // "unconnected" — receiving mints an LNCurl wallet on demand. So we surface a
   // friendly message instead of the dead-end empty state and let them receive.
@@ -195,7 +208,7 @@ export function HomeScreen() {
 
         <div className="flex items-baseline gap-2 tabular-nums">
           {showSpinner ? (
-            <Spinner size={32} className="text-muted-foreground" />
+            <Skeleton className="h-9 w-40" />
           ) : sats === null && error ? (
             <span className="text-base text-destructive">Unavailable</span>
           ) : (
