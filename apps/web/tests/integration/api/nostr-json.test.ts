@@ -22,7 +22,6 @@ import { getSettings } from '@/lib/settings'
 const getSettingsMock = vi.mocked(getSettings)
 
 const PK_ALICE = 'a'.repeat(64)
-const PK_BOB = 'b'.repeat(64)
 
 function url(name?: string) {
   const base = 'http://localhost:3000/.well-known/nostr.json'
@@ -37,9 +36,10 @@ beforeEach(() => {
 
 describe('GET /.well-known/nostr.json', () => {
   it('resolves a single name to its pubkey and advertises relays', async () => {
-    vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([
-      { username: 'alice', user: { pubkey: PK_ALICE } },
-    ] as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      user: { pubkey: PK_ALICE },
+    } as any)
     getSettingsMock.mockResolvedValue({
       relays: JSON.stringify(['wss://relay.one', 'wss://relay.two']),
     })
@@ -51,16 +51,17 @@ describe('GET /.well-known/nostr.json', () => {
     expect(body.relays).toEqual({
       [PK_ALICE]: ['wss://relay.one', 'wss://relay.two'],
     })
-    // lookups are case-insensitive
-    expect(prismaMock.lightningAddress.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { username: 'alice' }, take: 1 }),
+    // Lookups are case-insensitive and keyed by the unique username.
+    expect(prismaMock.lightningAddress.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { username: 'alice' } }),
     )
   })
 
   it('falls back to default relays when the operator has none configured', async () => {
-    vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([
-      { username: 'alice', user: { pubkey: PK_ALICE } },
-    ] as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      user: { pubkey: PK_ALICE },
+    } as any)
 
     const res = await GET(createNextRequest(url('alice')) as any)
     const body = await res.json()
@@ -69,9 +70,10 @@ describe('GET /.well-known/nostr.json', () => {
   })
 
   it('ignores malformed relay settings and uses defaults', async () => {
-    vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([
-      { username: 'alice', user: { pubkey: PK_ALICE } },
-    ] as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      user: { pubkey: PK_ALICE },
+    } as any)
     getSettingsMock.mockResolvedValue({ relays: 'not-json' })
 
     const res = await GET(createNextRequest(url('alice')) as any)
@@ -80,19 +82,23 @@ describe('GET /.well-known/nostr.json', () => {
     expect(body.relays[PK_ALICE]).toEqual(DEFAULT_NOSTR_RELAYS)
   })
 
-  it('dedupes relay entries per pubkey when names share a pubkey', async () => {
-    vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([
-      { username: 'alice', user: { pubkey: PK_ALICE } },
-      { username: 'bob', user: { pubkey: PK_BOB } },
-      { username: 'alias', user: { pubkey: PK_ALICE } },
-    ] as any)
-    getSettingsMock.mockResolvedValue({ relays: JSON.stringify(['wss://relay.one']) })
-
+  it('requires a name — a bare request returns empty maps without querying', async () => {
     const res = await GET(createNextRequest(url()) as any)
     const body = await res.json()
 
-    expect(body.names).toEqual({ alice: PK_ALICE, bob: PK_BOB, alias: PK_ALICE })
-    expect(Object.keys(body.relays).sort()).toEqual([PK_ALICE, PK_BOB].sort())
+    expect(body).toEqual({ names: {}, relays: {} })
+    // No enumeration of registered users.
+    expect(prismaMock.lightningAddress.findUnique).not.toHaveBeenCalled()
+    expect(prismaMock.lightningAddress.findMany).not.toHaveBeenCalled()
+  })
+
+  it('returns empty maps for an unknown name', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null as any)
+
+    const res = await GET(createNextRequest(url('nobody')) as any)
+    const body = await res.json()
+
+    expect(body).toEqual({ names: {}, relays: {} })
   })
 
   it('returns empty maps for the reserved "_" identity without querying', async () => {
@@ -100,13 +106,14 @@ describe('GET /.well-known/nostr.json', () => {
     const body = await res.json()
 
     expect(body).toEqual({ names: {}, relays: {} })
-    expect(prismaMock.lightningAddress.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.lightningAddress.findUnique).not.toHaveBeenCalled()
   })
 
   it('sets CORS headers so browser Nostr clients can verify', async () => {
-    vi.mocked(prismaMock.lightningAddress.findMany).mockResolvedValue([
-      { username: 'alice', user: { pubkey: PK_ALICE } },
-    ] as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      user: { pubkey: PK_ALICE },
+    } as any)
 
     const res = await GET(createNextRequest(url('alice')) as any)
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
