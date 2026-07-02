@@ -140,6 +140,10 @@ const config = {
         'border-glow': {
           '0%, 100%': { borderColor: 'rgba(245, 166, 35, 0.3)' },
           '50%': { borderColor: 'rgba(245, 166, 35, 0.6)' }
+        },
+        'progress-indeterminate': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(400%)' }
         }
       },
       animation: {
@@ -153,7 +157,8 @@ const config = {
         float: 'float 6s ease-in-out infinite',
         marquee: 'marquee 30s linear infinite',
         'slide-up': 'slide-up 0.8s ease-out',
-        'border-glow': 'border-glow 2s ease-in-out infinite'
+        'border-glow': 'border-glow 2s ease-in-out infinite',
+        'progress-indeterminate': 'progress-indeterminate 1.1s ease-in-out infinite'
       },
       boxShadow: {
         '3xl': '0 35px 60px -12px rgba(0, 0, 0, 0.25)'
