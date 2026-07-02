@@ -8343,6 +8343,142 @@
           }
         }
       }
+    },
+    "/api/nostr/profiles": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Nostr"
+        ],
+        "summary": "Resolve registered users' Nostr profiles.",
+        "description": "Batch-resolves kind-0 metadata for registered users through the server-side cache. Unregistered pubkeys are omitted from the response.",
+        "operationId": "nostr.profiles.resolve",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pubkeys": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "description": "Hex pubkeys to resolve (1–200)."
+                  },
+                  "force": {
+                    "type": "boolean",
+                    "description": "Bypass the cache and refetch from relays."
+                  }
+                },
+                "required": [
+                  "pubkeys"
+                ],
+                "description": "Batch of pubkeys to resolve kind-0 metadata for."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resolved profiles.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profiles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "pubkey": {
+                            "type": "string"
+                          },
+                          "metadata": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "additionalProperties": {}
+                          },
+                          "fetchedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "pubkey",
+                          "metadata",
+                          "fetchedAt"
+                        ],
+                        "description": "Resolved Nostr kind-0 metadata for a registered user."
+                      }
+                    }
+                  },
+                  "required": [
+                    "profiles"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "webhooks": {}
