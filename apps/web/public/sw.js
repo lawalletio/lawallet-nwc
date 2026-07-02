@@ -13,21 +13,39 @@
  *
  * Bump CACHE_VERSION to invalidate old caches on deploy.
  */
-const CACHE_VERSION = 'v1'
+const CACHE_VERSION = 'v2'
 const STATIC_CACHE = `lawallet-static-${CACHE_VERSION}`
 const PAGE_CACHE = `lawallet-pages-${CACHE_VERSION}`
 const API_CACHE = `lawallet-api-${CACHE_VERSION}`
 const OFFLINE_URL = '/wallet'
 
-// Read APIs safe to serve stale-while-revalidate while offline.
-const CACHEABLE_API = [/^\/api\/wallet(\/|$|\?)/, /^\/api\/activity(\/|$|\?)/]
+// Wallet routes precached at install so cold, offline launches render the app
+// shell for whichever tab the user opens.
+const APP_SHELL = [
+  '/wallet',
+  '/wallet/activity',
+  '/wallet/receive',
+  '/wallet/send',
+  '/wallet/scan',
+  '/wallet/settings'
+]
+
+// Read APIs safe to serve stale-while-revalidate while offline. Profile and
+// settings are included so the wallet renders identity + branding offline.
+const CACHEABLE_API = [
+  /^\/api\/wallet(\/|$|\?)/,
+  /^\/api\/activity(\/|$|\?)/,
+  /^\/api\/users\/me(\/|$|\?)/,
+  /^\/api\/settings(\/|$|\?)/
+]
 
 self.addEventListener('install', event => {
-  // Warm the offline shell so a cold, offline launch still renders something.
+  // Warm the app shell so a cold, offline launch still renders something.
+  // Best-effort: a single failed fetch must not abort the whole install.
   event.waitUntil(
     caches
       .open(PAGE_CACHE)
-      .then(cache => cache.add(OFFLINE_URL))
+      .then(cache => Promise.allSettled(APP_SHELL.map(url => cache.add(url))))
       .catch(() => {})
       .then(() => self.skipWaiting())
   )
