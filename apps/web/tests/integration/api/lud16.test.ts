@@ -21,6 +21,14 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn(),
 }))
 
+// The cached-avatar embed reads the Nostr profile-image cache + disk; stub it so
+// the metadata route stays a pure unit. Its own logic is covered in
+// tests/unit/lib/nostr/lud16-avatar.test.ts.
+vi.mock('@/lib/nostr/lud16-avatar', () => ({
+  getLud16AvatarMetadataEntry: vi.fn().mockResolvedValue(null),
+  warmNostrProfileForLud16: vi.fn(),
+}))
+
 vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() },
 }))
@@ -65,6 +73,7 @@ vi.mock('light-bolt11-decoder', () => ({
 }))
 
 import { GET as Lud16Get } from '@/app/api/lud16/[username]/route'
+import { getLud16AvatarMetadataEntry } from '@/lib/nostr/lud16-avatar'
 import { GET as Lud16CbGet } from '@/app/api/lud16/[username]/cb/route'
 import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
@@ -142,6 +151,33 @@ describe('GET /api/lud16/[username]', () => {
     expect(body.minSendable).toBe(1000)
     expect(body.maxSendable).toBe(1000000000)
     expect(body.commentAllowed).toBe(200)
+  })
+
+  it('embeds the cached Nostr avatar as a base64 image in the metadata', async () => {
+    vi.mocked(getLud16AvatarMetadataEntry).mockResolvedValue([
+      'image/png;base64',
+      'aGVsbG8=',
+    ])
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'DEFAULT_NWC',
+      redirect: null,
+      nwcConnection: null,
+      remoteWallet: null,
+      user: { id: 'user-1', pubkey: 'a'.repeat(64), remoteWallets: [DEFAULT_WALLET] },
+    } as any)
+
+    const req = createNextRequest('/api/lud16/alice')
+    const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
+    const body: any = await assertResponse(res, 200)
+
+    const metadata = JSON.parse(body.metadata)
+    expect(metadata).toContainEqual(['image/png;base64', 'aGVsbG8='])
+    expect(metadata).toContainEqual([
+      'text/identifier',
+      expect.stringContaining('alice@'),
+    ])
+    expect(getLud16AvatarMetadataEntry).toHaveBeenCalledWith('a'.repeat(64))
   })
 
   it('returns 404 for nonexistent username', async () => {
