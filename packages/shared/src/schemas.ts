@@ -205,6 +205,47 @@ export const updateRoleSchema = z.object({
   role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']),
 })
 
+/** A single Nostr relay URL: must be a `ws://` or `wss://` URL. */
+const relayUrl = z
+  .string()
+  .trim()
+  .min(1)
+  .max(512)
+  .refine(
+    value => {
+      try {
+        const { protocol, hostname } = new URL(value)
+        return (protocol === 'wss:' || protocol === 'ws:') && hostname.length > 0
+      } catch {
+        return false
+      }
+    },
+    { message: 'Relay must be a ws:// or wss:// URL' },
+  )
+
+/**
+ * Update the caller's preferred Nostr relays. Deduped case-insensitively and
+ * hard-capped at 20 (the "keep it under 7" guidance is a soft UI hint, not a
+ * hard limit). An empty array clears the preference.
+ */
+export const updateUserRelaysSchema = z.object({
+  relays: z
+    .array(relayUrl)
+    .max(20, 'Too many relays — keep the list short (20 max)')
+    .transform(list => {
+      const seen = new Set<string>()
+      const out: string[] = []
+      for (const raw of list) {
+        const url = raw.trim()
+        const key = url.toLowerCase().replace(/\/+$/, '')
+        if (seen.has(key)) continue
+        seen.add(key)
+        out.push(url)
+      }
+      return out
+    }),
+})
+
 // ── Settings ────────────────────────────────────────────────────────────────
 
 export const settingsBodySchema = z.record(

@@ -112,6 +112,11 @@ model User {
   albyEnabled        Boolean            @default(false)
   role               UserRole           @default(USER)
   activityLogs       ActivityLog[]
+  /// The user's preferred Nostr relays (NIP-65-style), as a JSON-stringified
+  /// `string[]` of `wss://` URLs. Null/absent means the user hasn't picked any
+  /// and consumers fall back to the operator's configured relay list. Owner-
+  /// editable via `PUT /api/users/[userId]/relays`.
+  relays             String?
 
   @@index([role])
 }

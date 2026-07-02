@@ -108,6 +108,38 @@ registry.registerPath({
 registry.registerPath({
   ...withRole('USER'),
   method: 'put',
+  path: '/api/users/{userId}/relays',
+  tags: [TAG],
+  summary: 'Set the user’s preferred Nostr relays (self only).',
+  operationId: 'users.relays.set',
+  security: protectedSecurity,
+  request: {
+    params: schemas.UserIdParam,
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            relays: z
+              .array(z.string().openapi({ example: 'wss://lacrypta.ar' }))
+              .max(20),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Relays updated.',
+      z.object({ userId: z.string(), relays: z.array(z.string()) }),
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound,
+  },
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'put',
   path: '/api/users/{userId}/lightning-address',
   tags: [TAG],
   summary: 'Assign or replace a user’s lightning address (self only).',
