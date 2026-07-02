@@ -15,23 +15,41 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn(),
 }))
 
+// The NIP-65 resolver hits the DB + Nostr relays; stub it so this stays a pure
+// route test (its own logic is covered in tests/unit/lib/nostr/relay-list.test.ts).
+vi.mock('@/lib/nostr/relay-list', () => ({
+  resolveUserRelays: vi.fn().mockResolvedValue([]),
+}))
+
 import { GET, OPTIONS } from '@/app/.well-known/nostr.json/route'
 import { DEFAULT_NOSTR_RELAYS } from '@/lib/nostr/profile'
 import { getSettings } from '@/lib/settings'
+import { resolveUserRelays } from '@/lib/nostr/relay-list'
 
 const getSettingsMock = vi.mocked(getSettings)
+const resolveUserRelaysMock = vi.mocked(resolveUserRelays)
 
 const PK_ALICE = 'a'.repeat(64)
 
-function url(name?: string) {
+function url(name?: string, param: 'name' | 'username' = 'name') {
   const base = 'http://localhost:3000/.well-known/nostr.json'
-  return name ? `${base}?name=${encodeURIComponent(name)}` : base
+  return name ? `${base}?${param}=${encodeURIComponent(name)}` : base
+}
+
+function mockAddress(username = 'alice', pubkey = PK_ALICE) {
+  vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+    username,
+    user: { id: 'u1', pubkey, relays: null, relaysUpdatedAt: null },
+  } as any)
 }
 
 beforeEach(() => {
   resetPrismaMock()
   getSettingsMock.mockReset()
   getSettingsMock.mockResolvedValue({})
+  // Default: user has no relays → route falls back to the operator list.
+  resolveUserRelaysMock.mockReset()
+  resolveUserRelaysMock.mockResolvedValue([])
 })
 
 describe('GET /.well-known/nostr.json', () => {
@@ -55,6 +73,31 @@ describe('GET /.well-known/nostr.json', () => {
     expect(prismaMock.lightningAddress.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { username: 'alice' } }),
     )
+  })
+
+  it('prefers the user’s own relay list over the operator default', async () => {
+    mockAddress('alice', PK_ALICE)
+    resolveUserRelaysMock.mockResolvedValue(['wss://lacrypta.ar', 'wss://nos.lol'])
+    getSettingsMock.mockResolvedValue({ relays: JSON.stringify(['wss://operator.only']) })
+
+    const res = await GET(createNextRequest(url('alice')) as any)
+    const body = await res.json()
+
+    expect(body.relays).toEqual({ [PK_ALICE]: ['wss://lacrypta.ar', 'wss://nos.lol'] })
+    expect(resolveUserRelaysMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'u1', pubkey: PK_ALICE }),
+    )
+  })
+
+  it('accepts ?username= as an alias for ?name=', async () => {
+    mockAddress('alice', PK_ALICE)
+    resolveUserRelaysMock.mockResolvedValue(['wss://lacrypta.ar'])
+
+    const res = await GET(createNextRequest(url('alice', 'username')) as any)
+    const body = await res.json()
+
+    expect(body.names).toEqual({ alice: PK_ALICE })
+    expect(body.relays).toEqual({ [PK_ALICE]: ['wss://lacrypta.ar'] })
   })
 
   it('falls back to default relays when the operator has none configured', async () => {

@@ -67,7 +67,10 @@ describe('PUT /api/users/[userId]/relays', () => {
     expect(prismaMock.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'u1' },
-        data: { relays: JSON.stringify(['wss://lacrypta.ar', 'wss://relay.damus.io']) },
+        data: expect.objectContaining({
+          relays: JSON.stringify(['wss://lacrypta.ar', 'wss://relay.damus.io']),
+          relaysUpdatedAt: expect.any(Date),
+        }),
       }),
     )
   })
@@ -92,7 +95,9 @@ describe('PUT /api/users/[userId]/relays', () => {
 
     await assertResponse(await put('u1', { relays: [] }), 200)
     expect(prismaMock.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { relays: null } }),
+      expect.objectContaining({
+        data: expect.objectContaining({ relays: null, relaysUpdatedAt: expect.any(Date) }),
+      }),
     )
   })
 

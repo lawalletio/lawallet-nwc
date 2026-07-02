@@ -48,7 +48,12 @@ export const PUT = withErrorHandling(
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { relays: relays.length > 0 ? JSON.stringify(relays) : null },
+      data: {
+        relays: relays.length > 0 ? JSON.stringify(relays) : null,
+        // Stamp so nostr.json serves this manual choice fresh (no NIP-65
+        // re-query) until the cache TTL elapses.
+        relaysUpdatedAt: new Date(),
+      },
     })
 
     eventBus.emit({ type: 'users:updated', timestamp: Date.now() })

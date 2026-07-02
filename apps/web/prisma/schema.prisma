@@ -115,8 +115,13 @@ model User {
   /// The user's preferred Nostr relays (NIP-65-style), as a JSON-stringified
   /// `string[]` of `wss://` URLs. Null/absent means the user hasn't picked any
   /// and consumers fall back to the operator's configured relay list. Owner-
-  /// editable via `PUT /api/users/[userId]/relays`.
+  /// editable via `PUT /api/users/[userId]/relays`, or auto-populated from the
+  /// user's NIP-65 (kind:10002) relay list — see `lib/nostr/relay-list.ts`.
   relays             String?
+  /// When `relays` was last set (manual save) or refreshed from NIP-65. Drives
+  /// the server-side relay-list cache TTL so nostr.json doesn't re-query relays
+  /// on every request.
+  relaysUpdatedAt    DateTime?
 
   @@index([role])
 }
