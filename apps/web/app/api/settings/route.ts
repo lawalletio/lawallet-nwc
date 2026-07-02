@@ -9,7 +9,7 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import {
   authenticateSettingsReadRequest,
-  authenticateSettingsWriteRequest,
+  authenticateSettingsWriteRequest
 } from '@/lib/settings-auth'
 import { eventBus } from '@/lib/events/event-bus'
 import { probeLud21Support } from '@/lib/lnurl-probe'
@@ -19,10 +19,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch all settings records from the database
   const settings = await getSettings()
   const endpoint = settings.endpoint ?? settings.subdomain
+  const hasRoot = Boolean(settings.root)
   const responseSettings = {
     ...settings,
     endpoint,
     subdomain: endpoint,
+    hasRoot
   }
 
   // Validate authentication (JWT or NIP-98). Unauthenticated users only get public settings.
@@ -46,6 +48,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       domain_verified: settings.domain_verified,
       endpoint,
       subdomain: endpoint,
+      hasRoot,
       brand_theme: settings.brand_theme,
       brand_rounding: settings.brand_rounding,
       community_name: settings.community_name,
@@ -67,7 +70,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       social_website: settings.social_website,
       social_nostr: settings.social_nostr,
       social_email: settings.social_email,
-      gtag_id: settings.gtag_id,
+      gtag_id: settings.gtag_id
     })
   }
 
@@ -86,7 +89,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'registration_ln_address',
     'registration_price',
     'registration_ln_enabled',
-    'maintenance_enabled',
+    'maintenance_enabled'
   ])
 
   const body = await validateBody(request, settingsBodySchema)
@@ -107,10 +110,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // provider on unrelated setting updates.
   const effective = {
     enabled:
-      (body.registration_ln_enabled ?? settings.registration_ln_enabled) === 'true',
+      (body.registration_ln_enabled ?? settings.registration_ln_enabled) ===
+      'true',
     address:
       body.registration_ln_address ?? settings.registration_ln_address ?? '',
-    price: body.registration_price ?? settings.registration_price ?? '21',
+    price: body.registration_price ?? settings.registration_price ?? '21'
   }
 
   if (effective.enabled) {
@@ -132,7 +136,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     if (enablingNow || addressChanged || priceChanged) {
       const priceSats = parseInt(effective.price, 10)
       if (!Number.isFinite(priceSats) || priceSats < 1) {
-        throw new ValidationError('Registration price must be a positive integer (sats)')
+        throw new ValidationError(
+          'Registration price must be a positive integer (sats)'
+        )
       }
       await probeLud21Support(effective.address.trim(), priceSats)
     }
@@ -178,7 +184,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     category: 'SERVER',
     event: ActivityEvent.SERVER_SETTINGS_UPDATED,
     message: `Settings updated: ${changedKeys.join(', ')}`,
-    metadata: { keys: changedKeys, changedBy: authenticatedPubkey },
+    metadata: { keys: changedKeys, changedBy: authenticatedPubkey }
   })
 
   // Detect a maintenance toggle flip and surface it distinctly — it's a
@@ -197,8 +203,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       metadata: {
         previous: settings.maintenance_enabled,
         next: nextMaintenance,
-        changedBy: authenticatedPubkey,
-      },
+        changedBy: authenticatedPubkey
+      }
     })
   }
 

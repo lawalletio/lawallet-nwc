@@ -21,6 +21,8 @@ interface DatabaseStatus {
   error: Error | null
 }
 
+const HEALTH_POLL_INTERVAL_MS = 25_000
+
 function useDatabaseStatus(enabled: boolean): DatabaseStatus & { refetch: () => Promise<void> } {
   const [checking, setChecking] = useState(enabled)
   const [error, setError] = useState<Error | null>(null)
@@ -51,7 +53,7 @@ function useDatabaseStatus(enabled: boolean): DatabaseStatus & { refetch: () => 
   useEffect(() => {
     void check()
     if (!enabled) return
-    const interval = window.setInterval(() => void check(), 5000)
+    const interval = window.setInterval(() => void check(), HEALTH_POLL_INTERVAL_MS)
     return () => window.clearInterval(interval)
   }, [check, enabled])
 

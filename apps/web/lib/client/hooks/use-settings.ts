@@ -7,6 +7,7 @@ export interface SettingsData {
   domain_verified?: string
   endpoint?: string
   subdomain?: string
+  hasRoot?: boolean
   root?: string
   is_community?: string
   community_id?: string
@@ -56,7 +57,7 @@ export interface SettingsData {
   lncurl_auto_recreate?: string
   /** Google Tag ID (e.g. `G-XXXXXXXXXX`). Empty string disables analytics. */
   gtag_id?: string
-  [key: string]: string | undefined
+  [key: string]: string | boolean | undefined
 }
 
 /**
@@ -76,6 +77,6 @@ export function useUpdateSettings() {
     updateSettings: (data: Record<string, string>) =>
       mutate('post', '/api/settings', data),
     loading,
-    error,
+    error
   }
 }

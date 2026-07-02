@@ -6,36 +6,36 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
   })),
-  resetConfig: vi.fn(),
+  resetConfig: vi.fn()
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/rate-limit', () => ({
   rateLimit: vi.fn(),
-  RateLimitPresets: { auth: {}, cardScan: {}, sensitive: {}, default: {} },
+  RateLimitPresets: { auth: {}, cardScan: {}, sensitive: {}, default: {} }
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/admin-auth', () => ({
   validateAdminAuth: vi.fn(),
-  validateNip98Auth: vi.fn(),
+  validateNip98Auth: vi.fn()
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(),
+  getSettings: vi.fn()
 }))
 
 import { GET, POST } from '@/app/api/settings/route'
@@ -54,7 +54,7 @@ describe('GET /api/settings', () => {
     vi.mocked(getSettings).mockResolvedValue({
       root: mockPubkey,
       domain: 'test.com',
-      endpoint: 'app',
+      endpoint: 'app'
     })
 
     const req = createNextRequest('/api/settings')
@@ -66,6 +66,7 @@ describe('GET /api/settings', () => {
       domain: 'test.com',
       endpoint: 'app',
       subdomain: 'app',
+      hasRoot: true
     })
   })
 
@@ -74,14 +75,19 @@ describe('GET /api/settings', () => {
     vi.mocked(getSettings).mockResolvedValue({
       root: mockPubkey,
       domain: 'test.com',
-      endpoint: 'app',
+      endpoint: 'app'
     })
 
     const req = createNextRequest('/api/settings')
     const res = await GET(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ domain: 'test.com', endpoint: 'app', subdomain: 'app' })
+    expect(body).toEqual({
+      domain: 'test.com',
+      endpoint: 'app',
+      subdomain: 'app',
+      hasRoot: true
+    })
   })
 
   it('returns minimal settings when authenticated as non-root', async () => {
@@ -90,28 +96,38 @@ describe('GET /api/settings', () => {
     vi.mocked(getSettings).mockResolvedValue({
       root: mockPubkey,
       domain: 'test.com',
-      endpoint: 'app',
+      endpoint: 'app'
     })
 
     const req = createNextRequest('/api/settings')
     const res = await GET(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ domain: 'test.com', endpoint: 'app', subdomain: 'app' })
+    expect(body).toEqual({
+      domain: 'test.com',
+      endpoint: 'app',
+      subdomain: 'app',
+      hasRoot: true
+    })
   })
 
   it('falls back to legacy subdomain setting when endpoint is missing', async () => {
     vi.mocked(validateNip98Auth).mockRejectedValue(new Error('no auth'))
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
-      subdomain: 'wallet',
+      subdomain: 'wallet'
     })
 
     const req = createNextRequest('/api/settings')
     const res = await GET(req)
     const body = await assertResponse(res, 200)
 
-    expect(body).toEqual({ domain: 'test.com', endpoint: 'wallet', subdomain: 'wallet' })
+    expect(body).toEqual({
+      domain: 'test.com',
+      endpoint: 'wallet',
+      subdomain: 'wallet',
+      hasRoot: false
+    })
   })
 })
 
@@ -123,7 +139,7 @@ describe('POST /api/settings', () => {
 
     const req = createNextRequest('/api/settings', {
       method: 'POST',
-      body: { domain: 'new.com' },
+      body: { domain: 'new.com' }
     })
     const res = await POST(req)
     const body = await assertResponse(res, 200)
@@ -132,12 +148,12 @@ describe('POST /api/settings', () => {
     expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
       where: { name: 'domain' },
       update: { value: 'new.com' },
-      create: { name: 'domain', value: 'new.com' },
+      create: { name: 'domain', value: 'new.com' }
     })
     expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
       where: { name: 'domain_verified' },
       update: { value: 'false' },
-      create: { name: 'domain_verified', value: 'false' },
+      create: { name: 'domain_verified', value: 'false' }
     })
   })
 
@@ -148,7 +164,7 @@ describe('POST /api/settings', () => {
 
     const req = createNextRequest('/api/settings', {
       method: 'POST',
-      body: { domain: 'new.com' },
+      body: { domain: 'new.com' }
     })
     const res = await POST(req)
 
@@ -161,7 +177,7 @@ describe('POST /api/settings', () => {
 
     const req = createNextRequest('/api/settings', {
       method: 'POST',
-      body: { 'INVALID KEY!': 'value' },
+      body: { 'INVALID KEY!': 'value' }
     })
     const res = await POST(req)
 
@@ -175,7 +191,7 @@ describe('POST /api/settings', () => {
 
     const req = createNextRequest('/api/settings', {
       method: 'POST',
-      body: { domain: 'new.com', endpoint: 'app' },
+      body: { domain: 'new.com', endpoint: 'app' }
     })
     const res = await POST(req)
     const body = await assertResponse(res, 200)
@@ -191,7 +207,7 @@ describe('POST /api/settings', () => {
 
     const req = createNextRequest('/api/settings', {
       method: 'POST',
-      body: { subdomain: 'wallet' },
+      body: { subdomain: 'wallet' }
     })
     const res = await POST(req)
     const body = await assertResponse(res, 200)
@@ -200,12 +216,12 @@ describe('POST /api/settings', () => {
     expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
       where: { name: 'endpoint' },
       update: { value: 'wallet' },
-      create: { name: 'endpoint', value: 'wallet' },
+      create: { name: 'endpoint', value: 'wallet' }
     })
     expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
       where: { name: 'domain_verified' },
       update: { value: 'false' },
-      create: { name: 'domain_verified', value: 'false' },
+      create: { name: 'domain_verified', value: 'false' }
     })
   })
 
@@ -216,7 +232,7 @@ describe('POST /api/settings', () => {
 
     const req = createNextRequest('/api/settings', {
       method: 'POST',
-      body: { domain_verified: 'true' },
+      body: { domain_verified: 'true' }
     })
     const res = await POST(req)
     const body = await assertResponse(res, 200)
@@ -230,7 +246,7 @@ describe('POST /api/settings', () => {
 
     const req = createNextRequest('/api/settings', {
       method: 'POST',
-      body: { domain: 'new.com' },
+      body: { domain: 'new.com' }
     })
     const res = await POST(req)
 
@@ -252,8 +268,8 @@ describe('POST /api/settings', () => {
         body: {
           registration_ln_enabled: 'true',
           registration_ln_address: '',
-          registration_price: '21',
-        },
+          registration_price: '21'
+        }
       })
       const res = await POST(req)
 
@@ -273,13 +289,13 @@ describe('POST /api/settings', () => {
               tag: 'payRequest',
               callback: 'https://provider.com/cb',
               minSendable: 1000,
-              maxSendable: 1_000_000_000,
-            }),
+              maxSendable: 1_000_000_000
+            })
           } as any
         }
         return {
           ok: true,
-          json: async () => ({ pr: 'lnbc...' }), // no verify
+          json: async () => ({ pr: 'lnbc...' }) // no verify
         } as any
       }) as any
 
@@ -288,8 +304,8 @@ describe('POST /api/settings', () => {
         body: {
           registration_ln_enabled: 'true',
           registration_ln_address: 'admin@provider.com',
-          registration_price: '21',
-        },
+          registration_price: '21'
+        }
       })
       const res = await POST(req)
 
@@ -312,16 +328,16 @@ describe('POST /api/settings', () => {
               tag: 'payRequest',
               callback: 'https://provider.com/cb',
               minSendable: 1000,
-              maxSendable: 1_000_000_000,
-            }),
+              maxSendable: 1_000_000_000
+            })
           } as any
         }
         return {
           ok: true,
           json: async () => ({
             pr: 'lnbc...',
-            verify: 'https://provider.com/verify/xyz',
-          }),
+            verify: 'https://provider.com/verify/xyz'
+          })
         } as any
       }) as any
 
@@ -330,8 +346,8 @@ describe('POST /api/settings', () => {
         body: {
           registration_ln_enabled: 'true',
           registration_ln_address: 'admin@provider.com',
-          registration_price: '21',
-        },
+          registration_price: '21'
+        }
       })
       const res = await POST(req)
 
@@ -343,7 +359,7 @@ describe('POST /api/settings', () => {
       vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
       vi.mocked(getSettings).mockResolvedValue({
         root: mockPubkey,
-        registration_ln_enabled: 'false',
+        registration_ln_enabled: 'false'
       })
       vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
       const fetchSpy = vi.fn()
@@ -351,7 +367,7 @@ describe('POST /api/settings', () => {
 
       const req = createNextRequest('/api/settings', {
         method: 'POST',
-        body: { domain: 'new.com' },
+        body: { domain: 'new.com' }
       })
       const res = await POST(req)
 
