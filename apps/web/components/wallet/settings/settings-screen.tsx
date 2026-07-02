@@ -91,7 +91,18 @@ export function SettingsScreen() {
           <ItemGroup items={PREFERENCES_ITEMS} />
         </Section>
 
-        <Section title="Danger Zone">
+        <Section title="Support">
+          <ItemGroup items={SUPPORT_ITEMS} />
+        </Section>
+
+        <CommunityFooter
+          communityName={communityName}
+          isotypo={isotypo}
+        />
+
+        {/* Danger Zone stays last and is pushed to the bottom of the screen so
+            the destructive action never sits above everyday settings. */}
+        <Section title="Danger Zone" className="mt-auto">
           <Button
             type="button"
             variant="destructive"
@@ -100,15 +111,6 @@ export function SettingsScreen() {
           >
             Remove Wallet
           </Button>
-        </Section>
-
-        <CommunityFooter
-          communityName={communityName}
-          isotypo={isotypo}
-        />
-
-        <Section title="Support">
-          <ItemGroup items={SUPPORT_ITEMS} />
         </Section>
       </main>
 
@@ -120,12 +122,14 @@ export function SettingsScreen() {
 function Section({
   title,
   children,
+  className,
 }: {
   title: string
   children: React.ReactNode
+  className?: string
 }) {
   return (
-    <section className="flex flex-col gap-2">
+    <section className={cn('flex flex-col gap-2', className)}>
       <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
       {children}
     </section>
