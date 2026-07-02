@@ -4,6 +4,7 @@ import React from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/admin/auth-context'
 import { Spinner } from '@/components/ui/spinner'
+import { useFirstLoadProgress } from '@/components/pwa/first-load-progress'
 
 /**
  * Authenticated wrapper for `/wallet/(app)/*` routes.
@@ -19,10 +20,12 @@ import { Spinner } from '@/components/ui/spinner'
 export function WalletShell({ children }: { children: React.ReactNode }) {
   const { status } = useAuth()
   const router = useRouter()
+  const { report } = useFirstLoadProgress()
 
   React.useEffect(() => {
     if (status === 'unauthenticated') router.replace('/wallet/landing')
-  }, [status, router])
+    if (status === 'authenticated') report('auth')
+  }, [status, router, report])
 
   if (status !== 'authenticated') {
     return (
