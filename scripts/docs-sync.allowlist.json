@@ -12,7 +12,6 @@
   "GET /api/remote-wallets/{id}/connection-string",
   "POST /api/settings/domain-probe",
   "GET /api/users/{userId}/role",
-  "POST /api/nostr/profiles",
   "GET /api/plugins",
   "PATCH /api/plugins/{plugin}",
   "GET /api/cards/{id}/transactions"
