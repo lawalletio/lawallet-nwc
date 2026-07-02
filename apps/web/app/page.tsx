@@ -13,32 +13,19 @@ import { ClaimDialog } from '@/components/landing/claim-dialog'
 import { LoginModal } from '@/components/admin/login-modal'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
+import { useSettings } from '@/lib/client/hooks/use-settings'
 
 export default function HomePage() {
   const router = useRouter()
   const { status } = useAuth()
+  const { data: settings, loading: settingsLoading } = useSettings()
   const [claimOpen, setClaimOpen] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
   const [redirecting, setRedirecting] = useState(false)
-  const [domain, setDomain] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [hasRoot, setHasRoot] = useState<boolean | null>(null)
+  const [browserHostname, setBrowserHostname] = useState('')
 
   useEffect(() => {
-    fetch('/api/settings')
-      .then(res => res.json())
-      .then(data => {
-        setDomain(data.domain || window.location.hostname)
-      })
-      .catch(() => {
-        setDomain(window.location.hostname)
-      })
-      .finally(() => setLoading(false))
-
-    fetch('/api/setup/status')
-      .then(res => res.json())
-      .then(data => setHasRoot(Boolean(data?.hasRoot)))
-      .catch(() => setHasRoot(true))
+    setBrowserHostname(window.location.hostname)
   }, [])
 
   // Once a login attempt initiated from this page completes, send the
@@ -51,9 +38,11 @@ export default function HomePage() {
     }
   }, [loginOpen, status, router])
 
-  // hasRoot starts as null while loading; treat unknown as "installed"
-  // so we don't flash "Setup now" before the check completes.
-  const setupNeeded = hasRoot === false
+  const domain = settings?.domain || browserHostname
+  const loading = status === 'loading' || settingsLoading
+  // Treat unknown as "installed" while settings load so we do not flash
+  // "Setup now" before the first shared settings request resolves.
+  const setupNeeded = settings?.hasRoot === false
   const openLogin = () => setLoginOpen(true)
   const openClaim = () => setClaimOpen(true)
 
@@ -77,7 +66,11 @@ export default function HomePage() {
       <DomainCta />
       <Footer />
 
-      <ClaimDialog open={claimOpen} onOpenChange={setClaimOpen} domain={domain} />
+      <ClaimDialog
+        open={claimOpen}
+        onOpenChange={setClaimOpen}
+        domain={domain}
+      />
       <LoginModal
         open={loginOpen}
         onOpenChange={setLoginOpen}

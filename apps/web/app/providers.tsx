@@ -11,16 +11,16 @@ import { Toaster } from '@/components/ui/sonner'
 export function Providers({ children, ...props }: ThemeProviderProps) {
   return (
     <NextThemesProvider {...props}>
-      <ThemeProvider>
-        <AuthProvider>
-          <SSEProvider>
+      <AuthProvider>
+        <SSEProvider>
+          <ThemeProvider>
             <NostrProfileProvider>
               {children}
               <Toaster />
             </NostrProfileProvider>
-          </SSEProvider>
-        </AuthProvider>
-      </ThemeProvider>
+          </ThemeProvider>
+        </SSEProvider>
+      </AuthProvider>
     </NextThemesProvider>
   )
 }
