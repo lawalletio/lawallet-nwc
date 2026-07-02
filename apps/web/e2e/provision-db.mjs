@@ -72,7 +72,15 @@ if (!new URL(databaseUrl).pathname.endsWith('_e2e')) {
   process.exit(1)
 }
 
-const env = { ...process.env, DATABASE_URL: databaseUrl }
+// Pass BOTH: `DATABASE_URL` for the Prisma client used by the seed, and
+// `E2E_DATABASE_URL` which `prisma.config.ts` honors ahead of the `.env.local`
+// override — without it, `prisma migrate deploy` would migrate the dev DB
+// instead of the `_e2e` target (the local `.env.local` wins over this env).
+const env = {
+  ...process.env,
+  DATABASE_URL: databaseUrl,
+  E2E_DATABASE_URL: databaseUrl
+}
 const run = cmd => execSync(cmd, { cwd: webRoot, env, stdio: 'inherit' })
 
 function quotePgIdentifier(value) {
