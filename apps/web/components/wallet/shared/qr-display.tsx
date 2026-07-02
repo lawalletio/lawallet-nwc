@@ -1,11 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
+import dynamic from 'next/dynamic'
 import { Copy, Check, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+
+// The QR renderer (qrcode.react) is code-split so it never lands in the shared
+// wallet bundle — it downloads only when a QR is actually shown. `ssr: false`
+// because it renders client-only anyway.
+const QrCodeLazy = dynamic(() => import('./qr-code-lazy'), {
+  ssr: false,
+  loading: () => <Skeleton className="size-full rounded-md" />
+})
 
 interface QrDisplayProps {
   value: string
@@ -76,12 +85,14 @@ export function QrDisplay({
   return (
     <div className={cn('flex flex-col items-center gap-4', className)}>
       <div className="relative rounded-2xl bg-white p-4 shadow-lg">
-        <QRCodeSVG
-          value={encoded}
-          size={size}
-          level={centerImage ? 'H' : 'M'}
-          imageSettings={imageSettings}
-        />
+        <div style={{ width: size, height: size }}>
+          <QrCodeLazy
+            value={encoded}
+            size={size}
+            level={centerImage ? 'H' : 'M'}
+            imageSettings={imageSettings}
+          />
+        </div>
         {centerImage && (
           <div
             aria-hidden
