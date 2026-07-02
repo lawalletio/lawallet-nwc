@@ -16,7 +16,7 @@ import { useApi, invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useAuth } from '@/components/admin/auth-context'
-import { makeInvoice } from '@/lib/client/nwc'
+import { makeInvoice, describeNwcError } from '@/lib/client/nwc'
 import {
   useReceiveFlow,
   receiveActions,
@@ -76,7 +76,7 @@ export function ReceiveAmountStep() {
       receiveActions.setInvoice(invoice)
       router.push('/wallet/receive/invoice')
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not create invoice'
+      const message = describeNwcError(err)
       receiveActions.setError(message)
       toast.error(message)
     } finally {
