@@ -1,4 +1,5 @@
 export * from './nwc-client'
+export * from './errors'
 export * from './parse-destination'
 export * from './parse-uri'
 export * from './pay'
