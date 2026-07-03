@@ -1,0 +1,92 @@
+---
+title: "Start9 Deployment"
+description: "Run LaWallet NWC on your Start9 server (StartOS) as a self-contained app."
+---
+
+[StartOS](https://start9.com) is the sovereign-server OS behind Start9. LaWallet
+NWC ships as a StartOS **service package** (`.s9pk`) that bundles the web app and
+its own PostgreSQL database into one installable app — nothing external to wire
+up. The package lives in its own repo,
+[`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos),
+and wraps the same published image as every other target,
+[`masize/lawallet-nwc`](https://hub.docker.com/r/masize/lawallet-nwc).
+
+| Property | Value |
+|----------|-------|
+| Package id | `lawallet-nwc` |
+| Images | `masize/lawallet-nwc` (web) + `postgres:15-alpine` |
+| Architectures | `x86_64`, `aarch64` |
+| Web UI | port `2288` (LAN, `.local`, Tor, or a custom domain) |
+
+## Install
+
+Once LaWallet NWC is in your marketplace:
+
+1. Open the **Marketplace** in your StartOS dashboard and install **LaWallet NWC**.
+2. Start the service. Postgres comes up first; the web app then applies pending
+   Prisma migrations (`prisma migrate deploy`) and starts.
+3. Open the **Web UI** from the service's Dashboard.
+
+Until it appears in a public registry you can **sideload** the `.s9pk`: build it
+from [`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos)
+(`make`) and upload it via **StartOS → Marketplace → Sideload**.
+
+## First run — claim root
+
+There is **no admin password**. LaWallet NWC authenticates with **Nostr**:
+
+1. In the Web UI, sign in with a **NIP-07 browser extension** (Alby, nos2x) or
+   by pasting your **nsec**.
+2. The first user to sign in claims the **root admin** role — do this
+   immediately.
+3. Set your domain, create lightning addresses, connect a remote wallet (NWC),
+   and issue cards from the dashboard.
+
+## Make lightning addresses resolve on your domain
+
+LaWallet NWC serves three public `.well-known` endpoints that your domain must
+forward to the service so lightning addresses and Nostr identity resolve:
+
+- `/.well-known/lnurlp/<username>` — LUD-16 lightning address callback
+- `/.well-known/nostr.json` — NIP-05 identity
+- `/.well-known/verify` — LUD-21 verification
+
+Point your domain at the StartOS interface for the service and forward those
+paths. The in-app onboarding wizard prints copy-paste rewrite recipes
+(Cloudflare, Nginx, Caddy, Vercel, and more).
+
+## What's managed for you
+
+The package generates and persists a `JWT_SECRET` and the PostgreSQL password on
+first install (stored on the service's `main` volume), and sets the runtime
+environment automatically:
+
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | bundled localhost Postgres |
+| `JWT_SECRET` | generated on install |
+| `NODE_ENV` | `production` |
+| `PORT` / `HOSTNAME` | `2288` / `0.0.0.0` |
+
+For the full env-var reference (used when self-hosting outside StartOS), see
+[`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example).
+
+## Health & backups
+
+- **Health check:** the service reports healthy once `GET /api/health` responds
+  (it verifies the database connection).
+- **Backups:** StartOS backs up the `main` volume — database, cached Nostr
+  profiles, and the generated secrets — so a restore reproduces the instance
+  exactly.
+
+## Limitation
+
+The bundled landing screen links to `https://lawallet.io` (baked into the
+published image at build time). Your admin dashboard and wallet work regardless.
+
+## Updating
+
+The package's `web` image tag and version are bumped automatically whenever
+LaWallet NWC publishes a release — see
+[UPDATING.md](https://github.com/lawalletio/lawallet-startos/blob/master/UPDATING.md)
+in the package repo.
