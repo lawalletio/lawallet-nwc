@@ -1,6 +1,12 @@
 import { z } from 'zod'
 import { withSpan } from '@/lib/observability/timing'
+import { logger } from '@/lib/logger'
 import { DriverRemoteError } from './errors'
+import {
+  isListenerBridgeEnabled,
+  listenerNwcRequest,
+  ListenerUnavailableError,
+} from './listener-transport'
 import { getServerNwcClient } from './nwc-client-cache'
 import type {
   BalanceResult,
@@ -65,6 +71,20 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
 
   async getBalance(config): Promise<BalanceResult> {
     return withSpan('nwc.get_balance', async () => {
+      if (isListenerBridgeEnabled()) {
+        try {
+          const res = await listenerNwcRequest<{ balance: number }>({
+            connectionString: config.connectionString,
+            method: 'get_balance',
+          })
+          return { balanceSats: Math.floor(res.balance / 1000) }
+        } catch (err) {
+          // Wallet rejections (DriverRemoteError) are final; only transport
+          // failures fall back to the direct relay connection below.
+          if (!(err instanceof ListenerUnavailableError)) throw err
+          logger.warn({ err }, 'nwc.listener_bridge_unavailable — falling back to direct NWC')
+        }
+      }
       try {
         const client = await getServerNwcClient(config.connectionString)
         const res = await client.getBalance()
@@ -79,6 +99,29 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
 
   async payInvoice(config, input: PayInvoiceInput): Promise<PayInvoiceResult> {
     return withSpan('nwc.pay_invoice', async () => {
+      if (isListenerBridgeEnabled()) {
+        try {
+          const res = await listenerNwcRequest<{ preimage: string; fees_paid?: number }>({
+            connectionString: config.connectionString,
+            method: 'pay_invoice',
+            params: {
+              invoice: input.bolt11,
+              // NWC takes msats; only for zero-amount invoices (see below).
+              amount: input.amountSats !== undefined ? input.amountSats * 1000 : undefined,
+            },
+          })
+          return {
+            preimage: res.preimage,
+            feesPaidSats: Math.floor((res.fees_paid ?? 0) / 1000),
+          }
+        } catch (err) {
+          if (!(err instanceof ListenerUnavailableError)) throw err
+          // Falling back re-sends the same bolt11 — safe because a bolt11
+          // settles at most once per payment hash, but log loudly so an
+          // "already paid" rejection on the retry is traceable.
+          logger.warn({ err }, 'nwc.listener_bridge_unavailable — falling back to direct NWC')
+        }
+      }
       try {
         const client = await getServerNwcClient(config.connectionString)
         const res = await client.payInvoice({
@@ -102,6 +145,34 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
       throw new DriverRemoteError('makeInvoice requires a positive amount')
     }
     return withSpan('nwc.make_invoice', async () => {
+      if (isListenerBridgeEnabled()) {
+        try {
+          const res = await listenerNwcRequest<{
+            invoice: string
+            payment_hash: string
+            amount: number
+            description?: string
+            expires_at?: number
+          }>({
+            connectionString: config.connectionString,
+            method: 'make_invoice',
+            params: {
+              amount: input.amountSats * 1000,
+              description: input.description ?? '',
+            },
+          })
+          return {
+            bolt11: res.invoice,
+            paymentHash: res.payment_hash,
+            amountSats: Math.floor(res.amount / 1000),
+            description: res.description ?? input.description ?? '',
+            expiresAt: typeof res.expires_at === 'number' ? res.expires_at * 1000 : null,
+          }
+        } catch (err) {
+          if (!(err instanceof ListenerUnavailableError)) throw err
+          logger.warn({ err }, 'nwc.listener_bridge_unavailable — falling back to direct NWC')
+        }
+      }
       try {
         const client = await getServerNwcClient(config.connectionString)
         const res = await client.makeInvoice({

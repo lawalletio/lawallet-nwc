@@ -25,6 +25,26 @@ vi.mock('@getalby/sdk', () => {
   return { NWCClient: FakeNWCClient }
 })
 
+/**
+ * Controllable stand-in for the listener bridge. Default `enabled: false`
+ * preserves the direct-path behavior every pre-existing test asserts.
+ */
+const bridge = vi.hoisted(() => ({
+  enabled: false,
+  request: vi.fn(),
+}))
+
+vi.mock('@/lib/wallet/drivers/listener-transport', () => {
+  class ListenerUnavailableError extends Error {}
+  return {
+    ListenerUnavailableError,
+    isListenerBridgeEnabled: () => bridge.enabled,
+    listenerNwcRequest: (...args: unknown[]) => bridge.request(...args),
+  }
+})
+
+import { ListenerUnavailableError } from '@/lib/wallet/drivers/listener-transport'
+
 // Import AFTER the mock so the driver's cache module picks up the stub.
 import { DriverRemoteError } from '@/lib/wallet/drivers/errors'
 import { nwcDriver } from '@/lib/wallet/drivers/nwc-driver'
@@ -55,6 +75,8 @@ describe('nwcDriver', () => {
     makeInvoiceMock.mockReset()
     closeMock.mockReset()
     nwcCtor.mockReset()
+    bridge.enabled = false
+    bridge.request.mockReset()
   })
 
   it('declares type "NWC"', () => {
@@ -297,6 +319,76 @@ describe('nwcDriver', () => {
       await expect(
         nwcDriver.makeInvoice(CONFIG, { amountSats: 50 }),
       ).rejects.toBeInstanceOf(DriverRemoteError)
+    })
+  })
+
+  describe('listener bridge', () => {
+    it('routes payInvoice through the bridge — SDK client never constructed', async () => {
+      bridge.enabled = true
+      bridge.request.mockResolvedValueOnce({ preimage: 'cafebabe', fees_paid: 1_500 })
+
+      const res = await nwcDriver.payInvoice(CONFIG, { bolt11: 'lnbc1' })
+
+      expect(res).toEqual({ preimage: 'cafebabe', feesPaidSats: 1 })
+      expect(bridge.request).toHaveBeenCalledWith({
+        connectionString: VALID_URI,
+        method: 'pay_invoice',
+        params: { invoice: 'lnbc1', amount: undefined },
+      })
+      expect(nwcCtor).not.toHaveBeenCalled()
+      expect(payInvoiceMock).not.toHaveBeenCalled()
+    })
+
+    it('routes getBalance and makeInvoice through the bridge too', async () => {
+      bridge.enabled = true
+      bridge.request.mockResolvedValueOnce({ balance: 12_345_000 })
+      expect(await nwcDriver.getBalance(CONFIG)).toEqual({ balanceSats: 12_345 })
+
+      bridge.request.mockResolvedValueOnce({
+        invoice: 'lnbc500n1pjmadeup',
+        payment_hash: 'abc123',
+        amount: 50_000,
+        description: 'coffee',
+        expires_at: 1_700_000_000,
+      })
+      const made = await nwcDriver.makeInvoice(CONFIG, {
+        amountSats: 50,
+        description: 'coffee',
+      })
+      expect(made.bolt11).toBe('lnbc500n1pjmadeup')
+      expect(made.expiresAt).toBe(1_700_000_000_000)
+      expect(nwcCtor).not.toHaveBeenCalled()
+    })
+
+    it('falls back to the direct path when the bridge is unavailable — identical result', async () => {
+      bridge.enabled = true
+      bridge.request.mockRejectedValueOnce(new ListenerUnavailableError('down'))
+      payInvoiceMock.mockResolvedValueOnce({ preimage: 'cafebabe', fees_paid: 1_500 })
+
+      const res = await nwcDriver.payInvoice(CONFIG, { bolt11: 'lnbc1' })
+
+      expect(res).toEqual({ preimage: 'cafebabe', feesPaidSats: 1 })
+      expect(payInvoiceMock).toHaveBeenCalledWith({ invoice: 'lnbc1', amount: undefined })
+      expect(nwcCtor).toHaveBeenCalledTimes(1)
+    })
+
+    it('treats a bridge wallet rejection as FINAL — no direct-path retry', async () => {
+      bridge.enabled = true
+      bridge.request.mockRejectedValueOnce(
+        new DriverRemoteError('NWC wallet error (INSUFFICIENT_BALANCE): nope'),
+      )
+
+      await expect(
+        nwcDriver.payInvoice(CONFIG, { bolt11: 'lnbc1' }),
+      ).rejects.toBeInstanceOf(DriverRemoteError)
+      expect(payInvoiceMock).not.toHaveBeenCalled()
+      expect(nwcCtor).not.toHaveBeenCalled()
+    })
+
+    it('never touches the bridge when disabled', async () => {
+      getBalanceMock.mockResolvedValueOnce({ balance: 0 })
+      await nwcDriver.getBalance(CONFIG)
+      expect(bridge.request).not.toHaveBeenCalled()
     })
   })
 

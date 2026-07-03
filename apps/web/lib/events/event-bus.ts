@@ -22,6 +22,7 @@ const EVENT_PERMISSION_MAP: Record<SSEEventType, Permission | null> = {
   'invoices:updated': null, // any authenticated user (own invoices)
   'users:updated': Permission.USERS_READ,
   'activity:new': Permission.ACTIVITY_READ,
+  'listener:updated': Permission.SETTINGS_READ, // infra telemetry, same gate as Settings
 }
 
 // ─── Event Bus ────────────────────────────────────────────────────────────

@@ -22,6 +22,9 @@ export interface UseApiResult<T> {
  * Maps an API path to its corresponding SSE event type for auto-refresh.
  */
 function getEventTypeForPath(path: string): SSEEventType | null {
+  // Listener dashboard refreshes when the webhook route emits
+  // `listener:updated` (new NWC connection events / errors).
+  if (path.startsWith('/api/admin/listener')) return 'listener:updated'
   if (path.startsWith('/api/lightning-addresses')) return 'addresses:updated'
   // Per-address invoices feed has to match before the generic
   // `/api/wallet/addresses` rule below — otherwise invoice refreshes would
