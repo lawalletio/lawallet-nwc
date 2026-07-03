@@ -9,8 +9,10 @@ import { spawn } from 'node:child_process'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const webDir = join(root, 'apps', 'web')
+const listenerDir = join(root, 'apps', 'listener')
 const rootEnvPath = join(root, '.env.development.local')
 const webEnvPath = join(webDir, '.env.local')
+const listenerEnvPath = join(listenerDir, '.env.local')
 const stateDir = join(root, '.dev')
 const statePath = join(stateDir, 'worktree-env.json')
 
@@ -52,6 +54,11 @@ function renderEnv(env) {
     `PORT="${env.PORT}"`,
     `WEB_PORT="${env.WEB_PORT}"`,
     `JWT_SECRET="${env.JWT_SECRET}"`,
+    // NWC listener bridge (optional service; web falls back without it).
+    `LISTENER_PORT="${env.LISTENER_PORT}"`,
+    `LISTENER_AUTH_SECRET="${env.LISTENER_AUTH_SECRET}"`,
+    `LISTENER_URL="http://localhost:${env.LISTENER_PORT}"`,
+    `WEB_ORIGIN="http://localhost:${env.WEB_PORT}"`,
     'AUTO_GENERATE_ALBY_SUBACCOUNTS="false"',
     'MAINTENANCE_MODE="false"',
     'RATE_LIMIT_ENABLED="false"',
@@ -95,6 +102,10 @@ async function loadOrCreateEnv() {
     existing.PORT ||
     state.WEB_PORT ||
     (await findPort(3000 + (parseInt(hash.slice(4, 8), 16) % 1000)))
+  const listenerPort =
+    existing.LISTENER_PORT ||
+    state.LISTENER_PORT ||
+    (await findPort(4100 + (parseInt(hash.slice(2, 6), 16) % 800)))
   const postgresUser = existing.POSTGRES_USER || state.POSTGRES_USER || slug
   const postgresDb = existing.POSTGRES_DB || state.POSTGRES_DB || slug
   const postgresPassword =
@@ -120,13 +131,19 @@ async function loadOrCreateEnv() {
     JWT_SECRET:
       existing.JWT_SECRET ||
       state.JWT_SECRET ||
-      randomBytes(48).toString('base64url')
+      randomBytes(48).toString('base64url'),
+    LISTENER_PORT: listenerPort,
+    LISTENER_AUTH_SECRET:
+      existing.LISTENER_AUTH_SECRET ||
+      state.LISTENER_AUTH_SECRET ||
+      randomBytes(32).toString('base64url')
   }
 
   mkdirSync(stateDir, { recursive: true })
   writeFileSync(statePath, `${JSON.stringify(env, null, 2)}\n`)
   writeFileSync(rootEnvPath, renderEnv(env))
   writeFileSync(webEnvPath, renderEnv(env))
+  writeFileSync(listenerEnvPath, renderEnv(env))
 
   return env
 }
@@ -312,7 +329,9 @@ async function main() {
   const env = await loadOrCreateEnv()
 
   if (command === 'env') {
-    console.log(`Environment written to:\n- ${rootEnvPath}\n- ${webEnvPath}`)
+    console.log(
+      `Environment written to:\n- ${rootEnvPath}\n- ${webEnvPath}\n- ${listenerEnvPath}`
+    )
     console.log(`Web URL: http://localhost:${env.WEB_PORT}/admin`)
     return
   }
@@ -332,6 +351,9 @@ async function main() {
   }
 
   console.log(`Ready: http://localhost:${env.WEB_PORT}/admin`)
+  console.log(
+    `Listener (optional): pnpm dev:listener → http://localhost:${env.LISTENER_PORT}`
+  )
 
   if (command === 'start') {
     runPnpmAttached(

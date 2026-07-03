@@ -13,6 +13,7 @@ import {
 } from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { eventBus } from '@/lib/events/event-bus'
 import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -133,6 +134,10 @@ export const PATCH = withErrorHandling(
         })
       })
 
+      // Status/name flips change what the listener dashboard shows — nudge
+      // it to refetch (the listener reconciles via the Postgres trigger).
+      eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+
       return NextResponse.json(toDto(updated))
     } catch (err) {
       if (
@@ -179,6 +184,7 @@ export const DELETE = withErrorHandling(
         )
       }
       await prisma.remoteWallet.delete({ where: { id } })
+      eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
       return new NextResponse(null, { status: 204 })
     }
 
@@ -187,6 +193,7 @@ export const DELETE = withErrorHandling(
       data: { status: 'REVOKED', isDefault: false },
     })
 
+    eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
     return new NextResponse(null, { status: 204 })
   },
 )

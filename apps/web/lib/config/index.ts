@@ -22,6 +22,17 @@ export interface AppConfig {
     enabled: boolean
   }
 
+  // NWC Listener service (optional relay bridge)
+  listener: {
+    url: string | undefined
+    secret: string | undefined
+    requestTimeoutMs: number
+    /** Outbound bridge (status proxy + /nwc/request) — needs url AND secret. */
+    enabled: boolean
+    /** Inbound webhook acceptance — needs only the secret. */
+    webhookEnabled: boolean
+  }
+
   // Alby Integration
   alby: {
     apiUrl: string | undefined
@@ -107,6 +118,14 @@ export function getConfig(strict: boolean = true): AppConfig {
     jwt: {
       secret: env.JWT_SECRET,
       enabled: !!env.JWT_SECRET
+    },
+
+    listener: {
+      url: env.LISTENER_URL,
+      secret: env.LISTENER_AUTH_SECRET,
+      requestTimeoutMs: env.LISTENER_REQUEST_TIMEOUT_MS,
+      enabled: !!(env.LISTENER_URL && env.LISTENER_AUTH_SECRET),
+      webhookEnabled: !!env.LISTENER_AUTH_SECRET
     },
 
     alby: {

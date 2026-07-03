@@ -14,6 +14,7 @@ import {
 import { validateBody, validateQuery } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { getDriver } from '@/lib/wallet/drivers'
+import { eventBus } from '@/lib/events/event-bus'
 import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -179,6 +180,10 @@ export const POST = withErrorHandling(async (request: Request) => {
         },
       })
     })
+
+    // The listener dashboard tracks NWC connections live — nudge it to
+    // refetch (the listener itself reconciles via the Postgres trigger).
+    eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
 
     return NextResponse.json(toDto(created), { status: 201 })
   } catch (err) {

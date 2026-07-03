@@ -1,95 +1,176 @@
 # lawallet-listener: NWC Payment Listener
 
-> **Status note (May 2026):** this document describes an earlier design (isolated DB, own storage, WebSocket events). The current plan — implemented in Month 6 — replaces it with a **lite, transport-only** service that uses Postgres `LISTEN`/`NOTIFY` against the shared web-app database (keyed on `RemoteWallet` rows of `type = NWC`) and forwards events to `apps/web` via HMAC-signed webhook. No own database, no DLQ, no WebSocket. See [MONTH-6.md](../roadmap/MONTH-6.md) for the current spec; this file will be rewritten when the M6 listener ships.
+Transport-only NWC relay bridge. Lives in `apps/listener/`, runs as its own
+container next to `lawallet-web`, and exists for one reason: `apps/web` is
+built for lambda-style deployments (Vercel), where every NWC operation pays a
+full relay-websocket handshake and nothing can *listen* for incoming events.
+The listener has a real runtime, so it keeps the websockets open — both
+directions get fast.
 
-## Overview
+**Container**: `listener` (docker compose service)
+**Port**: `LISTENER_PORT` (default 4100)
+**Storage**: service-owned `listener` schema in the shared Postgres
 
-Standalone Node.js microservice that monitors NWC relays for incoming payment events and dispatches webhook notifications.
-
-**Container**: `lawallet-listener`
-**Ports**: 3001 (WebSocket), 3002 (health check)
-**Storage**: Own storage (event logs, delivery tracking)
-
----
-
-## Responsibilities
-
-- Subscribe to NWC relays for NIP-47 `payment_received` events
-- Match incoming payments to registered lightning addresses
-- Dispatch LUD-22 webhooks with HMAC-signed payloads
-- Emit real-time events via WebSocket to lawallet-web
-- Track delivery status and manage retries
+All business logic (payment matching, invoice state, receipts, LUD-22
+operator webhooks) stays in `apps/web`. The listener moves bytes.
 
 ---
 
-## Independence
+## Architecture
 
-- Own storage for event logs and delivery tracking
-- No dependency on lawallet-web database
-- No dependency on lawallet-nwc-proxy
-- Communicates with lawallet-web via WebSocket events only
-- Can be restarted without data loss (stateless design)
+```
+            ┌──────────────────────────── apps/listener ───────────────────────────┐
+            │                                                                      │
+Postgres ───┤ LISTEN remote_wallet_changed  ──►  reconcile pool (add/remove/rotate)│
+ (shared)   │ SELECT ACTIVE NWC RemoteWallets                                      │
+            │                                                                      │
+NWC relays ─┤ one live NWCClient per wallet — subscribeNotifications               │
+            │   payment_received / payment_sent                                    │
+            │        │                                                             │
+            │        ▼                                                             │
+            │ dedup store (listener.processed_events)                              │
+            │        │ new events only                                             │
+            │        ▼                                                             │
+apps/web ◄──┤ POST /api/webhooks/nwc   (HMAC-signed, retried, swept)               │
+            │                                                                      │
+apps/web ──►┤ POST /nwc/request        (pay_invoice etc. over the open socket —    │
+            │                           the card-withdraw / LUD-16 fast path)      │
+            │ GET  /status             (dashboard: relays, connections, events)    │
+            │ GET  /health             (compose healthcheck)                       │
+            └──────────────────────────────────────────────────────────────────────┘
+```
 
----
+A Prisma migration in `apps/web` installs a trigger on `"RemoteWallet"`:
+every INSERT/UPDATE/DELETE fires `pg_notify('remote_wallet_changed',
+'{"id": "...", "op": "..."}')` on COMMIT. The listener reconciles the
+affected wallet; anything unparseable (or a LISTEN reconnect) triggers a full
+reconcile, and a periodic full reconcile (default every 5 min) is the safety
+net for missed notifications.
 
-## Payment Detection Flow
+Cross-service schemas (webhook payload, `/nwc/request`, `/status`, header
+names, channel name) live in **`packages/shared/src/listener.ts`** — both
+sides import the same Zod definitions.
 
-1. Subscribe to NWC relays listed in configuration
-2. Monitor NIP-47 `payment_received` events per connected wallet
-3. Match payment to registered lightning address via invoice/preimage
-4. Record event in own storage (amount, timestamp, sender, address)
-5. Look up registered LUD-22 webhooks for the address
-6. POST signed JSON payload to each webhook URL
-7. Emit WebSocket event to lawallet-web for real-time display
+## Data (dedup + event feed)
 
----
+The service bootstraps its own schema on startup (idempotent DDL, never part
+of web's Prisma migrations):
 
-## Webhook Delivery
+```sql
+CREATE SCHEMA IF NOT EXISTS listener;
+CREATE TABLE IF NOT EXISTS listener.processed_events (
+  event_key          text PRIMARY KEY,   -- sha256(walletId|type|payment_hash)
+  wallet_id          text NOT NULL,
+  notification_type  text NOT NULL,
+  payment_hash       text,
+  amount_msats       bigint,
+  settled_at         timestamptz,
+  payload            jsonb NOT NULL,     -- raw Nip47Transaction
+  received_at        timestamptz NOT NULL DEFAULT now(),
+  webhook_status     text NOT NULL DEFAULT 'pending',  -- pending|delivered|failed
+  webhook_attempts   integer NOT NULL DEFAULT 0,
+  webhook_last_error text,
+  delivered_at       timestamptz
+);
+```
 
-- **Method**: POST
-- **Content-Type**: `application/json`
-- **Signature**: `X-Signature` header with HMAC-SHA256 of payload using webhook secret
-- **Retry**: Exponential backoff — 3 attempts (1s, 4s, 16s)
-- **Dead letter queue**: Permanently failed deliveries stored for manual inspection
-- **Delivery status**: Logged and queryable
+One table powers dedup (`INSERT … ON CONFLICT DO NOTHING` — atomic claim),
+the dashboard's recent-events feed, per-wallet `lastEventAt`, and webhook
+delivery tracking. Retention: pruned hourly after `EVENT_RETENTION_DAYS`
+(default 30); notifications older than retention−1 days are dropped before
+storage so pruning can't reopen the dedup window.
 
----
+The `event_key` is derived rather than a Nostr event id (the SDK's
+notification callback doesn't expose one) — which also dedups a wallet
+republishing the same notification as different Nostr events.
 
-## Resilience
+## HTTP API
 
-- Auto-reconnection on relay disconnection with exponential backoff
-- Graceful shutdown on SIGTERM/SIGINT
-- Health check endpoint at `/health` (port 3002)
-- Multi-relay subscription for redundancy
-- Stateless design: restart without data loss
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `GET /health` | none | Liveness (+ informational `db` flag) |
+| `GET /status` | Bearer | Relays, connections, counters, recent events |
+| `POST /nwc/request` | Bearer | Proxy an NWC call over the pooled connection |
 
----
+Auth: `Authorization: Bearer <LISTENER_AUTH_SECRET>`, compared constant-time.
 
-## Configuration
+`POST /nwc/request` body (`nwcProxyRequestSchema`): `{ connectionString,
+walletId?, method, params, timeoutMs? }` — keyed on the connection string the
+caller already holds; `walletId` is correlation-only. Methods: `get_info`,
+`get_balance`, `pay_invoice`, `make_invoice`, `lookup_invoice`,
+`list_transactions`. Params and results are raw NIP-47 (msats) — unit
+conversion stays in web's NWC driver.
+
+Error responses (`{ ok: false, error: { code, message, walletErrorCode? } }`):
+
+| Code | HTTP | Meaning | Web fallback to direct? |
+|------|------|---------|------------------------|
+| `validation_error` | 400 | Bad request body | yes |
+| `wallet_not_found` | 404 | No pooled connection for that string | yes |
+| `wallet_not_connected` | 503 | Pool entry connecting / errored | yes |
+| `wallet_error` | 502 | Wallet's own NIP-47 rejection | **no — final** |
+| `timeout` | 504 | No reply within the window | yes (bounded by bolt11 single-settlement) |
+| `relay_error` | 502 | Other transport failure | yes |
+
+## Webhook contract (listener → web)
+
+`POST {WEB_ORIGIN}/api/webhooks/nwc` with headers:
+
+- `X-LaWallet-Timestamp`: unix milliseconds
+- `X-LaWallet-Signature`: `sha256=<hex HMAC-SHA256(secret, "<timestamp>.<rawBody>")>`
+
+Web verifies constant-time and rejects |now − timestamp| > 5 min. Payload is
+`nwcWebhookPayloadSchema` — a union of `payment_received` / `payment_sent`
+(with the raw transaction passthrough) and `listener_error`. Web is
+idempotent on `eventKey` and by invoice state; replays return `{received:
+true}` without side effects. This endpoint is deliberately absent from the
+public OpenAPI spec — it is an internal machine-to-machine contract.
+
+Delivery: up to `WEBHOOK_MAX_ATTEMPTS` (default 5) inline attempts with
+backoff (1s→2min); 2xx = delivered, 4xx≠429 = permanent for the round,
+5xx/429/network = retry. A sweep every 5 minutes re-dispatches undelivered
+events (attempt cap 25) — this is how an hour of web downtime heals without
+a DLQ.
+
+## Environment
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NWC_RELAY_URLS` | Comma-separated NWC relay URLs | `wss://relay.getalby.com/v1` |
-| `WEBHOOK_RETRY_ATTEMPTS` | Retry attempts per delivery | `3` |
-| `WEBHOOK_RETRY_BASE_DELAY` | Base delay (ms) for exponential backoff | `1000` |
-| `WEBSOCKET_PORT` | Port for WebSocket event emission | `3001` |
-| `HEALTH_CHECK_PORT` | Health check endpoint port | `3002` |
-| `LOG_LEVEL` | Minimum log level | `info` |
+| `DATABASE_URL` | Shared Postgres (same DB as web) | (required) |
+| `LISTENER_PORT` | HTTP port | `4100` |
+| `LISTENER_AUTH_SECRET` | Shared secret (HMAC + bearer), min 32 chars | (required) |
+| `WEB_ORIGIN` | apps/web base URL for webhooks | (required) |
+| `LOG_LEVEL` / `LOG_PRETTY` | Same conventions as web | `info` / `false` |
+| `RECONCILE_INTERVAL_MS` | Full-reconcile safety net | `300000` |
+| `NWC_REQUEST_TIMEOUT_MS` | Default /nwc/request timeout | `30000` |
+| `WEBHOOK_MAX_ATTEMPTS` | Inline delivery attempts | `5` |
+| `EVENT_RETENTION_DAYS` | Dedup/feed retention | `30` |
 
----
+Web's side of the pairing: `LISTENER_URL` + the same `LISTENER_AUTH_SECRET`
+(+ optional `LISTENER_REQUEST_TIMEOUT_MS`, default 10000). All optional —
+web runs fully without the listener.
 
-## Tech Stack
+## Operations
 
-- **Runtime**: Node.js (TypeScript)
-- **Protocol**: NIP-47 (Nostr Wallet Connect)
-- **Logging**: pino (JSON structured)
-- **Container**: Dedicated Docker image
+- **Dev**: `pnpm dev:setup` provisions `apps/listener/.env.local` per
+  worktree; `pnpm dev:listener` runs it (tsx watch). The admin dashboard at
+  `/admin/listener` shows live state (SSE-refreshed).
+- **Compose**: the `listener` service starts automatically with
+  `docker compose up`, healthchecked via `GET /health`. Web has no
+  `depends_on` — the listener is intentionally optional.
+- **Shutdown**: SIGTERM closes the HTTP server, the LISTEN client, every
+  NWC client, and the pg pool (10s force-exit guard).
 
----
+## Failure modes
 
-## Testing
-
-- Integration tests with mocked NWC relay
-- Webhook delivery tests with mock HTTP endpoints
-- Retry and dead letter queue tests
-- Reconnection behavior tests
+- **Listener down** → web fully functional, degraded to per-request relay
+  handshakes (the NWC driver falls back automatically); no incoming
+  notifications until restart. Dashboard shows `unreachable`.
+- **Web down** → events keep landing in the dedup store; the sweep delivers
+  them when web returns.
+- **Relay down** → the SDK's internal loop resubscribes (1s cadence);
+  notifications published while disconnected are lost unless the relay
+  replays them — `lastEventAt` in `/status` makes gaps visible. A
+  `list_transactions` catch-up is deliberately out of scope (transport-only).
+- **Bad wallet row** (malformed connection string) → skipped with a warning;
+  never takes down the pool.

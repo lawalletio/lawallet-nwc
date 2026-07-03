@@ -32,6 +32,10 @@ export const ActivityEvent = {
   NWC_ASSIGNED_TO_CARD: 'nwc.assigned_to_card',
   NWC_RELAY_TIMEOUT: 'nwc.relay_timeout',
   NWC_CONNECTION_ERROR: 'nwc.connection_error',
+  // Forwarded by the NWC listener service via POST /api/webhooks/nwc
+  NWC_PAYMENT_RECEIVED: 'nwc.payment_received',
+  NWC_PAYMENT_SENT: 'nwc.payment_sent',
+  NWC_LISTENER_ERROR: 'nwc.listener_error',
   // INVOICE
   INVOICE_GENERATED: 'invoice.generated',
   INVOICE_PAID: 'invoice.paid',

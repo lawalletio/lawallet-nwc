@@ -12,6 +12,7 @@ export type SSEEventType =
   | 'invoices:updated'
   | 'users:updated'
   | 'activity:new'
+  | 'listener:updated'
 
 export interface SSEEvent {
   type: SSEEventType
@@ -29,4 +30,5 @@ export const ALL_SSE_EVENT_TYPES: readonly SSEEventType[] = [
   'invoices:updated',
   'users:updated',
   'activity:new',
+  'listener:updated',
 ] as const

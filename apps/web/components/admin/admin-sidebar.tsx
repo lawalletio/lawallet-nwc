@@ -11,6 +11,7 @@ import {
   Wallet,
   Network,
   Activity,
+  RadioTower,
   Settings,
   ChevronLeft,
   Nfc,
@@ -122,6 +123,12 @@ const systemItems: NavItem[] = [
     title: 'Activity',
     href: '/admin/activity',
     icon: Activity,
+    permission: Permission.SETTINGS_READ,
+  },
+  {
+    title: 'NWC Listener',
+    href: '/admin/listener',
+    icon: RadioTower,
     permission: Permission.SETTINGS_READ,
   },
 ]
