@@ -27,9 +27,19 @@ Once LaWallet NWC is in your marketplace:
    Prisma migrations (`prisma migrate deploy`) and starts.
 3. Open the **Web UI** from the service's Dashboard.
 
-Until it appears in a public registry you can **sideload** the `.s9pk`: build it
-from [`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos)
-(`make`) and upload it via **StartOS → Marketplace → Sideload**.
+Until it appears in a public registry you can **sideload** the `.s9pk`:
+
+1. Download the latest package —
+   [`lawallet-nwc.s9pk`](https://github.com/lawalletio/lawallet-startos/releases/latest/download/lawallet-nwc.s9pk)
+   (universal, `x86_64` + `aarch64`) from the
+   [releases page](https://github.com/lawalletio/lawallet-startos/releases).
+2. In StartOS, go to **System → Sideload a Service** and upload it.
+
+Every upstream release is published automatically as a GitHub Release, so
+`releases/latest/download/lawallet-nwc.s9pk` always points at the newest build.
+Prefer building it yourself? Clone
+[`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos)
+and run `make universal`.
 
 ## First run — claim root
 
