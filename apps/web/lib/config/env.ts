@@ -24,6 +24,28 @@ const envSchema = z.object({
     .optional()
     .describe('Secret key for JWT token signing and verification'),
 
+  // NWC Listener service (optional — web runs without it)
+  LISTENER_URL: z
+    .string()
+    .url('LISTENER_URL must be a valid URL')
+    .optional()
+    .describe('Base URL of the NWC listener service (e.g. http://listener:4100)'),
+
+  LISTENER_AUTH_SECRET: z
+    .string()
+    .min(32, 'LISTENER_AUTH_SECRET must be at least 32 characters long')
+    .optional()
+    .describe(
+      'Shared secret for listener webhooks (HMAC) and /nwc/request bearer auth'
+    ),
+
+  LISTENER_REQUEST_TIMEOUT_MS: z
+    .string()
+    .default('10000')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .describe('Timeout for NWC requests proxied through the listener service'),
+
   // Alby Integration
   ALBY_API_URL: z
     .string()
