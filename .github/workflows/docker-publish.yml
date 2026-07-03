@@ -212,3 +212,49 @@ jobs:
             --method POST \
             repos/lawalletio/umbrel-app-store/dispatches \
             --input /tmp/umbrel-app-store-dispatch.json
+
+  notify-start9-app-store:
+    name: Request Start9 app package update
+    runs-on: ubuntu-latest
+    needs: merge
+    steps:
+      # Requires a repository secret with write access to
+      # lawalletio/lawallet-startos contents so repository_dispatch can cross
+      # the repository boundary after the Docker image is published.
+      - name: Dispatch package update
+        env:
+          GH_TOKEN: ${{ secrets.START9_APP_STORE_DISPATCH_TOKEN }}
+          VERSION: ${{ needs.merge.outputs.version }}
+          IMAGE_REPOSITORY: ${{ env.IMAGE }}
+          SOURCE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::Missing START9_APP_STORE_DISPATCH_TOKEN. Configure a token with write access to lawalletio/lawallet-startos contents so this workflow can create a repository_dispatch event."
+            exit 1
+          fi
+
+          python3 <<'PY' > /tmp/start9-app-store-dispatch.json
+          import json
+          import os
+
+          version = os.environ["VERSION"]
+          image = f"{os.environ['IMAGE_REPOSITORY']}:{version}"
+
+          print(json.dumps({
+              "event_type": "lawallet-nwc-release",
+              "client_payload": {
+                  "version": version,
+                  "image": image,
+                  "source_repository": os.environ["GITHUB_REPOSITORY"],
+                  "source_sha": os.environ["GITHUB_SHA"],
+                  "source_run_url": os.environ["SOURCE_RUN_URL"],
+              },
+          }))
+          PY
+
+          gh api \
+            --method POST \
+            repos/lawalletio/lawallet-startos/dispatches \
+            --input /tmp/start9-app-store-dispatch.json
