@@ -21,7 +21,7 @@ apps/
   web/          Next.js 16 — frontend, REST API, LUD-16 resolution (main app)
     plugins/    In-codebase plugin system — extend without core edits (docs/PLUGINS.md)
   docs/         Fumadocs — documentation site
-  listener/     NWC Payment Listener (stub; see docs/services/NWC-LISTENER.md)
+  listener/     NWC relay bridge — live NWC pool + webhooks (docs/services/NWC-LISTENER.md)
   cli/          Installer CLI behind the curl|bash bootstrap (install.sh)
 packages/
   shared/       Zod schemas + shared types (source of truth: src/schemas.ts)

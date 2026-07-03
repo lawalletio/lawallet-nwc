@@ -28,6 +28,13 @@ import {
 import { WebhookDispatcher } from './webhook'
 
 async function main(): Promise<void> {
+  // @getalby/sdk's relay layer needs the global WebSocket (Node >= 22).
+  // Fail loudly at startup instead of silently never connecting.
+  if (typeof globalThis.WebSocket === 'undefined') {
+    throw new Error(
+      `Node ${process.version} has no global WebSocket — the listener requires Node >= 22 (see .nvmrc).`
+    )
+  }
   const env = getEnv()
   const logger = initLogger(env)
   patchConsole(logger)
