@@ -14,5 +14,6 @@
   "GET /api/users/{userId}/role",
   "GET /api/plugins",
   "PATCH /api/plugins/{plugin}",
-  "GET /api/cards/{id}/transactions"
+  "GET /api/cards/{id}/transactions",
+  "POST /api/webhooks/nwc"
 ]

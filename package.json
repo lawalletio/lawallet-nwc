@@ -13,6 +13,7 @@
     "dev:db:reset": "node scripts/dev-worktree.mjs reset-db",
     "dev:env": "node scripts/dev-worktree.mjs env",
     "dev:web": "turbo run dev --filter=@lawallet-nwc/web",
+    "dev:listener": "turbo run dev --filter=@lawallet-nwc/listener",
     "dev:docs": "turbo run dev --filter=@lawallet-nwc/docs",
     "dev:openapi": "turbo run dev --filter=@lawallet-nwc/openapi",
     "lint": "turbo run lint",

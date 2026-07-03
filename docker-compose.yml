@@ -28,6 +28,11 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-2288}
       JWT_SECRET: ${JWT_SECRET:-lawallet_local_development_secret_change_me_please}
+      # NWC listener bridge — web works without these, but with them the NWC
+      # driver reuses the listener's open relay connections and accepts its
+      # payment webhooks. No depends_on: the listener is optional by design.
+      LISTENER_URL: http://listener:${LISTENER_PORT:-4100}
+      LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-lawallet_local_development_listener_secret_change_me}
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,6 +44,30 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  listener:
+    build:
+      context: .
+      dockerfile: apps/listener/Dockerfile
+    ports:
+      - '${LISTENER_PORT:-4100}:${LISTENER_PORT:-4100}'
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lawallet}:${POSTGRES_PASSWORD:-lawallet_password}@postgres:5432/${POSTGRES_DB:-lawallet}
+      LISTENER_PORT: ${LISTENER_PORT:-4100}
+      LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-lawallet_local_development_listener_secret_change_me}
+      WEB_ORIGIN: http://web:${PORT:-2288}
+      NODE_ENV: ${NODE_ENV:-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'curl -f http://localhost:$$LISTENER_PORT/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
   docs:
     build:

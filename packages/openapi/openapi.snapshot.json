@@ -8472,6 +8472,323 @@
         }
       }
     },
+    "/api/admin/listener/status": {
+      "get": {
+        "x-required-role": "VIEWER",
+        "tags": [
+          "Listener"
+        ],
+        "summary": "Live status of the NWC listener service.",
+        "description": "Proxies the listener relay-pool status (active NWC connections, relays, recent events, counters). Returns `state: \"disabled\"` when the optional listener service is not configured, `state: \"unreachable\"` when it is configured but not answering.",
+        "operationId": "admin.listener.status",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listener status (disabled / unreachable / ok).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "disabled"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "state"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "unreachable"
+                          ]
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "state",
+                        "error"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "status": {
+                          "type": "object",
+                          "properties": {
+                            "startedAt": {
+                              "type": "string"
+                            },
+                            "uptimeSeconds": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "relays": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "url": {
+                                    "type": "string"
+                                  },
+                                  "connected": {
+                                    "type": "boolean"
+                                  },
+                                  "walletCount": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  }
+                                },
+                                "required": [
+                                  "url",
+                                  "connected",
+                                  "walletCount"
+                                ]
+                              }
+                            },
+                            "connections": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "walletId": {
+                                    "type": "string"
+                                  },
+                                  "walletName": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "userId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "enum": [
+                                      "connecting",
+                                      "subscribed",
+                                      "error",
+                                      "closed"
+                                    ]
+                                  },
+                                  "connected": {
+                                    "type": "boolean"
+                                  },
+                                  "relayUrls": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "lastEventAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "lastErrorAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "lastError": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "walletId",
+                                  "state",
+                                  "connected",
+                                  "relayUrls",
+                                  "lastEventAt",
+                                  "lastErrorAt",
+                                  "lastError"
+                                ]
+                              }
+                            },
+                            "counters": {
+                              "type": "object",
+                              "properties": {
+                                "eventsReceived": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "eventsDuplicate": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "webhooksDelivered": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "webhooksFailed": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "nwcRequests": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "nwcRequestErrors": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                }
+                              },
+                              "required": [
+                                "eventsReceived",
+                                "eventsDuplicate",
+                                "webhooksDelivered",
+                                "webhooksFailed",
+                                "nwcRequests",
+                                "nwcRequestErrors"
+                              ]
+                            },
+                            "recentEvents": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "eventKey": {
+                                    "type": "string"
+                                  },
+                                  "walletId": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "paymentHash": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "amountMsats": {
+                                    "type": [
+                                      "integer",
+                                      "null"
+                                    ]
+                                  },
+                                  "receivedAt": {
+                                    "type": "string"
+                                  },
+                                  "webhookStatus": {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending",
+                                      "delivered",
+                                      "failed"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "eventKey",
+                                  "walletId",
+                                  "type",
+                                  "paymentHash",
+                                  "amountMsats",
+                                  "receivedAt",
+                                  "webhookStatus"
+                                ]
+                              },
+                              "maxItems": 100
+                            }
+                          },
+                          "required": [
+                            "startedAt",
+                            "uptimeSeconds",
+                            "relays",
+                            "connections",
+                            "counters",
+                            "recentEvents"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "state",
+                        "status"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/nostr/profiles": {
       "post": {
         "x-required-role": "USER",
