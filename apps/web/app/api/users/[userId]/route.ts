@@ -9,6 +9,19 @@ import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+/** Parse the stored `relays` JSON string into a clean `string[]`. */
+function parseRelays(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed)
+      ? parsed.filter((v): v is string => typeof v === 'string')
+      : []
+  } catch {
+    return []
+  }
+}
+
 /**
  * GET /api/users/[userId]
  *
@@ -74,6 +87,9 @@ export const GET = withErrorHandling(
       pubkey: user.pubkey,
       role: user.role,
       createdAt: user.createdAt.toISOString(),
+      // Preferred Nostr relays (JSON-stringified string[]), surfaced as an
+      // array so the profile badge can show the count for any viewer.
+      relays: parseRelays(user.relays),
       addresses: user.lightningAddresses.map(a =>
         toWalletAddressDto(a, defaultWallet),
       ),

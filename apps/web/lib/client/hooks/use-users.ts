@@ -22,6 +22,8 @@ export interface AdminUserDetail {
   pubkey: string
   role: Role
   createdAt: string
+  /** The user's preferred Nostr relays (empty when none set). */
+  relays: string[]
   addresses: WalletAddress[]
   transactions: {
     total: number
@@ -47,10 +49,16 @@ export function useUser(userId: string | null) {
  * can be added alongside without churning the import surface.
  */
 export function useUserMutations() {
-  const { mutate, loading, error } = useApiMutation<{ role: Role }, { userId: string; role: Role }>()
+  const { mutate, loading, error } = useApiMutation<
+    { role?: Role; relays?: string[] },
+    { userId: string; role: Role } | { userId: string; relays: string[] }
+  >()
   return {
     updateUserRole: (userId: string, role: Role) =>
       mutate('put', `/api/users/${encodeURIComponent(userId)}/role`, { role }),
+    /** Owner-only: replace the user's preferred Nostr relays. */
+    updateUserRelays: (userId: string, relays: string[]) =>
+      mutate('put', `/api/users/${encodeURIComponent(userId)}/relays`, { relays }),
     loading,
     error,
   }

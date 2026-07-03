@@ -3,7 +3,7 @@
 import { use, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Camera, Copy, Forward, MoreHorizontal, Pencil, Star } from 'lucide-react'
+import { ArrowLeft, Camera, Copy, Forward, MoreHorizontal, Pencil, Radio, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
@@ -36,6 +36,7 @@ import { useUser, useUserMutations } from '@/lib/client/hooks/use-users'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { EditProfileDialog } from '@/components/admin/edit-profile-dialog'
+import { RelayEditorDialog } from '@/components/admin/relay-editor-dialog'
 import { useAuth } from '@/components/admin/auth-context'
 import { truncateNpub, formatRelativeTime, npubInitials, toNpub } from '@/lib/client/format'
 import { Role, Permission } from '@/lib/auth/permissions'
@@ -82,6 +83,7 @@ export default function UserDetailPage({
   const { updateUserRole, loading: roleUpdating } = useUserMutations()
   const { setAsPrimary, settingPrimary } = useAddressMutations()
   const [editingProfile, setEditingProfile] = useState(false)
+  const [editingRelays, setEditingRelays] = useState(false)
   // Optimistic primary override so the star flips before the server
   // confirms, matching /admin/addresses. Only meaningful when isSelf.
   const [optimisticPrimary, setOptimisticPrimary] = useState<string | null>(null)
@@ -262,8 +264,11 @@ export default function UserDetailPage({
                 )}
 
                 {/* Action row sits to the right of the avatar so the
-                    overlap doesn't steal space from the edit/role button. */}
-                <div className="flex min-h-10 items-start justify-end gap-2 pt-3 sm:pt-4">
+                    overlap doesn't steal space from the edit/role button.
+                    The relay badge sits below the button; it's tappable when
+                    viewing your own profile (opens the relay editor) and a
+                    read-only count for everyone else. */}
+                <div className="flex min-h-10 flex-col items-end gap-2 pt-3 sm:pt-4">
                   {isSelf && (
                     <Button
                       variant="outline"
@@ -273,6 +278,28 @@ export default function UserDetailPage({
                       <Pencil className="size-3.5" />
                       Edit profile
                     </Button>
+                  )}
+                  {isSelf ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingRelays(true)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-input bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground transition hover:bg-accent hover:text-accent-foreground"
+                      aria-label="Edit Nostr relays"
+                    >
+                      <Radio className="size-3" aria-hidden />
+                      {user.relays.length}{' '}
+                      {user.relays.length === 1 ? 'relay' : 'relays'}
+                      <Pencil className="size-3 opacity-60" aria-hidden />
+                    </button>
+                  ) : (
+                    <Badge
+                      variant="secondary"
+                      className="items-center gap-1.5 text-xs font-medium"
+                    >
+                      <Radio className="size-3" aria-hidden />
+                      {user.relays.length}{' '}
+                      {user.relays.length === 1 ? 'relay' : 'relays'}
+                    </Badge>
                   )}
                 </div>
 
@@ -538,6 +565,16 @@ export default function UserDetailPage({
           profile={profile}
           pubkey={user.pubkey}
           onPublished={next => updateProfile(next)}
+        />
+      )}
+
+      {isSelf && user && (
+        <RelayEditorDialog
+          open={editingRelays}
+          onOpenChange={setEditingRelays}
+          userId={user.id}
+          relays={user.relays}
+          onSaved={() => refetch()}
         />
       )}
     </div>

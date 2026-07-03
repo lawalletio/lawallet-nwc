@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { getSettings } from '@/lib/settings'
 import { DEFAULT_NOSTR_RELAYS } from '@/lib/nostr/profile'
+import { resolveUserRelays } from '@/lib/nostr/relay-list'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -45,18 +46,25 @@ export const OPTIONS = () => new NextResponse(null, { status: 204, headers: CORS
 const EMPTY = { names: {}, relays: {} }
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const name = request.nextUrl.searchParams.get('name')?.trim().toLowerCase()
+  // NIP-05 uses `?name=<localpart>`; accept `?username=` too since that's how
+  // this platform labels the field elsewhere.
+  const params = request.nextUrl.searchParams
+  const name = (params.get('name') ?? params.get('username'))?.trim().toLowerCase()
 
-  // NIP-05 lookups are always for a specific `name` (`?name=<localpart>`).
-  // Without one — or for the reserved `_` root — we return empty maps rather
-  // than enumerating every registered user: the address book is not public.
+  // A lookup is always for a specific name. Without one — or for the reserved
+  // `_` root — return empty maps rather than enumerating every registered
+  // user: the address book is not public.
   if (!name || name === '_') {
     return NextResponse.json(EMPTY, { headers: CORS_HEADERS })
   }
 
   const address = await prisma.lightningAddress.findUnique({
     where: { username: name },
-    include: { user: { select: { pubkey: true } } },
+    include: {
+      user: {
+        select: { id: true, pubkey: true, relays: true, relaysUpdatedAt: true },
+      },
+    },
   })
 
   // Unknown name → empty maps (a plain 200, so clients read it as "no such
@@ -65,18 +73,23 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return NextResponse.json(EMPTY, { headers: CORS_HEADERS })
   }
 
-  const pubkey = address.user.pubkey
+  const { pubkey } = address.user
 
-  // NIP-05 `relays`: tell clients where this pubkey publishes. Until the
-  // per-user relay picker lands (M5 Theme C, still deferred), every identity
-  // shares the operator's configured relay list.
-  const settings = await getSettings(['relays'])
-  const operatorRelays = resolveOperatorRelays(settings.relays)
+  // NIP-05 `relays` (NIP-65): advertise where this pubkey publishes. Prefer the
+  // user's own relay list — their manual picker choice or their cached kind:10002
+  // relay list (resolved + cached here) — and only fall back to the operator's
+  // configured relays when the user has none.
+  const [userRelays, settings] = await Promise.all([
+    resolveUserRelays(address.user),
+    getSettings(['relays']),
+  ])
+  const relays =
+    userRelays.length > 0 ? userRelays : resolveOperatorRelays(settings.relays)
 
   return NextResponse.json(
     {
       names: { [address.username]: pubkey },
-      relays: { [pubkey]: operatorRelays },
+      relays: { [pubkey]: relays },
     },
     { headers: CORS_HEADERS },
   )

@@ -18,6 +18,7 @@ export const ActivityEvent = {
   USER_SIGNUP: 'user.signup',
   USER_AUTH_FAILED: 'user.auth_failed',
   USER_ROLE_CHANGED: 'user.role_changed',
+  USER_RELAYS_UPDATED: 'user.relays_updated',
   USER_ERROR: 'user.error',
   // ADDRESS
   ADDRESS_CREATED: 'address.created',
