@@ -3,9 +3,9 @@ import { withSpan } from '@/lib/observability/timing'
 import { logger } from '@/lib/logger'
 import { DriverRemoteError } from './errors'
 import {
-  isListenerBridgeEnabled,
   listenerNwcRequest,
   ListenerUnavailableError,
+  resolveListenerBridge,
 } from './listener-transport'
 import { getServerNwcClient } from './nwc-client-cache'
 import type {
@@ -71,9 +71,10 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
 
   async getBalance(config): Promise<BalanceResult> {
     return withSpan('nwc.get_balance', async () => {
-      if (isListenerBridgeEnabled()) {
+      const bridge = await resolveListenerBridge()
+      if (bridge.enabled) {
         try {
-          const res = await listenerNwcRequest<{ balance: number }>({
+          const res = await listenerNwcRequest<{ balance: number }>(bridge, {
             connectionString: config.connectionString,
             method: 'get_balance',
           })
@@ -99,9 +100,10 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
 
   async payInvoice(config, input: PayInvoiceInput): Promise<PayInvoiceResult> {
     return withSpan('nwc.pay_invoice', async () => {
-      if (isListenerBridgeEnabled()) {
+      const bridge = await resolveListenerBridge()
+      if (bridge.enabled) {
         try {
-          const res = await listenerNwcRequest<{ preimage: string; fees_paid?: number }>({
+          const res = await listenerNwcRequest<{ preimage: string; fees_paid?: number }>(bridge, {
             connectionString: config.connectionString,
             method: 'pay_invoice',
             params: {
@@ -145,7 +147,8 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
       throw new DriverRemoteError('makeInvoice requires a positive amount')
     }
     return withSpan('nwc.make_invoice', async () => {
-      if (isListenerBridgeEnabled()) {
+      const bridge = await resolveListenerBridge()
+      if (bridge.enabled) {
         try {
           const res = await listenerNwcRequest<{
             invoice: string
@@ -153,7 +156,7 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
             amount: number
             description?: string
             expires_at?: number
-          }>({
+          }>(bridge, {
             connectionString: config.connectionString,
             method: 'make_invoice',
             params: {

@@ -224,3 +224,32 @@ export const listenerStatusProxyResponseSchema = z.union([
 export type ListenerStatusProxyResponse = z.infer<
   typeof listenerStatusProxyResponseSchema
 >
+
+// ── POST /api/settings/listener-probe — "Test connection" in the admin UI ──
+
+export const listenerProbeRequestSchema = z.object({
+  url: z.string().min(1),
+  /** Omitted → the server falls back to the stored/env secret. */
+  secret: z.string().min(1).optional(),
+})
+export type ListenerProbeRequest = z.infer<typeof listenerProbeRequestSchema>
+
+/**
+ * `unauthorized` (listener answered 401 — secret mismatch) is deliberately
+ * distinct from `unreachable` (network/DNS/timeout) so the settings tab can
+ * tell the operator exactly what to fix.
+ */
+export const listenerProbeResponseSchema = z.union([
+  z.object({
+    ok: z.literal(true),
+    uptimeSeconds: z.number().int().nonnegative(),
+    connections: z.number().int().nonnegative(),
+    relays: z.number().int().nonnegative(),
+  }),
+  z.object({
+    ok: z.literal(false),
+    code: z.enum(['unreachable', 'unauthorized', 'invalid_response', 'no_secret']),
+    error: z.string(),
+  }),
+])
+export type ListenerProbeResponse = z.infer<typeof listenerProbeResponseSchema>

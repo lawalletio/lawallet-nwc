@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getConfig } from '@/lib/config'
+import { getListenerConfig } from '@/lib/listener-config'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthenticationError,
@@ -32,10 +32,11 @@ import { logger } from '@/lib/logger'
  * `packages/shared/src/listener.ts` and docs/services/NWC-LISTENER.md.
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
-  const { listener } = getConfig()
-  // Feature off — 404 (a QUIET_CLIENT_ERROR) so a misconfigured listener
-  // can't flood the activity log, and the endpoint isn't advertised.
-  if (!listener.webhookEnabled || !listener.secret) {
+  const listener = await getListenerConfig()
+  // Integration off (settings toggle or nothing configured) — 404 (a
+  // QUIET_CLIENT_ERROR) so a misconfigured listener can't flood the activity
+  // log, and the endpoint isn't advertised.
+  if (!listener.enabled || !listener.secret) {
     throw new NotFoundError('Not found')
   }
 

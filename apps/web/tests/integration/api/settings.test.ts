@@ -38,6 +38,28 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn()
 }))
 
+const listenerState = vi.hoisted(() => ({
+  enabled: false,
+  url: null as string | null,
+  secret: null as string | null,
+  urlSource: 'none' as 'settings' | 'env' | 'none',
+  secretSource: 'none' as 'settings' | 'env' | 'none'
+}))
+
+// Plain function (not vi.fn) so the blanket `vi.resetAllMocks()` in
+// beforeEach can't strip its implementation.
+vi.mock('@/lib/listener-config', () => ({
+  getListenerConfig: async () => ({
+    enabled: listenerState.enabled,
+    url: listenerState.url,
+    secret: listenerState.secret,
+    requestTimeoutMs: 10000,
+    urlSource: listenerState.urlSource,
+    secretSource: listenerState.secretSource,
+    enabledSource: 'settings'
+  })
+}))
+
 import { GET, POST } from '@/app/api/settings/route'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { getSettings } from '@/lib/settings'
@@ -66,7 +88,12 @@ describe('GET /api/settings', () => {
       domain: 'test.com',
       endpoint: 'app',
       subdomain: 'app',
-      hasRoot: true
+      hasRoot: true,
+      // Computed NWC-listener keys (full response only)
+      listener_enabled: 'false',
+      listener_url_source: 'none',
+      listener_secret_source: 'none',
+      listener_url_effective: ''
     })
   })
 
@@ -374,5 +401,115 @@ describe('POST /api/settings', () => {
       await assertResponse(res, 200)
       expect(fetchSpy).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('NWC listener settings', () => {
+  const authAsRoot = () => {
+    vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+    vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
+  }
+
+  it('GET (full) includes the computed listener keys', async () => {
+    vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+    listenerState.enabled = true
+    listenerState.url = 'http://listener.test:4100'
+    listenerState.urlSource = 'env'
+    listenerState.secretSource = 'env'
+
+    const req = createNextRequest('/api/settings')
+    const body: any = await assertResponse(await GET(req), 200)
+
+    expect(body.listener_enabled).toBe('true')
+    expect(body.listener_url_source).toBe('env')
+    expect(body.listener_secret_source).toBe('env')
+    expect(body.listener_url_effective).toBe('http://listener.test:4100')
+
+    listenerState.enabled = false
+    listenerState.url = null
+    listenerState.urlSource = 'none'
+    listenerState.secretSource = 'none'
+  })
+
+  it('GET (public) does NOT include the computed listener keys', async () => {
+    vi.mocked(validateNip98Auth).mockRejectedValue(new Error('no auth'))
+    vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
+
+    const body: any = await assertResponse(
+      await GET(createNextRequest('/api/settings')),
+      200
+    )
+    expect(body.listener_enabled).toBeUndefined()
+    expect(body.listener_url_effective).toBeUndefined()
+  })
+
+  it('rejects a malformed listener_url', async () => {
+    authAsRoot()
+    const req = createNextRequest('/api/settings', {
+      method: 'POST',
+      body: { listener_url: 'not a url' }
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+  })
+
+  it('rejects a listener_auth_secret shorter than 32 chars', async () => {
+    authAsRoot()
+    const req = createNextRequest('/api/settings', {
+      method: 'POST',
+      body: { listener_auth_secret: 'too-short' }
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+  })
+
+  it('accepts clearing url/secret with empty strings', async () => {
+    authAsRoot()
+    const req = createNextRequest('/api/settings', {
+      method: 'POST',
+      body: { listener_url: '', listener_auth_secret: '' }
+    })
+    await assertResponse(await POST(req), 200)
+  })
+
+  it('rejects enabling without a resolvable url + secret', async () => {
+    authAsRoot()
+    const req = createNextRequest('/api/settings', {
+      method: 'POST',
+      body: { listener_enabled: 'true' }
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(400)
+    expect(prismaMock.settings.upsert).not.toHaveBeenCalled()
+  })
+
+  it('allows enabling when url + secret are posted together', async () => {
+    authAsRoot()
+    const req = createNextRequest('/api/settings', {
+      method: 'POST',
+      body: {
+        listener_enabled: 'true',
+        listener_url: 'https://listener.example.com',
+        listener_auth_secret: 'a'.repeat(40)
+      }
+    })
+    await assertResponse(await POST(req), 200)
+    expect(prismaMock.settings.upsert).toHaveBeenCalledWith({
+      where: { name: 'listener_enabled' },
+      update: { value: 'true' },
+      create: { name: 'listener_enabled', value: 'true' }
+    })
+  })
+
+  it('allows disabling regardless of config', async () => {
+    authAsRoot()
+    const req = createNextRequest('/api/settings', {
+      method: 'POST',
+      body: { listener_enabled: 'false' }
+    })
+    await assertResponse(await POST(req), 200)
   })
 })

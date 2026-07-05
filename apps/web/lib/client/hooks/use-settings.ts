@@ -57,6 +57,18 @@ export interface SettingsData {
   lncurl_auto_recreate?: string
   /** Google Tag ID (e.g. `G-XXXXXXXXXX`). Empty string disables analytics. */
   gtag_id?: string
+  /** NWC listener pairing. `listener_enabled` is the EFFECTIVE state ('true'/'false'),
+   * computed server-side from the Settings DB merged over the LISTENER_* env vars. */
+  listener_enabled?: string
+  /** Stored listener base URL (DB value only; empty = fall back to env). */
+  listener_url?: string
+  /** Stored shared secret (DB value only; the env value is never returned). */
+  listener_auth_secret?: string
+  /** Where the effective URL/secret come from (computed, full response only). */
+  listener_url_source?: 'settings' | 'env' | 'none'
+  listener_secret_source?: 'settings' | 'env' | 'none'
+  /** Resolved listener URL (DB or env) — used for probes and placeholders. */
+  listener_url_effective?: string
   [key: string]: string | boolean | undefined
 }
 
