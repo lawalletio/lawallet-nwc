@@ -4,8 +4,8 @@
     {
       "name": "web",
       "runtimeExecutable": "/bin/zsh",
-      "runtimeArgs": ["-c", "source $HOME/.nvm/nvm.sh && nvm use 22.14.0 > /dev/null && PORT=3648 pnpm --filter @lawallet-nwc/web dev"],
-      "port": 3648,
+      "runtimeArgs": ["-c", "source $HOME/.nvm/nvm.sh && nvm use 22.14.0 > /dev/null && pnpm --filter @lawallet-nwc/web dev"],
+      "port": 3750,
       "autoPort": false
     },
     {
