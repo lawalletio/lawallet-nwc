@@ -119,6 +119,25 @@ describe('NwcServicesTab', () => {
     expect(screen.getByText(/4 nwc connections/i)).toBeTruthy()
   })
 
+  it('opens the deploy guide modal with the env checklist and docs link', async () => {
+    mockSettings()
+    render(<NwcServicesTab />)
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /how to deploy the listener/i })
+    )
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.textContent).toContain('Deploying the NWC Listener')
+    expect(dialog.textContent).toContain('DATABASE_URL')
+    expect(dialog.textContent).toContain('LISTENER_AUTH_SECRET')
+    expect(dialog.textContent).toContain('WEB_ORIGIN')
+    const guideLink = screen.getByRole('link', { name: /open the full guide/i })
+    expect(guideLink.getAttribute('href')).toBe(
+      'https://docs.lawallet.io/docs/deploy/listener-setup'
+    )
+  })
+
   it('renders a probe failure inline', async () => {
     mockSettings({
       listener_url_effective: 'http://listener:4100',

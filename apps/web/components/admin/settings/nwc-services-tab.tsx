@@ -20,10 +20,13 @@ import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import {
@@ -36,9 +39,12 @@ import {
 } from '@/components/admin/settings/auto-save-controls'
 import type { ListenerProbeResponse } from '@lawallet-nwc/shared'
 
-/** External because there is no in-app docs route — plain markdown on GitHub. */
-const LISTENER_DOCS_URL =
-  'https://github.com/lawalletio/lawallet-nwc/blob/main/docs/services/NWC-LISTENER.md'
+/**
+ * Setup guide on the documentation site (apps/docs) — same host convention as
+ * the wallet Help Center link. Deep technical reference stays in the repo:
+ * docs/services/NWC-LISTENER.md.
+ */
+const LISTENER_DOCS_URL = 'https://docs.lawallet.io/docs/deploy/listener-setup'
 
 const SECRET_MIN_LENGTH = 32
 
@@ -85,6 +91,7 @@ export function NwcServicesTab() {
   const [secretVisible, setSecretVisible] = useState(false)
   const [enabledSaving, setEnabledSaving] = useState(false)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
+  const [deployGuideOpen, setDeployGuideOpen] = useState(false)
 
   // Hydrate exactly once — re-running on refetches would clobber live edits.
   const hydratedRef = useRef(false)
@@ -434,61 +441,154 @@ export function NwcServicesTab() {
             For hosts that can&apos;t run it alongside the web app.
           </p>
         </div>
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="group">
-              How to deploy the listener
-              <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="mt-3 rounded-md border p-4 text-sm text-muted-foreground flex flex-col gap-3">
-              <p>
-                Deploy the <code className="text-xs">apps/listener</code>{' '}
-                container (Dockerfile:{' '}
-                <code className="text-xs">apps/listener/Dockerfile</code>) on
-                Railway, Render, Fly.io or any Docker host, with these
-                environment variables:
-              </p>
-              <ol className="list-decimal pl-5 space-y-2">
-                <li>
-                  <code className="text-xs">DATABASE_URL</code> — the same
-                  Postgres connection string this web app uses.
-                </li>
-                <li>
-                  <code className="text-xs">LISTENER_AUTH_SECRET</code> — the
-                  shared secret above (use Generate, then copy it over).
-                </li>
-                <li>
-                  <code className="text-xs">WEB_ORIGIN</code> — this
-                  instance&apos;s public URL
-                  {typeof window !== 'undefined'
-                    ? ` (${window.location.origin})`
-                    : ''}{' '}
-                  — payment webhooks are POSTed back here.
-                </li>
-                <li>
-                  <code className="text-xs">LISTENER_PORT</code> — the port the
-                  listener binds (default 4100).
-                </li>
-              </ol>
-              <p>
-                Then paste the service&apos;s public URL above, test the
-                connection and flip the toggle.{' '}
-                <a
-                  href={LISTENER_DOCS_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 underline underline-offset-2"
-                >
-                  Full guide
-                  <ExternalLink className="size-3" />
-                </a>
-              </p>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setDeployGuideOpen(true)}
+          >
+            How to deploy the listener
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
       </div>
+
+      <DeployGuideDialog
+        open={deployGuideOpen}
+        onOpenChange={setDeployGuideOpen}
+      />
     </div>
+  )
+}
+
+/**
+ * Step-by-step deployment walkthrough for hosts that can't run the listener
+ * next to the web app (Vercel/Netlify). Kept as a modal so the checklist can
+ * be followed side-by-side with the Connection form behind it.
+ */
+function DeployGuideDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const webOrigin =
+    typeof window !== 'undefined' ? window.location.origin : 'https://your-instance'
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Deploying the NWC Listener</DialogTitle>
+          <DialogDescription>
+            The listener keeps Nostr relay websockets open, which serverless
+            hosts like Vercel and Netlify can&apos;t do — so it runs as its own
+            small container next to your database. Docker Compose, Umbrel and
+            Start9 deployments already include it; everyone else follows the
+            three steps below.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-5 text-sm">
+          <section className="flex flex-col gap-2">
+            <h4 className="font-semibold">1. Host the container</h4>
+            <p className="text-muted-foreground">
+              Deploy the <code className="text-xs">apps/listener</code> service
+              from the LaWallet repository (Dockerfile:{' '}
+              <code className="text-xs">apps/listener/Dockerfile</code>) on any
+              always-on runtime:
+            </p>
+            <ul className="list-disc pl-5 space-y-1.5 text-muted-foreground">
+              <li>
+                <span className="font-medium text-foreground">Railway</span> —
+                New Project → Deploy from GitHub repo → set{' '}
+                <em>Dockerfile Path</em> to{' '}
+                <code className="text-xs">apps/listener/Dockerfile</code> →
+                generate a public domain.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Render</span> —
+                Web Service from the repo, environment <em>Docker</em>, same
+                Dockerfile path.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Fly.io</span> —{' '}
+                <code className="text-xs">
+                  fly launch --dockerfile apps/listener/Dockerfile
+                </code>
+                , expose port 4100.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Any VPS with Docker
+                </span>{' '}
+                — build the image and run it behind your reverse proxy with
+                TLS.
+              </li>
+            </ul>
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <h4 className="font-semibold">2. Configure its environment</h4>
+            <ul className="list-disc pl-5 space-y-1.5 text-muted-foreground">
+              <li>
+                <code className="text-xs">DATABASE_URL</code> — the{' '}
+                <span className="font-medium text-foreground">
+                  same Postgres
+                </span>{' '}
+                this web app uses (hosted databases like Neon, Supabase or
+                Railway Postgres work over the public internet).
+              </li>
+              <li>
+                <code className="text-xs">LISTENER_AUTH_SECRET</code> — the
+                shared secret from the Connection section (use{' '}
+                <span className="font-medium text-foreground">Generate</span>,
+                then copy the value over — both sides must match).
+              </li>
+              <li>
+                <code className="text-xs">WEB_ORIGIN</code> — this
+                instance&apos;s public URL (
+                <code className="text-xs">{webOrigin}</code>) — payment
+                webhooks are POSTed back here.
+              </li>
+              <li>
+                <code className="text-xs">LISTENER_PORT</code> — the port the
+                listener binds (default 4100).
+              </li>
+            </ul>
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <h4 className="font-semibold">3. Connect it here</h4>
+            <p className="text-muted-foreground">
+              Paste the service&apos;s public URL into{' '}
+              <span className="font-medium text-foreground">Listener URL</span>
+              , make sure the shared secret matches, click{' '}
+              <span className="font-medium text-foreground">
+                Test connection
+              </span>{' '}
+              and flip{' '}
+              <span className="font-medium text-foreground">
+                Enable listener integration
+              </span>
+              . The NWC Listener dashboard then appears in the sidebar.
+            </p>
+          </section>
+        </div>
+
+        <DialogFooter className="sm:justify-between gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <a href={LISTENER_DOCS_URL} target="_blank" rel="noreferrer">
+              Open the full guide
+              <ExternalLink className="size-4" />
+            </a>
+          </Button>
+          <Button size="sm" onClick={() => onOpenChange(false)}>
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
