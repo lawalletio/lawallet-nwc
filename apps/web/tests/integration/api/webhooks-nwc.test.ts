@@ -181,6 +181,31 @@ describe('POST /api/webhooks/nwc', () => {
     const emitted = vi.mocked(eventBus.emit).mock.calls.map(([e]) => e.type)
     expect(emitted).toContain('invoices:updated')
     expect(emitted).toContain('listener:updated')
+
+    // The INVOICE_PAID activity entry must reference the NWC connection
+    // (RemoteWallet.id) that reported the payment.
+    const invoicePaidCall = fireAndForgetMock.mock.calls.find(
+      ([entry]) => (entry as { event: string }).event === 'invoice.paid'
+    )
+    expect(invoicePaidCall).toBeTruthy()
+    expect((invoicePaidCall![0] as { metadata: Record<string, unknown> }).metadata).toEqual(
+      expect.objectContaining({ remoteWalletId: 'wallet-1', recovered: false })
+    )
+  })
+
+  it('flags recovered events in the activity metadata', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(null)
+
+    const res = await POST(signedRequest({ ...paymentReceived, recovered: true }))
+    await assertResponse(res, 200)
+
+    const nwcCall = fireAndForgetMock.mock.calls.find(
+      ([entry]) => (entry as { event: string }).event === 'nwc.payment_received'
+    )
+    expect(nwcCall).toBeTruthy()
+    expect((nwcCall![0] as { metadata: Record<string, unknown> }).metadata).toEqual(
+      expect.objectContaining({ remoteWalletId: 'wallet-1', recovered: true })
+    )
   })
 
   it('is idempotent: an already-PAID invoice is not updated, still 200', async () => {

@@ -46,9 +46,12 @@ interface WalletConnection {
   lastEventAt: Date | null
   lastErrorAt: Date | null
   lastError: string | null
+  lastCatchupAt: Date | null
   retryTimer: NodeJS.Timeout | null
   retryAttempt: number
   errorNotified: boolean
+  /** Relay-connectivity snapshot the reconnect watcher diffs against. */
+  wasConnected: boolean
   /** Bumped on remove/rotate so stale async connects abort themselves. */
   generation: number
 }
@@ -77,7 +80,18 @@ export interface NwcPoolDeps {
   ) => void
   /** Fired once per error streak (reset on successful subscribe). */
   onWalletError?: (wallet: DesiredWallet, error: Error) => void
+  /** Fired after a wallet's live subscription is established (startup, add, rotation). */
+  onSubscribed?: (wallet: DesiredWallet, client: NWCClient) => void
+  /**
+   * Fired when the 30s watcher sees a wallet's relay connectivity flip back
+   * from disconnected to connected — the SDK resubscribed on its own, but
+   * events published during the gap were missed (catch-up trigger).
+   */
+  onReconnected?: (wallet: DesiredWallet, client: NWCClient) => void
 }
+
+/** How often the reconnect watcher samples relay connectivity. */
+const WATCHER_INTERVAL_MS = 30000
 
 /**
  * Holds one live NWCClient per ACTIVE NWC RemoteWallet for the process
@@ -91,9 +105,45 @@ export class NwcPool {
   /** Serializes reconciles so two never interleave. */
   private queue: Promise<void> = Promise.resolve()
   private closed = false
+  private watcherTimer: NodeJS.Timeout | null = null
 
   constructor(deps: NwcPoolDeps) {
     this.deps = deps
+    if (deps.onReconnected) {
+      this.watcherTimer = setInterval(
+        () => this.checkReconnects(),
+        WATCHER_INTERVAL_MS
+      )
+      this.watcherTimer.unref()
+    }
+  }
+
+  private checkReconnects(): void {
+    for (const conn of this.connections.values()) {
+      if (conn.state !== 'subscribed' || !conn.client) continue
+      const connected = conn.client.connected
+      if (connected && !conn.wasConnected) {
+        this.deps.onReconnected?.(conn.wallet, conn.client)
+      }
+      conn.wasConnected = connected
+    }
+  }
+
+  /** Records when a catch-up run completed, surfaced in /status snapshots. */
+  noteCatchup(walletId: string, at: Date): void {
+    const conn = this.connections.get(walletId)
+    if (conn) conn.lastCatchupAt = at
+  }
+
+  /** Live subscriptions — the periodic catch-up sweep iterates these. */
+  subscribedClients(): Array<{ wallet: DesiredWallet; client: NWCClient }> {
+    const out: Array<{ wallet: DesiredWallet; client: NWCClient }> = []
+    for (const conn of this.connections.values()) {
+      if (conn.state === 'subscribed' && conn.client) {
+        out.push({ wallet: conn.wallet, client: conn.client })
+      }
+    }
+    return out
   }
 
   /** Seeds per-wallet lastEventAt from the persistent store at startup. */
@@ -169,9 +219,11 @@ export class NwcPool {
       lastEventAt: null,
       lastErrorAt: null,
       lastError: null,
+      lastCatchupAt: null,
       retryTimer: null,
       retryAttempt: 0,
       errorNotified: false,
+      wasConnected: false,
       generation: 0
     }
     this.connections.set(wallet.id, conn)
@@ -236,10 +288,14 @@ export class NwcPool {
       conn.state = 'subscribed'
       conn.retryAttempt = 0
       conn.errorNotified = false
+      // Assume connected at subscribe time — the watcher corrects the flag on
+      // its next sample and fires onReconnected on the false → true edge.
+      conn.wasConnected = true
       log.info(
         { walletId: conn.wallet.id, relays: client.relayUrls },
         'pool.wallet_subscribed'
       )
+      this.deps.onSubscribed?.(conn.wallet, client)
     } catch (err) {
       if (conn.generation !== generation) return
       const error = err instanceof Error ? err : new Error(String(err))
@@ -353,7 +409,8 @@ export class NwcPool {
       relayUrls: conn.client?.relayUrls ?? [],
       lastEventAt: conn.lastEventAt?.toISOString() ?? null,
       lastErrorAt: conn.lastErrorAt?.toISOString() ?? null,
-      lastError: conn.lastError
+      lastError: conn.lastError,
+      lastCatchupAt: conn.lastCatchupAt?.toISOString() ?? null
     }))
   }
 
@@ -379,6 +436,10 @@ export class NwcPool {
 
   async closeAll(): Promise<void> {
     this.closed = true
+    if (this.watcherTimer) {
+      clearInterval(this.watcherTimer)
+      this.watcherTimer = null
+    }
     for (const conn of this.connections.values()) {
       conn.generation++
       conn.state = 'closed'

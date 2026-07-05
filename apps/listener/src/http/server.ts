@@ -83,16 +83,21 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
           webhooksDelivered: metrics.webhooksDelivered,
           webhooksFailed: metrics.webhooksFailed,
           nwcRequests: metrics.nwcRequests,
-          nwcRequestErrors: metrics.nwcRequestErrors
+          nwcRequestErrors: metrics.nwcRequestErrors,
+          eventsRecovered: metrics.eventsRecovered,
+          catchupRuns: metrics.catchupRuns,
+          catchupErrors: metrics.catchupErrors
         },
         recentEvents: events.map(event => ({
           eventKey: event.eventKey,
           walletId: event.walletId,
+          walletName: event.walletName ?? null,
           type: event.notificationType,
           paymentHash: event.paymentHash,
           amountMsats: event.amountMsats,
           receivedAt: event.receivedAt.toISOString(),
-          webhookStatus: event.webhookStatus
+          webhookStatus: event.webhookStatus,
+          recovered: event.recovered
         }))
       }
       sendJson(res, 200, status)

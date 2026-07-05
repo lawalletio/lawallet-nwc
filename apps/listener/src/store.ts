@@ -6,8 +6,9 @@ import type pg from 'pg'
  * bootstrapped here with idempotent DDL. Never managed by apps/web's Prisma
  * migrations — web has zero knowledge of these tables.
  *
- * One table powers dedup (PK), the dashboard recent-events feed, per-wallet
- * lastEventAt, and webhook delivery tracking.
+ * `processed_events` powers dedup (PK), the dashboard recent-events feed and
+ * webhook delivery tracking; `wallet_cursors` persists the last-seen
+ * timestamp per wallet that anchors missed-event catch-up after downtime.
  */
 export async function bootstrapStore(pool: pg.Pool): Promise<void> {
   await pool.query(`
@@ -28,6 +29,16 @@ export async function bootstrapStore(pool: pg.Pool): Promise<void> {
       delivered_at       timestamptz
     );
 
+    -- Added after the first release — idempotent upgrade for existing schemas.
+    ALTER TABLE listener.processed_events
+      ADD COLUMN IF NOT EXISTS recovered boolean NOT NULL DEFAULT false;
+
+    CREATE TABLE IF NOT EXISTS listener.wallet_cursors (
+      wallet_id    text PRIMARY KEY,
+      last_seen_at timestamptz NOT NULL,
+      updated_at   timestamptz NOT NULL DEFAULT now()
+    );
+
     CREATE INDEX IF NOT EXISTS processed_events_received_at_idx
       ON listener.processed_events (received_at DESC);
     CREATE INDEX IF NOT EXISTS processed_events_wallet_idx
@@ -36,6 +47,53 @@ export async function bootstrapStore(pool: pg.Pool): Promise<void> {
       ON listener.processed_events (webhook_status)
       WHERE webhook_status <> 'delivered';
   `)
+}
+
+// ── Catch-up cursors ────────────────────────────────────────────────────────
+
+/** Last-seen timestamp for a wallet, or null when never tracked. */
+export async function getCursor(
+  pool: pg.Pool,
+  walletId: string
+): Promise<Date | null> {
+  const { rows } = await pool.query<{ last_seen_at: Date }>(
+    `SELECT last_seen_at FROM listener.wallet_cursors WHERE wallet_id = $1`,
+    [walletId]
+  )
+  return rows[0]?.last_seen_at ?? null
+}
+
+/**
+ * First sighting of a wallet: seed the cursor at `at` WITHOUT backfilling —
+ * recovery covers downtime, never imports pre-existing wallet history.
+ */
+export async function seedCursorIfMissing(
+  pool: pg.Pool,
+  walletId: string,
+  at: Date
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO listener.wallet_cursors (wallet_id, last_seen_at)
+     VALUES ($1, $2)
+     ON CONFLICT (wallet_id) DO NOTHING`,
+    [walletId, at]
+  )
+}
+
+/** Moves the cursor forward (never backward — GREATEST guards races). */
+export async function advanceCursor(
+  pool: pg.Pool,
+  walletId: string,
+  at: Date
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO listener.wallet_cursors (wallet_id, last_seen_at, updated_at)
+     VALUES ($1, $2, now())
+     ON CONFLICT (wallet_id) DO UPDATE
+       SET last_seen_at = GREATEST(listener.wallet_cursors.last_seen_at, EXCLUDED.last_seen_at),
+           updated_at = now()`,
+    [walletId, at]
+  )
 }
 
 /**
@@ -61,12 +119,16 @@ export interface NewEvent {
   amountMsats: number | null
   settledAt: Date | null
   payload: unknown
+  /** True when synthesized by downtime catch-up rather than the live stream. */
+  recovered: boolean
 }
 
 export interface StoredEvent extends NewEvent {
   receivedAt: Date
   webhookStatus: 'pending' | 'delivered' | 'failed'
   webhookAttempts: number
+  /** RemoteWallet.name joined for the dashboard feed (null if wallet gone). */
+  walletName?: string | null
 }
 
 /**
@@ -78,8 +140,8 @@ export async function insertEventIfNew(
 ): Promise<boolean> {
   const result = await pool.query(
     `INSERT INTO listener.processed_events
-       (event_key, wallet_id, notification_type, payment_hash, amount_msats, settled_at, payload)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (event_key, wallet_id, notification_type, payment_hash, amount_msats, settled_at, payload, recovered)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (event_key) DO NOTHING`,
     [
       event.eventKey,
@@ -88,7 +150,8 @@ export async function insertEventIfNew(
       event.paymentHash,
       event.amountMsats,
       event.settledAt,
-      JSON.stringify(event.payload ?? {})
+      JSON.stringify(event.payload ?? {}),
+      event.recovered
     ]
   )
   return (result.rowCount ?? 0) > 0
@@ -123,6 +186,8 @@ interface EventRow {
   received_at: Date
   webhook_status: 'pending' | 'delivered' | 'failed'
   webhook_attempts: number
+  recovered: boolean
+  wallet_name?: string | null
 }
 
 function toStored(row: EventRow): StoredEvent {
@@ -137,21 +202,27 @@ function toStored(row: EventRow): StoredEvent {
     payload: row.payload,
     receivedAt: row.received_at,
     webhookStatus: row.webhook_status,
-    webhookAttempts: row.webhook_attempts
+    webhookAttempts: row.webhook_attempts,
+    recovered: row.recovered,
+    walletName: row.wallet_name ?? null
   }
 }
 
-const EVENT_COLUMNS = `event_key, wallet_id, notification_type, payment_hash,
-  amount_msats, settled_at, payload, received_at, webhook_status, webhook_attempts`
+const EVENT_COLUMNS = `e.event_key, e.wallet_id, e.notification_type, e.payment_hash,
+  e.amount_msats, e.settled_at, e.payload, e.received_at, e.webhook_status,
+  e.webhook_attempts, e.recovered`
 
 export async function recentEvents(
   pool: pg.Pool,
   limit = 50
 ): Promise<StoredEvent[]> {
+  // LEFT JOIN so the feed shows the NWC connection's display name; events of
+  // deleted wallets survive with wallet_name = null.
   const { rows } = await pool.query<EventRow>(
-    `SELECT ${EVENT_COLUMNS}
-       FROM listener.processed_events
-      ORDER BY received_at DESC
+    `SELECT ${EVENT_COLUMNS}, rw.name AS wallet_name
+       FROM listener.processed_events e
+       LEFT JOIN "RemoteWallet" rw ON rw.id = e.wallet_id
+      ORDER BY e.received_at DESC
       LIMIT $1`,
     [limit]
   )
@@ -181,11 +252,11 @@ export async function undeliveredEvents(
 ): Promise<StoredEvent[]> {
   const { rows } = await pool.query<EventRow>(
     `SELECT ${EVENT_COLUMNS}
-       FROM listener.processed_events
-      WHERE webhook_status <> 'delivered'
-        AND webhook_attempts < $1
-        AND received_at < now() - ($2::bigint * interval '1 millisecond')
-      ORDER BY received_at ASC
+       FROM listener.processed_events e
+      WHERE e.webhook_status <> 'delivered'
+        AND e.webhook_attempts < $1
+        AND e.received_at < now() - ($2::bigint * interval '1 millisecond')
+      ORDER BY e.received_at ASC
       LIMIT $3`,
     [opts.maxAttempts, opts.olderThanMs, opts.limit]
   )

@@ -72,6 +72,8 @@ const nwcWebhookBase = z.object({
   walletId: z.string().min(1),
   /** Unix ms when the listener first saw the event. */
   receivedAt: z.number().int(),
+  /** True when synthesized by downtime catch-up instead of the live stream. */
+  recovered: z.boolean().optional(),
 })
 
 export const nwcWebhookPayloadSchema = z.discriminatedUnion('type', [
@@ -172,17 +174,23 @@ export const listenerConnectionSchema = z.object({
   lastEventAt: z.string().nullable(),
   lastErrorAt: z.string().nullable(),
   lastError: z.string().nullable(),
+  /** ISO timestamp of the last completed missed-event catch-up run. */
+  lastCatchupAt: z.string().nullish(),
 })
 export type ListenerConnection = z.infer<typeof listenerConnectionSchema>
 
 export const listenerRecentEventSchema = z.object({
   eventKey: z.string(),
   walletId: z.string(),
+  /** RemoteWallet.name at read time (null if the wallet was deleted). */
+  walletName: z.string().nullish(),
   type: z.string(),
   paymentHash: z.string().nullable(),
   amountMsats: z.number().int().nullable(),
   receivedAt: z.string(),
   webhookStatus: z.enum(['pending', 'delivered', 'failed']),
+  /** True when the event came from downtime catch-up, not the live stream. */
+  recovered: z.boolean().optional(),
 })
 export type ListenerRecentEvent = z.infer<typeof listenerRecentEventSchema>
 
@@ -205,6 +213,9 @@ export const listenerStatusResponseSchema = z.object({
     webhooksFailed: z.number().int().nonnegative(),
     nwcRequests: z.number().int().nonnegative(),
     nwcRequestErrors: z.number().int().nonnegative(),
+    eventsRecovered: z.number().int().nonnegative().optional(),
+    catchupRuns: z.number().int().nonnegative().optional(),
+    catchupErrors: z.number().int().nonnegative().optional(),
   }),
   recentEvents: z.array(listenerRecentEventSchema).max(100),
 })

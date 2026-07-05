@@ -74,7 +74,43 @@ const envSchema = z.object({
     .default('30')
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().positive())
-    .describe('Days of processed events kept for dedup + the dashboard feed')
+    .describe('Days of processed events kept for dedup + the dashboard feed'),
+
+  CATCHUP_ENABLED: z
+    .string()
+    .default('true')
+    .transform(val => val === 'true')
+    .pipe(z.boolean())
+    .describe(
+      'Recover events missed while offline (list_transactions + relay replay)'
+    ),
+
+  CATCHUP_MAX_WINDOW_HOURS: z
+    .string()
+    .default('24')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .describe(
+      'Furthest back a catch-up will ever look, regardless of cursor age'
+    ),
+
+  CATCHUP_OVERLAP_SECONDS: z
+    .string()
+    .default('300')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().nonnegative())
+    .describe(
+      'Safety overlap subtracted from the cursor (dedup absorbs the repeats)'
+    ),
+
+  CATCHUP_INTERVAL_MS: z
+    .string()
+    .default('900000')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().nonnegative())
+    .describe(
+      'Periodic safety catch-up for all subscribed wallets (0 disables)'
+    )
 })
 
 export type ListenerEnv = z.infer<typeof envSchema>

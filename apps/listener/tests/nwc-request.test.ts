@@ -4,6 +4,7 @@ import type { DesiredWallet } from '../src/db'
 
 const control = vi.hoisted(() => ({
   subscribeError: null as Error | null,
+  connected: true,
   payInvoice: vi.fn(),
   makeInvoice: vi.fn(),
   getBalance: vi.fn()
@@ -24,7 +25,7 @@ vi.mock('@getalby/sdk', () => {
     relayUrls = ['wss://relay.test']
     pool = { listConnectionStatus: () => new Map([['wss://relay.test', true]]) }
     get connected() {
-      return true
+      return control.connected
     }
     constructor(_options: unknown) {}
     async subscribeNotifications() {
@@ -78,6 +79,7 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0))
 describe('NwcPool.request', () => {
   beforeEach(() => {
     control.subscribeError = null
+    control.connected = true
     control.payInvoice.mockReset()
     control.makeInvoice.mockReset()
     control.getBalance.mockReset()
@@ -184,5 +186,44 @@ describe('NwcPool.request', () => {
       { url: 'wss://relay.test', connected: true, walletCount: 1 }
     ])
     await pool.closeAll()
+  })
+})
+
+describe('NwcPool connection hooks', () => {
+  it('fires onSubscribed after subscribing and onReconnected on a connectivity flip', async () => {
+    control.subscribeError = null
+    control.connected = true
+    vi.useFakeTimers()
+    try {
+      const onSubscribed = vi.fn()
+      const onReconnected = vi.fn()
+      const pool = new NwcPool({
+        log: pino({ level: 'silent' }),
+        onNotification: vi.fn(),
+        onSubscribed,
+        onReconnected
+      })
+      await pool.reconcile([wallet])
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(onSubscribed).toHaveBeenCalledTimes(1)
+      expect(onSubscribed.mock.calls[0][0].id).toBe('wallet-1')
+
+      // Relay drops: the watcher records the down state...
+      control.connected = false
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(onReconnected).not.toHaveBeenCalled()
+
+      // ...and fires exactly once on the false → true edge.
+      control.connected = true
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(onReconnected).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(onReconnected).toHaveBeenCalledTimes(1)
+
+      await pool.closeAll()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
