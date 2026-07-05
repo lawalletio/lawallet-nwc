@@ -32,8 +32,10 @@ connections, and no incoming payment notifications are received.
 
 ## Environment variables
 
-The listener is one small container (Dockerfile: `apps/listener/Dockerfile`,
-default port 4100). It needs:
+The listener is one small container — use the prebuilt multi-arch image
+[`masize/lawallet-nwc-listener`](https://hub.docker.com/r/masize/lawallet-nwc-listener)
+(published alongside each release) or build from
+`apps/listener/Dockerfile`. Default port 4100. It needs:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -80,12 +82,11 @@ generated `fly.toml`.
 ### Any VPS with Docker
 
 ```bash
-docker build -f apps/listener/Dockerfile -t lawallet-listener .
 docker run -d --restart unless-stopped -p 4100:4100 \
   -e DATABASE_URL="postgresql://..." \
   -e LISTENER_AUTH_SECRET="<same secret as the web app>" \
   -e WEB_ORIGIN="https://wallet.example.com" \
-  lawallet-listener
+  masize/lawallet-nwc-listener:latest
 ```
 
 Put it behind your reverse proxy with TLS if the web app connects over the

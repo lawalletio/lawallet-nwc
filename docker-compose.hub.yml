@@ -37,6 +37,11 @@ services:
       # the server. (Baked into the image from the next release; kept here so
       # this compose also works against older published tags.)
       HOSTNAME: 0.0.0.0
+      # NWC listener pairing — pre-wired so the integration works
+      # out-of-the-box (env-auto). The web app still runs if the listener
+      # container is stopped; NWC calls fall back to per-request connections.
+      LISTENER_URL: http://listener:4100
+      LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-change_me_shared_listener_secret_32_chars}
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,6 +52,26 @@ services:
       timeout: 5s
       retries: 5
       start_period: 40s
+
+  listener:
+    image: masize/lawallet-nwc-listener:${LAWALLET_TAG:-latest}
+    pull_policy: always
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-lawallet}:${POSTGRES_PASSWORD:-lawallet_password}@postgres:5432/${POSTGRES_DB:-lawallet}
+      LISTENER_PORT: 4100
+      LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-change_me_shared_listener_secret_32_chars}
+      WEB_ORIGIN: http://web:2288
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:4100/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 volumes:
   lawallet_hub_pgdata:

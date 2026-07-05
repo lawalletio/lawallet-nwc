@@ -1,15 +1,17 @@
 name: Docker Publish
 
-# Builds the apps/web image for linux/amd64 + linux/arm64 and pushes it to
-# Docker Hub. Invoked by the Release workflow (workflow_call) right after the
-# GitHub Release is cut, on a published GitHub Release (for releases created by
-# hand in the UI), or on manual dispatch. Never runs on PR/push, so normal CI
-# is unaffected and missing secrets only surface when this workflow is invoked.
+# Builds the apps/web AND apps/listener images for linux/amd64 + linux/arm64
+# and pushes them to Docker Hub. Invoked by the Release workflow
+# (workflow_call) right after the GitHub Release is cut, on a published GitHub
+# Release (for releases created by hand in the UI), or on manual dispatch.
+# Never runs on PR/push, so normal CI is unaffected and missing secrets only
+# surface when this workflow is invoked.
 #
-# Each architecture builds on its OWN native runner (amd64 on ubuntu-latest,
-# arm64 on ubuntu-24.04-arm) and pushes by digest; a final `merge` job stitches
-# the per-arch digests into one multi-arch manifest. This replaces the previous
-# single-runner QEMU emulation of arm64, which dominated build time.
+# Each image × architecture builds on its OWN native runner (amd64 on
+# ubuntu-latest, arm64 on ubuntu-24.04-arm) and pushes by digest; a final
+# `merge` job stitches the per-arch digests into one multi-arch manifest per
+# image. This replaces the previous single-runner QEMU emulation of arm64,
+# which dominated build time.
 #
 # Note: the `release: published` event does NOT fire for releases created by the
 # Release workflow, because GitHub suppresses workflow triggers from events made
@@ -47,20 +49,39 @@ permissions:
   contents: read
 
 env:
-  IMAGE: masize/lawallet-nwc
+  WEB_IMAGE: masize/lawallet-nwc
+  LISTENER_IMAGE: masize/lawallet-nwc-listener
 
 jobs:
   build:
-    name: Build ${{ matrix.platform }}
+    name: Build ${{ matrix.image }} ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: linux/amd64
+          - image: web
+            repository: masize/lawallet-nwc
+            dockerfile: apps/web/Dockerfile
+            platform: linux/amd64
             arch: amd64
             runner: ubuntu-latest
-          - platform: linux/arm64
+          - image: web
+            repository: masize/lawallet-nwc
+            dockerfile: apps/web/Dockerfile
+            platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - image: listener
+            repository: masize/lawallet-nwc-listener
+            dockerfile: apps/listener/Dockerfile
+            platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+          - image: listener
+            repository: masize/lawallet-nwc-listener
+            dockerfile: apps/listener/Dockerfile
+            platform: linux/arm64
             arch: arm64
             runner: ubuntu-24.04-arm
     steps:
@@ -89,13 +110,13 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: apps/web/Dockerfile
+          file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platform }}
           provenance: false
           sbom: false
-          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=docker-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=docker-${{ matrix.arch }}
+          outputs: type=image,name=${{ matrix.repository }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=docker-${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.image }}-${{ matrix.arch }}
 
       - name: Export digest
         run: |
@@ -106,13 +127,13 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@v7
         with:
-          name: digests-${{ matrix.arch }}
+          name: digests-${{ matrix.image }}-${{ matrix.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
 
   merge:
-    name: Merge multi-arch manifest
+    name: Merge multi-arch manifests
     runs-on: ubuntu-latest
     needs: build
     outputs:
@@ -124,11 +145,18 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Download digests
+      - name: Download web digests
         uses: actions/download-artifact@v8
         with:
-          path: /tmp/digests
-          pattern: digests-*
+          path: /tmp/digests/web
+          pattern: digests-web-*
+          merge-multiple: true
+
+      - name: Download listener digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests/listener
+          pattern: digests-listener-*
           merge-multiple: true
 
       - uses: docker/setup-buildx-action@v4
@@ -154,18 +182,28 @@ jobs:
           fi
           VERSION="${VERSION#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Publishing ${IMAGE}:${VERSION} and ${IMAGE}:latest"
+          echo "Publishing ${WEB_IMAGE}:${VERSION}, ${LISTENER_IMAGE}:${VERSION} and :latest tags"
 
-      - name: Create and push manifest list
-        working-directory: /tmp/digests
+      - name: Create and push web manifest list
+        working-directory: /tmp/digests/web
         run: |
           docker buildx imagetools create \
-            -t "${IMAGE}:${{ steps.tags.outputs.version }}" \
-            -t "${IMAGE}:latest" \
-            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+            -t "${WEB_IMAGE}:${{ steps.tags.outputs.version }}" \
+            -t "${WEB_IMAGE}:latest" \
+            $(printf '${{ env.WEB_IMAGE }}@sha256:%s ' *)
 
-      - name: Inspect published manifest
-        run: docker buildx imagetools inspect "${IMAGE}:${{ steps.tags.outputs.version }}"
+      - name: Create and push listener manifest list
+        working-directory: /tmp/digests/listener
+        run: |
+          docker buildx imagetools create \
+            -t "${LISTENER_IMAGE}:${{ steps.tags.outputs.version }}" \
+            -t "${LISTENER_IMAGE}:latest" \
+            $(printf '${{ env.LISTENER_IMAGE }}@sha256:%s ' *)
+
+      - name: Inspect published manifests
+        run: |
+          docker buildx imagetools inspect "${WEB_IMAGE}:${{ steps.tags.outputs.version }}"
+          docker buildx imagetools inspect "${LISTENER_IMAGE}:${{ steps.tags.outputs.version }}"
 
   notify-umbrel-app-store:
     name: Request Umbrel app package update
@@ -174,12 +212,13 @@ jobs:
     steps:
       # Requires a repository secret with write access to
       # lawalletio/umbrel-app-store contents so repository_dispatch can cross
-      # the repository boundary after the Docker image is published.
+      # the repository boundary after the Docker images are published.
       - name: Dispatch package update
         env:
           GH_TOKEN: ${{ secrets.UMBREL_APP_STORE_DISPATCH_TOKEN }}
           VERSION: ${{ needs.merge.outputs.version }}
-          IMAGE_REPOSITORY: ${{ env.IMAGE }}
+          IMAGE_REPOSITORY: ${{ env.WEB_IMAGE }}
+          LISTENER_IMAGE_REPOSITORY: ${{ env.LISTENER_IMAGE }}
           SOURCE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -195,12 +234,14 @@ jobs:
 
           version = os.environ["VERSION"]
           image = f"{os.environ['IMAGE_REPOSITORY']}:{version}"
+          listener_image = f"{os.environ['LISTENER_IMAGE_REPOSITORY']}:{version}"
 
           print(json.dumps({
               "event_type": "lawallet-nwc-release",
               "client_payload": {
                   "version": version,
                   "image": image,
+                  "listener_image": listener_image,
                   "source_repository": os.environ["GITHUB_REPOSITORY"],
                   "source_sha": os.environ["GITHUB_SHA"],
                   "source_run_url": os.environ["SOURCE_RUN_URL"],
@@ -225,7 +266,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.START9_APP_STORE_DISPATCH_TOKEN }}
           VERSION: ${{ needs.merge.outputs.version }}
-          IMAGE_REPOSITORY: ${{ env.IMAGE }}
+          IMAGE_REPOSITORY: ${{ env.WEB_IMAGE }}
           SOURCE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
