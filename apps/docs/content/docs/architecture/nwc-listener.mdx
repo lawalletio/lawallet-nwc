@@ -1,78 +1,62 @@
 ---
 title: "NWC Payment Listener"
-description: "Planned microservice for monitoring NWC relays and dispatching webhook notifications."
+description: "Transport-only relay bridge: live NWC connections, payment webhooks, and a fast path for outgoing NWC calls."
 ---
 
 ## Overview
 
-This page describes a planned service, not code that exists in the current `lawallet-nwc` repository.
+The NWC Payment Listener (`apps/listener`) is a long-running Node service that
+solves what a serverless web app can't: it keeps Nostr relay websockets open.
+It holds one live NWC connection per active `RemoteWallet` of type `NWC`,
+forwards incoming NIP-47 notifications to the web app as HMAC-signed webhooks,
+and lets the web app send NWC requests (card withdraws, invoice minting) over
+the already-open sockets instead of paying a relay handshake per call.
 
-The repo does not currently include a `lawallet-listener` process, webhook-delivery models, or payment-history APIs. LUD-22 delivery and relay monitoring remain roadmap work.
+It is strictly **transport-only** — payment matching, invoice state and
+receipts stay in the web app. It is also **optional**: without it, NWC calls
+fall back to per-request relay connections and no incoming notifications are
+received.
 
----
+## How it works
 
-## Planned Responsibilities
+- **Postgres LISTEN/NOTIFY** — a database trigger on the `RemoteWallet` table
+  fires `remote_wallet_changed` on every insert/update/delete; the listener
+  reconciles its connection pool per notification (with a periodic full
+  reconcile as a safety net). No polling.
+- **Live pool** — one `@getalby/sdk` client per active NWC wallet, subscribed
+  to `payment_received` / `payment_sent`, auto-reconnecting with backoff.
+- **Persistent dedup** — processed events land in a service-owned `listener`
+  schema in the shared Postgres (atomic claim, ~30-day retention), which also
+  powers the dashboard's recent-events feed and webhook delivery tracking.
+- **Webhooks to the web app** — `POST /api/webhooks/nwc`, signed with
+  `HMAC-SHA256(secret, "<timestamp>.<body>")`, retried with backoff and swept
+  again later if the web app was down.
+- **HTTP API** — `GET /health`, `GET /status` (bearer-authenticated), and
+  `POST /nwc/request` to proxy NWC calls over the pool.
 
-- Subscribe to NWC relays for NIP-47 `payment_received` events
-- Match incoming payments to registered lightning addresses
-- Dispatch LUD-22 webhooks with HMAC-signed payloads
-- Emit real-time events via WebSocket to lawallet-web
-- Track delivery status and manage retries
+## Configuration
 
----
+The pairing is configured in **Admin → Settings → NWC Services** (listener
+URL + shared secret + enable toggle, stored in the Settings DB) with the
+`LISTENER_URL` / `LISTENER_AUTH_SECRET` environment variables as zero-config
+defaults — Docker Compose, Umbrel and Start9 bundles set those automatically.
+Settings values override the environment; the toggle can force the
+integration off either way.
 
-## Why This Page Exists
+The admin dashboard at **Admin → NWC Listener** (visible only while the
+integration is enabled) shows active relays, live NWC connections, recent
+events and webhook delivery state.
 
-The roadmap includes this service as the event-processing companion to `lawallet-web`. Keeping the design notes here is useful, but it should be read as target architecture rather than current implementation.
+## Deployment
 
----
+Ships as its own container (`apps/listener/Dockerfile`) and starts
+automatically in the Docker Compose stack. For Vercel/Netlify deployments it
+must be hosted separately (Railway, Render, Fly.io, a VPS) — see the
+[NWC Listener Setup guide](/docs/deploy/listener-setup).
 
-## Planned Payment Detection Flow
+## Reference
 
-1. Subscribe to NWC relays listed in configuration
-2. Monitor NIP-47 `payment_received` events per connected wallet
-3. Match payment to registered lightning address via invoice/preimage
-4. Record event in own storage (amount, timestamp, sender, address)
-5. Look up registered LUD-22 webhooks for the address
-6. POST signed JSON payload to each webhook URL
-7. Emit WebSocket event to lawallet-web for real-time display
-
----
-
-## Planned Webhook Delivery
-
-- **Method**: POST
-- **Content-Type**: `application/json`
-- **Signature**: `X-Signature` header with HMAC-SHA256 of payload using webhook secret
-- **Retry**: Exponential backoff — 3 attempts (1s, 4s, 16s)
-- **Dead letter queue**: Permanently failed deliveries stored for manual inspection
-- **Delivery status**: Logged and queryable
-
----
-
-## Planned Runtime Behavior
-
-- Auto-reconnection on relay disconnection with exponential backoff
-- Graceful shutdown on SIGTERM/SIGINT
-- Health check endpoint at `/health` (port 3002)
-- Multi-relay subscription for redundancy
-- Stateless design: restart without data loss
-
----
-
-## Planned Configuration
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NWC_RELAY_URLS` | Comma-separated NWC relay URLs | `wss://relay.getalby.com/v1` |
-| `WEBHOOK_RETRY_ATTEMPTS` | Retry attempts per delivery | `3` |
-| `WEBHOOK_RETRY_BASE_DELAY` | Base delay (ms) for exponential backoff | `1000` |
-| `WEBSOCKET_PORT` | Port for WebSocket event emission | `3001` |
-| `HEALTH_CHECK_PORT` | Health check endpoint port | `3002` |
-| `LOG_LEVEL` | Minimum log level | `info` |
-
----
-
-## Current Repo Note
-
-The current repo only contains the Next.js application. There are no listener-specific source files, tests, or deployment artifacts yet.
+Full contract (webhook payload, `/nwc/request` schema, error codes, failure
+modes, environment table):
+[`docs/services/NWC-LISTENER.md`](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/services/NWC-LISTENER.md).
+Cross-service schemas live in `packages/shared/src/listener.ts`.

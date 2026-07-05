@@ -137,6 +137,7 @@ const settingsSubItems = [
   { title: 'Infrastructure', tab: 'infrastructure' },
   { title: 'Branding', tab: 'branding' },
   { title: 'Wallet', tab: 'wallet' },
+  { title: 'NWC Services', tab: 'nwc-services' },
   { title: 'Device Tokens', tab: 'device-tokens' },
 ]
 
@@ -310,10 +311,16 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
     ...platformItems,
     ...pluginNavItems('platform', enabledPluginIds),
   ])
+  // The NWC Listener page only makes sense when the listener integration is
+  // on — `listener_enabled` is the EFFECTIVE state computed server-side
+  // (Settings DB merged over env; see lib/listener-config.ts). Toggling it in
+  // Settings → NWC Services adds/removes the item live via the settings SSE
+  // refetch. Permission gating still applies on top.
+  const listenerEnabled = settings?.listener_enabled === 'true'
   const visibleSystem = filterByPermission([
     ...systemItems,
     ...pluginNavItems('system', enabledPluginIds),
-  ])
+  ]).filter((item) => item.href !== '/admin/listener' || listenerEnabled)
   // Settings is ADMIN-only. VIEWER has SETTINGS_READ for API reads (public
   // settings hydrate branding for all authed users) but must not see the
   // settings UI in the nav.
