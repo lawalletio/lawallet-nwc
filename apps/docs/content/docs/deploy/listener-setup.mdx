@@ -1,0 +1,120 @@
+---
+title: "NWC Listener Setup"
+description: "Run the NWC relay bridge next to your LaWallet instance — automatic on Docker, hosted separately for Vercel/Netlify."
+---
+
+## What the listener does
+
+The **NWC Listener** (`apps/listener`) is an optional companion service that keeps
+persistent Nostr relay connections open for every active NWC wallet on your
+instance:
+
+- **Incoming payments become webhooks** — NIP-47 `payment_received` /
+  `payment_sent` notifications are forwarded to the web app (HMAC-signed),
+  flipping invoices to paid in real time.
+- **Outgoing NWC calls get fast** — card withdraws and invoice minting reuse
+  the already-open relay sockets instead of paying a websocket handshake per
+  request.
+- **Live dashboard** — `Admin → NWC Listener` shows active relays, connections
+  and recent events.
+
+LaWallet works without it: NWC calls fall back to per-request relay
+connections, and no incoming payment notifications are received.
+
+## Do I need to deploy anything?
+
+| Your deployment | Listener setup |
+|---|---|
+| **Docker Compose** | Nothing — the `listener` service starts automatically and the environment pre-wires the pairing. |
+| **Umbrel / Start9** | Nothing — bundled with the package (where available). |
+| **Vercel / Netlify** | Yes — serverless platforms can't run a long-lived websocket process. Host the listener elsewhere (below), then connect it in **Settings → NWC Services**. |
+| **Local dev** | `pnpm dev:listener` (env is provisioned by `pnpm dev:setup`). |
+
+## Environment variables
+
+The listener is one small container (Dockerfile: `apps/listener/Dockerfile`,
+default port 4100). It needs:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | The **same Postgres** your web app uses (it reads NWC wallets and stores processed events). |
+| `LISTENER_AUTH_SECRET` | ✅ | Shared secret, min 32 chars. Signs webhooks to the web app and guards the listener API. Must match the value configured on the web side. |
+| `WEB_ORIGIN` | ✅ | Public URL of your web app (e.g. `https://wallet.example.com`) — payment webhooks are POSTed back there. |
+| `LISTENER_PORT` | — | HTTP port (default `4100`). |
+| `LOG_LEVEL` / `LOG_PRETTY` | — | Logging (default `info` / JSON). |
+| `EVENT_RETENTION_DAYS` | — | Days of processed events kept for dedup + dashboard feed (default 30). |
+
+**Connectivity requirements:** the listener must reach your Postgres and the
+Nostr relays; your web app must reach the listener's URL; the listener must
+reach your web app's URL. With a hosted Postgres (Neon, Supabase, Railway
+Postgres — typical for Vercel deployments) all of this works over the public
+internet.
+
+## Hosting options for Vercel/Netlify deployments
+
+### Railway (walkthrough)
+
+1. In [Railway](https://railway.com), create a **New Project → Deploy from
+   GitHub repo** and pick your fork of `lawallet-nwc` (or the upstream repo).
+2. In the service settings, set **Dockerfile Path** to
+   `apps/listener/Dockerfile` (Root Directory stays the repo root — the build
+   needs the whole workspace).
+3. Add the environment variables from the table above. Generate the
+   `LISTENER_AUTH_SECRET` in **Settings → NWC Services** (the Generate button)
+   and copy the same value here.
+4. Under **Networking**, generate a public domain for the service.
+5. Deploy. The healthcheck path is `/health`.
+
+### Render
+
+Create a **Web Service** from the repo, environment **Docker**, set the
+Dockerfile path to `apps/listener/Dockerfile`, add the env vars, and use the
+assigned `onrender.com` URL.
+
+### Fly.io
+
+`fly launch --dockerfile apps/listener/Dockerfile --no-deploy`, add the env
+vars with `fly secrets set`, then `fly deploy`. Expose port 4100 in the
+generated `fly.toml`.
+
+### Any VPS with Docker
+
+```bash
+docker build -f apps/listener/Dockerfile -t lawallet-listener .
+docker run -d --restart unless-stopped -p 4100:4100 \
+  -e DATABASE_URL="postgresql://..." \
+  -e LISTENER_AUTH_SECRET="<same secret as the web app>" \
+  -e WEB_ORIGIN="https://wallet.example.com" \
+  lawallet-listener
+```
+
+Put it behind your reverse proxy with TLS if the web app connects over the
+public internet.
+
+## Connecting it to LaWallet
+
+1. Open **Admin → Settings → NWC Services**.
+2. Paste the listener's public URL (e.g.
+   `https://lawallet-listener.up.railway.app`).
+3. Set the **shared secret** — use **Generate**, then copy the same value to
+   the listener host's `LISTENER_AUTH_SECRET` (redeploy it if needed).
+4. Click **Test connection** — you should see uptime and connection counts.
+5. Flip **Enable listener integration**. The **NWC Listener** dashboard
+   appears in the sidebar.
+
+On Docker Compose deployments this tab shows *"Provisioned via environment"*
+and the toggle is already on — the same fields can override the environment
+if you ever move the listener.
+
+## Health & failure modes
+
+- `GET /health` — liveness (used by container healthchecks).
+- `GET /status` — authenticated status (relays, connections, counters) —
+  surfaced in the admin dashboard.
+- **Listener down** → the web app keeps working, degraded to per-request
+  relay connections; the dashboard shows *unreachable*.
+- **Web app down** → events accumulate in the listener's store and are
+  re-delivered by a sweep when it returns.
+
+Full architecture, webhook contract and API reference:
+[`docs/services/NWC-LISTENER.md`](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/services/NWC-LISTENER.md).

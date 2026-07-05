@@ -150,6 +150,50 @@ Web's side of the pairing: `LISTENER_URL` + the same `LISTENER_AUTH_SECRET`
 (+ optional `LISTENER_REQUEST_TIMEOUT_MS`, default 10000). All optional —
 web runs fully without the listener.
 
+## Settings-based configuration (web side)
+
+The pairing can also be managed at runtime in **Admin → Settings → NWC
+Services**, stored in the Settings DB as `listener_enabled` /
+`listener_url` / `listener_auth_secret`. `apps/web/lib/listener-config.ts`
+resolves the EFFECTIVE config on every use:
+
+- URL/secret: the DB value wins when set (empty = unset), else the
+  `LISTENER_*` env var.
+- `listener_enabled` row `'true'` → on (iff url+secret resolve); `'false'`
+  → force-off even over env; **no row** → *env-auto*: on iff both env vars
+  exist (Docker Compose / Umbrel / Start9 zero-config).
+- Settings DB unreachable → env-only fallback; stored secrets under 32
+  chars are ignored.
+
+The toggle gates everything: the webhook receiver (404 when off), the driver
+fast-path bridge, the status proxy, and the "NWC Listener" admin menu item.
+`POST /api/settings/listener-probe` (settings-write gated) implements the
+tab's **Test connection** button — it calls the listener's authenticated
+`/status` and distinguishes `unauthorized` (secret mismatch) from
+`unreachable` (network).
+
+## Hosting the listener separately (Vercel / Netlify deployments)
+
+Serverless hosts can't run a long-lived websocket process, so deploy the
+listener container elsewhere and paste its URL + shared secret into
+**Settings → NWC Services**:
+
+- **Railway** — New Project → Deploy from GitHub repo → set *Dockerfile
+  Path* to `apps/listener/Dockerfile` (root directory = repo root) → add the
+  env vars above → generate a public domain. Healthcheck: `/health`.
+- **Render** — Web Service from the repo, environment *Docker*, same
+  Dockerfile path + env vars.
+- **Fly.io** — `fly launch --dockerfile apps/listener/Dockerfile`, set env
+  via `fly secrets set`, expose port 4100.
+- **Any VPS** — `docker build -f apps/listener/Dockerfile .` and run with
+  the env vars; put TLS in front if web connects over the public internet.
+
+Requirements: the listener must reach the same Postgres as web (hosted
+Postgres like Neon/Supabase/Railway works) and the Nostr relays; web must
+reach the listener URL; the listener must reach `WEB_ORIGIN`. Operator-facing
+walkthrough: `apps/docs/content/docs/deploy/listener-setup.mdx` (docs site
+`/docs/deploy/listener-setup`).
+
 ## Operations
 
 - **Dev**: `pnpm dev:setup` provisions `apps/listener/.env.local` per
