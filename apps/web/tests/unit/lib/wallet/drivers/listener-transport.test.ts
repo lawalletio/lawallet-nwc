@@ -1,28 +1,27 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { ResolvedListenerConfig } from '@/lib/listener-config'
 
-const configState = vi.hoisted(() => ({
-  url: 'http://listener.test:4100' as string | undefined,
-  secret: 'listener-shared-secret-0123456789abcdef!' as string | undefined,
+vi.mock('@/lib/listener-config', () => ({
+  getListenerConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({
-    listener: {
-      url: configState.url,
-      secret: configState.secret,
-      requestTimeoutMs: 10000,
-      enabled: !!(configState.url && configState.secret),
-      webhookEnabled: !!configState.secret,
-    },
-  })),
-}))
-
+import { getListenerConfig } from '@/lib/listener-config'
 import { DriverRemoteError } from '@/lib/wallet/drivers/errors'
 import {
-  isListenerBridgeEnabled,
   listenerNwcRequest,
   ListenerUnavailableError,
+  resolveListenerBridge,
 } from '@/lib/wallet/drivers/listener-transport'
+
+const BRIDGE: ResolvedListenerConfig = {
+  enabled: true,
+  url: 'http://listener.test:4100',
+  secret: 'listener-shared-secret-0123456789abcdef!',
+  requestTimeoutMs: 10000,
+  urlSource: 'settings',
+  secretSource: 'settings',
+  enabledSource: 'settings',
+}
 
 const INPUT = {
   connectionString: 'nostr+walletconnect://abc?relay=wss%3A%2F%2Fr&secret=s',
@@ -32,19 +31,23 @@ const INPUT = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  configState.url = 'http://listener.test:4100'
-  configState.secret = 'listener-shared-secret-0123456789abcdef!'
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('isListenerBridgeEnabled', () => {
-  it('is true only when url AND secret are configured', () => {
-    expect(isListenerBridgeEnabled()).toBe(true)
-    configState.url = undefined
-    expect(isListenerBridgeEnabled()).toBe(false)
+describe('resolveListenerBridge', () => {
+  it('returns the resolved config', async () => {
+    vi.mocked(getListenerConfig).mockResolvedValue(BRIDGE)
+    await expect(resolveListenerBridge()).resolves.toEqual(BRIDGE)
+  })
+
+  it('degrades to disabled when resolution itself fails', async () => {
+    vi.mocked(getListenerConfig).mockRejectedValue(new Error('db down'))
+    const bridge = await resolveListenerBridge()
+    expect(bridge.enabled).toBe(false)
+    expect(bridge.url).toBeNull()
   })
 })
 
@@ -57,12 +60,14 @@ describe('listenerNwcRequest', () => {
       )
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await listenerNwcRequest<{ preimage: string }>(INPUT)
+    const result = await listenerNwcRequest<{ preimage: string }>(BRIDGE, INPUT)
     expect(result.preimage).toBe('p')
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toBe('http://listener.test:4100/nwc/request')
-    expect((init.headers as Record<string, string>).authorization).toContain('Bearer ')
+    expect((init.headers as Record<string, string>).authorization).toContain(
+      'Bearer '
+    )
     expect(JSON.parse(init.body as string)).toEqual({
       connectionString: INPUT.connectionString,
       method: 'pay_invoice',
@@ -70,16 +75,15 @@ describe('listenerNwcRequest', () => {
     })
   })
 
-  it('throws ListenerUnavailableError when the bridge is not configured', async () => {
-    configState.url = undefined
-    await expect(listenerNwcRequest(INPUT)).rejects.toBeInstanceOf(
-      ListenerUnavailableError
-    )
+  it('throws ListenerUnavailableError when the bridge is disabled', async () => {
+    await expect(
+      listenerNwcRequest({ ...BRIDGE, enabled: false }, INPUT)
+    ).rejects.toBeInstanceOf(ListenerUnavailableError)
   })
 
   it('throws ListenerUnavailableError on network failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')))
-    await expect(listenerNwcRequest(INPUT)).rejects.toBeInstanceOf(
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toBeInstanceOf(
       ListenerUnavailableError
     )
   })
@@ -89,7 +93,7 @@ describe('listenerNwcRequest', () => {
       'fetch',
       vi.fn().mockResolvedValue(new Response('not json', { status: 502 }))
     )
-    await expect(listenerNwcRequest(INPUT)).rejects.toBeInstanceOf(
+    await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toBeInstanceOf(
       ListenerUnavailableError
     )
   })
@@ -104,14 +108,16 @@ describe('listenerNwcRequest', () => {
     ]) {
       vi.stubGlobal(
         'fetch',
-        vi.fn().mockResolvedValue(
-          Response.json(
-            { ok: false, error: { code, message: 'nope' } },
-            { status: 502 }
+        vi
+          .fn()
+          .mockResolvedValue(
+            Response.json(
+              { ok: false, error: { code, message: 'nope' } },
+              { status: 502 }
+            )
           )
-        )
       )
-      await expect(listenerNwcRequest(INPUT)).rejects.toBeInstanceOf(
+      await expect(listenerNwcRequest(BRIDGE, INPUT)).rejects.toBeInstanceOf(
         ListenerUnavailableError
       )
     }
@@ -134,7 +140,7 @@ describe('listenerNwcRequest', () => {
         )
       )
     )
-    const err = await listenerNwcRequest(INPUT).catch((e: unknown) => e)
+    const err = await listenerNwcRequest(BRIDGE, INPUT).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(DriverRemoteError)
     expect(err).not.toBeInstanceOf(ListenerUnavailableError)
     expect((err as Error).message).toContain('INSUFFICIENT_BALANCE')

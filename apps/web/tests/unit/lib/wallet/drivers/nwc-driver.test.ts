@@ -38,8 +38,11 @@ vi.mock('@/lib/wallet/drivers/listener-transport', () => {
   class ListenerUnavailableError extends Error {}
   return {
     ListenerUnavailableError,
-    isListenerBridgeEnabled: () => bridge.enabled,
-    listenerNwcRequest: (...args: unknown[]) => bridge.request(...args),
+    resolveListenerBridge: async () => ({ enabled: bridge.enabled }),
+    // Drop the resolved-config first arg so existing assertions keep seeing
+    // just the request input.
+    listenerNwcRequest: (_bridge: unknown, ...args: unknown[]) =>
+      bridge.request(...args),
   }
 })
 

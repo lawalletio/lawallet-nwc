@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getConfig } from '@/lib/config'
+import { getListenerConfig } from '@/lib/listener-config'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { Permission } from '@/lib/auth/permissions'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -18,7 +18,7 @@ import {
 export const GET = withErrorHandling(async (request: Request) => {
   await authenticateWithPermission(request, Permission.SETTINGS_READ)
 
-  const { listener } = getConfig()
+  const listener = await getListenerConfig()
   if (!listener.enabled || !listener.url) {
     return NextResponse.json({
       state: 'disabled',
