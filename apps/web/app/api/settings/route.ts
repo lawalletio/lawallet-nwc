@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
+import { getConfig } from '@/lib/config'
+import { getListenerConfig } from '@/lib/listener-config'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ValidationError } from '@/types/server/errors'
 import { settingsBodySchema } from '@/lib/validation/schemas'
@@ -74,7 +76,21 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     })
   }
 
-  return NextResponse.json(responseSettings)
+  // Computed NWC-listener keys (full response only — same audience as the
+  // sidebar's SETTINGS_READ gate). `listener_enabled` is the EFFECTIVE state
+  // (Settings DB merged over LISTENER_* env, incl. the env-auto default), the
+  // *_source keys drive the "from environment" badges in the NWC Services
+  // tab, and `listener_url_effective` lets the tab probe an env-provisioned
+  // listener whose URL isn't stored in the DB. The env secret VALUE is never
+  // exposed — only its source.
+  const listener = await getListenerConfig()
+  return NextResponse.json({
+    ...responseSettings,
+    listener_enabled: listener.enabled ? 'true' : 'false',
+    listener_url_source: listener.urlSource,
+    listener_secret_source: listener.secretSource,
+    listener_url_effective: listener.url ?? ''
+  })
 })
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
@@ -89,7 +105,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'registration_ln_address',
     'registration_price',
     'registration_ln_enabled',
-    'maintenance_enabled'
+    'maintenance_enabled',
+    'listener_url',
+    'listener_auth_secret'
   ])
 
   const body = await validateBody(request, settingsBodySchema)
@@ -144,6 +162,47 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
   }
 
+  // NWC listener settings — validate before persisting so the DB never holds
+  // a broken pairing. Empty strings are allowed (they mean "clear → fall
+  // back to the LISTENER_* env vars").
+  if (body.listener_url !== undefined && body.listener_url.trim() !== '') {
+    let validListenerUrl = false
+    try {
+      const parsed = new URL(body.listener_url.trim())
+      validListenerUrl = parsed.protocol === 'http:' || parsed.protocol === 'https:'
+    } catch {
+      validListenerUrl = false
+    }
+    if (!validListenerUrl) {
+      throw new ValidationError('Listener URL must be a valid http(s) URL')
+    }
+  }
+  if (
+    body.listener_auth_secret !== undefined &&
+    body.listener_auth_secret !== '' &&
+    body.listener_auth_secret.length < 32
+  ) {
+    throw new ValidationError(
+      'Listener shared secret must be at least 32 characters'
+    )
+  }
+  if (body.listener_enabled === 'true') {
+    // Enabling requires a resolvable url+secret from the merged view:
+    // posted value → stored setting → env var. (Optional chaining: config
+    // mocks in tests are partial.)
+    const envListener = getConfig(false)?.listener
+    const effectiveUrl =
+      (body.listener_url ?? settings.listener_url)?.trim() || envListener?.url
+    const effectiveSecret =
+      (body.listener_auth_secret ?? settings.listener_auth_secret) ||
+      envListener?.secret
+    if (!effectiveUrl || !effectiveSecret) {
+      throw new ValidationError(
+        'Enabling the listener requires a listener URL and shared secret (set them below or via LISTENER_URL / LISTENER_AUTH_SECRET)'
+      )
+    }
+  }
+
   const processedSettings = Object.values(
     Object.entries(body).reduce(
       (acc, [name, value]) => {
@@ -170,6 +229,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   eventBus.emit({ type: 'settings:updated', timestamp: Date.now() })
 
   const changedKeys = processedSettings.map(s => s.name)
+
+  // Listener pairing changed → refresh the /admin/listener dashboard too.
+  if (changedKeys.some(key => key.startsWith('listener_'))) {
+    eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+  }
 
   // The root layout reads `gtag_id` server-side (see app/layout.tsx) and
   // every page inherits that layout. Without this revalidation the static

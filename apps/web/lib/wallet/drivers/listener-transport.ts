@@ -1,9 +1,14 @@
-import { getConfig } from '@/lib/config'
+import {
+  getListenerConfig,
+  type ResolvedListenerConfig,
+} from '@/lib/listener-config'
 import {
   nwcProxyResponseSchema,
   type NwcProxyMethod,
 } from '@/lib/validation/schemas'
 import { DriverError, DriverRemoteError } from './errors'
+
+export type { ResolvedListenerConfig }
 
 /**
  * The listener bridge couldn't serve the request for a *transport* reason —
@@ -20,14 +25,26 @@ export class ListenerUnavailableError extends DriverError {
 }
 
 /**
- * Whether NWC calls should first try the listener's live relay pool.
- * Relaxed config on purpose: the driver runs inside request paths (and unit
- * tests) where strict env validation may not have happened — with the
- * LISTENER_* vars unset this simply reports `false`.
+ * Resolves the effective bridge config (Settings DB merged over env — see
+ * lib/listener-config.ts). Driver methods call this ONCE per operation and
+ * pass the result to {@link listenerNwcRequest}, so each NWC call costs a
+ * single settings read. Resolution failures degrade to disabled — the bridge
+ * is an optimization, never a gate.
  */
-export function isListenerBridgeEnabled(): boolean {
-  // Optional chaining: config mocks in tests are partial objects.
-  return getConfig(false).listener?.enabled ?? false
+export async function resolveListenerBridge(): Promise<ResolvedListenerConfig> {
+  try {
+    return await getListenerConfig()
+  } catch {
+    return {
+      enabled: false,
+      url: null,
+      secret: null,
+      requestTimeoutMs: 10000,
+      urlSource: 'none',
+      secretSource: 'none',
+      enabledSource: 'none',
+    }
+  }
 }
 
 /**
@@ -44,22 +61,24 @@ export function isListenerBridgeEnabled(): boolean {
  *  - `{ok:false, error.code === 'wallet_error'}` → {@link DriverRemoteError}
  *    (final — the wallet itself rejected the request)
  */
-export async function listenerNwcRequest<T>(input: {
-  connectionString: string
-  method: NwcProxyMethod
-  params?: Record<string, unknown>
-}): Promise<T> {
-  const listener = getConfig(false).listener
-  if (!listener?.enabled || !listener.url) {
+export async function listenerNwcRequest<T>(
+  bridge: ResolvedListenerConfig,
+  input: {
+    connectionString: string
+    method: NwcProxyMethod
+    params?: Record<string, unknown>
+  }
+): Promise<T> {
+  if (!bridge.enabled || !bridge.url) {
     throw new ListenerUnavailableError('Listener bridge not configured')
   }
 
   let res: Response
   try {
-    res = await fetch(new URL('/nwc/request', listener.url), {
+    res = await fetch(new URL('/nwc/request', bridge.url), {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${listener.secret}`,
+        authorization: `Bearer ${bridge.secret}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -67,7 +86,7 @@ export async function listenerNwcRequest<T>(input: {
         method: input.method,
         params: input.params ?? {},
       }),
-      signal: AbortSignal.timeout(listener.requestTimeoutMs),
+      signal: AbortSignal.timeout(bridge.requestTimeoutMs),
       cache: 'no-store',
     })
   } catch (err) {

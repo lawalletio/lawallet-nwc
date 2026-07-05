@@ -11,15 +11,18 @@ const configState = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({
-    maintenance: { enabled: false },
-    listener: {
-      secret: configState.secret,
-      webhookEnabled: !!configState.secret,
-      url: undefined,
-      requestTimeoutMs: 10000,
-      enabled: false,
-    },
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+}))
+
+vi.mock('@/lib/listener-config', () => ({
+  getListenerConfig: vi.fn(async () => ({
+    enabled: !!configState.secret,
+    url: null,
+    secret: configState.secret ?? null,
+    requestTimeoutMs: 10000,
+    urlSource: 'none',
+    secretSource: configState.secret ? 'settings' : 'none',
+    enabledSource: configState.secret ? 'settings' : 'none',
   })),
 }))
 

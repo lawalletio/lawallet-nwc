@@ -22,15 +22,13 @@ export interface AppConfig {
     enabled: boolean
   }
 
-  // NWC Listener service (optional relay bridge)
+  // NWC Listener service env values — raw inputs only. The EFFECTIVE config
+  // (merged with the Settings DB, incl. the enable toggle) comes from
+  // lib/listener-config.ts `getListenerConfig()`; consumers use that, not this.
   listener: {
     url: string | undefined
     secret: string | undefined
     requestTimeoutMs: number
-    /** Outbound bridge (status proxy + /nwc/request) — needs url AND secret. */
-    enabled: boolean
-    /** Inbound webhook acceptance — needs only the secret. */
-    webhookEnabled: boolean
   }
 
   // Alby Integration
@@ -123,9 +121,7 @@ export function getConfig(strict: boolean = true): AppConfig {
     listener: {
       url: env.LISTENER_URL,
       secret: env.LISTENER_AUTH_SECRET,
-      requestTimeoutMs: env.LISTENER_REQUEST_TIMEOUT_MS,
-      enabled: !!(env.LISTENER_URL && env.LISTENER_AUTH_SECRET),
-      webhookEnabled: !!env.LISTENER_AUTH_SECRET
+      requestTimeoutMs: env.LISTENER_REQUEST_TIMEOUT_MS
     },
 
     alby: {
