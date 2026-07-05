@@ -24,7 +24,12 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
 - **Dedup key is derived**, not a Nostr event id (`sha256(walletId|type|`
   `payment_hash)`) — the SDK's `subscribeNotifications` callback never
   exposes raw events. Don't "fix" this without replacing the subscription
-  layer.
+  layer. It's also what makes catch-up idempotent.
+- **Catch-up synthesizes events through the SAME pipeline** as the live
+  stream (dedup → webhook, `recovered: true`). First sighting of a wallet
+  seeds its cursor at `now` — recovery covers downtime, it NEVER imports
+  pre-existing wallet history. The cursor only advances after a successful
+  run.
 
 ## Module map (src/)
 
@@ -35,7 +40,11 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
 - `db.ts` — pg pool, wallet queries, dedicated LISTEN client w/ reconnect
 - `store.ts` — `listener.processed_events` bootstrap, dedup, delivery state
 - `nwc/reconcile.ts` — pure `diffWallets` (add/remove/rotate)
-- `nwc/pool.ts` — NWCClient lifecycle, backoff, `request()` method map
+- `nwc/pool.ts` — NWCClient lifecycle, backoff, `request()` method map,
+  onSubscribed/onReconnected hooks + 30s connectivity watcher
+- `nwc/catchup.ts` — downtime recovery: pure `planCatchupWindow` +
+  `CatchupRunner` (list_transactions pagination primary, relay `since`-replay
+  best-effort), anchored on `listener.wallet_cursors`
 - `webhook.ts` — HMAC signing, delivery retry, sweep (web-down recovery)
 - `http/` — bearer auth + node:http routes (/health, /status, /nwc/request)
 

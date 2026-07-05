@@ -11,7 +11,10 @@ export const metrics = {
   nwcRequests: 0,
   nwcRequestErrors: 0,
   reconciles: 0,
-  notifiesReceived: 0
+  notifiesReceived: 0,
+  eventsRecovered: 0,
+  catchupRuns: 0,
+  catchupErrors: 0
 }
 
 export type Metrics = typeof metrics

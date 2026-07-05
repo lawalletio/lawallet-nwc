@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import type pg from 'pg'
 import {
+  advanceCursor,
+  bootstrapStore,
   computeEventKey,
+  getCursor,
   insertEventIfNew,
   markDelivery,
   pruneEvents,
+  recentEvents,
+  seedCursorIfMissing,
   undeliveredEvents
 } from '../src/store'
 
@@ -20,7 +25,8 @@ const event = {
   paymentHash: 'a'.repeat(64),
   amountMsats: 21000,
   settledAt: new Date('2026-07-01T00:00:00Z'),
-  payload: { amount: 21000 }
+  payload: { amount: 21000 },
+  recovered: false
 }
 
 describe('computeEventKey', () => {
@@ -81,5 +87,79 @@ describe('pruneEvents', () => {
     const [sql, params] = query.mock.calls[0]
     expect(sql).toContain('DELETE FROM listener.processed_events')
     expect(params).toEqual([30])
+  })
+})
+
+describe('bootstrapStore', () => {
+  it('creates the cursors table and upgrades processed_events idempotently', async () => {
+    const { pool, query } = poolWith({ rowCount: 0 })
+    await bootstrapStore(pool)
+    const [sql] = query.mock.calls[0]
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS listener.wallet_cursors')
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS recovered')
+  })
+})
+
+describe('wallet cursors', () => {
+  it('getCursor returns the stored timestamp or null', async () => {
+    const at = new Date('2026-07-01T00:00:00Z')
+    const { pool } = poolWith({ rows: [{ last_seen_at: at }] })
+    await expect(getCursor(pool, 'wallet-1')).resolves.toEqual(at)
+
+    const { pool: empty } = poolWith({ rows: [] })
+    await expect(getCursor(empty, 'wallet-1')).resolves.toBeNull()
+  })
+
+  it('seedCursorIfMissing never overwrites an existing cursor', async () => {
+    const { pool, query } = poolWith({ rowCount: 0 })
+    await seedCursorIfMissing(pool, 'wallet-1', new Date())
+    const [sql] = query.mock.calls[0]
+    expect(sql).toContain('ON CONFLICT (wallet_id) DO NOTHING')
+  })
+
+  it('advanceCursor only moves forward (GREATEST upsert)', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await advanceCursor(pool, 'wallet-1', new Date('2026-07-01T00:00:00Z'))
+    const [sql, params] = query.mock.calls[0]
+    expect(sql).toContain(
+      'GREATEST(listener.wallet_cursors.last_seen_at, EXCLUDED.last_seen_at)'
+    )
+    expect(params[0]).toBe('wallet-1')
+  })
+})
+
+describe('recovered flag + wallet name', () => {
+  it('insertEventIfNew persists the recovered flag', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await insertEventIfNew(pool, { ...event, recovered: true })
+    const [sql, params] = query.mock.calls[0]
+    expect(sql).toContain('recovered')
+    expect(params[params.length - 1]).toBe(true)
+  })
+
+  it('recentEvents joins RemoteWallet for the display name', async () => {
+    const { pool, query } = poolWith({
+      rows: [
+        {
+          event_key: 'k',
+          wallet_id: 'w1',
+          notification_type: 'payment_received',
+          payment_hash: null,
+          amount_msats: null,
+          settled_at: null,
+          payload: {},
+          received_at: new Date(),
+          webhook_status: 'delivered',
+          webhook_attempts: 1,
+          recovered: true,
+          wallet_name: 'Alice wallet'
+        }
+      ]
+    })
+    const [row] = await recentEvents(pool, 10)
+    const [sql] = query.mock.calls[0]
+    expect(sql).toContain('LEFT JOIN "RemoteWallet"')
+    expect(row.walletName).toBe('Alice wallet')
+    expect(row.recovered).toBe(true)
   })
 })

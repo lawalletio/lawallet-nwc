@@ -3,7 +3,7 @@
 // connections in a pool, forwards NIP-47 notifications to apps/web as
 // HMAC-signed webhooks, and proxies NWC requests over the open connections.
 // All business logic (payment matching, receipts) stays in apps/web.
-import type { Nip47Notification } from '@getalby/sdk'
+import type { NWCClient, Nip47Notification } from '@getalby/sdk'
 import { getEnv } from './env'
 import { createHttpServer } from './http/server'
 import { createLogger, initLogger, patchConsole } from './logger'
@@ -17,7 +17,9 @@ import {
   type DesiredWallet
 } from './db'
 import { NwcPool } from './nwc/pool'
+import { CatchupRunner } from './nwc/catchup'
 import {
+  advanceCursor,
   bootstrapStore,
   computeEventKey,
   insertEventIfNew,
@@ -65,10 +67,14 @@ async function main(): Promise<void> {
     )
   }
 
+  // Shared by the live stream (recovered=false) and downtime catch-up
+  // (recovered=true). Returns whether the event was NEW — catch-up uses that
+  // to count actual recoveries instead of dedup hits.
   async function handleNotification(
     wallet: DesiredWallet,
-    n: Nip47Notification
-  ): Promise<void> {
+    n: Nip47Notification,
+    recovered = false
+  ): Promise<boolean> {
     metrics.eventsReceived++
     const tx = n.notification
     if (!tx?.payment_hash) {
@@ -76,13 +82,13 @@ async function main(): Promise<void> {
         { walletId: wallet.id, type: n.notification_type },
         'notification.missing_payment_hash'
       )
-      return
+      return false
     }
 
     const eventAgeRef = (tx.settled_at || tx.created_at || 0) * 1000
     if (eventAgeRef > 0 && Date.now() - eventAgeRef > maxAgeMs) {
       log.debug({ walletId: wallet.id }, 'notification.too_old_skipped')
-      return
+      return false
     }
 
     const eventKey = computeEventKey(
@@ -97,15 +103,29 @@ async function main(): Promise<void> {
       paymentHash: tx.payment_hash,
       amountMsats: typeof tx.amount === 'number' ? tx.amount : null,
       settledAt: tx.settled_at ? new Date(tx.settled_at * 1000) : null,
-      payload: tx
+      payload: tx,
+      recovered
     })
+
+    // Live events move the catch-up anchor forward; catch-up runs advance it
+    // themselves after covering their whole window.
+    if (!recovered) {
+      const seenAt =
+        tx.settled_at || tx.created_at
+          ? new Date((tx.settled_at || tx.created_at) * 1000)
+          : new Date()
+      void advanceCursor(pgPool, wallet.id, seenAt).catch(err =>
+        log.debug({ err, walletId: wallet.id }, 'cursor.advance_failed')
+      )
+    }
+
     if (!isNew) {
       metrics.eventsDuplicate++
-      return
+      return false
     }
 
     log.info(
-      { walletId: wallet.id, type: n.notification_type, eventKey },
+      { walletId: wallet.id, type: n.notification_type, eventKey, recovered },
       'notification.stored'
     )
 
@@ -117,6 +137,7 @@ async function main(): Promise<void> {
       amountMsats: typeof tx.amount === 'number' ? tx.amount : null,
       settledAt: tx.settled_at ? new Date(tx.settled_at * 1000) : null,
       payload: tx,
+      recovered,
       receivedAt: new Date(),
       webhookStatus: 'pending',
       webhookAttempts: 0
@@ -126,6 +147,31 @@ async function main(): Promise<void> {
     void dispatcher
       .dispatch(stored)
       .catch(err => log.error({ err, eventKey }, 'webhook.dispatch_error'))
+    return true
+  }
+
+  const catchup = new CatchupRunner({
+    env,
+    log: createLogger({ module: 'catchup' }),
+    pool: pgPool,
+    metrics,
+    process: (wallet, notification) =>
+      handleNotification(wallet, notification, true)
+  })
+
+  // Fired on subscribe (startup / wallet added / rotation) and on relay
+  // reconnects detected by the pool watcher. runForWallet never throws
+  // (it catches internally), the .catch is belt-and-suspenders.
+  const runCatchup = (wallet: DesiredWallet, client: NWCClient): void => {
+    void catchup
+      .runForWallet(wallet, client)
+      .then(() => {
+        const at = catchup.getLastCatchupAt(wallet.id)
+        if (at) nwcPool.noteCatchup(wallet.id, at)
+      })
+      .catch(err =>
+        log.error({ err, walletId: wallet.id }, 'catchup.run_error')
+      )
   }
 
   const nwcPool = new NwcPool({
@@ -135,7 +181,12 @@ async function main(): Promise<void> {
       void dispatcher
         .sendListenerError(wallet.id, 'connection_failed', error.message)
         .catch(() => {})
-    }
+    },
+    // With catch-up disabled no hooks are registered — the pool then skips
+    // its reconnect watcher too (cursors still advance from live events).
+    ...(env.CATCHUP_ENABLED
+      ? { onSubscribed: runCatchup, onReconnected: runCatchup }
+      : {})
   })
 
   nwcPool.seedLastEventAt(await lastEventAtByWallet(pgPool))
@@ -180,6 +231,9 @@ async function main(): Promise<void> {
   const timers: NodeJS.Timeout[] = [
     setInterval(() => {
       metrics.reconciles++
+      // Wallets may gain list_transactions support over time — let the next
+      // catch-up retry them.
+      catchup.resetUnsupported()
       void loadActiveNwcWallets(pgPool, log)
         .then(desired => nwcPool.reconcile(desired))
         .catch(err => log.error({ err }, 'reconcile.periodic_failed'))
@@ -203,6 +257,17 @@ async function main(): Promise<void> {
       5 * 60 * 1000
     )
   ]
+  if (env.CATCHUP_ENABLED && env.CATCHUP_INTERVAL_MS > 0) {
+    // Safety net for gaps neither the subscribe hook nor the reconnect
+    // watcher caught (e.g. silent SDK resubscribes between watcher samples).
+    timers.push(
+      setInterval(() => {
+        for (const { wallet, client } of nwcPool.subscribedClients()) {
+          runCatchup(wallet, client)
+        }
+      }, env.CATCHUP_INTERVAL_MS)
+    )
+  }
   for (const timer of timers) timer.unref()
 
   let shuttingDown = false

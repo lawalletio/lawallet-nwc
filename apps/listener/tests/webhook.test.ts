@@ -38,7 +38,8 @@ const storedEvent: StoredEvent = {
   },
   receivedAt: new Date('2026-07-01T00:00:01Z'),
   webhookStatus: 'pending',
-  webhookAttempts: 0
+  webhookAttempts: 0,
+  recovered: false
 }
 
 const freshMetrics = () => ({
@@ -50,7 +51,10 @@ const freshMetrics = () => ({
   nwcRequests: 0,
   nwcRequestErrors: 0,
   reconciles: 0,
-  notifiesReceived: 0
+  notifiesReceived: 0,
+  eventsRecovered: 0,
+  catchupRuns: 0,
+  catchupErrors: 0
 })
 
 describe('signWebhook', () => {

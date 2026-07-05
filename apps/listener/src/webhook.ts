@@ -69,6 +69,7 @@ export class WebhookDispatcher {
       eventKey: event.eventKey,
       walletId: event.walletId,
       receivedAt: event.receivedAt.getTime(),
+      ...(event.recovered ? { recovered: true } : {}),
       payment: {
         paymentHash: event.paymentHash ?? tx.payment_hash ?? '',
         preimage: tx.preimage || undefined,

@@ -28,6 +28,10 @@ received.
 - **Persistent dedup** — processed events land in a service-owned `listener`
   schema in the shared Postgres (atomic claim, ~30-day retention), which also
   powers the dashboard's recent-events feed and webhook delivery tracking.
+- **Missed-event recovery** — a persisted per-wallet cursor anchors a hybrid
+  catch-up after downtime: the wallet's own `list_transactions` ledger
+  (primary, relay-independent) plus a best-effort relay replay, both feeding
+  the same dedup pipeline and flagged `recovered` in the dashboard.
 - **Webhooks to the web app** — `POST /api/webhooks/nwc`, signed with
   `HMAC-SHA256(secret, "<timestamp>.<body>")`, retried with backoff and swept
   again later if the web app was down.

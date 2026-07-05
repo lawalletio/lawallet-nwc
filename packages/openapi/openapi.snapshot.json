@@ -8625,6 +8625,12 @@
                                       "string",
                                       "null"
                                     ]
+                                  },
+                                  "lastCatchupAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
                                   }
                                 },
                                 "required": [
@@ -8664,6 +8670,18 @@
                                 "nwcRequestErrors": {
                                   "type": "integer",
                                   "minimum": 0
+                                },
+                                "eventsRecovered": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "catchupRuns": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "catchupErrors": {
+                                  "type": "integer",
+                                  "minimum": 0
                                 }
                               },
                               "required": [
@@ -8685,6 +8703,12 @@
                                   },
                                   "walletId": {
                                     "type": "string"
+                                  },
+                                  "walletName": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
                                   },
                                   "type": {
                                     "type": "string"
@@ -8711,6 +8735,9 @@
                                       "delivered",
                                       "failed"
                                     ]
+                                  },
+                                  "recovered": {
+                                    "type": "boolean"
                                   }
                                 },
                                 "required": [

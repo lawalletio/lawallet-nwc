@@ -74,7 +74,10 @@ CREATE TABLE IF NOT EXISTS listener.processed_events (
 );
 ```
 
-One table powers dedup (`INSERT … ON CONFLICT DO NOTHING` — atomic claim),
+A companion `listener.wallet_cursors` table (wallet_id PK, last_seen_at)
+anchors downtime catch-up, and `processed_events.recovered` flags synthesized
+recoveries. The main table powers dedup (`INSERT … ON CONFLICT DO NOTHING` —
+atomic claim),
 the dashboard's recent-events feed, per-wallet `lastEventAt`, and webhook
 delivery tracking. Retention: pruned hourly after `EVENT_RETENTION_DAYS`
 (default 30); notifications older than retention−1 days are dropped before
@@ -83,6 +86,38 @@ storage so pruning can't reopen the dedup window.
 The `event_key` is derived rather than a Nostr event id (the SDK's
 notification callback doesn't expose one) — which also dedups a wallet
 republishing the same notification as different Nostr events.
+
+## Missed-event recovery (downtime catch-up)
+
+NWC notification kinds (23196/23197) are **ephemeral** — relays don't store
+them, and the SDK re-subscribes without `since` after a drop, so anything
+published while the listener (or a relay link) was down would be lost. The
+listener recovers those events with a **hybrid catch-up**, anchored on a
+persisted per-wallet cursor (`listener.wallet_cursors.last_seen_at`):
+
+1. **Wallet path (primary)** — NIP-47 `list_transactions` against the wallet's
+   own ledger (paginated, settled-only, `incoming → payment_received`,
+   `outgoing → payment_sent`). Works regardless of relay retention. Wallets
+   answering `NOT_IMPLEMENTED` are remembered and skipped until the next full
+   reconcile.
+2. **Relay path (best-effort)** — a one-shot REQ with `since` for kinds
+   23196/23197, decrypted via the client's negotiated encryption. Only pays
+   off on NWC relays that retain ephemeral events; failures are skipped
+   silently.
+
+Catch-up runs on subscribe (startup / wallet added / rotation), when the 30s
+connectivity watcher sees a relay link flip back up, and on a periodic safety
+timer. Recovered events flow through the SAME dedup + webhook pipeline (the
+derived event key makes replays free) and are flagged `recovered: true` in
+the store, the `/status` feed and the webhook payload. Rules:
+
+- **First sighting of a wallet seeds the cursor at `now` — no backfill.**
+  Recovery covers downtime; it never imports pre-existing wallet history.
+- Window: `from = max(cursor − CATCHUP_OVERLAP_SECONDS, now −
+  CATCHUP_MAX_WINDOW_HOURS)`, `until = now` (after the live subscription is
+  re-established, so the overlap is dedup-covered).
+- The cursor only advances after a successful run — failures retry the same
+  window next time. Live events also advance it (`GREATEST`, never backward).
 
 ## HTTP API
 
@@ -145,6 +180,10 @@ a DLQ.
 | `NWC_REQUEST_TIMEOUT_MS` | Default /nwc/request timeout | `30000` |
 | `WEBHOOK_MAX_ATTEMPTS` | Inline delivery attempts | `5` |
 | `EVENT_RETENTION_DAYS` | Dedup/feed retention | `30` |
+| `CATCHUP_ENABLED` | Missed-event recovery on/off | `true` |
+| `CATCHUP_MAX_WINDOW_HOURS` | Furthest back a catch-up looks | `24` |
+| `CATCHUP_OVERLAP_SECONDS` | Overlap subtracted from the cursor | `300` |
+| `CATCHUP_INTERVAL_MS` | Periodic safety catch-up (0 disables) | `900000` |
 
 Web's side of the pairing: `LISTENER_URL` + the same `LISTENER_AUTH_SECRET`
 (+ optional `LISTENER_REQUEST_TIMEOUT_MS`, default 10000). All optional —
@@ -212,9 +251,10 @@ walkthrough: `apps/docs/content/docs/deploy/listener-setup.mdx` (docs site
   notifications until restart. Dashboard shows `unreachable`.
 - **Web down** → events keep landing in the dedup store; the sweep delivers
   them when web returns.
-- **Relay down** → the SDK's internal loop resubscribes (1s cadence);
-  notifications published while disconnected are lost unless the relay
-  replays them — `lastEventAt` in `/status` makes gaps visible. A
-  `list_transactions` catch-up is deliberately out of scope (transport-only).
+- **Relay down / listener down** → the SDK's internal loop resubscribes (1s
+  cadence) and the hybrid catch-up recovers events missed during the gap
+  (see "Missed-event recovery"): the wallet's `list_transactions` ledger is
+  the source of truth, with a relay `since`-replay as best-effort extra.
+  `lastEventAt` / `lastCatchupAt` in `/status` make gaps visible.
 - **Bad wallet row** (malformed connection string) → skipped with a warning;
   never takes down the pool.

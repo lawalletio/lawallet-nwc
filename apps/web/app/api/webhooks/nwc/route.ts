@@ -147,6 +147,10 @@ async function handlePaymentReceived(event: PaymentEvent): Promise<void> {
     userId: invoice.userId,
     metadata: {
       ...invoiceLogMetadata({ ...invoice, status: 'PAID', preimage, paidAt }),
+      // Which NWC connection (RemoteWallet.id) reported the payment, and
+      // whether it arrived via downtime catch-up rather than the live stream.
+      remoteWalletId: event.walletId,
+      recovered: event.recovered ?? false,
       source: 'nwc_listener',
     },
   })
@@ -156,12 +160,14 @@ function webhookLogMetadata(
   event: Extract<NwcWebhookPayload, { payment: unknown }>
 ) {
   return {
-    walletId: event.walletId,
+    // RemoteWallet.id of the NWC connection that reported the payment.
+    remoteWalletId: event.walletId,
     eventKey: event.eventKey,
     paymentHash: event.payment.paymentHash,
     amountMsats: event.payment.amountMsats ?? null,
     feesPaidMsats: event.payment.feesPaidMsats ?? null,
     settledAt: event.payment.settledAt ?? null,
+    recovered: event.recovered ?? false,
     source: 'nwc_listener',
   }
 }
