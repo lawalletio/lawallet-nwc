@@ -83,10 +83,12 @@ export const PUT = withErrorHandling(
       throw new NotFoundError('User not found')
     }
 
-    // Caller must have a higher role than the target role being assigned
-    if (getRoleLevel(callerRole) <= getRoleLevel(targetRole) && targetRole !== Role.USER) {
+    // Callers can assign any role up to and including their own — an ADMIN
+    // (top of the hierarchy) can therefore grant ADMIN, while a lower role
+    // could never mint one. Only assigning a role *above* yourself is blocked.
+    if (getRoleLevel(targetRole) > getRoleLevel(callerRole)) {
       throw new AuthorizationError(
-        'Cannot assign a role equal to or higher than your own'
+        'Cannot assign a role higher than your own'
       )
     }
 
