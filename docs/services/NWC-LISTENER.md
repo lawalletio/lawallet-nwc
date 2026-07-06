@@ -7,7 +7,7 @@ full relay-websocket handshake and nothing can *listen* for incoming events.
 The listener has a real runtime, so it keeps the websockets open — both
 directions get fast.
 
-**Container**: `listener` (docker compose service)
+**Container**: `listener` (docker compose service) — published multi-arch image: `masize/lawallet-nwc-listener`
 **Port**: `LISTENER_PORT` (default 4100)
 **Storage**: service-owned `listener` schema in the shared Postgres
 
