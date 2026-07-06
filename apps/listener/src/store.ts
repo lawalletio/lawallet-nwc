@@ -218,15 +218,29 @@ export async function recentEvents(
 ): Promise<StoredEvent[]> {
   // LEFT JOIN so the feed shows the NWC connection's display name; events of
   // deleted wallets survive with wallet_name = null.
-  const { rows } = await pool.query<EventRow>(
-    `SELECT ${EVENT_COLUMNS}, rw.name AS wallet_name
-       FROM listener.processed_events e
-       LEFT JOIN "RemoteWallet" rw ON rw.id = e.wallet_id
-      ORDER BY e.received_at DESC
-      LIMIT $1`,
-    [limit]
-  )
-  return rows.map(toStored)
+  try {
+    const { rows } = await pool.query<EventRow>(
+      `SELECT ${EVENT_COLUMNS}, rw.name AS wallet_name
+         FROM listener.processed_events e
+         LEFT JOIN "RemoteWallet" rw ON rw.id = e.wallet_id
+        ORDER BY e.received_at DESC
+        LIMIT $1`,
+      [limit]
+    )
+    return rows.map(toStored)
+  } catch (err) {
+    // 42P01: "RemoteWallet" doesn't exist yet (fresh install, web's
+    // migrations still running) — serve the feed without display names.
+    if ((err as { code?: string }).code !== '42P01') throw err
+    const { rows } = await pool.query<EventRow>(
+      `SELECT ${EVENT_COLUMNS}
+         FROM listener.processed_events e
+        ORDER BY e.received_at DESC
+        LIMIT $1`,
+      [limit]
+    )
+    return rows.map(toStored)
+  }
 }
 
 /** Warms the per-wallet lastEventAt cache at startup. */
