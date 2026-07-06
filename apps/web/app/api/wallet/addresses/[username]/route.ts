@@ -7,6 +7,7 @@ import {
   ValidationError,
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { Permission, hasPermission } from '@/lib/auth/permissions'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import {
@@ -34,34 +35,75 @@ function selectableWallets(userId: string): Promise<RemoteWallet[]> {
   })
 }
 
+/** Non-sensitive RemoteWallet summary for the detail picker / read-only view. */
+function toWalletSummary(w: RemoteWallet) {
+  return {
+    id: w.id,
+    name: w.name,
+    type: w.type,
+    status: w.status,
+    isDefault: w.isDefault,
+  }
+}
+
 /**
  * GET /api/wallet/addresses/[username]
  *
- * Returns the address (must be owned by caller) plus the user's selectable
- * RemoteWallets so the edit page can render a CUSTOM_NWC picker without a
- * second round-trip.
+ * Owner path: returns the address plus the caller's selectable RemoteWallets
+ * (so the edit page can render a CUSTOM_NWC picker without a second round-trip)
+ * and the resolved connection URI for the balance / transaction widgets.
+ *
+ * Admin path: a caller who holds ADDRESSES_READ but does NOT own the address
+ * gets a read-only view of any user's address, so admins can inspect routing
+ * config from a single page. The owner's wallet *secret*
+ * (`effectiveConnectionString`) is withheld — only mode/config and the
+ * non-sensitive wallet summaries are returned. `isOwner` tells the client
+ * which mode it's in. Anyone without the permission gets the same 404 the
+ * owner-only path returns, so a plain user can't probe which usernames exist.
  */
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ username: string }> }) => {
-    const { pubkey } = await authenticate(request)
+    const auth = await authenticate(request)
     const { username } = validateParams(await params, walletAddressUsernameParam)
-
-    const user = await prisma.user.findUnique({
-      where: { pubkey },
-      select: { id: true },
-    })
-    if (!user) throw new AuthenticationError('User not found')
 
     const address = await prisma.lightningAddress.findUnique({
       where: { username },
-      include: { remoteWallet: true },
+      include: { remoteWallet: true, user: { select: { pubkey: true } } },
     })
-    if (!address || address.userId !== user.id) {
-      // Same response either way to avoid revealing other users' addresses.
+    if (!address) {
       throw new NotFoundError('Address not found')
     }
 
-    const wallets = await selectableWallets(user.id)
+    const caller = await prisma.user.findUnique({
+      where: { pubkey: auth.pubkey },
+      select: { id: true },
+    })
+    const isOwner = !!caller && caller.id === address.userId
+
+    if (!isOwner) {
+      // A device token's `scopes` are authoritative; everyone else derives
+      // permissions from their role. Mirror `authenticateWithPermission`.
+      const canRead = auth.scopes
+        ? auth.scopes.includes(Permission.ADDRESSES_READ)
+        : hasPermission(auth.role, Permission.ADDRESSES_READ)
+      // Same 404 as a genuine miss so non-admins can't enumerate usernames.
+      if (!canRead) throw new NotFoundError('Address not found')
+
+      const wallets = await selectableWallets(address.userId)
+      const defaultWallet = wallets.find(w => w.isDefault) ?? null
+
+      return NextResponse.json({
+        address: toWalletAddressDto(address, defaultWallet),
+        wallets: wallets.map(toWalletSummary),
+        // The connection URI is the owner's wallet secret — never surfaced to
+        // an admin viewing someone else's address.
+        effectiveConnectionString: null,
+        isOwner: false,
+        ownerPubkey: address.user.pubkey,
+      })
+    }
+
+    const wallets = await selectableWallets(caller.id)
     const defaultWallet = wallets.find(w => w.isDefault) ?? null
 
     // Ship the already-resolved connection URI so the balance / transactions
@@ -81,14 +123,10 @@ export const GET = withErrorHandling(
 
     return NextResponse.json({
       address: toWalletAddressDto(address, defaultWallet),
-      wallets: wallets.map(w => ({
-        id: w.id,
-        name: w.name,
-        type: w.type,
-        status: w.status,
-        isDefault: w.isDefault,
-      })),
+      wallets: wallets.map(toWalletSummary),
       effectiveConnectionString,
+      isOwner: true,
+      ownerPubkey: auth.pubkey,
     })
   },
 )

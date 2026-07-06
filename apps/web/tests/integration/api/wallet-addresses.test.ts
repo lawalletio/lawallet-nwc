@@ -435,6 +435,54 @@ describe('GET /api/wallet/addresses/[username]', () => {
     )
     expect(res.status).toBe(404)
   })
+
+  it('lets an admin view another user’s address read-only, without the secret', async () => {
+    // Admin (holds ADDRESSES_READ) is a different user than the owner.
+    vi.mocked(authenticate).mockResolvedValue({
+      pubkey: otherPubkey,
+      role: 'ADMIN' as any,
+      method: 'jwt',
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'admin-1' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress({
+        userId: 'user-1',
+        mode: 'DEFAULT_NWC',
+        user: { pubkey: mockPubkey },
+      }) as any,
+    )
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      makeWallet({ id: 'wallet-1', name: 'Primary', isDefault: true }),
+    ] as any)
+
+    const res = await DetailGet(
+      createNextRequest('/api/wallet/addresses/alice'),
+      createParamsPromise({ username: 'alice' }),
+    )
+    const body: any = await assertResponse(res, 200)
+    expect(body.isOwner).toBe(false)
+    expect(body.ownerPubkey).toBe(mockPubkey)
+    // The owner's wallet secret is never surfaced to an admin.
+    expect(body.effectiveConnectionString).toBeNull()
+    // Non-sensitive wallet summaries are fine; the raw config is not present.
+    expect(body.wallets[0]).toMatchObject({ id: 'wallet-1', name: 'Primary' })
+    expect(body.wallets[0]).not.toHaveProperty('config')
+  })
+
+  it('still 404s a non-privileged user viewing another user’s address', async () => {
+    // Plain USER (no ADDRESSES_READ) must not gain read access to others.
+    mockAuth(otherPubkey)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-2' } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress({ userId: 'user-1', user: { pubkey: mockPubkey } }) as any,
+    )
+
+    const res = await DetailGet(
+      createNextRequest('/api/wallet/addresses/alice'),
+      createParamsPromise({ username: 'alice' }),
+    )
+    expect(res.status).toBe(404)
+  })
 })
 
 // ── PUT /api/wallet/addresses/[username] ────────────────────────────────────
