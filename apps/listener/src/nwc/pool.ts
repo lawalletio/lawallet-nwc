@@ -47,6 +47,13 @@ interface WalletConnection {
   lastErrorAt: Date | null
   lastError: string | null
   lastCatchupAt: Date | null
+  /**
+   * Last time the wallet demonstrably answered: a received notification, a
+   * successful proxied request, a successful liveness probe, or the initial
+   * subscribe. Anchors dead-wallet detection — a wallet silent past the
+   * threshold WHILE its relays stay up is a destroyed LNCurl wallet.
+   */
+  lastResponsiveAt: Date | null
   retryTimer: NodeJS.Timeout | null
   retryAttempt: number
   errorNotified: boolean
@@ -135,6 +142,58 @@ export class NwcPool {
     if (conn) conn.lastCatchupAt = at
   }
 
+  /** Bump the liveness clock — called by the prober on a successful probe. */
+  markResponsive(walletId: string): void {
+    const conn = this.connections.get(walletId)
+    if (conn) conn.lastResponsiveAt = new Date()
+  }
+
+  /**
+   * Wallets that look dead: subscribed, relays currently CONNECTED (so this is
+   * the wallet going silent, not a network outage), and no proof of life for
+   * at least `thresholdMs`. The prober confirms with an active probe before
+   * declaring death — this is only the candidate filter.
+   */
+  deadCandidates(thresholdMs: number): Array<{
+    wallet: DesiredWallet
+    client: NWCClient
+    unresponsiveMs: number
+  }> {
+    const now = Date.now()
+    const out: Array<{
+      wallet: DesiredWallet
+      client: NWCClient
+      unresponsiveMs: number
+    }> = []
+    for (const conn of this.connections.values()) {
+      if (conn.state !== 'subscribed' || !conn.client) continue
+      // Relays down → unreachable is a transport fault, NOT wallet death.
+      if (!isConnectedSafe(conn.client)) continue
+      if (!conn.lastResponsiveAt) continue
+      const unresponsiveMs = now - conn.lastResponsiveAt.getTime()
+      if (unresponsiveMs >= thresholdMs) {
+        out.push({ wallet: conn.wallet, client: conn.client, unresponsiveMs })
+      }
+    }
+    return out
+  }
+
+  /** True iff the wallet's relays are currently connected (guarded read). */
+  relaysConnected(walletId: string): boolean {
+    const conn = this.connections.get(walletId)
+    return !!conn?.client && isConnectedSafe(conn.client)
+  }
+
+  /**
+   * True iff the pool STILL holds this exact client for the wallet. The prober
+   * captures a client, then awaits a probe — a rotation/removal can swap in a
+   * fresh client meanwhile, and a timeout against the old (closed) client must
+   * not be read as death of the new one.
+   */
+  holdsClient(walletId: string, client: NWCClient): boolean {
+    return this.connections.get(walletId)?.client === client
+  }
+
   /** Live subscriptions — the periodic catch-up sweep iterates these. */
   subscribedClients(): Array<{ wallet: DesiredWallet; client: NWCClient }> {
     const out: Array<{ wallet: DesiredWallet; client: NWCClient }> = []
@@ -220,6 +279,7 @@ export class NwcPool {
       lastErrorAt: null,
       lastError: null,
       lastCatchupAt: null,
+      lastResponsiveAt: null,
       retryTimer: null,
       retryAttempt: 0,
       errorNotified: false,
@@ -244,13 +304,19 @@ export class NwcPool {
   }
 
   private teardownClient(conn: WalletConnection): void {
+    // unsub()/close() are best-effort AND may return a promise (the SDK's
+    // SimplePool close awaits socket teardown). Swallow both sync throws and
+    // async rejections — a teardown hiccup on a dying wallet must never float
+    // up as an unhandledRejection and crash the daemon.
     try {
-      conn.unsub?.()
+      const r = conn.unsub?.() as unknown
+      if (isThenable(r)) r.catch(() => {})
     } catch {
       // best-effort
     }
     try {
-      conn.client?.close()
+      const r = conn.client?.close() as unknown
+      if (isThenable(r)) r.catch(() => {})
     } catch {
       // best-effort
     }
@@ -268,8 +334,20 @@ export class NwcPool {
         nostrWalletConnectUrl: conn.wallet.connectionString
       })
       const unsub = await client.subscribeNotifications(notification => {
-        conn.lastEventAt = new Date()
-        this.deps.onNotification(conn.wallet, notification)
+        // A synchronous throw here would escape into the SDK's relay event
+        // dispatch (unhandled). Isolate it. A received notification is also
+        // proof of life for dead-wallet detection.
+        try {
+          const now = new Date()
+          conn.lastEventAt = now
+          conn.lastResponsiveAt = now
+          this.deps.onNotification(conn.wallet, notification)
+        } catch (err) {
+          this.deps.log.error(
+            { err, walletId: conn.wallet.id },
+            'pool.on_notification_threw'
+          )
+        }
       }, SUBSCRIBED_TYPES)
 
       if (conn.generation !== generation) {
@@ -288,6 +366,9 @@ export class NwcPool {
       conn.state = 'subscribed'
       conn.retryAttempt = 0
       conn.errorNotified = false
+      // Seed the liveness clock so a freshly (re)subscribed wallet isn't
+      // instantly a dead-wallet candidate.
+      conn.lastResponsiveAt = new Date()
       // Assume connected at subscribe time — the watcher corrects the flag on
       // its next sample and fires onReconnected on the false → true edge.
       conn.wasConnected = true
@@ -373,10 +454,13 @@ export class NwcPool {
     })
 
     try {
-      return await Promise.race([
+      const result = await Promise.race([
         METHOD_MAP[method](conn.client, params),
         timeout
       ])
+      // A wallet that answered a proxied call is demonstrably alive.
+      conn.lastResponsiveAt = new Date()
+      return result
     } catch (err) {
       if (err instanceof NwcPoolError) throw err
       conn.lastErrorAt = new Date()
@@ -468,5 +552,27 @@ function normalizeRelayUrl(url: string): string {
     return new URL(url).href
   } catch {
     return url
+  }
+}
+
+function isThenable(v: unknown): v is Promise<unknown> {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as { then?: unknown }).then === 'function'
+  )
+}
+
+/**
+ * `NWCClient.connected` reads `pool.listConnectionStatus()` — non-throwing in
+ * practice, but this is on the dead-wallet decision path so guard it: an
+ * unexpected throw reads as "not connected" (conservative — we won't archive a
+ * wallet whose relay state we can't determine).
+ */
+function isConnectedSafe(client: NWCClient): boolean {
+  try {
+    return client.connected
+  } catch {
+    return false
   }
 }

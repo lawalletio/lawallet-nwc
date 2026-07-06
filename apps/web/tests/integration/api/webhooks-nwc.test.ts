@@ -43,6 +43,7 @@ vi.mock('@/lib/activity-log', () => ({
     NWC_PAYMENT_RECEIVED: 'nwc.payment_received',
     NWC_PAYMENT_SENT: 'nwc.payment_sent',
     NWC_LISTENER_ERROR: 'nwc.listener_error',
+    NWC_WALLET_DEAD: 'nwc.wallet_dead',
     INVOICE_PAID: 'invoice.paid',
   },
   invoiceLogMetadata: vi.fn(() => ({})),
@@ -253,5 +254,78 @@ describe('POST /api/webhooks/nwc', () => {
     expect(fireAndForgetMock).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'nwc.listener_error', level: 'WARN' })
     )
+  })
+
+  const walletDead = {
+    type: 'wallet_dead',
+    eventKey: 'dead-1',
+    walletId: 'wallet-1',
+    receivedAt: Date.now(),
+    unresponsiveSeconds: 4 * 3600,
+    relaysConnected: true,
+  }
+
+  it('archives an ACTIVE LNCurl wallet as DEAD on wallet_dead', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-1',
+      userId: 'user-1',
+      status: 'ACTIVE',
+      config: { provider: 'lncurl' },
+      name: 'LNCurl wallet',
+    } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1,
+    } as never)
+
+    const res = await POST(signedRequest(walletDead))
+    await assertResponse(res, 200)
+    expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'wallet-1', status: 'ACTIVE' },
+        data: expect.objectContaining({ status: 'DEAD', isDefault: false }),
+      })
+    )
+    expect(fireAndForgetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'nwc.wallet_dead',
+        level: 'WARN',
+        userId: 'user-1',
+      })
+    )
+  })
+
+  it("never archives a non-LNCurl wallet — the user's own NWC is left alone", async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-1',
+      userId: 'user-1',
+      status: 'ACTIVE',
+      config: { provider: 'nwc' },
+      name: 'My Alby',
+    } as never)
+
+    const res = await POST(signedRequest(walletDead))
+    await assertResponse(res, 200)
+    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('is idempotent: a wallet_dead replay for a non-ACTIVE wallet is a no-op', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-1',
+      userId: 'user-1',
+      status: 'DEAD',
+      config: { provider: 'lncurl' },
+      name: 'LNCurl wallet',
+    } as never)
+
+    const res = await POST(signedRequest(walletDead))
+    await assertResponse(res, 200)
+    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects a wallet_dead payload with relaysConnected:false (schema pins it true)', async () => {
+    const res = await POST(
+      signedRequest({ ...walletDead, relaysConnected: false })
+    )
+    expect(res.status).toBe(400)
   })
 })

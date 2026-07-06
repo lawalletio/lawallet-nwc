@@ -54,7 +54,10 @@ const freshMetrics = () => ({
   notifiesReceived: 0,
   eventsRecovered: 0,
   catchupRuns: 0,
-  catchupErrors: 0
+  catchupErrors: 0,
+  deadProbesRun: 0,
+  deadProbesTimedOut: 0,
+  walletsDeclaredDead: 0
 })
 
 describe('signWebhook', () => {

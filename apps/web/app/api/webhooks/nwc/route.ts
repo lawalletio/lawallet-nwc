@@ -102,6 +102,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
         },
       })
       break
+    case 'wallet_dead':
+      await archiveDeadWallet(event)
+      break
   }
 
   eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
@@ -174,4 +177,59 @@ function webhookLogMetadata(
 
 function msatsToSats(msats: number | undefined): number {
   return Math.floor((msats ?? 0) / 1000)
+}
+
+type WalletDeadEvent = Extract<NwcWebhookPayload, { type: 'wallet_dead' }>
+
+/**
+ * The listener observed an NWC wallet go unresponsive for a sustained window
+ * while its relays stayed connected — the fingerprint of a destroyed
+ * disposable LNCurl wallet. Archive it as DEAD, but ONLY when it is still
+ * ACTIVE and was provisioned by LNCurl. Any other wallet — a user's own
+ * Alby/Mutiny NWC, or an already-retired row — is left untouched: a transient
+ * outage must never archive a wallet the user still controls. The provider
+ * decision lives here (web owns business logic); the listener only observes.
+ *
+ * Idempotent: the `status: 'ACTIVE'` predicate makes a replayed webhook a
+ * no-op. After the write, the `remote_wallet_changed` trigger drops the wallet
+ * from the listener pool, ending the reconnect churn.
+ */
+async function archiveDeadWallet(event: WalletDeadEvent): Promise<void> {
+  const wallet = await prisma.remoteWallet.findUnique({
+    where: { id: event.walletId },
+    select: { id: true, userId: true, status: true, config: true, name: true },
+  })
+  if (!wallet || wallet.status !== 'ACTIVE') return
+
+  const provider = (wallet.config as { provider?: unknown } | null)?.provider
+  if (provider !== 'lncurl') {
+    logger.warn(
+      { walletId: wallet.id, provider: provider ?? null },
+      'nwc.wallet_dead_ignored_non_lncurl',
+    )
+    return
+  }
+
+  const result = await prisma.remoteWallet.updateMany({
+    where: { id: wallet.id, status: 'ACTIVE' },
+    data: { status: 'DEAD', diedAt: new Date(), isDefault: false },
+  })
+  // Lost a race (already transitioned) — replayed webhook is a clean no-op.
+  if (result.count === 0) return
+
+  const hours = Math.round(event.unresponsiveSeconds / 3600)
+  logger.info({ walletId: wallet.id }, 'nwc.wallet_archived_dead')
+  logActivity.fireAndForget({
+    category: 'NWC',
+    event: ActivityEvent.NWC_WALLET_DEAD,
+    level: 'WARN',
+    message: `NWC wallet "${wallet.name}" archived as dead (unresponsive ~${hours}h, relays up)`,
+    userId: wallet.userId,
+    metadata: {
+      walletId: wallet.id,
+      unresponsiveSeconds: event.unresponsiveSeconds,
+      relaysConnected: event.relaysConnected,
+      source: 'nwc_listener',
+    },
+  })
 }

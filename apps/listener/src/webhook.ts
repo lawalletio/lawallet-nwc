@@ -156,6 +156,39 @@ export class WebhookDispatcher {
     }
   }
 
+  /**
+   * One-shot `wallet_dead` webhook: the listener saw a wallet go silent past
+   * the threshold while its relays stayed connected. Web decides whether to
+   * archive it (only LNCurl-provider wallets become DEAD). Not persisted and
+   * not retried here — the prober re-detects on its next sweep if this failed.
+   * Returns whether web accepted it (2xx) so the prober only marks reported on
+   * success.
+   */
+  async sendWalletDead(
+    walletId: string,
+    unresponsiveSeconds: number
+  ): Promise<boolean> {
+    const now = Date.now()
+    const payload: NwcWebhookPayload = {
+      type: 'wallet_dead',
+      eventKey: createHash('sha256')
+        .update(`${walletId}|wallet_dead`)
+        .digest('hex'),
+      walletId,
+      receivedAt: now,
+      unresponsiveSeconds,
+      relaysConnected: true
+    }
+    const outcome = await this.post(JSON.stringify(payload))
+    if (!outcome.delivered) {
+      this.deps.log.warn(
+        { walletId, error: outcome.error },
+        'webhook.wallet_dead_not_delivered'
+      )
+    }
+    return outcome.delivered
+  }
+
   /** Re-attempts undelivered events — the "web was down for an hour" path. */
   async sweep(): Promise<void> {
     if (this.sweeping) return

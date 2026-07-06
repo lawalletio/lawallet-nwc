@@ -9,6 +9,7 @@ import {
   markDelivery,
   pruneEvents,
   recentEvents,
+  recentEventsSafe,
   seedCursorIfMissing,
   undeliveredEvents
 } from '../src/store'
@@ -203,5 +204,45 @@ describe('recovered flag + wallet name', () => {
     const pool = { query } as unknown as pg.Pool
     await expect(recentEvents(pool, 10)).rejects.toThrow('connection refused')
     expect(query).toHaveBeenCalledTimes(1)
+  })
+
+  it('recentEventsSafe swallows a transient DB error into an empty feed', async () => {
+    // The reported /status 500 came from a non-42P01 pg error propagating out
+    // of recentEvents. recentEventsSafe must NEVER reject — it degrades to []
+    // so /status still returns 200 with the in-memory relay/connection view.
+    const boom = Object.assign(new Error('connection reset by peer'), {
+      code: '08006'
+    })
+    const query = vi.fn().mockRejectedValue(boom)
+    const pool = { query } as unknown as pg.Pool
+    const { events, error } = await recentEventsSafe(pool, 10)
+    expect(events).toEqual([])
+    expect(error).toBe(boom)
+  })
+
+  it('recentEventsSafe returns rows and no error on success', async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          event_key: 'k',
+          wallet_id: 'w1',
+          notification_type: 'payment_received',
+          payment_hash: null,
+          amount_msats: null,
+          settled_at: null,
+          payload: {},
+          received_at: new Date(),
+          webhook_status: 'delivered',
+          webhook_attempts: 1,
+          recovered: false,
+          wallet_name: 'Wallet A'
+        }
+      ]
+    })
+    const pool = { query } as unknown as pg.Pool
+    const { events, error } = await recentEventsSafe(pool, 10)
+    expect(error).toBeNull()
+    expect(events).toHaveLength(1)
+    expect(events[0].walletName).toBe('Wallet A')
   })
 })

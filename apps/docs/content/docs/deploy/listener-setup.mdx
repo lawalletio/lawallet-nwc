@@ -45,6 +45,8 @@ The listener is one small container — use the prebuilt multi-arch image
 | `LISTENER_PORT` | — | HTTP port (default `4100`). |
 | `LOG_LEVEL` / `LOG_PRETTY` | — | Logging (default `info` / JSON). |
 | `EVENT_RETENTION_DAYS` | — | Days of processed events kept for dedup + dashboard feed (default 30). |
+| `DEAD_WALLET_DETECTION_ENABLED` | — | Auto-archive a disposable LNCurl wallet as `DEAD` after it stops answering for `DEAD_THRESHOLD_HOURS` while its relays stay up (default `true`; set `false` to disable). Non-LNCurl wallets are never auto-archived. |
+| `DEAD_THRESHOLD_HOURS` | — | Silence (relays up) before a wallet is declared dead (default 4). |
 
 **Connectivity requirements:** the listener must reach your Postgres and the
 Nostr relays; your web app must reach the listener's URL; the listener must

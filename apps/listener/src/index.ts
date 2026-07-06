@@ -19,6 +19,7 @@ import {
 } from './db'
 import { NwcPool } from './nwc/pool'
 import { CatchupRunner } from './nwc/catchup'
+import { DeadWalletProber } from './nwc/dead-prober'
 import {
   advanceCursor,
   bootstrapStore,
@@ -43,7 +44,24 @@ async function main(): Promise<void> {
   patchConsole(logger)
   const log = createLogger({ module: 'main' })
 
-  const pgPool = createPgPool(env)
+  // Keep-alive backstops. The @getalby/sdk relay layer rejects with bare
+  // strings during reconnect churn, and a dying wallet's teardown can float a
+  // rejection — none of that should take the daemon down. We deliberately log
+  // and keep serving rather than exit: this is a transport daemon whose
+  // durable state lives in Postgres and whose relay connections auto-reconnect,
+  // so dropping every live connection on one stray async error is worse than
+  // continuing. (The /health endpoint still exposes real trouble.)
+  process.on('unhandledRejection', reason => {
+    log.error(
+      { err: reason instanceof Error ? reason : new Error(String(reason)) },
+      'process.unhandled_rejection'
+    )
+  })
+  process.on('uncaughtException', err => {
+    log.error({ err }, 'process.uncaught_exception')
+  })
+
+  const pgPool = createPgPool(env, createLogger({ module: 'db' }))
   await waitForDb(pgPool, log)
   // Fresh installs boot web + listener together — hold until web's
   // `prisma migrate deploy` has created the tables we query.
@@ -160,7 +178,10 @@ async function main(): Promise<void> {
     pool: pgPool,
     metrics,
     process: (wallet, notification) =>
-      handleNotification(wallet, notification, true)
+      handleNotification(wallet, notification, true),
+    // A wallet that answered list_transactions is alive — keep dead-wallet
+    // detection from flagging it.
+    onResponsive: walletId => nwcPool.markResponsive(walletId)
   })
 
   // Fired on subscribe (startup / wallet added / rotation) and on relay
@@ -192,6 +213,18 @@ async function main(): Promise<void> {
       ? { onSubscribed: runCatchup, onReconnected: runCatchup }
       : {})
   })
+
+  // Detects destroyed disposable (LNCurl) wallets — silent past the threshold
+  // while relays stay up — and reports them to web for archival.
+  const deadProber = env.DEAD_WALLET_DETECTION_ENABLED
+    ? new DeadWalletProber({
+        env,
+        log: createLogger({ module: 'dead-prober' }),
+        pool: nwcPool,
+        dispatcher,
+        metrics
+      })
+    : null
 
   nwcPool.seedLastEventAt(await lastEventAtByWallet(pgPool))
   const wallets = await loadActiveNwcWallets(pgPool, log)
@@ -227,9 +260,17 @@ async function main(): Promise<void> {
     pgPool,
     nwcPool
   })
-  await new Promise<void>(resolve =>
-    server.listen(env.LISTENER_PORT, '0.0.0.0', resolve)
-  )
+  await new Promise<void>((resolve, reject) => {
+    // Bind failures (EADDRINUSE/EACCES) stay fatal — the service can't serve.
+    // After a successful listen, socket 'error' events must only log, never
+    // crash the daemon.
+    server.once('error', reject)
+    server.listen(env.LISTENER_PORT, '0.0.0.0', () => {
+      server.removeListener('error', reject)
+      server.on('error', err => log.error({ err }, 'http.server_error'))
+      resolve()
+    })
+  })
   log.info({ port: env.LISTENER_PORT }, 'http.listening')
 
   const timers: NodeJS.Timeout[] = [
@@ -270,6 +311,15 @@ async function main(): Promise<void> {
           runCatchup(wallet, client)
         }
       }, env.CATCHUP_INTERVAL_MS)
+    )
+  }
+  if (deadProber) {
+    // evaluate() never throws (it catches internally) and self-guards against
+    // overlapping sweeps.
+    timers.push(
+      setInterval(() => {
+        void deadProber.evaluate()
+      }, env.DEAD_PROBE_INTERVAL_MS)
     )
   }
   for (const timer of timers) timer.unref()
