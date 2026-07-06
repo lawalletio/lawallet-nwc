@@ -3,7 +3,12 @@
 import React from 'react'
 import { Menu } from 'lucide-react'
 import { useIsMobile } from '@/components/ui/use-mobile'
-import { Topbar, type TopbarAlert, type TopbarTab } from '@/components/ui/topbar'
+import {
+  Topbar,
+  TabBadge,
+  type TopbarAlert,
+  type TopbarTab,
+} from '@/components/ui/topbar'
 import { TopbarMobile } from '@/components/ui/topbar-mobile'
 import { useSidebar } from '@/components/ui/sidebar'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
@@ -124,13 +129,14 @@ function MobilePageTopbar({
               key={tab.label}
               onClick={tab.onClick}
               className={cn(
-                'px-3 py-1.5 text-sm whitespace-nowrap rounded-md transition-colors',
+                'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm whitespace-nowrap rounded-md transition-colors',
                 tab.active
                   ? 'bg-secondary text-secondary-foreground'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {tab.label}
+              {typeof tab.badge === 'number' && <TabBadge count={tab.badge} />}
             </button>
           ))}
         </div>

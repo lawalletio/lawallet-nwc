@@ -119,13 +119,53 @@ the store, the `/status` feed and the webhook payload. Rules:
 - The cursor only advances after a successful run — failures retry the same
   window next time. Live events also advance it (`GREATEST`, never backward).
 
+## Dead-wallet detection (disposable LNCurl auto-archival)
+
+Disposable LNCurl wallets are destroyed by their provider when they run out of
+sats. The listener detects that and asks web to archive the row so a dead
+wallet stops driving an endless reconnect loop. Detection is **transport-only**:
+the listener observes and reports; **web decides and writes** (only
+`provider: 'lncurl'` wallets ever become DEAD — a user's own NWC is never
+auto-archived).
+
+- **The rule:** a wallet is a candidate when it's `subscribed`, its relays are
+  **currently connected** (so this is the wallet going silent, not a network
+  outage), and it hasn't shown a sign of life for `DEAD_THRESHOLD_HOURS`
+  (default 4). "Sign of life" = a received notification, a successful proxied
+  `/nwc/request`, or a successful liveness probe.
+- **Confirmation:** every `DEAD_PROBE_INTERVAL_MS` (default 15 min) the prober
+  issues a cheap `get_info` to each candidate under `DEAD_PROBE_TIMEOUT_MS`.
+  A reply — even a NIP-47 *error* reply — means the wallet is alive (the clock
+  resets). Only a clean no-reply timeout **with relays still up** confirms
+  death; a transport error is inconclusive and retried next sweep. Death is
+  declared only after `DEAD_CONFIRMATION_PROBES` (default 3) such timeouts in a
+  row — a single slow reply can never archive a live wallet. Total
+  time-to-archive ≈ `DEAD_THRESHOLD_HOURS` + `(DEAD_CONFIRMATION_PROBES − 1) ×
+  DEAD_PROBE_INTERVAL_MS` (~4h30m with the defaults).
+- **Report → archive → reconcile:** on confirmation the listener POSTs a
+  `wallet_dead` webhook (`{ walletId, unresponsiveSeconds, relaysConnected: true }`).
+  Web sets `status = DEAD`, `diedAt = now`, `isDefault = false` (idempotent on
+  `status = 'ACTIVE'`), which fires `remote_wallet_changed` → the listener
+  reconciles the wallet out of the pool, ending the churn.
+- Disable per deployment with `DEAD_WALLET_DETECTION_ENABLED=false`.
+
 ## HTTP API
 
 | Endpoint | Auth | Description |
 |----------|------|-------------|
 | `GET /health` | none | Liveness (+ informational `db` flag) |
-| `GET /status` | Bearer | Relays, connections, counters, recent events |
+| `GET /status` | Bearer | Relays, connections, counters, recent events. **Never 5xx** — each part degrades independently and a failed part is named in `degraded[]` |
 | `POST /nwc/request` | Bearer | Proxy an NWC call over the pooled connection |
+
+### Resilience
+
+`GET /status` is built defensively: the relay/connection/counter view is
+in-memory and always available, so a transient DB fault only empties the
+`recentEvents` feed (and adds `"recentEvents"` to `degraded[]`) — it never 500s
+the endpoint. The process also installs `unhandledRejection` /
+`uncaughtException` backstops and a pg-pool `error` handler, so a relay
+reconnect storm or a dropped idle DB connection is logged, not fatal — the
+daemon stays up and answering.
 
 Auth: `Authorization: Bearer <LISTENER_AUTH_SECRET>`, compared constant-time.
 
@@ -166,8 +206,12 @@ sharing the base `{ eventKey, walletId, receivedAt (unix ms), recovered? }`:
   `Nip47Transaction` passthrough (web owns all business interpretation).
 - **`listener_error`** — `walletId` becomes optional (a connection-level
   error may not belong to a single wallet); adds `error: { code, message }`.
+- **`wallet_dead`** — the listener saw a wallet go silent past the threshold
+  while its relays stayed up (see "Dead-wallet detection"); adds
+  `unresponsiveSeconds` and `relaysConnected: true`. Web archives it as DEAD
+  only when it's an ACTIVE LNCurl-provider wallet.
 
-Web is idempotent on `eventKey` and by invoice state; replays return
+Web is idempotent on `eventKey` and by invoice/wallet state; replays return
 `{received: true}` without side effects. Responses: `200` ok · `401` bad
 signature/skew · `400` schema mismatch · `404` integration disabled in
 Settings. This endpoint is deliberately absent from the public OpenAPI spec —
@@ -196,6 +240,11 @@ a DLQ.
 | `CATCHUP_MAX_WINDOW_HOURS` | Furthest back a catch-up looks | `24` |
 | `CATCHUP_OVERLAP_SECONDS` | Overlap subtracted from the cursor | `300` |
 | `CATCHUP_INTERVAL_MS` | Periodic safety catch-up (0 disables) | `900000` |
+| `DEAD_WALLET_DETECTION_ENABLED` | Archive unresponsive disposable wallets as DEAD | `true` |
+| `DEAD_THRESHOLD_HOURS` | Silence (relays up) before a wallet is declared dead | `4` |
+| `DEAD_PROBE_INTERVAL_MS` | How often the dead-wallet prober sweeps | `900000` |
+| `DEAD_PROBE_TIMEOUT_MS` | Per-probe `get_info` timeout (< `NWC_REQUEST_TIMEOUT_MS`) | `10000` |
+| `DEAD_CONFIRMATION_PROBES` | Consecutive failing probes required before archiving (guards against one transient slow reply) | `3` |
 
 Web's side of the pairing: `LISTENER_URL` + the same `LISTENER_AUTH_SECRET`
 (+ optional `LISTENER_REQUEST_TIMEOUT_MS`, default 10000). All optional —

@@ -9,7 +9,7 @@ import {
 import type { ListenerEnv } from '../env'
 import type { Metrics } from '../metrics'
 import { NwcPool, NwcPoolError } from '../nwc/pool'
-import { recentEvents } from '../store'
+import { recentEventsSafe } from '../store'
 import { verifyBearer } from './auth'
 
 const MAX_BODY_BYTES = 64 * 1024
@@ -69,14 +69,42 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
     }
 
     if (req.method === 'GET' && path === '/status') {
-      const events = await recentEvents(pgPool, 50)
+      // Each sub-part is computed defensively: relay/connection state is
+      // in-memory and always valid, the events feed needs the DB. One failing
+      // part must NEVER 500 the whole endpoint (it would make a healthy
+      // listener read as "unreachable" during a transient DB blip). Failed
+      // parts degrade to empty and are named in `degraded`.
+      const degraded: string[] = []
+
+      let relays: ListenerStatusResponse['relays'] = []
+      try {
+        relays = nwcPool.relaySummary()
+      } catch (err) {
+        log.warn({ err }, 'status.relay_summary_failed')
+        degraded.push('relays')
+      }
+
+      let connections: ListenerStatusResponse['connections'] = []
+      try {
+        connections = nwcPool.snapshot()
+      } catch (err) {
+        log.warn({ err }, 'status.snapshot_failed')
+        degraded.push('connections')
+      }
+
+      const { events, error: eventsError } = await recentEventsSafe(pgPool, 50)
+      if (eventsError) {
+        log.warn({ err: eventsError }, 'status.recent_events_failed')
+        degraded.push('recentEvents')
+      }
+
       const status: ListenerStatusResponse = {
         startedAt: metrics.startedAt.toISOString(),
         uptimeSeconds: Math.floor(
           (Date.now() - metrics.startedAt.getTime()) / 1000
         ),
-        relays: nwcPool.relaySummary(),
-        connections: nwcPool.snapshot(),
+        relays,
+        connections,
         counters: {
           eventsReceived: metrics.eventsReceived,
           eventsDuplicate: metrics.eventsDuplicate,
@@ -86,7 +114,10 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
           nwcRequestErrors: metrics.nwcRequestErrors,
           eventsRecovered: metrics.eventsRecovered,
           catchupRuns: metrics.catchupRuns,
-          catchupErrors: metrics.catchupErrors
+          catchupErrors: metrics.catchupErrors,
+          deadProbesRun: metrics.deadProbesRun,
+          deadProbesTimedOut: metrics.deadProbesTimedOut,
+          walletsDeclaredDead: metrics.walletsDeclaredDead
         },
         recentEvents: events.map(event => ({
           eventKey: event.eventKey,
@@ -98,7 +129,8 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
           receivedAt: event.receivedAt.toISOString(),
           webhookStatus: event.webhookStatus,
           recovered: event.recovered
-        }))
+        })),
+        ...(degraded.length ? { degraded } : {})
       }
       sendJson(res, 200, status)
       return

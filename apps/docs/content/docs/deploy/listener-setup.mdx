@@ -52,6 +52,8 @@ The listener is one small container — use the prebuilt multi-arch image
 | `CATCHUP_MAX_WINDOW_HOURS` | — | Furthest back a catch-up looks (default 24). |
 | `CATCHUP_OVERLAP_SECONDS` | — | Overlap subtracted from the per-wallet cursor (default 300). |
 | `CATCHUP_INTERVAL_MS` | — | Periodic safety catch-up; 0 disables (default 900000). |
+| `DEAD_WALLET_DETECTION_ENABLED` | — | Auto-archive a disposable LNCurl wallet as `DEAD` after it stops answering for `DEAD_THRESHOLD_HOURS` while its relays stay up (default `true`; set `false` to disable). Non-LNCurl wallets are never auto-archived. |
+| `DEAD_THRESHOLD_HOURS` | — | Silence (relays up) before a wallet is declared dead (default 4). |
 
 **Connectivity requirements:** the listener must reach your Postgres and the
 Nostr relays; your web app must reach the listener's URL; the listener must

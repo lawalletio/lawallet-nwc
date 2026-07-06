@@ -94,6 +94,21 @@ export const nwcWebhookPayloadSchema = z.discriminatedUnion('type', [
       message: z.string(),
     }),
   }),
+  /**
+   * The listener observed a wallet go unresponsive for a sustained window
+   * WHILE its relays stayed connected — the signature of a disposable LNCurl
+   * wallet whose provider destroyed it. Purely an observation: web decides
+   * whether to archive it (only LNCurl-provider wallets are archived as DEAD).
+   * `relaysConnected` is pinned to `true` so a network outage can never be
+   * misread as death.
+   */
+  nwcWebhookBase.extend({
+    type: z.literal('wallet_dead'),
+    walletId: z.string().min(1),
+    /** Seconds since the wallet last responded (event / proxied call / probe). */
+    unresponsiveSeconds: z.number().int().nonnegative(),
+    relaysConnected: z.literal(true),
+  }),
 ])
 export type NwcWebhookPayload = z.infer<typeof nwcWebhookPayloadSchema>
 
@@ -216,8 +231,17 @@ export const listenerStatusResponseSchema = z.object({
     eventsRecovered: z.number().int().nonnegative().optional(),
     catchupRuns: z.number().int().nonnegative().optional(),
     catchupErrors: z.number().int().nonnegative().optional(),
+    deadProbesRun: z.number().int().nonnegative().optional(),
+    deadProbesTimedOut: z.number().int().nonnegative().optional(),
+    walletsDeclaredDead: z.number().int().nonnegative().optional(),
   }),
   recentEvents: z.array(listenerRecentEventSchema).max(100),
+  /**
+   * Sub-parts that failed to compute this cycle (e.g. `'recentEvents'` when the
+   * DB feed query errored). The endpoint still returns 200 with everything
+   * that DID compute — a single failing part never fails the whole status.
+   */
+  degraded: z.array(z.string()).optional(),
 })
 export type ListenerStatusResponse = z.infer<typeof listenerStatusResponseSchema>
 

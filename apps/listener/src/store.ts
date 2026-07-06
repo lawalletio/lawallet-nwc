@@ -243,6 +243,24 @@ export async function recentEvents(
   }
 }
 
+/**
+ * `recentEvents` that never rejects: a transient DB fault (connection reset,
+ * pool exhaustion, admin shutdown) returns an empty feed instead of throwing.
+ * The /status endpoint uses this so one bad query can't 500 the whole
+ * endpoint — the relay/connection/counter view is in-memory and always valid.
+ * Returns the error alongside so the caller can flag the feed as degraded.
+ */
+export async function recentEventsSafe(
+  pool: pg.Pool,
+  limit = 50
+): Promise<{ events: StoredEvent[]; error: unknown }> {
+  try {
+    return { events: await recentEvents(pool, limit), error: null }
+  } catch (err) {
+    return { events: [], error: err }
+  }
+}
+
 /** Warms the per-wallet lastEventAt cache at startup. */
 export async function lastEventAtByWallet(
   pool: pg.Pool

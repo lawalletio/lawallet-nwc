@@ -57,6 +57,11 @@ export interface CatchupDeps {
     wallet: DesiredWallet,
     notification: Nip47Notification
   ) => Promise<boolean>
+  /**
+   * Optional liveness signal: a successful `list_transactions` proves the
+   * wallet answered, so it should not count toward dead-wallet detection.
+   */
+  onResponsive?: (walletId: string) => void
 }
 
 /**
@@ -170,6 +175,9 @@ export class CatchupRunner {
         }
         throw err
       }
+
+      // The wallet answered its own ledger — a definitive sign of life.
+      this.deps.onResponsive?.(wallet.id)
 
       const transactions = response.transactions ?? []
       for (const tx of transactions) {

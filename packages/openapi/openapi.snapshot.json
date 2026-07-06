@@ -8682,6 +8682,18 @@
                                 "catchupErrors": {
                                   "type": "integer",
                                   "minimum": 0
+                                },
+                                "deadProbesRun": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "deadProbesTimedOut": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "walletsDeclaredDead": {
+                                  "type": "integer",
+                                  "minimum": 0
                                 }
                               },
                               "required": [
@@ -8751,6 +8763,12 @@
                                 ]
                               },
                               "maxItems": 100
+                            },
+                            "degraded": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
                             }
                           },
                           "required": [

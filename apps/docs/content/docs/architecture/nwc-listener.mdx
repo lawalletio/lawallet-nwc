@@ -32,6 +32,14 @@ received.
   catch-up after downtime: the wallet's own `list_transactions` ledger
   (primary, relay-independent) plus a best-effort relay replay, both feeding
   the same dedup pipeline and flagged `recovered` in the dashboard.
+- **Dead-wallet detection** — a disposable LNCurl wallet destroyed by its
+  provider goes silent while its relays stay up. The listener probes liveness
+  (`get_info`) and, after `DEAD_THRESHOLD_HOURS` (default 4) of no reply with
+  relays connected, reports a `wallet_dead` webhook; web archives it as `DEAD`
+  (LNCurl-provider wallets only), which reconciles it out of the pool.
+- **Resilient by design** — `GET /status` never 5xx's (each part degrades
+  independently), and `unhandledRejection` / `uncaughtException` / pg-pool
+  error backstops keep the daemon alive through relay churn and DB blips.
 - **Webhooks to the web app** — `POST /api/webhooks/nwc`, signed with
   `HMAC-SHA256(secret, "<timestamp>.<body>")`, retried with backoff and swept
   again later if the web app was down. Full contract

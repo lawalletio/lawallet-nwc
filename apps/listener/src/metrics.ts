@@ -14,7 +14,10 @@ export const metrics = {
   notifiesReceived: 0,
   eventsRecovered: 0,
   catchupRuns: 0,
-  catchupErrors: 0
+  catchupErrors: 0,
+  deadProbesRun: 0,
+  deadProbesTimedOut: 0,
+  walletsDeclaredDead: 0
 }
 
 export type Metrics = typeof metrics

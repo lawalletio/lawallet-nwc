@@ -2,6 +2,7 @@
 import * as React from 'react'
 
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 
 interface TopbarAlert {
   title: string
@@ -14,6 +15,20 @@ interface TopbarTab {
   label: string
   active?: boolean
   onClick?: () => void
+  /** Optional live count shown as a badge on the right of the tab. */
+  badge?: number
+}
+
+/** Live-count badge rendered inside a topbar tab (green = live/connected). */
+function TabBadge({ count }: { count: number }) {
+  return (
+    <Badge
+      variant="outline"
+      className="border-transparent bg-green-500/15 px-1.5 py-0 text-xs font-semibold tabular-nums text-green-600"
+    >
+      {count}
+    </Badge>
+  )
 }
 
 interface TopbarProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -74,13 +89,14 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
               key={tab.label}
               onClick={tab.onClick}
               className={cn(
-                'px-4 py-3 text-sm font-semibold rounded-md transition-colors shadow-sm',
+                'inline-flex items-center gap-1.5 px-4 py-3 text-sm font-semibold rounded-md transition-colors shadow-sm',
                 tab.active
                   ? 'bg-secondary text-secondary-foreground'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {tab.label}
+              {typeof tab.badge === 'number' && <TabBadge count={tab.badge} />}
             </button>
           ))}
         </div>
@@ -90,5 +106,5 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
 )
 Topbar.displayName = 'Topbar'
 
-export { Topbar }
+export { Topbar, TabBadge }
 export type { TopbarProps, TopbarAlert, TopbarTab }

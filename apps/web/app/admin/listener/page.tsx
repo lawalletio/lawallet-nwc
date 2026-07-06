@@ -1,11 +1,12 @@
 'use client'
 
-import React, { Suspense } from 'react'
+import React, { Suspense, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CheckCircle2, PlugZap, RadioTower } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
+import { DataTablePagination } from '@/components/admin/data-table-pagination'
 import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -66,6 +67,35 @@ function walletHref(walletId: string): string {
   return `/admin/remote-wallets/${walletId}`
 }
 
+const PAGE_SIZE = 20
+
+/** ISO timestamp → epoch ms (0 when null/absent, so it sorts last). */
+function tsMs(iso: string | null | undefined): number {
+  return iso ? new Date(iso).getTime() : 0
+}
+
+/** A connection's most recent activity across event / error / catch-up. */
+function connLastActivity(c: ListenerConnection): number {
+  return Math.max(tsMs(c.lastEventAt), tsMs(c.lastErrorAt), tsMs(c.lastCatchupAt))
+}
+
+/**
+ * Client-side pagination for a pre-sorted list. The page is display-clamped to
+ * the current row count so a shrinking live feed never lands on an empty page.
+ */
+function usePaginatedRows<T>(rows: T[]): {
+  pageRows: T[]
+  page: number
+  totalPages: number
+  setPage: (p: number) => void
+} {
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageRows = rows.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  return { pageRows, page: safePage, totalPages, setPage }
+}
+
 export default function ListenerPage() {
   return (
     <Suspense>
@@ -86,6 +116,10 @@ function ListenerContent() {
   const offline = !loading && !status
   const activeConnections =
     status?.connections.filter(c => c.state === 'subscribed').length ?? undefined
+  // Live relay connections — surfaced as a badge on the Relay connections tab.
+  const liveRelays = status
+    ? status.relays.filter(r => r.connected).length
+    : undefined
 
   return (
     <div className="flex flex-col">
@@ -107,6 +141,7 @@ function ListenerContent() {
             label: 'Relay connections',
             active: activeTab === 'relays',
             onClick: () => router.push('/admin/listener?tab=relays'),
+            badge: liveRelays,
           },
         ]}
       />
@@ -209,6 +244,18 @@ function EmptyState({ offline, message }: { offline: boolean; message: string })
 }
 
 function ConnectionsTable({ status, loading, offline }: TabProps) {
+  // Most recent activity first (event / error / catch-up), then paginate.
+  const sorted = useMemo(
+    () =>
+      status
+        ? [...status.connections].sort(
+            (a, b) => connLastActivity(b) - connLastActivity(a)
+          )
+        : [],
+    [status]
+  )
+  const { pageRows, page, totalPages, setPage } = usePaginatedRows(sorted)
+
   if (loading) return <TableSkeleton rows={4} columns={6} />
   if (!status || status.connections.length === 0) {
     return (
@@ -219,21 +266,22 @@ function ConnectionsTable({ status, loading, offline }: TabProps) {
     )
   }
   return (
-    <div className="rounded-md border overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Wallet</TableHead>
-            <TableHead>Relay</TableHead>
-            <TableHead>State</TableHead>
-            <TableHead>Last event</TableHead>
-            <TableHead>Last catch-up</TableHead>
-            <TableHead>Last error</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {status.connections.map(conn => (
-            <TableRow key={conn.walletId}>
+    <div className="flex flex-col gap-3">
+      <div className="rounded-md border overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Wallet</TableHead>
+              <TableHead>Relay</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead>Last event</TableHead>
+              <TableHead>Last catch-up</TableHead>
+              <TableHead>Last error</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pageRows.map(conn => (
+              <TableRow key={conn.walletId}>
               <TableCell>
                 <Link href={walletHref(conn.walletId)} className="group flex flex-col">
                   <span className="font-medium group-hover:underline underline-offset-2">
@@ -266,15 +314,33 @@ function ConnectionsTable({ status, loading, offline }: TabProps) {
                   ? `${formatRelativeTime(conn.lastErrorAt)} · ${conn.lastError}`
                   : '—'}
               </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <DataTablePagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+      />
     </div>
   )
 }
 
 function EventsTable({ status, loading, offline }: TabProps) {
+  // Newest received first (the backend already returns this order), paginated.
+  const sorted = useMemo(
+    () =>
+      status
+        ? [...status.recentEvents].sort(
+            (a, b) => tsMs(b.receivedAt) - tsMs(a.receivedAt)
+          )
+        : [],
+    [status]
+  )
+  const { pageRows, page, totalPages, setPage } = usePaginatedRows(sorted)
+
   if (loading) return <TableSkeleton rows={4} columns={5} />
   if (!status || status.recentEvents.length === 0) {
     return (
@@ -285,20 +351,21 @@ function EventsTable({ status, loading, offline }: TabProps) {
     )
   }
   return (
-    <div className="rounded-md border overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Type</TableHead>
-            <TableHead>NWC connection</TableHead>
-            <TableHead>Amount</TableHead>
-            <TableHead>Webhook</TableHead>
-            <TableHead>Received</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {status.recentEvents.map(event => (
-            <TableRow key={event.eventKey}>
+    <div className="flex flex-col gap-3">
+      <div className="rounded-md border overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Type</TableHead>
+              <TableHead>NWC connection</TableHead>
+              <TableHead>Amount</TableHead>
+              <TableHead>Webhook</TableHead>
+              <TableHead>Received</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pageRows.map(event => (
+              <TableRow key={event.eventKey}>
               <TableCell>
                 <span className="inline-flex items-center gap-1.5">
                   <Badge variant="outline">{event.type}</Badge>
@@ -338,15 +405,36 @@ function EventsTable({ status, loading, offline }: TabProps) {
               <TableCell className="text-sm text-muted-foreground">
                 {formatRelativeTime(event.receivedAt)}
               </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <DataTablePagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+      />
     </div>
   )
 }
 
 function RelaysTable({ status, loading, offline }: TabProps) {
+  // No per-relay timestamp, so "most active" = live (connected) first, then
+  // the busiest by NWC subscription count. Paginated like the other tabs.
+  const sorted = useMemo(
+    () =>
+      status
+        ? [...status.relays].sort(
+            (a, b) =>
+              Number(b.connected) - Number(a.connected) ||
+              b.walletCount - a.walletCount
+          )
+        : [],
+    [status]
+  )
+  const { pageRows, page, totalPages, setPage } = usePaginatedRows(sorted)
+
   if (loading) return <TableSkeleton rows={3} columns={3} />
   if (!status || status.relays.length === 0) {
     return (
@@ -357,36 +445,43 @@ function RelaysTable({ status, loading, offline }: TabProps) {
     )
   }
   return (
-    <div className="rounded-md border overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Relay</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>NWC subscriptions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {status.relays.map(relay => (
-            <TableRow key={relay.url}>
-              <TableCell className="text-sm font-mono">{relay.url}</TableCell>
-              <TableCell>
-                <Badge
-                  variant="outline"
-                  className={
-                    relay.connected
-                      ? 'bg-green-500/15 text-green-600'
-                      : 'bg-red-500/15 text-red-600'
-                  }
-                >
-                  {relay.connected ? 'Connected' : 'Disconnected'}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-sm">{relay.walletCount}</TableCell>
+    <div className="flex flex-col gap-3">
+      <div className="rounded-md border overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Relay</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>NWC subscriptions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {pageRows.map(relay => (
+              <TableRow key={relay.url}>
+                <TableCell className="text-sm font-mono">{relay.url}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant="outline"
+                    className={
+                      relay.connected
+                        ? 'bg-green-500/15 text-green-600'
+                        : 'bg-red-500/15 text-red-600'
+                    }
+                  >
+                    {relay.connected ? 'Connected' : 'Disconnected'}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-sm">{relay.walletCount}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <DataTablePagination
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+      />
     </div>
   )
 }

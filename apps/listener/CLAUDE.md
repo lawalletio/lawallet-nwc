@@ -30,6 +30,16 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
   seeds its cursor at `now` — recovery covers downtime, it NEVER imports
   pre-existing wallet history. The cursor only advances after a successful
   run.
+- **Stay alive.** `GET /status` computes each part (relays, connections,
+  recentEvents) defensively — one failure degrades to empty + a `degraded[]`
+  entry, it NEVER 500s (a 500 makes a healthy listener read as "unreachable").
+  The process installs `unhandledRejection` / `uncaughtException` backstops
+  (log, don't exit) and the pg `Pool` has an `error` handler — a relay
+  reconnect storm or a dropped idle DB client must never crash the daemon.
+- **Dead-wallet detection is transport-only too.** The prober OBSERVES a
+  wallet going dark (relays up, no `get_info` reply for the threshold) and
+  reports `wallet_dead`; the archival write (status DEAD + `diedAt`, LNCurl
+  only) lives in apps/web. Never mark a wallet dead from here.
 
 ## Module map (src/)
 
@@ -45,6 +55,10 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
 - `nwc/catchup.ts` — downtime recovery: pure `planCatchupWindow` +
   `CatchupRunner` (list_transactions pagination primary, relay `since`-replay
   best-effort), anchored on `listener.wallet_cursors`
+- `nwc/dead-prober.ts` — `DeadWalletProber`: detects a destroyed disposable
+  LNCurl wallet (silent past `DEAD_THRESHOLD_HOURS` while relays stay up,
+  confirmed by a `get_info` probe) and REPORTS it via a `wallet_dead` webhook.
+  Never writes RemoteWallet — web decides whether to archive (LNCurl only)
 - `webhook.ts` — HMAC signing, delivery retry, sweep (web-down recovery)
 - `http/` — bearer auth + node:http routes (/health, /status, /nwc/request)
 
