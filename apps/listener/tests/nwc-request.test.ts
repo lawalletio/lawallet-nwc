@@ -23,7 +23,10 @@ vi.mock('@getalby/sdk', () => {
 
   class NWCClient {
     relayUrls = ['wss://relay.test']
-    pool = { listConnectionStatus: () => new Map([['wss://relay.test', true]]) }
+    // nostr-tools normalizes keys — bare domains gain a trailing slash.
+    pool = {
+      listConnectionStatus: () => new Map([['wss://relay.test/', true]])
+    }
     get connected() {
       return control.connected
     }
@@ -183,7 +186,7 @@ describe('NwcPool.request', () => {
     expect(snapshot.relayUrls).toEqual(['wss://relay.test'])
 
     expect(pool.relaySummary()).toEqual([
-      { url: 'wss://relay.test', connected: true, walletCount: 1 }
+      { url: 'wss://relay.test/', connected: true, walletCount: 1 }
     ])
     await pool.closeAll()
   })

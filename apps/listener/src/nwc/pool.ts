@@ -423,8 +423,16 @@ export class NwcPool {
       if (!conn.client) continue
       // listConnectionStatus() is empty until the pool has dialed at least
       // once — those relays report as not-connected, matching 'connecting'.
-      const status = conn.client.pool.listConnectionStatus()
-      for (const url of conn.client.relayUrls) {
+      // Its keys are NORMALIZED by nostr-tools (bare domains gain a trailing
+      // slash: wss://relay.x → wss://relay.x/), while relayUrls keeps the raw
+      // URI from the connection string — normalize BOTH sides or every
+      // bare-domain relay reads as disconnected forever.
+      const status = new Map<string, boolean>()
+      for (const [url, connected] of conn.client.pool.listConnectionStatus()) {
+        status.set(normalizeRelayUrl(url), connected)
+      }
+      for (const rawUrl of conn.client.relayUrls) {
+        const url = normalizeRelayUrl(rawUrl)
         const entry = relays.get(url) ?? { connected: false, walletCount: 0 }
         entry.walletCount++
         entry.connected = entry.connected || (status.get(url) ?? false)
@@ -448,5 +456,17 @@ export class NwcPool {
     }
     this.connections.clear()
     this.byConnectionString.clear()
+  }
+}
+
+/**
+ * Matches nostr-tools' URL normalization (its `listConnectionStatus` keys):
+ * `new URL()` lowercases scheme/host and gives bare domains a trailing slash.
+ */
+function normalizeRelayUrl(url: string): string {
+  try {
+    return new URL(url).href
+  } catch {
+    return url
   }
 }
