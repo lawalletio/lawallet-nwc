@@ -47,6 +47,7 @@ import {
 } from '@/lib/client/hooks/use-wallet-addresses'
 import { isLightningAddress } from '@/lib/ln-address'
 import { ApiClientError } from '@/lib/client/api-client'
+import { truncateNpub } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
@@ -254,9 +255,19 @@ export default function AdminAddressEditPage({ params }: PageProps) {
         // below render an empty state in those cases.
         const persistedMode = data.address.mode
         const defaultWallet = data.wallets.find(w => w.isDefault) ?? null
+        // `isOwner` is only `false` when an admin is viewing someone else's
+        // address (older responses omit the field → treat as owned). In that
+        // mode the page is read-only and the wallet secret is withheld.
+        const isOwner = data.isOwner !== false
+        const boundWallet =
+          data.wallets.find(w => w.id === data.address.remoteWalletId) ?? null
 
-        const emptyReason =
-          persistedMode === 'IDLE'
+        const emptyReason = !isOwner
+          ? // Admin read-only view: the balance needs the owner's connection
+            // secret, which we deliberately don't return, so there's nothing to
+            // show here.
+            'Balance is private to the address owner.'
+          : persistedMode === 'IDLE'
             ? 'This address is disabled.'
           : persistedMode === 'ALIAS'
             ? `Forwards to ${data.address.redirect ?? 'another address'}.`
@@ -271,9 +282,22 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               sitting in the navbar. */}
           <div className="flex flex-col items-center gap-2 pt-2 text-center">
             <LightningAddressHero address={fullAddress} label="" />
-            <p className="max-w-md text-sm text-muted-foreground">
-              Configure how this address handles incoming payments.
-            </p>
+            {isOwner ? (
+              <p className="max-w-md text-sm text-muted-foreground">
+                Configure how this address handles incoming payments.
+              </p>
+            ) : (
+              <p className="max-w-md text-sm text-muted-foreground">
+                Viewing another user&rsquo;s address (read-only). Owner{' '}
+                <span
+                  className="font-mono text-foreground"
+                  title={data.ownerPubkey}
+                >
+                  {data.ownerPubkey ? truncateNpub(data.ownerPubkey) : 'unknown'}
+                </span>
+                .
+              </p>
+            )}
           </div>
 
           {/* Layout order: balance first (glanceable hero), then Mode so the
@@ -292,10 +316,51 @@ export default function AdminAddressEditPage({ params }: PageProps) {
             }
           />
 
-          {/* Configuration lives in a collapsed section — the summary row
-              shows the current mode at a glance; the full picker + inputs
-              appear on click. Controlled open state so a successful Save
-              re-collapses it. */}
+          {/* Owner sees the editable configuration; an admin viewing someone
+              else's address gets a read-only summary of the same settings. */}
+          {!isOwner ? (
+            <div className="rounded-lg border border-border bg-card">
+              <div className="flex flex-col gap-0.5 px-5 py-4">
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Mode
+                </span>
+                <span className="text-sm font-medium">
+                  {MODE_DESCRIPTIONS[persistedMode].label}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {MODE_DESCRIPTIONS[persistedMode].help}
+                </span>
+              </div>
+              <div className="border-t border-border/60 px-5 py-4 text-sm">
+                {persistedMode === 'ALIAS' ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Forward className="size-4 shrink-0" aria-hidden />
+                    <span className="font-mono break-all text-foreground">
+                      {data.address.redirect ?? '—'}
+                    </span>
+                  </div>
+                ) : persistedMode === 'CUSTOM_NWC' ? (
+                  <div className="flex items-center gap-2">
+                    <Wallet className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="text-foreground">
+                      {boundWallet ? boundWallet.name : 'No wallet linked'}
+                    </span>
+                  </div>
+                ) : persistedMode === 'DEFAULT_NWC' ? (
+                  <div className="flex items-center gap-2">
+                    <Wallet className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="text-foreground">
+                      {defaultWallet ? `${defaultWallet.name} (primary)` : 'No primary wallet'}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">
+                    Address is disabled and rejects payments.
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
           <Collapsible
             open={modeOpen}
             onOpenChange={setModeOpen}
@@ -506,7 +571,13 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               </div>
             </CollapsibleContent>
           </Collapsible>
+          )}
 
+          {/* Invoices and the delete danger zone are owner-only: the invoices
+              feed is served by an owner-scoped route, and an admin's read-only
+              view must not mutate another user's address. */}
+          {isOwner && (
+          <>
           {/* Invoices are the authoritative per-address activity feed —
               they're minted by our own LUD-16 cb route with the username
               stamped on the metadata, so they filter cleanly by address.
@@ -569,6 +640,8 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          </>
+          )}
         </div>
         )
       })()}
