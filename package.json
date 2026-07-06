@@ -1,6 +1,6 @@
 {
   "name": "lawallet-nwc-monorepo",
-  "version": "1.0.10",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.11.0",
