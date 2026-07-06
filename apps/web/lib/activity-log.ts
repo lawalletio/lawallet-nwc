@@ -36,6 +36,7 @@ export const ActivityEvent = {
   NWC_PAYMENT_RECEIVED: 'nwc.payment_received',
   NWC_PAYMENT_SENT: 'nwc.payment_sent',
   NWC_LISTENER_ERROR: 'nwc.listener_error',
+  NWC_WALLET_DEAD: 'nwc.wallet_dead',
   // INVOICE
   INVOICE_GENERATED: 'invoice.generated',
   INVOICE_PAID: 'invoice.paid',

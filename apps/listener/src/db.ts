@@ -14,8 +14,17 @@ export interface DesiredWallet {
   connectionString: string
 }
 
-export function createPgPool(env: ListenerEnv): pg.Pool {
-  return new pg.Pool({ connectionString: env.DATABASE_URL, max: 5 })
+export function createPgPool(env: ListenerEnv, log: Logger): pg.Pool {
+  const pool = new pg.Pool({ connectionString: env.DATABASE_URL, max: 5 })
+  // node-postgres emits 'error' on the Pool when an IDLE backend connection
+  // drops (server restart, TCP reset, idle timeout). With no listener, that
+  // 'error' event throws → uncaughtException → the whole daemon exits. Log and
+  // swallow: pg discards the broken client and dials a fresh one on the next
+  // checkout, so a DB blip degrades a query, never kills the process.
+  pool.on('error', err => {
+    log.warn({ err }, 'pg.idle_client_error')
+  })
+  return pool
 }
 
 /** Blocks startup until Postgres answers (compose may start us first). */
