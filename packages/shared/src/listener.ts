@@ -226,6 +226,8 @@ export const listenerStatusResponseSchema = z.object({
     eventsDuplicate: z.number().int().nonnegative(),
     webhooksDelivered: z.number().int().nonnegative(),
     webhooksFailed: z.number().int().nonnegative(),
+    /** Currently-undelivered webhooks still being retried (0 = all caught up). */
+    webhooksPending: z.number().int().nonnegative().optional(),
     nwcRequests: z.number().int().nonnegative(),
     nwcRequestErrors: z.number().int().nonnegative(),
     eventsRecovered: z.number().int().nonnegative().optional(),

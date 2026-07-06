@@ -104,6 +104,7 @@ proxies it through `GET /api/admin/listener/status`). Response
     eventsDuplicate: number
     webhooksDelivered: number
     webhooksFailed: number
+    webhooksPending?: number      // currently-undelivered, still retrying (0 = caught up)
     nwcRequests: number
     nwcRequestErrors: number
     eventsRecovered?: number      // synthesized by downtime catch-up
@@ -250,8 +251,11 @@ optional, since an error may not belong to a single wallet):
   Settings.
 - **Retries**: the listener attempts delivery inline with backoff
   (1s → 2min, up to `WEBHOOK_MAX_ATTEMPTS`), then a sweep every 5 minutes
-  re-dispatches undelivered events (cap 25 attempts) — an hour of web
-  downtime heals without a dead-letter queue.
+  re-dispatches undelivered events with per-event exponential backoff
+  (2min → 1h cap). There is **no attempt cap** — a payment webhook keeps
+  retrying until web accepts it, so an arbitrarily long web outage heals with
+  no data loss and no dead-letter queue. `counters.webhooksPending` reports
+  the live backlog (0 = caught up); a stuck backlog logs `webhook.backlog`.
 
 ## Test connection (admin)
 

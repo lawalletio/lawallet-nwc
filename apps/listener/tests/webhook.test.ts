@@ -42,12 +42,28 @@ const storedEvent: StoredEvent = {
   recovered: false
 }
 
+/** Maps a StoredEvent back to the snake_case row shape undeliveredEvents returns. */
+const rowFor = (e: StoredEvent) => ({
+  event_key: e.eventKey,
+  wallet_id: e.walletId,
+  notification_type: e.notificationType,
+  payment_hash: e.paymentHash,
+  amount_msats: e.amountMsats === null ? null : String(e.amountMsats),
+  settled_at: e.settledAt,
+  payload: e.payload,
+  received_at: e.receivedAt,
+  webhook_status: e.webhookStatus,
+  webhook_attempts: e.webhookAttempts,
+  recovered: e.recovered
+})
+
 const freshMetrics = () => ({
   startedAt: new Date(),
   eventsReceived: 0,
   eventsDuplicate: 0,
   webhooksDelivered: 0,
   webhooksFailed: 0,
+  webhooksPending: 0,
   nwcRequests: 0,
   nwcRequestErrors: 0,
   reconciles: 0,
@@ -123,7 +139,7 @@ describe('WebhookDispatcher.dispatch', () => {
       'sha256=' + signWebhook(SECRET, timestamp, init.body as string)
     )
     expect(metrics.webhooksDelivered).toBe(1)
-    expect(markCalls()[0][1]).toEqual(['key-1', 'delivered', 1, null])
+    expect(markCalls()[0][1]).toEqual(['key-1', 'delivered', 1, null, null])
   })
 
   it('retries on 5xx then succeeds', async () => {
@@ -139,7 +155,7 @@ describe('WebhookDispatcher.dispatch', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(metrics.webhooksDelivered).toBe(1)
-    expect(markCalls()[0][1]).toEqual(['key-1', 'delivered', 2, null])
+    expect(markCalls()[0][1]).toEqual(['key-1', 'delivered', 2, null, null])
   })
 
   it('treats non-429 4xx as permanent failure without retrying', async () => {
@@ -152,10 +168,13 @@ describe('WebhookDispatcher.dispatch', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(metrics.webhooksFailed).toBe(1)
-    expect(markCalls()[0][1]).toEqual(['key-1', 'failed', 1, 'HTTP 400'])
+    // Deferred, NOT dropped: status stays 'failed' with a future retry gate.
+    const params = markCalls()[0][1]
+    expect(params.slice(0, 4)).toEqual(['key-1', 'failed', 1, 'HTTP 400'])
+    expect(params[4]).toBeInstanceOf(Date)
   })
 
-  it('gives up after WEBHOOK_MAX_ATTEMPTS retryable failures', async () => {
+  it('defers (never drops) after WEBHOOK_MAX_ATTEMPTS retryable failures', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(new Response('err', { status: 500 }))
@@ -167,7 +186,10 @@ describe('WebhookDispatcher.dispatch', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(metrics.webhooksFailed).toBe(1)
-    expect(markCalls()[0][1]).toEqual(['key-1', 'failed', 3, 'HTTP 500'])
+    // Marked 'failed' with a next-attempt timestamp so the sweep keeps trying.
+    const params = markCalls()[0][1]
+    expect(params.slice(0, 4)).toEqual(['key-1', 'failed', 3, 'HTTP 500'])
+    expect(params[4]).toBeInstanceOf(Date)
   })
 
   it('builds a payment_sent payload for payment_sent events', () => {
@@ -181,5 +203,86 @@ describe('WebhookDispatcher.dispatch', () => {
       expect(payload.payment.amountMsats).toBe(21000)
       expect(payload.payment.feesPaidMsats).toBe(1000)
     }
+  })
+})
+
+describe('WebhookDispatcher.sweep', () => {
+  let query: ReturnType<typeof vi.fn>
+  let dispatcher: WebhookDispatcher
+  let metrics: ReturnType<typeof freshMetrics>
+
+  beforeEach(() => {
+    query = vi.fn()
+    metrics = freshMetrics()
+    dispatcher = new WebhookDispatcher({
+      env,
+      log: pino({ level: 'silent' }),
+      pool: { query } as unknown as pg.Pool,
+      metrics
+    })
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  const failed: StoredEvent = {
+    ...storedEvent,
+    webhookStatus: 'failed',
+    webhookAttempts: 30
+  }
+  const backlogRow = (count: number, oldest: Date | null) => ({
+    rows: [{ count, oldest }]
+  })
+
+  it('recovers a long-failed event and clears its retry gate', async () => {
+    // undeliveredEvents → the failed event; markDelivery UPDATE; countUndelivered
+    query
+      .mockResolvedValueOnce({ rows: [rowFor(failed)] })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce(backlogRow(0, null))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    )
+
+    await dispatcher.sweep()
+
+    expect(metrics.webhooksDelivered).toBe(1)
+    expect(metrics.webhooksPending).toBe(0)
+    const update = query.mock.calls.find(([sql]) =>
+      String(sql).includes('UPDATE')
+    )
+    // attempts advanced (31), cleared gate (null), status delivered.
+    expect(update?.[1]).toEqual(['key-1', 'delivered', 31, null, null])
+  })
+
+  it('never drops a still-failing event — re-defers with a backoff', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [rowFor(failed)] })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce(backlogRow(1, storedEvent.receivedAt))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('err', { status: 500 }))
+    )
+
+    await dispatcher.sweep()
+
+    expect(metrics.webhooksFailed).toBe(1)
+    expect(metrics.webhooksPending).toBe(1)
+    const update = query.mock.calls.find(([sql]) =>
+      String(sql).includes('UPDATE')
+    )
+    expect(update?.[1].slice(0, 3)).toEqual(['key-1', 'failed', 31])
+    expect(update?.[1][4]).toBeInstanceOf(Date) // still gated for a later retry
+  })
+
+  it('refreshes the pending gauge even with nothing to retry', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce(backlogRow(3, storedEvent.receivedAt))
+
+    await dispatcher.sweep()
+
+    expect(metrics.webhooksPending).toBe(3)
   })
 })

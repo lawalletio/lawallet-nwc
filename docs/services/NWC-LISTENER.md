@@ -218,10 +218,19 @@ Settings. This endpoint is deliberately absent from the public OpenAPI spec —
 it is an internal machine-to-machine contract.
 
 Delivery: up to `WEBHOOK_MAX_ATTEMPTS` (default 5) inline attempts with
-backoff (1s→2min); 2xx = delivered, 4xx≠429 = permanent for the round,
-5xx/429/network = retry. A sweep every 5 minutes re-dispatches undelivered
-events (attempt cap 25) — this is how an hour of web downtime heals without
-a DLQ.
+backoff (1s→2min); 2xx = delivered, 4xx≠429 = failed-for-now, 5xx/429/network
+= retry. **Payment webhooks are never dropped.** Anything not delivered inline
+is persisted `failed` with a `webhook_next_attempt_at` gate and picked up by a
+sweep every 5 minutes — one attempt per event per sweep, with exponential
+backoff (2min→1h cap) per event. There is **no attempt cap**: a payment
+webhook keeps retrying until apps/web accepts it, so an arbitrarily long web
+outage heals with zero data loss and no DLQ.
+
+Observability: `/status` `counters.webhooksPending` is a live gauge of
+currently-undelivered webhooks (0 = fully caught up). When the oldest
+undelivered webhook has been stuck >10 minutes the sweep logs a
+`webhook.backlog` warning (with the pending count, oldest age and target URL);
+a successful late delivery logs `webhook.recovered`.
 
 ## Environment
 

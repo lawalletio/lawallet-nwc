@@ -8663,6 +8663,10 @@
                                   "type": "integer",
                                   "minimum": 0
                                 },
+                                "webhooksPending": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
                                 "nwcRequests": {
                                   "type": "integer",
                                   "minimum": 0

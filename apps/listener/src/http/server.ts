@@ -110,6 +110,7 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
           eventsDuplicate: metrics.eventsDuplicate,
           webhooksDelivered: metrics.webhooksDelivered,
           webhooksFailed: metrics.webhooksFailed,
+          webhooksPending: metrics.webhooksPending,
           nwcRequests: metrics.nwcRequests,
           nwcRequestErrors: metrics.nwcRequestErrors,
           eventsRecovered: metrics.eventsRecovered,
