@@ -96,15 +96,14 @@ export default function UserDetailPage({
   // table.
   const canManageAddresses = isSelf || isAdmin
 
-  // ROLE_OPTIONS is ordered highest → lowest. Roles strictly "below" the
-  // caller in the hierarchy sit at a higher index. Mirroring the server
-  // guard here means admins never see (and therefore can't pick) ADMIN as
-  // a target, so a failed round-trip doesn't leave the picker stuck on
-  // a rejected value.
+  // ROLE_OPTIONS is ordered highest → lowest. A caller can assign any role at
+  // or below their own rank — the same index or higher — so an ADMIN can
+  // grant ADMIN. Mirroring the server guard keeps the picker from offering a
+  // role the API would reject.
   const callerIndex = callerRole ? ROLE_OPTIONS.indexOf(callerRole) : -1
   function isAssignable(role: Role): boolean {
     if (callerIndex < 0) return false
-    return ROLE_OPTIONS.indexOf(role) > callerIndex
+    return ROLE_OPTIONS.indexOf(role) >= callerIndex
   }
 
   async function handleRoleChange(next: Role) {

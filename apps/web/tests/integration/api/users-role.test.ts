@@ -145,20 +145,23 @@ describe('PUT /api/users/[userId]/role', () => {
     expect(res.status).toBe(403)
   })
 
-  it('prevents assigning role equal to or higher than own', async () => {
-    const target = createUserFixture({ pubkey: userPubkey, role: 'USER' })
-    // OPERATOR has USERS_MANAGE_ROLES? No — only ADMIN does per the permissions
-    // matrix. Use ADMIN here and try to assign ADMIN (equal rank).
+  it('allows admin to promote another user to ADMIN', async () => {
+    const target = createUserFixture({ pubkey: userPubkey, role: 'OPERATOR' })
     mockAuth(Role.ADMIN, adminPubkey)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
+    vi.mocked(prismaMock.user.update).mockResolvedValue({
+      id: target.id,
+      role: 'ADMIN',
+    } as any)
 
     const req = createNextRequest(`/api/users/${target.id}/role`, {
       method: 'PUT',
       body: { role: 'ADMIN' },
     })
     const res = await PUT(req, createParamsPromise({ userId: target.id }))
+    const body = await assertResponse(res, 200)
 
-    expect(res.status).toBe(403)
+    expect(body).toEqual({ userId: target.id, role: 'ADMIN' })
   })
 
   it('prevents self-demotion', async () => {
