@@ -25,8 +25,8 @@ connections, and no incoming payment notifications are received.
 
 | Your deployment | Listener setup |
 |---|---|
-| **Docker Compose** | Nothing — the `listener` service starts automatically and the environment pre-wires the pairing. |
-| **Umbrel / Start9** | Nothing — bundled with the package (where available). |
+| **Docker Compose** | Nothing — the `listener` service starts automatically and the environment pre-wires the pairing (both the source `docker-compose.yml` and the published-image `docker-compose.hub.yml`). |
+| **Umbrel / Start9** | Nothing — bundled with the package since v1.1.0. |
 | **Vercel / Netlify** | Yes — serverless platforms can't run a long-lived websocket process. Host the listener elsewhere (below), then connect it in **Settings → NWC Services**. |
 | **Local dev** | `pnpm dev:listener` (env is provisioned by `pnpm dev:setup`). |
 
@@ -45,6 +45,13 @@ The listener is one small container — use the prebuilt multi-arch image
 | `LISTENER_PORT` | — | HTTP port (default `4100`). |
 | `LOG_LEVEL` / `LOG_PRETTY` | — | Logging (default `info` / JSON). |
 | `EVENT_RETENTION_DAYS` | — | Days of processed events kept for dedup + dashboard feed (default 30). |
+| `NWC_REQUEST_TIMEOUT_MS` | — | Default timeout for proxied `/nwc/request` calls (default 30000). |
+| `WEBHOOK_MAX_ATTEMPTS` | — | Inline webhook delivery attempts before the sweep takes over (default 5). |
+| `RECONCILE_INTERVAL_MS` | — | Periodic full pool reconcile, the LISTEN/NOTIFY safety net (default 300000). |
+| `CATCHUP_ENABLED` | — | Missed-event recovery after downtime (default `true`). |
+| `CATCHUP_MAX_WINDOW_HOURS` | — | Furthest back a catch-up looks (default 24). |
+| `CATCHUP_OVERLAP_SECONDS` | — | Overlap subtracted from the per-wallet cursor (default 300). |
+| `CATCHUP_INTERVAL_MS` | — | Periodic safety catch-up; 0 disables (default 900000). |
 | `DEAD_WALLET_DETECTION_ENABLED` | — | Auto-archive a disposable LNCurl wallet as `DEAD` after it stops answering for `DEAD_THRESHOLD_HOURS` while its relays stay up (default `true`; set `false` to disable). Non-LNCurl wallets are never auto-archived. |
 | `DEAD_THRESHOLD_HOURS` | — | Silence (relays up) before a wallet is declared dead (default 4). |
 
@@ -119,5 +126,7 @@ if you ever move the listener.
 - **Web app down** → events accumulate in the listener's store and are
   re-delivered by a sweep when it returns.
 
-Full architecture, webhook contract and API reference:
+Full API reference (endpoints, `/nwc/request` error codes, webhook signature
+and payload): [NWC Payment Listener architecture](/docs/architecture/nwc-listener).
+Ops-level detail (storage, catch-up rules, failure modes):
 [`docs/services/NWC-LISTENER.md`](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/services/NWC-LISTENER.md).

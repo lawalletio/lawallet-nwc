@@ -174,7 +174,8 @@ walletId?, method, params, timeoutMs? }` — keyed on the connection string the
 caller already holds; `walletId` is correlation-only. Methods: `get_info`,
 `get_balance`, `pay_invoice`, `make_invoice`, `lookup_invoice`,
 `list_transactions`. Params and results are raw NIP-47 (msats) — unit
-conversion stays in web's NWC driver.
+conversion stays in web's NWC driver. Request bodies over 64 KB are rejected
+with `413`.
 
 Error responses (`{ ok: false, error: { code, message, walletErrorCode? } }`):
 
@@ -194,13 +195,27 @@ Error responses (`{ ok: false, error: { code, message, walletErrorCode? } }`):
 - `X-LaWallet-Timestamp`: unix milliseconds
 - `X-LaWallet-Signature`: `sha256=<hex HMAC-SHA256(secret, "<timestamp>.<rawBody>")>`
 
-Web verifies constant-time and rejects |now − timestamp| > 5 min. Payload is
-`nwcWebhookPayloadSchema` — a union of `payment_received` / `payment_sent`
-(with the raw transaction passthrough), `listener_error`, and `wallet_dead`
-(a dead-disposable-wallet observation, see above). Web is idempotent on
-`eventKey` and by invoice/wallet state; replays return `{received: true}`
-without side effects. This endpoint is deliberately absent from the public
-OpenAPI spec — it is an internal machine-to-machine contract.
+Web verifies constant-time (the `sha256=` prefix is optional on
+verification) and rejects |now − timestamp| > 5 min. Payload is
+`nwcWebhookPayloadSchema` — a discriminated union on `type`, all variants
+sharing the base `{ eventKey, walletId, receivedAt (unix ms), recovered? }`:
+
+- **`payment_received` / `payment_sent`** — add `payment: { paymentHash
+  (64-hex), preimage?, amountMsats?, feesPaidMsats?, settledAt? (unix s),
+  invoice?, description?, transaction }` where `transaction` is the raw
+  `Nip47Transaction` passthrough (web owns all business interpretation).
+- **`listener_error`** — `walletId` becomes optional (a connection-level
+  error may not belong to a single wallet); adds `error: { code, message }`.
+- **`wallet_dead`** — the listener saw a wallet go silent past the threshold
+  while its relays stayed up (see "Dead-wallet detection"); adds
+  `unresponsiveSeconds` and `relaysConnected: true`. Web archives it as DEAD
+  only when it's an ACTIVE LNCurl-provider wallet.
+
+Web is idempotent on `eventKey` and by invoice/wallet state; replays return
+`{received: true}` without side effects. Responses: `200` ok · `401` bad
+signature/skew · `400` schema mismatch · `404` integration disabled in
+Settings. This endpoint is deliberately absent from the public OpenAPI spec —
+it is an internal machine-to-machine contract.
 
 Delivery: up to `WEBHOOK_MAX_ATTEMPTS` (default 5) inline attempts with
 backoff (1s→2min); 2xx = delivered, 4xx≠429 = permanent for the round,
@@ -281,6 +296,10 @@ walkthrough: `apps/docs/content/docs/deploy/listener-setup.mdx` (docs site
 
 ## Operations
 
+- **Boot order**: after Postgres answers, the listener waits (up to ~2 min)
+  for web's `prisma migrate deploy` to create the `"RemoteWallet"` table
+  before starting the pool — on fresh installs both containers start
+  together and the schema doesn't exist yet (`waitForSchema` in `src/db.ts`).
 - **Dev**: `pnpm dev:setup` provisions `apps/listener/.env.local` per
   worktree; `pnpm dev:listener` runs it (tsx watch). The admin dashboard at
   `/admin/listener` shows live state (SSE-refreshed).

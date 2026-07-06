@@ -17,8 +17,8 @@ variant that matches your host automatically.
 ## Run from the published image
 
 The quickest path — pull and run, no build, no repo clone. `docker-compose.hub.yml`
-is self-contained (just the published image + Postgres), so you can grab that one
-file and start:
+is self-contained (the published web image, the [NWC listener](/docs/deploy/listener-setup)
+image and Postgres, pre-wired together), so you can grab that one file and start:
 
 ```bash
 # Grab just the compose file
@@ -41,6 +41,7 @@ compose file:
 | `LAWALLET_TAG` | `latest` | Image tag to run (pin to a release, e.g. `1.0.0`) |
 | `PORT` | `2288` | Host port the app is published on |
 | `JWT_SECRET` | *(insecure placeholder)* | **Set this** — must be ≥ 32 characters |
+| `LISTENER_AUTH_SECRET` | *(insecure placeholder)* | **Set this** — shared secret between web and the NWC listener, ≥ 32 characters |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `lawallet` | Bundled Postgres credentials |
 
 Postgres data persists in the `lawallet_hub_pgdata` named volume.

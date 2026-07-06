@@ -64,6 +64,9 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
 
 ## Build & dev
 
+- Boot waits for Postgres AND for web's `prisma migrate deploy` to create
+  `"RemoteWallet"` (`waitForSchema` in src/db.ts, up to ~2 min) — fresh
+  installs start both containers together before the schema exists.
 - `pnpm dev:setup` at the repo root writes `apps/listener/.env.local`; then
   `pnpm dev:listener` (tsx watch). Tests: `pnpm --filter
   @lawallet-nwc/listener test` (vitest, node env, everything mocked — no
