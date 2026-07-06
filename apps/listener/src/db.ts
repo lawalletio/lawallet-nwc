@@ -32,6 +32,27 @@ export async function waitForDb(pool: pg.Pool, log: Logger): Promise<void> {
   }
 }
 
+/**
+ * Blocks startup until web's `prisma migrate deploy` has created the
+ * "RemoteWallet" table. On a fresh install both containers start together and
+ * the listener would otherwise crash-loop on 42P01 until the migrations land.
+ */
+export async function waitForSchema(pool: pg.Pool, log: Logger): Promise<void> {
+  for (let attempt = 1; attempt <= 60; attempt++) {
+    const { rows } = await pool.query<{ reg: string | null }>(
+      `SELECT to_regclass('"RemoteWallet"') AS reg`
+    )
+    if (rows[0]?.reg) return
+    if (attempt === 60) {
+      throw new Error(
+        'The "RemoteWallet" table never appeared — did web\'s prisma migrate deploy run?'
+      )
+    }
+    log.info({ attempt }, 'db.waiting_for_web_migrations')
+    await sleep(2000)
+  }
+}
+
 export function isValidConnectionString(value: unknown): value is string {
   return (
     typeof value === 'string' &&

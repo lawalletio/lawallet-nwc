@@ -14,6 +14,7 @@ import {
   loadActiveWalletById,
   startWalletChangeListener,
   waitForDb,
+  waitForSchema,
   type DesiredWallet
 } from './db'
 import { NwcPool } from './nwc/pool'
@@ -44,6 +45,9 @@ async function main(): Promise<void> {
 
   const pgPool = createPgPool(env)
   await waitForDb(pgPool, log)
+  // Fresh installs boot web + listener together — hold until web's
+  // `prisma migrate deploy` has created the tables we query.
+  await waitForSchema(pgPool, log)
   await bootstrapStore(pgPool)
   log.info('store.bootstrapped')
 

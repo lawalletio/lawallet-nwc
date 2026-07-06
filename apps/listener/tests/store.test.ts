@@ -162,4 +162,46 @@ describe('recovered flag + wallet name', () => {
     expect(row.walletName).toBe('Alice wallet')
     expect(row.recovered).toBe(true)
   })
+
+  it('recentEvents falls back to a JOIN-free query when RemoteWallet is missing (42P01)', async () => {
+    const missingTable = Object.assign(
+      new Error('relation "RemoteWallet" does not exist'),
+      { code: '42P01' }
+    )
+    const query = vi
+      .fn()
+      .mockRejectedValueOnce(missingTable)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            event_key: 'k',
+            wallet_id: 'w1',
+            notification_type: 'payment_received',
+            payment_hash: null,
+            amount_msats: null,
+            settled_at: null,
+            payload: {},
+            received_at: new Date(),
+            webhook_status: 'delivered',
+            webhook_attempts: 1,
+            recovered: false
+          }
+        ]
+      })
+    const pool = { query } as unknown as pg.Pool
+    const [row] = await recentEvents(pool, 10)
+    const [fallbackSql] = query.mock.calls[1]
+    expect(fallbackSql).not.toContain('RemoteWallet')
+    expect(row.walletName).toBeNull()
+  })
+
+  it('recentEvents rethrows non-42P01 errors', async () => {
+    const boom = Object.assign(new Error('connection refused'), {
+      code: 'ECONNREFUSED'
+    })
+    const query = vi.fn().mockRejectedValue(boom)
+    const pool = { query } as unknown as pg.Pool
+    await expect(recentEvents(pool, 10)).rejects.toThrow('connection refused')
+    expect(query).toHaveBeenCalledTimes(1)
+  })
 })
