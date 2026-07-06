@@ -86,6 +86,10 @@ function ListenerContent() {
   const offline = !loading && !status
   const activeConnections =
     status?.connections.filter(c => c.state === 'subscribed').length ?? undefined
+  // Live relay connections — surfaced as a badge on the Relay connections tab.
+  const liveRelays = status
+    ? status.relays.filter(r => r.connected).length
+    : undefined
 
   return (
     <div className="flex flex-col">
@@ -107,6 +111,7 @@ function ListenerContent() {
             label: 'Relay connections',
             active: activeTab === 'relays',
             onClick: () => router.push('/admin/listener?tab=relays'),
+            badge: liveRelays,
           },
         ]}
       />
