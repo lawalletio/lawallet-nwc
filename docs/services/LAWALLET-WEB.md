@@ -80,11 +80,17 @@ The main application serving the frontend, REST API, admin dashboard, user dashb
 - `POST /api/webhooks` — Register webhook
 - `DELETE /api/webhooks/:id` — Remove webhook
 - `GET /api/payments` — Payment history
+- `POST /api/settings/listener-probe` — Test the NWC listener pairing (settings-write; Settings → NWC Services "Test connection")
+- `POST /api/webhooks/nwc` — Receiver for HMAC-signed payment webhooks from the NWC listener (internal, not in the public OpenAPI spec)
 
 ---
 
 ## Communication with Other Services
 
-- **lawallet-listener**: Receives WebSocket events for real-time payment updates
+- **lawallet-listener** (optional): the NWC listener POSTs HMAC-signed payment
+  webhooks to `POST /api/webhooks/nwc`, and web proxies NWC calls through the
+  listener's pooled relay connections (`POST {listener}/nwc/request`) with
+  automatic fallback to direct per-request connections. Shares the same
+  Postgres (the listener reads `RemoteWallet` rows and owns its `listener`
+  schema). See `docs/services/NWC-LISTENER.md`.
 - **lawallet-nwc-proxy**: HTTP API calls to provision/revoke courtesy NWC connections
-- No shared database or filesystem with either service
