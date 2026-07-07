@@ -1,15 +1,14 @@
 'use client'
 
-import React, { Suspense, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CheckCircle2, PlugZap, RadioTower } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { DataTablePagination } from '@/components/admin/data-table-pagination'
 import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -96,6 +95,124 @@ function usePaginatedRows<T>(rows: T[]): {
   return { pageRows, page: safePage, totalPages, setPage }
 }
 
+/** How often the dashboard re-polls the listener status (realtime feel). */
+const POLL_MS = 6000
+
+type ConnState =
+  | 'loading'
+  | 'connected'
+  | 'degraded'
+  | 'reconnecting'
+  | 'unreachable'
+  | 'disabled'
+
+/**
+ * Realtime connection state for the indicator. `reconnecting` (transient
+ * unreachable while we still hold a last-good snapshot) is deliberately
+ * distinct from `unreachable` (never answered) so a slow-host blip doesn't
+ * read as an outage. `degraded` = the listener answered but flagged part of
+ * its `/status` stale (e.g. the DB-backed events feed).
+ */
+function getConnState(
+  data: ListenerStatusProxyResponse | null,
+  loading: boolean,
+  lastGood: ListenerStatusResponse | null
+): ConnState {
+  if (!data) return loading ? 'loading' : 'loading'
+  if (data.state === 'disabled') return 'disabled'
+  if (data.state === 'unreachable') return lastGood ? 'reconnecting' : 'unreachable'
+  return data.status.degraded && data.status.degraded.length > 0
+    ? 'degraded'
+    : 'connected'
+}
+
+const CONN_META: Record<
+  ConnState,
+  { label: string; dot: string; text: string; pulse: boolean }
+> = {
+  loading: { label: 'Checking…', dot: 'bg-muted-foreground', text: 'text-muted-foreground', pulse: true },
+  connected: { label: 'Connected', dot: 'bg-green-500', text: 'text-green-600', pulse: true },
+  degraded: { label: 'Connected · feed degraded', dot: 'bg-yellow-500', text: 'text-yellow-600', pulse: true },
+  reconnecting: { label: 'Reconnecting…', dot: 'bg-yellow-500', text: 'text-yellow-600', pulse: true },
+  unreachable: { label: 'Unreachable', dot: 'bg-red-500', text: 'text-red-600', pulse: false },
+  disabled: { label: 'Not configured', dot: 'bg-muted-foreground', text: 'text-muted-foreground', pulse: false },
+}
+
+/**
+ * Live listener-connection indicator — a pulsing status dot that reflects the
+ * REAL current state each poll, plus a one-line detail. Stays visible across
+ * all tabs so you can always tell whether the feed you're seeing is live.
+ */
+function ConnectionStatusBanner({
+  state,
+  status,
+  error,
+}: {
+  state: ConnState
+  status: ListenerStatusResponse | null
+  error?: string
+}) {
+  const meta = CONN_META[state]
+  return (
+    <div className="flex items-start gap-3 rounded-lg border bg-card p-4">
+      <span className="relative mt-1 flex size-2.5 shrink-0">
+        {meta.pulse && (
+          <span
+            className={cn(
+              'absolute inline-flex size-full animate-ping rounded-full opacity-75',
+              meta.dot
+            )}
+          />
+        )}
+        <span className={cn('relative inline-flex size-2.5 rounded-full', meta.dot)} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className={cn('text-sm font-semibold', meta.text)}>
+            Listener {meta.label}
+          </span>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            live
+          </span>
+        </div>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {state === 'connected' && status && (
+            <>
+              Up {formatUptime(status.uptimeSeconds)} ·{' '}
+              {status.counters.webhooksDelivered} webhooks delivered
+              {status.counters.webhooksFailed > 0 &&
+                ` · ${status.counters.webhooksFailed} failed`}
+              {(status.counters.eventsRecovered ?? 0) > 0 &&
+                ` · ${status.counters.eventsRecovered} recovered`}
+            </>
+          )}
+          {state === 'degraded' &&
+            'The listener is up but part of its status feed is momentarily unavailable — showing the last-known state.'}
+          {state === 'reconnecting' &&
+            'Not answering right now — showing the last-known state and retrying every few seconds.'}
+          {state === 'unreachable' &&
+            (error
+              ? `The service is configured but not answering: ${error}`
+              : 'The service is configured but not answering.')}
+          {state === 'loading' && 'Checking the listener…'}
+          {state === 'disabled' && (
+            <>
+              Enable it in{' '}
+              <Link
+                href="/admin/settings?tab=nwc-services"
+                className="underline underline-offset-2"
+              >
+                Settings → NWC Services
+              </Link>{' '}
+              to keep relay connections open. The platform works without it.
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export default function ListenerPage() {
   return (
     <Suspense>
@@ -108,17 +225,51 @@ function ListenerContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const activeTab = searchParams.get('tab') || 'connections'
-  const { data, loading } = useApi<ListenerStatusProxyResponse>(
+  const { data, loading, refetch } = useApi<ListenerStatusProxyResponse>(
     '/api/admin/listener/status'
   )
 
-  const status = data?.state === 'ok' ? data.status : null
-  const offline = !loading && !status
+  // Keep the dashboard live. useApi only auto-refetches on webhook SSE events,
+  // so between payments the view goes stale and a single slow/timed-out fetch
+  // would blank the whole feed — the cause of "events sometimes vanish". Poll
+  // to stay current and recover from transient blips.
+  useEffect(() => {
+    const id = setInterval(() => void refetch(), POLL_MS)
+    return () => clearInterval(id)
+  }, [refetch])
+
+  const current = data?.state === 'ok' ? data.status : null
+
+  // Sticky last-good snapshot so a transient `unreachable` (or a degraded
+  // events feed) doesn't flicker the tables empty. Uses React's "adjust state
+  // during render" pattern to record the last HEALTHY status; the live
+  // indicator still reflects the REAL current state.
+  const [lastGood, setLastGood] = useState<ListenerStatusResponse | null>(null)
+  if (
+    current &&
+    !current.degraded?.includes('recentEvents') &&
+    current !== lastGood
+  ) {
+    setLastGood(current)
+  }
+
+  const snapshot = current ?? lastGood
+  const events =
+    current && !current.degraded?.includes('recentEvents')
+      ? current.recentEvents
+      : lastGood?.recentEvents ?? snapshot?.recentEvents ?? []
+  const view: ListenerStatusResponse | null = snapshot
+    ? { ...snapshot, recentEvents: events }
+    : null
+
+  const connState = getConnState(data, loading, lastGood)
+  // Skeletons only on the very first load (no data yet); polls never flash.
+  const firstLoad = loading && !view
+  const offline = !loading && !view
   const activeConnections =
-    status?.connections.filter(c => c.state === 'subscribed').length ?? undefined
-  // Live relay connections — surfaced as a badge on the Relay connections tab.
-  const liveRelays = status
-    ? status.relays.filter(r => r.connected).length
+    view?.connections.filter(c => c.state === 'subscribed').length ?? undefined
+  const liveRelays = view
+    ? view.relays.filter(r => r.connected).length
     : undefined
 
   return (
@@ -147,49 +298,12 @@ function ListenerContent() {
       />
 
       <div className="px-4 py-6 sm:px-6 flex flex-col gap-6">
-        {/* Service state banner — always visible across tabs */}
-        {!loading && data?.state === 'disabled' && (
-          <Alert>
-            <PlugZap className="size-4" />
-            <AlertTitle>Listener service not configured</AlertTitle>
-            <AlertDescription>
-              Enable the listener in{' '}
-              <Link
-                href="/admin/settings?tab=nwc-services"
-                className="underline underline-offset-2"
-              >
-                Settings → NWC Services
-              </Link>{' '}
-              to keep relay connections open, receive payment webhooks and
-              speed up card withdraws. The platform works without it — NWC
-              calls fall back to per-request relay connections.
-            </AlertDescription>
-          </Alert>
-        )}
-        {!loading && data?.state === 'unreachable' && (
-          <Alert variant="destructive">
-            <RadioTower className="size-4" />
-            <AlertTitle>Listener unreachable</AlertTitle>
-            <AlertDescription>
-              The service is configured but not answering: {data.error}
-            </AlertDescription>
-          </Alert>
-        )}
-        {status && (
-          <Alert>
-            <CheckCircle2 className="size-4 text-green-600" />
-            <AlertTitle>Listener connected</AlertTitle>
-            <AlertDescription>
-              Up {formatUptime(status.uptimeSeconds)} · started{' '}
-              {formatRelativeTime(status.startedAt)} ·{' '}
-              {status.counters.webhooksDelivered} webhooks delivered
-              {status.counters.webhooksFailed > 0 &&
-                ` · ${status.counters.webhooksFailed} failed`}
-              {(status.counters.eventsRecovered ?? 0) > 0 &&
-                ` · ${status.counters.eventsRecovered} recovered`}
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Realtime listener-connection status — visible across all tabs */}
+        <ConnectionStatusBanner
+          state={connState}
+          status={view}
+          error={data?.state === 'unreachable' ? data.error : undefined}
+        />
 
         {/* Stats — always visible across tabs */}
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
@@ -198,31 +312,31 @@ function ListenerContent() {
             titleMobile="Connections"
             value={activeConnections}
             description="NWC wallets with a live relay subscription"
-            loading={loading}
+            loading={firstLoad}
           />
           <StatCard
             title="Relays"
-            value={status?.relays.length}
+            value={view?.relays.length}
             description="Distinct relay endpoints held open"
-            loading={loading}
+            loading={firstLoad}
           />
           <StatCard
             title="Events processed"
             titleMobile="Events"
-            value={status?.counters.eventsReceived}
+            value={view?.counters.eventsReceived}
             description="NWC notifications since last restart"
-            loading={loading}
+            loading={firstLoad}
           />
         </div>
 
         {activeTab === 'connections' && (
-          <ConnectionsTable status={status} loading={loading} offline={offline} />
+          <ConnectionsTable status={view} loading={firstLoad} offline={offline} />
         )}
         {activeTab === 'events' && (
-          <EventsTable status={status} loading={loading} offline={offline} />
+          <EventsTable status={view} loading={firstLoad} offline={offline} />
         )}
         {activeTab === 'relays' && (
-          <RelaysTable status={status} loading={loading} offline={offline} />
+          <RelaysTable status={view} loading={firstLoad} offline={offline} />
         )}
       </div>
     </div>

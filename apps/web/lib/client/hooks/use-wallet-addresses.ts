@@ -33,9 +33,20 @@ export interface WalletAddressDetail {
   /**
    * Pre-resolved NWC URI this address currently routes to, matching the
    * server-side `resolveWalletRoute` output. `null` for IDLE / ALIAS /
-   * unconfigured.
+   * unconfigured. Also `null` in the admin read-only view (`isOwner: false`):
+   * the connection secret is never surfaced to a non-owner.
    */
   effectiveConnectionString: string | null
+  /**
+   * Whether the authenticated caller owns this address. `false` when an admin
+   * (ADDRESSES_READ) is viewing another user's address — the detail page then
+   * renders read-only and withholds the wallet secret. Older responses omit
+   * this field; treat missing as owned (the only callers of the pre-admin
+   * endpoint were owners).
+   */
+  isOwner?: boolean
+  /** Hex pubkey of the address owner. Present alongside `isOwner`. */
+  ownerPubkey?: string
 }
 
 export type AddressInvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED'

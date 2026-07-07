@@ -421,7 +421,7 @@ export default function AdminAddressesPage() {
                               )
                             }
                           >
-                            Edit
+                            {adminView ? 'View details' : 'Edit'}
                           </DropdownMenuItem>
                           {!adminView && (
                             <DropdownMenuItem

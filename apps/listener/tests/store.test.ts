@@ -4,6 +4,7 @@ import {
   advanceCursor,
   bootstrapStore,
   computeEventKey,
+  countUndelivered,
   getCursor,
   insertEventIfNew,
   markDelivery,
@@ -63,21 +64,53 @@ describe('markDelivery', () => {
     await markDelivery(pool, 'key-1', 'failed', 3, 'HTTP 500')
     const [sql, params] = query.mock.calls[0]
     expect(sql).toContain('UPDATE listener.processed_events')
-    expect(params).toEqual(['key-1', 'failed', 3, 'HTTP 500'])
+    expect(sql).toContain('webhook_next_attempt_at = $5')
+    expect(params).toEqual(['key-1', 'failed', 3, 'HTTP 500', null])
+  })
+
+  it('persists the next-attempt backoff timestamp when given', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    const next = new Date('2026-01-01T00:00:00Z')
+    await markDelivery(pool, 'key-1', 'failed', 3, 'HTTP 500', next)
+    const [, params] = query.mock.calls[0]
+    expect(params).toEqual(['key-1', 'failed', 3, 'HTTP 500', next])
   })
 })
 
 describe('undeliveredEvents', () => {
-  it('filters by attempts cap and staleness', async () => {
+  it('filters by staleness and the per-event retry gate, uncapped', async () => {
     const { pool, query } = poolWith({ rows: [] })
     await undeliveredEvents(pool, {
-      maxAttempts: 25,
       olderThanMs: 120000,
       limit: 50
     })
     const [sql, params] = query.mock.calls[0]
     expect(sql).toContain("webhook_status <> 'delivered'")
-    expect(params).toEqual([25, 120000, 50])
+    expect(sql).toContain('webhook_next_attempt_at IS NULL')
+    // No attempt cap — a payment webhook retries until it lands.
+    expect(sql).not.toContain('webhook_attempts <')
+    expect(params).toEqual([120000, 50])
+  })
+})
+
+describe('countUndelivered', () => {
+  it('returns the backlog count and oldest received_at', async () => {
+    const oldest = new Date('2026-01-01T00:00:00Z')
+    const { pool, query } = poolWith({ rows: [{ count: 4, oldest }] })
+    await expect(countUndelivered(pool)).resolves.toEqual({
+      count: 4,
+      oldestReceivedAt: oldest
+    })
+    const [sql] = query.mock.calls[0]
+    expect(sql).toContain("webhook_status <> 'delivered'")
+  })
+
+  it('reports an empty backlog as zero / null', async () => {
+    const { pool } = poolWith({ rows: [{ count: 0, oldest: null }] })
+    await expect(countUndelivered(pool)).resolves.toEqual({
+      count: 0,
+      oldestReceivedAt: null
+    })
   })
 })
 

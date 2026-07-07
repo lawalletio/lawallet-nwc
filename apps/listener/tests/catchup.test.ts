@@ -51,6 +51,7 @@ const freshMetrics = () => ({
   eventsDuplicate: 0,
   webhooksDelivered: 0,
   webhooksFailed: 0,
+  webhooksPending: 0,
   nwcRequests: 0,
   nwcRequestErrors: 0,
   reconciles: 0,

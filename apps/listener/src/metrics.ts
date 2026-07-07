@@ -8,6 +8,8 @@ export const metrics = {
   eventsDuplicate: 0,
   webhooksDelivered: 0,
   webhooksFailed: 0,
+  /** Currently-undelivered webhooks (gauge, refreshed by the sweep). */
+  webhooksPending: 0,
   nwcRequests: 0,
   nwcRequestErrors: 0,
   reconciles: 0,
