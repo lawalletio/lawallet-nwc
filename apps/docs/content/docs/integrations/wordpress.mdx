@@ -1,11 +1,52 @@
 ---
 title: "WordPress Integration"
-description: "Proxy Lightning Address resolution from your WordPress domain to LaWallet NWC."
+description: "Accept Bitcoin in WooCommerce with the official plugin, or proxy Lightning Address resolution from your WordPress domain to LaWallet NWC."
 ---
 
-Make sure to replace `lawallet.example.com` with your lawallet domain.
+Two ways to bring Lightning and LaWallet to WordPress: the **official plugin** (accept Bitcoin payments in WooCommerce) and a lightweight **proxy snippet** (resolve lightning addresses on your own domain).
 
-You need to add the following script to you `functions.php` file.
+- **Site & demo:** [wordpress.lawallet.io](https://wordpress.lawallet.io)
+- **Plugin directory:** [Accept Bitcoin with your Lightning Address](https://wordpress.org/plugins/lawallet-lightning-address/)
+- **Source:** [lawalletio/lawallet-wordpress](https://github.com/lawalletio/lawallet-wordpress)
+
+---
+
+## Official plugin — Accept Bitcoin in WooCommerce
+
+**Accept Bitcoin with your Lightning Address** turns your WooCommerce store into a Bitcoin checkout. Get paid to any Lightning Address — or straight to your own Nostr Wallet Connect (NWC) wallet. It's non-custodial: the plugin never holds your keys or funds.
+
+### Features
+
+- Lightning checkout gateway for WooCommerce, with automatic fiat → sats conversion (Yadio exchange rates)
+- Pay by QR, wallet link, or WebLN
+- **Server-verified payments** via LUD-21 or NIP-57 zap receipts — orders complete only after settlement is confirmed
+- **NWC proxy mode** for wallets that support neither LUD-21 nor NIP-57
+- Works with any Lightning Address (LUD-16): Wallet of Satoshi, Primal, Strike, Alby, Blink, LNbits, LaWallet, and more
+- Lightning + Nostr address discovery on custom domains
+- Automatic order processing and invoice-expiration handling
+- Free forever — no fees, no subscription, no upsell
+
+### Requirements
+
+- WordPress 6.0+ and PHP 7.4+ (tested up to WordPress 7.0)
+- WooCommerce — required for payments; Lightning Address / NIP-05 discovery works without it
+
+### Install
+
+1. In the WordPress admin, go to **Plugins → Add New** and search for **"Accept Bitcoin with your Lightning Address"**, then install it. (Alternatively, download the ZIP from the [plugin directory](https://wordpress.org/plugins/lawallet-lightning-address/) and upload it via **Plugins → Add New → Upload Plugin**.)
+2. **Activate** the plugin.
+3. Set your merchant Lightning Address under **WooCommerce → Settings → Payments**.
+4. *(Optional)* For address discovery on your own domain, open **Settings → LaWallet** and enter your gateway endpoint.
+
+That's the whole setup — paste a public Lightning Address (`you@wallet.com`) and you're accepting Bitcoin. See [wordpress.lawallet.io](https://wordpress.lawallet.io) for a live demo and screenshots.
+
+---
+
+## Proxy Lightning Address resolution (advanced)
+
+If you only need to resolve lightning addresses on your WordPress domain — proxying `.well-known/lnurlp/<user>` to your LaWallet NWC instance — without installing the plugin, add the following to your theme's `functions.php`.
+
+Make sure to replace `lawallet.example.com` with your LaWallet domain.
 
 ```php
 define('REMOTE_DOMAIN', 'https://lawallet.example.com'); // change this
