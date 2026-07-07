@@ -413,3 +413,195 @@ export const qrJwtGenerateSchema = z.object({
     .max(64, 'Too many permissions'),
   expiresIn: deviceTokenExpiresIn.default('8h'),
 })
+
+// ── Backup & Restore ─────────────────────────────────────────────────────────
+//
+// Contract shared by the export/analyze/import routes and the admin wizard.
+// The per-table NDJSON row schemas that validate archive contents live in the
+// web app (`apps/web/lib/backup/row-schemas.ts`) since they mirror the Prisma
+// model shapes — they're an engine implementation detail, not an API contract.
+
+/**
+ * Bump on a backward-incompatible change to the archive layout. Import refuses
+ * an archive whose `schemaVersion` is greater than this value.
+ */
+export const BACKUP_SCHEMA_VERSION = 1
+
+/** Every table that can appear in a backup archive. */
+export const backupTableName = z.enum([
+  'users',
+  'cardDesigns',
+  'ntag424s',
+  'remoteWallets',
+  'lightningAddresses',
+  'cards',
+  'cardActivationTokens',
+  'albySubAccounts',
+  'invoices',
+  'activityLogs',
+  'settings',
+  'nostrProfileCache',
+  'nostrProfileImageCache',
+  'pluginRecords',
+])
+export type BackupTableName = z.infer<typeof backupTableName>
+
+/**
+ * User-facing categories toggled in the export wizard. Each maps to one or more
+ * tables (see `apps/web/lib/backup/tables.ts`). `core` bundles the essential
+ * operational state; the rest are opt-in.
+ */
+export const backupCategoryEnum = z.enum([
+  'core', // users, cardDesigns, ntag424s, remoteWallets, lightningAddresses, cards, cardActivationTokens, albySubAccounts
+  'settings',
+  'plugins',
+  'activityLogs',
+  'invoices',
+  'nostrCache', // nostrProfileCache, nostrProfileImageCache
+])
+export type BackupCategory = z.infer<typeof backupCategoryEnum>
+
+/** Bounds on how much of the large, append-only tables an export gathers. */
+export const backupExportOptionsSchema = z
+  .object({
+    activityLogLimit: z.number().int().positive().max(1_000_000).default(100_000),
+    activityLogSince: z.string().datetime().optional(),
+  })
+  .default({})
+
+export const backupExportRequestSchema = z.object({
+  categories: z.array(backupCategoryEnum).min(1, 'Select at least one category'),
+  /** When present, the archive is wrapped in an AES-256-GCM envelope. */
+  password: z.string().min(1).optional(),
+  options: backupExportOptionsSchema,
+})
+export type BackupExportRequest = z.infer<typeof backupExportRequestSchema>
+
+/** Per-table entry in `manifest.tables`. */
+export const backupTableMetaSchema = z.object({
+  count: z.number().int().nonnegative(),
+  sha256: z.string(),
+  /** True when an export cap (e.g. `activityLogLimit`) truncated the table. */
+  truncated: z.boolean().optional(),
+})
+
+export const backupManifestSchema = z.object({
+  schemaVersion: z.number().int().positive(),
+  appVersion: z.string(),
+  /** Latest applied Prisma migration id — informational, mismatch is a warning. */
+  prismaMigration: z.string().nullable(),
+  exportedAt: z.string(),
+  encrypted: z.boolean().default(false),
+  categories: z.array(backupCategoryEnum),
+  tables: z.record(backupTableName, backupTableMetaSchema),
+})
+export type BackupManifest = z.infer<typeof backupManifestSchema>
+
+/**
+ * How a single incoming row clashes with the live DB:
+ * - `pk`                — same primary key, different field values
+ * - `secondary-unique`  — a secondary UNIQUE (pubkey/username/cid/paymentHash/…) owned by a different row
+ * - `partial-unique`    — both backup and DB assert a user's primary address / default wallet, on different rows
+ * - `invalid-row`       — the row failed its schema and cannot be imported
+ * - `fk-target-missing` — a required FK target is neither in the backup nor the DB
+ */
+export const backupConflictKind = z.enum([
+  'pk',
+  'secondary-unique',
+  'partial-unique',
+  'invalid-row',
+  'fk-target-missing',
+])
+export type BackupConflictKind = z.infer<typeof backupConflictKind>
+
+export const backupResolutionStrategy = z.enum(['skip', 'overwrite', 'rename'])
+export type BackupResolutionStrategy = z.infer<typeof backupResolutionStrategy>
+
+export const backupConflictSchema = z.object({
+  /** Stable id `${table}:${rowKey}` — the key the wizard maps resolutions by. */
+  id: z.string(),
+  table: backupTableName,
+  kind: backupConflictKind,
+  /** Primary key (or composite key string) of the incoming row. */
+  rowKey: z.string(),
+  /** The colliding field, when applicable (e.g. `username`, `pubkey`). */
+  field: z.string().optional(),
+  incomingValue: z.unknown().optional(),
+  existingValue: z.unknown().optional(),
+  existingId: z.string().optional(),
+  existingOwnerId: z.string().optional(),
+  /** Plain-language summary shown in the wizard. */
+  message: z.string(),
+  suggestedStrategy: backupResolutionStrategy,
+  allowedStrategies: z.array(backupResolutionStrategy).min(1),
+})
+export type BackupConflict = z.infer<typeof backupConflictSchema>
+
+export const backupTableCountsSchema = z.object({
+  total: z.number().int(),
+  new: z.number().int(),
+  identical: z.number().int(),
+  conflicting: z.number().int(),
+  invalid: z.number().int(),
+})
+
+export const backupTableAnalysisSchema = z.object({
+  counts: backupTableCountsSchema,
+  conflicts: z.array(backupConflictSchema),
+})
+
+export const backupAnalyzeResponseSchema = z.object({
+  manifest: backupManifestSchema,
+  tables: z.record(backupTableName, backupTableAnalysisSchema),
+  warnings: z.array(z.string()),
+  analyzedAt: z.string(),
+})
+export type BackupAnalyzeResponse = z.infer<typeof backupAnalyzeResponseSchema>
+
+/** Restore mode chosen at the start of the restore wizard. */
+export const backupImportMode = z.enum(['merge', 'replace'])
+export type BackupImportMode = z.infer<typeof backupImportMode>
+
+export const backupImportRequestSchema = z.object({
+  mode: backupImportMode.default('merge'),
+  /** Applied to any conflict lacking a per-conflict override (merge mode). */
+  defaultStrategy: z.enum(['skip', 'overwrite']).default('skip'),
+  perConflict: z
+    .array(
+      z.object({
+        id: z.string(),
+        strategy: backupResolutionStrategy,
+      }),
+    )
+    .default([]),
+  /** On a primary-address / default-wallet clash, whether the backup wins. */
+  preferBackupPrimary: z.boolean().default(false),
+  /** All-or-nothing (one transaction) vs best-effort per table. */
+  atomic: z.boolean().default(true),
+})
+export type BackupImportRequest = z.infer<typeof backupImportRequestSchema>
+
+export const backupImportTableResultSchema = z.object({
+  imported: z.number().int(),
+  skipped: z.number().int(),
+  overwritten: z.number().int(),
+  renamed: z.number().int(),
+  deleted: z.number().int(),
+  failed: z.number().int(),
+  notes: z.array(z.object({ id: z.string(), reason: z.string() })),
+})
+
+export const backupImportResultSchema = z.object({
+  mode: backupImportMode,
+  tables: z.record(backupTableName, backupImportTableResultSchema),
+  hadErrors: z.boolean(),
+  errors: z.array(
+    z.object({
+      table: backupTableName.optional(),
+      id: z.string().optional(),
+      message: z.string(),
+    }),
+  ),
+  importedAt: z.string(),
+})
+export type BackupImportResult = z.infer<typeof backupImportResultSchema>

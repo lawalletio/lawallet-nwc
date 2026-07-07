@@ -139,6 +139,7 @@ const settingsSubItems = [
   { title: 'Wallet', tab: 'wallet' },
   { title: 'NWC Services', tab: 'nwc-services' },
   { title: 'Device Tokens', tab: 'device-tokens' },
+  { title: 'Backup & Restore', tab: 'backup' },
 ]
 
 /** Default tab the settings page lands on when no `?tab=` is present. */
