@@ -40,7 +40,6 @@ const STEPS = [
   { key: 'mode', label: 'Mode' },
   { key: 'review', label: 'Review' },
   { key: 'import', label: 'Restore' },
-  { key: 'done', label: 'Done' },
 ]
 
 type Step = 'select-file' | 'choose-mode' | 'analyzing' | 'review' | 'importing' | 'result'
