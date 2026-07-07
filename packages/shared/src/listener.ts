@@ -202,8 +202,16 @@ export const listenerRecentEventSchema = z.object({
   type: z.string(),
   paymentHash: z.string().nullable(),
   amountMsats: z.number().int().nullable(),
+  /** Unix seconds the wallet reported as settled_at (null when unknown). */
+  settledAt: z.number().int().nullable().optional(),
   receivedAt: z.string(),
   webhookStatus: z.enum(['pending', 'delivered', 'failed']),
+  /** How many delivery attempts the webhook has taken so far. */
+  webhookAttempts: z.number().int().nonnegative().optional(),
+  /** Error from the most recent failed delivery attempt, if any. */
+  webhookLastError: z.string().nullable().optional(),
+  /** ISO timestamp of the next scheduled retry (failed deliveries only). */
+  webhookNextAttemptAt: z.string().nullable().optional(),
   /** True when the event came from downtime catch-up, not the live stream. */
   recovered: z.boolean().optional(),
 })

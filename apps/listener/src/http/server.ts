@@ -127,8 +127,16 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
           type: event.notificationType,
           paymentHash: event.paymentHash,
           amountMsats: event.amountMsats,
+          settledAt: event.settledAt
+            ? Math.floor(event.settledAt.getTime() / 1000)
+            : null,
           receivedAt: event.receivedAt.toISOString(),
           webhookStatus: event.webhookStatus,
+          webhookAttempts: event.webhookAttempts,
+          webhookLastError: event.webhookLastError ?? null,
+          webhookNextAttemptAt: event.webhookNextAttemptAt
+            ? event.webhookNextAttemptAt.toISOString()
+            : null,
           recovered: event.recovered
         })),
         ...(degraded.length ? { degraded } : {})
