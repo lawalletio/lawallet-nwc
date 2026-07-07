@@ -637,9 +637,24 @@ function EventDetailDialog({
                   ? `⚡ ${Math.floor(event.amountMsats / 1000).toLocaleString()} sats (${event.amountMsats.toLocaleString()} msats)`
                   : '—'}
               </DetailRow>
+              {event.feesPaidMsats != null && (
+                <DetailRow label="Fees">
+                  {`${Math.floor(event.feesPaidMsats / 1000).toLocaleString()} sats (${event.feesPaidMsats.toLocaleString()} msats)`}
+                </DetailRow>
+              )}
               <DetailRow label="Payment hash" mono>
                 {event.paymentHash || '—'}
               </DetailRow>
+              {event.preimage && (
+                <DetailRow label="Preimage" mono>
+                  {event.preimage}
+                </DetailRow>
+              )}
+              {event.invoice && (
+                <DetailRow label="Invoice" mono>
+                  {event.invoice}
+                </DetailRow>
+              )}
               <DetailRow label="Event key" mono>
                 {event.eventKey}
               </DetailRow>

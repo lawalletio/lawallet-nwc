@@ -8741,6 +8741,25 @@
                                       "null"
                                     ]
                                   },
+                                  "feesPaidMsats": {
+                                    "type": [
+                                      "integer",
+                                      "null"
+                                    ],
+                                    "minimum": 0
+                                  },
+                                  "invoice": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "preimage": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
                                   "settledAt": {
                                     "type": [
                                       "integer",

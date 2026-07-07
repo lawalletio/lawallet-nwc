@@ -202,6 +202,12 @@ export const listenerRecentEventSchema = z.object({
   type: z.string(),
   paymentHash: z.string().nullable(),
   amountMsats: z.number().int().nullable(),
+  /** Fees paid in msats (payments sent), from the wallet's `fees_paid`. */
+  feesPaidMsats: z.number().int().nonnegative().nullable().optional(),
+  /** BOLT-11 invoice the payment settled, if the wallet reported one. */
+  invoice: z.string().nullable().optional(),
+  /** Payment preimage (proof of payment), if the wallet reported one. */
+  preimage: z.string().nullable().optional(),
   /** Unix seconds the wallet reported as settled_at (null when unknown). */
   settledAt: z.number().int().nullable().optional(),
   receivedAt: z.string(),
