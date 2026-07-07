@@ -65,6 +65,8 @@ export const ActivityEvent = {
   SERVER_DATABASE_ERROR: 'server.database_error',
   SERVER_MAINTENANCE_TOGGLED: 'server.maintenance_toggled',
   SERVER_SETTINGS_UPDATED: 'server.settings_updated',
+  SERVER_BACKUP_EXPORTED: 'server.backup_exported',
+  SERVER_BACKUP_IMPORTED: 'server.backup_imported',
 } as const
 
 export type ActivityEventCode = (typeof ActivityEvent)[keyof typeof ActivityEvent]

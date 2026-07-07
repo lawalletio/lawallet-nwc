@@ -76,6 +76,7 @@
     "date-fns": "^4.1.0",
     "embla-carousel-react": "latest",
     "envsafe": "^2.0.3",
+    "fflate": "^0.8.3",
     "html5-qrcode": "^2.3.8",
     "input-otp": "latest",
     "jsonwebtoken": "^9.0.3",
