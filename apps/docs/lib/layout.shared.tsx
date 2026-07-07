@@ -24,6 +24,10 @@ export function baseOptions(): BaseLayoutProps {
       {
         text: 'Getting started',
         url: '/docs',
+        // Navbar only — `/docs` is the docs home (also reached via the logo),
+        // so listing it in the sidebar too is a duplicate. `on: 'menu'` items
+        // render in the sidebar; the default `'all'` renders in both.
+        on: 'nav',
       },
       {
         text: 'Deploy',
