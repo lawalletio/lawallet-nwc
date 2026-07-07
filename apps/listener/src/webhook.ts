@@ -9,7 +9,12 @@ import {
 } from '@lawallet-nwc/shared'
 import type { ListenerEnv } from './env'
 import type { Metrics } from './metrics'
-import { markDelivery, undeliveredEvents, type StoredEvent } from './store'
+import {
+  countUndelivered,
+  markDelivery,
+  undeliveredEvents,
+  type StoredEvent
+} from './store'
 
 /** HMAC-SHA256 over `${timestamp}.${body}` — web verifies the same recipe. */
 export function signWebhook(
@@ -24,8 +29,12 @@ export function signWebhook(
 
 /** Backoff between inline attempts; sweep picks up whatever outlives these. */
 const RETRY_DELAYS_MS = [1000, 5000, 25000, 60000, 120000]
-/** Hard attempt cap across inline retries + sweep re-dispatches. */
-const SWEEP_MAX_ATTEMPTS = 25
+/** Sweep-retry backoff: doubles each failed round, capped — but NEVER caps out
+ *  the retries themselves. A payment webhook keeps retrying until it lands. */
+const SWEEP_BACKOFF_BASE_MS = 120_000
+const SWEEP_BACKOFF_MAX_MS = 60 * 60_000
+/** Warn once the oldest undelivered webhook has been stuck this long. */
+const BACKLOG_WARN_AFTER_MS = 10 * 60_000
 
 interface Transactionish {
   type?: string
@@ -103,6 +112,9 @@ export class WebhookDispatcher {
 
       if (outcome.delivered) {
         metrics.webhooksDelivered++
+        if (event.webhookAttempts > 0) {
+          log.info({ eventKey: event.eventKey, attempts }, 'webhook.recovered')
+        }
         await markDelivery(pool, event.eventKey, 'delivered', attempts)
         return
       }
@@ -114,12 +126,14 @@ export class WebhookDispatcher {
 
       if (!outcome.retryable || i === env.WEBHOOK_MAX_ATTEMPTS - 1) {
         metrics.webhooksFailed++
+        // Defer, don't drop — the sweep keeps retrying until it lands.
         await markDelivery(
           pool,
           event.eventKey,
           'failed',
           attempts,
-          outcome.error
+          outcome.error,
+          this.nextAttemptAt(attempts)
         )
         return
       }
@@ -189,21 +203,82 @@ export class WebhookDispatcher {
     return outcome.delivered
   }
 
-  /** Re-attempts undelivered events — the "web was down for an hour" path. */
+  /**
+   * Re-attempts undelivered events — the "web was down" path. One attempt per
+   * event per sweep (never block the loop with inline sleeps); the per-event
+   * `webhook_next_attempt_at` backoff paces the rest. There is no attempt cap:
+   * a payment webhook keeps retrying until the web app accepts it.
+   */
   async sweep(): Promise<void> {
     if (this.sweeping) return
     this.sweeping = true
     try {
       const events = await undeliveredEvents(this.deps.pool, {
-        maxAttempts: SWEEP_MAX_ATTEMPTS,
         olderThanMs: 2 * 60 * 1000,
         limit: 50
       })
       for (const event of events) {
-        await this.dispatch(event)
+        await this.retryOnce(event)
       }
+      await this.reportBacklog()
     } finally {
       this.sweeping = false
+    }
+  }
+
+  /** Exponential backoff (capped at 1h, never gives up) for the next retry. */
+  private nextAttemptAt(attempts: number): Date {
+    const over = Math.max(0, attempts - this.deps.env.WEBHOOK_MAX_ATTEMPTS)
+    const delay = Math.min(
+      SWEEP_BACKOFF_BASE_MS * 2 ** over,
+      SWEEP_BACKOFF_MAX_MS
+    )
+    return new Date(Date.now() + delay)
+  }
+
+  /** A single delivery attempt for a swept (previously-failed) event. */
+  private async retryOnce(event: StoredEvent): Promise<void> {
+    const { log, pool, metrics } = this.deps
+    const attempts = event.webhookAttempts + 1
+    const outcome = await this.post(JSON.stringify(this.buildPayload(event)))
+    if (outcome.delivered) {
+      metrics.webhooksDelivered++
+      log.info({ eventKey: event.eventKey, attempts }, 'webhook.recovered')
+      await markDelivery(pool, event.eventKey, 'delivered', attempts)
+      return
+    }
+    metrics.webhooksFailed++
+    await markDelivery(
+      pool,
+      event.eventKey,
+      'failed',
+      attempts,
+      outcome.error,
+      this.nextAttemptAt(attempts)
+    )
+  }
+
+  /** Refresh the pending gauge and warn loudly on a persistent backlog. */
+  private async reportBacklog(): Promise<void> {
+    const { log, metrics, pool } = this.deps
+    try {
+      const { count, oldestReceivedAt } = await countUndelivered(pool)
+      metrics.webhooksPending = count
+      if (count > 0 && oldestReceivedAt) {
+        const oldestMs = Date.now() - oldestReceivedAt.getTime()
+        if (oldestMs >= BACKLOG_WARN_AFTER_MS) {
+          log.warn(
+            {
+              pending: count,
+              oldestMinutes: Math.round(oldestMs / 60000),
+              webhookUrl: this.webhookUrl
+            },
+            'webhook.backlog — apps/web unreachable? events are queued and will keep retrying until delivered'
+          )
+        }
+      }
+    } catch (err) {
+      log.debug({ err }, 'webhook.backlog_check_failed')
     }
   }
 

@@ -33,6 +33,13 @@ export async function bootstrapStore(pool: pg.Pool): Promise<void> {
     ALTER TABLE listener.processed_events
       ADD COLUMN IF NOT EXISTS recovered boolean NOT NULL DEFAULT false;
 
+    -- Per-event retry gate: a failed delivery defers its next attempt to this
+    -- timestamp (exponential backoff). NULL = eligible immediately. Lets the
+    -- sweep back off a long-unreachable web app WITHOUT ever giving up — there
+    -- is no attempt cap, so a payment webhook is never permanently dropped.
+    ALTER TABLE listener.processed_events
+      ADD COLUMN IF NOT EXISTS webhook_next_attempt_at timestamptz;
+
     CREATE TABLE IF NOT EXISTS listener.wallet_cursors (
       wallet_id    text PRIMARY KEY,
       last_seen_at timestamptz NOT NULL,
@@ -45,6 +52,9 @@ export async function bootstrapStore(pool: pg.Pool): Promise<void> {
       ON listener.processed_events (wallet_id, received_at DESC);
     CREATE INDEX IF NOT EXISTS processed_events_webhook_status_idx
       ON listener.processed_events (webhook_status)
+      WHERE webhook_status <> 'delivered';
+    CREATE INDEX IF NOT EXISTS processed_events_retry_idx
+      ON listener.processed_events (webhook_next_attempt_at)
       WHERE webhook_status <> 'delivered';
   `)
 }
@@ -162,17 +172,35 @@ export async function markDelivery(
   eventKey: string,
   status: 'delivered' | 'failed',
   attempts: number,
-  lastError?: string
+  lastError?: string,
+  /** When to next attempt a failed delivery (null clears the gate). */
+  nextAttemptAt?: Date | null
 ): Promise<void> {
   await pool.query(
     `UPDATE listener.processed_events
         SET webhook_status = $2,
             webhook_attempts = $3,
             webhook_last_error = $4,
-            delivered_at = CASE WHEN $2 = 'delivered' THEN now() ELSE delivered_at END
+            delivered_at = CASE WHEN $2 = 'delivered' THEN now() ELSE delivered_at END,
+            webhook_next_attempt_at = $5
       WHERE event_key = $1`,
-    [eventKey, status, attempts, lastError ?? null]
+    [eventKey, status, attempts, lastError ?? null, nextAttemptAt ?? null]
   )
+}
+
+/** Undelivered-webhook backlog — count + age of the oldest — for observability. */
+export async function countUndelivered(
+  pool: pg.Pool
+): Promise<{ count: number; oldestReceivedAt: Date | null }> {
+  const { rows } = await pool.query<{ count: number; oldest: Date | null }>(
+    `SELECT count(*)::int AS count, min(received_at) AS oldest
+       FROM listener.processed_events
+      WHERE webhook_status <> 'delivered'`
+  )
+  return {
+    count: rows[0]?.count ?? 0,
+    oldestReceivedAt: rows[0]?.oldest ?? null
+  }
 }
 
 interface EventRow {
@@ -280,17 +308,20 @@ export async function lastEventAtByWallet(
  */
 export async function undeliveredEvents(
   pool: pg.Pool,
-  opts: { maxAttempts: number; olderThanMs: number; limit: number }
+  opts: { olderThanMs: number; limit: number }
 ): Promise<StoredEvent[]> {
+  // No attempt cap: an undelivered event is retried for as long as it takes
+  // (the per-event `webhook_next_attempt_at` backoff paces it). A payment
+  // webhook is never abandoned just because the web app was down a while.
   const { rows } = await pool.query<EventRow>(
     `SELECT ${EVENT_COLUMNS}
        FROM listener.processed_events e
       WHERE e.webhook_status <> 'delivered'
-        AND e.webhook_attempts < $1
-        AND e.received_at < now() - ($2::bigint * interval '1 millisecond')
+        AND e.received_at < now() - ($1::bigint * interval '1 millisecond')
+        AND (e.webhook_next_attempt_at IS NULL OR e.webhook_next_attempt_at <= now())
       ORDER BY e.received_at ASC
-      LIMIT $3`,
-    [opts.maxAttempts, opts.olderThanMs, opts.limit]
+      LIMIT $2`,
+    [opts.olderThanMs, opts.limit]
   )
   return rows.map(toStored)
 }
