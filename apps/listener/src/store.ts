@@ -137,6 +137,10 @@ export interface StoredEvent extends NewEvent {
   receivedAt: Date
   webhookStatus: 'pending' | 'delivered' | 'failed'
   webhookAttempts: number
+  /** Last webhook delivery error, if the most recent attempt failed. */
+  webhookLastError?: string | null
+  /** When the next retry is due (failed deliveries only). */
+  webhookNextAttemptAt?: Date | null
   /** RemoteWallet.name joined for the dashboard feed (null if wallet gone). */
   walletName?: string | null
 }
@@ -214,6 +218,8 @@ interface EventRow {
   received_at: Date
   webhook_status: 'pending' | 'delivered' | 'failed'
   webhook_attempts: number
+  webhook_last_error: string | null
+  webhook_next_attempt_at: Date | null
   recovered: boolean
   wallet_name?: string | null
 }
@@ -231,6 +237,8 @@ function toStored(row: EventRow): StoredEvent {
     receivedAt: row.received_at,
     webhookStatus: row.webhook_status,
     webhookAttempts: row.webhook_attempts,
+    webhookLastError: row.webhook_last_error,
+    webhookNextAttemptAt: row.webhook_next_attempt_at,
     recovered: row.recovered,
     walletName: row.wallet_name ?? null
   }
@@ -238,7 +246,7 @@ function toStored(row: EventRow): StoredEvent {
 
 const EVENT_COLUMNS = `e.event_key, e.wallet_id, e.notification_type, e.payment_hash,
   e.amount_msats, e.settled_at, e.payload, e.received_at, e.webhook_status,
-  e.webhook_attempts, e.recovered`
+  e.webhook_attempts, e.webhook_last_error, e.webhook_next_attempt_at, e.recovered`
 
 export async function recentEvents(
   pool: pg.Pool,

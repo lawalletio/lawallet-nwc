@@ -8,6 +8,13 @@ import { StatCard } from '@/components/admin/stat-card'
 import { DataTablePagination } from '@/components/admin/data-table-pagination'
 import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import {
   Table,
@@ -454,6 +461,7 @@ function EventsTable({ status, loading, offline }: TabProps) {
     [status]
   )
   const { pageRows, page, totalPages, setPage } = usePaginatedRows(sorted)
+  const [selected, setSelected] = useState<ListenerRecentEvent | null>(null)
 
   if (loading) return <TableSkeleton rows={4} columns={5} />
   if (!status || status.recentEvents.length === 0) {
@@ -479,7 +487,20 @@ function EventsTable({ status, loading, offline }: TabProps) {
           </TableHeader>
           <TableBody>
             {pageRows.map(event => (
-              <TableRow key={event.eventKey}>
+              <TableRow
+                key={event.eventKey}
+                onClick={() => setSelected(event)}
+                className="cursor-pointer"
+                tabIndex={0}
+                role="button"
+                aria-label={`View details for ${event.type} event`}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setSelected(event)
+                  }
+                }}
+              >
               <TableCell>
                 <span className="inline-flex items-center gap-1.5">
                   <Badge variant="outline">{event.type}</Badge>
@@ -494,8 +515,10 @@ function EventsTable({ status, loading, offline }: TabProps) {
                 </span>
               </TableCell>
               <TableCell className="text-sm">
+                {/* stopPropagation so the wallet link doesn't also open the modal */}
                 <Link
                   href={walletHref(event.walletId)}
+                  onClick={e => e.stopPropagation()}
                   className="hover:underline underline-offset-2"
                 >
                   {event.walletName || (
@@ -529,7 +552,153 @@ function EventsTable({ status, loading, offline }: TabProps) {
         totalPages={totalPages}
         onPageChange={setPage}
       />
+      <EventDetailDialog
+        event={selected}
+        onClose={() => setSelected(null)}
+      />
     </div>
+  )
+}
+
+/** Absolute UTC timestamp for the detail modal (feed uses relative time). */
+function formatAbsolute(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')
+}
+
+/** One label/value row in the detail modal; long values wrap and can be copied. */
+function DetailRow({
+  label,
+  children,
+  mono,
+}: {
+  label: string
+  children: React.ReactNode
+  mono?: boolean
+}) {
+  return (
+    <div className="grid grid-cols-[130px_1fr] gap-3 py-2 border-b last:border-0">
+      <div className="text-sm text-muted-foreground">{label}</div>
+      <div className={cn('text-sm break-all', mono && 'font-mono')}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function EventDetailDialog({
+  event,
+  onClose,
+}: {
+  event: ListenerRecentEvent | null
+  onClose: () => void
+}) {
+  return (
+    <Dialog open={!!event} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="max-w-lg">
+        {event && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Badge variant="outline">{event.type}</Badge>
+                {event.recovered && (
+                  <Badge
+                    variant="outline"
+                    className="bg-sky-500/15 text-sky-600"
+                  >
+                    Recovered
+                  </Badge>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                NWC event received by the listener and forwarded to this app.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto">
+              <DetailRow label="NWC connection">
+                <Link
+                  href={walletHref(event.walletId)}
+                  className="hover:underline underline-offset-2"
+                >
+                  {event.walletName || (
+                    <span className="font-mono">
+                      {truncateHex(event.walletId)}
+                    </span>
+                  )}
+                </Link>
+              </DetailRow>
+              <DetailRow label="Wallet ID" mono>
+                {event.walletId}
+              </DetailRow>
+              <DetailRow label="Amount">
+                {event.amountMsats !== null
+                  ? `⚡ ${Math.floor(event.amountMsats / 1000).toLocaleString()} sats (${event.amountMsats.toLocaleString()} msats)`
+                  : '—'}
+              </DetailRow>
+              {event.feesPaidMsats != null && (
+                <DetailRow label="Fees">
+                  {`${Math.floor(event.feesPaidMsats / 1000).toLocaleString()} sats (${event.feesPaidMsats.toLocaleString()} msats)`}
+                </DetailRow>
+              )}
+              <DetailRow label="Payment hash" mono>
+                {event.paymentHash || '—'}
+              </DetailRow>
+              {event.preimage && (
+                <DetailRow label="Preimage" mono>
+                  {event.preimage}
+                </DetailRow>
+              )}
+              {event.invoice && (
+                <DetailRow label="Invoice" mono>
+                  {event.invoice}
+                </DetailRow>
+              )}
+              <DetailRow label="Event key" mono>
+                {event.eventKey}
+              </DetailRow>
+              <DetailRow label="Received">
+                {formatAbsolute(event.receivedAt)}
+              </DetailRow>
+              {event.settledAt != null && (
+                <DetailRow label="Settled">
+                  {formatAbsolute(new Date(event.settledAt * 1000).toISOString())}
+                </DetailRow>
+              )}
+              <DetailRow label="Webhook">
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className={WEBHOOK_BADGE[event.webhookStatus].className}
+                  >
+                    {WEBHOOK_BADGE[event.webhookStatus].label}
+                  </Badge>
+                  {event.webhookAttempts != null && (
+                    <span className="text-muted-foreground">
+                      {event.webhookAttempts} attempt
+                      {event.webhookAttempts === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </span>
+              </DetailRow>
+              {event.webhookLastError && (
+                <DetailRow label="Last error">
+                  <span className="text-red-600">{event.webhookLastError}</span>
+                </DetailRow>
+              )}
+              {event.webhookStatus === 'failed' &&
+                event.webhookNextAttemptAt && (
+                  <DetailRow label="Next retry">
+                    {formatRelativeTime(event.webhookNextAttemptAt)} (
+                    {formatAbsolute(event.webhookNextAttemptAt)})
+                  </DetailRow>
+                )}
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
 

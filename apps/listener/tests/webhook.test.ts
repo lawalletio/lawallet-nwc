@@ -54,6 +54,8 @@ const rowFor = (e: StoredEvent) => ({
   received_at: e.receivedAt,
   webhook_status: e.webhookStatus,
   webhook_attempts: e.webhookAttempts,
+  webhook_last_error: e.webhookLastError ?? null,
+  webhook_next_attempt_at: e.webhookNextAttemptAt ?? null,
   recovered: e.recovered
 })
 

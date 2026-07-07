@@ -120,17 +120,37 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
           deadProbesTimedOut: metrics.deadProbesTimedOut,
           walletsDeclaredDead: metrics.walletsDeclaredDead
         },
-        recentEvents: events.map(event => ({
-          eventKey: event.eventKey,
-          walletId: event.walletId,
-          walletName: event.walletName ?? null,
-          type: event.notificationType,
-          paymentHash: event.paymentHash,
-          amountMsats: event.amountMsats,
-          receivedAt: event.receivedAt.toISOString(),
-          webhookStatus: event.webhookStatus,
-          recovered: event.recovered
-        })),
+        recentEvents: events.map(event => {
+          // invoice / fees / preimage live only in the raw NIP-47 payload.
+          const tx = (event.payload ?? {}) as {
+            fees_paid?: number
+            invoice?: string
+            preimage?: string
+          }
+          return {
+            eventKey: event.eventKey,
+            walletId: event.walletId,
+            walletName: event.walletName ?? null,
+            type: event.notificationType,
+            paymentHash: event.paymentHash,
+            amountMsats: event.amountMsats,
+            feesPaidMsats:
+              typeof tx.fees_paid === 'number' ? tx.fees_paid : null,
+            invoice: tx.invoice || null,
+            preimage: tx.preimage || null,
+            settledAt: event.settledAt
+              ? Math.floor(event.settledAt.getTime() / 1000)
+              : null,
+            receivedAt: event.receivedAt.toISOString(),
+            webhookStatus: event.webhookStatus,
+            webhookAttempts: event.webhookAttempts,
+            webhookLastError: event.webhookLastError ?? null,
+            webhookNextAttemptAt: event.webhookNextAttemptAt
+              ? event.webhookNextAttemptAt.toISOString()
+              : null,
+            recovered: event.recovered
+          }
+        }),
         ...(degraded.length ? { degraded } : {})
       }
       sendJson(res, 200, status)

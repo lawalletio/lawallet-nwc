@@ -8741,6 +8741,31 @@
                                       "null"
                                     ]
                                   },
+                                  "feesPaidMsats": {
+                                    "type": [
+                                      "integer",
+                                      "null"
+                                    ],
+                                    "minimum": 0
+                                  },
+                                  "invoice": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "preimage": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "settledAt": {
+                                    "type": [
+                                      "integer",
+                                      "null"
+                                    ]
+                                  },
                                   "receivedAt": {
                                     "type": "string"
                                   },
@@ -8750,6 +8775,22 @@
                                       "pending",
                                       "delivered",
                                       "failed"
+                                    ]
+                                  },
+                                  "webhookAttempts": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "webhookLastError": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "webhookNextAttemptAt": {
+                                    "type": [
+                                      "string",
+                                      "null"
                                     ]
                                   },
                                   "recovered": {

@@ -193,6 +193,9 @@ describe('recovered flag + wallet name', () => {
     const [row] = await recentEvents(pool, 10)
     const [sql] = query.mock.calls[0]
     expect(sql).toContain('LEFT JOIN "RemoteWallet"')
+    // Detail columns surfaced for the dashboard event modal.
+    expect(sql).toContain('webhook_last_error')
+    expect(sql).toContain('webhook_next_attempt_at')
     expect(row.walletName).toBe('Alice wallet')
     expect(row.recovered).toBe(true)
   })
