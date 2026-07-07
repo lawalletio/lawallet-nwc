@@ -2,6 +2,20 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  bufferutil: true
+  es5-ext: true
+  esbuild: true
+  msw: true
+  prisma: true
+  secp256k1: true
+  sharp: true
+  unrs-resolver: true
+  utf-8-validate: true
+  vue-demi: true
+
 # Dependency version pins. pnpm 10 no longer reads the `pnpm.overrides` field
 # from package.json — overrides live here now. Most are security/transitive
 # pins; keep in sync with the audit allowlist.
