@@ -17,10 +17,21 @@ Finalize all documentation, configure deployment targets, and prepare the codeba
 
 ## Goals
 
+- Ship the WordPress plugin (`lawallet-wordpress`) — integrate LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress sites
 - Create comprehensive documentation for API, codebase, and all services
 - Configure deployment for Vercel, Netlify, Umbrel, Start9, Docker
 - Prepare for security audit
 - Finalize SDK and Hooks documentation
+
+---
+
+## WordPress Plugin (lawallet-wordpress)
+
+A WordPress plugin that integrates LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress sites — accept Lightning payments / zaps and expose lightning addresses from a WordPress install.
+
+- Repo: [lawallet-wordpress](https://github.com/lawalletio/lawallet-wordpress)
+- Live demo: [wordpress.lawallet.io](https://wordpress.lawallet.io)
+- Complements the existing `integrations/WORDPRESS.md` guidance
 
 ---
 
@@ -145,6 +156,7 @@ Finalize all documentation, configure deployment targets, and prepare the codeba
 
 | Deliverable | Criteria | Priority |
 |-------------|----------|----------|
+| WordPress plugin (`lawallet-wordpress`) | Plugin integrates LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress; live demo at `wordpress.lawallet.io` | P1 |
 | API docs | OpenAPI spec complete, interactive docs deployed | P0 |
 | ARCHITECTURE.md | Diagrams, data flow, all services + lncurl documented | P0 |
 | CONTRIBUTING.md | Setup guide, standards, PR process | P0 |

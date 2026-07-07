@@ -1,4 +1,4 @@
-# Month 6: NWC Payment Listener + NWC Proxy Lite + Lightning Compliance + Deployment
+# Month 6: Card Activation Flow + NWC Payment Listener + NWC Proxy Lite + Lightning Compliance + Deployment
 
 **Period:** June 5 – July 5, 2026
 **Status:** Planned
@@ -6,6 +6,8 @@
 
 ## Summary
 
+- Card activation flow (SIMPLE / MASTER cards + ONE_TIME / FOREVER QRs) — deferred from M5
+- WordPress plugin (`lawallet-wordpress`) — LaWallet integration for WordPress sites
 - NWC Payment Listener (lite, transport-only) + LUD-22 webhook plumbing
 - NWC Proxy Lite — settlement layer; LUD-16 / LUD-21 / LUD-22 / NIP-57 compliance
 - `@lawallet-nwc/react` extraction
@@ -21,6 +23,8 @@
 
 ## Goals
 
+- Card activation flow — the end-user "Activate Card" wallet UI over SIMPLE / MASTER cards and ONE_TIME / FOREVER activation QRs, plus the activation-tokens / share data model and claim / rescue / share-revoke endpoints (deferred from M5)
+- WordPress plugin (`lawallet-wordpress`) — integrate LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress sites
 - NWC Payment Listener (lite, transport-only) in `apps/listener/`
 - LUD-22 webhook plumbing through the listener
 - NWC Proxy Lite — settlement layer providing LUD-16, NIP-57, LUD-21, LUD-22
@@ -33,6 +37,146 @@
 - Documentation finalization (service docs, threat model, migration guides)
 - SDK + Hooks finalization
 - Security audit readiness
+
+---
+
+## Card Activation Flow (SIMPLE / MASTER + ONE_TIME / FOREVER)
+
+Deferred from [Month 5](MONTH-5.md), where the card apps (`card-installer`, `card-manager`) shipped. This month adds the end-user flow that turns a scanned Activation QR into a claimed card or an account share.
+
+### Cards & QRs — two separate concepts
+
+There are **two orthogonal concepts** in the card flow: the **card kind** (a property of the card itself) and the **QR kind** (a property of an activation token issued for a card).
+
+**Card kinds** (declared at card creation, persisted on the `Card`):
+
+- `SIMPLE` — single-holder card. Only ownership-transfer is supported.
+- `MASTER` — account-share-capable card. Supports ownership-transfer **and** account-share grants.
+
+**QR kinds** (a property of each `CardActivationToken`):
+
+- `ONE_TIME` — single-use. First wallet to scan claims; token burns; subsequent scans return "already claimed". Issued for **both** SIMPLE and MASTER cards.
+- `FOREVER` — multi-use. Every scan claims; token does **not** burn. Issued only for **MASTER** cards.
+
+**Constraint — max one active QR of each kind per card:**
+
+- A card has **at most one active `ONE_TIME` QR** at a time
+- A card has **at most one active `FOREVER` QR** at a time (MASTER cards only)
+- Generating a new QR of the same kind on the same card invalidates the previous one
+- A MASTER card can therefore have up to **two QRs live concurrently** (one of each kind); a SIMPLE card has at most one
+
+**Every card can re-issue a fresh QR via `card-manager` (or directly from `card-installer` at write time).** Cards transfer (or share, for MASTER) only via their own QR.
+
+QR can be shown on screen or printed (poster mode, design-aligned).
+
+### Card Rescue
+
+- "Rescue this card" action invalidates any prior outstanding activation tokens for the card
+- Generates a fresh `ONE_TIME` (`SIMPLE`) activation QR — card returns to a fresh, unassigned, no-attachments state
+- Available on **any card** via `card-manager` — if the card had a previous owner, rescuing it unpairs that owner and readies the card for a new user. This is the standard "re-issue" path; "rescue" is just the wording when a previous QR was lost / leaked
+
+### "Activate Card" Flow (End-User Wallet UI)
+
+- New "Activate Card" entry in the user wallet (home-screen CTA + Settings entry)
+- Wallet opens a QR scanner → reads the activation token
+- **Identity step** — the claimer picks who claims:
+  - **New user** — wallet creates a fresh `nsec` on the spot
+  - **Existing user** — wallet signs in with NIP-07 / NIP-46 / paste nsec
+- Wallet calls `POST /api/activation-tokens/[id]/claim` (NIP-98 / JWT) with the claimer's identity
+
+Flow branches on the token's **QR kind**:
+
+**`ONE_TIME` (ownership transfer — works for SIMPLE and MASTER cards):**
+
+- Wallet asks the claimer which Remote Wallet should fund the card (defaults to claimer's default)
+- Backend atomically: marks the token `CLAIMED`, transfers `Card.holderUserId` to the new claimer, binds `Card.remoteWalletId`, burns the token
+- Previous holder's other cards / LAs / Remote Wallets stay with them — only this card moves
+- Confirmation screen: card design preview + bound Remote Wallet + "ready to tap"
+- A second wallet scanning the same QR sees "Already claimed"
+
+**`FOREVER` (account share — MASTER cards only):**
+
+- Backend records a new `CardClaim` row; token does not burn
+- Claimer is granted access to **every** Lightning address and Remote Wallet owned by the card's current holder, via `LightningAddressShare` + `RemoteWalletShare` rows
+- The card's ownership does not change — claimers inherit account access, not card ownership
+- Card holder is not locked out — retains nsec login and canonical ownership of the card + their LAs + Remote Wallets
+- Confirmation screen lists the granted resources + a "Manage shared access" entry for per-share revoke
+
+### Data model — cards, activation tokens, shared access
+
+```
+Card {
+  id            cuid
+  kind          enum                 # SIMPLE | MASTER — declared at creation
+  designId      cuid
+  holderUserId  cuid?                # current owner (after first ONE_TIME claim)
+  remoteWalletId cuid?               # bound Remote Wallet
+  createdAt, updatedAt
+  ...                                # NTAG424 fields, OTC state, etc.
+}
+
+CardActivationToken {
+  id            cuid
+  cardId        cuid
+  qrKind        enum                 # ONE_TIME | FOREVER
+  status        enum                 # PENDING | CLAIMED (ONE_TIME only) | REVOKED | EXPIRED
+  qrPayload     string
+  issuedByUserId cuid                # card holder (or operator) who minted the QR
+  createdAt, expiresAt?
+  claimedAt?, claimedByUserId?       # ONE_TIME only — single audit row
+}
+                                     # Constraint: at most one ACTIVE token per (cardId, qrKind).
+                                     # FOREVER tokens only valid when Card.kind = MASTER.
+
+CardClaim {
+  id              cuid
+  cardId          cuid
+  claimedByUserId cuid
+  claimedAt       datetime           # one row per FOREVER claim; ONE_TIME has at most one
+}
+
+LightningAddressShare {
+  lightningAddressId cuid
+  granteeUserId      cuid
+  grantedViaCardId   cuid            # provenance — the MASTER card that granted this
+  grantedAt          datetime
+  revokedAt?         datetime
+}
+
+RemoteWalletShare {
+  remoteWalletId   cuid
+  granteeUserId    cuid
+  grantedViaCardId cuid
+  grantedAt        datetime
+  revokedAt?       datetime
+}
+```
+
+### Endpoints
+
+- `POST /api/cards/[id]/activation-tokens` — operator (or current card holder) only; body `{ qrKind: 'ONE_TIME' | 'FOREVER' }` → `{ tokenId, qrPayload, qrKind }`. `FOREVER` rejected when `Card.kind = SIMPLE`. Replaces any prior active token of the same kind on the same card.
+- `POST /api/activation-tokens/[id]/claim` — authenticated wallet user (existing or freshly created nsec); body `{ remoteWalletId? }` for ONE_TIME; returns `{ qrKind, card, grantedAccess?: { lightningAddresses[], remoteWallets[] } }`
+- `POST /api/cards/[id]/rescue` — operator (or current card holder) only; invalidates outstanding tokens, returns a fresh `ONE_TIME` token
+- `DELETE /api/shares/lightning-addresses/[id]` and `DELETE /api/shares/remote-wallets/[id]` — issuing user only; revokes a specific FOREVER-granted share
+
+### Connect Card E2E (activation path)
+
+- **Activation-QR generation** — `card-manager` takes an initialized card and prints a `ONE_TIME` QR for a `SIMPLE` card (or `card-installer` emits one at write time; MASTER + FOREVER variant in a separate branch)
+- **Activate / claim** — the user scans the QR, which opens lawallet `/wallet`; the claimer creates a fresh account or signs into an existing one; ONE_TIME burns and transfers card ownership (if the card had a previous owner it is unpaired first); FOREVER grants share access without burning
+- **Pair** — backend stores `(card, npub, remoteWalletId)`
+- **Pay** — tap-to-pay over BoltCard NFC → LNURL-pay → invoice minted via the holder's Remote Wallet
+- Playwright + simulated NFC covers the happy path; separate `FOREVER` (MASTER) claim branch asserts share rows are created and the claimer sees the granted resources
+- Re-issue path covered too: `card-manager` mints a new `ONE_TIME` QR for an already-owned card, unpairing the previous holder so it can be handed off to a new user
+
+---
+
+## WordPress Plugin (lawallet-wordpress)
+
+A WordPress plugin that integrates LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress sites — accept Lightning payments / zaps and expose lightning addresses from a WordPress install.
+
+- Repo: [lawallet-wordpress](https://github.com/lawalletio/lawallet-wordpress)
+- Live demo: [wordpress.lawallet.io](https://wordpress.lawallet.io)
+- Ships alongside the existing `integrations/WORDPRESS.md` guidance
 
 ---
 
@@ -235,6 +379,14 @@ Schema changes since v0.10.0; migration steps for self-hosters running the M4 re
 
 | Deliverable | Criteria | Priority |
 |-------------|----------|----------|
+| Card kinds | `Card.kind` declared at creation: `SIMPLE` (ownership transfer only) or `MASTER` (transfer + account share) | P0 |
+| Activation tokens model + endpoints | `CardActivationToken.qrKind` is `ONE_TIME` or `FOREVER`; max one active token per (cardId, qrKind); FOREVER rejected on SIMPLE cards; claim enforces burn for ONE_TIME and share-grant for FOREVER | P0 |
+| Card rescue / re-issue path | `POST /api/cards/[id]/rescue` invalidates outstanding tokens and issues a fresh `ONE_TIME` QR; new QR of same kind invalidates the previous on that card | P0 |
+| "Activate Card" flow — `ONE_TIME` | Wallet scans QR → picks Remote Wallet → claim transfers card ownership only → token burns; second scan sees "already claimed"; claimer can be a brand-new user (fresh nsec) or an existing user | P0 |
+| "Activate Card" flow — `FOREVER` (MASTER only) | Wallet scans FOREVER QR → claim succeeds without burning → claimer gains share access to card holder's LAs + Remote Wallets | P0 |
+| Share revocation | Master holder can revoke a specific share per (resource, grantee) | P1 |
+| Connect Card E2E (activation) | Activate-QR → claim → pair → pay; separate `FOREVER` (MASTER) branch covered; re-issue path covered (`card-manager` mints a new QR, unpairing the prior holder) | P0 |
+| WordPress plugin (`lawallet-wordpress`) | Plugin integrates LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress; live demo at `wordpress.lawallet.io` | P1 |
 | NWC Payment Listener (lite) | Built in `apps/listener/`, transport-only, shares Postgres via `LISTEN`/`NOTIFY` keyed on `RemoteWallet` rows of `type = NWC` → HMAC-signed webhook to `apps/web` works | P0 |
 | LUD-22 listener plumbing | Webhook registration + delivery via listener; backend retry policy + DLQ | P0 |
 | NWC Proxy Lite | Mints invoices via NWC; LUD-16 callback returns Proxy invoice | P0 |
