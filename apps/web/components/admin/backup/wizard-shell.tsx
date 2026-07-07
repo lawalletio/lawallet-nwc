@@ -40,7 +40,7 @@ export function WizardShell({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex flex-col bg-background animate-in fade-in duration-300"
+      className="fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-300"
       role="dialog"
       aria-modal="true"
     >
