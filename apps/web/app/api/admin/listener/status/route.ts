@@ -28,7 +28,11 @@ export const GET = withErrorHandling(async (request: Request) => {
   try {
     const res = await fetch(new URL('/status', listener.url), {
       headers: { authorization: `Bearer ${listener.secret}` },
-      signal: AbortSignal.timeout(3000),
+      // Generous: the listener's /status runs a DB query for the events feed,
+      // which on a resource-constrained host (Umbrel/Start9) can take a few
+      // seconds. A tight timeout here would intermittently report a healthy
+      // listener as 'unreachable' and blank the dashboard.
+      signal: AbortSignal.timeout(8000),
       cache: 'no-store',
     })
     if (!res.ok) {
