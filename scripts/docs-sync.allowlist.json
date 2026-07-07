@@ -16,5 +16,8 @@
   "PATCH /api/plugins/{plugin}",
   "GET /api/cards/{id}/transactions",
   "POST /api/webhooks/nwc",
-  "POST /api/settings/listener-probe"
+  "POST /api/settings/listener-probe",
+  "POST /api/admin/backup/export",
+  "POST /api/admin/backup/analyze",
+  "POST /api/admin/backup/import"
 ]
