@@ -72,15 +72,15 @@ MIT licensed. No open-core tricks. No proprietary features behind a paywall. For
 
 ## Architecture
 
-Three independent services, no shared databases:
+Independent services and tooling around a shared model:
 
 | Service | Role |
 |---------|------|
 | **lawallet-web** | Next.js app — frontend, REST API, address resolution, dashboards, wallet |
 | **lawallet-listener** | NWC Payment Listener — monitors relays, dispatches webhooks |
-| **lawallet-web** (lncurl) | Courtesy NWC — provisions temporary wallets via [lncurl](https://github.com/rolznz/lncurl) |
+| **API Playground** | Interactive REST API explorer (OpenAPI) — [try it](https://beta.lawallet.io/api-docs) |
 
-Deploy all three, or just `lawallet-web` to start. Each service scales independently.
+Deploy the services together, or just `lawallet-web` to start. Each service scales independently.
 
 ---
 
@@ -92,70 +92,6 @@ Deploy all three, or just `lawallet-web` to start. Each service scales independe
 | **Docker** | Servers and VPS | 5 minutes |
 | **Umbrel / Start9** | Node runners | 5 minutes |
 | **Manual** | Full control | 15 minutes |
-
----
-
-## Roadmap
-
-### Foundation (Months 1–6)
-
-- Backend infrastructure, testing, error handling, auth, security
-- CI/CD, Client SDK, React Hooks
-- Admin Dashboard (user management, activity monitor, logs)
-- User Dashboard (profile, NWC management, preferences)
-- Courtesy NWC via [lncurl](https://github.com/rolznz/lncurl)
-- NWC Payment Listener service
-- Full LUD-16/21/22 compliance, NIP-57 zaps
-- Documentation, deployment configurations (Vercel, Docker, Umbrel)
-
-### Monetization & Intelligence (Months 7–8)
-
-Months 7–8 are formally committed in the [Roadmap](./roadmap). They turn the platform into something operators can monetize and extend with AI.
-
-**Month 7 — Monetization Plane**
-
-- **Subscription Manager** — paid tiers with monthly or one-time pricing (sats); operator-defined plans + perks
-- **Perks (P0):** vanity Lightning address, email-to-Nostr bridge, sat allowance ledger
-- **Nostr Chat — DMs** (NIP-17 gift-wrapped over NIP-44, NIP-04 fallback); messages live on relays
-- **Operator → user broadcast** via instance nsec, segmented by tier
-- **Email-to-Nostr bridge** — `username+inbox@domain.com` arrives as a NIP-44 DM
-
-**Month 8 — Intelligence Plane**
-
-- **AI Agents** — operator spawns agents with their own LN address, Nostr identity, and NWC wallet
-- **One-click spawn + dashboard funding** — operator clicks Fund Agent → invoice → balance updates
-- **Identity Mode A** (server-side encrypted nsec, autonomous) and **Mode B** (NIP-46 / Amber bunker URI, delegated)
-- **Heartbeats / scheduled tasks** — cron-driven `POST`, `REPLY_TO_MENTIONS`, `ZAP_LIST`, `CUSTOM_PROMPT`
-- **Sat-metered runs** — debits the M7 user allowance first; falls back to a 402-style invoice from the agent's wallet
-- **Vercel AI SDK + AI Gateway** as the model router (no new container)
-
-### Beyond M8 / Community Vision
-
-These items extend the platform after M8 ships. They are not on the formal roadmap.
-
-**Communications & CRM**
-- Payment history and frequency tracking per user
-- Onboarding stage tracking and user segmentation
-- **Newsletter-style long-form posts** (kind:30023) published to relays
-- Notification system for payment events and platform updates
-- Inbox management for admin
-
-**Group Messaging**
-- **Nostr group chat threads** (NIP-29) — multi-party threads beyond the M7 DM surface
-
-**AI Extensions**
-- Message personalization based on user profile and payment history
-- User behavior analysis, churn prediction, segment recommendations
-- Natural language search across users, payments, and communications
-
-**Money Layer**
-- **Operator-hosted paid Nostr relay** — vendor strfry or khatru as a 4th container
-- **Cashu eCash mint integration** (NIP-60/61) — eCash perks alongside the sat allowance
-
-**Plugins (Community)**
-- **Events** — event management with check-in via QR/NFC, badge issuance
-- **Badges** — Nostr badges (NIP-58) for attendance, achievements, tiers
-- **Commerce** — merchant directory with badge-based discounts
 
 ---
 
