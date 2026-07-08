@@ -13,8 +13,13 @@ export function SendSummaryStep() {
   const router = useRouter()
   const flow = useSendFlow()
   const trackedRef = useRef(false)
+  const leavingRef = useRef(false)
 
   useEffect(() => {
+    // Skip the guard once the user has hit Done — resetting the flow nulls
+    // `flow.result`, which would otherwise re-fire this effect and bounce them
+    // back to /wallet/send instead of the intended /wallet.
+    if (leavingRef.current) return
     if (!flow.result) {
       router.replace('/wallet/send')
       return
@@ -28,8 +33,9 @@ export function SendSummaryStep() {
   if (!flow.result) return null
 
   function done() {
-    sendActions.reset()
+    leavingRef.current = true
     router.replace('/wallet')
+    sendActions.reset()
   }
 
   return (
