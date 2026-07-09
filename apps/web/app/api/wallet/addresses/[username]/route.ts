@@ -19,6 +19,10 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import type { RemoteWallet } from '@/lib/generated/prisma'
+import {
+  getPrimaryRemoteWalletForUser,
+  syncPrimaryRemoteWalletFlag,
+} from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -43,6 +47,27 @@ function toWalletSummary(w: RemoteWallet) {
     type: w.type,
     status: w.status,
     isDefault: w.isDefault,
+  }
+}
+
+function sortWalletsWithPrimary(
+  wallets: RemoteWallet[],
+  primaryWallet: RemoteWallet | null,
+): RemoteWallet[] {
+  return [...wallets].sort((a, b) => {
+    if (a.id === primaryWallet?.id) return -1
+    if (b.id === primaryWallet?.id) return 1
+    return a.createdAt.getTime() - b.createdAt.getTime()
+  })
+}
+
+function toWalletSummaryWithPrimary(
+  w: RemoteWallet,
+  primaryWallet: RemoteWallet | null,
+) {
+  return {
+    ...toWalletSummary(w),
+    isDefault: w.id === primaryWallet?.id,
   }
 }
 
@@ -89,12 +114,15 @@ export const GET = withErrorHandling(
       // Same 404 as a genuine miss so non-admins can't enumerate usernames.
       if (!canRead) throw new NotFoundError('Address not found')
 
-      const wallets = await selectableWallets(address.userId)
-      const defaultWallet = wallets.find(w => w.isDefault) ?? null
+      const primaryWallet = await getPrimaryRemoteWalletForUser(address.userId)
+      const wallets = sortWalletsWithPrimary(
+        await selectableWallets(address.userId),
+        primaryWallet,
+      )
 
       return NextResponse.json({
-        address: toWalletAddressDto(address, defaultWallet),
-        wallets: wallets.map(toWalletSummary),
+        address: toWalletAddressDto(address, primaryWallet),
+        wallets: wallets.map(w => toWalletSummaryWithPrimary(w, primaryWallet)),
         // The connection URI is the owner's wallet secret — never surfaced to
         // an admin viewing someone else's address.
         effectiveConnectionString: null,
@@ -103,8 +131,11 @@ export const GET = withErrorHandling(
       })
     }
 
-    const wallets = await selectableWallets(caller.id)
-    const defaultWallet = wallets.find(w => w.isDefault) ?? null
+    const primaryWallet = await getPrimaryRemoteWalletForUser(caller.id)
+    const wallets = sortWalletsWithPrimary(
+      await selectableWallets(caller.id),
+      primaryWallet,
+    )
 
     // Ship the already-resolved connection URI so the balance / transactions
     // widgets don't duplicate the server's resolution. Null for IDLE / ALIAS
@@ -114,7 +145,7 @@ export const GET = withErrorHandling(
       mode: address.mode,
       redirect: address.redirect,
       remoteWallet: address.remoteWallet,
-      defaultRemoteWallet: defaultWallet,
+      defaultRemoteWallet: primaryWallet,
     })
     const effectiveConnectionString =
       route.kind === 'wallet'
@@ -122,8 +153,8 @@ export const GET = withErrorHandling(
         : null
 
     return NextResponse.json({
-      address: toWalletAddressDto(address, defaultWallet),
-      wallets: wallets.map(toWalletSummary),
+      address: toWalletAddressDto(address, primaryWallet),
+      wallets: wallets.map(w => toWalletSummaryWithPrimary(w, primaryWallet)),
       effectiveConnectionString,
       isOwner: true,
       ownerPubkey: auth.pubkey,
@@ -142,7 +173,9 @@ export const GET = withErrorHandling(
  *   - ALIAS       → `redirect` must be present.
  *   - CUSTOM_NWC  → `remoteWalletId` must be present AND owned by caller.
  *   - IDLE / DEFAULT_NWC → both fields are cleared (set NULL) regardless of
- *                          what the client sent.
+ *                          what the client sent. DEFAULT_NWC is normalized
+ *                          for primary addresses so primary wallet state
+ *                          always comes from a CUSTOM_NWC binding.
  */
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ username: string }> }) => {
@@ -162,6 +195,7 @@ export const PUT = withErrorHandling(
       throw new NotFoundError('Address not found')
     }
 
+    let mode = body.mode
     let redirect: string | null = null
     let remoteWalletId: string | null = null
 
@@ -186,19 +220,34 @@ export const PUT = withErrorHandling(
         throw new ValidationError('Unknown wallet')
       }
       remoteWalletId = wallet.id
+    } else if (body.mode === 'DEFAULT_NWC' && existing.isPrimary) {
+      const primaryWallet = await getPrimaryRemoteWalletForUser(user.id)
+      if (primaryWallet) {
+        mode = 'CUSTOM_NWC'
+        remoteWalletId = primaryWallet.id
+      } else {
+        mode = 'IDLE'
+      }
     }
 
-    const updated = await prisma.lightningAddress.update({
-      where: { username },
-      data: { mode: body.mode, redirect, remoteWalletId },
-      include: { remoteWallet: true },
+    const updated = await prisma.$transaction(async tx => {
+      const address = await tx.lightningAddress.update({
+        where: { username },
+        data: { mode, redirect, remoteWalletId },
+        include: { remoteWallet: true },
+      })
+      if (existing.isPrimary) {
+        await syncPrimaryRemoteWalletFlag(user.id, tx)
+      }
+      return address
     })
 
-    const defaultWallet = await prisma.remoteWallet.findFirst({
-      where: { userId: user.id, isDefault: true },
-    })
+    const defaultWallet = await getPrimaryRemoteWalletForUser(user.id)
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+    if (existing.isPrimary) {
+      eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+    }
 
     logActivity.fireAndForget({
       category: 'ADDRESS',
@@ -273,22 +322,48 @@ export const DELETE = withErrorHandling(
         })
       : null
 
-    await prisma.$transaction([
-      prisma.lightningAddress.delete({ where: { username } }),
-      ...(nextPrimary
-        ? [
-            prisma.lightningAddress.update({
-              where: { username: nextPrimary.username },
-              data: { isPrimary: true },
-            }),
-          ]
-        : []),
-    ])
+    await prisma.$transaction(async tx => {
+      const fallbackWallet = existing.isPrimary
+        ? await getPrimaryRemoteWalletForUser(user.id, tx)
+        : null
+
+      await tx.lightningAddress.delete({ where: { username } })
+
+      if (nextPrimary) {
+        const promoted = await tx.lightningAddress.findUnique({
+          where: { username: nextPrimary.username },
+          select: { mode: true },
+        })
+        await tx.lightningAddress.update({
+          where: { username: nextPrimary.username },
+          data:
+            promoted?.mode === 'DEFAULT_NWC'
+              ? fallbackWallet
+                ? {
+                    isPrimary: true,
+                    mode: 'CUSTOM_NWC',
+                    redirect: null,
+                    remoteWalletId: fallbackWallet.id,
+                  }
+                : {
+                    isPrimary: true,
+                    mode: 'IDLE',
+                    redirect: null,
+                    remoteWalletId: null,
+                  }
+              : { isPrimary: true },
+        })
+      }
+
+      if (existing.isPrimary) {
+        await syncPrimaryRemoteWalletFlag(user.id, tx)
+      }
+    })
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
-    // The user's primary may have shifted — bump users:updated so consumers
-    // like the admin "claim your first address" banner refresh their state.
-    eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+    if (existing.isPrimary) {
+      eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+    }
 
     logActivity.fireAndForget({
       category: 'ADDRESS',

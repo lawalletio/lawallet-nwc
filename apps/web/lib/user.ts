@@ -13,12 +13,12 @@ import { createLncurlRemoteWallet } from './wallet/lncurl-wallet'
  *
  * The returned shape mirrors what `findUnique` callers (notably
  * `/api/users/me`) expect — the primary `LightningAddress` with its bound
- * `remoteWallet`, plus the user's default `RemoteWallet` — so the union of
- * "fresh signup" and "existing user" stays a single shape downstream.
+ * `remoteWallet`. RemoteWallet rows created before a primary address exists
+ * are candidates for that future address, not primary by themselves.
  *
  * When an Alby sub-account is provisioned, its pairing URI is stored as the
- * user's default RemoteWallet (RemoteWallet is the single source of truth
- * for wallets — there's no separate `User.nwc` / `NWCConnection`).
+ * a RemoteWallet (RemoteWallet is the single source of truth for wallets —
+ * there's no separate `User.nwc` / `NWCConnection`).
  *
  * Also fires (best-effort, non-blocking) a `USER_SIGNUP` activity log entry.
  */
@@ -61,7 +61,8 @@ export async function createNewUser(pubkey: string) {
             }
           }
         : undefined,
-      // Provisioned Alby wallet becomes the user's default RemoteWallet.
+      // Provisioned Alby wallet waits for the user's primary address to bind
+      // to it; `isDefault` is synchronized from that address link.
       remoteWallets: subAccount
         ? {
             create: {
@@ -72,7 +73,7 @@ export async function createNewUser(pubkey: string) {
                 mode: 'SEND_RECEIVE',
               },
               status: 'ACTIVE',
-              isDefault: true,
+              isDefault: false,
             },
           }
         : undefined,
@@ -87,13 +88,13 @@ export async function createNewUser(pubkey: string) {
         include: { remoteWallet: true },
       },
       albySubAccount: true,
-      // Default RemoteWallet — matches the `findUnique` callers' shape.
+      // Compatibility/display primary RemoteWallet, if already synchronized.
       remoteWallets: { where: { isDefault: true }, take: 1 },
     }
   })
 
-  // When there's no Alby sub-account but LNCurl auto-provisioning is on, give
-  // the fresh user a working default wallet so they can receive immediately.
+  // When there's no Alby sub-account but LNCurl auto-provisioning is on,
+  // prepare a wallet candidate for the first primary address to bind to.
   // Best-effort: any failure (LNCurl down, etc.) must NOT break signup — we
   // swallow it and the user simply starts with no wallet.
   if (!subAccount && lncurl_auto_create === 'true') {
@@ -102,7 +103,7 @@ export async function createNewUser(pubkey: string) {
         userId: user.id,
         serverUrl: lncurl_server_url || undefined,
       })
-      user.remoteWallets = [lncurlWallet]
+      user.remoteWallets = lncurlWallet.isDefault ? [lncurlWallet] : []
     } catch (err) {
       // Structured log so the operator can spot intermittent provider outages
       // (the user just starts wallet-less and can connect one later).

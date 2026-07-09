@@ -7,6 +7,8 @@ import { logger } from '@/lib/logger'
 import type { LUD21VerifySuccess, LUD21VerifyError } from '@/types/lnurl'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
+import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
+import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 
 /**
  * LUD-21 (LNURL verify) endpoint.
@@ -51,16 +53,11 @@ export const GET = withErrorHandling(
         user: {
           select: {
             id: true,
-            // The default RemoteWallet is the source of the connection used
-            // to look up settlement status — no more legacy User.nwc.
-            remoteWallets: {
-              where: { isDefault: true },
-              select: { config: true },
-              take: 1,
-            },
             lightningAddresses: {
               where: { username },
-              select: { username: true },
+              include: {
+                remoteWallet: { select: { type: true, config: true, status: true } },
+              },
               take: 1,
             },
           },
@@ -99,10 +96,23 @@ export const GET = withErrorHandling(
       return NextResponse.json(response)
     }
 
-    // Query the user's default wallet to check current status.
+    // Query the wallet that this Lightning Address resolves through to check
+    // current status. DEFAULT_NWC resolves through the wallet linked to the
+    // account primary address.
+    const address = invoice.user.lightningAddresses[0]
+    const primaryWallet = await getPrimaryRemoteWalletForUser(invoice.user.id)
+    const route = address && 'mode' in address
+      ? resolveWalletRoute({
+          mode: address.mode,
+          redirect: address.redirect ?? null,
+          remoteWallet: address.remoteWallet ?? null,
+          defaultRemoteWallet: primaryWallet,
+        })
+      : { kind: 'unconfigured' as const }
     const walletConn =
-      (invoice.user.remoteWallets[0]?.config as { connectionString?: string } | null)
-        ?.connectionString ?? null
+      route.kind === 'wallet'
+        ? ((route.config as { connectionString?: string } | null)?.connectionString ?? null)
+        : null
     if (!walletConn) {
       const response: LUD21VerifySuccess = {
         status: 'OK',

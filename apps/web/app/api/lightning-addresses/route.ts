@@ -4,6 +4,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { Permission } from '@/lib/auth/permissions'
 import { deriveEffectiveNwcMode } from '@/lib/wallet/wallet-address-dto'
+import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -25,9 +26,13 @@ export const GET = withErrorHandling(async (request: Request) => {
       user: {
         select: {
           pubkey: true,
-          // Pull each owner's default RemoteWallet so DEFAULT_NWC rows can
-          // resolve their effective mode without N+1 queries.
-          remoteWallets: { where: { isDefault: true }, take: 1 },
+          // Pull each owner's primary address so DEFAULT_NWC rows can resolve
+          // through the wallet linked to that address without N+1 queries.
+          lightningAddresses: {
+            where: { isPrimary: true },
+            take: 1,
+            include: { remoteWallet: true },
+          },
         },
       },
     },
@@ -41,7 +46,10 @@ export const GET = withErrorHandling(async (request: Request) => {
     redirect: address.redirect,
     remoteWalletId: address.remoteWalletId,
     isPrimary: address.isPrimary,
-    nwcMode: deriveEffectiveNwcMode(address, address.user.remoteWallets[0] ?? null),
+    nwcMode: deriveEffectiveNwcMode(
+      address,
+      derivePrimaryWallet(address.user.lightningAddresses?.[0]),
+    ),
     createdAt: address.createdAt.toISOString(),
     updatedAt: address.updatedAt.toISOString(),
   }))

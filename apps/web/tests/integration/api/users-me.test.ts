@@ -130,7 +130,7 @@ describe('GET /api/users/me', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns alby sub account data + nwcString from the default wallet', async () => {
+  it('returns alby sub account data without deriving nwcString from remoteWallets alone', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
@@ -140,7 +140,7 @@ describe('GET /api/users/me', () => {
         nwcUri: 'nostr+walletconnect://test',
         username: 'alice',
       },
-      // The Alby pairing URI is stored as the user's default RemoteWallet.
+      // A RemoteWallet is not primary unless the primary address links to it.
       remoteWallets: [
         {
           type: 'NWC',
@@ -163,7 +163,7 @@ describe('GET /api/users/me', () => {
       nwcUri: 'nostr+walletconnect://test',
       username: 'alice',
     })
-    expect(body.nwcString).toBe('nostr+walletconnect://test')
+    expect(body.nwcString).toBe('')
   })
 
   // ── primary-address driven fields ───────────────────────────────────────
@@ -175,7 +175,7 @@ describe('GET /api/users/me', () => {
   const primaryConnUri = 'nostr+walletconnect://primary-conn'
   const addressConnUri = 'nostr+walletconnect://address-conn'
 
-  /** Build a default RemoteWallet with a given connection string. */
+  /** Build a RemoteWallet with a given connection string. */
   function defaultWallet(connectionString: string) {
     return {
       type: 'NWC',
@@ -186,7 +186,7 @@ describe('GET /api/users/me', () => {
     }
   }
 
-  it('DEFAULT_NWC primary address: effectiveNwcString = default RemoteWallet', async () => {
+  it('legacy DEFAULT_NWC primary address has no derived primary wallet', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
@@ -212,10 +212,10 @@ describe('GET /api/users/me', () => {
     expect(body.primaryAddressMode).toBe('DEFAULT_NWC')
     expect(body.primaryUsername).toBe('alice')
     expect(body.primaryRedirect).toBeNull()
-    expect(body.effectiveNwcString).toBe(primaryConnUri)
+    expect(body.effectiveNwcString).toBeNull()
   })
 
-  it('DEFAULT_NWC primary with no default wallet: effectiveNwcString is null', async () => {
+  it('DEFAULT_NWC primary with no primary-address wallet: effectiveNwcString is null', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
@@ -241,7 +241,7 @@ describe('GET /api/users/me', () => {
     expect(body.effectiveNwcString).toBeNull()
   })
 
-  it('CUSTOM_NWC primary: effectiveNwcString = the address-bound wallet, not the default', async () => {
+  it('CUSTOM_NWC primary: effectiveNwcString = the address-bound wallet', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,

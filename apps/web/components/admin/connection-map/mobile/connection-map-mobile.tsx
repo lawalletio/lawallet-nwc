@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Spinner } from '@/components/ui/spinner'
 import { useRemoteWallets } from '@/lib/client/hooks/use-remote-wallets'
@@ -14,10 +14,11 @@ import {
 import { AddressTab } from './address-tab'
 import { CardTab } from './card-tab'
 import { WalletTab } from './wallet-tab'
+import { withDerivedPrimaryWalletFlags } from '../primary-wallet'
 
 /**
  * Mobile / tablet (<1024 px) Connection Map — three tabs (Addresses ·
- * Cards · Wallets) instead of the desktop xyflow canvas (#235). Same
+ * Wallets · Cards) instead of the desktop xyflow canvas (#235). Same
  * data hooks; rebinds happen via tap-chip bottom-sheet pickers in the
  * Addresses / Cards tabs. Tapping a row opens the SAME shared
  * `ConnectionDetailDialog` the desktop canvas uses, so detail / send /
@@ -38,7 +39,10 @@ export function ConnectionMapMobile() {
   const [selected, setSelected] = useState<ConnectionSelection>(null)
 
   const addressList = addresses ?? []
-  const walletList = wallets ?? []
+  const walletList = useMemo(
+    () => withDerivedPrimaryWalletFlags(wallets, addresses),
+    [wallets, addresses],
+  )
   const cardList = cards ?? []
 
   if (loading && !walletList.length && !addressList.length && !cardList.length) {
@@ -62,19 +66,19 @@ export function ConnectionMapMobile() {
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="cards">
-              Cards
-              {cardList.length > 0 && (
-                <span className="ml-1.5 text-xs text-muted-foreground">
-                  {cardList.length}
-                </span>
-              )}
-            </TabsTrigger>
             <TabsTrigger value="wallets">
               Wallets
               {walletList.length > 0 && (
                 <span className="ml-1.5 text-xs text-muted-foreground">
                   {walletList.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="cards">
+              Cards
+              {cardList.length > 0 && (
+                <span className="ml-1.5 text-xs text-muted-foreground">
+                  {cardList.length}
                 </span>
               )}
             </TabsTrigger>
@@ -91,19 +95,19 @@ export function ConnectionMapMobile() {
               onOpenDetail={username => setSelected({ kind: 'la', username })}
             />
           </TabsContent>
-          <TabsContent value="cards" className="mt-0">
-            <CardTab
-              cards={cardList}
-              wallets={walletList}
-              onOpenDetail={id => setSelected({ kind: 'card', id })}
-            />
-          </TabsContent>
           <TabsContent value="wallets" className="mt-0">
             <WalletTab
               wallets={walletList}
               addresses={addressList}
               cards={cardList}
               onOpenDetail={id => setSelected({ kind: 'wallet', id })}
+            />
+          </TabsContent>
+          <TabsContent value="cards" className="mt-0">
+            <CardTab
+              cards={cardList}
+              wallets={walletList}
+              onOpenDetail={id => setSelected({ kind: 'card', id })}
             />
           </TabsContent>
         </div>
@@ -114,7 +118,7 @@ export function ConnectionMapMobile() {
         onSelect={setSelected}
         addresses={addresses}
         cards={cards}
-        wallets={wallets}
+        wallets={walletList}
         domain={domain}
       />
     </div>

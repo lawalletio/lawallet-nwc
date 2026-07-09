@@ -301,15 +301,14 @@ describe('POST /api/invoices/[id]/claim', () => {
       // Must NOT delete the existing primary — this is an "add secondary"
       // operation, not a swap.
       expect(prismaMock.lightningAddress.delete).not.toHaveBeenCalled()
-      expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
       expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-          username: 'secondary1',
-          userId: 'user-1',
-          isPrimary: false,
-          mode: 'IDLE',
-        }),
+            username: 'secondary1',
+            userId: 'user-1',
+            isPrimary: false,
+            mode: 'IDLE',
+          }),
         })
       )
     })

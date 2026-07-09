@@ -3,7 +3,17 @@
 import React, { useEffect, useRef, useState, use } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, ExternalLink, Forward, Trash2, Wallet } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ExternalLink,
+  Forward,
+  Plus,
+  Trash2,
+  Wallet,
+  XCircle,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { LightningAddressHero } from '@/components/admin/lightning-address-hero'
@@ -11,6 +21,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,11 +40,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -37,11 +57,15 @@ import {
 } from '@/components/ui/collapsible'
 import { BalanceCard } from '@/components/wallet/balance-card'
 import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
+import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import {
   useMyAddress,
   useAddressMutations,
+  type AliasProbeCheckKey,
+  type AliasProbeCheckResult,
+  type AliasProbeResponse,
   type LightningAddressMode,
   type WalletRemoteWalletSummary,
 } from '@/lib/client/hooks/use-wallet-addresses'
@@ -59,7 +83,86 @@ const MODE_DESCRIPTIONS: Record<
   IDLE: { label: 'Idle', help: 'Address is disabled and rejects payments.' },
   ALIAS: { label: 'Alias', help: 'Forward incoming payments to another lightning address.' },
   CUSTOM_NWC: { label: 'Custom wallet', help: 'Receive via a specific wallet.' },
-  DEFAULT_NWC: { label: 'Default wallet', help: 'Use your primary wallet (set in Remote Wallets).' },
+  DEFAULT_NWC: { label: 'Primary wallet', help: 'Use the wallet linked to your primary address.' },
+}
+
+const CONNECT_NEW_WALLET_VALUE = '__connect_new_wallet__'
+
+type AliasProbePhase = 'idle' | 'checking' | 'blocked' | 'warnings' | 'saving'
+type AliasProbeUiStatus = 'pending' | 'valid' | 'invalid'
+type AliasProbeUiCheck = AliasProbeCheckResult & {
+  status: AliasProbeUiStatus
+}
+
+const ALIAS_PROBE_CHECKS: Array<{
+  key: AliasProbeCheckKey
+  label: string
+  description: string
+}> = [
+  {
+    key: 'lud16',
+    label: 'LUD-16',
+    description: 'Resolves the Lightning Address payRequest metadata.',
+  },
+  {
+    key: 'lud21',
+    label: 'LUD-21',
+    description: 'Confirms the callback exposes a verify URL.',
+  },
+  {
+    key: 'nip57',
+    label: 'NIP-57',
+    description: 'Checks whether zap metadata is advertised.',
+  },
+]
+
+function createPendingAliasProbeChecks(): Record<AliasProbeCheckKey, AliasProbeUiCheck> {
+  return {
+    lud16: { ok: false, status: 'pending', message: 'Resolving payRequest metadata…' },
+    lud21: { ok: false, status: 'pending', message: 'Requesting a probe invoice…' },
+    nip57: { ok: false, status: 'pending', message: 'Reading zap capability metadata…' },
+  }
+}
+
+function createFailedAliasProbeChecks(message: string): Record<AliasProbeCheckKey, AliasProbeUiCheck> {
+  return {
+    lud16: { ok: false, status: 'invalid', message },
+    lud21: { ok: false, status: 'invalid', message: 'Not checked because the probe failed.' },
+    nip57: { ok: false, status: 'invalid', message: 'Not checked because the probe failed.' },
+  }
+}
+
+function mapAliasProbeChecks(
+  result: AliasProbeResponse
+): Record<AliasProbeCheckKey, AliasProbeUiCheck> {
+  return {
+    lud16: {
+      ...result.checks.lud16,
+      status: result.checks.lud16.ok ? 'valid' : 'invalid',
+    },
+    lud21: {
+      ...result.checks.lud21,
+      status: result.checks.lud21.ok ? 'valid' : 'invalid',
+    },
+    nip57: {
+      ...result.checks.nip57,
+      status: result.checks.nip57.ok ? 'valid' : 'invalid',
+    },
+  }
+}
+
+function AliasProbeStatusIcon({ status }: { status: AliasProbeUiStatus }) {
+  if (status === 'pending') {
+    return <Spinner size={16} className="text-muted-foreground" aria-hidden />
+  }
+  if (status === 'valid') {
+    return <CheckCircle2 className="size-4 text-primary" aria-hidden />
+  }
+  return <XCircle className="size-4 text-destructive" aria-hidden />
+}
+
+function aliasProbeProgressValue(status: AliasProbeUiStatus): number {
+  return status === 'pending' ? 42 : 100
 }
 
 interface PageProps {
@@ -78,9 +181,17 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   const { username } = use(params)
   const { data: settings } = useSettings()
   const { data, loading, error, refetch } = useMyAddress(username)
-  const { updateAddress, updating, deleteAddress, deleting } = useAddressMutations()
+  const {
+    updateAddress,
+    updating,
+    deleteAddress,
+    deleting,
+    probeAliasAddress,
+  } = useAddressMutations()
   const redirectInputRef = useRef<HTMLInputElement>(null)
   const appliedConfigureRef = useRef<string | null>(null)
+  const pendingRedirectFocusRef = useRef(false)
+  const pendingWalletFocusRef = useRef(false)
 
   const [mode, setMode] = useState<LightningAddressMode>('DEFAULT_NWC')
   const [redirect, setRedirect] = useState('')
@@ -99,6 +210,16 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   const [modeOpen, setModeOpen] = useState(false)
   // Delete confirmation dialog — irreversible, so it's gated behind a prompt.
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [createWalletOpen, setCreateWalletOpen] = useState(false)
+  const [aliasProbeOpen, setAliasProbeOpen] = useState(false)
+  const [aliasProbePhase, setAliasProbePhase] =
+    useState<AliasProbePhase>('idle')
+  const [aliasProbeAddress, setAliasProbeAddress] = useState('')
+  const [aliasProbeResult, setAliasProbeResult] =
+    useState<AliasProbeResponse | null>(null)
+  const [aliasProbeChecks, setAliasProbeChecks] = useState<
+    Record<AliasProbeCheckKey, AliasProbeUiCheck>
+  >(() => createPendingAliasProbeChecks())
 
   // Sync local form state once the address loads. Re-running on `data` covers
   // SSE-driven refetches: we only reset when the loaded record actually
@@ -116,9 +237,23 @@ export default function AdminAddressEditPage({ params }: PageProps) {
     if (!data) return
 
     const configure = searchParams.get('configure')
-    if (configure !== 'wallet' && configure !== 'redirect') return
+    const modeIntent = searchParams.get('mode')
+    const focusIntent = searchParams.get('focus')
+    const intent =
+      configure === 'redirect' ||
+      modeIntent === 'alias' ||
+      focusIntent === 'redirect'
+        ? 'redirect'
+        : configure === 'wallet' ||
+            modeIntent === 'wallet' ||
+            modeIntent === 'custom_nwc' ||
+            modeIntent === 'custom-wallet' ||
+            focusIntent === 'wallet'
+          ? 'wallet'
+          : null
+    if (!intent) return
 
-    const applyKey = `${username}:${configure}`
+    const applyKey = `${username}:${intent}:${searchParams.toString()}`
     if (appliedConfigureRef.current === applyKey) return
     appliedConfigureRef.current = applyKey
 
@@ -130,10 +265,10 @@ export default function AdminAddressEditPage({ params }: PageProps) {
         ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
     }, 0)
 
-    if (configure === 'redirect') {
+    if (intent === 'redirect') {
       setMode('ALIAS')
       setRemoteWalletId('')
-      window.setTimeout(() => redirectInputRef.current?.focus(), 0)
+      pendingRedirectFocusRef.current = true
       return
     }
 
@@ -145,7 +280,33 @@ export default function AdminAddressEditPage({ params }: PageProps) {
     setMode('CUSTOM_NWC')
     setRedirect('')
     setRemoteWalletId(preferredWallet?.id ?? '')
+    pendingWalletFocusRef.current = focusIntent === 'wallet'
   }, [data, searchParams, username])
+
+  useEffect(() => {
+    if (mode !== 'ALIAS' || !modeOpen || !pendingRedirectFocusRef.current) {
+      return
+    }
+
+    pendingRedirectFocusRef.current = false
+    const frame = window.requestAnimationFrame(() => {
+      redirectInputRef.current?.focus()
+      redirectInputRef.current?.select()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [mode, modeOpen])
+
+  useEffect(() => {
+    if (mode !== 'CUSTOM_NWC' || !modeOpen || !pendingWalletFocusRef.current) {
+      return
+    }
+
+    pendingWalletFocusRef.current = false
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('remote-wallet')?.focus()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [mode, modeOpen])
 
   const domain = settings?.domain || 'your-domain'
   const fullAddress = `${username}@${domain}`
@@ -169,26 +330,128 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   const saveDisabled =
     saving || updating || !isDirty || aliasInvalid || aliasMissing || customMissing
 
-  async function handleSave() {
+  const aliasProbeHasOptionalWarnings =
+    aliasProbeResult?.canSave === true &&
+    (!aliasProbeResult.checks.lud21.ok || !aliasProbeResult.checks.nip57.ok)
+
+  async function persistCurrentAddress() {
+    await updateAddress(username, {
+      mode,
+      redirect: mode === 'ALIAS' ? redirect.trim().toLowerCase() : null,
+      remoteWalletId: mode === 'CUSTOM_NWC' ? remoteWalletId : null,
+    })
+    // Wait for the refetch to land too — this is what prevents the
+    // Save button from briefly un-disabling between "mutation done"
+    // and "form reset to clean".
+    await refetch()
+    trackEvent(AnalyticsEvent.ADDRESS_MODE_CHANGED, { mode })
+    setModeOpen(false)
+    toast.success('Saved')
+  }
+
+  async function saveDirectly() {
     setSaving(true)
     try {
-      await updateAddress(username, {
-        mode,
-        redirect: mode === 'ALIAS' ? redirect : null,
-        remoteWalletId: mode === 'CUSTOM_NWC' ? remoteWalletId : null,
-      })
-      // Wait for the refetch to land too — this is what prevents the
-      // Save button from briefly un-disabling between "mutation done"
-      // and "form reset to clean".
-      await refetch()
-      trackEvent(AnalyticsEvent.ADDRESS_MODE_CHANGED, { mode })
-      setModeOpen(false)
-      toast.success('Saved')
+      await persistCurrentAddress()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(false)
     }
+  }
+
+  async function handleWalletCreated(wallet: { id: string }) {
+    await refetch()
+    setMode('CUSTOM_NWC')
+    setRemoteWalletId(wallet.id)
+    setModeOpen(true)
+    window.requestAnimationFrame(() => {
+      document.getElementById('remote-wallet')?.focus()
+    })
+  }
+
+  function handleWalletSelect(value: string) {
+    if (value === CONNECT_NEW_WALLET_VALUE) {
+      setCreateWalletOpen(true)
+      return
+    }
+    setRemoteWalletId(value)
+  }
+
+  async function saveAfterAliasProbeWarnings() {
+    if (!aliasProbeResult?.canSave) return
+
+    setSaving(true)
+    setAliasProbePhase('saving')
+    try {
+      await persistCurrentAddress()
+      setAliasProbeOpen(false)
+      setAliasProbePhase('idle')
+    } catch (err) {
+      setAliasProbePhase('warnings')
+      toast.error(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function runAliasProbeThenSave() {
+    const address = redirect.trim().toLowerCase()
+
+    setSaving(true)
+    setAliasProbeAddress(address)
+    setAliasProbeResult(null)
+    setAliasProbeChecks(createPendingAliasProbeChecks())
+    setAliasProbePhase('checking')
+    setAliasProbeOpen(true)
+
+    try {
+      const result = await probeAliasAddress(address)
+      setAliasProbeResult(result)
+      setAliasProbeChecks(mapAliasProbeChecks(result))
+
+      if (!result.canSave) {
+        setAliasProbePhase('blocked')
+        toast.error('Alias target failed LUD-16 validation')
+        return
+      }
+
+      if (!result.checks.lud21.ok || !result.checks.nip57.ok) {
+        setAliasProbePhase('warnings')
+        return
+      }
+
+      setAliasProbePhase('saving')
+      try {
+        await persistCurrentAddress()
+        setAliasProbeOpen(false)
+        setAliasProbePhase('idle')
+      } catch (err) {
+        setAliasProbePhase('warnings')
+        toast.error(err instanceof Error ? err.message : 'Failed to save')
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Alias validation failed'
+      setAliasProbeChecks(createFailedAliasProbeChecks(message))
+      setAliasProbePhase('blocked')
+      toast.error(message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSave() {
+    if (saveDisabled) return
+    if (mode === 'ALIAS') {
+      await runAliasProbeThenSave()
+      return
+    }
+    await saveDirectly()
+  }
+
+  function handleModeSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    void handleSave()
   }
 
   async function handleDelete() {
@@ -261,6 +524,8 @@ export default function AdminAddressEditPage({ params }: PageProps) {
         const isOwner = data.isOwner !== false
         const boundWallet =
           data.wallets.find(w => w.id === data.address.remoteWalletId) ?? null
+        const modeOptions = (Object.keys(MODE_DESCRIPTIONS) as LightningAddressMode[])
+          .filter(option => !(data.address.isPrimary && option === 'DEFAULT_NWC'))
 
         const emptyReason = !isOwner
           ? // Admin read-only view: the balance needs the owner's connection
@@ -391,7 +656,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               />
             </CollapsibleTrigger>
             <CollapsibleContent className="border-t border-border/60">
-              <div className="space-y-4 p-5">
+              <form onSubmit={handleModeSubmit} className="flex flex-col gap-4 p-5">
                 <p className="text-xs text-muted-foreground">
                   Pick what happens when someone sends to {fullAddress}.
                 </p>
@@ -402,7 +667,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                   disabled={saving}
                   className="grid gap-2"
                 >
-                  {(Object.keys(MODE_DESCRIPTIONS) as LightningAddressMode[]).map(option => {
+                  {modeOptions.map(option => {
                     const isActive = mode === option
                     return (
                       <Label
@@ -456,20 +721,32 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                 {data.wallets.length > 0 ? (
                   <div className="space-y-2">
                     <Label htmlFor="remote-wallet">Use wallet</Label>
+                    {data.address.isPrimary && (
+                      <p className="text-xs text-muted-foreground">
+                        The selected wallet becomes the account primary wallet.
+                      </p>
+                    )}
                     <Select
                       value={remoteWalletId}
-                      onValueChange={setRemoteWalletId}
+                      onValueChange={handleWalletSelect}
                       disabled={saving}
                     >
                       <SelectTrigger id="remote-wallet">
                         <SelectValue placeholder="Pick a wallet" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value={CONNECT_NEW_WALLET_VALUE}>
+                          <span className="flex items-center gap-2">
+                            <Plus className="size-3.5 text-muted-foreground" />
+                            <span>Connect new wallet</span>
+                          </span>
+                        </SelectItem>
+                        <SelectSeparator />
                         {data.wallets.map((w: WalletRemoteWalletSummary) => (
                           <SelectItem key={w.id} value={w.id} disabled={w.status === 'DISABLED'}>
                             {w.name}
                             {w.isDefault && ' (primary)'}
-                            {w.status === 'DISABLED' && ' \u2014 disabled'}
+                            {w.status === 'DISABLED' && ' — disabled'}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -484,7 +761,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                   // No wallets yet \u2014 wallets are created on the Remote Wallets
                   // page, so point the user there instead of an inline form.
                   <p className="text-xs text-muted-foreground">
-                    You don\u2019t have any wallets yet.{' '}
+                    You don't have any wallets yet.{' '}
                     <Link href="/admin/remote-wallets" className="underline">
                       Add one on the Remote Wallets page
                     </Link>{' '}
@@ -529,13 +806,13 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {data.wallets.length > 0
-                              ? 'Pick a primary wallet in Remote Wallets to use this mode.'
-                              : 'Link a Remote Wallet before using the default wallet mode.'}
+                              ? 'Bind your primary address to a wallet to use this mode.'
+                              : 'Link a Remote Wallet before using primary wallet mode.'}
                           </p>
                         </div>
                         <Button asChild variant="theme" size="sm" className="shrink-0 gap-1.5">
                           <Link href="/admin/remote-wallets">
-                            {data.wallets.length > 0 ? 'Set primary wallet' : 'Link Remote Wallets'}
+                            {data.wallets.length > 0 ? 'Use for primary address' : 'Link Remote Wallets'}
                             <ExternalLink className="size-3.5" aria-hidden />
                           </Link>
                         </Button>
@@ -552,6 +829,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                     form instead of stale uncommitted edits. */}
                 <div className="flex items-center justify-end gap-2 pt-2">
                   <Button
+                    type="button"
                     variant="secondary"
                     disabled={saving}
                     onClick={() => {
@@ -563,12 +841,12 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                   >
                     Cancel
                   </Button>
-                  <Button variant="theme" disabled={saveDisabled} onClick={handleSave}>
-                    {saving && <Spinner size={16} className="mr-2" />}
+                  <Button type="submit" variant="theme" disabled={saveDisabled}>
+                    {saving && <Spinner size={16} data-icon="inline-start" />}
                     Save
                   </Button>
                 </div>
-              </div>
+              </form>
             </CollapsibleContent>
           </Collapsible>
           )}
@@ -645,6 +923,141 @@ export default function AdminAddressEditPage({ params }: PageProps) {
         </div>
         )
       })()}
+
+      <CreateRemoteWalletDialog
+        open={createWalletOpen}
+        onOpenChange={setCreateWalletOpen}
+        onCreated={handleWalletCreated}
+        showTrigger={false}
+      />
+
+      <Dialog
+        open={aliasProbeOpen}
+        onOpenChange={open => {
+          if (aliasProbePhase === 'checking' || aliasProbePhase === 'saving') {
+            return
+          }
+          setAliasProbeOpen(open)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Validate alias address</DialogTitle>
+            <DialogDescription>
+              Checking {aliasProbeAddress || 'the alias target'} before saving
+              the redirect.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            {ALIAS_PROBE_CHECKS.map(checkMeta => {
+              const check = aliasProbeChecks[checkMeta.key]
+              return (
+                <div
+                  key={checkMeta.key}
+                  className="rounded-md border border-border bg-card p-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
+                      <AliasProbeStatusIcon status={check.status} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium">{checkMeta.label}</p>
+                        <span
+                          className={cn(
+                            'text-xs text-muted-foreground',
+                            check.status === 'valid' && 'text-primary',
+                            check.status === 'invalid' && 'text-destructive'
+                          )}
+                        >
+                          {check.status === 'pending'
+                            ? 'Checking'
+                            : check.status === 'valid'
+                              ? 'Passed'
+                              : 'Needs attention'}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {check.message || checkMeta.description}
+                      </p>
+                      <Progress
+                        value={aliasProbeProgressValue(check.status)}
+                        aria-label={`${checkMeta.label} validation progress`}
+                        className={cn(
+                          'mt-3 h-1.5',
+                          check.status === 'pending' && '[&>div]:animate-pulse',
+                          check.status === 'invalid' && '[&>div]:bg-destructive'
+                        )}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {aliasProbePhase === 'blocked' && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+              <p className="text-destructive">
+                LUD-16 did not pass, so this alias cannot be saved.
+              </p>
+            </div>
+          )}
+
+          {aliasProbePhase === 'warnings' && (
+            <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <p>
+                {aliasProbeHasOptionalWarnings
+                  ? 'LUD-16 passed. The optional capability warnings above will not block forwarding.'
+                  : 'Validation passed, but the save did not complete. You can try again.'}
+              </p>
+            </div>
+          )}
+
+          {aliasProbePhase === 'saving' && (
+            <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+              <Spinner size={16} aria-hidden />
+              Saving alias redirect…
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            {aliasProbePhase === 'blocked' && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setAliasProbeOpen(false)}
+              >
+                Close
+              </Button>
+            )}
+            {aliasProbePhase === 'warnings' && (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={saving}
+                  onClick={() => setAliasProbeOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="theme"
+                  disabled={saving}
+                  onClick={saveAfterAliasProbeWarnings}
+                >
+                  {saving && <Spinner size={16} data-icon="inline-start" />}
+                  Save alias
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

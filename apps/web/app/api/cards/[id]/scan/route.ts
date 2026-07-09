@@ -10,6 +10,7 @@ import { resolveApiUrl } from '@/lib/public-url'
 import { resolveCardWallet } from '@/lib/wallet/resolve-payment-route'
 import { buildCardInfo } from '@/lib/card-info'
 import { logger } from '@/lib/logger'
+import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 
 // LUD-03 withdraw bounds (millisatoshis) for a payable card.
 const MIN_WITHDRAWABLE = 1
@@ -48,15 +49,15 @@ export const GET = withErrorHandling(
       design: { select: { description: true, imageUrl: true } },
       user: {
         include: {
-          remoteWallets: {
-            where: { isDefault: true },
-            select: { type: true, config: true, status: true },
-            take: 1
-          },
           lightningAddresses: {
             where: { isPrimary: true },
             take: 1,
-            select: { username: true }
+            select: {
+              username: true,
+              mode: true,
+              remoteWalletId: true,
+              remoteWallet: { select: { type: true, config: true, status: true } },
+            }
           }
         }
       },
@@ -86,10 +87,11 @@ export const GET = withErrorHandling(
   // An unconfigured card (no usable wallet) advertises a 0–0 withdraw range so
   // a wallet sees up front that nothing can be withdrawn, rather than only
   // finding out when the callback rejects the payment.
+  const primaryWallet = derivePrimaryWallet(card.user?.lightningAddresses?.[0])
   const configured =
     resolveCardWallet({
       remoteWallet: card.remoteWallet ?? null,
-      defaultRemoteWallet: card.user?.remoteWallets?.[0] ?? null
+      defaultRemoteWallet: primaryWallet
     }).kind === 'wallet'
 
   // Trace the LNURL-withdraw request so the scan → scan/cb sequence is

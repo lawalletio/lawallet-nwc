@@ -46,16 +46,34 @@ const baseInvoice = {
   expiresAt: FUTURE,
   user: {
     id: 'user-1',
-    remoteWallets: [
-      { config: { connectionString: 'nostr+walletconnect://abc', mode: 'SEND_RECEIVE' } },
+    lightningAddresses: [
+      {
+        username: 'alice',
+        mode: 'DEFAULT_NWC',
+        redirect: null,
+        remoteWallet: null,
+      },
     ],
-    lightningAddresses: [{ username: 'alice' }],
+  },
+}
+
+const primaryWalletAddress = {
+  mode: 'CUSTOM_NWC',
+  remoteWalletId: 'wallet-1',
+  remoteWallet: {
+    id: 'wallet-1',
+    type: 'NWC',
+    status: 'ACTIVE',
+    config: { connectionString: 'nostr+walletconnect://abc', mode: 'SEND_RECEIVE' },
   },
 }
 
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
+    primaryWalletAddress as any,
+  )
 })
 
 describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
@@ -244,8 +262,9 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
   it('returns unsettled when user has no wallet configured', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      user: { ...baseInvoice.user, remoteWallets: [] },
+      user: { ...baseInvoice.user },
     } as any)
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
     const res = await GET(

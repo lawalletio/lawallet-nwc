@@ -12,7 +12,8 @@ import { eventBus } from '@/lib/events/event-bus'
 /**
  * Domain this importer is scoped to. lawallet.io is the canonical instance that
  * hosts the full veintiuno catalog, so the "Import from veintiuno.lat" button —
- * and this route — are only available there.
+ * and this route — are available there. Local development can also import the
+ * catalog for testing without changing the configured domain.
  */
 const VEINTIUNO_DOMAIN = 'lawallet.io'
 
@@ -52,15 +53,16 @@ function designName(card: VeintiunoCard): string {
 /**
  * `POST /api/card-designs/import-veintiuno` — import the entire veintiuno.lat
  * card catalog (all communities, no filter). Upserts by design id: new designs
- * are inserted, existing ones have their image/description refreshed. Only
- * available when the instance `domain` is lawallet.io.
+ * are inserted, existing ones have their image/description refreshed. Available
+ * when the instance `domain` is lawallet.io, plus local development.
  */
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'large')
   await authenticateWithPermission(request, Permission.CARD_DESIGNS_WRITE)
 
   const { domain } = await getSettings(['domain'])
-  if (domain !== VEINTIUNO_DOMAIN) {
+  const isDevelopment = process.env.NODE_ENV === 'development'
+  if (domain !== VEINTIUNO_DOMAIN && !isDevelopment) {
     throw new ValidationError(
       `Importing the veintiuno.lat catalog is only available on ${VEINTIUNO_DOMAIN}`,
     )

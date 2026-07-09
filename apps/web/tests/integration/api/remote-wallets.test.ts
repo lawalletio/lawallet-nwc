@@ -292,15 +292,25 @@ describe('POST /api/remote-wallets', () => {
     expect(res.status).toBe(500)
   })
 
-  it('clears the previous default when creating a new wallet with isDefault=true', async () => {
+  it('binds the primary address when creating a new wallet with isDefault=true', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    // A primary already exists, so the explicit isDefault must demote it.
-    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue({ id: 'old-default' } as never)
+    const created = createRemoteWalletFixture({
+      id: 'new-primary',
+      userId: user.id,
+      isDefault: false,
+    })
     vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
-      createRemoteWalletFixture({ userId: user.id, isDefault: true }) as never,
+      created as never,
     )
+    vi.mocked(prismaMock.lightningAddress.findFirst)
+      .mockResolvedValueOnce({ username: 'alice' } as never)
+      .mockResolvedValueOnce({
+        mode: 'CUSTOM_NWC',
+        remoteWalletId: created.id,
+      } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({ count: 1 } as never)
 
     await createHandler(
       createNextRequest('/api/remote-wallets', {
@@ -309,20 +319,26 @@ describe('POST /api/remote-wallets', () => {
       }),
     )
 
+    expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith({
+      where: { username: 'alice' },
+      data: {
+        mode: 'CUSTOM_NWC',
+        redirect: null,
+        remoteWalletId: created.id,
+      },
+    })
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
-      where: { userId: user.id, isDefault: true },
+      where: { userId: user.id, isDefault: true, id: { not: created.id } },
       data: { isDefault: false },
     })
   })
 
-  it('makes the FIRST wallet primary automatically (no existing default)', async () => {
+  it('does NOT make the first wallet primary automatically', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    // No primary yet.
-    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null as never)
     vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
-      createRemoteWalletFixture({ userId: user.id, isDefault: true }) as never,
+      createRemoteWalletFixture({ userId: user.id, isDefault: false }) as never,
     )
 
     await createHandler(
@@ -333,20 +349,15 @@ describe('POST /api/remote-wallets', () => {
       }),
     )
 
-    // Created as primary even though the client didn't ask…
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ isDefault: true }) }),
+      expect.objectContaining({ data: expect.objectContaining({ isDefault: false }) }),
     )
-    // …and nothing to demote, so no updateMany.
-    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
   })
 
-  it('does NOT make a subsequent wallet primary by default (a primary already exists)', async () => {
+  it('does NOT make a subsequent wallet primary by default', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    // A primary already exists.
-    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue({ id: 'existing-default' } as never)
     vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
       createRemoteWalletFixture({ userId: user.id, isDefault: false }) as never,
     )
@@ -361,8 +372,6 @@ describe('POST /api/remote-wallets', () => {
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ isDefault: false }) }),
     )
-    // Existing primary stays untouched.
-    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -442,21 +451,41 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     expect(body.name).toBe('Renamed')
   })
 
-  it('flipping isDefault=true clears the previous default first', async () => {
+  it('isDefault=true binds the primary address to the wallet', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
     vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
-    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({ ...wallet, isDefault: true } as never)
+    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue(wallet as never)
+    vi.mocked(prismaMock.remoteWallet.findUniqueOrThrow).mockResolvedValue({
+      ...wallet,
+      isDefault: true,
+    } as never)
+    vi.mocked(prismaMock.lightningAddress.findFirst)
+      .mockResolvedValueOnce({ username: 'alice' } as never)
+      .mockResolvedValueOnce({ username: 'alice' } as never)
+      .mockResolvedValueOnce({
+        mode: 'CUSTOM_NWC',
+        remoteWalletId: 'w1',
+      } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({ count: 1 } as never)
 
     await patchHandler(
       createNextRequest('/api/remote-wallets/w1', { method: 'PATCH', body: { isDefault: true } }),
       createParamsPromise({ id: 'w1' }),
     )
 
+    expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith({
+      where: { username: 'alice' },
+      data: {
+        mode: 'CUSTOM_NWC',
+        redirect: null,
+        remoteWalletId: 'w1',
+      },
+    })
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
-      where: { userId: user.id, isDefault: true, NOT: { id: 'w1' } },
+      where: { userId: user.id, isDefault: true, id: { not: 'w1' } },
       data: { isDefault: false },
     })
   })

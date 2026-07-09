@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { probeLud21Support } from '@/lib/lnurl-probe'
+import {
+  probeLightningAddressCapabilities,
+  probeLud21Support,
+} from '@/lib/lnurl-probe'
 
 const originalFetch = global.fetch
 
@@ -115,5 +118,77 @@ describe('probeLud21Support', () => {
     await expect(probeLud21Support('admin@example.com', 21)).rejects.toThrow(
       /HTTP 404/
     )
+  })
+})
+
+describe('probeLightningAddressCapabilities', () => {
+  it('passes all checks when LUD-16, LUD-21, and NIP-57 are supported', async () => {
+    mockFetchSequence([
+      () => ({
+        ok: true,
+        json: async () => ({
+          tag: 'payRequest',
+          callback: 'https://example.com/cb',
+          minSendable: 1_000,
+          maxSendable: 1_000_000_000,
+          allowsNostr: true,
+          nostrPubkey: 'a'.repeat(64),
+        }),
+      }),
+      () => ({
+        ok: true,
+        json: async () => ({
+          pr: 'lnbc1...',
+          verify: 'https://example.com/verify/xyz',
+        }),
+      }),
+    ])
+
+    const result = await probeLightningAddressCapabilities('Admin@Example.com')
+
+    expect(result.address).toBe('admin@example.com')
+    expect(result.canSave).toBe(true)
+    expect(result.checks.lud16.ok).toBe(true)
+    expect(result.checks.lud21.ok).toBe(true)
+    expect(result.checks.nip57.ok).toBe(true)
+  })
+
+  it('blocks saving when LUD-16 metadata cannot be resolved', async () => {
+    mockFetchSequence([() => ({ ok: false, status: 404 })])
+
+    const result = await probeLightningAddressCapabilities('admin@example.com')
+
+    expect(result.canSave).toBe(false)
+    expect(result.checks.lud16.ok).toBe(false)
+    expect(result.checks.lud16.message).toMatch(/HTTP 404/)
+    expect(result.checks.lud21.ok).toBe(false)
+    expect(result.checks.nip57.ok).toBe(false)
+  })
+
+  it('allows saving with warnings when optional LUD-21 and NIP-57 checks fail', async () => {
+    mockFetchSequence([
+      () => ({
+        ok: true,
+        json: async () => ({
+          tag: 'payRequest',
+          callback: 'https://example.com/cb',
+          minSendable: 1_000,
+          maxSendable: 1_000_000_000,
+        }),
+      }),
+      () => ({
+        ok: true,
+        json: async () => ({ pr: 'lnbc1...' }),
+      }),
+    ])
+
+    const result = await probeLightningAddressCapabilities('admin@example.com')
+
+    expect(result.canSave).toBe(true)
+    expect(result.checks.lud16.ok).toBe(true)
+    expect(result.checks.lud21.ok).toBe(false)
+    expect(result.checks.lud21.message).toMatch(/verify URL/)
+    expect(result.checks.nip57.ok).toBe(false)
+    expect(result.checks.nip57.message).toMatch(/NIP-57/)
   })
 })

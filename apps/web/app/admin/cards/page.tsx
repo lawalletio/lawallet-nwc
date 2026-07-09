@@ -205,8 +205,10 @@ export default function CardsPage() {
   const hasCommunity =
     settings?.is_community === 'true' && !!settings?.community_id?.trim()
   // lawallet.io is the canonical instance that hosts the full veintiuno
-  // catalog, so the "Import from veintiuno.lat" button is scoped to it.
-  const isVeintiunoHost = settings?.domain === 'lawallet.io'
+  // catalog. In local development, expose the same import action so operators
+  // can test the catalog flow without changing their dev domain.
+  const canImportVeintiuno =
+    settings?.domain === 'lawallet.io' || process.env.NODE_ENV === 'development'
   // Designs imported from veintiuno (either source) carry a `veintiuno-` id.
   // Offer a "Remove imported" action whenever any are present.
   const hasVeintiunoDesigns =
@@ -239,6 +241,23 @@ export default function CardsPage() {
                   refetchCounts()
                 }}
               />
+            )}
+            {canImportVeintiuno && !viewingAll && (
+              <PermissionGuard permission={Permission.CARD_DESIGNS_WRITE}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleImportVeintiuno}
+                  disabled={importingVeintiuno}
+                >
+                  {importingVeintiuno ? (
+                    <Spinner size={16} className="mr-2" />
+                  ) : (
+                    <Download className="mr-2 size-4" />
+                  )}
+                  Import from veintiuno.lat
+                </Button>
+              </PermissionGuard>
             )}
             {/* ADMIN-only shortcut to the card emulator (forges NTAG424 taps
                 with raw keys), matching the sidebar's tighter gating. */}
@@ -494,7 +513,7 @@ export default function CardsPage() {
                     Sync
                   </Button>
                 )}
-                {isVeintiunoHost && (
+                {canImportVeintiuno && (
                   <Button
                     variant="outline"
                     size="sm"

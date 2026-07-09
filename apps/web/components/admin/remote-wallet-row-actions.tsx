@@ -48,9 +48,10 @@ interface RemoteWalletRowActionsProps {
  * Per-row actions menu for the Remote Wallets table.
  *
  * Actions, gated on the wallet's current state:
- *  - **Set as Primary** — PATCH `isDefault: true`. Hidden when the
- *    wallet is already the default (no point offering a no-op) and
- *    when status ≠ ACTIVE (can't promote a disabled/revoked wallet).
+ *  - **Use for primary address** — PATCH `isDefault: true`. This binds the
+ *    account primary Lightning Address to the wallet, then the server
+ *    synchronizes the display flag from that binding. Hidden when the wallet
+ *    already carries the synchronized primary marker and when status ≠ ACTIVE.
  *  - **Rename** — opens a small dialog; PATCH `name`. Available for
  *    any non-revoked wallet.
  *  - **Disable / Enable** — PATCH `status`. Toggles ACTIVE ⇄ DISABLED.
@@ -60,7 +61,8 @@ interface RemoteWalletRowActionsProps {
  *    Always behind an `AlertDialog` confirmation because the wallet
  *    may be wired up to lightning addresses or cards via
  *    `Card.remoteWalletId` / `LightningAddress.remoteWalletId`, and
- *    revoking it routes those resources back to the default wallet
+ *    revoking it leaves those resources unconfigured or routed through the
+ *    primary-address wallet when they are implicit bindings
  *    (or unconfigured, if none).
  */
 export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowActionsProps) {
@@ -83,10 +85,10 @@ export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowAct
   async function handleSetPrimary() {
     try {
       await setPrimary(wallet.id)
-      toast.success(`“${wallet.name}” is now your primary wallet`)
+      toast.success(`Primary address now uses “${wallet.name}”`)
       onChanged?.()
     } catch (err) {
-      toast.error(messageFor(err, 'Couldn’t set wallet as primary'))
+      toast.error(messageFor(err, 'Couldn’t use wallet for primary address'))
     }
   }
 
@@ -143,7 +145,7 @@ export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowAct
           {canSetPrimary && (
             <DropdownMenuItem onSelect={handleSetPrimary}>
               <Star className="mr-2 size-4" />
-              Set as Primary
+              Use for primary address
             </DropdownMenuItem>
           )}
           {!isRevoked && (

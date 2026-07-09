@@ -19,6 +19,7 @@ import {
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
 import { logger } from '@/lib/logger'
+import { clearPrimaryWalletLinkToWallet } from '@/lib/wallet/primary-wallet'
 
 /**
  * Internal machine-to-machine webhook from the NWC listener service
@@ -210,15 +211,23 @@ async function archiveDeadWallet(event: WalletDeadEvent): Promise<void> {
     return
   }
 
-  const result = await prisma.remoteWallet.updateMany({
-    where: { id: wallet.id, status: 'ACTIVE' },
-    data: { status: 'DEAD', diedAt: new Date(), isDefault: false },
+  const result = await prisma.$transaction(async tx => {
+    const archived = await tx.remoteWallet.updateMany({
+      where: { id: wallet.id, status: 'ACTIVE' },
+      data: { status: 'DEAD', diedAt: new Date(), isDefault: false },
+    })
+    if (archived.count > 0) {
+      await clearPrimaryWalletLinkToWallet(wallet.userId, wallet.id, tx)
+    }
+    return archived
   })
   // Lost a race (already transitioned) — replayed webhook is a clean no-op.
   if (result.count === 0) return
 
   const hours = Math.round(event.unresponsiveSeconds / 3600)
   logger.info({ walletId: wallet.id }, 'nwc.wallet_archived_dead')
+  eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+  eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
   logActivity.fireAndForget({
     category: 'NWC',
     event: ActivityEvent.NWC_WALLET_DEAD,

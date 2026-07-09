@@ -107,7 +107,7 @@ export default function RemoteWalletDetailPage() {
                   {wallet.isDefault && (
                     <Badge variant="secondary" className="gap-1">
                       <Star className="size-3 fill-amber-400 text-amber-400" />
-                      Default
+                      Primary
                     </Badge>
                   )}
                 </div>

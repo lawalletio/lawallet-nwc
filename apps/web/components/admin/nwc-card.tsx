@@ -32,7 +32,7 @@ interface UserMe {
   userId: string
   lightningAddress: string | null
   primaryUsername: string | null
-  /** Connection string of the user's default RemoteWallet (or ''). */
+  /** Connection string of the user's derived primary RemoteWallet (or ''). */
   nwcString: string
   nwcUpdatedAt: string | null
 }
@@ -42,11 +42,10 @@ interface NwcCardProps {
 }
 
 /**
- * Dashboard wallet card. Read-only view of the user's **default
- * RemoteWallet** balance — wallets are created and managed on the Remote
- * Wallets page (/admin/remote-wallets), which is the single source of
- * truth. The connection string is the owner's own default wallet, returned
- * by /api/users/me, so the balance is still read client-side via NWC.
+ * Dashboard wallet card. Read-only view of the user's **primary
+ * RemoteWallet** balance — derived from the primary Lightning Address. The
+ * connection string is returned by /api/users/me, so the balance is still read
+ * client-side via NWC.
  */
 export function NwcCard({ username }: NwcCardProps = {}) {
   const { status } = useAuth()

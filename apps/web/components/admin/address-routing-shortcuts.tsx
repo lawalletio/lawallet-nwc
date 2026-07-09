@@ -13,8 +13,12 @@ function addressConfigureHref(
   username: string | null | undefined,
   mode: 'wallet' | 'redirect',
 ) {
-  if (!username) return `/admin/addresses?configure=${mode}`
-  return `/admin/addresses/${encodeURIComponent(username)}?configure=${mode}`
+  const query =
+    mode === 'redirect'
+      ? 'configure=redirect&mode=alias&focus=redirect'
+      : 'configure=wallet&mode=custom_nwc&focus=wallet'
+  if (!username) return `/admin/addresses?${query}`
+  return `/admin/addresses/${encodeURIComponent(username)}?${query}`
 }
 
 export function AddressRoutingShortcuts({
