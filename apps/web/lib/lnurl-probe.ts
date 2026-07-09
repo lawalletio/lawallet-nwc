@@ -19,6 +19,8 @@ export interface Lud16Metadata {
   minSendable: number
   maxSendable: number
   metadata?: string
+  allowsNostr?: boolean
+  nostrPubkey?: string
 }
 
 export interface Lud16CallbackResponse {
@@ -26,6 +28,19 @@ export interface Lud16CallbackResponse {
   verify?: string
   status?: string
   reason?: string
+}
+
+export type LightningAddressProbeKey = 'lud16' | 'lud21' | 'nip57'
+
+export interface LightningAddressProbeCheck {
+  ok: boolean
+  message: string
+}
+
+export interface LightningAddressProbeResult {
+  address: string
+  canSave: boolean
+  checks: Record<LightningAddressProbeKey, LightningAddressProbeCheck>
 }
 
 function fetchWithTimeout(
@@ -48,6 +63,33 @@ function splitLightningAddress(lightningAddress: string): {
     throw new ValidationError('Invalid lightning address format')
   }
   return { username, domain }
+}
+
+function probeFailureMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback
+}
+
+function assertSendableRange(metadata: Lud16Metadata): void {
+  if (
+    !Number.isFinite(metadata.minSendable) ||
+    !Number.isFinite(metadata.maxSendable) ||
+    metadata.minSendable <= 0 ||
+    metadata.maxSendable < metadata.minSendable
+  ) {
+    throw new ValidationError('Lightning address has an invalid sendable range')
+  }
+}
+
+function isHexPubkey(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{64}$/i.test(value)
+}
+
+function ok(message: string): LightningAddressProbeCheck {
+  return { ok: true, message }
+}
+
+function invalid(message: string): LightningAddressProbeCheck {
+  return { ok: false, message }
 }
 
 /**
@@ -167,6 +209,7 @@ export async function probeLud21Support(
   priceSats: number
 ): Promise<void> {
   const metadata = await fetchLud16Metadata(lightningAddress)
+  assertSendableRange(metadata)
   const priceMsats = priceSats * 1000
 
   if (priceMsats < metadata.minSendable || priceMsats > metadata.maxSendable) {
@@ -184,5 +227,78 @@ export async function probeLud21Support(
     throw new ValidationError(
       'This Lightning Address does not expose a LUD-21 verify URL, which is required for paid registration. Use a provider that supports LUD-21 (e.g. LNbits, NWC).'
     )
+  }
+}
+
+/**
+ * Probes a candidate alias target before a Lightning Address is put into ALIAS
+ * mode. LUD-16 is the hard gate; LUD-21 and NIP-57 are capability signals that
+ * the UI can surface without blocking a basic forwarding alias.
+ */
+export async function probeLightningAddressCapabilities(
+  lightningAddress: string
+): Promise<LightningAddressProbeResult> {
+  const address = lightningAddress.trim().toLowerCase()
+  const metadataPromise = fetchLud16Metadata(address)
+
+  const lud16 = metadataPromise
+    .then(metadata => {
+      assertSendableRange(metadata)
+      return ok('LUD-16 payRequest metadata resolved.')
+    })
+    .catch(err =>
+      invalid(probeFailureMessage(err, 'LUD-16 metadata could not be resolved'))
+    )
+
+  const lud21 = metadataPromise
+    .then(async metadata => {
+      assertSendableRange(metadata)
+      const data = await callLud16Callback(
+        metadata.callback,
+        metadata.minSendable,
+        'LaWallet alias probe'
+      )
+
+      if (!data.pr) {
+        throw new ValidationError('Callback did not return a payment request')
+      }
+      if (!data.verify) {
+        throw new ValidationError('Callback did not expose a LUD-21 verify URL')
+      }
+
+      return ok('LUD-21 verify URL is available.')
+    })
+    .catch(err =>
+      invalid(probeFailureMessage(err, 'LUD-21 verify could not be confirmed'))
+    )
+
+  const nip57 = metadataPromise
+    .then(metadata => {
+      if (metadata.allowsNostr !== true) {
+        throw new ValidationError('NIP-57 zaps are not advertised')
+      }
+      if (!isHexPubkey(metadata.nostrPubkey)) {
+        throw new ValidationError('NIP-57 nostrPubkey is missing or invalid')
+      }
+      return ok('NIP-57 zap metadata is advertised.')
+    })
+    .catch(err =>
+      invalid(probeFailureMessage(err, 'NIP-57 support could not be confirmed'))
+    )
+
+  const [lud16Result, lud21Result, nip57Result] = await Promise.all([
+    lud16,
+    lud21,
+    nip57,
+  ])
+
+  return {
+    address,
+    canSave: lud16Result.ok,
+    checks: {
+      lud16: lud16Result,
+      lud21: lud21Result,
+      nip57: nip57Result,
+    },
   }
 }

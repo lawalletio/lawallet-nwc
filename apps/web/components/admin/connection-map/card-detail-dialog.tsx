@@ -155,7 +155,7 @@ export function CardDetailBody({
                     boundWallet.name
                   )
                 ) : (
-                  <span className="text-muted-foreground">None (uses default)</span>
+                  <span className="text-muted-foreground">None (uses primary wallet)</span>
                 )
               }
             />

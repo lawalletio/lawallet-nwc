@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger'
 import { scanCardQuerySchema } from '@/lib/validation/schemas'
 import { validateQuery } from '@/lib/validation/middleware'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
+import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 
 // NWC URI will be fetched from the user record
 
@@ -37,19 +38,22 @@ export const GET = withErrorHandling(
   logger.info({ cardId, action }, 'Card scan callback request')
 
   // Find card by id in database. Include the card's bound RemoteWallet and
-  // the owner's default wallet so the pay action can route the spend through
-  // the driver registry (#234); `user` still carries the legacy `nwc` URI as
-  // a fallback for un-migrated cards.
+  // the owner's primary-address wallet so the pay action can route the spend
+  // through the driver registry.
   const card = await prisma.card.findUnique({
     where: { id: cardId },
     include: {
       ntag424: true,
       user: {
         include: {
-          remoteWallets: {
-            where: { isDefault: true },
-            select: { type: true, config: true, status: true },
+          lightningAddresses: {
+            where: { isPrimary: true },
             take: 1,
+            select: {
+              mode: true,
+              remoteWalletId: true,
+              remoteWallet: { select: { type: true, config: true, status: true } },
+            },
           },
         },
       },
@@ -104,7 +108,18 @@ export const GET = withErrorHandling(
     }
   })
 
-  return (await import(`./actions/${action}.ts`)).default(req, card)
+  const primaryWallet = derivePrimaryWallet(card.user?.lightningAddresses?.[0])
+  const actionCard = card.user
+    ? {
+        ...card,
+        user: {
+          ...card.user,
+          remoteWallets: primaryWallet ? [primaryWallet] : [],
+        },
+      }
+    : card
+
+  return (await import(`./actions/${action}.ts`)).default(req, actionCard)
   },
   { headers: { 'Access-Control-Allow-Origin': '*' } }
 )

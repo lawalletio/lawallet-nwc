@@ -182,6 +182,7 @@ export function NewAddressDialog({
   const [payingWithWallet, setPayingWithWallet] = useState(false)
   const [manualChecking, setManualChecking] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const configureButtonRef = useRef<HTMLButtonElement | null>(null)
   // Guards against two settlement signals (poller + manual check / WebLN)
   // racing to claim the same invoice and double-firing the claim request.
   const claimingRef = useRef(false)
@@ -211,6 +212,11 @@ export function NewAddressDialog({
     const timer = setTimeout(() => autoAdvanceRef.current?.(), successAutoAdvanceMs)
     return () => clearTimeout(timer)
   }, [step, successAutoAdvanceMs])
+
+  useEffect(() => {
+    if (step !== 'success' || !claimedAddress || successAutoAdvanceMs) return
+    configureButtonRef.current?.focus()
+  }, [claimedAddress, step, successAutoAdvanceMs])
 
   const domain = settings?.domain || 'your-domain'
   const formatError =
@@ -542,9 +548,28 @@ export function NewAddressDialog({
     onOpenChange(next)
   }
 
+  const handleConfigureSuccess = useCallback(() => {
+    if (!claimedAddress) return
+    if (onSuccessAction) {
+      onSuccessAction(claimedAddress)
+      return
+    }
+    const justUsername = claimedAddress.split('@')[0]
+    onOpenChange(false)
+    router.push(`/admin/addresses/${encodeURIComponent(justUsername)}`)
+  }, [claimedAddress, onOpenChange, onSuccessAction, router])
+
+  function handleDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (step !== 'success' || !claimedAddress || successAutoAdvanceMs) return
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+    event.preventDefault()
+    event.stopPropagation()
+    handleConfigureSuccess()
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent onKeyDown={handleDialogKeyDown}>
         {step === 'username' && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <DialogHeader>
@@ -726,19 +751,10 @@ export function NewAddressDialog({
             ) : (
               <DialogFooter className="flex-row justify-end space-x-2">
                 <Button
+                  ref={configureButtonRef}
                   type="button"
                   variant="theme"
-                  onClick={() => {
-                    if (onSuccessAction) {
-                      onSuccessAction(claimedAddress)
-                      return
-                    }
-                    const justUsername = claimedAddress.split('@')[0]
-                    onOpenChange(false)
-                    router.push(
-                      `/admin/addresses/${encodeURIComponent(justUsername)}`,
-                    )
-                  }}
+                  onClick={handleConfigureSuccess}
                 >
                   Configure
                 </Button>

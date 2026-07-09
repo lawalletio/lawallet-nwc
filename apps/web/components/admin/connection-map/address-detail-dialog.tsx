@@ -21,6 +21,7 @@ interface Props {
   address: WalletAddress
   domain: string
   wallets: RemoteWalletData[]
+  primaryWallet: RemoteWalletData | null
   /**
    * Optional — when provided, the "Bound wallet" line becomes a button
    * that swaps the LA body out for the wallet body inside the shared
@@ -50,17 +51,17 @@ export function AddressDetailBody({
   address,
   domain,
   wallets,
+  primaryWallet,
   onOpenWallet,
 }: Props) {
   // For CUSTOM_NWC the wallet is the explicitly-bound one. For DEFAULT_NWC
-  // the implicit binding is whatever the user's primary wallet is — the
-  // PUT endpoint clears `remoteWalletId` for that mode, so we look up the
-  // default wallet from the list instead of `address.remoteWalletId`.
+  // the implicit binding is the wallet linked to the account's primary
+  // Lightning Address.
   const boundWallet =
     address.mode === 'CUSTOM_NWC' && address.remoteWalletId
       ? wallets.find(w => w.id === address.remoteWalletId)
       : address.mode === 'DEFAULT_NWC'
-        ? wallets.find(w => w.isDefault)
+        ? primaryWallet
         : null
 
   return (
@@ -127,7 +128,7 @@ export function AddressDetailBody({
                       {boundWallet.isDefault && (
                         <Star
                           className="size-3 fill-amber-400 text-amber-400"
-                          aria-label="Default"
+                          aria-label="Primary"
                         />
                       )}
                     </button>
@@ -137,7 +138,7 @@ export function AddressDetailBody({
                       {boundWallet.isDefault && (
                         <Star
                           className="size-3 fill-amber-400 text-amber-400"
-                          aria-label="Default"
+                          aria-label="Primary"
                         />
                       )}
                     </span>

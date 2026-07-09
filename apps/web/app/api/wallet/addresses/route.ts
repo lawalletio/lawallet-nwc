@@ -18,6 +18,12 @@ import {
   type WalletAddressDto,
 } from '@/lib/wallet/wallet-address-dto'
 import { resolveDefaultAddressMode } from '@/lib/wallet/default-address-mode'
+import {
+  derivePrimaryWallet,
+  findInitialPrimaryWalletCandidate,
+  getPrimaryRemoteWalletForUser,
+  syncPrimaryRemoteWalletFlag,
+} from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -38,12 +44,13 @@ export const GET = withErrorHandling(async (request: Request) => {
         include: { remoteWallet: true },
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
       },
-      remoteWallets: { where: { isDefault: true }, take: 1 },
     },
   })
 
   if (!user) throw new NotFoundError('User not found')
-  const defaultWallet = user.remoteWallets[0] ?? null
+  const defaultWallet = derivePrimaryWallet(
+    user.lightningAddresses.find(addr => addr.isPrimary),
+  )
 
   const dtos: WalletAddressDto[] = user.lightningAddresses.map(addr =>
     toWalletAddressDto(addr, defaultWallet),
@@ -84,21 +91,37 @@ export const POST = withErrorHandling(async (request: Request) => {
   })
   const isPrimary = ownedCount === 0
 
-  // Default a brand-new address to IDLE unless the user has an ACTIVE default
-  // wallet to route through — then it can safely start in DEFAULT_NWC.
-  const created = await prisma.lightningAddress.create({
-    data: {
-      username,
-      userId: user.id,
-      mode: mode ?? (await resolveDefaultAddressMode(user.id)),
-      isPrimary,
-    },
-    include: { remoteWallet: true },
+  const created = await prisma.$transaction(async tx => {
+    const primaryCandidate = isPrimary
+      ? await findInitialPrimaryWalletCandidate(user.id, tx)
+      : null
+    const nextMode = isPrimary
+      ? primaryCandidate
+        ? 'CUSTOM_NWC'
+        : 'IDLE'
+      : mode ?? (await resolveDefaultAddressMode(user.id))
+
+    const address = await tx.lightningAddress.create({
+      data: {
+        username,
+        userId: user.id,
+        mode: nextMode,
+        remoteWalletId: primaryCandidate?.id ?? null,
+        isPrimary,
+      },
+      include: { remoteWallet: true },
+    })
+
+    if (isPrimary) {
+      await syncPrimaryRemoteWalletFlag(user.id, tx)
+    }
+
+    return address
   })
 
-  const defaultWallet = await prisma.remoteWallet.findFirst({
-    where: { userId: user.id, isDefault: true },
-  })
+  const defaultWallet = isPrimary
+    ? derivePrimaryWallet(created)
+    : await getPrimaryRemoteWalletForUser(user.id)
 
   eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
   // Also bump users:updated so any mounted /api/users/me consumer (e.g.

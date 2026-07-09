@@ -13,7 +13,7 @@ export type BindingTone = 'bound' | 'default' | 'none'
  *
  * Tones:
  *   - bound   → a specific wallet (amber wallet icon, solid surface)
- *   - default → routes through the user's default wallet (star icon)
+ *   - default → routes through the user's primary-address wallet (star icon)
  *   - none    → idle / unbound (muted, dashed border)
  */
 export function BindingChip({

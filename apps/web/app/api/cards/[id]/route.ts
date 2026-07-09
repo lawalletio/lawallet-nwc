@@ -92,7 +92,7 @@ export const GET = withErrorHandling(
  *   - `remoteWalletId: <id>` rebinds the card to that wallet. The wallet
  *     must be owned by the caller's user record and must not be REVOKED.
  *   - `remoteWalletId: null` unbinds; the card falls back to the owner's
- *     default wallet at run-time.
+ *     primary-address wallet at run-time.
  *
  * Cross-field validation lives here (not in Zod) for the same reason as
  * the LA PUT — the rules depend on database state, not just the body

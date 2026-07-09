@@ -10,8 +10,12 @@ import {
   ValidationError,
 } from '@/types/server/errors'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { validateBody } from '@/lib/validation/middleware'
+import { createLncurlWalletSchema } from '@/lib/validation/schemas'
 import { logger } from '@/lib/logger'
+import { eventBus } from '@/lib/events/event-bus'
 import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
+import { bindPrimaryAddressToWallet } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -64,8 +68,10 @@ async function resolveUserId(pubkey: string): Promise<string> {
 }
 
 /**
- * `POST /api/remote-wallets/lncurl` — provision a fresh LNCurl custodial wallet
- * and make it the caller's default.
+ * `POST /api/remote-wallets/lncurl` — provision a fresh LNCurl custodial wallet.
+ * `isDefault=true` is accepted as a compatibility shortcut: when the caller
+ * already has a primary Lightning Address, bind that address to the new wallet
+ * so it becomes the account primary wallet under the primary-address rule.
  *
  * Gated behind the `lncurl_enabled` setting. Network/provider failures surface
  * as a 503 (an upstream dependency being unavailable, not a bug here).
@@ -85,49 +91,28 @@ export const POST = withErrorHandling(async (request: Request) => {
     throw new ValidationError('LNCurl is not enabled')
   }
 
-  // The caller's current default becomes the "previous" wallet — created with
-  // `revokePrevious: false` so an explicit opt-in flow doesn't silently kill
-  // the user's existing wallet.
-  const currentDefault = await prisma.remoteWallet.findFirst({
-    where: { userId, isDefault: true },
-    select: { id: true },
-  })
+  const { name, isDefault } = await validateBody(request, createLncurlWalletSchema)
 
   try {
     const created = await createLncurlRemoteWallet({
       userId,
-      previousWalletId: currentDefault?.id,
+      name: name || undefined,
       revokePrevious: false,
       serverUrl: lncurl_server_url || undefined,
     })
 
-    // First-wallet onboarding: with no prior default the orchestrator had
-    // nothing to re-point, so bind the user's primary Lightning Address and
-    // any unbound Cards to the fresh wallet — a one-tap "ready to receive"
-    // setup. Best-effort: the wallet is already the default, so DEFAULT_NWC
-    // addresses route through it even if this explicit binding fails. ALIAS
-    // addresses are left alone so we never clobber a user's redirect.
-    if (!currentDefault) {
-      try {
-        await prisma.$transaction([
-          prisma.lightningAddress.updateMany({
-            where: { userId, isPrimary: true, mode: { not: 'ALIAS' } },
-            data: { mode: 'CUSTOM_NWC', remoteWalletId: created.id },
-          }),
-          prisma.card.updateMany({
-            where: { userId, remoteWalletId: null },
-            data: { remoteWalletId: created.id },
-          }),
-        ])
-      } catch (bindErr) {
-        logger.error(
-          { userId, walletId: created.id, err: String(bindErr) },
-          'LNCurl onboarding bind failed (wallet still created as default)',
-        )
-      }
+    const boundPrimaryAddress = isDefault
+      ? await bindPrimaryAddressToWallet(userId, created.id)
+      : null
+    if (boundPrimaryAddress) {
+      eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+      eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
     }
 
-    return NextResponse.json(toDto(created), { status: 201 })
+    return NextResponse.json(
+      toDto({ ...created, isDefault: Boolean(boundPrimaryAddress) }),
+      { status: 201 },
+    )
   } catch (err) {
     logger.error({ userId, err: String(err) }, 'LNCurl provisioning failed')
     throw new ServiceUnavailableError('Could not provision an LNCurl wallet')

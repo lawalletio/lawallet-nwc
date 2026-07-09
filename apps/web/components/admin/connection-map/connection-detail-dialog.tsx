@@ -8,6 +8,7 @@ import type { CardData } from '@/lib/client/hooks/use-cards'
 import { AddressDetailBody } from './address-detail-dialog'
 import { WalletDetailBody } from './wallet-detail-dialog'
 import { CardDetailBody } from './card-detail-dialog'
+import { getPrimaryWallet } from './primary-wallet'
 
 /**
  * Which entity's detail body the shared dialog is showing. `null` =
@@ -62,6 +63,7 @@ export function ConnectionDetailDialog({
   const close = () => onSelect(null)
   const openWallet = (id: string) => onSelect({ kind: 'wallet', id })
   const openAddress = (username: string) => onSelect({ kind: 'la', username })
+  const primaryWallet = getPrimaryWallet(wallets, addresses)
 
   return (
     <Dialog open={selected !== null} onOpenChange={o => !o && close()}>
@@ -78,6 +80,7 @@ export function ConnectionDetailDialog({
                   address={addr}
                   domain={domain}
                   wallets={wallets ?? []}
+                  primaryWallet={primaryWallet}
                   onOpenWallet={openWallet}
                 />
               ) : null

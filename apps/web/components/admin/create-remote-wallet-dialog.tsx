@@ -69,7 +69,12 @@ function looksLikeNwcUri(uri: string): boolean {
 
 interface CreateRemoteWalletDialogProps {
   /** Called after a successful create. Page passes its `refetch` here. */
-  onCreated?: () => void
+  onCreated?: (wallet: RemoteWalletData) => void | Promise<void>
+  /** Optional controlled state for pages that open the shared modal from another control. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** Hide the built-in Add wallet trigger when another component opens the dialog. */
+  showTrigger?: boolean
 }
 
 /**
@@ -88,7 +93,12 @@ const PROBE_DEBOUNCE_MS = 600
 /** Which connection method the dialog is currently in. */
 type CreateMethod = 'nwc' | 'lncurl'
 
-export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialogProps) {
+export function CreateRemoteWalletDialog({
+  onCreated,
+  open: controlledOpen,
+  onOpenChange,
+  showTrigger = true,
+}: CreateRemoteWalletDialogProps) {
   const { data: settings } = useSettings()
   const lncurlEnabled = settings?.lncurl_enabled === 'true'
 
@@ -99,7 +109,11 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
   const [connectionString, setConnectionString] = useState('')
   const [isDefault, setIsDefault] = useState(false)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
-  const { createWallet, createLncurlWallet, loading } = useRemoteWalletMutations()
+  const {
+    createWallet,
+    createLncurlWallet,
+    loading: creating,
+  } = useRemoteWalletMutations()
 
   const trimmedName = name.trim()
   const trimmedUri = connectionString.trim()
@@ -107,8 +121,8 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
   // already submitting" (the name is optional — the server defaults it).
   const canSubmit =
     method === 'lncurl'
-      ? !loading
-      : !loading &&
+      ? !creating
+      : !creating &&
         trimmedName.length > 0 &&
         trimmedName.length <= 120 &&
         type === 'NWC' && // only NWC writes today; switch unlocks once other drivers ship
@@ -192,11 +206,15 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
     if (!canSubmit) return
 
     try {
+      let created: RemoteWalletData
       if (method === 'lncurl') {
-        await createLncurlWallet({ name: trimmedName || undefined })
+        created = await createLncurlWallet({
+          name: trimmedName || undefined,
+          isDefault,
+        })
         toast.success('LNCurl wallet created')
       } else {
-        await createWallet({
+        created = await createWallet({
           name: trimmedName,
           type,
           config: { connectionString: trimmedUri, mode: submitMode },
@@ -204,9 +222,9 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
         })
         toast.success('Wallet added')
       }
-      setOpen(false)
+      setDialogOpen(false)
       resetForm()
-      onCreated?.()
+      await onCreated?.(created)
     } catch (err) {
       // Server hands back structured errors via `ApiClientError`. Map the
       // ones the user can actually act on; everything else falls through
@@ -225,21 +243,31 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
     }
   }
 
+  const dialogOpen = controlledOpen ?? open
+  const setDialogOpen = (next: boolean) => {
+    if (controlledOpen === undefined) {
+      setOpen(next)
+    }
+    onOpenChange?.(next)
+  }
+
   return (
     <Dialog
-      open={open}
+      open={dialogOpen}
       onOpenChange={next => {
-        setOpen(next)
+        setDialogOpen(next)
         if (next) setMethod(lncurlEnabled ? 'lncurl' : 'nwc')
         else resetForm()
       }}
     >
-      <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="size-4" />
-          Add wallet
-        </Button>
-      </DialogTrigger>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button className="gap-2">
+            <Plus className="size-4" />
+            Add wallet
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
@@ -255,9 +283,10 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
             <div className="grid grid-cols-2 gap-2 rounded-lg border p-1">
               <button
                 type="button"
+                disabled={creating}
                 onClick={() => setMethod('lncurl')}
                 className={cn(
-                  'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  'rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-60',
                   method === 'lncurl'
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-muted',
@@ -267,9 +296,10 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
               </button>
               <button
                 type="button"
+                disabled={creating}
                 onClick={() => setMethod('nwc')}
                 className={cn(
-                  'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  'rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-60',
                   method === 'nwc'
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-muted',
@@ -294,6 +324,7 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
               onChange={e => setName(e.target.value)}
               maxLength={120}
               autoFocus
+              disabled={creating}
             />
           </div>
 
@@ -301,7 +332,11 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
             <>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="wallet-type">Type</Label>
-                <Select value={type} onValueChange={v => setType(v as RemoteWalletData['type'])}>
+                <Select
+                  value={type}
+                  onValueChange={v => setType(v as RemoteWalletData['type'])}
+                  disabled={creating}
+                >
                   <SelectTrigger id="wallet-type">
                     <SelectValue />
                   </SelectTrigger>
@@ -340,7 +375,7 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
                       autoComplete="off"
                       autoCorrect="off"
                       spellCheck={false}
-                      disabled={loading}
+                      disabled={creating}
                     />
                     <p className="text-xs text-muted-foreground">
                       Paste or scan the NWC pairing QR from your wallet (Alby,
@@ -369,17 +404,17 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div className="flex flex-col gap-0.5">
                   <Label htmlFor="wallet-default" className="cursor-pointer">
-                    Set as default
+                    Use for primary address
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Lightning addresses with no explicit wallet will route through
-                    this one.
+                    If you have a primary address, it will be linked to this wallet.
                   </p>
                 </div>
                 <Switch
                   id="wallet-default"
                   checked={isDefault}
                   onCheckedChange={setIsDefault}
+                  disabled={creating}
                 />
               </div>
             </>
@@ -396,18 +431,38 @@ export function CreateRemoteWalletDialog({ onCreated }: CreateRemoteWalletDialog
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                This becomes your active wallet — your Lightning Address and Cards
-                will route to it, replacing the previous connection.
+                Create an empty disposable wallet first, then fund it before use.
               </p>
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div className="flex flex-col gap-0.5">
+                  <Label htmlFor="wallet-default-lncurl" className="cursor-pointer">
+                    Use for primary address
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    If you have a primary address, it will be linked to this wallet.
+                  </p>
+                </div>
+                <Switch
+                  id="wallet-default-lncurl"
+                  checked={isDefault}
+                  onCheckedChange={setIsDefault}
+                  disabled={creating}
+                />
+              </div>
             </>
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={creating}
+              onClick={() => setDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={!canSubmit} className="gap-2">
-              {loading && <Spinner className="size-4" />}
+              {creating && <Spinner className="size-4" />}
               {method === 'lncurl' ? 'Create wallet' : 'Add wallet'}
             </Button>
           </DialogFooter>

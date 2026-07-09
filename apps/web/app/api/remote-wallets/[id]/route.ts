@@ -15,6 +15,10 @@ import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { eventBus } from '@/lib/events/event-bus'
 import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
+import {
+  bindPrimaryAddressToWallet,
+  clearPrimaryWalletLinkToWallet,
+} from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -93,11 +97,14 @@ export const GET = withErrorHandling(
 )
 
 /**
- * `PATCH /api/remote-wallets/[id]` — rename, flip default, or change status.
+ * `PATCH /api/remote-wallets/[id]` — rename, bind as primary, or change status.
  *
  *  - Renaming hits the `(userId, name)` unique index → 409 on collision.
- *  - Setting `isDefault: true` un-marks the previous default in the same
- *    transaction so the partial unique index can't race.
+ *  - Setting `isDefault: true` is a compatibility shortcut that binds the
+ *    account primary Lightning Address to this wallet, then synchronizes the
+ *    display flag from that address link.
+ *  - Setting `isDefault: false` is rejected; the flag is no longer an
+ *    independently writable source of truth.
  *  - Status is a simple enum write — we deliberately don't enforce
  *    "REVOKED is terminal" at the API layer; the UI is the right place to
  *    hide that affordance, and tests/admins benefit from the freedom.
@@ -113,30 +120,62 @@ export const PATCH = withErrorHandling(
     const body = await validateBody(request, updateRemoteWalletSchema)
 
     // Ownership check up front so a 404 fires before any writes.
-    await loadOwnedWallet(id, userId)
+    const wallet = await loadOwnedWallet(id, userId)
+    if (body.isDefault === false) {
+      throw new ValidationError(
+        'RemoteWallet.isDefault is derived from the primary lightning address',
+      )
+    }
+    if (
+      body.isDefault === true &&
+      (wallet.status === 'REVOKED' ||
+        wallet.status === 'DEAD' ||
+        body.status === 'REVOKED' ||
+        body.status === 'DEAD')
+    ) {
+      throw new ValidationError('Cannot use an archived wallet for the primary address')
+    }
 
     try {
       const updated = await prisma.$transaction(async tx => {
         if (body.isDefault === true) {
-          await tx.remoteWallet.updateMany({
-            where: { userId, isDefault: true, NOT: { id } },
-            data: { isDefault: false },
+          const primaryAddress = await tx.lightningAddress.findFirst({
+            where: { userId, isPrimary: true },
+            select: { username: true },
           })
+          if (!primaryAddress) {
+            throw new ValidationError('Set a primary lightning address first')
+          }
         }
 
-        return tx.remoteWallet.update({
+        const updatedWallet = await tx.remoteWallet.update({
           where: { id },
           data: {
             name: body.name,
-            isDefault: body.isDefault,
             status: body.status,
           },
         })
+
+        if (body.isDefault === true) {
+          await bindPrimaryAddressToWallet(userId, id, tx)
+          return tx.remoteWallet.findUniqueOrThrow({ where: { id } })
+        }
+
+        if (body.status === 'REVOKED' || body.status === 'DEAD') {
+          await clearPrimaryWalletLinkToWallet(userId, id, tx)
+          return tx.remoteWallet.findUniqueOrThrow({ where: { id } })
+        }
+
+        return updatedWallet
       })
 
       // Status/name flips change what the listener dashboard shows — nudge
       // it to refetch (the listener reconciles via the Postgres trigger).
       eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+      if (body.isDefault === true || body.status === 'REVOKED' || body.status === 'DEAD') {
+        eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+        eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+      }
 
       return NextResponse.json(toDto(updated))
     } catch (err) {
@@ -163,8 +202,8 @@ export const PATCH = withErrorHandling(
  * for ACTIVE wallets so we never drop a live wallet (and its bindings) without
  * first retiring it; the SetNull relations make the row drop itself safe.
  *
- * Either way, `isDefault` is implicitly cleared (soft via the update, hard via
- * the row removal) so a stale flag can't resurrect a dead default slot.
+ * Either way, if this wallet backs the primary Lightning Address, that address
+ * is moved to IDLE and the synchronized display flag is cleared.
  */
 export const DELETE = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -183,17 +222,27 @@ export const DELETE = withErrorHandling(
           'Disable or delete the wallet before removing it permanently',
         )
       }
-      await prisma.remoteWallet.delete({ where: { id } })
+      await prisma.$transaction(async tx => {
+        await clearPrimaryWalletLinkToWallet(userId, id, tx)
+        await tx.remoteWallet.delete({ where: { id } })
+      })
       eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+      eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+      eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
       return new NextResponse(null, { status: 204 })
     }
 
-    await prisma.remoteWallet.update({
-      where: { id },
-      data: { status: 'REVOKED', isDefault: false },
+    await prisma.$transaction(async tx => {
+      await tx.remoteWallet.update({
+        where: { id },
+        data: { status: 'REVOKED', isDefault: false },
+      })
+      await clearPrimaryWalletLinkToWallet(userId, id, tx)
     })
 
     eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+    eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+    eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
     return new NextResponse(null, { status: 204 })
   },
 )

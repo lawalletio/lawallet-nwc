@@ -18,6 +18,11 @@ import { eventBus } from '@/lib/events/event-bus'
 import { dispatchHookAndForget } from '@/plugins/index'
 import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
 import { resolveDefaultAddressMode } from '@/lib/wallet/default-address-mode'
+import {
+  findInitialPrimaryWalletCandidate,
+  getPrimaryRemoteWalletForUser,
+  syncPrimaryRemoteWalletFlag,
+} from '@/lib/wallet/primary-wallet'
 import type { InvoiceMetadata } from '@/lib/invoice-utils'
 
 /**
@@ -131,24 +136,33 @@ export const POST = withErrorHandling(
       }
 
       if (invoice.purpose === 'REGISTRATION') {
-        // Primary swap: delete the existing primary first so the
-        // partial-unique index on (userId) WHERE isPrimary=true
-        // doesn't conflict, then insert the new primary row.
-        const existingPrimary = await prisma.lightningAddress.findFirst({
-          where: { userId: user.id, isPrimary: true },
-        })
-        if (existingPrimary) {
-          await prisma.lightningAddress.delete({
-            where: { username: existingPrimary.username },
+        await prisma.$transaction(async tx => {
+          const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(user.id, tx)
+          const candidate =
+            currentPrimaryWallet ??
+            (await findInitialPrimaryWalletCandidate(user.id, tx))
+
+          // Primary swap: delete the existing primary first so the
+          // partial-unique index on (userId) WHERE isPrimary=true
+          // doesn't conflict, then insert the new primary row.
+          const existingPrimary = await tx.lightningAddress.findFirst({
+            where: { userId: user.id, isPrimary: true },
           })
-        }
-        await prisma.lightningAddress.create({
-          data: {
-            username,
-            userId: user.id,
-            isPrimary: true,
-            mode: await resolveDefaultAddressMode(user.id),
-          },
+          if (existingPrimary) {
+            await tx.lightningAddress.delete({
+              where: { username: existingPrimary.username },
+            })
+          }
+          await tx.lightningAddress.create({
+            data: {
+              username,
+              userId: user.id,
+              isPrimary: true,
+              mode: candidate ? 'CUSTOM_NWC' : 'IDLE',
+              remoteWalletId: candidate?.id ?? null,
+            },
+          })
+          await syncPrimaryRemoteWalletFlag(user.id, tx)
         })
       } else {
         // Secondary add: never touches the existing primary.

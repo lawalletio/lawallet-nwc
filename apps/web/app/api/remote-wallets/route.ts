@@ -16,6 +16,10 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { getDriver } from '@/lib/wallet/drivers'
 import { eventBus } from '@/lib/events/event-bus'
 import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
+import {
+  bindPrimaryAddressToWallet,
+  syncPrimaryRemoteWalletFlag,
+} from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -80,7 +84,7 @@ async function resolveUserId(pubkey: string): Promise<string> {
  * narrows by driver type — the "add wallet" picker uses this to preview which
  * driver types are available.
  *
- * Default ordering: default wallet first, then by creation date desc.
+ * Ordering: synchronized primary wallet first, then by creation date desc.
  */
 export const GET = withErrorHandling(async (request: Request) => {
   const auth = await authenticate(request)
@@ -119,8 +123,11 @@ export const GET = withErrorHandling(async (request: Request) => {
  *
  * Validates the body envelope here, then hands `config` to the driver
  * registry's per-type schema so each driver owns its own shape. The whole
- * write happens in a transaction so the default-flip is atomic with the
- * insert.
+ * write happens in a transaction. `isDefault=true` is accepted as a
+ * compatibility shortcut: when the user has a primary Lightning Address, the
+ * new wallet is bound to that address and the display flag is synchronized
+ * from that binding. Without a primary address, the wallet is created without
+ * a primary flag.
  */
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'json')
@@ -142,32 +149,8 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
 
   try {
-    const created = await prisma.$transaction(async tx => {
-      // A user must always have exactly one primary wallet once they have
-      // any. Look up the current primary inside the transaction so the
-      // decision is consistent with the write.
-      const existingDefault = await tx.remoteWallet.findFirst({
-        where: { userId, isDefault: true },
-        select: { id: true },
-      })
-
-      // The new wallet becomes primary when the caller asks for it OR when
-      // the user has no primary yet (their first wallet — or the first after
-      // a prior primary was revoked). This guarantees the first wallet is
-      // primary automatically without the client having to opt in.
-      const makeDefault = body.isDefault || !existingDefault
-
-      if (makeDefault && existingDefault) {
-        // Clear the current primary before flipping the new row — the
-        // partial unique index `RemoteWallet_userId_default_unique` would
-        // otherwise raise a 23505 on the insert.
-        await tx.remoteWallet.updateMany({
-          where: { userId, isDefault: true },
-          data: { isDefault: false },
-        })
-      }
-
-      return tx.remoteWallet.create({
+    const { created, boundPrimaryAddress } = await prisma.$transaction(async tx => {
+      const created = await tx.remoteWallet.create({
         data: {
           userId,
           name: body.name,
@@ -176,16 +159,33 @@ export const POST = withErrorHandling(async (request: Request) => {
           // stable. Cast to Prisma input type — Zod schemas always return
           // JSON-serialisable shapes for our drivers.
           config: parsedConfig.data as object,
-          isDefault: makeDefault,
+          isDefault: false,
         },
       })
+
+      const boundPrimaryAddress = body.isDefault
+        ? await bindPrimaryAddressToWallet(userId, created.id, tx)
+        : null
+
+      if (!boundPrimaryAddress) {
+        await syncPrimaryRemoteWalletFlag(userId, tx)
+      }
+
+      return { created, boundPrimaryAddress }
     })
 
     // The listener dashboard tracks NWC connections live — nudge it to
     // refetch (the listener itself reconciles via the Postgres trigger).
     eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+    if (boundPrimaryAddress) {
+      eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+      eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
+    }
 
-    return NextResponse.json(toDto(created), { status: 201 })
+    return NextResponse.json(
+      toDto({ ...created, isDefault: Boolean(boundPrimaryAddress) }),
+      { status: 201 },
+    )
   } catch (err) {
     // Prisma maps the `(userId, name)` unique index to P2002. Surface as a
     // 409 so the UI can prompt for a different name without parsing error

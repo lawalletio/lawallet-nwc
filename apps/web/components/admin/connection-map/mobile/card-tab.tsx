@@ -24,15 +24,15 @@ function chipFor(
     const w = wallets.find(w => w.id === card.remoteWalletId)
     return { label: w?.name ?? 'Unknown wallet', tone: 'bound' }
   }
-  // Unbound cards spend through the owner's default wallet at run-time.
-  return { label: 'Default', tone: 'default' }
+  // Unbound cards spend through the owner's primary-address wallet at run-time.
+  return { label: 'Primary wallet', tone: 'default' }
 }
 
 /**
  * Cards tab (mobile). One row per Card: design thumb + name + paired
  * badge + tappable bound-wallet chip. The chip opens a bottom-sheet
  * picker that rebinds via `PATCH /api/cards/:id` (a specific wallet or
- * "use default" which clears `remoteWalletId`). Row body → detail
+ * "use primary wallet" which clears `remoteWalletId`). Row body → detail
  * dialog.
  *
  * Cards come from the per-caller `/api/wallet/cards`, so the list is always
@@ -57,15 +57,15 @@ export function CardTab({ cards, wallets, onOpenDetail }: Props) {
         ...wallets.map(w => ({
           key: w.id,
           label: w.name,
-          sublabel: w.isDefault ? 'Default wallet' : w.type,
+          sublabel: w.isDefault ? 'Primary wallet' : w.type,
           active: picker.remoteWalletId === w.id,
           tone: 'wallet' as const,
           onSelect: () => rebind(picker, w.id),
         })),
         {
           key: '__default__',
-          label: 'Use default wallet',
-          sublabel: 'Spend through your default',
+          label: 'Use primary wallet',
+          sublabel: 'Spend through your primary address wallet',
           active: picker.remoteWalletId === null,
           tone: 'default' as const,
           onSelect: () => rebind(picker, null),

@@ -5,6 +5,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { getSettings } from '@/lib/settings'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
+import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,11 +28,6 @@ export const GET = withErrorHandling(async (request: Request) => {
           include: { remoteWallet: true },
         },
         albySubAccount: true,
-        // The default RemoteWallet is the canonical source of the user's
-        // primary wallet — same lookup the DEFAULT_NWC lightning-address
-        // mode uses, so the dashboard card and a "Default" address always
-        // target the same wallet.
-        remoteWallets: { where: { isDefault: true }, take: 1 },
       }
     })
 
@@ -48,22 +44,19 @@ export const GET = withErrorHandling(async (request: Request) => {
       ? `${primaryAddress.username}@${domain}`
       : null
 
-  // The user's default RemoteWallet is the single source of truth for the
-  // dashboard's "primary wallet". Its connection string drives the balance
-  // widget; the same wallet backs a "Default" lightning address, so the
-  // card and a DEFAULT_NWC address always reflect the same wallet.
-  const defaultWallet = user.remoteWallets[0] ?? null
-  const defaultWalletConn =
-    (defaultWallet?.config as { connectionString?: string } | null)?.connectionString ?? null
-  const nwcString = defaultWalletConn ?? ''
-  const nwcUpdatedAt = defaultWallet?.updatedAt.toISOString() ?? null
+  // The account primary wallet is derived from the primary address's
+  // CUSTOM_NWC binding. The legacy/display isDefault flag is synchronized from
+  // that link, but is no longer the source of truth.
+  const primaryWallet = await getPrimaryRemoteWalletForUser(user.id)
+  const primaryWalletConn =
+    (primaryWallet?.config as { connectionString?: string } | null)?.connectionString ?? null
+  const nwcString = primaryWalletConn ?? ''
+  const nwcUpdatedAt = primaryWallet?.updatedAt.toISOString() ?? null
 
   // Run the same resolver the LUD-16 endpoint uses, but against the
-  // *primary* lightning address. This is the wallet the address routes to —
-  // NOT necessarily the user's spendable wallet (the client falls back to
-  // `nwcString`, the default wallet, when this is null):
+  // *primary* lightning address. This is the wallet the address routes to:
   //   - CUSTOM_NWC → the address's bound RemoteWallet
-  //   - DEFAULT_NWC → the user's default RemoteWallet
+  //   - DEFAULT_NWC → the wallet linked to the primary address (legacy rows)
   //   - IDLE / ALIAS / unconfigured → null
   // `primaryAddressMode` is returned alongside so the UI can phrase the
   // empty-state reason accurately.
@@ -73,7 +66,7 @@ export const GET = withErrorHandling(async (request: Request) => {
           mode: primaryAddress.mode,
           redirect: primaryAddress.redirect,
           remoteWallet: primaryAddress.remoteWallet,
-          defaultRemoteWallet: defaultWallet,
+          defaultRemoteWallet: primaryWallet,
         })
         return route.kind === 'wallet'
           ? ((route.config as { connectionString?: string } | null)?.connectionString ?? null)

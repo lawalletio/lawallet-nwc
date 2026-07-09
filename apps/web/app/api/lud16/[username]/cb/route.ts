@@ -28,6 +28,11 @@ import {
   createLncurlRemoteWallet,
   lncurlHealTarget,
 } from '@/lib/wallet/lncurl-wallet'
+import {
+  bindPrimaryAddressToWallet,
+  getPrimaryRemoteWalletForUser,
+  syncPrimaryRemoteWalletFlag,
+} from '@/lib/wallet/primary-wallet'
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
@@ -43,17 +48,9 @@ export const GET = withErrorHandling(
       .slice(0, LUD12_MAX_COMMENT_LENGTH)
       || undefined
 
-    // Same shape as the metadata route — pull every piece resolveWalletRoute
-    // needs so /cb stays in lockstep with the LUD-16 lookup. Wallets only hit
-    // /cb after our metadata route promised them a callback URL, so we
-    // expect the resolved route to be `wallet`. ALIAS addresses returned the
-    // remote callback URL during step one, so /cb here is unreachable for
-    // them — but if a stale link or hand-crafted request still lands here we
-    // surface a clean 404 instead of crashing.
-    //
-    // RemoteWallet is the source of truth (#234): the address's bound wallet
-    // (CUSTOM) or the user's default wallet (DEFAULT). Legacy NWCConnection /
-    // User.nwc remain as fallbacks for accounts not yet migrated.
+    // Same shape as the metadata route — pull the address's bound wallet and
+    // derive DEFAULT_NWC from the account primary address so /cb stays in
+    // lockstep with the LUD-16 lookup.
     const lightningAddress = await prisma.lightningAddress.findUnique({
       where: { username },
       include: {
@@ -61,11 +58,6 @@ export const GET = withErrorHandling(
         user: {
           select: {
             id: true,
-            remoteWallets: {
-              where: { isDefault: true },
-              select: { id: true, type: true, config: true, status: true },
-              take: 1,
-            },
           },
         },
       },
@@ -75,11 +67,13 @@ export const GET = withErrorHandling(
       throw new NotFoundError('Lightning address not found')
     }
 
+    const primaryWallet = await getPrimaryRemoteWalletForUser(lightningAddress.user.id)
+
     const route = resolveWalletRoute({
       mode: lightningAddress.mode,
       redirect: lightningAddress.redirect,
       remoteWallet: lightningAddress.remoteWallet,
-      defaultRemoteWallet: lightningAddress.user.remoteWallets[0] ?? null,
+      defaultRemoteWallet: primaryWallet,
     })
 
     // Lazy LNCurl self-heal: an address that can't currently route — no wallet
@@ -104,7 +98,7 @@ export const GET = withErrorHandling(
         {
           mode: lightningAddress.mode,
           boundWallet: lightningAddress.remoteWallet,
-          defaultWallet: lightningAddress.user.remoteWallets[0] ?? null,
+          defaultWallet: primaryWallet,
         },
         { lncurl_enabled, lncurl_auto_create, lncurl_auto_recreate },
       )
@@ -116,9 +110,17 @@ export const GET = withErrorHandling(
             revokePrevious: heal.previousWalletId != null,
             serverUrl: lncurl_server_url || undefined,
           })
-          // DEFAULT_NWC routes through the new default automatically. A
+          let bindingChanged = heal.previousWalletId != null
+          // DEFAULT_NWC routes through the primary address's wallet. A
           // CUSTOM_NWC address with no prior wallet to re-point needs an
           // explicit binding to the freshly minted wallet.
+          if (lightningAddress.mode === 'DEFAULT_NWC') {
+            bindingChanged =
+              (await bindPrimaryAddressToWallet(
+                lightningAddress.user.id,
+                provisioned.id,
+              )) != null
+          }
           if (
             lightningAddress.mode === 'CUSTOM_NWC' &&
             heal.previousWalletId == null
@@ -127,6 +129,15 @@ export const GET = withErrorHandling(
               where: { username },
               data: { remoteWalletId: provisioned.id },
             })
+            if (lightningAddress.isPrimary) {
+              await syncPrimaryRemoteWalletFlag(lightningAddress.user.id)
+            }
+            bindingChanged = true
+          }
+          eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+          if (bindingChanged) {
+            eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+            eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
           }
           mintRoute = {
             kind: 'wallet',
@@ -186,10 +197,10 @@ export const GET = withErrorHandling(
             'lncurl_server_url',
           ])
           // The dead wallet is the address's bound wallet (CUSTOM_NWC) or the
-          // user's default wallet (DEFAULT_NWC).
+          // wallet linked through the user's primary address (DEFAULT_NWC).
           const deadWalletId =
             lightningAddress.remoteWallet?.id ??
-            lightningAddress.user.remoteWallets[0]?.id ??
+            primaryWallet?.id ??
             null
 
           if (lncurl_auto_recreate === 'true' && deadWalletId) {
@@ -200,6 +211,9 @@ export const GET = withErrorHandling(
                 revokePrevious: true,
                 serverUrl: lncurl_server_url || undefined,
               })
+              eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+              eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+              eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
               const { driver, config } = driverForWallet({
                 type: replacement.type,
                 config: replacement.config,

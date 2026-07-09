@@ -36,13 +36,17 @@ beforeEach(() => {
   vi.clearAllMocks()
   // No existing wallet names by default → the default name is free.
   vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([] as never)
-  vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
-    createRemoteWalletFixture({ id: 'new-wallet', userId: USER_ID, isDefault: true }) as never,
-  )
+  const created = createRemoteWalletFixture({
+    id: 'new-wallet',
+    userId: USER_ID,
+    isDefault: false,
+  })
+  vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(created as never)
+  vi.mocked(prismaMock.remoteWallet.findUniqueOrThrow).mockResolvedValue(created as never)
 })
 
 describe('createLncurlRemoteWallet', () => {
-  it('mints a wallet then creates it as the default LNCurl-tagged RemoteWallet', async () => {
+  it('mints a wallet then creates it as a non-primary LNCurl-tagged RemoteWallet', async () => {
     await createLncurlRemoteWallet({ userId: USER_ID })
 
     expect(createLncurlWallet).toHaveBeenCalledTimes(1)
@@ -53,7 +57,7 @@ describe('createLncurlRemoteWallet', () => {
           name: 'LNCurl wallet',
           type: 'NWC',
           status: 'ACTIVE',
-          isDefault: true,
+          isDefault: false,
           config: expect.objectContaining({
             connectionString: LNCURL_URI,
             mode: 'SEND_RECEIVE',
@@ -64,7 +68,7 @@ describe('createLncurlRemoteWallet', () => {
     )
   })
 
-  it('clears the prior default before creating the new one', async () => {
+  it('synchronizes the display flag from the primary address after creation', async () => {
     await createLncurlRemoteWallet({ userId: USER_ID })
 
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({

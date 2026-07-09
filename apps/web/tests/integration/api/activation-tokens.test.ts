@@ -47,8 +47,21 @@ function mockClaimer(remoteWalletId: string | null = 'w1') {
   vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
     id: 'user1',
     pubkey: CLAIMER_PUBKEY,
-    remoteWallets: remoteWalletId ? [{ id: remoteWalletId }] : [],
   } as any)
+  vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
+    remoteWalletId
+      ? ({
+          mode: 'CUSTOM_NWC',
+          remoteWalletId,
+          remoteWallet: {
+            id: remoteWalletId,
+            type: 'NWC',
+            status: 'ACTIVE',
+            config: { connectionString: 'nostr+walletconnect://primary' },
+          },
+        } as any)
+      : null,
+  )
 }
 
 const claimedCardRow = {
@@ -127,7 +140,7 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
     } as any)
   }
 
-  it('transfers card ownership, binds the default wallet, and burns the token', async () => {
+  it('transfers card ownership, binds the primary-address wallet, and burns the token', async () => {
     mockClaimer('w1')
     mockPendingToken()
     vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({ count: 1 } as any)
@@ -151,13 +164,12 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
         data: { userId: 'user1', remoteWalletId: 'w1' },
       }),
     )
-    // The default-wallet fallback only considers an ACTIVE default, so a
-    // disabled/revoked default is never bound (would brick the card at tap).
-    expect(prismaMock.user.findUnique).toHaveBeenCalledWith(
+    // The fallback only considers the wallet linked by the claimer's primary
+    // address, so independent RemoteWallet flags are not enough to bind.
+    expect(prismaMock.lightningAddress.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        include: {
-          remoteWallets: { where: { isDefault: true, status: 'ACTIVE' }, take: 1 },
-        },
+        where: { userId: 'user1', isPrimary: true },
+        include: { remoteWallet: true },
       }),
     )
     // Preview-safe card response — no NTAG keys.

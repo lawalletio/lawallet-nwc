@@ -5,6 +5,7 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { Permission, hasPermission } from '@/lib/auth/permissions'
 import { AuthorizationError, NotFoundError } from '@/types/server/errors'
 import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
+import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -55,7 +56,6 @@ export const GET = withErrorHandling(
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
           include: { remoteWallet: true },
         },
-        remoteWallets: { where: { isDefault: true }, take: 1 },
       },
     })
 
@@ -71,7 +71,7 @@ export const GET = withErrorHandling(
       throw new AuthorizationError('Not authorized to view this user')
     }
 
-    const defaultWallet = user.remoteWallets[0] ?? null
+    const defaultWallet = await getPrimaryRemoteWalletForUser(user.id)
 
     const [transactionCount, paidInvoices] = await Promise.all([
       prisma.invoice.count({ where: { userId: user.id } }),
