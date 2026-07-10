@@ -26,27 +26,27 @@ type Item = {
 }
 
 const ACCOUNT_ITEMS: Item[] = [
-  { label: 'My Cards', href: '/wallet/settings/cards', comingSoon: true },
-  { label: 'Security', href: '/wallet/settings/security', comingSoon: true },
-  { label: 'Provider', href: '/wallet/settings/provider', comingSoon: true },
+  { label: 'My Cards', href: '/wallet/settings/cards' },
+  { label: 'Security', href: '/wallet/settings/security' },
+  { label: 'Remote wallets', href: '/wallet/settings/remote-wallets' }
 ]
 
 const PREFERENCES_ITEMS: Item[] = [
   { label: 'Languages', href: '/wallet/settings/languages', comingSoon: true },
-  { label: 'Currencies', href: '/wallet/settings/currencies' },
+  { label: 'Currencies', href: '/wallet/settings/currencies' }
 ]
 
 const SUPPORT_ITEMS: Item[] = [
   {
     label: 'Help Center',
     href: 'https://docs.lawallet.io',
-    external: true,
+    external: true
   },
   {
     label: 'Report a bug',
     href: 'https://github.com/lawalletio/lawallet-nwc/issues',
-    external: true,
-  },
+    external: true
+  }
 ]
 
 export function SettingsScreen() {
@@ -58,7 +58,7 @@ export function SettingsScreen() {
 
   function handleRemoveWallet() {
     const confirmed = window.confirm(
-      'Remove this wallet from the device? You can sign back in with your private key.',
+      'Remove this wallet from the device? You can sign back in with your private key.'
     )
     if (!confirmed) return
     logout()
@@ -70,7 +70,7 @@ export function SettingsScreen() {
       <header className="sticky top-0 z-20 grid h-14 grid-cols-3 items-center bg-background/80 px-3 backdrop-blur-xl">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => router.replace('/wallet')}
           className="flex h-9 w-fit items-center gap-1.5 rounded-full bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
           <ChevronLeft className="size-4" />
@@ -95,10 +95,7 @@ export function SettingsScreen() {
           <ItemGroup items={SUPPORT_ITEMS} />
         </Section>
 
-        <CommunityFooter
-          communityName={communityName}
-          isotypo={isotypo}
-        />
+        <CommunityFooter communityName={communityName} isotypo={isotypo} />
 
         {/* Danger Zone stays last and is pushed to the bottom of the screen so
             the destructive action never sits above everyday settings. */}
@@ -122,7 +119,7 @@ export function SettingsScreen() {
 function Section({
   title,
   children,
-  className,
+  className
 }: {
   title: string
   children: React.ReactNode
@@ -138,7 +135,7 @@ function Section({
 
 function ItemGroup({ items }: { items: Item[] }) {
   return (
-    <div className="flex flex-col rounded-2xl bg-card">
+    <div className="flex flex-col overflow-hidden rounded-2xl bg-card">
       {items.map((item, idx) => (
         <SettingsRow
           key={item.href}
@@ -152,9 +149,11 @@ function ItemGroup({ items }: { items: Item[] }) {
 
 function SettingsRow({ item, divider }: { item: Item; divider: boolean }) {
   const baseClass = cn(
-    'flex h-14 items-center justify-between gap-3 px-4 transition-colors',
-    divider && 'border-b border-border/40',
+    'group flex h-14 items-center justify-between gap-3 px-4 transition-[background-color,box-shadow,transform] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
+    divider && 'border-b border-border/40'
   )
+  const interactiveClass =
+    'hover:bg-accent/70 active:scale-[0.985] active:bg-accent/90 active:duration-75'
 
   if (item.comingSoon) {
     return (
@@ -176,22 +175,22 @@ function SettingsRow({ item, divider }: { item: Item; divider: boolean }) {
         href={item.href}
         target="_blank"
         rel="noopener noreferrer"
-        className={cn(baseClass, 'hover:bg-accent/40')}
+        className={cn(baseClass, interactiveClass)}
       >
         <span className="text-base font-medium text-foreground">
           {item.label}
         </span>
-        <ExternalLink className="size-4 text-muted-foreground" />
+        <ExternalLink className="size-4 text-muted-foreground transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-active:scale-95" />
       </a>
     )
   }
 
   return (
-    <Link href={item.href} className={cn(baseClass, 'hover:bg-accent/40')}>
+    <Link href={item.href} className={cn(baseClass, interactiveClass)}>
       <span className="text-base font-medium text-foreground">
         {item.label}
       </span>
-      <ChevronRight className="size-5 text-muted-foreground" />
+      <ChevronRight className="size-5 text-muted-foreground transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-active:scale-95" />
     </Link>
   )
 }
@@ -206,7 +205,7 @@ function SoonBadge() {
 
 function CommunityFooter({
   communityName,
-  isotypo,
+  isotypo
 }: {
   communityName: string
   isotypo: string
@@ -228,9 +227,7 @@ function CommunityFooter({
           {communityName}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Community by LaWallet
-      </p>
+      <p className="text-xs text-muted-foreground">Community by LaWallet</p>
       <p className="text-xs text-muted-foreground">Version {APP_VERSION}</p>
     </div>
   )

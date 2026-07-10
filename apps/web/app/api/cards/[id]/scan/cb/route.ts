@@ -25,86 +25,94 @@ export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  // Apply rate limiting for card scan callback (high volume endpoint)
-  await rateLimit(req, RateLimitPresets.cardScan)
+    // Apply rate limiting for card scan callback (high volume endpoint)
+    await rateLimit(req, RateLimitPresets.cardScan)
 
-  const { id: cardId } = await params
+    const { id: cardId } = await params
 
-  // Get query parameters
-  const { p, c } = validateQuery(req.url, scanCardQuerySchema)
-  const action = req.headers.get('LAWALLET_ACTION') || 'pay'
+    // Get query parameters
+    const { p, c } = validateQuery(req.url, scanCardQuerySchema)
+    const action = req.headers.get('LAWALLET_ACTION') || 'pay'
 
-  logger.info({ cardId, action }, 'Card scan callback request')
+    logger.info({ cardId, action }, 'Card scan callback request')
 
-  // Find card by id in database. Include the card's bound RemoteWallet and
-  // the owner's default wallet so the pay action can route the spend through
-  // the driver registry (#234); `user` still carries the legacy `nwc` URI as
-  // a fallback for un-migrated cards.
-  const card = await prisma.card.findUnique({
-    where: { id: cardId },
-    include: {
-      ntag424: true,
-      user: {
-        include: {
-          remoteWallets: {
-            where: { isDefault: true },
-            select: { type: true, config: true, status: true },
-            take: 1,
-          },
+    // Find card by id in database. Include the card's bound RemoteWallet and
+    // the owner's default wallet so the pay action can route the spend through
+    // the driver registry (#234); `user` still carries the legacy `nwc` URI as
+    // a fallback for un-migrated cards.
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      include: {
+        ntag424: true,
+        user: {
+          include: {
+            remoteWallets: {
+              where: { isDefault: true },
+              select: { type: true, config: true, status: true },
+              take: 1
+            }
+          }
         },
-      },
-      remoteWallet: { select: { type: true, config: true, status: true } },
+        remoteWallet: { select: { type: true, config: true, status: true } }
+      }
+    })
+
+    if (!card) {
+      throw new NotFoundError('Card not found')
     }
-  })
 
-  if (!card) {
-    throw new NotFoundError('Card not found')
-  }
+    if (card.blockedAt !== null) {
+      throw new ValidationError('Card is blocked')
+    }
 
-  const ntag424Response = await consumeNtag424FromPC(card!.ntag424!, p, c)
+    if (card.disabledAt !== null) {
+      throw new ValidationError('Card is disabled')
+    }
 
-  if ('error' in ntag424Response) {
-    // Surface *why* the SUN was rejected (replay / stale counter / malformed /
-    // key mismatch) plus the stored counter, so intermittent 400s are
-    // diagnosable from logs instead of only the HTTP body. `counter value too
-    // old` here means the same p/c was replayed (wallet retry, double-fetch, or
-    // a retry after a failed payment, which already advanced the counter).
-    logger.warn(
+    const ntag424Response = await consumeNtag424FromPC(card!.ntag424!, p, c)
+
+    if ('error' in ntag424Response) {
+      // Surface *why* the SUN was rejected (replay / stale counter / malformed /
+      // key mismatch) plus the stored counter, so intermittent 400s are
+      // diagnosable from logs instead of only the HTTP body. `counter value too
+      // old` here means the same p/c was replayed (wallet retry, double-fetch, or
+      // a retry after a failed payment, which already advanced the counter).
+      logger.warn(
+        {
+          cardId,
+          action,
+          reason: ntag424Response.error,
+          ctrStored: card.ntag424?.ctr ?? null
+        },
+        'Card scan rejected: SUN verification failed'
+      )
+      throw new ValidationError(ntag424Response.error)
+    }
+
+    logger.info(
       {
         cardId,
         action,
-        reason: ntag424Response.error,
-        ctrStored: card.ntag424?.ctr ?? null
+        ctrOld: ntag424Response.ctrOld,
+        ctrNew: ntag424Response.ctrNew
       },
-      'Card scan rejected: SUN verification failed'
+      'Card scan verified; advancing counter'
     )
-    throw new ValidationError(ntag424Response.error)
-  }
 
-  logger.info(
-    {
-      cardId,
-      action,
-      ctrOld: ntag424Response.ctrOld,
-      ctrNew: ntag424Response.ctrNew
-    },
-    'Card scan verified; advancing counter'
-  )
-
-  // Update lastUsedAt timestamp and ntag.ctr
-  await prisma.card.update({
-    where: { id: cardId },
-    data: {
-      lastUsedAt: new Date(),
-      ntag424: {
-        update: {
-          ctr: ntag424Response.ctrNew
+    // Update lastUsedAt timestamp and ntag.ctr
+    await prisma.card.update({
+      where: { id: cardId },
+      data: {
+        lastUsedAt: new Date(),
+        ntag424: {
+          update: {
+            ctr: ntag424Response.ctrNew
+          }
         }
       }
-    }
-  })
+    })
 
-  return (await import(`./actions/${action}.ts`)).default(req, card)
+    return (await import(`./actions/${action}.ts`)).default(req, card)
   },
   { headers: { 'Access-Control-Allow-Origin': '*' } }
 )

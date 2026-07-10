@@ -1,6 +1,6 @@
 /**
  * Resolve the NWC connection the in-app wallet UI should use for the signed-in
- * user — their *spendable* wallet.
+ * user — their primary spendable wallet.
  *
  * `/api/users/me` returns two related fields:
  *   - `effectiveNwcString` — the wallet the user's **primary address** routes
@@ -9,10 +9,9 @@
  *   - `nwcString` — the user's **default RemoteWallet** connection (the same
  *     wallet the admin dashboard treats as "connected"), or `''` when none.
  *
- * The wallet app shows the user's own wallet, so prefer the address-routed
- * wallet but fall back to the default wallet. Without the fallback the home
- * screen renders "No wallet connected" even though the user has a live
- * RemoteWallet — it just isn't bound to a routable primary address.
+ * `/wallet` is the user's primary lightning address plus their primary remote
+ * wallet. A primary address may route through a custom wallet for receive
+ * policy, but send/balance/activity should still use the primary RemoteWallet.
  *
  * Empty strings collapse to `null` (via `||`) so callers can treat the result
  * as a simple "connected?" signal.
@@ -23,5 +22,5 @@ export function resolveUserNwc(
     | null
     | undefined,
 ): string | null {
-  return me?.effectiveNwcString || me?.nwcString || null
+  return me?.nwcString || me?.effectiveNwcString || null
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
@@ -69,9 +69,9 @@ export function HomeScreen() {
   const { rates } = useYadioRates()
   const activeCurrencies = useActiveCurrencies()
   const { data: me, loading: meLoading } = useApi<UserMeResponse>('/api/users/me')
-  // The user's spendable wallet: the address-routed wallet, else their default
-  // RemoteWallet. Falling back here is what stops the home screen from showing
-  // "No wallet connected" when the user has a wallet but no routable address.
+  // The wallet app is anchored to the primary RemoteWallet. The API also
+  // reports the primary address's route for display/diagnostics, but
+  // send/receive/balance/activity should spend from the primary wallet.
   const effectiveNwc = resolveUserNwc(me)
   // Bump on each NIP-47 notification so the recent-activity preview can
   // refetch without spinning up its own relay subscription. `useNwcBalance`
@@ -121,6 +121,9 @@ export function HomeScreen() {
   )
   const [balanceHidden, setBalanceHidden] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [pendingAction, setPendingAction] = useState<
+    'receive' | 'send' | null
+  >(null)
 
   const avatarSrc = profile?.picture || isotypo
 
@@ -129,6 +132,29 @@ export function HomeScreen() {
   const selectedCurrency =
     activeCurrencies.find(c => c.code === currencyCode) ?? activeCurrencies[0]
   const activeCode = selectedCurrency?.code ?? 'SAT'
+
+  useEffect(() => {
+    if (!pendingAction) return
+    const timer = window.setTimeout(() => setPendingAction(null), 12_000)
+    return () => window.clearTimeout(timer)
+  }, [pendingAction])
+
+  function handleActionClick(
+    action: 'receive' | 'send',
+    event: MouseEvent<HTMLAnchorElement>,
+  ) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return
+    }
+    setPendingAction(action)
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -238,11 +264,16 @@ export function HomeScreen() {
         <Button
           asChild={canReceive}
           variant="secondary"
-          className="h-12 flex-1"
+          className="h-12 flex-1 overflow-hidden"
           disabled={!canReceive}
         >
           {canReceive ? (
-            <Link href="/wallet/receive">Receive</Link>
+            <ActionNavLink
+              href="/wallet/receive"
+              label="Receive"
+              loading={pendingAction === 'receive'}
+              onClick={event => handleActionClick('receive', event)}
+            />
           ) : (
             <span>Receive</span>
           )}
@@ -250,10 +281,19 @@ export function HomeScreen() {
         <Button
           asChild={hasNwc}
           variant="theme"
-          className="h-12 flex-1"
+          className="h-12 flex-1 overflow-hidden"
           disabled={!hasNwc}
         >
-          {hasNwc ? <Link href="/wallet/send">Send</Link> : <span>Send</span>}
+          {hasNwc ? (
+            <ActionNavLink
+              href="/wallet/send"
+              label="Send"
+              loading={pendingAction === 'send'}
+              onClick={event => handleActionClick('send', event)}
+            />
+          ) : (
+            <span>Send</span>
+          )}
         </Button>
       </div>
 
@@ -332,6 +372,47 @@ export function HomeScreen() {
 
       <NavTabbar />
     </div>
+  )
+}
+
+function ActionNavLink({
+  className,
+  href,
+  label,
+  loading,
+  onClick,
+}: {
+  className?: string
+  href: string
+  label: string
+  loading: boolean
+  onClick: (event: MouseEvent<HTMLAnchorElement>) => void
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      aria-busy={loading}
+      className={cn('relative', className)}
+    >
+      <span
+        className={cn(
+          'inline-flex transition-[opacity,transform] duration-200 ease-out',
+          loading ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100',
+        )}
+      >
+        {label}
+      </span>
+      <span
+        aria-hidden
+        className={cn(
+          'absolute inset-0 flex items-center justify-center transition-[opacity,transform] duration-200 ease-out',
+          loading ? 'scale-100 opacity-100' : 'scale-90 opacity-0',
+        )}
+      >
+        <Spinner size={16} />
+      </span>
+    </Link>
   )
 }
 

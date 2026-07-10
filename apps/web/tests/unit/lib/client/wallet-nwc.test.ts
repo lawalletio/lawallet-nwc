@@ -5,15 +5,13 @@ describe('resolveUserNwc', () => {
   const EFFECTIVE = 'nostr+walletconnect://effective'
   const DEFAULT = 'nostr+walletconnect://default'
 
-  it('prefers the address-routed effectiveNwcString when present', () => {
+  it('prefers the primary remote wallet when both wallet sources are present', () => {
     expect(
       resolveUserNwc({ effectiveNwcString: EFFECTIVE, nwcString: DEFAULT }),
-    ).toBe(EFFECTIVE)
+    ).toBe(DEFAULT)
   })
 
-  it('falls back to the default wallet when the address is not routable', () => {
-    // The reported bug: IDLE / ALIAS / unbound CUSTOM_NWC leave
-    // effectiveNwcString null, but the user still has a connected wallet.
+  it('uses the primary remote wallet when the address is not routable', () => {
     expect(
       resolveUserNwc({ effectiveNwcString: null, nwcString: DEFAULT }),
     ).toBe(DEFAULT)
@@ -24,10 +22,16 @@ describe('resolveUserNwc', () => {
     expect(resolveUserNwc({ effectiveNwcString: null, nwcString: '' })).toBeNull()
   })
 
-  it('treats an empty effectiveNwcString as absent and falls through', () => {
+  it('falls back to the address-routed wallet when no primary remote wallet is present', () => {
     expect(
-      resolveUserNwc({ effectiveNwcString: '', nwcString: DEFAULT }),
-    ).toBe(DEFAULT)
+      resolveUserNwc({ effectiveNwcString: EFFECTIVE, nwcString: '' }),
+    ).toBe(EFFECTIVE)
+  })
+
+  it('treats an empty effectiveNwcString as absent', () => {
+    expect(
+      resolveUserNwc({ effectiveNwcString: '', nwcString: '' }),
+    ).toBeNull()
   })
 
   it('returns null when `me` has not loaded yet', () => {

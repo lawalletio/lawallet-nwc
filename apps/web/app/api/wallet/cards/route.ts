@@ -24,8 +24,20 @@ export const revalidate = 0
 export const GET = withErrorHandling(async (request: Request) => {
   const { pubkey } = await authenticate(request)
 
-  const user = await prisma.user.findUnique({ where: { pubkey } })
+  const user = await prisma.user.findUnique({
+    where: { pubkey },
+    select: {
+      id: true,
+      remoteWallets: {
+        where: { isDefault: true, status: 'ACTIVE' },
+        take: 1,
+        select: { id: true }
+      }
+    }
+  })
   if (!user) throw new NotFoundError('User not found')
+
+  const defaultRemoteWalletId = user.remoteWallets?.[0]?.id ?? null
 
   const cards = await prisma.card.findMany({
     where: { userId: user.id },
@@ -38,6 +50,8 @@ export const GET = withErrorHandling(async (request: Request) => {
       otc: true,
       remoteWalletId: true,
       kind: true,
+      blockedAt: true,
+      disabledAt: true,
       design: {
         select: {
           id: true,
@@ -88,7 +102,10 @@ export const GET = withErrorHandling(async (request: Request) => {
     username: card.user?.lightningAddresses?.[0]?.username || undefined,
     otc: card.otc || undefined,
     remoteWalletId: card.remoteWalletId ?? null,
-    kind: card.kind
+    defaultRemoteWalletId,
+    kind: card.kind,
+    blocked: card.blockedAt !== null,
+    disabled: card.disabledAt !== null
   }))
 
   return NextResponse.json(transformed)

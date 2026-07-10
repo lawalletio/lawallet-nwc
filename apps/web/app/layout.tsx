@@ -11,7 +11,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'LaWallet NWC',
-  description: 'Lightning Addresses for Everyone',
+  description: 'Lightning Addresses for Everyone'
 }
 
 // The Google Tag ID lives in the DB so admins can set it without a redeploy.
@@ -31,25 +31,21 @@ async function loadGtagId(): Promise<string | null> {
 }
 
 export default async function RootLayout({
-  children,
+  children
 }: {
   children: React.ReactNode
 }) {
   const gtagId = await loadGtagId()
 
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`min-h-dvh bg-background ${inter.className}`}>
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body
+        className={`flex h-dvh flex-col overflow-y-auto bg-background ${inter.className}`}
+      >
         {/* Visible only outside production (local `next dev`). */}
         {process.env.NODE_ENV !== 'production' && <DevBanner />}
         <GoogleAnalytics gtagId={gtagId} />
-        <Providers
-          attribute="class"
-          forcedTheme="dark"
-          disableTransitionOnChange
-        >
-          {children}
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   )

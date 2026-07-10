@@ -121,6 +121,32 @@ describe('GET /api/users/me', () => {
     expect(body.lightningAddress).toBeNull()
   })
 
+  it('falls back to the request host when no address domain is configured', async () => {
+    mockAuth()
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      lightningAddresses: [
+        {
+          username: 'alice',
+          isPrimary: true,
+          mode: 'DEFAULT_NWC',
+          redirect: null,
+          remoteWalletId: null,
+          remoteWallet: null,
+        },
+      ],
+      albySubAccount: null,
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({})
+
+    const req = createNextRequest('http://wallet.test/api/users/me')
+    const res = await GET(req)
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.lightningAddress).toBe('alice@wallet.test')
+  })
+
   it('rejects unauthenticated request', async () => {
     mockAuthReject()
 
@@ -158,6 +184,15 @@ describe('GET /api/users/me', () => {
     const res = await GET(req)
     const body: any = await assertResponse(res, 200)
 
+    expect(prismaMock.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          remoteWallets: expect.objectContaining({
+            where: { isDefault: true, status: 'ACTIVE' },
+          }),
+        }),
+      }),
+    )
     expect(body.albySubAccount).toEqual({
       appId: 'app123',
       nwcUri: 'nostr+walletconnect://test',

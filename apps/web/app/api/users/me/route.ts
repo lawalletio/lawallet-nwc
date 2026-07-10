@@ -31,7 +31,10 @@ export const GET = withErrorHandling(async (request: Request) => {
         // primary wallet — same lookup the DEFAULT_NWC lightning-address
         // mode uses, so the dashboard card and a "Default" address always
         // target the same wallet.
-        remoteWallets: { where: { isDefault: true }, take: 1 },
+        remoteWallets: {
+          where: { isDefault: true, status: 'ACTIVE' },
+          take: 1,
+        },
       }
     })
 
@@ -43,9 +46,11 @@ export const GET = withErrorHandling(async (request: Request) => {
     // `domain=lacrypta.ar` — so we read the address domain directly here
     // rather than via `resolvePublicEndpoint`, which mixes the two concerns.
     const { domain } = await getSettings(['domain'])
+    const addressDomain =
+      domain?.trim() || request.headers.get('host') || new URL(request.url).host
     const primaryAddress = user.lightningAddresses[0]
     const lightningAddress = primaryAddress?.username
-      ? `${primaryAddress.username}@${domain}`
+      ? `${primaryAddress.username}@${addressDomain}`
       : null
 
   // The user's default RemoteWallet is the single source of truth for the

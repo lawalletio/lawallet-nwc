@@ -13,7 +13,7 @@ const USER = {
   albyEnabled: false,
   role: 'ADMIN',
   relays: null,
-  relaysUpdatedAt: null,
+  relaysUpdatedAt: null
 }
 const CARD_DESIGN = {
   id: 'design-1',
@@ -21,7 +21,7 @@ const CARD_DESIGN = {
   description: 'default',
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   archivedAt: null,
-  userId: null,
+  userId: null
 }
 const NTAG = {
   cid: 'cid-1',
@@ -32,7 +32,7 @@ const NTAG = {
   k4: '4',
   ctr: 0,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
-  userId: null,
+  userId: null
 }
 const REMOTE_WALLET = {
   id: 'wallet-1',
@@ -44,7 +44,7 @@ const REMOTE_WALLET = {
   isDefault: true,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
-  diedAt: null,
+  diedAt: null
 }
 const LIGHTNING_ADDRESS = {
   username: 'satoshi',
@@ -54,7 +54,7 @@ const LIGHTNING_ADDRESS = {
   remoteWalletId: null,
   isPrimary: true,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
-  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z')
 }
 const CARD = {
   id: 'card-1',
@@ -71,22 +71,37 @@ const CARD = {
   writeToken: null,
   writeTokenExpiresAt: null,
   blockedAt: null,
+  disabledAt: null
 }
 
 const options = { activityLogLimit: 100_000 }
 
 /** Wires each core-table delegate to return its fixture rows. */
 function seedCoreTables() {
-  ;(prismaMock.user.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([USER])
-  ;(prismaMock.cardDesign.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([CARD_DESIGN])
-  ;(prismaMock.ntag424.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([NTAG])
-  ;(prismaMock.remoteWallet.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([REMOTE_WALLET])
-  ;(prismaMock.lightningAddress.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-    LIGHTNING_ADDRESS,
+  ;(prismaMock.user.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+    USER
   ])
-  ;(prismaMock.card.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([CARD])
-  ;(prismaMock.cardActivationToken.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([])
-  ;(prismaMock.albySubAccount.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([])
+  ;(
+    prismaMock.cardDesign.findMany as ReturnType<typeof vi.fn>
+  ).mockResolvedValue([CARD_DESIGN])
+  ;(prismaMock.ntag424.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+    NTAG
+  ])
+  ;(
+    prismaMock.remoteWallet.findMany as ReturnType<typeof vi.fn>
+  ).mockResolvedValue([REMOTE_WALLET])
+  ;(
+    prismaMock.lightningAddress.findMany as ReturnType<typeof vi.fn>
+  ).mockResolvedValue([LIGHTNING_ADDRESS])
+  ;(prismaMock.card.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+    CARD
+  ])
+  ;(
+    prismaMock.cardActivationToken.findMany as ReturnType<typeof vi.fn>
+  ).mockResolvedValue([])
+  ;(
+    prismaMock.albySubAccount.findMany as ReturnType<typeof vi.fn>
+  ).mockResolvedValue([])
 }
 
 beforeEach(() => {
@@ -96,7 +111,11 @@ beforeEach(() => {
 
 describe('backup export (buildBackup)', () => {
   it('produces a manifest whose counts match the fixtures', async () => {
-    const { manifest, filename, buffer } = await buildBackup(['core'], options, undefined)
+    const { manifest, filename, buffer } = await buildBackup(
+      ['core'],
+      options,
+      undefined
+    )
 
     expect(manifest.schemaVersion).toBe(BACKUP_SCHEMA_VERSION)
     expect(manifest.encrypted).toBe(false)
@@ -123,13 +142,17 @@ describe('backup export (buildBackup)', () => {
         'lightningAddresses',
         'cards',
         'cardActivationTokens',
-        'albySubAccounts',
-      ].sort(),
+        'albySubAccounts'
+      ].sort()
     )
   })
 
   it('wraps the archive when a password is supplied', async () => {
-    const { filename, buffer, manifest } = await buildBackup(['core'], options, 'hunter2')
+    const { filename, buffer, manifest } = await buildBackup(
+      ['core'],
+      options,
+      'hunter2'
+    )
     expect(filename).toMatch(/\.zip\.enc$/)
     expect(isEncryptedArchive(buffer)).toBe(true)
     expect(manifest.encrypted).toBe(true)
@@ -146,7 +169,9 @@ describe('backup export (buildBackup)', () => {
     expect(parsed.tables.cardActivationTokens).toHaveLength(0)
     expect(parsed.tables.albySubAccounts).toHaveLength(0)
     // The parsed user row survived NDJSON serialization (Date → ISO string).
-    expect((parsed.tables.users as Record<string, unknown>[])[0].id).toBe('user-1')
+    expect((parsed.tables.users as Record<string, unknown>[])[0].id).toBe(
+      'user-1'
+    )
   })
 
   it('round-trips an encrypted archive with the correct password', async () => {

@@ -75,6 +75,30 @@ registry.registerPath({
 
 registry.registerPath({
   ...withRole('USER'),
+  method: 'patch',
+  path: '/api/wallet/cards/{id}',
+  tags: [TAG],
+  summary: 'Update one of the caller’s cards.',
+  description:
+    'Enables or disables an owner-scoped card, or binds it to the caller’s active primary remote wallet. Blocked cards cannot be updated.',
+  operationId: 'wallet.cards.update',
+  security: protectedSecurity,
+  request: {
+    params: schemas.IdParam,
+    body: {
+      content: { 'application/json': { schema: schemas.WalletCardUpdateRequest } },
+    },
+  },
+  responses: {
+    200: inlineJsonResponse('Card updated.', walletCardSchema),
+    ...commonErrorResponses,
+    404: responses.notFound,
+    409: responses.conflict,
+  },
+})
+
+registry.registerPath({
+  ...withRole('USER'),
   method: 'post',
   path: '/api/wallet/addresses',
   tags: [TAG],

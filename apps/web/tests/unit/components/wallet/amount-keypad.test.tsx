@@ -4,15 +4,28 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import {
   AmountKeypad,
-  parseKeypadValue,
+  parseKeypadValue
 } from '@/components/wallet/shared/amount-keypad'
 
-function Harness({ initial = '0', integerOnly = true }: { initial?: string; integerOnly?: boolean }) {
+function Harness({
+  initial = '0',
+  integerOnly = true,
+  fixedDecimalDigits
+}: {
+  initial?: string
+  integerOnly?: boolean
+  fixedDecimalDigits?: number
+}) {
   const [value, setValue] = useState(initial)
   return (
     <>
       <div data-testid="value">{value}</div>
-      <AmountKeypad value={value} onChange={setValue} integerOnly={integerOnly} />
+      <AmountKeypad
+        value={value}
+        onChange={setValue}
+        integerOnly={integerOnly}
+        fixedDecimalDigits={fixedDecimalDigits}
+      />
     </>
   )
 }
@@ -43,19 +56,28 @@ describe('AmountKeypad', () => {
     expect(screen.getByTestId('value').textContent).toBe('0')
   })
 
-  it('rejects decimal input in integer-only mode', () => {
+  it('hides the double-zero shortcut in integer-only mode', () => {
     render(<Harness />)
-    expect(screen.queryByLabelText('Enter .')).toBeNull()
+    expect(screen.queryByLabelText('Enter 00')).toBeNull()
   })
 
-  it('allows a single decimal point when not integer-only', async () => {
+  it('appends double zero when not integer-only', async () => {
     const user = userEvent.setup()
     render(<Harness integerOnly={false} />)
     await user.click(screen.getByLabelText('Enter 1'))
-    await user.click(screen.getByLabelText('Enter .'))
-    await user.click(screen.getByLabelText('Enter 5'))
-    await user.click(screen.getByLabelText('Enter .'))
-    expect(screen.getByTestId('value').textContent).toBe('1.5')
+    await user.click(screen.getByLabelText('Enter 00'))
+    expect(screen.getByTestId('value').textContent).toBe('100')
+  })
+
+  it('enters fixed-decimal amounts in minor units', async () => {
+    const user = userEvent.setup()
+    render(<Harness integerOnly={false} fixedDecimalDigits={2} />)
+    await user.click(screen.getByLabelText('Enter 1'))
+    expect(screen.getByTestId('value').textContent).toBe('0.01')
+    await user.click(screen.getByLabelText('Enter 0'))
+    expect(screen.getByTestId('value').textContent).toBe('0.10')
+    await user.click(screen.getByLabelText('Enter 0'))
+    expect(screen.getByTestId('value').textContent).toBe('1.00')
   })
 })
 

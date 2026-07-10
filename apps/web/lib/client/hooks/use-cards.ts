@@ -1,7 +1,11 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useApi, useMutation } from '@/lib/client/hooks/use-api'
+import {
+  invalidateApiPath,
+  useApi,
+  useMutation
+} from '@/lib/client/hooks/use-api'
 
 export interface CardData {
   id: string
@@ -31,12 +35,16 @@ export interface CardData {
   } | null
   /** RemoteWallet this card spends from (or null if unbound). */
   remoteWalletId: string | null
+  /** The owner's active primary RemoteWallet, when the caller is viewing their own cards. */
+  defaultRemoteWalletId: string | null
   /**
    * True once the card's reset (wipe) keys have been exported — it's
    * decommissioned and can only be re-wiped or deleted, never re-used. Takes
    * display precedence over paired/unpaired.
    */
   blocked: boolean
+  /** True when the owner has temporarily paused tap-to-pay. */
+  disabled: boolean
   createdAt: string
   updatedAt: string
 }
@@ -86,7 +94,9 @@ interface ApiCard {
   username?: string
   otc?: string | null
   remoteWalletId?: string | null
+  defaultRemoteWalletId?: string | null
   blocked?: boolean
+  disabled?: boolean
 }
 
 function toCardData(c: ApiCard): CardData {
@@ -98,14 +108,14 @@ function toCardData(c: ApiCard): CardData {
       ? {
           id: c.design.id,
           description: c.design.description,
-          image: c.design.imageUrl,
+          image: c.design.imageUrl
         }
       : null,
     ntag424: c.ntag424
       ? {
           cid: c.ntag424.cid,
           ctr: c.ntag424.ctr,
-          otc: c.otc ?? null,
+          otc: c.otc ?? null
         }
       : null,
     // Paired === the card has an owner (server sets `userId`, surfaced here as
@@ -115,11 +125,13 @@ function toCardData(c: ApiCard): CardData {
       ? { username: c.username ?? null, pubkey: c.pubkey }
       : null,
     remoteWalletId: c.remoteWalletId ?? null,
+    defaultRemoteWalletId: c.defaultRemoteWalletId ?? null,
     blocked: c.blocked ?? false,
+    disabled: c.disabled ?? false,
     createdAt: c.createdAt,
     // Legacy API has no `updatedAt` — fall back to lastUsedAt/createdAt so
     // the "Last used" column still shows something sensible.
-    updatedAt: c.lastUsedAt ?? c.createdAt,
+    updatedAt: c.lastUsedAt ?? c.createdAt
   }
 }
 
@@ -134,10 +146,14 @@ function toCardData(c: ApiCard): CardData {
  * a forbidden request in their network tab; they simply see no card
  * column.
  */
-export function useCards(filters?: CardFilters, options?: { enabled?: boolean }) {
+export function useCards(
+  filters?: CardFilters,
+  options?: { enabled?: boolean }
+) {
   const enabled = options?.enabled ?? true
   const params = new URLSearchParams()
-  if (filters?.paired !== undefined) params.set('paired', String(filters.paired))
+  if (filters?.paired !== undefined)
+    params.set('paired', String(filters.paired))
   if (filters?.used !== undefined) params.set('used', String(filters.used))
   const qs = params.toString()
   const queryParams = qs ? `?${qs}` : ''
@@ -145,7 +161,7 @@ export function useCards(filters?: CardFilters, options?: { enabled?: boolean })
   const result = useApi<ApiCard[]>(enabled ? `/api/cards${queryParams}` : null)
   const data = useMemo(
     () => (result.data ? result.data.map(toCardData) : null),
-    [result.data],
+    [result.data]
   )
   return { ...result, data }
 }
@@ -164,7 +180,7 @@ export function useMyCards(options?: { enabled?: boolean }) {
   const result = useApi<ApiCard[]>(enabled ? '/api/wallet/cards' : null)
   const data = useMemo(
     () => (result.data ? result.data.map(toCardData) : null),
-    [result.data],
+    [result.data]
   )
   return { ...result, data }
 }
@@ -188,7 +204,7 @@ export function useCard(id: string | null) {
   const result = useApi<ApiCard>(id ? `/api/cards/${id}` : null)
   const data = useMemo(
     () => (result.data ? toCardData(result.data) : null),
-    [result.data],
+    [result.data]
   )
   return { ...result, data }
 }
@@ -217,7 +233,7 @@ export interface CardTransaction {
  */
 export function useCardTransactions(id: string | null) {
   return useApi<{ items: CardTransaction[] }>(
-    id ? `/api/cards/${id}/transactions` : null,
+    id ? `/api/cards/${id}/transactions` : null
   )
 }
 
@@ -237,7 +253,10 @@ export function useCardMutations() {
   // TOutput intentionally left loose — the create endpoint returns the
   // legacy `Card` shape from `types/card.ts` (flat pubkey/username etc.);
   // consumers here only need `id` to route to the new card's page.
-  const create = useMutation<{ id: string; designId?: string }, { id: string }>()
+  const create = useMutation<
+    { id: string; designId?: string },
+    { id: string }
+  >()
   const update = useMutation<UpdateCardInput, ApiCard>()
   const del = useMutation<undefined, { message: string; cardId: string }>()
 
@@ -252,6 +271,32 @@ export function useCardMutations() {
     deleting: del.loading,
     // Backwards-compatible aggregate flag for existing callers.
     loading: create.loading || update.loading || del.loading,
-    error: create.error ?? update.error ?? del.error,
+    error: create.error ?? update.error ?? del.error
+  }
+}
+
+export function useMyCardMutations() {
+  const update = useMutation<
+    { enabled: boolean } | { linkDefaultWallet: true },
+    ApiCard
+  >()
+
+  return {
+    setCardEnabled: async (id: string, enabled: boolean) => {
+      const result = await update.mutate('patch', `/api/wallet/cards/${id}`, {
+        enabled
+      })
+      invalidateApiPath('/api/wallet/cards')
+      return toCardData(result)
+    },
+    linkCardToDefaultWallet: async (id: string) => {
+      const result = await update.mutate('patch', `/api/wallet/cards/${id}`, {
+        linkDefaultWallet: true
+      })
+      invalidateApiPath('/api/wallet/cards')
+      return toCardData(result)
+    },
+    updating: update.loading,
+    error: update.error
   }
 }

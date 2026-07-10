@@ -5,7 +5,7 @@ export const metadata = { title: 'Send - LaWallet' }
 
 export default function SendRecipientPage() {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ScreenHeader title="Send" closeStyle />
       <RecipientInput />
     </div>
