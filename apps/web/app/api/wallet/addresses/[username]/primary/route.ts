@@ -6,6 +6,10 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { validateParams } from '@/lib/validation/middleware'
 import { walletAddressUsernameParam } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import {
+  getPrimaryRemoteWalletIdForUser,
+  syncPrimaryRemoteWalletFlag,
+} from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -38,18 +42,38 @@ export const POST = withErrorHandling(
       throw new NotFoundError('Address not found')
     }
 
-    await prisma.$transaction([
-      prisma.lightningAddress.updateMany({
+    await prisma.$transaction(async tx => {
+      const fallbackWalletId = await getPrimaryRemoteWalletIdForUser(user.id, tx)
+      const nextData =
+        target.mode === 'DEFAULT_NWC'
+          ? fallbackWalletId
+            ? {
+                isPrimary: true,
+                mode: 'CUSTOM_NWC' as const,
+                redirect: null,
+                remoteWalletId: fallbackWalletId,
+              }
+            : {
+                isPrimary: true,
+                mode: 'IDLE' as const,
+                redirect: null,
+                remoteWalletId: null,
+              }
+          : { isPrimary: true }
+
+      await tx.lightningAddress.updateMany({
         where: { userId: user.id, isPrimary: true },
         data: { isPrimary: false },
-      }),
-      prisma.lightningAddress.update({
+      })
+      await tx.lightningAddress.update({
         where: { username },
-        data: { isPrimary: true },
-      }),
-    ])
+        data: nextData,
+      })
+      await syncPrimaryRemoteWalletFlag(user.id, tx)
+    })
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+    eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
     return NextResponse.json({ success: true, username })
   },
 )

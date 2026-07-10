@@ -178,24 +178,26 @@ export function useRemoteWalletMutations() {
     },
 
     /**
-     * Provision a disposable LNCurl wallet. The server mints the NWC string,
-     * makes it the default, and re-points the caller's Lightning Address +
-     * Cards onto it (see the `/api/remote-wallets/lncurl` route). Available
-     * only when the operator has enabled LNCurl in Settings → Wallet.
+     * Provision a disposable LNCurl wallet. The server mints the NWC string;
+     * pass `isDefault=true` to bind the primary Lightning Address to it.
+     * Available only when the operator has enabled LNCurl in Settings → Wallet.
      */
-    createLncurlWallet: async (input?: { name?: string }) => {
+    createLncurlWallet: async (input?: { name?: string; isDefault?: boolean }) => {
       const created = await createLncurl.mutate(
         'post',
         '/api/remote-wallets/lncurl',
         input ?? {},
       )
       invalidateApiPath('/api/remote-wallets')
+      invalidateApiPath('/api/wallet/addresses')
+      invalidateApiPath('/api/users/me')
       return created
     },
 
     /**
-     * Mark a wallet as the user's default ("primary"). Server clears any
-     * prior default in the same transaction.
+     * Compatibility shortcut: bind the user's primary Lightning Address to
+     * this wallet. The server synchronizes the legacy/display isDefault flag
+     * from that address link.
      */
     setPrimary: async (id: string) => {
       const updated = await update.mutate(
@@ -204,6 +206,8 @@ export function useRemoteWalletMutations() {
         { isDefault: true },
       )
       invalidateApiPath('/api/remote-wallets')
+      invalidateApiPath('/api/wallet/addresses')
+      invalidateApiPath('/api/users/me')
       return updated
     },
 
@@ -215,6 +219,8 @@ export function useRemoteWalletMutations() {
         { name },
       )
       invalidateApiPath('/api/remote-wallets')
+      invalidateApiPath('/api/wallet/addresses')
+      invalidateApiPath('/api/users/me')
       return updated
     },
 
@@ -235,13 +241,15 @@ export function useRemoteWalletMutations() {
     },
 
     /**
-     * Soft-delete. Server flips `status → REVOKED` and clears
-     * `isDefault`. The wallet vanishes from the default list (which
-     * excludes REVOKED) but the row stays for audit.
+     * Soft-delete. Server flips `status → REVOKED`; if this wallet backs the
+     * primary address, that address becomes unconfigured. The wallet vanishes
+     * from the default list (which excludes REVOKED) but the row stays for audit.
      */
     deleteWallet: async (id: string) => {
       await remove.mutate('del', `/api/remote-wallets/${id}`)
       invalidateApiPath('/api/remote-wallets')
+      invalidateApiPath('/api/wallet/addresses')
+      invalidateApiPath('/api/users/me')
     },
 
     /**
@@ -253,6 +261,8 @@ export function useRemoteWalletMutations() {
     permanentlyDeleteWallet: async (id: string) => {
       await removePermanent.mutate('del', `/api/remote-wallets/${id}?permanent=true`)
       invalidateApiPath('/api/remote-wallets')
+      invalidateApiPath('/api/wallet/addresses')
+      invalidateApiPath('/api/users/me')
     },
 
     /** Aggregate spinner — true while ANY of the helpers is in flight. */

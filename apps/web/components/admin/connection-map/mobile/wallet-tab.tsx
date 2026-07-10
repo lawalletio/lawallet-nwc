@@ -15,6 +15,7 @@ import {
   type RemoteWalletData,
 } from '@/lib/client/hooks/use-remote-wallets'
 import { WalletLiveBalance } from '../wallet-live-balance'
+import { routesThroughPrimaryWallet } from '../primary-wallet'
 
 interface Props {
   wallets: RemoteWalletData[]
@@ -26,7 +27,8 @@ interface Props {
 /**
  * Wallets tab (mobile) — read-only. Each wallet card shows its identity
  * + live balance, then everything bound to it: Lightning Addresses
- * (CUSTOM_NWC pointing here, or DEFAULT_NWC when this is the default)
+ * (CUSTOM_NWC pointing here, or DEFAULT_NWC when this wallet is linked to
+ * the primary address)
  * and Cards (explicit `remoteWalletId`). Rebinds happen from the
  * Addresses / Cards tabs, not here — tapping a wallet opens its detail
  * dialog (Send / Receive / manage).
@@ -41,9 +43,7 @@ export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
       {wallets.map(w => {
         // Same binding logic as WalletDetailBody / buildGraph.
         const boundLas = addresses.filter(a => {
-          if (a.mode === 'CUSTOM_NWC') return a.remoteWalletId === w.id
-          if (a.mode === 'DEFAULT_NWC') return w.isDefault
-          return false
+          return routesThroughPrimaryWallet(a, w.id, addresses)
         })
         const boundCards = cards.filter(c => c.remoteWalletId === w.id)
         const isLive = w.status !== 'REVOKED'
@@ -63,7 +63,7 @@ export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
                   {w.isDefault && (
                     <Star
                       className="size-3 shrink-0 fill-amber-400 text-amber-400"
-                      aria-label="Default"
+                      aria-label="Primary"
                     />
                   )}
                 </span>
@@ -96,7 +96,7 @@ export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
                       <span className="truncate text-foreground">{a.username}</span>
                       {a.mode === 'DEFAULT_NWC' && (
                         <span className="text-[10px] uppercase tracking-wider">
-                          default
+                          primary
                         </span>
                       )}
                     </span>

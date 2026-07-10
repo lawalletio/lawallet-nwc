@@ -28,7 +28,7 @@ function chipFor(
     const w = wallets.find(w => w.id === addr.remoteWalletId)
     return { label: w?.name ?? 'Unknown wallet', tone: 'bound' }
   }
-  if (addr.mode === 'DEFAULT_NWC') return { label: 'Default', tone: 'default' }
+  if (addr.mode === 'DEFAULT_NWC') return { label: 'Primary wallet', tone: 'default' }
   if (addr.mode === 'ALIAS') return { label: 'Alias', tone: 'none' }
   return { label: 'Idle', tone: 'none' }
 }
@@ -38,7 +38,9 @@ function chipFor(
  * mode badge + tappable bound-wallet chip. Tapping the chip opens a
  * bottom-sheet picker that rebinds via the same
  * `PUT /api/wallet/addresses/:username` the desktop canvas uses
- * (CUSTOM_NWC / DEFAULT_NWC / IDLE). Tapping the row body opens the
+ * (CUSTOM_NWC / DEFAULT_NWC / IDLE). Primary addresses hide DEFAULT_NWC
+ * because the primary wallet is derived from their CUSTOM_NWC binding.
+ * Tapping the row body opens the
  * shared detail dialog.
  */
 export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
@@ -76,19 +78,23 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
         ...wallets.map(w => ({
           key: w.id,
           label: w.name,
-          sublabel: w.isDefault ? 'Default wallet' : w.type,
+          sublabel: w.isDefault ? 'Primary wallet' : w.type,
           active: picker.mode === 'CUSTOM_NWC' && picker.remoteWalletId === w.id,
           tone: 'wallet' as const,
           onSelect: () => rebind(picker, { kind: 'wallet', walletId: w.id }),
         })),
-        {
-          key: '__default__',
-          label: 'Default wallet',
-          sublabel: 'Route through your default',
-          active: picker.mode === 'DEFAULT_NWC',
-          tone: 'default' as const,
-          onSelect: () => rebind(picker, { kind: 'default' }),
-        },
+        ...(picker.isPrimary
+          ? []
+          : [
+              {
+                key: '__default__',
+                label: 'Primary wallet',
+                sublabel: 'Route through your primary address wallet',
+                active: picker.mode === 'DEFAULT_NWC',
+                tone: 'default' as const,
+                onSelect: () => rebind(picker, { kind: 'default' }),
+              },
+            ]),
         {
           key: '__idle__',
           label: 'Disconnect',

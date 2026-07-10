@@ -433,6 +433,19 @@
           "mode"
         ]
       },
+      "WalletAliasProbeRequest": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "maxLength": 254,
+            "pattern": "^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
       "WalletCardUpdateRequest": {
         "type": "object",
         "properties": {
@@ -533,6 +546,10 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 120
+          },
+          "isDefault": {
+            "type": "boolean",
+            "default": false
           }
         },
         "description": "Provision a disposable LNCurl wallet. The server mints the NWC connection string; the new wallet becomes the default and inherits the previous wallet’s bindings."
@@ -5145,6 +5162,154 @@
           },
           "409": {
             "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/addresses/alias-probe": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Probe a Lightning Address before using it as an alias.",
+        "description": "Checks LUD-16 reachability and reports optional LUD-21 and NIP-57 capabilities. LUD-16 support determines whether the alias can be saved.",
+        "operationId": "wallet.addresses.probeAlias",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletAliasProbeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Alias capabilities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "canSave": {
+                      "type": "boolean"
+                    },
+                    "checks": {
+                      "type": "object",
+                      "properties": {
+                        "lud16": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "boolean"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "message"
+                          ]
+                        },
+                        "lud21": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "boolean"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "message"
+                          ]
+                        },
+                        "nip57": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "boolean"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "message"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "lud16",
+                        "lud21",
+                        "nip57"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "address",
+                    "canSave",
+                    "checks"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
             "content": {
               "application/json": {
                 "schema": {

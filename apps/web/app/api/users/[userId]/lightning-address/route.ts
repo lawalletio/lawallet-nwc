@@ -12,9 +12,13 @@ import { validateParams, validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { requireAddressRegistration } from '@/lib/auth/paid-registration-guard'
-import { resolveDefaultAddressMode } from '@/lib/wallet/default-address-mode'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import {
+  findInitialPrimaryWalletCandidate,
+  getPrimaryRemoteWalletForUser,
+  syncPrimaryRemoteWalletFlag,
+} from '@/lib/wallet/primary-wallet'
 
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
@@ -72,21 +76,29 @@ export const PUT = withErrorHandling(
       throw new ConflictError('Username is already taken by another user')
     }
 
-    // Replace the primary address atomically: delete the old primary first
-    // (if any) so the partial-unique-on-(userId) WHERE isPrimary=true index
-    // doesn't conflict, then create the new primary.
-    if (oldLightningAddress) {
-      await prisma.lightningAddress.delete({
-        where: { username: oldLightningAddress.username }
-      })
-    }
-    await prisma.lightningAddress.create({
-      data: {
-        username,
-        userId,
-        isPrimary: true,
-        mode: await resolveDefaultAddressMode(userId),
+    await prisma.$transaction(async tx => {
+      const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(userId, tx)
+      const candidate =
+        currentPrimaryWallet ?? (await findInitialPrimaryWalletCandidate(userId, tx))
+
+      // Replace the primary address atomically: delete the old primary first
+      // (if any) so the partial-unique-on-(userId) WHERE isPrimary=true index
+      // doesn't conflict, then create the new primary.
+      if (oldLightningAddress) {
+        await tx.lightningAddress.delete({
+          where: { username: oldLightningAddress.username }
+        })
       }
+      await tx.lightningAddress.create({
+        data: {
+          username,
+          userId,
+          isPrimary: true,
+          mode: candidate ? 'CUSTOM_NWC' : 'IDLE',
+          remoteWalletId: candidate?.id ?? null,
+        }
+      })
+      await syncPrimaryRemoteWalletFlag(userId, tx)
     })
 
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })

@@ -5,28 +5,28 @@ import { createUserFixture } from '@/tests/helpers/fixtures'
 import { AuthenticationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn(),
+  authenticate: vi.fn()
 }))
 
 vi.mock('@/lib/user', () => ({
-  createNewUser: vi.fn(),
+  createNewUser: vi.fn()
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(),
+  getSettings: vi.fn()
 }))
 
 import { GET } from '@/app/api/users/me/route'
@@ -40,14 +40,12 @@ function mockAuth(pubkey: string = mockPubkey) {
   vi.mocked(authenticate).mockResolvedValue({
     pubkey,
     role: 'USER' as any,
-    method: 'nip98',
+    method: 'nip98'
   })
 }
 
 function mockAuthReject() {
-  vi.mocked(authenticate).mockRejectedValue(
-    new AuthenticationError('no auth')
-  )
+  vi.mocked(authenticate).mockRejectedValue(new AuthenticationError('no auth'))
 }
 
 beforeEach(() => {
@@ -67,10 +65,10 @@ describe('GET /api/users/me', () => {
           mode: 'DEFAULT_NWC',
           redirect: null,
           nwcConnectionId: null,
-          nwcConnection: null,
-        },
+          nwcConnection: null
+        }
       ],
-      albySubAccount: null,
+      albySubAccount: null
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -81,7 +79,7 @@ describe('GET /api/users/me', () => {
 
     expect(body).toMatchObject({
       userId: user.id,
-      lightningAddress: 'alice@test.com',
+      lightningAddress: 'alice@test.com'
     })
   })
 
@@ -91,7 +89,7 @@ describe('GET /api/users/me', () => {
     const newUser = createUserFixture({
       pubkey: mockPubkey,
       lightningAddresses: [],
-      albySubAccount: null,
+      albySubAccount: null
     })
     vi.mocked(createNewUser).mockResolvedValue(newUser as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -109,7 +107,7 @@ describe('GET /api/users/me', () => {
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddresses: [],
-      albySubAccount: null,
+      albySubAccount: null
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -132,10 +130,10 @@ describe('GET /api/users/me', () => {
           mode: 'DEFAULT_NWC',
           redirect: null,
           remoteWalletId: null,
-          remoteWallet: null,
-        },
+          remoteWallet: null
+        }
       ],
-      albySubAccount: null,
+      albySubAccount: null
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({})
@@ -156,7 +154,7 @@ describe('GET /api/users/me', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns alby sub account data + nwcString from the default wallet', async () => {
+  it('returns alby sub account data without deriving nwcString from remoteWallets alone', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
@@ -164,18 +162,21 @@ describe('GET /api/users/me', () => {
       albySubAccount: {
         appId: 'app123',
         nwcUri: 'nostr+walletconnect://test',
-        username: 'alice',
+        username: 'alice'
       },
-      // The Alby pairing URI is stored as the user's default RemoteWallet.
+      // A RemoteWallet is not primary unless the primary address links to it.
       remoteWallets: [
         {
           type: 'NWC',
-          config: { connectionString: 'nostr+walletconnect://test', mode: 'SEND_RECEIVE' },
+          config: {
+            connectionString: 'nostr+walletconnect://test',
+            mode: 'SEND_RECEIVE'
+          },
           status: 'ACTIVE',
           isDefault: true,
-          updatedAt: new Date(),
-        },
-      ],
+          updatedAt: new Date()
+        }
+      ]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -184,21 +185,23 @@ describe('GET /api/users/me', () => {
     const res = await GET(req)
     const body: any = await assertResponse(res, 200)
 
-    expect(prismaMock.user.findUnique).toHaveBeenCalledWith(
+    const query = vi.mocked(prismaMock.user.findUnique).mock.calls[0]?.[0]
+    expect(query).toEqual(
       expect.objectContaining({
         include: expect.objectContaining({
-          remoteWallets: expect.objectContaining({
-            where: { isDefault: true, status: 'ACTIVE' },
-          }),
-        }),
-      }),
+          lightningAddresses: expect.objectContaining({
+            where: { isPrimary: true }
+          })
+        })
+      })
     )
+    expect((query as any)?.include).not.toHaveProperty('remoteWallets')
     expect(body.albySubAccount).toEqual({
       appId: 'app123',
       nwcUri: 'nostr+walletconnect://test',
-      username: 'alice',
+      username: 'alice'
     })
-    expect(body.nwcString).toBe('nostr+walletconnect://test')
+    expect(body.nwcString).toBe('')
   })
 
   // ── primary-address driven fields ───────────────────────────────────────
@@ -210,18 +213,18 @@ describe('GET /api/users/me', () => {
   const primaryConnUri = 'nostr+walletconnect://primary-conn'
   const addressConnUri = 'nostr+walletconnect://address-conn'
 
-  /** Build a default RemoteWallet with a given connection string. */
+  /** Build a RemoteWallet with a given connection string. */
   function defaultWallet(connectionString: string) {
     return {
       type: 'NWC',
       config: { connectionString, mode: 'SEND_RECEIVE' },
       status: 'ACTIVE',
       isDefault: true,
-      updatedAt: new Date(),
+      updatedAt: new Date()
     }
   }
 
-  it('DEFAULT_NWC primary address: effectiveNwcString = default RemoteWallet', async () => {
+  it('legacy DEFAULT_NWC primary address has no derived primary wallet', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
@@ -232,11 +235,11 @@ describe('GET /api/users/me', () => {
           mode: 'DEFAULT_NWC',
           redirect: null,
           remoteWalletId: null,
-          remoteWallet: null,
-        },
+          remoteWallet: null
+        }
       ],
       albySubAccount: null,
-      remoteWallets: [defaultWallet(primaryConnUri)],
+      remoteWallets: [defaultWallet(primaryConnUri)]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -247,10 +250,10 @@ describe('GET /api/users/me', () => {
     expect(body.primaryAddressMode).toBe('DEFAULT_NWC')
     expect(body.primaryUsername).toBe('alice')
     expect(body.primaryRedirect).toBeNull()
-    expect(body.effectiveNwcString).toBe(primaryConnUri)
+    expect(body.effectiveNwcString).toBeNull()
   })
 
-  it('DEFAULT_NWC primary with no default wallet: effectiveNwcString is null', async () => {
+  it('DEFAULT_NWC primary with no primary-address wallet: effectiveNwcString is null', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
@@ -261,11 +264,11 @@ describe('GET /api/users/me', () => {
           mode: 'DEFAULT_NWC',
           redirect: null,
           remoteWalletId: null,
-          remoteWallet: null,
-        },
+          remoteWallet: null
+        }
       ],
       albySubAccount: null,
-      remoteWallets: [], // no default wallet
+      remoteWallets: [] // no default wallet
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -276,7 +279,7 @@ describe('GET /api/users/me', () => {
     expect(body.effectiveNwcString).toBeNull()
   })
 
-  it('CUSTOM_NWC primary: effectiveNwcString = the address-bound wallet, not the default', async () => {
+  it('CUSTOM_NWC primary: effectiveNwcString = the address-bound wallet', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
@@ -291,12 +294,12 @@ describe('GET /api/users/me', () => {
           remoteWallet: {
             type: 'NWC',
             config: { connectionString: addressConnUri, mode: 'RECEIVE' },
-            status: 'ACTIVE',
-          },
-        },
+            status: 'ACTIVE'
+          }
+        }
       ],
       albySubAccount: null,
-      remoteWallets: [defaultWallet(primaryConnUri)],
+      remoteWallets: [defaultWallet(primaryConnUri)]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -319,11 +322,11 @@ describe('GET /api/users/me', () => {
           mode: 'ALIAS',
           redirect: 'bob@other.com',
           remoteWalletId: null,
-          remoteWallet: null,
-        },
+          remoteWallet: null
+        }
       ],
       albySubAccount: null,
-      remoteWallets: [defaultWallet(primaryConnUri)],
+      remoteWallets: [defaultWallet(primaryConnUri)]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -349,11 +352,11 @@ describe('GET /api/users/me', () => {
           mode: 'IDLE',
           redirect: null,
           remoteWalletId: null,
-          remoteWallet: null,
-        },
+          remoteWallet: null
+        }
       ],
       albySubAccount: null,
-      remoteWallets: [defaultWallet(primaryConnUri)],
+      remoteWallets: [defaultWallet(primaryConnUri)]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -371,7 +374,7 @@ describe('GET /api/users/me', () => {
       pubkey: mockPubkey,
       lightningAddresses: [],
       albySubAccount: null,
-      remoteWallets: [],
+      remoteWallets: []
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })

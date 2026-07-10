@@ -19,6 +19,7 @@ import {
   lud16UsernameParam,
   otcParam,
   payActionQuerySchema,
+  probeAliasAddressSchema,
   remoteWalletListQuerySchema,
   scanCardQuerySchema,
   settingsBodySchema,
@@ -102,6 +103,10 @@ export const schemas = {
   WalletAddressUpdateRequest: registry.register(
     'WalletAddressUpdateRequest',
     updateWalletAddressSchema,
+  ),
+  WalletAliasProbeRequest: registry.register(
+    'WalletAliasProbeRequest',
+    probeAliasAddressSchema,
   ),
   WalletCardUpdateRequest: registry.register(
     'WalletCardUpdateRequest',

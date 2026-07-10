@@ -7,6 +7,7 @@ import type {
   RemoteWallet,
   RemoteWalletStatus,
 } from '@/lib/generated/prisma'
+import { syncPrimaryRemoteWalletFlag } from '@/lib/wallet/primary-wallet'
 
 const DEFAULT_WALLET_NAME = 'LNCurl wallet'
 
@@ -59,7 +60,7 @@ export function lncurlHealTarget(
     mode: LightningAddressMode
     /** Wallet bound directly to the address (CUSTOM_NWC). */
     boundWallet: LncurlHealWalletRef | null
-    /** The user's default wallet (DEFAULT_NWC). */
+    /** The wallet linked through the user's primary address (DEFAULT_NWC). */
     defaultWallet: LncurlHealWalletRef | null
   },
   settings: LncurlAutoHealSettings,
@@ -122,15 +123,15 @@ function uniqueName(requested: string, taken: Set<string>): string {
 }
 
 /**
- * Provision a fresh LNCurl custodial wallet and persist it as the user's new
- * default {@link RemoteWallet}.
+ * Provision a fresh LNCurl custodial wallet and persist it as a RemoteWallet.
  *
  * The whole DB write runs in a single transaction:
- *   1. demote the user's current default,
- *   2. create the new wallet (default, ACTIVE, tagged `provider: 'lncurl'`),
- *   3. when re-provisioning, re-point the bindings (LightningAddress + Card)
+ *   1. create the new wallet (ACTIVE, tagged `provider: 'lncurl'`),
+ *   2. when re-provisioning, re-point the bindings (LightningAddress + Card)
  *      that referenced `previousWalletId` at the new wallet, and optionally
  *      archive the previous wallet as DEAD (status DEAD + `diedAt`).
+ *   3. synchronize the compatibility `isDefault` flag from the account's
+ *      primary Lightning Address binding.
  */
 export async function createLncurlRemoteWallet(
   input: CreateLncurlRemoteWalletInput,
@@ -150,12 +151,6 @@ export async function createLncurlRemoteWallet(
     const taken = new Set(existing.map(w => w.name))
     const name = uniqueName(input.name ?? DEFAULT_WALLET_NAME, taken)
 
-    // Demote the current default so the partial unique index doesn't fire.
-    await tx.remoteWallet.updateMany({
-      where: { userId, isDefault: true },
-      data: { isDefault: false },
-    })
-
     const config: Prisma.InputJsonValue = {
       connectionString,
       mode,
@@ -173,7 +168,7 @@ export async function createLncurlRemoteWallet(
         type: 'NWC',
         config,
         status: 'ACTIVE',
-        isDefault: true,
+        isDefault: false,
       },
     })
 
@@ -199,11 +194,13 @@ export async function createLncurlRemoteWallet(
       }
     }
 
+    await syncPrimaryRemoteWalletFlag(userId, tx)
+
     logger.info(
       { userId, walletId: created.id, previousWalletId, revokePrevious },
       'LNCurl wallet provisioned',
     )
 
-    return created
+    return tx.remoteWallet.findUniqueOrThrow({ where: { id: created.id } })
   })
 }

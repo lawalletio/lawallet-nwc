@@ -40,6 +40,7 @@ import {
   ConnectionDetailDialog,
   type ConnectionSelection,
 } from './connection-detail-dialog'
+import { getPrimaryWallet, withDerivedPrimaryWalletFlags } from './primary-wallet'
 
 /** Stable id helpers — used by both nodes and edges so they always agree. */
 const walletNodeId = (id: string) => `wallet:${id}`
@@ -112,6 +113,10 @@ function ConnectionMapInner() {
   // When the user has no wallets, offer a one-tap LNCurl wallet (ghost node)
   // — but only if the operator enabled the integration.
   const lncurlEnabled = settings?.lncurl_enabled === 'true'
+  const walletList = useMemo(
+    () => withDerivedPrimaryWalletFlags(wallets, addresses),
+    [wallets, addresses],
+  )
 
   // Hover lives in local state, NOT folded into the nodes/edges arrays.
   // Hovering a node highlights its edges + the nodes on the other end;
@@ -143,15 +148,23 @@ function ConnectionMapInner() {
   const { updateAddress } = useAddressMutations()
   const { updateCard } = useCardMutations()
 
-  /** Default wallet drives the "implicit binding" for DEFAULT_NWC addresses. */
+  /** Primary-address wallet drives the implicit binding for DEFAULT_NWC addresses. */
   const defaultWallet = useMemo(
-    () => wallets?.find(w => w.isDefault) ?? null,
-    [wallets],
+    () => getPrimaryWallet(walletList, addresses),
+    [walletList, addresses],
   )
 
   const { nodes: computedNodes, edges: computedEdges } = useMemo(
-    () => buildGraph({ wallets, addresses, cards, defaultWallet, domain, lncurlEnabled }),
-    [wallets, addresses, cards, defaultWallet, domain, lncurlEnabled],
+    () =>
+      buildGraph({
+        wallets: walletList,
+        addresses,
+        cards,
+        defaultWallet,
+        domain,
+        lncurlEnabled,
+      }),
+    [walletList, addresses, cards, defaultWallet, domain, lncurlEnabled],
   )
 
   // ReactFlow needs to OWN the node/edge state (via these hooks) rather than
@@ -229,15 +242,27 @@ function ConnectionMapInner() {
 
   const bindAddressToWallet = useCallback(
     async (username: string, walletId: string) => {
+      const current = addresses?.find(addr => addr.username === username)
+      if (current?.mode === 'CUSTOM_NWC' && current.remoteWalletId === walletId) {
+        toast.info(`${username} is already bound to that wallet`)
+        return
+      }
+
       try {
-        await updateAddress(username, { mode: 'CUSTOM_NWC', remoteWalletId: walletId })
+        const updated = await updateAddress(username, {
+          mode: 'CUSTOM_NWC',
+          remoteWalletId: walletId,
+        })
+        if (updated.mode !== 'CUSTOM_NWC' || updated.remoteWalletId !== walletId) {
+          throw new Error('Wallet binding did not change')
+        }
         toast.success(`${username} bound to wallet`)
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Could not bind address'
         toast.error(msg)
       }
     },
-    [updateAddress],
+    [addresses, updateAddress],
   )
 
   const disconnectAddress = useCallback(
@@ -314,13 +339,13 @@ function ConnectionMapInner() {
   // Existing edge dragged onto a new handle. Which model row we PATCH
   // depends on which END of the edge moved:
   //
-  //   LA edge (la:* → wallet:*), now reconnectable on BOTH ends:
+  //   LA edge (la:* → wallet:*), reconnectable on the wallet end:
   //     · target moved (wallet end): newConnection.source is still the
   //       original LA → rebind that LA to the new wallet.
-  //     · source moved (LA end): the user grabbed the LA's output and
-  //       dropped it on a DIFFERENT LA → move the binding: bind the new
-  //       LA to the (unchanged) wallet and release the old LA. Dropping
-  //       back on the same LA is a harmless no-op rebind.
+  //     · source moved (LA end): not supported. The LA source handle still
+  //       creates fresh connections, but the existing edge itself should not
+  //       be reconnected from that end; otherwise a source-end drag can look
+  //       like a wallet change while still reporting the old wallet.
   //
   //   Card edge (wallet:* → card:*): target = card (fixed), source =
   //     wallet (new) → rebind that card to the new wallet.
@@ -500,7 +525,7 @@ function ConnectionMapInner() {
           onSelect={setSelected}
           addresses={addresses}
           cards={cards}
-          wallets={wallets}
+          wallets={walletList}
           domain={domain}
         />
       </div>
@@ -687,21 +712,18 @@ function buildGraph({
   // rebuilding of the edges array required.
   //
   // `reconnectable` per-edge:
-  //   - LA edges: `true` — BOTH ends draggable.
-  //       · wallet end (target) → rebind to a different wallet, or drop
-  //         on empty space to disconnect (→ IDLE).
-  //       · LA end (source)     → grabbing the LA's own output handle
-  //         picks up THIS existing edge instead of spawning a second
-  //         wire; the line then redraws from the cursor to the wallet.
-  //         Drop on another LA moves the binding; drop on empty
-  //         disconnects.
+  //   - LA edges: 'target' — only the wallet end of the existing edge is
+  //     draggable. The LA output handle remains connectable for creating a
+  //     new bind, but the existing edge's source endpoint is intentionally
+  //     inert so a wallet rebind cannot resolve back to the old wallet while
+  //     still showing a success toast.
   //   - Card edges: 'source' — drag the wallet end (which IS the source
   //     since the edge points wallet → card) to rebind / disconnect.
   //     The card end stays put.
   //
   // Address bindings:
   //   CUSTOM_NWC   → solid edge to the address's bound wallet.
-  //   DEFAULT_NWC  → dashed edge to the user's default wallet (implicit).
+  //   DEFAULT_NWC  → dashed edge to the primary address's wallet (implicit).
   //   IDLE / ALIAS → no edge (no wallet involved).
   for (const addr of addresses ?? []) {
     if (addr.mode === 'CUSTOM_NWC' && addr.remoteWalletId) {
@@ -712,7 +734,7 @@ function buildGraph({
         sourceHandle: 'out',
         target: walletNodeId(addr.remoteWalletId),
         targetHandle: 'from-la',
-        reconnectable: true,
+        reconnectable: 'target',
         data: {
           tooltipTitle: 'CUSTOM_NWC',
           tooltipHint: 'Bound to this specific wallet',
@@ -727,10 +749,10 @@ function buildGraph({
         sourceHandle: 'out',
         target: walletNodeId(defaultWallet.id),
         targetHandle: 'from-la',
-        reconnectable: true,
+        reconnectable: 'target',
         data: {
           tooltipTitle: 'DEFAULT_NWC',
-          tooltipHint: 'Routes through the default wallet',
+          tooltipHint: 'Routes through the primary address wallet',
         },
         style: {
           stroke: 'oklch(0.78 0.18 162)',

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createCardDesignFixture } from '@/tests/helpers/fixtures'
@@ -66,6 +66,10 @@ const mockAdmin = () =>
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe('GET /api/card-designs/list', () => {
@@ -301,6 +305,22 @@ describe('POST /api/card-designs/import-veintiuno', () => {
 
     expect(body.imported).toBe(2)
     expect(body.updated).toBe(1)
+  })
+
+  it('allows the full catalog importer on non-lawallet domains in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    mockAdmin()
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'lacrypta.ar' })
+    mockCatalog()
+    vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([])
+    vi.mocked(prismaMock.cardDesign.upsert).mockResolvedValue({} as any)
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'POST' })
+    const body: any = await assertResponse(await ImportVeintiunoPost(req), 200)
+
+    expect(body.success).toBe(true)
+    expect(body.imported).toBe(3)
+    expect(prismaMock.cardDesign.upsert).toHaveBeenCalledTimes(3)
   })
 
   it('rejects when the instance domain is not lawallet.io', async () => {

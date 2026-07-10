@@ -51,6 +51,7 @@ import { toast } from 'sonner'
 const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 import { AutoHeight } from './auto-height'
 import { InfoField } from './info-field'
+import { routesThroughPrimaryWallet } from './primary-wallet'
 
 interface Props {
   wallet: RemoteWalletData
@@ -80,7 +81,7 @@ type WebLnWindow = Window & { webln?: WebLnProvider }
  * Receive flow: enter amount → mint invoice via NWC → show + WebLN pay.
  * Send    flow: paste destination → optional amount step → pay via NWC.
  *
- * Both flows are scoped to THIS wallet (not the user's default) — the
+ * Both flows are scoped to THIS wallet (not the account primary wallet) — the
  * NWC URI is fetched on demand from `/api/remote-wallets/[id]/connection-string`.
  */
 export function WalletDetailBody({ wallet, addresses, cards }: Props) {
@@ -91,9 +92,7 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
   const [receiving, setReceiving] = useState(false)
 
   const boundLas = addresses.filter(a => {
-    if (a.mode === 'CUSTOM_NWC') return a.remoteWalletId === wallet.id
-    if (a.mode === 'DEFAULT_NWC') return wallet.isDefault
-    return false
+    return routesThroughPrimaryWallet(a, wallet.id, addresses)
   })
   const boundCards = cards.filter(c => c.remoteWalletId === wallet.id)
 
@@ -116,7 +115,7 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
     <>
       <DialogHeader>
           {/*
-            Title is the wallet's own name (with the Default badge when
+            Title is the wallet's own name (with the Primary badge when
             applicable), not a generic "Remote Wallet" — there's only
             one of these dialogs on screen at a time, so the user
             doesn't need a category label; they need to know WHICH
@@ -130,7 +129,7 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
             {wallet.isDefault && (
               <Badge variant="secondary" className="gap-1">
                 <Star className="size-3 fill-amber-400 text-amber-400" />
-                Default
+                Primary
               </Badge>
             )}
           </DialogTitle>

@@ -38,7 +38,7 @@ function walletCapability(wallet: RemoteWallet | null): EffectiveNwcMode {
  *
  *   IDLE / ALIAS   → NONE  (the address never produces invoices via a wallet)
  *   CUSTOM_NWC     → the bound RemoteWallet's capability, or NONE if absent
- *   DEFAULT_NWC    → the user's default RemoteWallet's capability, or NONE
+ *   DEFAULT_NWC    → the user's primary-address RemoteWallet capability, or NONE
  *
  * Centralised here so list, detail and create routes stay consistent and the
  * client never has to guess.

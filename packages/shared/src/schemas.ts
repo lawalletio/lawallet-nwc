@@ -224,6 +224,19 @@ export const updateWalletAddressSchema = z.object({
   remoteWalletId: z.string().min(1).nullish()
 })
 
+/** Body for POST /api/wallet/addresses/alias-probe. */
+export const probeAliasAddressSchema = z.object({
+  address: z
+    .string()
+    .trim()
+    .max(254)
+    .regex(
+      /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i,
+      'Must be a valid LN address'
+    )
+    .transform(value => value.toLowerCase())
+})
+
 // ── Users ───────────────────────────────────────────────────────────────────
 
 export const updateRoleSchema = z.object({
@@ -357,19 +370,20 @@ export const createRemoteWalletSchema = z.object({
   name: remoteWalletName,
   type: remoteWalletType,
   config: z.unknown(),
-  /** When `true`, the new wallet becomes the user's default (un-marks the previous one in the same transaction). */
+  /** Compatibility shortcut: bind the primary address to this wallet. */
   isDefault: z.boolean().optional().default(false)
 })
 
 /**
  * Body for `POST /api/remote-wallets/lncurl`. The server mints the NWC
  * connection string from the configured LNCurl provider, so the client only
- * supplies an optional display name. The new wallet always becomes the
- * caller's default and inherits the previous wallet's address/card bindings,
- * so there's no `isDefault` flag here.
+ * supplies an optional display name. `isDefault=true` is the compatibility
+ * shortcut for binding the caller's primary Lightning Address to the new
+ * wallet when one exists.
  */
 export const createLncurlWalletSchema = z.object({
-  name: remoteWalletName.optional()
+  name: remoteWalletName.optional(),
+  isDefault: z.boolean().optional().default(false)
 })
 
 /**

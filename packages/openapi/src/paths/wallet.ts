@@ -22,6 +22,21 @@ const walletAddressSchema = z
   .passthrough()
   .openapi({ description: 'Per-user wallet lightning address record.' })
 
+const walletAliasProbeCheckSchema = z.object({
+  ok: z.boolean(),
+  message: z.string(),
+})
+
+const walletAliasProbeResultSchema = z.object({
+  address: z.string(),
+  canSave: z.boolean(),
+  checks: z.object({
+    lud16: walletAliasProbeCheckSchema,
+    lud21: walletAliasProbeCheckSchema,
+    nip57: walletAliasProbeCheckSchema,
+  }),
+})
+
 registry.registerPath({
   ...withRole('USER'),
   method: 'get',
@@ -114,6 +129,27 @@ registry.registerPath({
     201: inlineJsonResponse('Address created.', walletAddressSchema),
     ...commonErrorResponses,
     409: responses.conflict,
+  },
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'post',
+  path: '/api/wallet/addresses/alias-probe',
+  tags: [TAG],
+  summary: 'Probe a Lightning Address before using it as an alias.',
+  description:
+    'Checks LUD-16 reachability and reports optional LUD-21 and NIP-57 capabilities. LUD-16 support determines whether the alias can be saved.',
+  operationId: 'wallet.addresses.probeAlias',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: { 'application/json': { schema: schemas.WalletAliasProbeRequest } },
+    },
+  },
+  responses: {
+    200: inlineJsonResponse('Alias capabilities.', walletAliasProbeResultSchema),
+    ...commonErrorResponses,
   },
 })
 

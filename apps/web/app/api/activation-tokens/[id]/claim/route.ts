@@ -11,6 +11,7 @@ import { ConflictError, NotFoundError, ValidationError } from '@/types/server/er
 import { createNewUser } from '@/lib/user'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 
 /**
  * `POST /api/activation-tokens/[id]/claim` — claim a card via its activation QR.
@@ -38,18 +39,12 @@ export const POST = withErrorHandling(
       claimActivationTokenSchema,
     )
 
-    // Resolve the claimer, creating the account on first sight. Both branches
-    // include the default Remote Wallet so we can fall back to it below.
+    // Resolve the claimer, creating the account on first sight.
     const existing = await prisma.user.findUnique({
       where: { pubkey },
-      // Only an ACTIVE default is a usable fallback binding (see the wallet
-      // resolution note below) — a disabled/revoked default is ignored so the
-      // card is left unbound rather than bound to a dead wallet.
-      include: {
-        remoteWallets: { where: { isDefault: true, status: 'ACTIVE' }, take: 1 },
-      },
     })
     const claimer = existing ?? (await createNewUser(pubkey))
+    const primaryWallet = await getPrimaryRemoteWalletForUser(claimer.id)
 
     const token = await prisma.cardActivationToken.findUnique({
       where: { id },
@@ -100,8 +95,10 @@ export const POST = withErrorHandling(
       }
       nextWalletId = wallet.id
     } else {
-      // Already filtered to the claimer's ACTIVE default (or empty → unbound).
-      nextWalletId = claimer.remoteWallets[0]?.id ?? null
+      // Only an ACTIVE primary-address wallet is a usable fallback binding.
+      // Otherwise leave the card unbound so normal default resolution can
+      // evaluate again at tap time.
+      nextWalletId = primaryWallet?.status === 'ACTIVE' ? primaryWallet.id : null
     }
 
     // Atomic transfer + burn. Scoping the token update to status=PENDING and
