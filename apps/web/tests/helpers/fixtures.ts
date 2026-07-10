@@ -13,11 +13,13 @@ export function createUserFixture(overrides: Record<string, unknown> = {}) {
     // crash with `user.remoteWallets is undefined`. Tests that care about a
     // present default wallet override this explicitly.
     remoteWallets: [],
-    ...overrides,
+    ...overrides
   }
 }
 
-export function createAdminUserFixture(overrides: Record<string, unknown> = {}) {
+export function createAdminUserFixture(
+  overrides: Record<string, unknown> = {}
+) {
   return createUserFixture({ role: 'ADMIN', ...overrides })
 }
 
@@ -31,33 +33,41 @@ export function createCardFixture(overrides: Record<string, unknown> = {}) {
     createdAt: faker.date.past(),
     lastUsedAt: null,
     blockedAt: null,
+    disabledAt: null,
     username: null,
     otc: faker.string.hexadecimal({ length: 32, prefix: '' }),
     ntag424Cid: faker.string.hexadecimal({ length: 14, prefix: '' }),
-    ...overrides,
+    ...overrides
   }
 }
 
 // ── Card Design Fixtures ────────────────────────────────────────────────────
 
-export function createCardDesignFixture(overrides: Record<string, unknown> = {}) {
+export function createCardDesignFixture(
+  overrides: Record<string, unknown> = {}
+) {
   return {
     id: faker.string.uuid(),
     imageUrl: faker.image.url(),
     description: faker.lorem.sentence(),
     createdAt: faker.date.past(),
-    ...overrides,
+    ...overrides
   }
 }
 
 // ── Lightning Address Fixtures ──────────────────────────────────────────────
 
-export function createLightningAddressFixture(overrides: Record<string, unknown> = {}) {
+export function createLightningAddressFixture(
+  overrides: Record<string, unknown> = {}
+) {
   return {
-    username: faker.internet.username().toLowerCase().replace(/[^a-z0-9]/g, ''),
+    username: faker.internet
+      .username()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, ''),
     userId: faker.string.uuid(),
     createdAt: faker.date.past(),
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -67,13 +77,15 @@ export function createSettingsFixture(overrides: Record<string, unknown> = {}) {
   return {
     name: faker.string.alpha({ length: 10 }),
     value: faker.string.alpha({ length: 20 }),
-    ...overrides,
+    ...overrides
   }
 }
 
 // ── Remote Wallet Fixtures ──────────────────────────────────────────────────
 
-export function createRemoteWalletFixture(overrides: Record<string, unknown> = {}) {
+export function createRemoteWalletFixture(
+  overrides: Record<string, unknown> = {}
+) {
   return {
     id: faker.string.uuid(),
     userId: faker.string.uuid(),
@@ -81,13 +93,13 @@ export function createRemoteWalletFixture(overrides: Record<string, unknown> = {
     type: 'NWC' as const,
     config: {
       connectionString: `nostr+walletconnect://${faker.string.hexadecimal({ length: 64, prefix: '' })}`,
-      mode: 'RECEIVE' as const,
+      mode: 'RECEIVE' as const
     },
     status: 'ACTIVE' as const,
     isDefault: false,
     createdAt: faker.date.past(),
     updatedAt: faker.date.recent(),
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -103,6 +115,6 @@ export function createNtag424Fixture(overrides: Record<string, unknown> = {}) {
     k4: faker.string.hexadecimal({ length: 32, prefix: '' }),
     ctr: 0,
     createdAt: faker.date.past(),
-    ...overrides,
+    ...overrides
   }
 }

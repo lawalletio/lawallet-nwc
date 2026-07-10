@@ -22,96 +22,103 @@ export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, LAWALLET_ACTION, x-request-action'
+      'Access-Control-Allow-Headers':
+        'Content-Type, LAWALLET_ACTION, x-request-action'
     }
   })
 })
 
 export const GET = withErrorHandling(
   async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-  // Apply rate limiting for card scan (high volume endpoint)
-  await rateLimit(req, RateLimitPresets.cardScan)
+    // Apply rate limiting for card scan (high volume endpoint)
+    await rateLimit(req, RateLimitPresets.cardScan)
 
-  const { id: cardId } = validateParams(await params, idParam)
-  // Tapping clients ask for card metadata with `x-request-action: info` instead
-  // of the regular LNURL flow (which carries the SUN `p`/`c` params).
-  const isInfo = req.headers.get('x-request-action') === 'info'
+    const { id: cardId } = validateParams(await params, idParam)
+    // Tapping clients ask for card metadata with `x-request-action: info` instead
+    // of the regular LNURL flow (which carries the SUN `p`/`c` params).
+    const isInfo = req.headers.get('x-request-action') === 'info'
 
-  // The LNURL path needs the SUN params; validate them up front so a malformed
-  // tap fails fast (the `info` request carries no `p`/`c`).
-  const sun = isInfo ? null : validateQuery(req.url, scanCardQuerySchema)
+    // The LNURL path needs the SUN params; validate them up front so a malformed
+    // tap fails fast (the `info` request carries no `p`/`c`).
+    const sun = isInfo ? null : validateQuery(req.url, scanCardQuerySchema)
 
-  // Find card by id, including its design + owner (for the `info` response) and
-  // the wallet routing inputs (so the normal scan can tell whether it can pay).
-  const card = await prisma.card.findUnique({
-    where: { id: cardId },
-    include: {
-      design: { select: { description: true, imageUrl: true } },
-      user: {
-        include: {
-          lightningAddresses: {
-            where: { isPrimary: true },
-            take: 1,
-            select: {
-              username: true,
-              mode: true,
-              remoteWalletId: true,
-              remoteWallet: { select: { type: true, config: true, status: true } },
+    // Find card by id, including its design + owner (for the `info` response) and
+    // the wallet routing inputs (so the normal scan can tell whether it can pay).
+    const card = await prisma.card.findUnique({
+      where: { id: cardId },
+      include: {
+        design: { select: { description: true, imageUrl: true } },
+        user: {
+          include: {
+            lightningAddresses: {
+              where: { isPrimary: true },
+              take: 1,
+              select: {
+                username: true,
+                mode: true,
+                remoteWalletId: true,
+                remoteWallet: {
+                  select: { type: true, config: true, status: true }
+                }
+              }
             }
           }
-        }
-      },
-      remoteWallet: { select: { type: true, config: true, status: true } }
+        },
+        remoteWallet: { select: { type: true, config: true, status: true } }
+      }
+    })
+
+    if (!card) {
+      throw new NotFoundError('Card not found')
     }
-  })
 
-  if (!card) {
-    throw new NotFoundError('Card not found')
-  }
+    // `x-request-action: info` → return the card's public status JSON instead of
+    // the LNURL withdraw request. Non-sensitive only (no keys/OTC/SUN params).
+    if (isInfo) {
+      return NextResponse.json(buildCardInfo(card), {
+        headers: { 'Access-Control-Allow-Origin': '*' }
+      })
+    }
 
-  // `x-request-action: info` → return the card's public status JSON instead of
-  // the LNURL withdraw request. Non-sensitive only (no keys/OTC/SUN params).
-  if (isInfo) {
-    return NextResponse.json(buildCardInfo(card), {
+    // Regular first LNURL request — `sun` is the validated `p`/`c`.
+    const { p, c } = sun!
+    // The callback is hit directly by the wallet/device, so it must be prefixed
+    // with this instance's API URL (the `endpoint` setting / request host) — NOT
+    // the lightning-address `domain`, which need not serve the API.
+    const url = await resolveApiUrl(req)
+
+    // An unconfigured card (no usable wallet) advertises a 0–0 withdraw range so
+    // a wallet sees up front that nothing can be withdrawn, rather than only
+    // finding out when the callback rejects the payment.
+    const primaryWallet = derivePrimaryWallet(
+      card.user?.lightningAddresses?.[0]
+    )
+    const configured =
+      card.blockedAt === null &&
+      card.disabledAt === null &&
+      resolveCardWallet({
+        remoteWallet: card.remoteWallet ?? null,
+        defaultRemoteWallet: primaryWallet
+      }).kind === 'wallet'
+
+    // Trace the LNURL-withdraw request so the scan → scan/cb sequence is
+    // correlatable in logs. `configured=false` means the card has no ACTIVE
+    // wallet, so the advertised 0–0 range tells the wallet nothing is payable
+    // up front (the eventual cb would 400 with "not configured for payments").
+    logger.info({ cardId, configured }, 'Card scan: LNURL-withdraw request')
+
+    const response = {
+      tag: 'withdrawRequest',
+      k1: 'k',
+      minWithdrawable: configured ? MIN_WITHDRAWABLE : 0,
+      maxWithdrawable: configured ? MAX_WITHDRAWABLE : 0,
+      defaultDescription: 'Boltcard + NWC',
+      callback: `${url}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
+    } as LUD03Request
+
+    return NextResponse.json(response, {
       headers: { 'Access-Control-Allow-Origin': '*' }
     })
-  }
-
-  // Regular first LNURL request — `sun` is the validated `p`/`c`.
-  const { p, c } = sun!
-  // The callback is hit directly by the wallet/device, so it must be prefixed
-  // with this instance's API URL (the `endpoint` setting / request host) — NOT
-  // the lightning-address `domain`, which need not serve the API.
-  const url = await resolveApiUrl(req)
-
-  // An unconfigured card (no usable wallet) advertises a 0–0 withdraw range so
-  // a wallet sees up front that nothing can be withdrawn, rather than only
-  // finding out when the callback rejects the payment.
-  const primaryWallet = derivePrimaryWallet(card.user?.lightningAddresses?.[0])
-  const configured =
-    resolveCardWallet({
-      remoteWallet: card.remoteWallet ?? null,
-      defaultRemoteWallet: primaryWallet
-    }).kind === 'wallet'
-
-  // Trace the LNURL-withdraw request so the scan → scan/cb sequence is
-  // correlatable in logs. `configured=false` means the card has no ACTIVE
-  // wallet, so the advertised 0–0 range tells the wallet nothing is payable
-  // up front (the eventual cb would 400 with "not configured for payments").
-  logger.info({ cardId, configured }, 'Card scan: LNURL-withdraw request')
-
-  const response = {
-    tag: 'withdrawRequest',
-    k1: 'k',
-    minWithdrawable: configured ? MIN_WITHDRAWABLE : 0,
-    maxWithdrawable: configured ? MAX_WITHDRAWABLE : 0,
-    defaultDescription: 'Boltcard + NWC',
-    callback: `${url}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
-  } as LUD03Request
-
-  return NextResponse.json(response, {
-    headers: { 'Access-Control-Allow-Origin': '*' }
-  })
   },
   { headers: { 'Access-Control-Allow-Origin': '*' } }
 )

@@ -33,19 +33,19 @@ export function NavTabbar() {
       <div className="mx-auto flex w-full max-w-md justify-center px-6 pb-4 pt-12">
         <nav
           aria-label="Wallet actions"
-          className="pointer-events-auto relative flex h-14 w-full max-w-[280px] items-center justify-between rounded-full border border-border/60 bg-card/90 px-4 backdrop-blur-xl shadow-2xl"
+          className="pointer-events-auto relative flex h-16 w-full max-w-[286px] items-center justify-between rounded-full border border-border/60 bg-card/90 px-4 backdrop-blur-xl shadow-2xl"
         >
           <SideButton item={home} pathname={pathname} />
 
           <Link
             href="/wallet/scan"
             aria-label="Scan QR"
-            className="absolute left-1/2 -top-3 -translate-x-1/2 flex size-16 items-center justify-center rounded-full border border-[var(--theme-300)] bg-gradient-to-b from-[var(--theme-200)] to-[var(--theme-400)] text-foreground shadow-[inset_0_2px_2px_var(--theme-400)] shadow-xl transition-transform active:scale-95"
+            className="absolute left-1/2 -top-3 flex size-[87px] -translate-x-1/2 items-center justify-center rounded-full border border-[var(--theme-300)] bg-gradient-to-b from-[var(--theme-200)] to-[var(--theme-400)] text-foreground shadow-[inset_0_2px_2px_var(--theme-400)] shadow-xl transition-transform active:scale-95"
           >
-            <ScanLine className="size-7" />
+            <ScanLine className="size-[37px]" />
           </Link>
 
-          <span className="size-12" aria-hidden />
+          <span className="size-[54px]" aria-hidden />
 
           <SideButton item={settings} pathname={pathname} />
         </nav>
@@ -72,13 +72,13 @@ function SideButton({
       aria-label={item.label}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex size-12 items-center justify-center rounded-full transition-colors',
+        'flex size-[54px] items-center justify-center rounded-full transition-colors',
         active
           ? 'text-foreground'
           : 'text-muted-foreground hover:text-foreground',
       )}
     >
-      <Icon className={cn('size-6', active && 'stroke-[2.5]')} />
+      <Icon className={cn('size-7', active && 'stroke-[2.5]')} />
     </Link>
   )
 }

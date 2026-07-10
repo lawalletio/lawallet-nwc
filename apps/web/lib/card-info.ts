@@ -16,6 +16,8 @@ export type CardInfo = {
   used: boolean
   /** True once the card's reset keys were exported — decommissioned. */
   blocked: boolean
+  /** True when the owner has temporarily paused tap-to-pay. */
+  disabled: boolean
   design: { description: string | null; imageUrl: string | null } | null
   /** The owner, when paired. `username` is the primary lightning address if any. */
   user: { pubkey: string; username: string | null } | null
@@ -29,6 +31,7 @@ type CardInfoInput = {
   userId: string | null
   lastUsedAt: Date | null
   blockedAt: Date | null
+  disabledAt: Date | null
   design: { description: string | null; imageUrl: string | null } | null
   user: { pubkey: string; lightningAddresses?: { username: string }[] } | null
 }
@@ -42,18 +45,19 @@ export function buildCardInfo(card: CardInfoInput): CardInfo {
     paired: card.userId !== null,
     used: card.lastUsedAt !== null,
     blocked: card.blockedAt !== null,
+    disabled: card.disabledAt !== null,
     design: card.design
       ? {
           description: card.design.description ?? null,
-          imageUrl: card.design.imageUrl ?? null,
+          imageUrl: card.design.imageUrl ?? null
         }
       : null,
     user: card.user
       ? {
           pubkey: card.user.pubkey,
-          username: card.user.lightningAddresses?.[0]?.username ?? null,
+          username: card.user.lightningAddresses?.[0]?.username ?? null
         }
       : null,
-    lastUsedAt: card.lastUsedAt ? card.lastUsedAt.toISOString() : null,
+    lastUsedAt: card.lastUsedAt ? card.lastUsedAt.toISOString() : null
   }
 }

@@ -1,13 +1,29 @@
 'use client'
 
 import { getNwcClient } from './nwc-client'
-import type { ParsedDestination } from './parse-destination'
+import {
+  parseDestination,
+  type ParsedDestination,
+} from './parse-destination'
 import { requestLnurlInvoice } from '@/lib/client/lnurl-invoice'
 
 export interface PayResult {
   preimage: string
   feesPaidSats: number
 }
+
+export interface PaymentQuote {
+  paymentRequest: string
+  amountSats: number
+  payAmountSats?: number
+  expiresAt: number | null
+  feeSats: number | null
+  feeQuoteStatus: 'unavailable'
+  feeQuoteMessage: string
+}
+
+const NWC_FEE_QUOTE_UNAVAILABLE =
+  'NWC returns routing fees only after pay_invoice settles.'
 
 /**
  * Pays an already-decoded bolt11 invoice through the connected NWC wallet.
@@ -47,6 +63,64 @@ export async function payLnurl(
 ): Promise<PayResult> {
   const pr = await requestLnurlInvoice(destination.lnurlpUrl, amountSats, comment)
   return payInvoice(nwcString, pr)
+}
+
+/**
+ * Prepares the payment request that will be sent to the wallet without
+ * broadcasting a payment. NWC has no standard route-fee dry-run; the exact
+ * fee is still returned by `pay_invoice` after settlement.
+ */
+export async function quotePayment(
+  destination: ParsedDestination,
+  amountSats: number | null,
+  comment?: string,
+): Promise<PaymentQuote> {
+  if (destination.kind === 'invoice') {
+    if (destination.amountSats === null && (amountSats === null || amountSats <= 0)) {
+      throw new Error('Enter an amount for this zero-amount invoice')
+    }
+    const amount = destination.amountSats ?? amountSats ?? 0
+    return {
+      paymentRequest: destination.bolt11,
+      amountSats: amount,
+      payAmountSats: destination.amountSats === null ? amount : undefined,
+      expiresAt: destination.expiresAt,
+      feeSats: null,
+      feeQuoteStatus: 'unavailable',
+      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE,
+    }
+  }
+
+  if (destination.kind === 'lnurl-pay') {
+    if (amountSats === null || amountSats <= 0) throw new Error('Enter an amount')
+    const paymentRequest = await requestLnurlInvoice(
+      destination.lnurlpUrl,
+      amountSats,
+      comment,
+    )
+    const invoice = parseDestination(paymentRequest)
+    const invoiceAmount =
+      invoice.kind === 'invoice' ? invoice.amountSats ?? amountSats : amountSats
+    const expiresAt = invoice.kind === 'invoice' ? invoice.expiresAt : null
+
+    return {
+      paymentRequest,
+      amountSats: invoiceAmount,
+      expiresAt,
+      feeSats: null,
+      feeQuoteStatus: 'unavailable',
+      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE,
+    }
+  }
+
+  throw new Error('Zaps to npubs are not supported yet')
+}
+
+export async function payQuotedInvoice(
+  nwcString: string,
+  quote: PaymentQuote,
+): Promise<PayResult> {
+  return payInvoice(nwcString, quote.paymentRequest, quote.payAmountSats)
 }
 
 /**

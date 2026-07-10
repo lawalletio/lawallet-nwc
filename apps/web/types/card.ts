@@ -13,6 +13,8 @@ export type Card = {
   otc?: string
   /** RemoteWallet this card spends from, or null if unbound. */
   remoteWalletId?: string | null
+  /** Authenticated owner's default spend wallet, only present on wallet-scoped reads. */
+  defaultRemoteWalletId?: string | null
   /** Card kind. SIMPLE supports ownership-transfer; MASTER reserved for sharing. */
   kind?: 'SIMPLE' | 'MASTER'
   /**
@@ -20,4 +22,6 @@ export type Card = {
    * decommissioned and can only be re-wiped or deleted, never re-used.
    */
   blocked?: boolean
+  /** True when the card owner has temporarily paused tap-to-pay. */
+  disabled?: boolean
 }

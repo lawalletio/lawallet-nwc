@@ -10,6 +10,7 @@ describe('buildCardInfo', () => {
       userId: 'u1',
       lastUsedAt: new Date('2026-01-02T03:04:05.000Z'),
       blockedAt: null,
+      disabledAt: null,
       design: { description: 'Design', imageUrl: 'https://x/i.png' },
       user: { pubkey: 'pk', lightningAddresses: [{ username: 'alice' }] }
     })
@@ -20,6 +21,7 @@ describe('buildCardInfo', () => {
       paired: true,
       used: true,
       blocked: false,
+      disabled: false,
       design: { description: 'Design', imageUrl: 'https://x/i.png' },
       user: { pubkey: 'pk', username: 'alice' },
       lastUsedAt: '2026-01-02T03:04:05.000Z'
@@ -34,12 +36,14 @@ describe('buildCardInfo', () => {
       userId: null,
       lastUsedAt: null,
       blockedAt: null,
+      disabledAt: null,
       design: null,
       user: null
     })
     expect(info.paired).toBe(false)
     expect(info.used).toBe(false)
     expect(info.blocked).toBe(false)
+    expect(info.disabled).toBe(false)
     expect(info.user).toBeNull()
     expect(info.lastUsedAt).toBeNull()
   })
@@ -52,6 +56,7 @@ describe('buildCardInfo', () => {
       userId: 'u1',
       lastUsedAt: null,
       blockedAt: null,
+      disabledAt: null,
       design: null,
       user: { pubkey: 'pk', lightningAddresses: [] }
     })
@@ -67,9 +72,27 @@ describe('buildCardInfo', () => {
       userId: null,
       lastUsedAt: null,
       blockedAt: new Date('2026-01-02T03:04:05.000Z'),
+      disabledAt: null,
       design: null,
       user: null
     })
     expect(info.blocked).toBe(true)
+  })
+
+  it('reports disabled when the owner has paused the card', () => {
+    const info = buildCardInfo({
+      id: 'c5',
+      title: null,
+      kind: 'SIMPLE',
+      userId: 'u1',
+      lastUsedAt: null,
+      blockedAt: null,
+      disabledAt: new Date('2026-01-03T03:04:05.000Z'),
+      design: null,
+      user: { pubkey: 'pk', lightningAddresses: [] }
+    })
+
+    expect(info.disabled).toBe(true)
+    expect(info.blocked).toBe(false)
   })
 })

@@ -2,7 +2,11 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import type { NostrSigner } from '@nostrify/nostrify'
-import { Role, Permission, hasPermission as checkPermission } from '@/lib/auth/permissions'
+import {
+  Role,
+  Permission,
+  hasPermission as checkPermission,
+} from '@/lib/auth/permissions'
 import { exchangeNip98ForJwt, validateJwt } from '@/lib/client/auth-api'
 import { createApiClient, type ApiClient } from '@/lib/client/api-client'
 import {
@@ -35,6 +39,22 @@ const SIGNER_SECRET_KEY = 'lawallet-signer-secret'
 
 // How many ms before JWT expiry to trigger refresh
 const REFRESH_BUFFER_MS = 5 * 60 * 1000
+
+const EMPTY_AUTH_STATE: AuthState = {
+  status: 'loading',
+  jwt: null,
+  pubkey: null,
+  role: null,
+  permissions: null,
+  signer: null,
+  loginMethod: null,
+}
+
+declare global {
+  interface Window {
+    __lawalletHistoryRestoreGuardInstalled?: boolean
+  }
+}
 
 export type LoginMethod = 'nsec' | 'bunker' | 'extension'
 export type AuthStatus = 'loading' | 'unauthenticated' | 'authenticated'
@@ -88,16 +108,30 @@ export function useAuth(): AuthContextValue {
   return ctx
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    status: 'loading',
-    jwt: null,
-    pubkey: null,
-    role: null,
-    permissions: null,
-    signer: null,
-    loginMethod: null,
+function installHistoryRestoreGuard() {
+  if (typeof window === 'undefined') return
+  if (window.__lawalletHistoryRestoreGuardInstalled) return
+
+  window.__lawalletHistoryRestoreGuardInstalled = true
+  window.addEventListener('pageshow', event => {
+    if (!event.persisted) return
+    if (!window.location.pathname.startsWith('/wallet')) return
+
+    window.setTimeout(() => {
+      const loadingIndicator = document.querySelector(
+        '[role="progressbar"][aria-label="Loading"]',
+      )
+      const hasStoredJwt = Boolean(window.localStorage.getItem(JWT_STORAGE_KEY))
+
+      if (loadingIndicator && hasStoredJwt) {
+        window.location.reload()
+      }
+    }, 100)
   })
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<AuthState>(EMPTY_AUTH_STATE)
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -224,49 +258,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check for existing JWT on mount
   useEffect(() => {
+    installHistoryRestoreGuard()
+
+    let cancelled = false
+
+    async function restoreStoredSigner(
+      storedMethod: LoginMethod | null,
+    ): Promise<NostrSigner | null> {
+      let signer: NostrSigner | null = null
+      const storedSecret = localStorage.getItem(SIGNER_SECRET_KEY)
+
+      if (storedMethod === 'extension' && hasBrowserExtension()) {
+        try {
+          signer = createBrowserSigner()
+        } catch {
+          // Extension not available, continue without signer
+        }
+      } else if (storedMethod === 'nsec' && storedSecret) {
+        try {
+          signer = createNsecSigner(storedSecret)
+        } catch {
+          // Stored secret is malformed — drop it so we don't keep
+          // failing on every reload.
+          localStorage.removeItem(SIGNER_SECRET_KEY)
+        }
+      } else if (storedMethod === 'bunker' && storedSecret) {
+        try {
+          signer = await createBunkerSigner(storedSecret, { timeout: 15_000 })
+        } catch {
+          // Bunker relay unreachable or signer rejected the resume.
+          // Keep the secret so a manual retry can pick it up later.
+        }
+      }
+
+      return signer
+    }
+
     async function checkExistingAuth() {
       const storedToken = localStorage.getItem(JWT_STORAGE_KEY)
       const storedMethod = localStorage.getItem(LOGIN_METHOD_KEY) as LoginMethod | null
 
       if (!storedToken) {
+        if (cancelled) return
         setState((prev) => ({ ...prev, status: 'unauthenticated' }))
         return
       }
 
       try {
         const validation = await validateJwt(storedToken)
-
-        // Try to restore the signer based on the stored method:
-        // - extension: rebuild from `window.nostr` if still installed
-        // - nsec: re-derive an NSecSigner from the persisted secret
-        // - bunker: reconnect to the persisted bunker URL (relay round-trip)
-        // Failures here aren't fatal — the user just sees the unlock
-        // dialog the next time something asks for `requestSigner()`.
-        let signer: NostrSigner | null = null
-        const storedSecret = localStorage.getItem(SIGNER_SECRET_KEY)
-
-        if (storedMethod === 'extension' && hasBrowserExtension()) {
-          try {
-            signer = createBrowserSigner()
-          } catch {
-            // Extension not available, continue without signer
-          }
-        } else if (storedMethod === 'nsec' && storedSecret) {
-          try {
-            signer = createNsecSigner(storedSecret)
-          } catch {
-            // Stored secret is malformed — drop it so we don't keep
-            // failing on every reload.
-            localStorage.removeItem(SIGNER_SECRET_KEY)
-          }
-        } else if (storedMethod === 'bunker' && storedSecret) {
-          try {
-            signer = await createBunkerSigner(storedSecret, { timeout: 15_000 })
-          } catch {
-            // Bunker relay unreachable or signer rejected the resume.
-            // Keep the secret so a manual retry can pick it up later.
-          }
-        }
+        if (cancelled) return
 
         setState({
           status: 'authenticated',
@@ -274,21 +314,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           pubkey: validation.pubkey,
           role: validation.role,
           permissions: validation.permissions,
-          signer,
+          signer: null,
           loginMethod: storedMethod,
         })
 
-        scheduleRefresh(validation.expiresAt, signer)
+        scheduleRefresh(validation.expiresAt, null)
+
+        // Try to restore the signer based on the stored method:
+        // - extension: rebuild from `window.nostr` if still installed
+        // - nsec: re-derive an NSecSigner from the persisted secret
+        // - bunker: reconnect to the persisted bunker URL (relay round-trip)
+        // Failures here aren't fatal — the user just sees the unlock
+        // dialog the next time something asks for `requestSigner()`.
+        void restoreStoredSigner(storedMethod).then(signer => {
+          if (cancelled || !signer) return
+          setState(prev => {
+            if (prev.jwt !== storedToken || prev.status !== 'authenticated') {
+              return prev
+            }
+            return { ...prev, signer, loginMethod: storedMethod }
+          })
+          scheduleRefresh(validation.expiresAt, signer)
+        })
       } catch {
         // Token invalid or expired
         localStorage.removeItem(JWT_STORAGE_KEY)
         localStorage.removeItem(LOGIN_METHOD_KEY)
         localStorage.removeItem(SIGNER_SECRET_KEY)
+        if (cancelled) return
         setState((prev) => ({ ...prev, status: 'unauthenticated' }))
       }
     }
 
+    function recheckAuthOnHistoryRestore(event: PageTransitionEvent) {
+      if (!event.persisted) return
+      void checkExistingAuth()
+    }
+
+    function recheckAuthWhenVisible() {
+      if (document.visibilityState !== 'visible') return
+      void checkExistingAuth()
+    }
+
     checkExistingAuth()
+    window.addEventListener('pageshow', recheckAuthOnHistoryRestore)
+    document.addEventListener('visibilitychange', recheckAuthWhenVisible)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('pageshow', recheckAuthOnHistoryRestore)
+      document.removeEventListener('visibilitychange', recheckAuthWhenVisible)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

@@ -13,15 +13,36 @@ import { TABLE_DESCRIPTORS } from '@/lib/backup/tables'
 
 // Enums mirror prisma/schema.prisma exactly.
 const userRole = z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER'])
-const lightningAddressMode = z.enum(['IDLE', 'ALIAS', 'CUSTOM_NWC', 'DEFAULT_NWC'])
+const lightningAddressMode = z.enum([
+  'IDLE',
+  'ALIAS',
+  'CUSTOM_NWC',
+  'DEFAULT_NWC'
+])
 const remoteWalletType = z.enum(['NWC', 'LND', 'CLN', 'BTCPAY'])
 const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED', 'DEAD'])
 const cardKind = z.enum(['SIMPLE', 'MASTER'])
 const activationQrKind = z.enum(['ONE_TIME', 'FOREVER'])
-const activationTokenStatus = z.enum(['PENDING', 'CLAIMED', 'REVOKED', 'EXPIRED'])
-const invoicePurpose = z.enum(['REGISTRATION', 'WALLET_ADDRESS', 'LUD16_PAYMENT'])
+const activationTokenStatus = z.enum([
+  'PENDING',
+  'CLAIMED',
+  'REVOKED',
+  'EXPIRED'
+])
+const invoicePurpose = z.enum([
+  'REGISTRATION',
+  'WALLET_ADDRESS',
+  'LUD16_PAYMENT'
+])
 const invoiceStatus = z.enum(['PENDING', 'PAID', 'EXPIRED'])
-const activityCategory = z.enum(['USER', 'ADDRESS', 'NWC', 'INVOICE', 'CARD', 'SERVER'])
+const activityCategory = z.enum([
+  'USER',
+  'ADDRESS',
+  'NWC',
+  'INVOICE',
+  'CARD',
+  'SERVER'
+])
 const activityLevel = z.enum(['INFO', 'WARN', 'ERROR'])
 const nostrProfileImageKind = z.enum(['AVATAR', 'COVER'])
 
@@ -37,7 +58,7 @@ const userRow = z.object({
   albyEnabled: z.boolean(),
   role: userRole,
   relays: z.string().nullable(),
-  relaysUpdatedAt: nullableDate,
+  relaysUpdatedAt: nullableDate
 })
 
 const cardDesignRow = z.object({
@@ -46,7 +67,7 @@ const cardDesignRow = z.object({
   description: z.string(),
   createdAt: date,
   archivedAt: nullableDate,
-  userId: z.string().nullable(),
+  userId: z.string().nullable()
 })
 
 const ntag424Row = z.object({
@@ -58,7 +79,7 @@ const ntag424Row = z.object({
   k4: z.string(),
   ctr: z.number().int(),
   createdAt: date,
-  userId: z.string().nullable(),
+  userId: z.string().nullable()
 })
 
 const remoteWalletRow = z.object({
@@ -71,7 +92,7 @@ const remoteWalletRow = z.object({
   isDefault: z.boolean(),
   createdAt: date,
   updatedAt: date,
-  diedAt: nullableDate,
+  diedAt: nullableDate
 })
 
 const lightningAddressRow = z.object({
@@ -82,7 +103,7 @@ const lightningAddressRow = z.object({
   remoteWalletId: z.string().nullable(),
   isPrimary: z.boolean(),
   createdAt: date,
-  updatedAt: date,
+  updatedAt: date
 })
 
 const cardRow = z.object({
@@ -100,6 +121,7 @@ const cardRow = z.object({
   writeToken: z.string().nullable(),
   writeTokenExpiresAt: nullableDate,
   blockedAt: nullableDate,
+  disabledAt: nullableDate
 })
 
 const cardActivationTokenRow = z.object({
@@ -112,7 +134,7 @@ const cardActivationTokenRow = z.object({
   expiresAt: nullableDate,
   claimedAt: nullableDate,
   claimedByUserId: z.string().nullable(),
-  createdAt: date,
+  createdAt: date
 })
 
 const albySubAccountRow = z.object({
@@ -121,14 +143,14 @@ const albySubAccountRow = z.object({
   username: z.string().nullable(),
   nwcUri: z.string(),
   nostrPubkey: z.string().nullable(),
-  createdAt: date,
+  createdAt: date
 })
 
 const settingsRow = z.object({
   name: z.string().min(1),
   value: z.string(),
   createdAt: date,
-  updatedAt: date,
+  updatedAt: date
 })
 
 const invoiceRow = z.object({
@@ -144,7 +166,7 @@ const invoiceRow = z.object({
   userId: z.string().nullable(),
   expiresAt: date,
   paidAt: nullableDate,
-  createdAt: date,
+  createdAt: date
 })
 
 const activityLogRow = z.object({
@@ -156,7 +178,7 @@ const activityLogRow = z.object({
   message: z.string(),
   reqId: z.string().nullable(),
   userId: z.string().nullable(),
-  metadata: json.nullable(),
+  metadata: json.nullable()
 })
 
 const nostrProfileCacheRow = z.object({
@@ -176,7 +198,7 @@ const nostrProfileCacheRow = z.object({
   lastFetchAttemptAt: nullableDate,
   lastFetchError: z.string().nullable(),
   createdAt: date,
-  updatedAt: date,
+  updatedAt: date
 })
 
 const nostrProfileImageCacheRow = z.object({
@@ -191,7 +213,7 @@ const nostrProfileImageCacheRow = z.object({
   failedAt: nullableDate,
   lastError: z.string().nullable(),
   createdAt: date,
-  updatedAt: date,
+  updatedAt: date
 })
 
 const pluginRecordRow = z.object({
@@ -201,10 +223,13 @@ const pluginRecordRow = z.object({
   key: z.string(),
   data: json,
   createdAt: date,
-  updatedAt: date,
+  updatedAt: date
 })
 
-export const ROW_SCHEMAS: Record<BackupTableName, z.ZodType<Record<string, unknown>>> = {
+export const ROW_SCHEMAS: Record<
+  BackupTableName,
+  z.ZodType<Record<string, unknown>>
+> = {
   users: userRow,
   cardDesigns: cardDesignRow,
   ntag424s: ntag424Row,
@@ -218,7 +243,7 @@ export const ROW_SCHEMAS: Record<BackupTableName, z.ZodType<Record<string, unkno
   settings: settingsRow,
   nostrProfileCache: nostrProfileCacheRow,
   nostrProfileImageCache: nostrProfileImageCacheRow,
-  pluginRecords: pluginRecordRow,
+  pluginRecords: pluginRecordRow
 }
 
 /**
@@ -228,7 +253,7 @@ export const ROW_SCHEMAS: Record<BackupTableName, z.ZodType<Record<string, unkno
  */
 export function toPrismaData(
   table: BackupTableName,
-  row: Record<string, unknown>,
+  row: Record<string, unknown>
 ): Record<string, unknown> {
   const desc = TABLE_DESCRIPTORS[table]
   if (desc.jsonNullableFields.length === 0) return { ...row }

@@ -761,7 +761,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                   // No wallets yet \u2014 wallets are created on the Remote Wallets
                   // page, so point the user there instead of an inline form.
                   <p className="text-xs text-muted-foreground">
-                    You don't have any wallets yet.{' '}
+                    You don&apos;t have any wallets yet.{' '}
                     <Link href="/admin/remote-wallets" className="underline">
                       Add one on the Remote Wallets page
                     </Link>{' '}

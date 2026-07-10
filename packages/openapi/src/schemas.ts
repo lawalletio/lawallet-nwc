@@ -19,6 +19,7 @@ import {
   lud16UsernameParam,
   otcParam,
   payActionQuerySchema,
+  probeAliasAddressSchema,
   remoteWalletListQuerySchema,
   scanCardQuerySchema,
   settingsBodySchema,
@@ -26,6 +27,7 @@ import {
   updateLightningAddressSchema,
   updateRemoteWalletSchema,
   updateRoleSchema,
+  updateWalletCardSchema,
   updateWalletAddressSchema,
   userIdParam,
   walletAddressUsernameParam,
@@ -101,6 +103,17 @@ export const schemas = {
   WalletAddressUpdateRequest: registry.register(
     'WalletAddressUpdateRequest',
     updateWalletAddressSchema,
+  ),
+  WalletAliasProbeRequest: registry.register(
+    'WalletAliasProbeRequest',
+    probeAliasAddressSchema,
+  ),
+  WalletCardUpdateRequest: registry.register(
+    'WalletCardUpdateRequest',
+    updateWalletCardSchema.openapi({
+      description:
+        'Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, or set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet.',
+    }),
   ),
 
   // ── Users ─────────────────────────────────────────────────────────────

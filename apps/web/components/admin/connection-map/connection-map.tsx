@@ -463,8 +463,8 @@ function ConnectionMapInner() {
           onEdgesChange={onEdgesChange}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          // The admin shell is `forcedTheme="dark"` via next-themes, so we
-          // hardcode dark here too. This flips xyflow's internal CSS vars
+          // The app shell is always dark, so we hardcode dark here too.
+          // This flips xyflow's internal CSS vars
           // (background, edge default colors, MiniMap, etc.) to dark-mode
           // values. Our `connection-map.css` further tunes the Controls
           // panel to match the admin palette.

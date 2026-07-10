@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import Image from 'next/image'
 import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
 import packageJson from '../../package.json'
@@ -7,6 +8,10 @@ import packageJson from '../../package.json'
 // Resolved at build time from `apps/web/package.json` so a release bump flows
 // through without editing this file.
 const APP_VERSION = packageJson.version
+const JWT_STORAGE_KEY = 'lawallet-jwt'
+const RECOVERY_STORAGE_KEY = 'lawallet-loading-recovery-at'
+const RECOVERY_DELAY_MS = 9_000
+const RECOVERY_COOLDOWN_MS = 30_000
 
 /**
  * Full-screen branded loading state shown while the wallet hydrates. Replaces
@@ -16,6 +21,26 @@ const APP_VERSION = packageJson.version
  */
 export function WalletLoadingScreen() {
   const { isotypo } = useBrandLogotypes()
+
+  useEffect(() => {
+    if (!window.location.pathname.startsWith('/wallet')) return
+
+    const timer = window.setTimeout(() => {
+      const hasStoredJwt = Boolean(window.localStorage.getItem(JWT_STORAGE_KEY))
+      const lastRecoveryAt = Number(
+        window.sessionStorage.getItem(RECOVERY_STORAGE_KEY) ?? '0',
+      )
+
+      if (!hasStoredJwt || Date.now() - lastRecoveryAt < RECOVERY_COOLDOWN_MS) {
+        return
+      }
+
+      window.sessionStorage.setItem(RECOVERY_STORAGE_KEY, String(Date.now()))
+      window.location.reload()
+    }, RECOVERY_DELAY_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [])
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background px-8">

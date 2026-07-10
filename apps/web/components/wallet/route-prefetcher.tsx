@@ -12,7 +12,10 @@ const WALLET_ROUTES = [
   '/wallet/receive',
   '/wallet/send',
   '/wallet/scan',
-  '/wallet/settings'
+  '/wallet/settings',
+  '/wallet/settings/cards',
+  '/wallet/settings/security',
+  '/wallet/settings/remote-wallets'
 ] as const
 
 /**

@@ -2,6 +2,8 @@ import type { NostrSigner } from '@nostrify/nostrify'
 import { createNip98Token } from '@/lib/nip98-client'
 import type { Role, Permission } from '@/lib/auth/permissions'
 
+const DEFAULT_AUTH_TIMEOUT_MS = 8_000
+
 export interface JwtResponse {
   token: string
   expiresIn: string
@@ -62,13 +64,32 @@ export async function exchangeNip98ForJwt(
  * Validate an existing JWT token.
  * Returns user info (pubkey, role, permissions) if valid.
  */
-export async function validateJwt(token: string): Promise<JwtValidation> {
-  const response = await fetch('/api/jwt', {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  })
+export async function validateJwt(
+  token: string,
+  opts: { timeoutMs?: number } = {},
+): Promise<JwtValidation> {
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_AUTH_TIMEOUT_MS
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs)
+
+  let response: Response
+  try {
+    response = await fetch('/api/jwt', {
+      signal: controller.signal,
+      cache: 'no-store',
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('JWT validation timed out')
+    }
+    throw err
+  } finally {
+    window.clearTimeout(timer)
+  }
 
   if (!response.ok) {
     throw new Error('Invalid or expired token')
