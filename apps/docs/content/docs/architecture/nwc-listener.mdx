@@ -1,6 +1,6 @@
 ---
-title: "NWC Payment Listener"
-description: "Transport-only relay bridge: live NWC connections, payment webhooks, and a fast path for outgoing NWC calls."
+title: 'NWC Payment Listener'
+description: 'Transport-only relay bridge: live NWC connections, payment webhooks, and a fast path for outgoing NWC calls.'
 ---
 
 ## Overview
@@ -24,10 +24,16 @@ received.
   reconciles its connection pool per notification (with a periodic full
   reconcile as a safety net). No polling.
 - **Live pool** — one `@getalby/sdk` client per active NWC wallet, subscribed
-  to `payment_received` / `payment_sent`, auto-reconnecting with backoff.
+  to `payment_received` / `payment_sent`, auto-reconnecting with backoff. A
+  client becomes `ready` only after a `get_info` negotiation proves the NWC
+  request/response channel works.
 - **Persistent dedup** — processed events land in a service-owned `listener`
   schema in the shared Postgres (atomic claim, ~30-day retention), which also
   powers the dashboard's recent-events feed and webhook delivery tracking.
+- **Idempotent outgoing payments** — card payments are claimed in
+  `listener.nwc_requests` before NWC dispatch. Repeated callbacks join the
+  original operation, while notifications and `lookup_invoice` reconcile
+  late/ambiguous outcomes without republishing.
 - **Missed-event recovery** — a persisted per-wallet cursor anchors a hybrid
   catch-up after downtime: the wallet's own `list_transactions` ledger
   (primary, relay-independent) plus a best-effort relay replay, both feeding
@@ -44,23 +50,27 @@ received.
   `HMAC-SHA256(secret, "<timestamp>.<body>")`, retried with backoff and swept
   again later if the web app was down. Full contract
   [below](#webhook-post-apiwebhooksnwc-listener--web).
-- **HTTP API** — `GET /health`, `GET /status` (bearer-authenticated), and
-  `POST /nwc/request` to proxy NWC calls over the pool. Full reference
-  [below](#http-api).
+- **HTTP API** — health/readiness/status, wallet-ID-routed idempotent card
+  payments, and the backward-compatible `/nwc/request` general proxy. Full
+  reference [below](#http-api).
 
 ## HTTP API
 
-Three endpoints, served by the listener itself (default port `4100`).
-Authenticated endpoints require
-`Authorization: Bearer <LISTENER_AUTH_SECRET>` (compared constant-time).
+The listener serves the following endpoints on port `4100`. Authenticated
+endpoints require `Authorization: Bearer <LISTENER_REQUEST_AUTH_SECRET>`
+(compared constant-time); when the dedicated request secret is unset, it
+falls back to `LISTENER_AUTH_SECRET`.
 All schemas are defined in `packages/shared/src/listener.ts` — both services
 import the same Zod definitions, so the shapes below cannot drift.
 
-| Endpoint | Auth | Purpose |
-|----------|------|---------|
-| `GET /health` | none | Liveness — used by container healthchecks |
-| `GET /status` | Bearer | Relays, connections, counters, recent events |
-| `POST /nwc/request` | Bearer | Proxy an NWC call over the pooled connection |
+| Endpoint                          | Auth   | Purpose                                                    |
+| --------------------------------- | ------ | ---------------------------------------------------------- |
+| `GET /health`                     | none   | Liveness — used by container healthchecks                  |
+| `GET /ready`                      | none   | Capability advertisement and ready/not-ready wallet counts |
+| `GET /status`                     | Bearer | Relays, connections, counters, recent events               |
+| `POST /v1/nwc/payments`           | Bearer | Start or join an idempotent card payment                   |
+| `GET /v1/nwc/payments/:requestId` | Bearer | Read/reconcile a durable payment outcome                   |
+| `POST /nwc/request`               | Bearer | Proxy an NWC call over the pooled connection               |
 
 ### GET /health
 
@@ -70,6 +80,20 @@ container for a transient Postgres blip):
 
 ```json
 { "status": "ok", "db": true }
+```
+
+### GET /ready
+
+No auth. The stable capability name lets web probe support outside a payment
+request; wallet counts distinguish service readiness from per-wallet NWC
+readiness:
+
+```json
+{
+  "status": "ready",
+  "capabilities": ["nwc_payments_v1"],
+  "wallets": { "total": 12, "ready": 11, "notReady": 1 }
+}
 ```
 
 ### GET /status
@@ -91,7 +115,8 @@ proxies it through `GET /api/admin/listener/status`). Response
     walletId: string
     walletName?: string | null
     userId?: string | null
-    state: 'connecting' | 'subscribed' | 'error' | 'closed'
+    state: 'connecting' | 'negotiating' | 'ready' | 'disconnected'
+         | 'error' | 'closed'
     connected: boolean
     relayUrls: string[]
     lastEventAt: string | null    // ISO — null until the first event
@@ -107,6 +132,9 @@ proxies it through `GET /api/admin/listener/status`). Response
     webhooksPending?: number      // currently-undelivered, still retrying (0 = caught up)
     nwcRequests: number
     nwcRequestErrors: number
+    nwcPayments?: number           // unique idempotent NWC dispatches
+    nwcPaymentDuplicates?: number  // joined in-memory/durable requests
+    nwcPaymentsPending?: number    // foreground SDK operations still running
     eventsRecovered?: number      // synthesized by downtime catch-up
     catchupRuns?: number
     catchupErrors?: number
@@ -125,10 +153,62 @@ proxies it through `GET /api/admin/listener/status`). Response
 }
 ```
 
+### POST /v1/nwc/payments
+
+Card payments use a dedicated wallet-ID-routed contract; the credential-bearing
+NWC connection string never crosses this endpoint:
+
+```ts
+{
+  requestId: string   // sha256(walletId|paymentHash), 64-hex
+  walletId: string
+  invoice: string
+  paymentHash: string // 64-hex
+  waitMs?: number     // 100–8000, default 8000
+}
+```
+
+The listener atomically claims `requestId` in its service-owned
+`listener.nwc_requests` table before dispatch. Concurrent duplicates share one
+promise; durable duplicates return the stored outcome; a different payload
+under the same ID returns `409 request_conflict`. A missing wallet receives a
+targeted database reconcile before the listener returns `not_started`.
+
+The HTTP request long-polls for at most eight seconds. If it returns `202`, the
+SDK operation keeps running and journals its eventual result—the HTTP timeout
+does not cancel NWC. The response is:
+
+```ts
+{ ok: true, status: 'succeeded', requestId, preimage, feesPaidMsats }
+| {
+    ok: false
+    status: 'pending' | 'unknown' | 'rejected' | 'not_started'
+    requestId
+    error?: { code, message, walletErrorCode? }
+  }
+```
+
+Only `not_started` proves the listener never invoked NWC and permits web to use
+its direct connection. `pending`, `unknown`, a POST timeout/reset, or an
+unexpected response are ambiguous and must never fall back to another
+`pay_invoice`. Wallet rejections are terminal.
+
+### GET /v1/nwc/payments/:requestId
+
+Returns the same response contract from the durable journal without publishing
+another payment. For `pending`/`unknown`, the listener may run read-only
+`lookup_invoice`; matching `payment_sent` notifications also resolve the row.
+Both paths require a preimage whose SHA-256 equals the stored payment hash.
+
+On listener restart, interrupted rows before the dispatch boundary become
+`not_started`; rows at or beyond it become `unknown`. They are reconciled,
+never automatically republished. Request IDs remain as durable idempotency
+tombstones; `EVENT_RETENTION_DAYS` applies to event/feed history, not payments.
+
 ### POST /nwc/request
 
-Bearer-authenticated. Executes an NWC call over the already-open relay
-socket — the card-withdraw / invoice-minting fast path. Request
+Bearer-authenticated. Executes a general NWC call over the already-open relay
+socket for non-card operations and compatibility. Request
 (`nwcProxyRequestSchema`):
 
 ```ts
@@ -155,22 +235,33 @@ Response (`nwcProxyResponseSchema`):
 ```
 
 ```json
-{ "ok": false, "error": { "code": "wallet_error", "walletErrorCode": "INSUFFICIENT_BALANCE", "message": "…" } }
+{
+  "ok": false,
+  "error": {
+    "code": "wallet_error",
+    "walletErrorCode": "INSUFFICIENT_BALANCE",
+    "message": "…"
+  }
+}
 ```
 
-| Error code | HTTP | Meaning | Caller may fall back to direct NWC? |
-|------------|------|---------|-------------------------------------|
-| `validation_error` | 400 | Bad request body | yes |
-| `wallet_not_found` | 404 | No pooled connection for that string | yes |
-| `wallet_not_connected` | 503 | Pool entry connecting / errored | yes |
-| `wallet_error` | 502 | The wallet's own NIP-47 rejection (`walletErrorCode`) | **no — final** |
-| `timeout` | 504 | No reply within the window | yes |
-| `relay_error` | 502 | Other transport failure | yes |
+| Error code             | HTTP | Meaning                                               | Caller may fall back to direct NWC? |
+| ---------------------- | ---- | ----------------------------------------------------- | ----------------------------------- |
+| `validation_error`     | 400  | Bad request body                                      | yes                                 |
+| `wallet_not_found`     | 404  | No pooled connection for that string                  | yes                                 |
+| `wallet_not_connected` | 503  | Pool entry connecting / errored                       | yes                                 |
+| `wallet_error`         | 502  | The wallet's own NIP-47 rejection (`walletErrorCode`) | **no — final**                      |
+| `timeout`              | 504  | No reply within the window                            | yes                                 |
+| `relay_error`          | 502  | Other transport failure                               | yes                                 |
 
-Transport-level codes (`wallet_not_found`, `wallet_not_connected`, `timeout`,
-`relay_error`) mean the call never reached the wallet, so the web app retries
-over its direct per-request relay path. `wallet_error` is a decision made by
-the wallet itself and must never be retried through a second transport.
+Legacy callers map transport-level codes (`wallet_not_found`,
+`wallet_not_connected`, `timeout`, `relay_error`) to their existing fallback
+policy. `wallet_error` is a decision made by the wallet itself and must never
+be retried through a second transport.
+
+`/nwc/request` remains available for non-payment methods and older web
+deployments. New card payments use `/v1/nwc/payments` specifically so an
+ambiguous timeout cannot cause a second payment through the direct path.
 
 ## Webhook: POST /api/webhooks/nwc (listener → web)
 
@@ -180,9 +271,9 @@ contract — deliberately absent from the public OpenAPI spec.
 
 ### Signature
 
-| Header | Value |
-|--------|-------|
-| `X-LaWallet-Timestamp` | Unix **milliseconds** at signing time |
+| Header                 | Value                                                                 |
+| ---------------------- | --------------------------------------------------------------------- |
+| `X-LaWallet-Timestamp` | Unix **milliseconds** at signing time                                 |
 | `X-LaWallet-Signature` | `sha256=<lowercase hex HMAC-SHA256(secret, "<timestamp>.<rawBody>")>` |
 
 The secret is the shared `LISTENER_AUTH_SECRET`. The receiver verifies with a
@@ -225,7 +316,7 @@ share the base fields:
 ```
 
 Only `paymentHash` and `transaction` are guaranteed; the rest is optional and
-lifted verbatim from what the wallet reported (`settledAt` is unix *seconds*,
+lifted verbatim from what the wallet reported (`settledAt` is unix _seconds_,
 per NIP-47). The raw notification always travels untouched in `transaction` —
 the web app owns all business interpretation.
 
@@ -280,10 +371,17 @@ exactly what to fix.
 
 The pairing is configured in **Admin → Settings → NWC Services** (listener
 URL + shared secret + enable toggle, stored in the Settings DB) with the
-`LISTENER_URL` / `LISTENER_AUTH_SECRET` environment variables as zero-config
-defaults — Docker Compose, Umbrel and Start9 bundles set those automatically.
+`LISTENER_URL` / `LISTENER_AUTH_SECRET` environment variables as deployment
+defaults. Docker Compose leaves them blank unless the operator enables the
+optional `listener` profile; appliance bundles may provision them explicitly.
 Settings values override the environment; the toggle can force the
 integration off either way.
+
+Env-managed deployments may additionally set `LISTENER_REQUEST_AUTH_SECRET`
+on both services to separate web→listener bearer authentication from
+listener→web webhook signing. If omitted, request auth falls back to
+`LISTENER_AUTH_SECRET`; the existing Settings secret remains the compatibility
+shared credential.
 
 The admin dashboard at **Admin → NWC Listener** (visible only while the
 integration is enabled) shows active relays, live NWC connections, recent
@@ -291,8 +389,8 @@ events and webhook delivery state.
 
 ## Deployment
 
-Ships as its own container (`apps/listener/Dockerfile`) and starts
-automatically in the Docker Compose stack. For Vercel/Netlify deployments it
+Ships as its own container (`apps/listener/Dockerfile`) behind the optional
+Docker Compose `listener` profile. For Vercel/Netlify deployments it
 must be hosted separately (Railway, Render, Fly.io, a VPS) — see the
 [NWC Listener Setup guide](/docs/deploy/listener-setup).
 

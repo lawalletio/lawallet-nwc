@@ -37,11 +37,11 @@ services:
       # the server. (Baked into the image from the next release; kept here so
       # this compose also works against older published tags.)
       HOSTNAME: 0.0.0.0
-      # NWC listener pairing — pre-wired so the integration works
-      # out-of-the-box (env-auto). The web app still runs if the listener
-      # container is stopped; NWC calls fall back to per-request connections.
-      LISTENER_URL: http://listener:4100
-      LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-change_me_shared_listener_secret_32_chars}
+      # Optional NWC listener pairing. Leave blank for a web-only deployment;
+      # opt in with the listener profile and an operator-generated secret.
+      LISTENER_URL: ${LISTENER_URL:-}
+      LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-}
+      LISTENER_REQUEST_AUTH_SECRET: ${LISTENER_REQUEST_AUTH_SECRET:-${LISTENER_AUTH_SECRET:-}}
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,12 +54,16 @@ services:
       start_period: 40s
 
   listener:
+    profiles: ['listener']
     image: masize/lawallet-nwc-listener:${LAWALLET_TAG:-latest}
     pull_policy: always
+    expose:
+      - '4100'
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-lawallet}:${POSTGRES_PASSWORD:-lawallet_password}@postgres:5432/${POSTGRES_DB:-lawallet}
       LISTENER_PORT: 4100
-      LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-change_me_shared_listener_secret_32_chars}
+      LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-}
+      LISTENER_REQUEST_AUTH_SECRET: ${LISTENER_REQUEST_AUTH_SECRET:-${LISTENER_AUTH_SECRET:-}}
       WEB_ORIGIN: http://web:2288
       NODE_ENV: production
     depends_on:

@@ -95,6 +95,7 @@ describe('DELETE /api/cards/[id]', () => {
     mockAdmin()
     const card = createCardFixture({ ntag424Cid: 'ntag-cid-123' })
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(prismaMock.$queryRaw).mockResolvedValue([{ id: card.id }])
 
     const req = createNextRequest(`/api/cards/${card.id}`, { method: 'DELETE' })
     const res = await DELETE(req, createParamsPromise({ id: card.id }))
@@ -121,12 +122,31 @@ describe('DELETE /api/cards/[id]', () => {
     mockAdmin()
     const card = createCardFixture({ ntag424Cid: null })
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(prismaMock.$queryRaw).mockResolvedValue([{ id: card.id }])
 
     const req = createNextRequest(`/api/cards/${card.id}`, { method: 'DELETE' })
     const res = await DELETE(req, createParamsPromise({ id: card.id }))
     const body: any = await assertResponse(res, 200)
 
     expect(body.ntag424Cid).toBeNull()
+  })
+
+  it('refuses deletion while a card payment is unresolved', async () => {
+    mockAdmin()
+    const card = createCardFixture({ ntag424Cid: 'ntag-cid-123' })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(prismaMock.$queryRaw).mockResolvedValue([{ id: card.id }])
+    vi.mocked(prismaMock.cardPaymentAttempt.findFirst).mockResolvedValue({
+      id: 'attempt-pending'
+    } as any)
+
+    const req = createNextRequest(`/api/cards/${card.id}`, { method: 'DELETE' })
+    const res = await DELETE(req, createParamsPromise({ id: card.id }))
+    const body: any = await assertResponse(res, 409)
+
+    expect(body.error.message).toContain('unresolved payment')
+    expect(prismaMock.card.delete).not.toHaveBeenCalled()
+    expect(prismaMock.ntag424.delete).not.toHaveBeenCalled()
   })
 
   it('rejects non-admin', async () => {

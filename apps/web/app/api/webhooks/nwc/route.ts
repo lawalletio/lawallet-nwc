@@ -6,7 +6,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthenticationError,
   NotFoundError,
-  ValidationError,
+  ValidationError
 } from '@/types/server/errors'
 import {
   NWC_WEBHOOK_MAX_SKEW_MS,
@@ -14,12 +14,17 @@ import {
   NWC_WEBHOOK_SIGNATURE_PREFIX,
   NWC_WEBHOOK_TIMESTAMP_HEADER,
   nwcWebhookPayloadSchema,
-  type NwcWebhookPayload,
+  type NwcWebhookPayload
 } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
-import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
+import {
+  ActivityEvent,
+  invoiceLogMetadata,
+  logActivity
+} from '@/lib/activity-log'
 import { logger } from '@/lib/logger'
 import { clearPrimaryWalletLinkToWallet } from '@/lib/wallet/primary-wallet'
+import { succeedCardPaymentAttempt } from '@/lib/card-payments/lifecycle'
 
 /**
  * Internal machine-to-machine webhook from the NWC listener service
@@ -37,7 +42,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // Integration off (settings toggle or nothing configured) — 404 (a
   // QUIET_CLIENT_ERROR) so a misconfigured listener can't flood the activity
   // log, and the endpoint isn't advertised.
-  if (!listener.enabled || !listener.secret) {
+  const webhookSecret = listener.webhookSecret ?? listener.secret
+  if (!listener.enabled || !webhookSecret) {
     throw new NotFoundError('Not found')
   }
 
@@ -48,12 +54,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   const timestamp = parseInt(timestampHeader, 10)
-  if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > NWC_WEBHOOK_MAX_SKEW_MS) {
+  if (
+    !Number.isFinite(timestamp) ||
+    Math.abs(Date.now() - timestamp) > NWC_WEBHOOK_MAX_SKEW_MS
+  ) {
     throw new AuthenticationError('Webhook timestamp outside accepted window')
   }
 
   const raw = await request.text()
-  const expected = createHmac('sha256', listener.secret)
+  const expected = createHmac('sha256', webhookSecret)
     .update(`${timestampHeader}.${raw}`)
     .digest('hex')
   const presented = signatureHeader.startsWith(NWC_WEBHOOK_SIGNATURE_PREFIX)
@@ -82,12 +91,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       await handlePaymentReceived(event)
       break
     case 'payment_sent':
-      logActivity.fireAndForget({
-        category: 'NWC',
-        event: ActivityEvent.NWC_PAYMENT_SENT,
-        message: `NWC payment sent (${msatsToSats(event.payment.amountMsats)} sats)`,
-        metadata: webhookLogMetadata(event),
-      })
+      await handlePaymentSent(event)
       break
     case 'listener_error':
       logActivity.fireAndForget({
@@ -99,8 +103,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
           walletId: event.walletId ?? null,
           code: event.error.code,
           error: event.error.message,
-          source: 'nwc_listener',
-        },
+          source: 'nwc_listener'
+        }
       })
       break
     case 'wallet_dead':
@@ -116,6 +120,83 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 })
 
 type PaymentEvent = Extract<NwcWebhookPayload, { type: 'payment_received' }>
+type PaymentSentEvent = Extract<NwcWebhookPayload, { type: 'payment_sent' }>
+
+async function handlePaymentSent(event: PaymentSentEvent): Promise<void> {
+  logActivity.fireAndForget({
+    category: 'NWC',
+    event: ActivityEvent.NWC_PAYMENT_SENT,
+    message: `NWC payment sent (${msatsToSats(event.payment.amountMsats)} sats)`,
+    metadata: webhookLogMetadata(event)
+  })
+
+  const paymentHash = event.payment.paymentHash.toLowerCase()
+  const attempt = await prisma.cardPaymentAttempt.findUnique({
+    where: {
+      walletId_paymentHash: { walletId: event.walletId, paymentHash }
+    }
+  })
+  if (
+    !attempt ||
+    (attempt.status !== 'PENDING' && attempt.status !== 'UNKNOWN')
+  ) {
+    return
+  }
+
+  // A preimage is cryptographic proof that this exact invoice settled. Some
+  // wallets omit it from notifications; those attempts stay UNKNOWN and are
+  // resolved by listener journal lookup rather than being guessed successful.
+  if (!event.payment.preimage) {
+    logger.warn(
+      { requestId: attempt.requestId, paymentHash },
+      'nwc.payment_sent_missing_preimage'
+    )
+    return
+  }
+
+  try {
+    const transitioned = await succeedCardPaymentAttempt(
+      attempt,
+      {
+        preimage: event.payment.preimage,
+        feesPaidSats: msatsToSats(event.payment.feesPaidMsats),
+        feesPaidMsats: event.payment.feesPaidMsats ?? 0
+      },
+      attempt.transport
+    )
+    if (!transitioned) return
+
+    logger.info(
+      { requestId: attempt.requestId, paymentHash, walletId: event.walletId },
+      'nwc.webhook_card_payment_succeeded'
+    )
+    eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
+    logActivity.fireAndForget({
+      category: 'CARD',
+      event: ActivityEvent.CARD_PAYMENT,
+      message: `Card payment of ${attempt.amountMsats / 1000} sats`,
+      metadata: {
+        cardId: attempt.cardId,
+        requestId: attempt.requestId,
+        walletId: attempt.walletId,
+        amountMsats: attempt.amountMsats,
+        amountSats: attempt.amountMsats / 1000,
+        status: 'success',
+        transport: attempt.transport,
+        bolt11: attempt.bolt11,
+        paymentHash,
+        source: 'nwc_listener'
+      }
+    })
+  } catch (error) {
+    // Invalid/mismatched preimages never resolve the row. A later lookup can
+    // still provide valid proof without republishing the payment.
+    logger.error(
+      { err: error, requestId: attempt.requestId, paymentHash },
+      'nwc.payment_sent_preimage_mismatch'
+    )
+  }
+}
 
 async function handlePaymentReceived(event: PaymentEvent): Promise<void> {
   const paymentHash = event.payment.paymentHash.toLowerCase()
@@ -124,7 +205,7 @@ async function handlePaymentReceived(event: PaymentEvent): Promise<void> {
     category: 'NWC',
     event: ActivityEvent.NWC_PAYMENT_RECEIVED,
     message: `NWC payment received (${msatsToSats(event.payment.amountMsats)} sats)`,
-    metadata: webhookLogMetadata(event),
+    metadata: webhookLogMetadata(event)
   })
 
   const invoice = await prisma.invoice.findUnique({ where: { paymentHash } })
@@ -139,10 +220,13 @@ async function handlePaymentReceived(event: PaymentEvent): Promise<void> {
 
   await prisma.invoice.update({
     where: { paymentHash },
-    data: { status: 'PAID', preimage, paidAt },
+    data: { status: 'PAID', preimage, paidAt }
   })
 
-  logger.info({ paymentHash, walletId: event.walletId }, 'nwc.webhook_invoice_paid')
+  logger.info(
+    { paymentHash, walletId: event.walletId },
+    'nwc.webhook_invoice_paid'
+  )
   eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
   logActivity.fireAndForget({
     category: 'INVOICE',
@@ -155,8 +239,8 @@ async function handlePaymentReceived(event: PaymentEvent): Promise<void> {
       // whether it arrived via downtime catch-up rather than the live stream.
       remoteWalletId: event.walletId,
       recovered: event.recovered ?? false,
-      source: 'nwc_listener',
-    },
+      source: 'nwc_listener'
+    }
   })
 }
 
@@ -172,7 +256,7 @@ function webhookLogMetadata(
     feesPaidMsats: event.payment.feesPaidMsats ?? null,
     settledAt: event.payment.settledAt ?? null,
     recovered: event.recovered ?? false,
-    source: 'nwc_listener',
+    source: 'nwc_listener'
   }
 }
 
@@ -198,7 +282,7 @@ type WalletDeadEvent = Extract<NwcWebhookPayload, { type: 'wallet_dead' }>
 async function archiveDeadWallet(event: WalletDeadEvent): Promise<void> {
   const wallet = await prisma.remoteWallet.findUnique({
     where: { id: event.walletId },
-    select: { id: true, userId: true, status: true, config: true, name: true },
+    select: { id: true, userId: true, status: true, config: true, name: true }
   })
   if (!wallet || wallet.status !== 'ACTIVE') return
 
@@ -206,7 +290,7 @@ async function archiveDeadWallet(event: WalletDeadEvent): Promise<void> {
   if (provider !== 'lncurl') {
     logger.warn(
       { walletId: wallet.id, provider: provider ?? null },
-      'nwc.wallet_dead_ignored_non_lncurl',
+      'nwc.wallet_dead_ignored_non_lncurl'
     )
     return
   }
@@ -214,7 +298,7 @@ async function archiveDeadWallet(event: WalletDeadEvent): Promise<void> {
   const result = await prisma.$transaction(async tx => {
     const archived = await tx.remoteWallet.updateMany({
       where: { id: wallet.id, status: 'ACTIVE' },
-      data: { status: 'DEAD', diedAt: new Date(), isDefault: false },
+      data: { status: 'DEAD', diedAt: new Date(), isDefault: false }
     })
     if (archived.count > 0) {
       await clearPrimaryWalletLinkToWallet(wallet.userId, wallet.id, tx)
@@ -238,7 +322,7 @@ async function archiveDeadWallet(event: WalletDeadEvent): Promise<void> {
       walletId: wallet.id,
       unresponsiveSeconds: event.unresponsiveSeconds,
       relaysConnected: event.relaysConnected,
-      source: 'nwc_listener',
-    },
+      source: 'nwc_listener'
+    }
   })
 }

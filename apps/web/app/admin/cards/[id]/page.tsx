@@ -422,14 +422,15 @@ function CardTransactions({ id }: { id: string }) {
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={tx.status === 'failed' ? 'destructive' : 'default'}
+                    variant={transactionBadgeVariant(tx)}
                     className={cn(
-                      tx.status === 'success' &&
+                      (tx.paymentStatus === 'SUCCEEDED' ||
+                        (!tx.paymentStatus && tx.status === 'success')) &&
                         'border-green-500/30 bg-green-500/15 text-green-600 hover:bg-green-500/20 dark:text-green-400',
                     )}
                     title={tx.error ?? undefined}
                   >
-                    {tx.status === 'failed' ? 'Failed' : 'Paid'}
+                    {transactionStatusLabel(tx)}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
@@ -466,15 +467,14 @@ function CardTransactions({ id }: { id: string }) {
                     : '—'}
                 </span>
                 <Badge
-                  variant={
-                    detail.status === 'failed' ? 'destructive' : 'default'
-                  }
+                  variant={transactionBadgeVariant(detail)}
                   className={cn(
-                    detail.status === 'success' &&
+                    (detail.paymentStatus === 'SUCCEEDED' ||
+                      (!detail.paymentStatus && detail.status === 'success')) &&
                       'border-green-500/30 bg-green-500/15 text-green-600 dark:text-green-400',
                   )}
                 >
-                  {detail.status === 'failed' ? 'Failed' : 'Paid'}
+                  {transactionStatusLabel(detail)}
                 </Badge>
               </div>
 
@@ -520,6 +520,35 @@ function CardTransactions({ id }: { id: string }) {
       </Dialog>
     </>
   )
+}
+
+function transactionStatusLabel(transaction: CardTransaction): string {
+  switch (transaction.paymentStatus) {
+    case 'PENDING':
+      return 'Pending'
+    case 'UNKNOWN':
+      return 'Resolving'
+    case 'REJECTED':
+      return 'Rejected'
+    case 'SUCCEEDED':
+      return 'Paid'
+    default:
+      return transaction.status === 'failed' ? 'Failed' : 'Paid'
+  }
+}
+
+function transactionBadgeVariant(
+  transaction: CardTransaction
+): 'default' | 'destructive' | 'outline' | 'secondary' {
+  if (transaction.paymentStatus === 'PENDING') return 'secondary'
+  if (transaction.paymentStatus === 'UNKNOWN') return 'outline'
+  if (
+    transaction.paymentStatus === 'REJECTED' ||
+    (!transaction.paymentStatus && transaction.status === 'failed')
+  ) {
+    return 'destructive'
+  }
+  return 'default'
 }
 
 function DetailRow({

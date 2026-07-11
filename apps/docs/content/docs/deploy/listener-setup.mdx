@@ -1,6 +1,6 @@
 ---
-title: "NWC Listener Setup"
-description: "Run the NWC relay bridge next to your LaWallet instance — automatic on Docker, hosted separately for Vercel/Netlify."
+title: 'NWC Listener Setup'
+description: 'Optionally run the NWC relay bridge next to your LaWallet instance or host it separately for Vercel/Netlify.'
 ---
 
 ## What the listener does
@@ -12,9 +12,11 @@ instance:
 - **Incoming payments become webhooks** — NIP-47 `payment_received` /
   `payment_sent` notifications are forwarded to the web app (HMAC-signed),
   flipping invoices to paid in real time.
-- **Outgoing NWC calls get fast** — card withdraws and invoice minting reuse
-  the already-open relay sockets instead of paying a websocket handshake per
-  request.
+- **Card payments get fast without duplicate risk** — an idempotent,
+  wallet-ID-routed endpoint reuses the already-open relay socket, journals the
+  dispatch before NWC, and reconciles late results by request ID.
+- **Other outgoing NWC calls get fast** — the general compatibility proxy can
+  reuse the pool for balance checks and invoice minting.
 - **Live dashboard** — `Admin → NWC Listener` shows active relays, connections
   and recent events.
 
@@ -23,12 +25,12 @@ connections, and no incoming payment notifications are received.
 
 ## Do I need to deploy anything?
 
-| Your deployment | Listener setup |
-|---|---|
-| **Docker Compose** | Nothing — the `listener` service starts automatically and the environment pre-wires the pairing (both the source `docker-compose.yml` and the published-image `docker-compose.hub.yml`). |
-| **Umbrel / Start9** | Nothing — bundled with the package since v1.1.0. |
-| **Vercel / Netlify** | Yes — serverless platforms can't run a long-lived websocket process. Host the listener elsewhere (below), then connect it in **Settings → NWC Services**. |
-| **Local dev** | `pnpm dev:listener` (env is provisioned by `pnpm dev:setup`). |
+| Your deployment      | Listener setup                                                                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Docker Compose**   | Optional — enable the `listener` profile and provide a generated secret. Plain `docker compose up` remains web-only.                                                                       |
+| **Umbrel / Start9**  | Nothing — bundled with the package since v1.1.0.                                                                                                                                         |
+| **Vercel / Netlify** | Yes — serverless platforms can't run a long-lived websocket process. Host the listener elsewhere (below), then connect it in **Settings → NWC Services**.                                |
+| **Local dev**        | `pnpm dev:listener` (env is provisioned by `pnpm dev:setup`).                                                                                                                            |
 
 ## Environment variables
 
@@ -37,23 +39,24 @@ The listener is one small container — use the prebuilt multi-arch image
 (published alongside each release) or build from
 `apps/listener/Dockerfile`. Default port 4100. It needs:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | ✅ | The **same Postgres** your web app uses (it reads NWC wallets and stores processed events). |
-| `LISTENER_AUTH_SECRET` | ✅ | Shared secret, min 32 chars. Signs webhooks to the web app and guards the listener API. Must match the value configured on the web side. |
-| `WEB_ORIGIN` | ✅ | Public URL of your web app (e.g. `https://wallet.example.com`) — payment webhooks are POSTed back there. |
-| `LISTENER_PORT` | — | HTTP port (default `4100`). |
-| `LOG_LEVEL` / `LOG_PRETTY` | — | Logging (default `info` / JSON). |
-| `EVENT_RETENTION_DAYS` | — | Days of processed events kept for dedup + dashboard feed (default 30). |
-| `NWC_REQUEST_TIMEOUT_MS` | — | Default timeout for proxied `/nwc/request` calls (default 30000). |
-| `WEBHOOK_MAX_ATTEMPTS` | — | Inline webhook delivery attempts before the sweep takes over (default 5). |
-| `RECONCILE_INTERVAL_MS` | — | Periodic full pool reconcile, the LISTEN/NOTIFY safety net (default 300000). |
-| `CATCHUP_ENABLED` | — | Missed-event recovery after downtime (default `true`). |
-| `CATCHUP_MAX_WINDOW_HOURS` | — | Furthest back a catch-up looks (default 24). |
-| `CATCHUP_OVERLAP_SECONDS` | — | Overlap subtracted from the per-wallet cursor (default 300). |
-| `CATCHUP_INTERVAL_MS` | — | Periodic safety catch-up; 0 disables (default 900000). |
-| `DEAD_WALLET_DETECTION_ENABLED` | — | Auto-archive a disposable LNCurl wallet as `DEAD` after it stops answering for `DEAD_THRESHOLD_HOURS` while its relays stay up (default `true`; set `false` to disable). Non-LNCurl wallets are never auto-archived. |
-| `DEAD_THRESHOLD_HOURS` | — | Silence (relays up) before a wallet is declared dead (default 4). |
+| Variable                        | Required | Description                                                                                                                                                                                                          |
+| ------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | ✅       | The **same Postgres** your web app uses (it reads NWC wallets and stores processed events plus the idempotent payment journal).                                                                                      |
+| `LISTENER_AUTH_SECRET`          | ✅       | Webhook HMAC secret, min 32 chars. Also guards the listener API when no dedicated request secret is set. Must match the web-side webhook secret.                                                                     |
+| `LISTENER_REQUEST_AUTH_SECRET`  | —        | Optional dedicated web→listener bearer secret, min 32 chars. Set the same value on web; otherwise both sides fall back to `LISTENER_AUTH_SECRET`.                                                                    |
+| `WEB_ORIGIN`                    | ✅       | Public URL of your web app (e.g. `https://wallet.example.com`) — payment webhooks are POSTed back there.                                                                                                             |
+| `LISTENER_PORT`                 | —        | HTTP port (default `4100`).                                                                                                                                                                                          |
+| `LOG_LEVEL` / `LOG_PRETTY`      | —        | Logging (default `info` / JSON).                                                                                                                                                                                     |
+| `EVENT_RETENTION_DAYS`          | —        | Days of processed events kept for dedup + dashboard feed (default 30).                                                                                                                                               |
+| `NWC_REQUEST_TIMEOUT_MS`        | —        | Default timeout for proxied `/nwc/request` calls (default 30000).                                                                                                                                                    |
+| `WEBHOOK_MAX_ATTEMPTS`          | —        | Inline webhook delivery attempts before the sweep takes over (default 5).                                                                                                                                            |
+| `RECONCILE_INTERVAL_MS`         | —        | Periodic full pool reconcile, the LISTEN/NOTIFY safety net (default 300000).                                                                                                                                         |
+| `CATCHUP_ENABLED`               | —        | Missed-event recovery after downtime (default `true`).                                                                                                                                                               |
+| `CATCHUP_MAX_WINDOW_HOURS`      | —        | Furthest back a catch-up looks (default 24).                                                                                                                                                                         |
+| `CATCHUP_OVERLAP_SECONDS`       | —        | Overlap subtracted from the per-wallet cursor (default 300).                                                                                                                                                         |
+| `CATCHUP_INTERVAL_MS`           | —        | Periodic safety catch-up; 0 disables (default 900000).                                                                                                                                                               |
+| `DEAD_WALLET_DETECTION_ENABLED` | —        | Auto-archive a disposable LNCurl wallet as `DEAD` after it stops answering for `DEAD_THRESHOLD_HOURS` while its relays stay up (default `true`; set `false` to disable). Non-LNCurl wallets are never auto-archived. |
+| `DEAD_THRESHOLD_HOURS`          | —        | Silence (relays up) before a wallet is declared dead (default 4).                                                                                                                                                    |
 
 **Connectivity requirements:** the listener must reach your Postgres and the
 Nostr relays; your web app must reach the listener's URL; the listener must
@@ -72,7 +75,8 @@ internet.
    needs the whole workspace).
 3. Add the environment variables from the table above. Generate the
    `LISTENER_AUTH_SECRET` in **Settings → NWC Services** (the Generate button)
-   and copy the same value here.
+   and copy the same value here. For separately managed HTTP credentials, set
+   the same `LISTENER_REQUEST_AUTH_SECRET` on both hosts; this is optional.
 4. Under **Networking**, generate a public domain for the service.
 5. Deploy. The healthcheck path is `/health`.
 
@@ -98,6 +102,9 @@ docker run -d --restart unless-stopped -p 4100:4100 \
   masize/lawallet-nwc-listener:latest
 ```
 
+To separate HTTP and webhook credentials, also pass
+`-e LISTENER_REQUEST_AUTH_SECRET="…"` and configure the same value on web.
+
 Put it behind your reverse proxy with TLS if the web app connects over the
 public internet.
 
@@ -107,22 +114,41 @@ public internet.
 2. Paste the listener's public URL (e.g.
    `https://lawallet-listener.up.railway.app`).
 3. Set the **shared secret** — use **Generate**, then copy the same value to
-   the listener host's `LISTENER_AUTH_SECRET` (redeploy it if needed).
+   the listener host's `LISTENER_AUTH_SECRET` (redeploy it if needed). The
+   Settings field is the compatibility shared credential; dedicated
+   `LISTENER_REQUEST_AUTH_SECRET` separation is available for env-managed
+   deployments.
 4. Click **Test connection** — you should see uptime and connection counts.
 5. Flip **Enable listener integration**. The **NWC Listener** dashboard
    appears in the sidebar.
 
-On Docker Compose deployments this tab shows *"Provisioned via environment"*
-and the toggle is already on — the same fields can override the environment
-if you ever move the listener.
+For the bundled private listener, generate a secret and opt in explicitly:
+
+```bash
+LISTENER_URL=http://listener:4100 \
+LISTENER_AUTH_SECRET="$(openssl rand -hex 32)" \
+docker compose --profile listener up -d
+```
+
+Persist those values in `.env` for subsequent Compose commands. Plain
+`docker compose up -d` leaves the listener unconfigured and all payments use
+the regular direct NWC path.
 
 ## Health & failure modes
 
 - `GET /health` — liveness (used by container healthchecks).
+- `GET /ready` — unauthenticated capability/readiness probe. Confirm it lists
+  `"nwc_payments_v1"` and shows ready/not-ready wallet counts.
 - `GET /status` — authenticated status (relays, connections, counters) —
   surfaced in the admin dashboard.
+- Wallet state normally progresses `connecting → negotiating → ready`.
+  `disconnected` means the relay link dropped and is reconnecting; `error`
+  means warm-up failed and is backing off. A wallet is not used for the card
+  fast path until it reaches `ready`.
 - **Listener down** → the web app keeps working, degraded to per-request
-  relay connections; the dashboard shows *unreachable*.
+  relay connections for payments that have not been sent to listener; the
+  dashboard shows _unreachable_. If a payment POST times out or resets, web
+  reconciles that request ID and does not issue another NWC payment.
 - **Web app down** → events accumulate in the listener's store and are
   re-delivered by a sweep when it returns.
 

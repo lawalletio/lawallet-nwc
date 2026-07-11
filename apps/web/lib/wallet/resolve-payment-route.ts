@@ -13,6 +13,8 @@ import type {
 
 /** A wallet reference resolved into a driver-addressable shape. */
 export interface RemoteWalletRef {
+  /** RemoteWallet.id. Optional only for legacy callers/tests. */
+  id?: string
   type: RemoteWalletType
   /** Driver-specific `RemoteWallet.config` JSON; validated by the driver. */
   config: unknown
@@ -30,7 +32,7 @@ export interface RemoteWalletRef {
 export type WalletRoute =
   | { kind: 'idle' }
   | { kind: 'alias'; redirect: string }
-  | { kind: 'wallet'; type: RemoteWalletType; config: unknown }
+  | { kind: 'wallet'; walletId: string | null; type: RemoteWalletType; config: unknown }
   | { kind: 'unconfigured' }
 
 export interface ResolveWalletRouteInput {
@@ -44,7 +46,7 @@ export interface ResolveWalletRouteInput {
 
 function walletRoute(wallet: RemoteWalletRef): WalletRoute {
   return wallet.status === 'ACTIVE'
-    ? { kind: 'wallet', type: wallet.type, config: wallet.config }
+    ? { kind: 'wallet', walletId: wallet.id ?? null, type: wallet.type, config: wallet.config }
     : { kind: 'unconfigured' }
 }
 
@@ -82,7 +84,7 @@ export function resolveWalletRoute(input: ResolveWalletRouteInput): WalletRoute 
 
 /** Driver-addressable routing decision for a Card spend. */
 export type CardWalletRoute =
-  | { kind: 'wallet'; type: RemoteWalletType; config: unknown }
+  | { kind: 'wallet'; walletId: string | null; type: RemoteWalletType; config: unknown }
   | { kind: 'unconfigured' }
 
 export interface ResolveCardWalletInput {
@@ -113,6 +115,7 @@ export function resolveCardWallet(input: ResolveCardWalletInput): CardWalletRout
   if (input.defaultRemoteWallet?.status === 'ACTIVE') {
     return {
       kind: 'wallet',
+      walletId: input.defaultRemoteWallet.id ?? null,
       type: input.defaultRemoteWallet.type,
       config: input.defaultRemoteWallet.config,
     }

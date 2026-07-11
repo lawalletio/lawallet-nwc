@@ -1,15 +1,20 @@
 import { resolveApiUrl } from '@/lib/public-url'
-import { Card } from '@/types'
-import { User } from '@/types/user'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { claimCardTap } from '@/lib/card-payments/attempts'
+import { ValidationError } from '@/types/server/errors'
 
 export default async function newOTC(
   req: NextRequest,
-  card: Card & { user?: User }
+  card: { id: string; ntag424Cid: string | null },
+  counter: number
 ) {
+  if (!card.ntag424Cid) throw new ValidationError('Card is not paired')
+  const claimed = await claimCardTap(card.id, card.ntag424Cid, counter)
+  if (!claimed) throw new ValidationError('Card tap has already been used')
+
   // Generate random 16-byte OTC
   const otc = randomBytes(16).toString('hex')
 

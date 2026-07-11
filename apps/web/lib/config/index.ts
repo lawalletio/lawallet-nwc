@@ -27,7 +27,10 @@ export interface AppConfig {
   // lib/listener-config.ts `getListenerConfig()`; consumers use that, not this.
   listener: {
     url: string | undefined
+    /** Legacy/shared webhook secret. */
     secret: string | undefined
+    /** Dedicated web-to-listener bearer secret when configured. */
+    requestSecret: string | undefined
     requestTimeoutMs: number
   }
 
@@ -121,6 +124,7 @@ export function getConfig(strict: boolean = true): AppConfig {
     listener: {
       url: env.LISTENER_URL,
       secret: env.LISTENER_AUTH_SECRET,
+      requestSecret: env.LISTENER_REQUEST_AUTH_SECRET,
       requestTimeoutMs: env.LISTENER_REQUEST_TIMEOUT_MS
     },
 

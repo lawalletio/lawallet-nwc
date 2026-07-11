@@ -75,6 +75,7 @@ function fakePool(opts: {
   }>
   relaysConnected?: boolean
   holdsClient?: boolean
+  foregroundPayment?: boolean
 }) {
   const subscribed = opts.candidates.map(c => ({
     wallet: c.wallet,
@@ -85,6 +86,7 @@ function fakePool(opts: {
     subscribedClients: vi.fn(() => subscribed),
     relaysConnected: vi.fn(() => opts.relaysConnected ?? true),
     holdsClient: vi.fn(() => opts.holdsClient ?? true),
+    hasForegroundPayment: vi.fn(() => opts.foregroundPayment ?? false),
     markResponsive: vi.fn()
   }
 }
@@ -170,6 +172,22 @@ describe('DeadWalletProber.evaluate', () => {
 
     await prober.evaluate()
     expect(pool.markResponsive).toHaveBeenCalledWith('wallet-1')
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+  })
+
+  it('defers maintenance probes while a card payment is in flight', async () => {
+    control.getInfo.mockResolvedValue({ methods: ['pay_invoice'] })
+    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = { getInfo: () => control.getInfo() } as any
+    const pool = fakePool({
+      candidates: [candidate(client)],
+      foregroundPayment: true
+    })
+    const prober = makeProber(pool, dispatcher)
+
+    await prober.evaluate()
+    expect(control.getInfo).not.toHaveBeenCalled()
     expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
   })
 
@@ -289,6 +307,7 @@ describe('DeadWalletProber.evaluate', () => {
       subscribedClients: vi.fn(() => [{ wallet, client }]),
       relaysConnected: vi.fn(() => relaysUp),
       holdsClient: vi.fn(() => true),
+      hasForegroundPayment: vi.fn(() => false),
       markResponsive: vi.fn()
     }
     const prober = makeProber(pool, dispatcher, { DEAD_CONFIRMATION_PROBES: 3 })

@@ -346,10 +346,11 @@ const cardInfoSchema = z
 const lnurlScanSchema = z
   .object({
     callback: z.string().url(),
-    maxSendable: z.number().int(),
-    minSendable: z.number().int(),
-    metadata: z.string(),
-    tag: z.literal('payRequest'),
+    k1: z.string(),
+    maxWithdrawable: z.number().int(),
+    minWithdrawable: z.number().int(),
+    defaultDescription: z.string(),
+    tag: z.literal('withdrawRequest'),
   })
   .passthrough()
 
@@ -358,7 +359,7 @@ registry.registerPath({
   method: 'get',
   path: '/api/cards/{id}/scan',
   tags: [TAG],
-  summary: 'Resolve a scanned card and return the LNURL-pay flow entry point.',
+  summary: 'Resolve a scanned card and return the LNURL-withdraw flow entry point.',
   description:
     'The first LNURL request on tap. Send the request header `x-request-action: info` ' +
     'to get the card’s public status JSON (design, image, owner, paired/used) instead ' +
@@ -393,14 +394,17 @@ registry.registerPath({
   method: 'get',
   path: '/api/cards/{id}/scan/cb',
   tags: [TAG],
-  summary: 'LNURL-pay callback for a scanned card.',
+  summary: 'LNURL-withdraw callback for a scanned card.',
   operationId: 'cards.scan.callback',
   security: publicSecurity,
-  request: { params: schemas.IdParam, query: schemas.PayActionQuery },
+  request: { params: schemas.IdParam, query: schemas.CardScanCallbackQuery },
   responses: {
     200: inlineJsonResponse(
-      'LNURL-pay callback response.',
-      z.object({ pr: z.string() }).passthrough(),
+      'LUD-03 callback response.',
+      z.union([
+        z.object({ status: z.literal('OK') }),
+        z.object({ status: z.literal('ERROR'), reason: z.string() }),
+      ]),
     ),
     ...publicErrorResponses,
   },

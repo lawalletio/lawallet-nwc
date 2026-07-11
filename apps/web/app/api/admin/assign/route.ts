@@ -5,6 +5,7 @@ import { validateNip98Auth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { AuthorizationError } from '@/types/server/errors'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { invalidateHotSettingsCache } from '@/lib/settings'
 
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'json')
@@ -69,6 +70,7 @@ export const POST = withErrorHandling(async (request: Request) => {
       }
     })
   ])
+  invalidateHotSettingsCache()
 
   return NextResponse.json({
     message: 'Root role assigned successfully',

@@ -141,6 +141,7 @@ export const GET = withErrorHandling(
           }
           mintRoute = {
             kind: 'wallet',
+            walletId: provisioned.id,
             type: provisioned.type,
             config: provisioned.config,
           }

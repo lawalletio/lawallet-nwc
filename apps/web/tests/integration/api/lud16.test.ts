@@ -80,11 +80,19 @@ import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 import { getSettings } from '@/lib/settings'
 import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
 
+function nwcUri(walletKey: string, secret: string, relay: string): string {
+  return `nostr+walletconnect://${walletKey.repeat(64)}?relay=${encodeURIComponent(`wss://${relay}`)}&secret=${secret.repeat(64)}`
+}
+
+const DEFAULT_NWC_URI = nwcUri('a', 'b', 'default.relay.test')
+const BOUND_NWC_URI = nwcUri('c', 'd', 'bound.relay.test')
+const DEAD_LNCURL_NWC_URI = nwcUri('e', 'f', 'dead-lncurl.relay.test')
+const FRESH_LNCURL_NWC_URI = nwcUri('f', 'e', 'fresh-lncurl.relay.test')
 /** A user's primary-address RemoteWallet — DEFAULT_NWC routes through this. */
 const DEFAULT_WALLET = {
   id: 'wallet-default',
   type: 'NWC' as const,
-  config: { connectionString: 'nostr+walletconnect://test', mode: 'SEND_RECEIVE' },
+  config: { connectionString: DEFAULT_NWC_URI, mode: 'SEND_RECEIVE' },
   status: 'ACTIVE' as const,
 }
 
@@ -606,7 +614,7 @@ describe('GET /api/lud16/[username]/cb', () => {
       redirect: null,
       remoteWallet: {
         type: 'NWC',
-        config: { connectionString: 'nostr+walletconnect://bound-wallet', mode: 'SEND_RECEIVE' },
+        config: { connectionString: BOUND_NWC_URI, mode: 'SEND_RECEIVE' },
         status: 'ACTIVE',
       },
       nwcConnection: { connectionString: 'nostr+walletconnect://legacy-must-not-be-used' },
@@ -627,7 +635,7 @@ describe('GET /api/lud16/[username]/cb', () => {
 
     expect(res.status).toBe(200)
     expect(nwcCtorMock).toHaveBeenCalledWith({
-      nostrWalletConnectUrl: 'nostr+walletconnect://bound-wallet',
+      nostrWalletConnectUrl: BOUND_NWC_URI,
     })
   })
 
@@ -635,7 +643,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     mockPrimaryAddressWallet({
       id: 'wallet-default',
       type: 'NWC',
-      config: { connectionString: 'nostr+walletconnect://default-wallet', mode: 'RECEIVE' },
+      config: { connectionString: DEFAULT_NWC_URI, mode: 'RECEIVE' },
       status: 'ACTIVE',
     } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
@@ -650,7 +658,7 @@ describe('GET /api/lud16/[username]/cb', () => {
         remoteWallets: [
           {
             type: 'NWC',
-            config: { connectionString: 'nostr+walletconnect://default-wallet', mode: 'RECEIVE' },
+            config: { connectionString: DEFAULT_NWC_URI, mode: 'RECEIVE' },
             status: 'ACTIVE',
           },
         ],
@@ -667,7 +675,7 @@ describe('GET /api/lud16/[username]/cb', () => {
 
     expect(res.status).toBe(200)
     expect(nwcCtorMock).toHaveBeenCalledWith({
-      nostrWalletConnectUrl: 'nostr+walletconnect://default-wallet',
+      nostrWalletConnectUrl: DEFAULT_NWC_URI,
     })
   })
 
@@ -717,7 +725,7 @@ describe('GET /api/lud16/[username]/cb', () => {
   const LNCURL_DEFAULT_WALLET = {
     id: 'wallet-dead',
     type: 'NWC' as const,
-    config: { connectionString: 'nostr+walletconnect://dead-lncurl', mode: 'SEND_RECEIVE', provider: 'lncurl' },
+    config: { connectionString: DEAD_LNCURL_NWC_URI, mode: 'SEND_RECEIVE', provider: 'lncurl' },
     status: 'ACTIVE' as const,
   }
 
@@ -746,7 +754,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     vi.mocked(createLncurlRemoteWallet).mockResolvedValue({
       id: 'wallet-fresh',
       type: 'NWC',
-      config: { connectionString: 'nostr+walletconnect://fresh-lncurl', mode: 'SEND_RECEIVE', provider: 'lncurl' },
+      config: { connectionString: FRESH_LNCURL_NWC_URI, mode: 'SEND_RECEIVE', provider: 'lncurl' },
       status: 'ACTIVE',
     } as any)
 
@@ -796,7 +804,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     vi.mocked(createLncurlRemoteWallet).mockResolvedValue({
       id: 'wallet-fresh',
       type: 'NWC',
-      config: { connectionString: 'nostr+walletconnect://fresh-lncurl', mode: 'SEND_RECEIVE', provider: 'lncurl' },
+      config: { connectionString: FRESH_LNCURL_NWC_URI, mode: 'SEND_RECEIVE', provider: 'lncurl' },
       status: 'ACTIVE',
     } as any)
 

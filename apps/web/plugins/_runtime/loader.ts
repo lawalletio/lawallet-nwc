@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { getSettings } from '@/lib/settings'
+import { getSettings, invalidateHotSettingsCache } from '@/lib/settings'
 import { listPlugins, getPlugin } from './registry'
 import type { LawalletPlugin, PluginState } from './types'
 
@@ -65,6 +65,7 @@ export async function setPluginEnabled(
     update: { value: String(enabled) },
     create: { name: settingKey(id), value: String(enabled) }
   })
+  invalidateHotSettingsCache()
 
   if (enabled && plugin.migrate) await plugin.migrate()
 }

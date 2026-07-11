@@ -86,13 +86,16 @@ export function createSettingsFixture(overrides: Record<string, unknown> = {}) {
 export function createRemoteWalletFixture(
   overrides: Record<string, unknown> = {}
 ) {
+  const walletPubkey = faker.string.hexadecimal({ length: 64, prefix: '' })
+  const secret = faker.string.hexadecimal({ length: 64, prefix: '' })
+
   return {
     id: faker.string.uuid(),
     userId: faker.string.uuid(),
     name: 'NWC Wallet',
     type: 'NWC' as const,
     config: {
-      connectionString: `nostr+walletconnect://${faker.string.hexadecimal({ length: 64, prefix: '' })}`,
+      connectionString: `nostr+walletconnect://${walletPubkey}?relay=${encodeURIComponent('wss://relay.test')}&secret=${secret}`,
       mode: 'RECEIVE' as const
     },
     status: 'ACTIVE' as const,

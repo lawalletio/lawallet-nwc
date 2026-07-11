@@ -4,7 +4,11 @@ import type { Card } from '@/types/card'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { Permission } from '@/lib/auth/permissions'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { NotFoundError, ValidationError } from '@/types/server/errors'
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 import { idParam, updateCardSchema } from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -244,6 +248,31 @@ export const DELETE = withErrorHandling(
 
     // Delete card and its associated ntag424 in a transaction
     await prisma.$transaction(async tx => {
+      // Serialize deletion with the payment-claim CTE, which also locks the
+      // Card row before creating an attempt. Without this lock/check, deleting
+      // a card can cascade-delete a PENDING attempt while its irreversible NWC
+      // request is still running, losing both idempotency and transaction history.
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "Card"
+        WHERE "id" = ${id}
+        FOR UPDATE
+      `
+      if (!locked[0]) throw new NotFoundError('Card not found')
+
+      const unresolvedPayment = await tx.cardPaymentAttempt.findFirst({
+        where: {
+          cardId: id,
+          status: { in: ['PENDING', 'UNKNOWN'] }
+        },
+        select: { id: true }
+      })
+      if (unresolvedPayment) {
+        throw new ConflictError(
+          'Card has an unresolved payment and cannot be deleted yet'
+        )
+      }
+
       // Delete the card first (this will remove the foreign key reference)
       await tx.card.delete({
         where: { id }

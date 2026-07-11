@@ -56,7 +56,7 @@ const validStatus = {
       walletId: 'wallet-1',
       walletName: 'Alice wallet',
       userId: 'user-1',
-      state: 'subscribed',
+      state: 'ready',
       connected: true,
       relayUrls: ['wss://relay.test'],
       lastEventAt: new Date().toISOString(),

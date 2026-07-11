@@ -5,6 +5,7 @@ import type { DesiredWallet } from '../src/db'
 const control = vi.hoisted(() => ({
   subscribeError: null as Error | null,
   connected: true,
+  getInfo: vi.fn(),
   payInvoice: vi.fn(),
   makeInvoice: vi.fn(),
   getBalance: vi.fn()
@@ -51,7 +52,7 @@ vi.mock('@getalby/sdk', () => {
       return Promise.resolve({ transactions: [], total_count: 0 })
     }
     getInfo() {
-      return Promise.resolve({})
+      return control.getInfo()
     }
     close() {}
   }
@@ -83,6 +84,7 @@ describe('NwcPool.request', () => {
   beforeEach(() => {
     control.subscribeError = null
     control.connected = true
+    control.getInfo.mockReset().mockResolvedValue({})
     control.payInvoice.mockReset()
     control.makeInvoice.mockReset()
     control.getBalance.mockReset()
@@ -182,7 +184,7 @@ describe('NwcPool.request', () => {
 
     const [snapshot] = pool.snapshot()
     expect(snapshot.walletId).toBe('wallet-1')
-    expect(snapshot.state).toBe('subscribed')
+    expect(snapshot.state).toBe('ready')
     expect(snapshot.relayUrls).toEqual(['wss://relay.test'])
 
     expect(pool.relaySummary()).toEqual([
@@ -193,9 +195,44 @@ describe('NwcPool.request', () => {
 })
 
 describe('NwcPool connection hooks', () => {
+  it('stays negotiating until get_info proves the client is usable', async () => {
+    let finishWarmup!: (value: unknown) => void
+    control.getInfo.mockReturnValue(
+      new Promise(resolve => {
+        finishWarmup = resolve
+      })
+    )
+    const pool = makePool()
+    await pool.reconcile([wallet])
+    await flush()
+
+    expect(pool.snapshot()[0].state).toBe('negotiating')
+    await expect(
+      pool.requestByWalletId('wallet-1', 'get_balance', {}, 1000)
+    ).rejects.toMatchObject({ code: 'wallet_not_connected' })
+
+    finishWarmup({ methods: ['pay_invoice'] })
+    await flush()
+    expect(pool.snapshot()[0].state).toBe('ready')
+    await pool.closeAll()
+  })
+
+  it('treats a wallet-level get_info rejection as transport readiness', async () => {
+    control.getInfo.mockRejectedValue(
+      new Nip47WalletError('restricted', 'RESTRICTED')
+    )
+    const pool = makePool()
+    await pool.reconcile([wallet])
+    await flush()
+
+    expect(pool.snapshot()[0].state).toBe('ready')
+    await pool.closeAll()
+  })
+
   it('fires onSubscribed after subscribing and onReconnected on a connectivity flip', async () => {
     control.subscribeError = null
     control.connected = true
+    control.getInfo.mockReset().mockResolvedValue({})
     vi.useFakeTimers()
     try {
       const onSubscribed = vi.fn()

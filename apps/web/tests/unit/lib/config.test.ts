@@ -48,6 +48,20 @@ describe('getEnv', () => {
     expect(env.RATE_LIMIT_MAX_REQUESTS_AUTH).toBe(300)
   })
 
+  it('treats blank optional listener variables as unconfigured', async () => {
+    process.env.DATABASE_URL = 'postgresql://localhost/test'
+    process.env.LISTENER_URL = ''
+    process.env.LISTENER_AUTH_SECRET = ''
+    process.env.LISTENER_REQUEST_AUTH_SECRET = ''
+    setNodeEnv('test')
+    const { getEnv } = await import('@/lib/config/env')
+
+    const env = getEnv(true)
+    expect(env.LISTENER_URL).toBeUndefined()
+    expect(env.LISTENER_AUTH_SECRET).toBeUndefined()
+    expect(env.LISTENER_REQUEST_AUTH_SECRET).toBeUndefined()
+  })
+
   it('validates JWT_SECRET min length', async () => {
     process.env.DATABASE_URL = 'postgresql://localhost/test'
     process.env.JWT_SECRET = 'short'

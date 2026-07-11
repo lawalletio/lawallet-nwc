@@ -82,9 +82,8 @@ export class WebhookDispatcher {
       payment: {
         paymentHash: event.paymentHash ?? tx.payment_hash ?? '',
         preimage: tx.preimage || undefined,
-        amountMsats: typeof tx.amount === 'number' ? tx.amount : undefined,
-        feesPaidMsats:
-          typeof tx.fees_paid === 'number' ? tx.fees_paid : undefined,
+        amountMsats: nonnegativeSafeInteger(tx.amount),
+        feesPaidMsats: nonnegativeSafeInteger(tx.fees_paid),
         settledAt:
           typeof tx.settled_at === 'number' ? tx.settled_at : undefined,
         invoice: tx.invoice || undefined,
@@ -310,6 +309,12 @@ export class WebhookDispatcher {
       }
     }
   }
+}
+
+function nonnegativeSafeInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined
 }
 
 function sleep(ms: number): Promise<void> {

@@ -46,8 +46,6 @@ vi.mock('@/lib/wallet/drivers/listener-transport', () => {
   }
 })
 
-import { ListenerUnavailableError } from '@/lib/wallet/drivers/listener-transport'
-
 // Import AFTER the mock so the driver's cache module picks up the stub.
 import { DriverRemoteError } from '@/lib/wallet/drivers/errors'
 import { nwcDriver } from '@/lib/wallet/drivers/nwc-driver'
@@ -57,7 +55,7 @@ import {
   getServerNwcClient,
 } from '@/lib/wallet/drivers/nwc-client-cache'
 
-const VALID_URI = 'nostr+walletconnect://abc?relay=wss%3A%2F%2Fr.example&secret=deadbeef'
+const VALID_URI = `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Fr.example&secret=${'b'.repeat(64)}`
 
 /**
  * Parsed-shape config the driver methods see in production — the registry
@@ -92,12 +90,31 @@ describe('nwcDriver', () => {
     })
 
     it('also accepts the alternate "nostrwalletconnect://" scheme', () => {
-      const alt = 'nostrwalletconnect://abc?relay=wss%3A%2F%2Fr.example&secret=deadbeef'
+      const alt = VALID_URI.replace(
+        'nostr+walletconnect://',
+        'nostrwalletconnect://'
+      )
       expect(nwcDriver.configSchema.safeParse({ connectionString: alt }).success).toBe(true)
+    })
+
+    it.each([
+      `nostr+walletconnect://${'a'.repeat(64)}?secret=${'b'.repeat(64)}`,
+      `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Fr.example`,
+      `nostr+walletconnect://not-a-pubkey?relay=wss%3A%2F%2Fr.example&secret=${'b'.repeat(64)}`,
+      `nostr+walletconnect://${'a'.repeat(64)}?relay=https%3A%2F%2Fr.example&secret=${'b'.repeat(64)}`
+    ])('rejects incomplete or malformed NWC credentials: %s', connectionString => {
+      expect(nwcDriver.configSchema.safeParse({ connectionString }).success).toBe(false)
     })
 
     it('rejects non-NWC URIs', () => {
       const r = nwcDriver.configSchema.safeParse({ connectionString: 'https://example.com' })
+      expect(r.success).toBe(false)
+    })
+
+    it('rejects a valid-shaped credential URL with the wrong scheme', () => {
+      const r = nwcDriver.configSchema.safeParse({
+        connectionString: VALID_URI.replace('nostr+walletconnect://', 'https://'),
+      })
       expect(r.success).toBe(false)
     })
 
@@ -326,20 +343,19 @@ describe('nwcDriver', () => {
   })
 
   describe('listener bridge', () => {
-    it('routes payInvoice through the bridge — SDK client never constructed', async () => {
+    it('keeps unidentified payments direct even when the legacy bridge is enabled', async () => {
       bridge.enabled = true
-      bridge.request.mockResolvedValueOnce({ preimage: 'cafebabe', fees_paid: 1_500 })
+      payInvoiceMock.mockResolvedValueOnce({
+        preimage: 'cafebabe',
+        fees_paid: 1_500
+      })
 
       const res = await nwcDriver.payInvoice(CONFIG, { bolt11: 'lnbc1' })
 
       expect(res).toEqual({ preimage: 'cafebabe', feesPaidSats: 1 })
-      expect(bridge.request).toHaveBeenCalledWith({
-        connectionString: VALID_URI,
-        method: 'pay_invoice',
-        params: { invoice: 'lnbc1', amount: undefined },
-      })
-      expect(nwcCtor).not.toHaveBeenCalled()
-      expect(payInvoiceMock).not.toHaveBeenCalled()
+      expect(bridge.request).not.toHaveBeenCalled()
+      expect(nwcCtor).toHaveBeenCalledTimes(1)
+      expect(payInvoiceMock).toHaveBeenCalledTimes(1)
     })
 
     it('routes getBalance and makeInvoice through the bridge too', async () => {
@@ -363,29 +379,16 @@ describe('nwcDriver', () => {
       expect(nwcCtor).not.toHaveBeenCalled()
     })
 
-    it('falls back to the direct path when the bridge is unavailable — identical result', async () => {
+    it('does not consult an unavailable legacy bridge for unidentified payments', async () => {
       bridge.enabled = true
-      bridge.request.mockRejectedValueOnce(new ListenerUnavailableError('down'))
       payInvoiceMock.mockResolvedValueOnce({ preimage: 'cafebabe', fees_paid: 1_500 })
 
       const res = await nwcDriver.payInvoice(CONFIG, { bolt11: 'lnbc1' })
 
       expect(res).toEqual({ preimage: 'cafebabe', feesPaidSats: 1 })
+      expect(bridge.request).not.toHaveBeenCalled()
       expect(payInvoiceMock).toHaveBeenCalledWith({ invoice: 'lnbc1', amount: undefined })
       expect(nwcCtor).toHaveBeenCalledTimes(1)
-    })
-
-    it('treats a bridge wallet rejection as FINAL — no direct-path retry', async () => {
-      bridge.enabled = true
-      bridge.request.mockRejectedValueOnce(
-        new DriverRemoteError('NWC wallet error (INSUFFICIENT_BALANCE): nope'),
-      )
-
-      await expect(
-        nwcDriver.payInvoice(CONFIG, { bolt11: 'lnbc1' }),
-      ).rejects.toBeInstanceOf(DriverRemoteError)
-      expect(payInvoiceMock).not.toHaveBeenCalled()
-      expect(nwcCtor).not.toHaveBeenCalled()
     })
 
     it('never touches the bridge when disabled', async () => {
@@ -396,6 +399,15 @@ describe('nwcDriver', () => {
   })
 
   describe('client cache', () => {
+    it('single-flights concurrent construction for the same URI', async () => {
+      const [first, second] = await Promise.all([
+        getServerNwcClient(VALID_URI),
+        getServerNwcClient(VALID_URI),
+      ])
+      expect(first).toBe(second)
+      expect(nwcCtor).toHaveBeenCalledTimes(1)
+    })
+
     it('reuses the same NWCClient across calls for the same URI', async () => {
       getBalanceMock.mockResolvedValue({ balance: 0 })
       await nwcDriver.getBalance(CONFIG)

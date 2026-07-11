@@ -169,11 +169,58 @@ export const nwcProxyResponseSchema = z.union([
 ])
 export type NwcProxyResponse = z.infer<typeof nwcProxyResponseSchema>
 
+// ── Idempotent card payments over the listener fast path ────────────────────
+
+/** Repeated request IDs join the original NIP-47 payment operation. */
+export const nwcPaymentRequestSchema = z.object({
+  requestId: hex64,
+  walletId: z.string().min(1),
+  invoice: z.string().min(1).max(8192),
+  paymentHash: hex64,
+  /** How long HTTP waits; the underlying payment may continue. */
+  waitMs: z.number().int().min(100).max(8000).default(8000),
+})
+export type NwcPaymentRequest = z.infer<typeof nwcPaymentRequestSchema>
+
+export const nwcPaymentErrorSchema = z.object({
+  code: z.enum([
+    'validation_error',
+    'request_conflict',
+    'request_not_found',
+    'wallet_not_found',
+    'wallet_not_ready',
+    'wallet_error',
+    'relay_error',
+  ]),
+  message: z.string(),
+  walletErrorCode: z.string().optional(),
+})
+
+/** Only not_started is safe to switch to web's direct NWC transport. */
+export const nwcPaymentResponseSchema = z.union([
+  z.object({
+    ok: z.literal(true),
+    status: z.literal('succeeded'),
+    requestId: hex64,
+    preimage: hex64,
+    feesPaidMsats: z.number().int().nonnegative().default(0),
+  }),
+  z.object({
+    ok: z.literal(false),
+    status: z.enum(['pending', 'unknown', 'rejected', 'not_started']),
+    requestId: hex64,
+    error: nwcPaymentErrorSchema.optional(),
+  }),
+])
+export type NwcPaymentResponse = z.infer<typeof nwcPaymentResponseSchema>
+
 // ── GET {listener}/status ────────────────────────────────────────────────────
 
 export const listenerWalletStateSchema = z.enum([
   'connecting',
-  'subscribed',
+  'negotiating',
+  'ready',
+  'disconnected',
   'error',
   'closed',
 ])
@@ -244,6 +291,9 @@ export const listenerStatusResponseSchema = z.object({
     webhooksPending: z.number().int().nonnegative().optional(),
     nwcRequests: z.number().int().nonnegative(),
     nwcRequestErrors: z.number().int().nonnegative(),
+    nwcPayments: z.number().int().nonnegative().optional(),
+    nwcPaymentDuplicates: z.number().int().nonnegative().optional(),
+    nwcPaymentsPending: z.number().int().nonnegative().optional(),
     eventsRecovered: z.number().int().nonnegative().optional(),
     catchupRuns: z.number().int().nonnegative().optional(),
     catchupErrors: z.number().int().nonnegative().optional(),

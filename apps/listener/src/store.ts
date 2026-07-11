@@ -8,7 +8,8 @@ import type pg from 'pg'
  *
  * `processed_events` powers dedup (PK), the dashboard recent-events feed and
  * webhook delivery tracking; `wallet_cursors` persists the last-seen
- * timestamp per wallet that anchors missed-event catch-up after downtime.
+ * timestamp per wallet that anchors missed-event catch-up after downtime;
+ * `nwc_requests` is the listener-owned idempotency journal for payments.
  */
 export async function bootstrapStore(pool: pg.Pool): Promise<void> {
   await pool.query(`
@@ -46,6 +47,25 @@ export async function bootstrapStore(pool: pg.Pool): Promise<void> {
       updated_at   timestamptz NOT NULL DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS listener.nwc_requests (
+      request_id        text PRIMARY KEY,
+      wallet_id         text NOT NULL,
+      invoice           text NOT NULL,
+      payment_hash      text NOT NULL,
+      payload_hash      text NOT NULL,
+      state             text NOT NULL DEFAULT 'pending'
+                        CHECK (state IN ('pending', 'succeeded', 'rejected', 'unknown', 'not_started')),
+      dispatched_at     timestamptz,
+      preimage          text,
+      fees_paid_msats   bigint,
+      error_code        text,
+      error_message     text,
+      wallet_error_code text,
+      created_at        timestamptz NOT NULL DEFAULT now(),
+      updated_at        timestamptz NOT NULL DEFAULT now(),
+      completed_at      timestamptz
+    );
+
     CREATE INDEX IF NOT EXISTS processed_events_received_at_idx
       ON listener.processed_events (received_at DESC);
     CREATE INDEX IF NOT EXISTS processed_events_wallet_idx
@@ -56,7 +76,261 @@ export async function bootstrapStore(pool: pg.Pool): Promise<void> {
     CREATE INDEX IF NOT EXISTS processed_events_retry_idx
       ON listener.processed_events (webhook_next_attempt_at)
       WHERE webhook_status <> 'delivered';
+    CREATE INDEX IF NOT EXISTS nwc_requests_payment_idx
+      ON listener.nwc_requests (wallet_id, payment_hash);
+    CREATE INDEX IF NOT EXISTS nwc_requests_unresolved_idx
+      ON listener.nwc_requests (updated_at)
+      WHERE state IN ('pending', 'unknown');
   `)
+}
+
+// ── Idempotent NWC payment requests ────────────────────────────────────────
+
+export type NwcRequestState =
+  | 'pending'
+  | 'succeeded'
+  | 'rejected'
+  | 'unknown'
+  | 'not_started'
+
+export interface NewNwcRequest {
+  requestId: string
+  walletId: string
+  invoice: string
+  paymentHash: string
+  payloadHash: string
+}
+
+export interface StoredNwcRequest extends NewNwcRequest {
+  state: NwcRequestState
+  dispatchedAt: Date | null
+  preimage: string | null
+  feesPaidMsats: number | null
+  errorCode: string | null
+  errorMessage: string | null
+  walletErrorCode: string | null
+  createdAt: Date
+  updatedAt: Date
+  completedAt: Date | null
+}
+
+interface NwcRequestRow {
+  request_id: string
+  wallet_id: string
+  invoice: string
+  payment_hash: string
+  payload_hash: string
+  state: NwcRequestState
+  dispatched_at: Date | null
+  preimage: string | null
+  fees_paid_msats: string | number | null
+  error_code: string | null
+  error_message: string | null
+  wallet_error_code: string | null
+  created_at: Date
+  updated_at: Date
+  completed_at: Date | null
+}
+
+const NWC_REQUEST_COLUMNS = `request_id, wallet_id, invoice, payment_hash,
+  payload_hash, state, dispatched_at, preimage, fees_paid_msats, error_code,
+  error_message, wallet_error_code, created_at, updated_at, completed_at`
+
+function toStoredNwcRequest(row: NwcRequestRow): StoredNwcRequest {
+  const feesPaidMsats =
+    row.fees_paid_msats === null ? null : Number(row.fees_paid_msats)
+  return {
+    requestId: row.request_id,
+    walletId: row.wallet_id,
+    invoice: row.invoice,
+    paymentHash: row.payment_hash,
+    payloadHash: row.payload_hash,
+    state: row.state,
+    dispatchedAt: row.dispatched_at,
+    preimage: row.preimage,
+    feesPaidMsats:
+      Number.isSafeInteger(feesPaidMsats) && feesPaidMsats! >= 0
+        ? feesPaidMsats
+        : null,
+    errorCode: row.error_code,
+    errorMessage: row.error_message,
+    walletErrorCode: row.wallet_error_code,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    completedAt: row.completed_at
+  }
+}
+
+/** Hash stored with the row so reusing a request id for another payload fails. */
+export function computeNwcRequestPayloadHash(
+  walletId: string,
+  invoice: string,
+  paymentHash: string
+): string {
+  return createHash('sha256')
+    .update(
+      `${walletId.length}:${walletId}${invoice.length}:${invoice}${paymentHash.toLowerCase()}`
+    )
+    .digest('hex')
+}
+
+export async function getNwcRequest(
+  pool: pg.Pool,
+  requestId: string
+): Promise<StoredNwcRequest | null> {
+  const { rows } = await pool.query<NwcRequestRow>(
+    `SELECT ${NWC_REQUEST_COLUMNS}
+       FROM listener.nwc_requests
+      WHERE request_id = $1`,
+    [requestId]
+  )
+  return rows[0] ? toStoredNwcRequest(rows[0]) : null
+}
+
+/**
+ * Atomically claims a request id. `created=false` means the caller must join
+ * or return the stored outcome; it must never dispatch another pay_invoice.
+ */
+export async function registerNwcRequest(
+  pool: pg.Pool,
+  request: NewNwcRequest,
+  /** Warm fast path: persist the dispatch boundary in the INSERT itself. */
+  claimDispatch = false
+): Promise<{ created: boolean; request: StoredNwcRequest }> {
+  const { rows } = await pool.query<NwcRequestRow>(
+    `INSERT INTO listener.nwc_requests
+       (request_id, wallet_id, invoice, payment_hash, payload_hash, dispatched_at)
+     VALUES ($1, $2, $3, $4, $5, CASE WHEN $6 THEN now() ELSE NULL END)
+     ON CONFLICT (request_id) DO NOTHING
+     RETURNING ${NWC_REQUEST_COLUMNS}`,
+    [
+      request.requestId,
+      request.walletId,
+      request.invoice,
+      request.paymentHash.toLowerCase(),
+      request.payloadHash,
+      claimDispatch
+    ]
+  )
+  if (rows[0]) {
+    return { created: true, request: toStoredNwcRequest(rows[0]) }
+  }
+
+  const existing = await getNwcRequest(pool, request.requestId)
+  if (!existing) {
+    throw new Error('NWC request conflict row disappeared')
+  }
+  return { created: false, request: existing }
+}
+
+/** Durable boundary immediately before invoking the SDK payment method. */
+export async function markNwcRequestDispatched(
+  pool: pg.Pool,
+  requestId: string
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE listener.nwc_requests
+        SET dispatched_at = COALESCE(dispatched_at, now()), updated_at = now()
+      WHERE request_id = $1 AND state = 'pending'`,
+    [requestId]
+  )
+  return (result.rowCount ?? 0) > 0
+}
+
+export interface NwcRequestCompletion {
+  state: Exclude<NwcRequestState, 'pending'>
+  preimage?: string | null
+  feesPaidMsats?: number | null
+  errorCode?: string | null
+  errorMessage?: string | null
+  walletErrorCode?: string | null
+}
+
+export async function completeNwcRequest(
+  pool: pg.Pool,
+  requestId: string,
+  completion: NwcRequestCompletion
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE listener.nwc_requests
+        SET state = $2,
+            preimage = $3,
+            fees_paid_msats = $4,
+            error_code = $5,
+            error_message = $6,
+            wallet_error_code = $7,
+            updated_at = now(),
+            completed_at = CASE
+              WHEN $2 IN ('succeeded', 'rejected', 'not_started') THEN now()
+              ELSE completed_at
+            END
+      WHERE request_id = $1
+        AND (
+          state = 'pending'
+          OR ($2 IN ('succeeded', 'rejected') AND state = 'unknown')
+        )`,
+    [
+      requestId,
+      completion.state,
+      completion.preimage ?? null,
+      completion.feesPaidMsats ?? null,
+      completion.errorCode ?? null,
+      completion.errorMessage ?? null,
+      completion.walletErrorCode ?? null
+    ]
+  )
+  return (result.rowCount ?? 0) > 0
+}
+
+/**
+ * A process restart loses in-memory ownership. Never republish: operations
+ * past the dispatch boundary become unknown; pre-dispatch rows are safe
+ * `not_started` outcomes that web may execute directly.
+ */
+export async function recoverInterruptedNwcRequests(
+  pool: pg.Pool
+): Promise<number> {
+  const result = await pool.query(
+    `UPDATE listener.nwc_requests
+        SET state = CASE WHEN dispatched_at IS NULL THEN 'not_started' ELSE 'unknown' END,
+            error_code = CASE WHEN dispatched_at IS NULL THEN 'wallet_not_ready' ELSE 'relay_error' END,
+            error_message = CASE
+              WHEN dispatched_at IS NULL THEN 'Listener stopped before NWC dispatch'
+              ELSE 'Listener restarted before the NWC result was known'
+            END,
+            updated_at = now(),
+            completed_at = CASE WHEN dispatched_at IS NULL THEN now() ELSE completed_at END
+      WHERE state = 'pending'`
+  )
+  return result.rowCount ?? 0
+}
+
+/** Resolves a pending/unknown request from a verified payment_sent event. */
+export async function resolveNwcRequestFromNotification(
+  pool: pg.Pool,
+  input: {
+    walletId: string
+    paymentHash: string
+    preimage: string
+    feesPaidMsats?: number | null
+  }
+): Promise<number> {
+  const result = await pool.query(
+    `UPDATE listener.nwc_requests
+        SET state = 'succeeded', preimage = $3, fees_paid_msats = $4,
+            error_code = NULL, error_message = NULL, wallet_error_code = NULL,
+            updated_at = now(), completed_at = now()
+      WHERE wallet_id = $1
+        AND payment_hash = $2
+        AND state IN ('pending', 'unknown')`,
+    [
+      input.walletId,
+      input.paymentHash.toLowerCase(),
+      input.preimage.toLowerCase(),
+      input.feesPaidMsats ?? 0
+    ]
+  )
+  return result.rowCount ?? 0
 }
 
 // ── Catch-up cursors ────────────────────────────────────────────────────────

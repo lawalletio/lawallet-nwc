@@ -19,6 +19,7 @@
   "dependencies": {
     "@getalby/sdk": "^7.0.0",
     "@lawallet-nwc/shared": "workspace:*",
+    "light-bolt11-decoder": "^3.2.0",
     "pg": "^8.16.3",
     "pino": "^10.3.0",
     "pino-pretty": "^13.1.3",

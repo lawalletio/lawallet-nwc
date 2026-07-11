@@ -68,6 +68,9 @@ const freshMetrics = () => ({
   webhooksPending: 0,
   nwcRequests: 0,
   nwcRequestErrors: 0,
+  nwcPayments: 0,
+  nwcPaymentDuplicates: 0,
+  nwcPaymentsPending: 0,
   reconciles: 0,
   notifiesReceived: 0,
   eventsRecovered: 0,
@@ -204,6 +207,22 @@ describe('WebhookDispatcher.dispatch', () => {
       expect(payload.payment.paymentHash).toBe('a'.repeat(64))
       expect(payload.payment.amountMsats).toBe(21000)
       expect(payload.payment.feesPaidMsats).toBe(1000)
+    }
+  })
+
+  it('omits invalid wallet fee values from payment webhooks', () => {
+    const payload = dispatcher.buildPayload({
+      ...storedEvent,
+      notificationType: 'payment_sent',
+      payload: {
+        ...(storedEvent.payload as Record<string, unknown>),
+        fees_paid: -1.5
+      }
+    })
+
+    expect(payload.type).toBe('payment_sent')
+    if (payload.type === 'payment_sent') {
+      expect(payload.payment.feesPaidMsats).toBeUndefined()
     }
   })
 })

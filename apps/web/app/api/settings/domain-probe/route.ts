@@ -7,6 +7,7 @@ import { probeDomainRouting } from '@/lib/domain-onboarding'
 import { eventBus } from '@/lib/events/event-bus'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ValidationError } from '@/types/server/errors'
+import { invalidateHotSettingsCache } from '@/lib/settings'
 
 const domainProbeBodySchema = z.object({
   domain: z.string().min(1),
@@ -32,6 +33,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     update: { value: domainVerified ? 'true' : 'false' },
     create: { name: 'domain_verified', value: domainVerified ? 'true' : 'false' },
   })
+  invalidateHotSettingsCache()
   eventBus.emit({ type: 'settings:updated', timestamp: Date.now() })
 
   return NextResponse.json(result)

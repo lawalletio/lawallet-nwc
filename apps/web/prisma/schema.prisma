@@ -98,6 +98,18 @@ enum NostrProfileImageKind {
   COVER
 }
 
+enum CardPaymentTransport {
+  DIRECT
+  LISTENER
+}
+
+enum CardPaymentStatus {
+  PENDING
+  SUCCEEDED
+  REJECTED
+  UNKNOWN
+}
+
 model User {
   id                 String             @id
   pubkey             String             @unique
@@ -238,6 +250,7 @@ model Card {
   user             User?                 @relation(fields: [userId], references: [id])
   remoteWallet     RemoteWallet?         @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
   activationTokens CardActivationToken[]
+  paymentAttempts  CardPaymentAttempt[]
 
   @@index([userId])
   @@index([remoteWalletId])
@@ -266,6 +279,38 @@ model CardActivationToken {
 
   @@index([cardId])
   @@index([status])
+}
+
+/// Durable, idempotent record of a BoltCard payment. `walletId` is an audit
+/// snapshot rather than a relation: deleting a RemoteWallet configuration must
+/// not erase payment history or make the wallet impossible to delete.
+///
+/// At most one PENDING/UNKNOWN attempt may exist for a card. PostgreSQL enforces
+/// that invariant with a partial unique index in the migration because Prisma
+/// cannot represent partial indexes in this schema.
+model CardPaymentAttempt {
+  id            String               @id @default(cuid())
+  requestId     String               @unique
+  cardId        String
+  card          Card                 @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  counter       Int
+  walletId      String
+  paymentHash   String
+  bolt11        String
+  amountMsats   Int
+  transport     CardPaymentTransport
+  status        CardPaymentStatus    @default(PENDING)
+  preimage      String?
+  feesPaidMsats Int?
+  errorCode     String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  resolvedAt    DateTime?
+
+  @@unique([cardId, counter])
+  @@unique([walletId, paymentHash])
+  @@index([cardId, createdAt])
+  @@index([status, updatedAt])
 }
 
 model AlbySubAccount {

@@ -109,6 +109,9 @@ importers:
       '@lawallet-nwc/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      light-bolt11-decoder:
+        specifier: ^3.2.0
+        version: 3.2.0
       pg:
         specifier: ^8.16.3
         version: 8.22.0
@@ -9443,7 +9446,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 2.0.0
-      vitest: 3.2.6(@types/debug@4.1.13)(@types/node@25.6.0)(@vitest/ui@3.2.6)(happy-dom@20.10.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(jiti@1.21.7)(lightningcss@1.32.0)(msw@2.12.8(@types/node@25.6.0)(typescript@5.9.3))(tsx@4.21.0)(yaml@2.8.3)
+      vitest: 3.2.6(@types/debug@4.1.13)(@types/node@25.6.0)(@vitest/ui@3.2.6)(happy-dom@20.10.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(jiti@2.6.1)(lightningcss@1.32.0)(msw@2.12.8(@types/node@25.6.0)(typescript@5.9.3))(tsx@4.21.0)(yaml@2.8.3)
 
   '@vitest/utils@3.2.6':
     dependencies:

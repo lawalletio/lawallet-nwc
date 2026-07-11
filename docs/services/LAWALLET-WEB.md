@@ -40,16 +40,16 @@ The main application serving the frontend, REST API, admin dashboard, user dashb
 
 ## Directory Structure
 
-| Path | Purpose |
-|------|---------|
-| `/app` | Next.js App Router pages and API routes |
-| `/app/admin` | Admin dashboard pages |
-| `/app/wallet` | Wallet interface |
-| `/app/.well-known` | LUD-16 + NIP-05 endpoints |
-| `/app/api` | REST API routes |
-| `/components` | Shared React components |
-| `/lib` | Shared utilities, types, constants |
-| `/prisma` | Database schema, migrations, seeds |
+| Path               | Purpose                                 |
+| ------------------ | --------------------------------------- |
+| `/app`             | Next.js App Router pages and API routes |
+| `/app/admin`       | Admin dashboard pages                   |
+| `/app/wallet`      | Wallet interface                        |
+| `/app/.well-known` | LUD-16 + NIP-05 endpoints               |
+| `/app/api`         | REST API routes                         |
+| `/components`      | Shared React components                 |
+| `/lib`             | Shared utilities, types, constants      |
+| `/prisma`          | Database schema, migrations, seeds      |
 
 **Note:** the public landing now lives in [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing). `lawallet-web` keeps `/` as a redirect so deployments can share the same domain cleanly.
 
@@ -88,9 +88,12 @@ The main application serving the frontend, REST API, admin dashboard, user dashb
 ## Communication with Other Services
 
 - **lawallet-listener** (optional): the NWC listener POSTs HMAC-signed payment
-  webhooks to `POST /api/webhooks/nwc`, and web proxies NWC calls through the
-  listener's pooled relay connections (`POST {listener}/nwc/request`) with
-  automatic fallback to direct per-request connections. Shares the same
-  Postgres (the listener reads `RemoteWallet` rows and owns its `listener`
-  schema). See `docs/services/NWC-LISTENER.md`.
+  webhooks to `POST /api/webhooks/nwc`. Card payments use the wallet-ID-routed,
+  idempotent `POST {listener}/v1/nwc/payments` fast path and reconcile late
+  results through `GET {listener}/v1/nwc/payments/:requestId`; the legacy
+  `/nwc/request` proxy remains for other NWC operations. If the listener is
+  disabled/unconfigured, web uses direct per-request NWC. Once a listener
+  payment may have been published, web never falls back and pays again. The
+  listener shares Postgres, reads `RemoteWallet`, and owns its `listener`
+  schema. See `docs/services/NWC-LISTENER.md`.
 - **lawallet-nwc-proxy**: HTTP API calls to provision/revoke courtesy NWC connections

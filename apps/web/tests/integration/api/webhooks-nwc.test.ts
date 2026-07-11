@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createHmac } from 'crypto'
+import { createHash, createHmac } from 'crypto'
 import { NextRequest } from 'next/server'
 import { assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
@@ -45,6 +45,7 @@ vi.mock('@/lib/activity-log', () => ({
     NWC_LISTENER_ERROR: 'nwc.listener_error',
     NWC_WALLET_DEAD: 'nwc.wallet_dead',
     INVOICE_PAID: 'invoice.paid',
+    CARD_PAYMENT: 'card.payment',
   },
   invoiceLogMetadata: vi.fn(() => ({})),
   logActivity: { fireAndForget: (...args: unknown[]) => fireAndForgetMock(...args) },
@@ -54,6 +55,10 @@ import { POST } from '@/app/api/webhooks/nwc/route'
 import { eventBus } from '@/lib/events/event-bus'
 
 const HASH = 'a'.repeat(64)
+const SENT_PREIMAGE = '11'.repeat(32)
+const SENT_HASH = createHash('sha256')
+  .update(Buffer.from(SENT_PREIMAGE, 'hex'))
+  .digest('hex')
 
 const paymentReceived = {
   type: 'payment_received',
@@ -239,6 +244,65 @@ describe('POST /api/webhooks/nwc', () => {
       expect.objectContaining({ event: 'nwc.payment_sent' })
     )
   })
+
+  it.each(['DIRECT', 'LISTENER'] as const)(
+    'reconciles an unresolved %s card attempt from a verified payment_sent notification',
+    async transport => {
+      vi.mocked(prismaMock.cardPaymentAttempt.findUnique).mockResolvedValue({
+        id: 'attempt-1',
+        requestId: 'request-1',
+        cardId: 'card-1',
+        counter: 7,
+        walletId: 'wallet-1',
+        paymentHash: SENT_HASH,
+        bolt11: 'lnbc1cardinvoice',
+        amountMsats: 21_000,
+        transport,
+        status: 'UNKNOWN',
+        preimage: null,
+        feesPaidMsats: null,
+        errorCode: 'PAYMENT_OUTCOME_UNKNOWN',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        resolvedAt: null,
+      } as never)
+      vi.mocked(prismaMock.cardPaymentAttempt.updateMany).mockResolvedValue({
+        count: 1,
+      } as never)
+
+      const res = await POST(
+        signedRequest({
+          ...paymentReceived,
+          type: 'payment_sent',
+          payment: {
+            ...paymentReceived.payment,
+            paymentHash: SENT_HASH,
+            preimage: SENT_PREIMAGE,
+          },
+        })
+      )
+      await assertResponse(res, 200)
+
+      expect(prismaMock.cardPaymentAttempt.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: 'attempt-1',
+            status: { in: ['PENDING', 'UNKNOWN'] },
+            transport,
+          },
+          data: expect.objectContaining({
+            status: 'SUCCEEDED',
+            transport,
+            preimage: SENT_PREIMAGE,
+            resolvedAt: expect.any(Date),
+          }),
+        })
+      )
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'cards:updated' })
+      )
+    }
+  )
 
   it('logs listener_error at WARN without touching invoices', async () => {
     const res = await POST(

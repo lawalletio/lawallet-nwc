@@ -4,13 +4,20 @@ import {
   advanceCursor,
   bootstrapStore,
   computeEventKey,
+  computeNwcRequestPayloadHash,
   countUndelivered,
+  completeNwcRequest,
   getCursor,
+  getNwcRequest,
   insertEventIfNew,
+  markNwcRequestDispatched,
   markDelivery,
   pruneEvents,
   recentEvents,
   recentEventsSafe,
+  recoverInterruptedNwcRequests,
+  registerNwcRequest,
+  resolveNwcRequestFromNotification,
   seedCursorIfMissing,
   undeliveredEvents
 } from '../src/store'
@@ -125,12 +132,130 @@ describe('pruneEvents', () => {
 })
 
 describe('bootstrapStore', () => {
-  it('creates the cursors table and upgrades processed_events idempotently', async () => {
+  it('creates cursors and the idempotent NWC request journal', async () => {
     const { pool, query } = poolWith({ rowCount: 0 })
     await bootstrapStore(pool)
     const [sql] = query.mock.calls[0]
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS listener.wallet_cursors')
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS listener.nwc_requests')
+    expect(sql).toContain('nwc_requests_unresolved_idx')
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS recovered')
+  })
+})
+
+describe('NWC request journal', () => {
+  const request = {
+    requestId: 'a'.repeat(64),
+    walletId: 'wallet-1',
+    invoice: 'lnbc1invoice',
+    paymentHash: 'b'.repeat(64),
+    payloadHash: computeNwcRequestPayloadHash(
+      'wallet-1',
+      'lnbc1invoice',
+      'b'.repeat(64)
+    )
+  }
+  const row = {
+    request_id: request.requestId,
+    wallet_id: request.walletId,
+    invoice: request.invoice,
+    payment_hash: request.paymentHash,
+    payload_hash: request.payloadHash,
+    state: 'pending' as const,
+    dispatched_at: null,
+    preimage: null,
+    fees_paid_msats: null,
+    error_code: null,
+    error_message: null,
+    wallet_error_code: null,
+    created_at: new Date('2026-07-01T00:00:00Z'),
+    updated_at: new Date('2026-07-01T00:00:00Z'),
+    completed_at: null
+  }
+
+  it('atomically claims a request id before dispatch', async () => {
+    const { pool, query } = poolWith({ rows: [row], rowCount: 1 })
+    await expect(registerNwcRequest(pool, request)).resolves.toMatchObject({
+      created: true,
+      request: { requestId: request.requestId, state: 'pending' }
+    })
+    const [sql, params] = query.mock.calls[0]
+    expect(sql).toContain('ON CONFLICT (request_id) DO NOTHING')
+    expect(params).toEqual([
+      request.requestId,
+      request.walletId,
+      request.invoice,
+      request.paymentHash,
+      request.payloadHash,
+      false
+    ])
+  })
+
+  it('loads the durable owner when the request id already exists', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [row], rowCount: 1 })
+    const pool = { query } as unknown as pg.Pool
+    await expect(registerNwcRequest(pool, request)).resolves.toMatchObject({
+      created: false,
+      request: { payloadHash: request.payloadHash }
+    })
+    expect(query).toHaveBeenCalledTimes(2)
+  })
+
+  it('persists the dispatch boundary and terminal result separately', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await markNwcRequestDispatched(pool, request.requestId)
+    expect(query.mock.calls[0][0]).toContain(
+      'dispatched_at = COALESCE(dispatched_at, now())'
+    )
+
+    await completeNwcRequest(pool, request.requestId, {
+      state: 'succeeded',
+      preimage: 'c'.repeat(64),
+      feesPaidMsats: 250
+    })
+    const [sql, params] = query.mock.calls[1]
+    expect(sql).toContain("WHEN $2 IN ('succeeded', 'rejected', 'not_started')")
+    expect(params).toEqual([
+      request.requestId,
+      'succeeded',
+      'c'.repeat(64),
+      250,
+      null,
+      null,
+      null
+    ])
+  })
+
+  it('classifies interrupted rows without ever republishing them', async () => {
+    const { pool, query } = poolWith({ rowCount: 2 })
+    await expect(recoverInterruptedNwcRequests(pool)).resolves.toBe(2)
+    const [sql] = query.mock.calls[0]
+    expect(sql).toContain(
+      "CASE WHEN dispatched_at IS NULL THEN 'not_started' ELSE 'unknown' END"
+    )
+    expect(sql).toContain("WHERE state = 'pending'")
+  })
+
+  it('resolves pending/unknown rows from a verified notification', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await expect(
+      resolveNwcRequestFromNotification(pool, {
+        walletId: request.walletId,
+        paymentHash: request.paymentHash,
+        preimage: 'c'.repeat(64),
+        feesPaidMsats: 100
+      })
+    ).resolves.toBe(1)
+    const [sql] = query.mock.calls[0]
+    expect(sql).toContain("state IN ('pending', 'unknown')")
+  })
+
+  it('returns null when a request id is absent', async () => {
+    const { pool } = poolWith({ rows: [] })
+    await expect(getNwcRequest(pool, request.requestId)).resolves.toBeNull()
   })
 })
 

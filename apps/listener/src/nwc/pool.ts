@@ -36,7 +36,13 @@ export class NwcPoolError extends Error {
   }
 }
 
-type WalletState = 'connecting' | 'subscribed' | 'error' | 'closed'
+type WalletState =
+  | 'connecting'
+  | 'negotiating'
+  | 'ready'
+  | 'disconnected'
+  | 'error'
+  | 'closed'
 
 interface WalletConnection {
   wallet: DesiredWallet
@@ -61,6 +67,8 @@ interface WalletConnection {
   wasConnected: boolean
   /** Bumped on remove/rotate so stale async connects abort themselves. */
   generation: number
+  /** Foreground card payments suppress maintenance probes/catch-up work. */
+  foregroundPayments: number
 }
 
 // The SDK methods take typed NIP-47 request objects; proxied params arrive as
@@ -99,6 +107,9 @@ export interface NwcPoolDeps {
 
 /** How often the reconnect watcher samples relay connectivity. */
 const WATCHER_INTERVAL_MS = 30000
+/** Avoid a startup relay storm while keeping enough parallel warm-ups. */
+const MAX_CONCURRENT_NEGOTIATIONS = 8
+const WARMUP_TIMEOUT_MS = 15000
 
 /**
  * Holds one live NWCClient per ACTIVE NWC RemoteWallet for the process
@@ -113,23 +124,39 @@ export class NwcPool {
   private queue: Promise<void> = Promise.resolve()
   private closed = false
   private watcherTimer: NodeJS.Timeout | null = null
+  private readonly readyWaiters = new Map<
+    string,
+    Set<(ready: boolean) => void>
+  >()
+  private connectQueue: WalletConnection[] = []
+  private activeConnects = 0
 
   constructor(deps: NwcPoolDeps) {
     this.deps = deps
-    if (deps.onReconnected) {
-      this.watcherTimer = setInterval(
-        () => this.checkReconnects(),
-        WATCHER_INTERVAL_MS
-      )
-      this.watcherTimer.unref()
-    }
+    // State accuracy matters to the payment fast path even when missed-event
+    // catch-up is disabled, so the relay watcher always runs. onReconnected
+    // remains optional.
+    this.watcherTimer = setInterval(
+      () => this.checkReconnects(),
+      WATCHER_INTERVAL_MS
+    )
+    this.watcherTimer.unref()
   }
 
   private checkReconnects(): void {
     for (const conn of this.connections.values()) {
-      if (conn.state !== 'subscribed' || !conn.client) continue
-      const connected = conn.client.connected
-      if (connected && !conn.wasConnected) {
+      if (
+        (conn.state !== 'ready' && conn.state !== 'disconnected') ||
+        !conn.client
+      ) {
+        continue
+      }
+      const connected = isConnectedSafe(conn.client)
+      if (!connected) {
+        conn.state = 'disconnected'
+      } else if (!conn.wasConnected || conn.state === 'disconnected') {
+        conn.state = 'ready'
+        this.resolveReadyWaiters(conn.wallet.id, true)
         this.deps.onReconnected?.(conn.wallet, conn.client)
       }
       conn.wasConnected = connected
@@ -166,7 +193,13 @@ export class NwcPool {
       unresponsiveMs: number
     }> = []
     for (const conn of this.connections.values()) {
-      if (conn.state !== 'subscribed' || !conn.client) continue
+      if (
+        conn.state !== 'ready' ||
+        !conn.client ||
+        conn.foregroundPayments > 0
+      ) {
+        continue
+      }
       // Relays down → unreachable is a transport fault, NOT wallet death.
       if (!isConnectedSafe(conn.client)) continue
       if (!conn.lastResponsiveAt) continue
@@ -198,7 +231,11 @@ export class NwcPool {
   subscribedClients(): Array<{ wallet: DesiredWallet; client: NWCClient }> {
     const out: Array<{ wallet: DesiredWallet; client: NWCClient }> = []
     for (const conn of this.connections.values()) {
-      if (conn.state === 'subscribed' && conn.client) {
+      if (
+        conn.state === 'ready' &&
+        conn.client &&
+        conn.foregroundPayments === 0
+      ) {
         out.push({ wallet: conn.wallet, client: conn.client })
       }
     }
@@ -258,18 +295,18 @@ export class NwcPool {
       return
     }
     if (!existing) {
-      this.addWallet(row)
+      this.addWallet(row, true)
       return
     }
     if (existing.wallet.connectionString !== row.connectionString) {
       this.removeWallet(walletId)
-      this.addWallet(row)
+      this.addWallet(row, true)
       return
     }
     existing.wallet = { ...row }
   }
 
-  private addWallet(wallet: DesiredWallet): void {
+  private addWallet(wallet: DesiredWallet, priority = false): void {
     const conn: WalletConnection = {
       wallet: { ...wallet },
       client: null,
@@ -284,11 +321,35 @@ export class NwcPool {
       retryAttempt: 0,
       errorNotified: false,
       wasConnected: false,
-      generation: 0
+      generation: 0,
+      foregroundPayments: 0
     }
     this.connections.set(wallet.id, conn)
     this.byConnectionString.set(wallet.connectionString, wallet.id)
-    void this.connect(conn)
+    this.enqueueConnect(conn, priority)
+  }
+
+  private enqueueConnect(conn: WalletConnection, priority: boolean): void {
+    if (this.closed || this.connections.get(conn.wallet.id) !== conn) return
+    if (priority) this.connectQueue.unshift(conn)
+    else this.connectQueue.push(conn)
+    this.drainConnectQueue()
+  }
+
+  private drainConnectQueue(): void {
+    while (
+      !this.closed &&
+      this.activeConnects < MAX_CONCURRENT_NEGOTIATIONS &&
+      this.connectQueue.length > 0
+    ) {
+      const conn = this.connectQueue.shift()!
+      if (this.connections.get(conn.wallet.id) !== conn) continue
+      this.activeConnects++
+      void this.connect(conn).finally(() => {
+        this.activeConnects--
+        this.drainConnectQueue()
+      })
+    }
   }
 
   private removeWallet(walletId: string): void {
@@ -296,6 +357,7 @@ export class NwcPool {
     if (!conn) return
     conn.generation++
     conn.state = 'closed'
+    this.resolveReadyWaiters(walletId, false)
     if (conn.retryTimer) clearTimeout(conn.retryTimer)
     this.teardownClient(conn)
     this.byConnectionString.delete(conn.wallet.connectionString)
@@ -363,7 +425,33 @@ export class NwcPool {
 
       conn.client = client
       conn.unsub = unsub
-      conn.state = 'subscribed'
+      conn.state = 'negotiating'
+
+      // subscribeNotifications starts the relay work but may resolve before
+      // the NIP-47 request/response channel is actually usable. A get_info
+      // round-trip proves relay connectivity, encryption and wallet response
+      // handling before the low-latency payment endpoint advertises readiness.
+      // A wallet-level rejection still proves the transport is operational.
+      try {
+        await withTimeout(
+          client.getInfo(),
+          WARMUP_TIMEOUT_MS,
+          'NWC get_info warm-up timed out'
+        )
+      } catch (err) {
+        if (!(err instanceof Nip47WalletError)) throw err
+        log.debug(
+          { walletId: conn.wallet.id, code: err.code },
+          'pool.wallet_warmup_rejected'
+        )
+      }
+
+      if (conn.generation !== generation) {
+        this.teardownClient(conn)
+        return
+      }
+
+      conn.state = 'ready'
       conn.retryAttempt = 0
       conn.errorNotified = false
       // Seed the liveness clock so a freshly (re)subscribed wallet isn't
@@ -374,8 +462,9 @@ export class NwcPool {
       conn.wasConnected = true
       log.info(
         { walletId: conn.wallet.id, relays: client.relayUrls },
-        'pool.wallet_subscribed'
+        'pool.wallet_ready'
       )
+      this.resolveReadyWaiters(conn.wallet.id, true)
       this.deps.onSubscribed?.(conn.wallet, client)
     } catch (err) {
       if (conn.generation !== generation) return
@@ -404,7 +493,7 @@ export class NwcPool {
     conn.retryTimer = setTimeout(
       () => {
         conn.retryTimer = null
-        void this.connect(conn)
+        this.enqueueConnect(conn, true)
       },
       Math.round(base + jitter)
     )
@@ -425,19 +514,24 @@ export class NwcPool {
     timeoutMs: number
   ): Promise<unknown> {
     const walletId = this.byConnectionString.get(connectionString)
-    const conn = walletId ? this.connections.get(walletId) : undefined
-    if (!conn) {
+    if (!walletId) {
       throw new NwcPoolError(
         'wallet_not_found',
         'No pooled connection for this wallet'
       )
     }
-    if (conn.state !== 'subscribed' || !conn.client) {
-      throw new NwcPoolError(
-        'wallet_not_connected',
-        `Wallet connection is ${conn.state}`
-      )
-    }
+    return this.requestByWalletId(walletId, method, params, timeoutMs)
+  }
+
+  /** Legacy proxy request routed by wallet id after connection-string lookup. */
+  async requestByWalletId(
+    walletId: string,
+    method: NwcProxyMethod,
+    params: Record<string, unknown>,
+    timeoutMs: number
+  ): Promise<unknown> {
+    const conn = this.requireReady(walletId)
+    const client = conn.client as NWCClient
 
     let timer: NodeJS.Timeout | null = null
     const timeout = new Promise<never>((_, reject) => {
@@ -455,7 +549,7 @@ export class NwcPool {
 
     try {
       const result = await Promise.race([
-        METHOD_MAP[method](conn.client, params),
+        METHOD_MAP[method](client, params),
         timeout
       ])
       // A wallet that answered a proxied call is demonstrably alive.
@@ -483,13 +577,134 @@ export class NwcPool {
     }
   }
 
+  /** True when the wallet exists in the pool, regardless of readiness. */
+  hasWallet(walletId: string): boolean {
+    return this.connections.has(walletId)
+  }
+
+  /** True only after subscription + get_info negotiation completed. */
+  isReady(walletId: string): boolean {
+    const conn = this.connections.get(walletId)
+    if (!conn?.client) return false
+    const connected = isConnectedSafe(conn.client)
+    if (!connected) {
+      if (conn.state === 'ready') conn.state = 'disconnected'
+      conn.wasConnected = false
+      return false
+    }
+    // The SDK may reconnect between 30-second watcher samples. Promote only a
+    // previously-negotiated disconnected client; never skip get_info while a
+    // fresh connection is still in `negotiating`.
+    if (conn.state === 'disconnected') {
+      conn.state = 'ready'
+      conn.wasConnected = true
+      this.resolveReadyWaiters(walletId, true)
+      this.deps.onReconnected?.(conn.wallet, conn.client)
+    }
+    return conn.state === 'ready'
+  }
+
+  /** Move a queued/error wallet ahead of background startup negotiations. */
+  prioritizeWallet(walletId: string): void {
+    const conn = this.connections.get(walletId)
+    if (!conn || conn.state === 'ready' || conn.state === 'closed') return
+    const queued = this.connectQueue.indexOf(conn)
+    if (queued >= 0) {
+      this.connectQueue.splice(queued, 1)
+      this.connectQueue.unshift(conn)
+      this.drainConnectQueue()
+      return
+    }
+    if (conn.state === 'error' && conn.retryTimer) {
+      clearTimeout(conn.retryTimer)
+      conn.retryTimer = null
+      this.enqueueConnect(conn, true)
+    }
+  }
+
+  /** Waits briefly for an in-progress targeted reconcile/warm-up. */
+  waitUntilReady(walletId: string, timeoutMs: number): Promise<boolean> {
+    if (this.isReady(walletId)) return Promise.resolve(true)
+    if (this.closed) return Promise.resolve(false)
+
+    return new Promise(resolve => {
+      const waiters = this.readyWaiters.get(walletId) ?? new Set()
+      let settled = false
+      const finish = (ready: boolean) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        waiters.delete(finish)
+        if (waiters.size === 0) this.readyWaiters.delete(walletId)
+        resolve(ready)
+      }
+      waiters.add(finish)
+      this.readyWaiters.set(walletId, waiters)
+      const timer = setTimeout(() => finish(this.isReady(walletId)), timeoutMs)
+      timer.unref()
+    })
+  }
+
+  /**
+   * Starts one foreground payment on the already-warmed client. No outer
+   * timeout is applied: callers may stop waiting, but the SDK operation keeps
+   * running and can journal a late result.
+   */
+  async payInvoiceByWalletId(
+    walletId: string,
+    invoice: string
+  ): Promise<unknown> {
+    const conn = this.requireReady(walletId)
+    const client = conn.client as NWCClient
+    conn.foregroundPayments++
+    try {
+      const result = await client.payInvoice({ invoice })
+      conn.lastResponsiveAt = new Date()
+      return result
+    } catch (err) {
+      throw this.mapSdkError(conn, err)
+    } finally {
+      conn.foregroundPayments = Math.max(0, conn.foregroundPayments - 1)
+    }
+  }
+
+  /** Read-only recovery for a payment whose dispatch outcome is ambiguous. */
+  async lookupInvoiceByWalletId(
+    walletId: string,
+    paymentHash: string
+  ): Promise<unknown> {
+    const conn = this.requireReady(walletId)
+    try {
+      const result = await conn.client!.lookupInvoice({
+        payment_hash: paymentHash
+      })
+      conn.lastResponsiveAt = new Date()
+      return result
+    } catch (err) {
+      throw this.mapSdkError(conn, err)
+    }
+  }
+
+  hasForegroundPayment(walletId: string): boolean {
+    return (this.connections.get(walletId)?.foregroundPayments ?? 0) > 0
+  }
+
+  readinessSummary(): { total: number; ready: number; notReady: number } {
+    const total = this.connections.size
+    let ready = 0
+    for (const conn of this.connections.values()) {
+      if (this.isReady(conn.wallet.id)) ready++
+    }
+    return { total, ready, notReady: total - ready }
+  }
+
   snapshot(): ListenerConnection[] {
     return [...this.connections.values()].map(conn => ({
       walletId: conn.wallet.id,
       walletName: conn.wallet.name,
       userId: conn.wallet.userId,
       state: conn.state,
-      connected: conn.client?.connected ?? false,
+      connected: conn.client ? isConnectedSafe(conn.client) : false,
       relayUrls: conn.client?.relayUrls ?? [],
       lastEventAt: conn.lastEventAt?.toISOString() ?? null,
       lastErrorAt: conn.lastErrorAt?.toISOString() ?? null,
@@ -535,11 +750,62 @@ export class NwcPool {
     for (const conn of this.connections.values()) {
       conn.generation++
       conn.state = 'closed'
+      this.resolveReadyWaiters(conn.wallet.id, false)
       if (conn.retryTimer) clearTimeout(conn.retryTimer)
       this.teardownClient(conn)
     }
     this.connections.clear()
     this.byConnectionString.clear()
+    this.connectQueue = []
+  }
+
+  private requireReady(walletId: string): WalletConnection {
+    const conn = this.connections.get(walletId)
+    if (!conn) {
+      throw new NwcPoolError(
+        'wallet_not_found',
+        'No pooled connection for this wallet'
+      )
+    }
+    if (
+      conn.state !== 'ready' ||
+      !conn.client ||
+      !isConnectedSafe(conn.client)
+    ) {
+      if (conn.client && conn.state === 'ready') {
+        conn.state = 'disconnected'
+        conn.wasConnected = false
+      }
+      throw new NwcPoolError(
+        'wallet_not_connected',
+        `Wallet connection is ${conn.state}`
+      )
+    }
+    return conn
+  }
+
+  private mapSdkError(conn: WalletConnection, err: unknown): NwcPoolError {
+    conn.lastErrorAt = new Date()
+    conn.lastError = err instanceof Error ? err.message : String(err)
+    if (err instanceof Nip47WalletError) {
+      return new NwcPoolError('wallet_error', err.message, err.code)
+    }
+    if (err instanceof Nip47TimeoutError) {
+      return new NwcPoolError('timeout', err.message)
+    }
+    if (err instanceof Nip47Error) {
+      return new NwcPoolError('relay_error', err.message)
+    }
+    return new NwcPoolError(
+      'relay_error',
+      err instanceof Error ? err.message : 'Unknown NWC transport error'
+    )
+  }
+
+  private resolveReadyWaiters(walletId: string, ready: boolean): void {
+    const waiters = this.readyWaiters.get(walletId)
+    if (!waiters) return
+    for (const resolve of [...waiters]) resolve(ready)
   }
 }
 
@@ -561,6 +827,21 @@ function isThenable(v: unknown): v is Promise<unknown> {
     v !== null &&
     typeof (v as { then?: unknown }).then === 'function'
   )
+}
+
+function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  message: string
+): Promise<T> {
+  let timer: NodeJS.Timeout | null = null
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs)
+    timer.unref()
+  })
+  return Promise.race([operation, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
 }
 
 /**
