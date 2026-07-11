@@ -18,6 +18,7 @@ import {
   type DesiredWallet
 } from './db'
 import { NwcPool } from './nwc/pool'
+import { verifyPaymentPreimage } from './nwc/payments'
 import { CatchupRunner } from './nwc/catchup'
 import { DeadWalletProber } from './nwc/dead-prober'
 import {
@@ -27,6 +28,8 @@ import {
   insertEventIfNew,
   lastEventAtByWallet,
   pruneEvents,
+  recoverInterruptedNwcRequests,
+  resolveNwcRequestFromNotification,
   type StoredEvent
 } from './store'
 import { WebhookDispatcher } from './webhook'
@@ -67,6 +70,10 @@ async function main(): Promise<void> {
   // `prisma migrate deploy` has created the tables we query.
   await waitForSchema(pgPool, log)
   await bootstrapStore(pgPool)
+  const interrupted = await recoverInterruptedNwcRequests(pgPool)
+  if (interrupted > 0) {
+    log.warn({ count: interrupted }, 'nwc_payment.interrupted_recovered')
+  }
   log.info('store.bootstrapped')
 
   const dispatcher = new WebhookDispatcher({
@@ -105,6 +112,28 @@ async function main(): Promise<void> {
         'notification.missing_payment_hash'
       )
       return false
+    }
+
+    // A payment_sent notification can resolve a request whose HTTP caller
+    // timed out or whose listener process restarted. Only a cryptographically
+    // matching preimage is allowed to turn an ambiguous journal row into
+    // success; the notification path never republishes pay_invoice.
+    if (
+      n.notification_type === 'payment_sent' &&
+      typeof tx.preimage === 'string' &&
+      verifyPaymentPreimage(tx.preimage, tx.payment_hash)
+    ) {
+      await resolveNwcRequestFromNotification(pgPool, {
+        walletId: wallet.id,
+        paymentHash: tx.payment_hash,
+        preimage: tx.preimage,
+        feesPaidMsats:
+          typeof tx.fees_paid === 'number' &&
+          Number.isSafeInteger(tx.fees_paid) &&
+          tx.fees_paid >= 0
+            ? tx.fees_paid
+            : undefined
+      })
     }
 
     const eventAgeRef = (tx.settled_at || tx.created_at || 0) * 1000
@@ -188,6 +217,7 @@ async function main(): Promise<void> {
   // reconnects detected by the pool watcher. runForWallet never throws
   // (it catches internally), the .catch is belt-and-suspenders.
   const runCatchup = (wallet: DesiredWallet, client: NWCClient): void => {
+    if (nwcPool.hasForegroundPayment(wallet.id)) return
     void catchup
       .runForWallet(wallet, client)
       .then(() => {
@@ -207,8 +237,8 @@ async function main(): Promise<void> {
         .sendListenerError(wallet.id, 'connection_failed', error.message)
         .catch(() => {})
     },
-    // With catch-up disabled no hooks are registered — the pool then skips
-    // its reconnect watcher too (cursors still advance from live events).
+    // With catch-up disabled no recovery hooks are registered; the pool still
+    // watches relay connectivity because payment readiness depends on it.
     ...(env.CATCHUP_ENABLED
       ? { onSubscribed: runCatchup, onReconnected: runCatchup }
       : {})
@@ -286,8 +316,8 @@ async function main(): Promise<void> {
     setInterval(
       () => {
         void pruneEvents(pgPool, env.EVENT_RETENTION_DAYS)
-          .then(count => {
-            if (count > 0) log.info({ count }, 'store.pruned')
+          .then(eventCount => {
+            if (eventCount > 0) log.info({ eventCount }, 'store.pruned')
           })
           .catch(err => log.error({ err }, 'store.prune_failed'))
       },

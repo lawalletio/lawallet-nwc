@@ -16,19 +16,26 @@ export type {
   PayInvoiceInput,
   PayInvoiceResult,
   RemoteWalletDriver,
+  WalletOperationContext
 } from './types'
 export {
   DriverConfigError,
   DriverError,
   DriverRemoteError,
-  UnsupportedDriverError,
+  PaymentOutcomeUnknownError,
+  PaymentRejectedError,
+  UnsupportedDriverError
 } from './errors'
 export {
   driverForWallet,
   getDriver,
   listDriverTypes,
   registerDriver,
-  unregisterDriver,
+  unregisterDriver
 } from './registry'
-export { nwcDriver } from './nwc-driver'
+export {
+  getInFlightDirectPayment,
+  nwcDriver,
+  reconcileDirectNwcPayment
+} from './nwc-driver'
 export type { NwcDriverConfig } from './nwc-driver'

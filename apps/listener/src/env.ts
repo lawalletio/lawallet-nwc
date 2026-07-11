@@ -20,13 +20,23 @@ const envSchema = z.object({
     .default('4100')
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().positive())
-    .describe('HTTP port for /health, /status and /nwc/request'),
+    .describe(
+      'HTTP port for health, status, legacy proxy and idempotent payment APIs'
+    ),
 
   LISTENER_AUTH_SECRET: z
     .string()
     .min(32, 'LISTENER_AUTH_SECRET must be at least 32 characters long')
     .describe(
-      'Shared secret: signs webhooks to apps/web, guards the HTTP API as a bearer token'
+      'Webhook signing secret; also guards HTTP as a compatibility fallback'
+    ),
+
+  LISTENER_REQUEST_AUTH_SECRET: z
+    .string()
+    .min(32, 'LISTENER_REQUEST_AUTH_SECRET must be at least 32 characters long')
+    .optional()
+    .describe(
+      'Optional dedicated web-to-listener bearer secret (falls back to LISTENER_AUTH_SECRET)'
     ),
 
   WEB_ORIGIN: z

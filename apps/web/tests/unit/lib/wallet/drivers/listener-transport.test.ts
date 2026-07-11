@@ -10,6 +10,8 @@ import { DriverRemoteError } from '@/lib/wallet/drivers/errors'
 import {
   listenerNwcRequest,
   ListenerUnavailableError,
+  prepareListenerPaymentFastPath,
+  resetListenerPaymentCircuit,
   resolveListenerBridge,
 } from '@/lib/wallet/drivers/listener-transport'
 
@@ -31,6 +33,62 @@ const INPUT = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resetListenerPaymentCircuit()
+})
+
+describe('payment capability cache', () => {
+  it('probes once before selecting the listener and reuses the ready result', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        status: 'ready',
+        capabilities: ['nwc_payments_v1'],
+        wallets: { total: 1, ready: 1, notReady: 0 }
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      prepareListenerPaymentFastPath(BRIDGE, 'wallet-1')
+    ).resolves.toBe(true)
+    await expect(
+      prepareListenerPaymentFastPath(BRIDGE, 'wallet-1')
+    ).resolves.toBe(true)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'http://listener.test:4100/ready'
+    )
+  })
+
+  it('selects direct when the optional listener is unreachable', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      prepareListenerPaymentFastPath(BRIDGE, 'wallet-1')
+    ).resolves.toBe(false)
+    await expect(
+      prepareListenerPaymentFastPath(BRIDGE, 'wallet-1')
+    ).resolves.toBe(false)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('caches an old listener without the payment capability', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('not found', { status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      prepareListenerPaymentFastPath(BRIDGE, 'wallet-1')
+    ).resolves.toBe(false)
+    await expect(
+      prepareListenerPaymentFastPath(BRIDGE, 'wallet-1')
+    ).resolves.toBe(false)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })
 
 afterEach(() => {

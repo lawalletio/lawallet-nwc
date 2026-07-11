@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+const emptyEnvToUndefined = (value: unknown): unknown =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value
+
 /**
  * Environment variable schema with validation
  * This ensures all required environment variables are present and valid
@@ -25,19 +28,38 @@ const envSchema = z.object({
     .describe('Secret key for JWT token signing and verification'),
 
   // NWC Listener service (optional — web runs without it)
-  LISTENER_URL: z
-    .string()
-    .url('LISTENER_URL must be a valid URL')
-    .optional()
-    .describe('Base URL of the NWC listener service (e.g. http://listener:4100)'),
+  LISTENER_URL: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .url('LISTENER_URL must be a valid URL')
+      .optional()
+      .describe(
+        'Base URL of the NWC listener service (e.g. http://listener:4100)'
+      )
+  ),
 
-  LISTENER_AUTH_SECRET: z
-    .string()
-    .min(32, 'LISTENER_AUTH_SECRET must be at least 32 characters long')
-    .optional()
-    .describe(
-      'Shared secret for listener webhooks (HMAC) and /nwc/request bearer auth'
-    ),
+  LISTENER_AUTH_SECRET: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .min(32, 'LISTENER_AUTH_SECRET must be at least 32 characters long')
+      .optional()
+      .describe(
+        'Listener webhook HMAC secret; also used for request auth as a compatibility fallback'
+      )
+  ),
+
+  LISTENER_REQUEST_AUTH_SECRET: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .min(32, 'LISTENER_REQUEST_AUTH_SECRET must be at least 32 characters long')
+      .optional()
+      .describe(
+        'Dedicated web-to-listener bearer secret (falls back to LISTENER_AUTH_SECRET)'
+      )
+  ),
 
   LISTENER_REQUEST_TIMEOUT_MS: z
     .string()

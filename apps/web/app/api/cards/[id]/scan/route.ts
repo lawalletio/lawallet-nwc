@@ -3,7 +3,12 @@ import { prisma } from '@/lib/prisma'
 import { LUD03Request } from '@/types/lnurl'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
-import { idParam, scanCardQuerySchema } from '@/lib/validation/schemas'
+import {
+  CARD_MAX_WITHDRAWABLE_MSATS,
+  CARD_MIN_WITHDRAWABLE_MSATS,
+  idParam,
+  scanCardQuerySchema
+} from '@/lib/validation/schemas'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { resolveApiUrl } from '@/lib/public-url'
@@ -11,10 +16,6 @@ import { resolveCardWallet } from '@/lib/wallet/resolve-payment-route'
 import { buildCardInfo } from '@/lib/card-info'
 import { logger } from '@/lib/logger'
 import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
-
-// LUD-03 withdraw bounds (millisatoshis) for a payable card.
-const MIN_WITHDRAWABLE = 1
-const MAX_WITHDRAWABLE = 10000000
 
 export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
   return new NextResponse(null, {
@@ -38,54 +39,85 @@ export const GET = withErrorHandling(
     // of the regular LNURL flow (which carries the SUN `p`/`c` params).
     const isInfo = req.headers.get('x-request-action') === 'info'
 
-    // The LNURL path needs the SUN params; validate them up front so a malformed
-    // tap fails fast (the `info` request carries no `p`/`c`).
-    const sun = isInfo ? null : validateQuery(req.url, scanCardQuerySchema)
-
-    // Find card by id, including its design + owner (for the `info` response) and
-    // the wallet routing inputs (so the normal scan can tell whether it can pay).
-    const card = await prisma.card.findUnique({
-      where: { id: cardId },
-      include: {
-        design: { select: { description: true, imageUrl: true } },
-        user: {
-          include: {
-            lightningAddresses: {
-              where: { isPrimary: true },
-              take: 1,
-              select: {
-                username: true,
-                mode: true,
-                remoteWalletId: true,
-                remoteWallet: {
-                  select: { type: true, config: true, status: true }
-                }
+    if (isInfo) {
+      // Metadata requests need public presentation fields, but no wallet config.
+      const card = await prisma.card.findUnique({
+        where: { id: cardId },
+        select: {
+          id: true,
+          title: true,
+          kind: true,
+          userId: true,
+          lastUsedAt: true,
+          blockedAt: true,
+          disabledAt: true,
+          design: { select: { description: true, imageUrl: true } },
+          user: {
+            select: {
+              pubkey: true,
+              lightningAddresses: {
+                where: { isPrimary: true },
+                take: 1,
+                select: { username: true }
               }
             }
           }
-        },
-        remoteWallet: { select: { type: true, config: true, status: true } }
+        }
+      })
+
+      if (!card) {
+        throw new NotFoundError('Card not found')
       }
-    })
 
-    if (!card) {
-      throw new NotFoundError('Card not found')
-    }
-
-    // `x-request-action: info` → return the card's public status JSON instead of
-    // the LNURL withdraw request. Non-sensitive only (no keys/OTC/SUN params).
-    if (isInfo) {
       return NextResponse.json(buildCardInfo(card), {
         headers: { 'Access-Control-Allow-Origin': '*' }
       })
     }
 
-    // Regular first LNURL request — `sun` is the validated `p`/`c`.
-    const { p, c } = sun!
+    // The LNURL path needs the SUN params; validate them up front so a malformed
+    // tap fails fast. Start its independent DB/settings reads together.
+    const { p, c } = validateQuery(req.url, scanCardQuerySchema)
+    const [card, url] = await Promise.all([
+      prisma.card.findUnique({
+        where: { id: cardId },
+        select: {
+          blockedAt: true,
+          disabledAt: true,
+          remoteWallet: {
+            select: { id: true, type: true, config: true, status: true }
+          },
+          user: {
+            select: {
+              lightningAddresses: {
+                where: { isPrimary: true },
+                take: 1,
+                select: {
+                  mode: true,
+                  remoteWalletId: true,
+                  remoteWallet: {
+                    select: {
+                      id: true,
+                      type: true,
+                      config: true,
+                      status: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }),
+      resolveApiUrl(req)
+    ])
+
+    if (!card) {
+      throw new NotFoundError('Card not found')
+    }
+
     // The callback is hit directly by the wallet/device, so it must be prefixed
     // with this instance's API URL (the `endpoint` setting / request host) — NOT
     // the lightning-address `domain`, which need not serve the API.
-    const url = await resolveApiUrl(req)
 
     // An unconfigured card (no usable wallet) advertises a 0–0 withdraw range so
     // a wallet sees up front that nothing can be withdrawn, rather than only
@@ -110,8 +142,8 @@ export const GET = withErrorHandling(
     const response = {
       tag: 'withdrawRequest',
       k1: 'k',
-      minWithdrawable: configured ? MIN_WITHDRAWABLE : 0,
-      maxWithdrawable: configured ? MAX_WITHDRAWABLE : 0,
+      minWithdrawable: configured ? CARD_MIN_WITHDRAWABLE_MSATS : 0,
+      maxWithdrawable: configured ? CARD_MAX_WITHDRAWABLE_MSATS : 0,
       defaultDescription: 'Boltcard + NWC',
       callback: `${url}/api/cards/${cardId}/scan/cb?p=${p}&c=${c}`
     } as LUD03Request

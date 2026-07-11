@@ -224,6 +224,10 @@ export interface CardTransaction {
   /** Decoded invoice fields for the details view. */
   description: string | null
   paymentHash: string | null
+  /** Exact durable state; optional for compatibility with older API responses. */
+  paymentStatus?: 'PENDING' | 'SUCCEEDED' | 'REJECTED' | 'UNKNOWN'
+  /** Payment transport selected for this attempt. */
+  transport?: 'DIRECT' | 'LISTENER'
 }
 
 /**

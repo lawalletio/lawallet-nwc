@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
+import { invalidateHotSettingsCache } from '@/lib/settings'
 
 // Wipes the entire database back to a clean state so the onboarding
 // flow can be re-tested. Dev-only: 404 in production so the route is
@@ -27,6 +28,7 @@ export const POST = withErrorHandling(async () => {
     prisma.user.deleteMany(),
     prisma.settings.deleteMany(),
   ])
+  invalidateHotSettingsCache()
 
   logger.warn('[dev] Database wiped via /api/dev/reset')
   return NextResponse.json({ ok: true })

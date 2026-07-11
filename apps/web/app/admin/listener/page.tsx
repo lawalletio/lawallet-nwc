@@ -37,8 +37,10 @@ const STATE_BADGE: Record<
   ListenerConnection['state'],
   { label: string; className: string }
 > = {
-  subscribed: { label: 'Subscribed', className: 'bg-green-500/15 text-green-600' },
+  ready: { label: 'Ready', className: 'bg-green-500/15 text-green-600' },
   connecting: { label: 'Connecting', className: 'bg-yellow-500/15 text-yellow-600' },
+  negotiating: { label: 'Negotiating', className: 'bg-yellow-500/15 text-yellow-600' },
+  disconnected: { label: 'Disconnected', className: 'bg-muted text-muted-foreground' },
   error: { label: 'Error', className: 'bg-red-500/15 text-red-600' },
   closed: { label: 'Closed', className: 'bg-muted text-muted-foreground' },
 }
@@ -274,7 +276,7 @@ function ListenerContent() {
   const firstLoad = loading && !view
   const offline = !loading && !view
   const activeConnections =
-    view?.connections.filter(c => c.state === 'subscribed').length ?? undefined
+    view?.connections.filter(c => c.state === 'ready').length ?? undefined
   const liveRelays = view
     ? view.relays.filter(r => r.connected).length
     : undefined

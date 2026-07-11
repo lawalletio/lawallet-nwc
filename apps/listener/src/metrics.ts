@@ -12,6 +12,12 @@ export const metrics = {
   webhooksPending: 0,
   nwcRequests: 0,
   nwcRequestErrors: 0,
+  /** Unique idempotent card-payment operations accepted by the listener. */
+  nwcPayments: 0,
+  /** Repeated request ids joined to an in-flight or durable operation. */
+  nwcPaymentDuplicates: 0,
+  /** Foreground SDK payment operations whose result is not known yet. */
+  nwcPaymentsPending: 0,
   reconciles: 0,
   notifiesReceived: 0,
   eventsRecovered: 0,

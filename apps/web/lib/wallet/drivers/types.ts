@@ -1,5 +1,6 @@
 import type { z } from 'zod'
 import type { RemoteWalletType } from '@/lib/generated/prisma'
+import type { ResolvedListenerConfig } from '@/lib/listener-config'
 
 /**
  * Spendable balance reported by the remote wallet.
@@ -38,6 +39,31 @@ export interface PayInvoiceResult {
   preimage: string
   /** Routing fees paid, in sats (rounded down from msats). */
   feesPaidSats: number
+  /** Exact routing fees when the underlying transport reports msats. */
+  feesPaidMsats?: number
+  /** Transport that actually dispatched the payment. */
+  transport?: 'DIRECT' | 'LISTENER'
+}
+
+/** Request-scoped metadata used by idempotent server-side payment transports. */
+export interface WalletOperationContext {
+  /** RemoteWallet.id. Required by the listener fast path. */
+  walletId?: string
+  /** Stable idempotency key for this payment attempt. */
+  requestId?: string
+  /** BOLT-11 payment hash, lowercase hex. */
+  paymentHash?: string
+  /** Remaining caller budget. The underlying payment may outlive this wait. */
+  deadlineMs?: number
+  /** Transport selected when the durable attempt was first claimed. */
+  transport?: 'DIRECT' | 'LISTENER'
+  /** Listener endpoint/config snapshot used for that transport decision. */
+  listenerBridge?: ResolvedListenerConfig
+  /**
+   * Durable hand-off invoked only after listener proves it did not dispatch.
+   * Returning false forbids the direct publish (another resolver won a race).
+   */
+  beforeDirectFallback?: () => Promise<boolean>
 }
 
 /**
@@ -105,7 +131,11 @@ export interface RemoteWalletDriver<TConfig = unknown> {
    *
    * @throws {DriverError} on validation, protocol, or remote errors.
    */
-  payInvoice(config: TConfig, input: PayInvoiceInput): Promise<PayInvoiceResult>
+  payInvoice(
+    config: TConfig,
+    input: PayInvoiceInput,
+    context?: WalletOperationContext
+  ): Promise<PayInvoiceResult>
 
   /**
    * Mint a BOLT11 invoice for the wallet to receive into. Powers LUD-16
@@ -116,5 +146,8 @@ export interface RemoteWalletDriver<TConfig = unknown> {
    *
    * @throws {DriverError} on validation, protocol, or remote errors.
    */
-  makeInvoice(config: TConfig, input: MakeInvoiceInput): Promise<MakeInvoiceResult>
+  makeInvoice(
+    config: TConfig,
+    input: MakeInvoiceInput
+  ): Promise<MakeInvoiceResult>
 }

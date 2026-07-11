@@ -32,7 +32,7 @@ export class UnsupportedDriverError extends DriverError {
 export class DriverConfigError extends DriverError {
   constructor(
     public readonly type: RemoteWalletType | string,
-    public readonly issues: unknown,
+    public readonly issues: unknown
   ) {
     super(`Invalid config for "${type}" driver`)
     this.name = 'DriverConfigError'
@@ -48,5 +48,40 @@ export class DriverRemoteError extends DriverError {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options)
     this.name = 'DriverRemoteError'
+  }
+}
+
+/** The wallet returned a definitive NIP-47 rejection. Safe to surface as final. */
+export class PaymentRejectedError extends DriverRemoteError {
+  constructor(
+    message: string,
+    options?: {
+      cause?: unknown
+      code?: string
+      transport?: 'DIRECT' | 'LISTENER'
+    }
+  ) {
+    super(message, options)
+    this.name = 'PaymentRejectedError'
+    this.code = options?.code
+    this.transport = options?.transport
+  }
+
+  readonly code?: string
+  readonly transport?: 'DIRECT' | 'LISTENER'
+}
+
+/**
+ * The payment may have been published, but no definitive result was observed.
+ * Callers must reconcile the SAME request and must never dispatch it again.
+ */
+export class PaymentOutcomeUnknownError extends DriverRemoteError {
+  constructor(
+    message: string,
+    public readonly transport: 'DIRECT' | 'LISTENER',
+    options?: { cause?: unknown }
+  ) {
+    super(message, options)
+    this.name = 'PaymentOutcomeUnknownError'
   }
 }

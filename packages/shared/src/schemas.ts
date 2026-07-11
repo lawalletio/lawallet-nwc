@@ -106,8 +106,22 @@ export const scanCardQuerySchema = z.object({
 })
 
 export const payActionQuerySchema = z.object({
-  pr: z.string().min(1, 'Missing required parameter: pr')
+  pr: z
+    .string()
+    .min(1, 'Missing required parameter: pr')
+    .max(8192, 'Payment request is too large')
 })
+
+export const cardScanCallbackQuerySchema = scanCardQuerySchema.merge(
+  payActionQuerySchema
+)
+
+export const cardScanActionSchema = z.enum(['pay', 'new-otc'])
+export type CardScanAction = z.infer<typeof cardScanActionSchema>
+
+/** LUD-03 limits advertised by /scan and enforced again by /scan/cb. */
+export const CARD_MIN_WITHDRAWABLE_MSATS = 1
+export const CARD_MAX_WITHDRAWABLE_MSATS = 10_000_000
 
 export const otcParam = z.object({
   otc: z.string().min(1, 'OTC parameter is required')

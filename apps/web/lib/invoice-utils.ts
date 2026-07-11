@@ -1,4 +1,8 @@
 import { decode } from 'light-bolt11-decoder'
+import {
+  CARD_MAX_WITHDRAWABLE_MSATS,
+  CARD_MIN_WITHDRAWABLE_MSATS
+} from '@/lib/validation/schemas'
 
 /**
  * Metadata shape stored on the `Invoice.metadata` JSON column.
@@ -42,6 +46,98 @@ export function extractAmountSats(bolt11: string): number | null {
   } catch {
     return null
   }
+}
+
+export interface CardPaymentInvoice {
+  bolt11: string
+  paymentHash: string
+  amountMsats: number
+  amountSats: number
+  expiresAt: number
+}
+
+/** Carries the already-decoded invoice so an exact retry can reconcile it. */
+export class ExpiredCardPaymentInvoiceError extends Error {
+  constructor(public readonly invoice: CardPaymentInvoice) {
+    super('Lightning invoice has expired')
+    this.name = 'ExpiredCardPaymentInvoiceError'
+  }
+}
+
+/**
+ * Strict, single-pass validation for the irrevocable BoltCard payment path.
+ * The advertised LUD-03 bounds are enforced here before the SUN counter is
+ * consumed, so malformed/expired/oversized invoices fail without burning a tap.
+ */
+export function parseCardPaymentInvoice(
+  bolt11: string,
+  nowMs = Date.now()
+): CardPaymentInvoice {
+  let decoded: ReturnType<typeof decode>
+  try {
+    decoded = decode(bolt11)
+  } catch {
+    throw new Error('Invalid Lightning invoice')
+  }
+
+  const amountSection = decoded.sections.find(
+    section => section.name === 'amount'
+  )
+  const hashSection = decoded.sections.find(
+    section => section.name === 'payment_hash'
+  )
+  const timestampSection = decoded.sections.find(
+    section => section.name === 'timestamp'
+  )
+
+  const amountMsats =
+    amountSection && 'value' in amountSection
+      ? Number(amountSection.value)
+      : Number.NaN
+  if (
+    !Number.isSafeInteger(amountMsats) ||
+    amountMsats < CARD_MIN_WITHDRAWABLE_MSATS ||
+    amountMsats > CARD_MAX_WITHDRAWABLE_MSATS
+  ) {
+    throw new Error(
+      `Invoice amount must be between ${CARD_MIN_WITHDRAWABLE_MSATS} and ${CARD_MAX_WITHDRAWABLE_MSATS} msats`
+    )
+  }
+
+  const paymentHash =
+    hashSection &&
+    'value' in hashSection &&
+    typeof hashSection.value === 'string'
+      ? hashSection.value.toLowerCase()
+      : ''
+  if (!/^[0-9a-f]{64}$/.test(paymentHash)) {
+    throw new Error('Invoice payment hash is missing or invalid')
+  }
+
+  const timestamp =
+    timestampSection && 'value' in timestampSection
+      ? Number(timestampSection.value)
+      : Number.NaN
+  // light-bolt11-decoder exposes `expiry` as the absolute expiry timestamp
+  // (`timestamp + expiry_tag`), not as the tag's duration. When the optional
+  // tag is absent BOLT-11's default lifetime is one hour.
+  const expiresAtSeconds =
+    typeof decoded.expiry === 'number' && Number.isFinite(decoded.expiry)
+      ? decoded.expiry
+      : timestamp + 3600
+  if (!Number.isFinite(timestamp)) {
+    throw new Error('Invoice timestamp is missing or invalid')
+  }
+  const expiresAt = expiresAtSeconds * 1000
+  const invoice = {
+    bolt11,
+    paymentHash,
+    amountMsats,
+    amountSats: Math.floor(amountMsats / 1000),
+    expiresAt
+  }
+  if (expiresAt <= nowMs) throw new ExpiredCardPaymentInvoiceError(invoice)
+  return invoice
 }
 
 /**

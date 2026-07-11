@@ -1,5 +1,9 @@
 import { getSettings } from '@/lib/settings'
-import { buildPublicHost, buildPublicUrl, parseEndpoint } from '@/lib/public-url-utils'
+import {
+  buildPublicHost,
+  buildPublicUrl,
+  parseEndpoint
+} from '@/lib/public-url-utils'
 
 export interface PublicEndpoint {
   /** The full hostname used in lightning addresses (e.g. `app.example.com` or `example.com`). */
@@ -23,16 +27,18 @@ export interface PublicEndpoint {
  * 3. `domain` only.
  * 4. Request `host` header (fallback for local/dev).
  */
-export async function resolvePublicEndpoint(
-  request?: { headers: { get: (k: string) => string | null } }
-): Promise<PublicEndpoint> {
-  const settings = await getSettings(['domain', 'endpoint', 'subdomain'])
+export async function resolvePublicEndpoint(request?: {
+  headers: { get: (k: string) => string | null }
+}): Promise<PublicEndpoint> {
+  const settings = await getSettings(['domain', 'endpoint', 'subdomain'], {
+    cache: 'hot'
+  })
 
   const parsed = parseEndpoint(settings.endpoint)
   if (parsed) {
     return {
       host: parsed.host,
-      url: `${parsed.protocol}//${parsed.host}`,
+      url: `${parsed.protocol}//${parsed.host}`
     }
   }
 
@@ -60,10 +66,10 @@ export async function resolvePublicEndpoint(
  * 2. Request `host` header (the URL the request came in on; `localhost:3000`
  *    when absent).
  */
-export async function resolveApiUrl(
-  request?: { headers: { get: (k: string) => string | null } }
-): Promise<string> {
-  const { endpoint } = await getSettings(['endpoint'])
+export async function resolveApiUrl(request?: {
+  headers: { get: (k: string) => string | null }
+}): Promise<string> {
+  const { endpoint } = await getSettings(['endpoint'], { cache: 'hot' })
 
   const parsed = parseEndpoint(endpoint)
   if (parsed) {

@@ -143,13 +143,13 @@ const sdmmac = async (
  * @param c  The scan url's "c" parameter (ie. SDMMAC(k2[cid], ctr || cid))
  * @returns  The retrieved Ntag424 entity or null if errors encountered
  */
-export const consumeNtag424FromPC = async (
-  ntag424: Ntag424,
+export const verifyNtag424FromPC = async <
+  T extends Pick<Ntag424, 'cid' | 'k1' | 'k2' | 'ctr'>
+>(
+  ntag424: T,
   p: string | undefined,
   c: string | undefined
-): Promise<
-  { ok: Ntag424; ctrOld: number; ctrNew: number } | { error: Ntag424Error }
-> => {
+): Promise<{ ok: T; ctrNew: number } | { error: Ntag424Error }> => {
   if (typeof p !== 'string' || !/^[A-F0-9]{32}$/.test(p)) {
     debug(Ntag424Error.MALFORMED_P__NOT_A_32_CHAR_UPPERCASE_HEX_VALUE)
     return {
@@ -179,20 +179,38 @@ export const consumeNtag424FromPC = async (
     debug(Ntag424Error.NO_SUITABLE_CARD_FOUND)
     return { error: Ntag424Error.NO_SUITABLE_CARD_FOUND }
   }
-  const ctrOld: number = ntag424.ctr
   const k2: string = ntag424.k2
-
-  if (ctrNew <= ctrOld) {
-    debug(Ntag424Error.MALFORMED_P__COUNTER_VALUE_TOO_OLD)
-    return { error: Ntag424Error.MALFORMED_P__COUNTER_VALUE_TOO_OLD }
-  }
 
   if (c.toLowerCase() !== (await sdmmac(k2, cidBytes, ctrBytes))) {
     debug(Ntag424Error.MALFORMED_C__SDMMAC_MISMATCH)
     return { error: Ntag424Error.MALFORMED_C__SDMMAC_MISMATCH }
   }
 
-  return { ok: ntag424, ctrOld, ctrNew }
+  return { ok: ntag424, ctrNew }
+}
+
+/**
+ * Backward-compatible freshness check used by non-atomic callers. Payment
+ * callbacks use {@link verifyNtag424FromPC} and claim the counter atomically in
+ * Postgres, avoiding read-then-write races and counter regression.
+ */
+export const consumeNtag424FromPC = async (
+  ntag424: Ntag424,
+  p: string | undefined,
+  c: string | undefined
+): Promise<
+  { ok: Ntag424; ctrOld: number; ctrNew: number } | { error: Ntag424Error }
+> => {
+  const verified = await verifyNtag424FromPC(ntag424, p, c)
+  if ('error' in verified) return verified
+
+  const ctrOld = ntag424.ctr
+  if (verified.ctrNew <= ctrOld) {
+    debug(Ntag424Error.MALFORMED_P__COUNTER_VALUE_TOO_OLD)
+    return { error: Ntag424Error.MALFORMED_P__COUNTER_VALUE_TOO_OLD }
+  }
+
+  return { ok: verified.ok, ctrOld, ctrNew: verified.ctrNew }
 }
 
 /**

@@ -222,6 +222,18 @@ export const DELETE = withErrorHandling(
           'Disable or delete the wallet before removing it permanently',
         )
       }
+      const unresolvedPayment = await prisma.cardPaymentAttempt.findFirst({
+        where: {
+          walletId: id,
+          status: { in: ['PENDING', 'UNKNOWN'] },
+        },
+        select: { id: true },
+      })
+      if (unresolvedPayment) {
+        throw new ConflictError(
+          'This wallet has an unresolved card payment and cannot be removed yet',
+        )
+      }
       await prisma.$transaction(async tx => {
         await clearPrimaryWalletLinkToWallet(userId, id, tx)
         await tx.remoteWallet.delete({ where: { id } })

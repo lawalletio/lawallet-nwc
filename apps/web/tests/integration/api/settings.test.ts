@@ -35,7 +35,8 @@ vi.mock('@/lib/admin-auth', () => ({
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn()
+  getSettings: vi.fn(),
+  invalidateHotSettingsCache: vi.fn()
 }))
 
 const listenerState = vi.hoisted(() => ({
@@ -62,7 +63,7 @@ vi.mock('@/lib/listener-config', () => ({
 
 import { GET, POST } from '@/app/api/settings/route'
 import { validateNip98Auth } from '@/lib/admin-auth'
-import { getSettings } from '@/lib/settings'
+import { getSettings, invalidateHotSettingsCache } from '@/lib/settings'
 
 const mockPubkey = 'a'.repeat(64)
 
@@ -182,6 +183,7 @@ describe('POST /api/settings', () => {
       update: { value: 'false' },
       create: { name: 'domain_verified', value: 'false' }
     })
+    expect(invalidateHotSettingsCache).toHaveBeenCalledOnce()
   })
 
   it('rejects non-root user', async () => {

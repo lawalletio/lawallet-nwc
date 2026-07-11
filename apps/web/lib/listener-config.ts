@@ -15,8 +15,11 @@ export type ListenerValueSource = 'settings' | 'env' | 'none'
 export interface ResolvedListenerConfig {
   enabled: boolean
   url: string | null
+  /** Bearer secret for web -> listener requests. */
   secret: string | null
-  /** Env-only tunable (LISTENER_REQUEST_TIMEOUT_MS) — not settings-driven. */
+  /** HMAC secret for listener -> web webhooks. */
+  webhookSecret?: string | null
+  /** Generic proxy/GET timeout; card POST uses its fixed 8.5s safety budget. */
   requestTimeoutMs: number
   urlSource: ListenerValueSource
   secretSource: ListenerValueSource
@@ -26,7 +29,7 @@ export interface ResolvedListenerConfig {
 export const LISTENER_SETTING_KEYS = [
   'listener_enabled',
   'listener_url',
-  'listener_auth_secret',
+  'listener_auth_secret'
 ] as const
 
 /**
@@ -37,7 +40,8 @@ export const LISTENER_SETTING_KEYS = [
  *
  * Semantics:
  *  - `listener_url` / `listener_auth_secret`: DB value wins when set
- *    (empty string = unset), else the LISTENER_* env var.
+ *    (empty string = unset), else the LISTENER_* env var. A dedicated
+ *    LISTENER_REQUEST_AUTH_SECRET applies only to outgoing bearer auth.
  *  - `listener_enabled` row `'true'` → enabled iff an effective url + secret
  *    resolve; `'false'` → force-off (even over env); no row → env-auto:
  *    enabled iff BOTH env vars are present (docker-compose zero-config).
@@ -47,14 +51,19 @@ export const LISTENER_SETTING_KEYS = [
 export async function getListenerConfig(): Promise<ResolvedListenerConfig> {
   const envListener = getConfig(false).listener
   const envUrl = envListener?.url ?? undefined
-  const envSecret = envListener?.secret ?? undefined
+  const envWebhookSecret = envListener?.secret ?? undefined
+  const envDedicatedRequestSecret = envListener?.requestSecret ?? undefined
+  const envRequestSecret = envDedicatedRequestSecret ?? envWebhookSecret
   const requestTimeoutMs = envListener?.requestTimeoutMs ?? 10000
 
   let db: Record<string, string> = {}
   try {
-    db = (await getSettings([...LISTENER_SETTING_KEYS])) ?? {}
+    db = (await getSettings([...LISTENER_SETTING_KEYS], { cache: 'hot' })) ?? {}
   } catch (err) {
-    logger.warn({ err }, 'listener_config.settings_read_failed — using env only')
+    logger.warn(
+      { err },
+      'listener_config.settings_read_failed — using env only'
+    )
   }
 
   const dbUrl = db.listener_url?.trim() || undefined
@@ -67,13 +76,24 @@ export async function getListenerConfig(): Promise<ResolvedListenerConfig> {
   }
 
   const url = dbUrl ?? envUrl ?? null
-  const secret = dbSecret ?? envSecret ?? null
-  const urlSource: ListenerValueSource = dbUrl ? 'settings' : envUrl ? 'env' : 'none'
-  const secretSource: ListenerValueSource = dbSecret
+  // The existing Settings field remains a compatibility shared secret. A
+  // dedicated request env secret lets deployments rotate the private HTTP
+  // credential without changing webhook verification at the same time.
+  const secret =
+    envDedicatedRequestSecret ?? dbSecret ?? envWebhookSecret ?? null
+  const webhookSecret = dbSecret ?? envWebhookSecret ?? null
+  const urlSource: ListenerValueSource = dbUrl
     ? 'settings'
-    : envSecret
+    : envUrl
       ? 'env'
       : 'none'
+  const secretSource: ListenerValueSource = envDedicatedRequestSecret
+    ? 'env'
+    : dbSecret
+      ? 'settings'
+      : envWebhookSecret
+        ? 'env'
+        : 'none'
 
   const enabledRow = db.listener_enabled
   let enabled: boolean
@@ -84,9 +104,18 @@ export async function getListenerConfig(): Promise<ResolvedListenerConfig> {
   } else {
     // No explicit toggle — auto-enable only on a full env pair so
     // docker-compose / Umbrel / Start9 bundles work with zero configuration.
-    enabled = !!(envUrl && envSecret)
+    enabled = !!(envUrl && envRequestSecret)
     enabledSource = enabled ? 'env-auto' : 'none'
   }
 
-  return { enabled, url, secret, requestTimeoutMs, urlSource, secretSource, enabledSource }
+  return {
+    enabled,
+    url,
+    secret,
+    webhookSecret,
+    requestTimeoutMs,
+    urlSource,
+    secretSource,
+    enabledSource
+  }
 }

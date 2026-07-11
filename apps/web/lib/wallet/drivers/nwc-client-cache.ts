@@ -4,6 +4,7 @@ type SdkModule = typeof import('@getalby/sdk')
 
 let sdkPromise: Promise<SdkModule> | null = null
 const clients = new Map<string, NWCClientT>()
+const clientCreations = new Map<string, Promise<NWCClientT>>()
 
 function loadSdk(): Promise<SdkModule> {
   if (!sdkPromise) sdkPromise = import('@getalby/sdk')
@@ -22,10 +23,24 @@ export async function getServerNwcClient(connectionString: string): Promise<NWCC
   const cached = clients.get(connectionString)
   if (cached) return cached
 
-  const { NWCClient } = await loadSdk()
-  const client = new NWCClient({ nostrWalletConnectUrl: connectionString })
-  clients.set(connectionString, client)
-  return client
+  const pending = clientCreations.get(connectionString)
+  if (pending) return pending
+
+  const creation = loadSdk()
+    .then(({ NWCClient }) => {
+      const existing = clients.get(connectionString)
+      if (existing) return existing
+      const client = new NWCClient({ nostrWalletConnectUrl: connectionString })
+      clients.set(connectionString, client)
+      return client
+    })
+    .finally(() => {
+      if (clientCreations.get(connectionString) === creation) {
+        clientCreations.delete(connectionString)
+      }
+    })
+  clientCreations.set(connectionString, creation)
+  return creation
 }
 
 /**

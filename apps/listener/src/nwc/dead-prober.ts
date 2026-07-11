@@ -75,6 +75,10 @@ export class DeadWalletProber {
 
       for (const { wallet, client, unresponsiveMs } of candidates) {
         if (this.reported.has(wallet.id)) continue
+        // A foreground card payment is the highest-priority NWC round-trip.
+        // It is itself a liveness probe, so do not contend with it using a
+        // parallel maintenance get_info request.
+        if (pool.hasForegroundPayment(wallet.id)) continue
 
         const result = await this.probe(client)
         if (result === 'alive' || result === 'inconclusive') {

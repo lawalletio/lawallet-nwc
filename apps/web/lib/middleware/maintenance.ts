@@ -29,7 +29,9 @@ export async function checkMaintenance(request: Request): Promise<void> {
   // maintenance on an instance that already has a root admin.
   let hasRoot = true
   try {
-    const settings = await getSettings(['maintenance_enabled', 'root'])
+    const settings = await getSettings(['maintenance_enabled', 'root'], {
+      cache: 'hot'
+    })
     dbEnabled = settings.maintenance_enabled === 'true'
     hasRoot = !!settings.root
   } catch {
@@ -56,7 +58,7 @@ export async function checkMaintenance(request: Request): Promise<void> {
     const pubkey = await validateNip98Auth(request)
     const user = await prisma.user.findUnique({
       where: { pubkey },
-      select: { role: true },
+      select: { role: true }
     })
     if (user?.role === Role.ADMIN) {
       return
@@ -72,10 +74,14 @@ export async function checkMaintenance(request: Request): Promise<void> {
     try {
       const config = getConfig()
       if (config.jwt.enabled && config.jwt.secret) {
-        const result = await validateJwtFromRequest(request, config.jwt.secret, {
-          issuer: 'lawallet-nwc',
-          audience: 'lawallet-users',
-        })
+        const result = await validateJwtFromRequest(
+          request,
+          config.jwt.secret,
+          {
+            issuer: 'lawallet-nwc',
+            audience: 'lawallet-users'
+          }
+        )
         const role = isValidRole(result.payload.role)
           ? result.payload.role
           : null

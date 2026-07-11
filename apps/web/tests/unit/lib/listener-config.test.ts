@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const envState = vi.hoisted(() => ({
   url: undefined as string | undefined,
   secret: undefined as string | undefined,
+  requestSecret: undefined as string | undefined
 }))
 
 vi.mock('@/lib/config', () => ({
@@ -10,19 +11,20 @@ vi.mock('@/lib/config', () => ({
     listener: {
       url: envState.url,
       secret: envState.secret,
+      requestSecret: envState.requestSecret,
       requestTimeoutMs: 10000,
       enabled: !!(envState.url && envState.secret),
-      webhookEnabled: !!envState.secret,
-    },
-  })),
+      webhookEnabled: !!envState.secret
+    }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
-  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() }
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(),
+  getSettings: vi.fn()
 }))
 
 import { getListenerConfig } from '@/lib/listener-config'
@@ -37,6 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   envState.url = undefined
   envState.secret = undefined
+  envState.requestSecret = undefined
   vi.mocked(getSettings).mockResolvedValue({})
 })
 
@@ -77,7 +80,7 @@ describe('getListenerConfig', () => {
     vi.mocked(getSettings).mockResolvedValue({
       listener_enabled: 'true',
       listener_url: DB_URL,
-      listener_auth_secret: DB_SECRET,
+      listener_auth_secret: DB_SECRET
     })
 
     const cfg = await getListenerConfig()
@@ -87,6 +90,21 @@ describe('getListenerConfig', () => {
     expect(cfg.urlSource).toBe('settings')
     expect(cfg.secretSource).toBe('settings')
     expect(cfg.enabledSource).toBe('settings')
+  })
+
+  it('uses a dedicated request secret without changing webhook verification', async () => {
+    envState.url = ENV_URL
+    envState.secret = ENV_SECRET
+    envState.requestSecret = 'dedicated-request-secret-at-least-32-chars'
+    vi.mocked(getSettings).mockResolvedValue({
+      listener_enabled: 'true',
+      listener_auth_secret: DB_SECRET
+    })
+
+    const cfg = await getListenerConfig()
+    expect(cfg.secret).toBe(envState.requestSecret)
+    expect(cfg.webhookSecret).toBe(DB_SECRET)
+    expect(cfg.secretSource).toBe('env')
   })
 
   it("DB 'false' force-disables even over a full env pair", async () => {
@@ -113,7 +131,7 @@ describe('getListenerConfig', () => {
     envState.secret = ENV_SECRET
     vi.mocked(getSettings).mockResolvedValue({
       listener_enabled: 'true',
-      listener_url: DB_URL,
+      listener_url: DB_URL
     })
 
     const cfg = await getListenerConfig()
@@ -127,7 +145,7 @@ describe('getListenerConfig', () => {
     envState.secret = ENV_SECRET
     vi.mocked(getSettings).mockResolvedValue({
       listener_url: '',
-      listener_auth_secret: '',
+      listener_auth_secret: ''
     })
 
     const cfg = await getListenerConfig()
@@ -141,7 +159,7 @@ describe('getListenerConfig', () => {
     envState.url = ENV_URL
     envState.secret = ENV_SECRET
     vi.mocked(getSettings).mockResolvedValue({
-      listener_auth_secret: 'too-short',
+      listener_auth_secret: 'too-short'
     })
 
     const cfg = await getListenerConfig()

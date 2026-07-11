@@ -8,6 +8,7 @@ import {
 } from '@/lib/wallet/resolve-payment-route'
 
 const activeWallet = {
+  id: 'wallet-1',
   type: 'NWC' as const,
   config: { connectionString: 'nostr+walletconnect://bound', mode: 'SEND_RECEIVE' },
   status: 'ACTIVE' as const,
@@ -39,7 +40,7 @@ describe('resolveWalletRoute', () => {
     it('routes through the bound RemoteWallet when ACTIVE', () => {
       expect(
         resolveWalletRoute({ ...base, mode: 'CUSTOM_NWC', remoteWallet: activeWallet }),
-      ).toEqual({ kind: 'wallet', type: 'NWC', config: activeWallet.config })
+      ).toEqual({ kind: 'wallet', walletId: activeWallet.id, type: 'NWC', config: activeWallet.config })
     })
 
     it('returns unconfigured when the bound wallet is DISABLED (no silent reroute)', () => {
@@ -63,7 +64,7 @@ describe('resolveWalletRoute', () => {
     it('routes through the default RemoteWallet when ACTIVE', () => {
       expect(
         resolveWalletRoute({ ...base, mode: 'DEFAULT_NWC', defaultRemoteWallet: activeWallet }),
-      ).toEqual({ kind: 'wallet', type: 'NWC', config: activeWallet.config })
+      ).toEqual({ kind: 'wallet', walletId: activeWallet.id, type: 'NWC', config: activeWallet.config })
     })
 
     it('returns unconfigured when the default is DISABLED', () => {
@@ -93,6 +94,7 @@ describe('resolveCardWallet', () => {
   it('routes through the card-bound RemoteWallet when ACTIVE', () => {
     expect(resolveCardWallet({ ...base, remoteWallet: activeWallet })).toEqual({
       kind: 'wallet',
+      walletId: activeWallet.id,
       type: 'NWC',
       config: activeWallet.config,
     })
@@ -111,6 +113,7 @@ describe('resolveCardWallet', () => {
   it('falls back to the default RemoteWallet when the card has no binding', () => {
     expect(resolveCardWallet({ ...base, defaultRemoteWallet: activeWallet })).toEqual({
       kind: 'wallet',
+      walletId: activeWallet.id,
       type: 'NWC',
       config: activeWallet.config,
     })

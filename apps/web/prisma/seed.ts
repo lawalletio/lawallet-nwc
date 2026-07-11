@@ -64,6 +64,7 @@ async function main() {
           createdAt: la.createdAt,
           isPrimary: true,
           userId: owner.id,
+          mode: wallet ? 'CUSTOM_NWC' : 'IDLE',
           remoteWalletId: wallet?.id ?? null
         }
       })

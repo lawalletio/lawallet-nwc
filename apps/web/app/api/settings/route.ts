@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
-import { getSettings } from '@/lib/settings'
+import { getSettings, invalidateHotSettingsCache } from '@/lib/settings'
 import { getConfig } from '@/lib/config'
 import { getListenerConfig } from '@/lib/listener-config'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -169,7 +169,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     let validListenerUrl = false
     try {
       const parsed = new URL(body.listener_url.trim())
-      validListenerUrl = parsed.protocol === 'http:' || parsed.protocol === 'https:'
+      validListenerUrl =
+        parsed.protocol === 'http:' || parsed.protocol === 'https:'
     } catch {
       validListenerUrl = false
     }
@@ -225,6 +226,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   )
 
   await Promise.all(upsertPromises)
+  invalidateHotSettingsCache()
 
   eventBus.emit({ type: 'settings:updated', timestamp: Date.now() })
 
