@@ -227,10 +227,34 @@
         "properties": {
           "pr": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 8192
           }
         },
         "required": [
+          "pr"
+        ]
+      },
+      "CardScanCallbackQuery": {
+        "type": "object",
+        "properties": {
+          "p": {
+            "type": "string",
+            "minLength": 1
+          },
+          "c": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pr": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192
+          }
+        },
+        "required": [
+          "p",
+          "c",
           "pr"
         ]
       },
@@ -2328,7 +2352,7 @@
         "tags": [
           "Cards"
         ],
-        "summary": "Resolve a scanned card and return the LNURL-pay flow entry point.",
+        "summary": "Resolve a scanned card and return the LNURL-withdraw flow entry point.",
         "description": "The first LNURL request on tap. Send the request header `x-request-action: info` to get the card’s public status JSON (design, image, owner, paired/used) instead of the LNURL withdraw request — so a client can show the card identity without running the withdraw flow. Non-sensitive only (never keys/OTC/SUN params).",
         "operationId": "cards.scan",
         "security": [],
@@ -2375,27 +2399,31 @@
                           "type": "string",
                           "format": "uri"
                         },
-                        "maxSendable": {
+                        "k1": {
+                          "type": "string"
+                        },
+                        "maxWithdrawable": {
                           "type": "integer"
                         },
-                        "minSendable": {
+                        "minWithdrawable": {
                           "type": "integer"
                         },
-                        "metadata": {
+                        "defaultDescription": {
                           "type": "string"
                         },
                         "tag": {
                           "type": "string",
                           "enum": [
-                            "payRequest"
+                            "withdrawRequest"
                           ]
                         }
                       },
                       "required": [
                         "callback",
-                        "maxSendable",
-                        "minSendable",
-                        "metadata",
+                        "k1",
+                        "maxWithdrawable",
+                        "minWithdrawable",
+                        "defaultDescription",
                         "tag"
                       ]
                     },
@@ -2551,7 +2579,7 @@
         "tags": [
           "Cards"
         ],
-        "summary": "LNURL-pay callback for a scanned card.",
+        "summary": "LNURL-withdraw callback for a scanned card.",
         "operationId": "cards.scan.callback",
         "security": [],
         "parameters": [
@@ -2570,24 +2598,68 @@
               "minLength": 1
             },
             "required": true,
+            "name": "p",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "c",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            },
+            "required": true,
             "name": "pr",
             "in": "query"
           }
         ],
         "responses": {
           "200": {
-            "description": "LNURL-pay callback response.",
+            "description": "LUD-03 callback response.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "pr": {
-                      "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "OK"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ERROR"
+                          ]
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "reason"
+                      ]
                     }
-                  },
-                  "required": [
-                    "pr"
                   ]
                 }
               }
@@ -8916,7 +8988,9 @@
                                     "type": "string",
                                     "enum": [
                                       "connecting",
-                                      "subscribed",
+                                      "negotiating",
+                                      "ready",
+                                      "disconnected",
                                       "error",
                                       "closed"
                                     ]
@@ -8994,6 +9068,18 @@
                                   "minimum": 0
                                 },
                                 "nwcRequestErrors": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "nwcPayments": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "nwcPaymentDuplicates": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "nwcPaymentsPending": {
                                   "type": "integer",
                                   "minimum": 0
                                 },
