@@ -62,10 +62,9 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 
 ### Developer Surface
 
-- TypeScript SDK (npm package) covering all 47 endpoints
-- React Hooks via `@lawallet-nwc/react`
 - OpenAPI 3.1 spec + interactive [Scalar Playground](https://beta.lawallet.io/api-docs)
-- One-click deploy to Vercel; Docker, Umbrel, and Start9 targets in flight
+- TypeScript SDK + `@lawallet-nwc/react` hooks — package extraction in progress (Month 7)
+- One-click deploy to Vercel; Docker, Umbrel, and Start9 targets available
 
 > The public marketing site lives in [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing). This repo's `/` redirects there; the product entrypoint is `/admin`.
 
@@ -78,8 +77,8 @@ Three independent containerized services with no shared infrastructure:
 | Service | Container | Status | Role |
 |---------|-----------|--------|------|
 | [Web Application](./docs/services/LAWALLET-WEB.md) | `lawallet-web` | Active | Next.js frontend, REST API, Lightning Address resolution, dashboards, wallet |
-| [Payment Listener](./docs/services/NWC-LISTENER.md) | `lawallet-listener` | M5 (Lite) | Monitors NWC relays, dispatches LUD-22 webhooks |
-| [NWC Proxy](./docs/services/NWC-PROXY.md) | `lawallet-nwc-proxy` | M6 (Lite) | Provisions courtesy NWC connections via external providers |
+| [Payment Listener](./docs/services/NWC-LISTENER.md) | `lawallet-listener` | Active | Monitors NWC relays, dispatches payment webhooks (transport-only) |
+| [NWC Proxy](./docs/services/NWC-PROXY.md) | `lawallet-nwc-proxy` | M7 (planned) | Provisions courtesy NWC connections via external providers |
 
 ---
 
@@ -263,9 +262,9 @@ The full rendered docs live at **[docs.lawallet.io](https://docs.lawallet.io)**.
 | [2](./docs/roadmap/MONTH-2.md) | Foundation | CI/CD + Auth flow upgrade | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
 | [3](./docs/roadmap/MONTH-3.md) | Enhancement | Admin Dashboard + Nostr login + E2E | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
 | [4](./docs/roadmap/MONTH-4.md) | Enhancement | User Wallet + Admin E2E + schema rewrite | ✅ Completed · [Report](./docs/reports/MONTH-4.md) |
-| [5](./docs/roadmap/MONTH-5.md) | Expansion | Card system + platform polish + NWC Listener Lite | 🟡 In Progress |
-| [6](./docs/roadmap/MONTH-6.md) | Expansion | NWC Proxy Lite + Lightning compliance + deployment | ⏳ Planned |
-| [7](./docs/roadmap/MONTH-7.md) | Monetization | Subscription Manager + Nostr Chat (DMs) | ⏳ Planned |
+| [5](./docs/roadmap/MONTH-5.md) | Expansion | Remote Wallets + card system apps + platform polish | ✅ Completed · [Report](./docs/reports/MONTH-5.md) |
+| [6](./docs/roadmap/MONTH-6.md) | Expansion | NWC Payment Listener + deploy targets + backup & restore | ✅ Completed · [Report](./docs/reports/MONTH-6.md) |
+| [7](./docs/roadmap/MONTH-7.md) | Monetization | Subscription Manager + Nostr Chat (DMs) + carried-over M6 closeout | 🟡 In Progress |
 | [8](./docs/roadmap/MONTH-8.md) | Intelligence | AI Agents (own LN address, NWC wallet, scheduled tasks) | ⏳ Planned |
 
 All eight months are covered by the OpenSats Fifteenth Wave grant (Dec 2025 – Sep 2026). Full month-by-month detail in [ROADMAP.md](./docs/ROADMAP.md).

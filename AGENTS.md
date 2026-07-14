@@ -6,7 +6,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 LaWallet NWC is an open-source Lightning Address platform with Nostr Wallet Connect. It enables communities to provide members with lightning addresses, integrated wallets, and Nostr identity on custom domains. Built on a progressive self-custody model.
 
-**Status**: Pre-alpha (OpenSats grant, Dec 2025–June 2026)
+**Status**: Pre-alpha (OpenSats grant, Dec 2025–September 2026)
 
 ## Monorepo Structure
 

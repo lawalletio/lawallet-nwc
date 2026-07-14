@@ -1,8 +1,10 @@
-# Month 6: Card Activation Flow + NWC Payment Listener + NWC Proxy Lite + Lightning Compliance + Deployment
+# Month 6: NWC Payment Listener + Card Activation + Deploy Targets + Backup & Restore
 
 **Period:** June 5 – July 5, 2026
-**Status:** Planned
+**Status:** Completed
 **Depends on:** [Month 5](MONTH-5.md)
+
+> **Status update (2026-07):** The infrastructure tier shipped across the v1.1.0 → v1.4.0 releases — the NWC Payment Listener as a live transport service, the **SIMPLE / ONE_TIME** card activation flow (`/wallet/activate/[id]`), deploy targets (Docker Hub / Umbrel / Start9), Backup & Restore, and listener hardening. The **settlement / share / compliance** items were deferred to [Month 7](MONTH-7.md): **MASTER card account-share** (FOREVER QRs + the `CardClaim` / `LightningAddressShare` / `RemoteWalletShare` model + share-revoke), **NWC Proxy Lite**, full **LUD-16 / LUD-21 / LUD-22 / NIP-57** closeout, **`@lawallet-nwc/react`**, the **WordPress plugin**, the **Resend** adapter, and the **Nostr scheduler**. The detailed spec below is retained as the design of record for that carried-over work. See the [Month 6 report](../reports/MONTH-6.md).
 
 ## Summary
 

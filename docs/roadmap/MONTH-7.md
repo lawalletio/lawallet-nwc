@@ -1,8 +1,19 @@
 # Month 7: Subscription Manager + Nostr Chat + Email Bridge + i18n
 
 **Period:** July 5 – August 5, 2026
-**Status:** Planned
+**Status:** In Progress
 **Depends on:** [Month 6](MONTH-6.md)
+
+> **The active window.** Month 7 clears the work carried over from [Month 6](MONTH-6.md) before starting its own scope. The Subscription Manager and email bridge below build directly on the carried-over NWC Proxy Lite and Resend adapter.
+
+## Carried over from Month 6 (do first)
+
+- **MASTER card account-share** — the FOREVER-QR flow on top of the shipped SIMPLE / ONE_TIME activation: `CardClaim` / `LightningAddressShare` / `RemoteWalletShare` model + claim / share-revoke endpoints (enum values already reserved in the schema)
+- **NWC Proxy Lite** settlement layer + full **LUD-16 / LUD-21 / LUD-22 / NIP-57** closeout — see [Month 6](MONTH-6.md) for the full spec
+- **`@lawallet-nwc/react`** hooks package extraction
+- **WordPress plugin** (`lawallet-wordpress`)
+- **Resend** email adapter (foundation for the email-to-Nostr bridge below)
+- **Nostr scheduler**, threat model + security-audit prep, Vercel / Netlify deploy configs
 
 ## Summary
 
