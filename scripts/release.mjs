@@ -21,6 +21,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { extractChangelogEntries } from './lib/changelog.mjs'
+
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 const args = process.argv.slice(2)
@@ -93,23 +95,26 @@ const nextVersion = next.join('.')
 const lastTagName = latestTag ? `v${latestTag.join('.')}` : null
 let prLines = []
 if (lastTagName) {
-  // Merge commits: subject "Merge pull request #N from ...", body = PR title.
-  const log = git(
-    `log ${lastTagName}..HEAD --merges --pretty=format:%s%x09%b%x00`
-  )
-  prLines = log
-    .split('\0')
-    .map(entry => entry.trim())
-    .filter(Boolean)
-    .map(entry => {
-      const [subject, ...bodyParts] = entry.split('\t')
-      // Only actual PR merges — branch-sync merge commits ("merge main …")
-      // also show up in --merges and must not pollute the changelog.
-      const pr = subject.match(/^Merge pull request #(\d+)/)?.[1]
-      const title = bodyParts.join(' ').split('\n')[0].trim()
-      return pr ? `- ${title || '(no title)'} (#${pr})` : null
-    })
-    .filter(Boolean)
+  // Walk EVERY commit since the last tag (not just --merges): this repo used
+  // merge-commit PRs through v1.0.2 and squash-merge PRs since, and only the
+  // former produce merge commits. extractChangelogEntries understands both.
+  const log = git(`log ${lastTagName}..HEAD --pretty=format:%s%x09%b%x00`)
+  const { lines, entries, prMentions } = extractChangelogEntries(log)
+
+  // Guard: if commits in the range clearly reference PRs (#NNN) but none were
+  // parsed into entries, the merge/commit style has changed out from under the
+  // parser — hard-fail rather than silently scaffold an empty changelog (the
+  // exact regression that emptied every v1.1.0–v1.4.0 changelog body).
+  if (prMentions > 0 && entries.length === 0) {
+    console.error(
+      `✗ ${prMentions} commit(s) since ${lastTagName} reference a PR (#NNN) but none ` +
+        `were parsed into changelog entries — the merge/commit style may have changed. ` +
+        `Fix scripts/lib/changelog.mjs before releasing.`
+    )
+    process.exit(1)
+  }
+
+  prLines = lines
 }
 
 // ── 3. Report / apply ──────────────────────────────────────────────────────
