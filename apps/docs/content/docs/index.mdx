@@ -51,7 +51,7 @@ It's three independent services around a shared model: a Next.js web app (fronte
   <Card title="Architecture" href="/docs/architecture" description="The three-service design and how they communicate." />
   <Card title="Guides" href="/docs/guides" description="Auth, testing, JWT lifecycle, SDK plans." />
   <Card title="Roles & Permissions" href="/docs/architecture/roles-and-permissions" description="USER → VIEWER → OPERATOR → ADMIN, RBAC model." />
-  <Card title="Roadmap" href="/docs/roadmap" description="Month-by-month plan through June 2026." />
+  <Card title="Roadmap" href="/docs/roadmap" description="Month-by-month plan through September 2026." />
 </Cards>
 
 ## Open standards
@@ -61,7 +61,7 @@ It's three independent services around a shared model: a Next.js web app (fronte
 | NIP-47 (NWC) | Current | Wallet connection stored on the user record and used for payment flows |
 | NIP-98 | Current | Signed requests exchanged for JWT sessions |
 | LUD-16 | Current | `/api/lud16/[username]` pay-request responses for users with NWC configured |
-| NIP-05 | Planned | Nostr identity verification endpoint |
-| NIP-57 | Planned | Zaps |
-| LUD-21 | Planned | Payment verification |
-| LUD-22 | Planned | Webhook delivery |
+| NIP-05 | Current | Nostr identity verification endpoint (`/.well-known/nostr.json`) |
+| LUD-21 | Current | Payment verification |
+| NIP-57 | Planned | Zaps (Month 7 closeout via NWC Proxy) |
+| LUD-22 | Planned | Webhook delivery (transport shipped; full spec closeout in Month 7) |

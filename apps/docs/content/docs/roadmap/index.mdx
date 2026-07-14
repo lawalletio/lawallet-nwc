@@ -41,9 +41,9 @@ All eight months are covered by the OpenSats grant (Fifteenth Wave, Dec 2025 –
 | 2 | Foundation | <StatusDone report="../reports/months-2-3" /> | GitHub Actions CI/CD pipeline, security scanning + coverage thresholds, Vercel config, NIP-98 → JWT session auth migration |
 | 3 | Enhancement | <StatusDone report="../reports/months-2-3" /> | Figma-based admin dashboard rebuild (Home/Users/Activity/Cards/Settings + shadcn/ui), responsive/mobile layout, multi-tab Settings (Branding/Wallet/Infrastructure), 8-preset theme system, branding image uploads, domain claim onboarding wizard, `lawallet.io` landing repo split, v0.9.0 release |
 | 4 | Enhancement | <StatusDone report="../reports/month-4" /> | Monorepo migration (pnpm + Turborepo, 3 apps + 3 packages), full Admin Dashboard E2E (Cards/Designs + BoltCard QR/NFC), schema rewrite (LightningAddress 1→N + NWCConnection, IDLE/ALIAS/NWC modes), user-facing Wallet (onboarding, Send/Receive/Scan, offline cache), system-wide Activity Log + SSE, LUD-12/16/21 compliance, OpenAPI 3.1 + Scalar Playground, docs site overhaul, v0.10.0 release |
-| 5 | Expansion | <StatusDone /> | **Remote Wallets first** (named `RemoteWallet` model + NWC driver; LND / CLN / BTCPay deferred), then Card System Apps (B.0 QR-based JWT login → `card-installer` Android bulk-writes/initializes cards → `card-manager` prints the Activation QR), Platform Polish (full NIP-05, relay picker, user data cache, onboarding v2 with infra-aware `.well-known` rewrites, customizable domain landing, admin home redesign, dashboard cache, PWA, bug fixes) |
-| 6 | Expansion | <StatusPlanned /> | **Card activation flow** (SIMPLE / MASTER cards + ONE_TIME / FOREVER QRs, "Activate Card" wallet flow), **NWC Payment Listener** (lite, transport-only) + LUD-22 plumbing, NWC Proxy Lite settlement layer, full LUD-16/21/22 + NIP-57 closeout, **`@lawallet-nwc/react`** extraction, **WordPress plugin** (`lawallet-wordpress`), multi-email (Resend), Nostr scheduler, full wallet settings, deploy targets (Vercel/Netlify/Umbrel/Start9/Docker), threat model, SDK + hooks finalization |
-| 7 | Monetization & Communication | <StatusPlanned /> | **Subscription Manager** (paid tiers, monthly/one-time), perks (vanity LN address, email-to-Nostr bridge, sat allowance), **Nostr Chat DMs** (NIP-17/44), operator → user broadcast, **i18n** (en/es/pt-BR) |
+| 5 | Expansion | <StatusDone report="../reports/month-5" /> | **Remote Wallets first** (named `RemoteWallet` model + NWC driver; LND / CLN / BTCPay deferred), then Card System Apps (B.0 QR-based JWT login → `card-installer` Android bulk-writes/initializes cards → `card-manager` prints the Activation QR), Platform Polish (full NIP-05, relay picker, user data cache, onboarding v2 with infra-aware `.well-known` rewrites, customizable domain landing, admin home redesign, dashboard cache, PWA, bug fixes) |
+| 6 | Expansion | <StatusDone report="../reports/month-6" /> | **NWC Payment Listener** promoted to a live transport service (relay pool, HMAC webhooks, missed-event recovery, never-drop retry), **card activation flow** (SIMPLE cards + ONE_TIME QRs: mint / rescue + end-user `/wallet/activate` claim UI), **deploy targets** (multi-arch Docker Hub + Umbrel + Start9), **Backup & Restore**, listener dashboard + hardening, expanded wallet settings. **Deferred to M7:** MASTER card account-share (FOREVER QRs), NWC Proxy Lite, full LUD-16/21/22 + NIP-57 closeout, `@lawallet-nwc/react`, WordPress plugin, Resend, Nostr scheduler |
+| 7 | Monetization & Communication | <StatusInProgress /> | **Carried over from M6** (MASTER account-share, NWC Proxy Lite, compliance closeout, `@lawallet-nwc/react`, WordPress plugin, Resend, Nostr scheduler), then **Subscription Manager** (paid tiers, monthly/one-time), perks (vanity LN address, email-to-Nostr bridge, sat allowance), **Nostr Chat DMs** (NIP-17/44), operator → user broadcast, **i18n** (en/es/pt-BR) |
 | 8 | Intelligence | <StatusPlanned /> | **AI Agents** with own LN address + Nostr identity + NWC wallet (one-click spawn, dashboard funding, scheduled tasks), Vercel AI Gateway router, sat-metered runs with subscriber discounts, Mode A (nsec) + Mode B (NIP-46/Amber) signing |
 
 ---
@@ -112,36 +112,43 @@ See the [Month 4 progress report](../reports/month-4). The largest release windo
 
 ## Phase 3: Expansion (Months 5-6)
 
-### Month 5: Card System + Platform Polish + NWC Listener Lite
+### Month 5: Remote Wallets + Card System Apps + Platform Polish
 
-Splits into two themes:
+Three themes, executed in dependency order — Remote Wallets first because every card and address binds to one.
 
-1. **Card System Apps** — [`card-installer`](https://github.com/lawalletio/card-installer) (Android, NFC; bulk-writes blank NTAG424 cards and registers them as *initialized*), [`card-manager`](https://github.com/lawalletio/card-manager) (prints an Activation QR for any initialized card). The end-user "Activate Card" activation flow moves to [Month 6](./month-6).
-2. **Platform Polish & Integrations** — full NIP-05, relay picker, user data cache, onboarding v2 (Cloudflare detection), **NWC Listener Lite (transport-only)** merged from `nostr-trigger`, LUD-22 webhook plumbing, `@lawallet-nwc/react` hooks package, multi-email (Resend), dashboard cache, PWA wallet, **Follower Capture Endpoint** (formerly "Subscription Manager (admin)"), bug fixes, landing CRM swap.
+1. **Remote Wallets (Connections Manager)** — `RemoteWallet` model + pluggable NWC driver (LND / CLN / BTCPay reserved) + Connection Map UI (desktop canvas + mobile tabs); legacy `NWCConnection` rows migrated forward.
+2. **Card System Apps** — [`card-installer`](https://github.com/lawalletio/card-installer) (Android, NFC; bulk-writes blank NTAG424 cards and registers them as *initialized*) and [`card-manager`](https://github.com/lawalletio/card-manager) (prints an Activation QR for any initialized card). The end-user "Activate Card" flow lands in [Month 6](./month-6).
+3. **Platform Polish** — full NIP-05, relay picker, user data cache, onboarding v2 (infra-aware `.well-known` rewrites), customizable domain landing, admin home redesign, dashboard cache, PWA wallet, in-codebase plugin system + installer CLI, bug fixes.
 
-Full LUD-16/21/22 + NIP-57 compliance moves to [Month 6](./month-6) via the NWC Proxy Lite settlement layer.
+### Month 6: NWC Payment Listener + Deploy Targets + Backup & Restore
 
-### Month 6: NWC Proxy Lite + Lightning Compliance + Deployment
+The infrastructure tier landed across the v1.1.0 → v1.4.0 releases; the settlement / compliance layer was deferred to [Month 7](./month-7).
 
-The headline deliverable is the **NWC Proxy Lite** — built on top of the M5 listener, it becomes the **LUD-16 settlement layer** and ships full LUD-16 / LUD-21 / LUD-22 / NIP-57 compliance.
+**Delivered:**
 
-- Card activation flow (SIMPLE / MASTER cards + ONE_TIME / FOREVER QRs, "Activate Card" wallet flow, claim & account-share) — deferred from M5
-- WordPress plugin ([`lawallet-wordpress`](https://github.com/lawalletio/lawallet-wordpress), live demo at [wordpress.lawallet.io](https://wordpress.lawallet.io))
-- NWC Proxy Lite (settlement layer, single-tenant)
-- Full LUD-16 / LUD-21 / LUD-22 / NIP-57 closeout
-- Nostr scheduler (pre-sign + cron-dispatch)
-- Full Wallet settings (theme, notifications, currency, contacts, privacy, NWC management)
-- Deploy targets: Vercel, Netlify, Umbrel, Start9, Docker Compose
-- Threat model + crypto-operations doc, security audit prep
-- SDK + hooks finalization
+- **NWC Payment Listener (transport-only)** — the `apps/listener/` echo stub became a live service: relay pool, HMAC-signed webhooks to `apps/web`, missed-event catch-up, never-drop webhook retry
+- **Card activation flow (SIMPLE + ONE_TIME)** — `CardActivationToken` model, mint / list / rescue endpoints, and the end-user `/wallet/activate/[id]` claim UI (MASTER account-share reserved — see Deferred)
+- **Deploy targets** — multi-arch Docker Hub images, Umbrel app-store auto-update, published Start9 / StartOS `.s9pk`
+- **Backup & Restore** — ADMIN zip export/import of 14 models with optional AES-256-GCM encryption (merge / replace modes)
+- **Listener dashboard + hardening**, expanded wallet settings, admins can grant ADMIN, read-only address view
+
+**Deferred to [Month 7](./month-7):**
+
+- **MASTER card account-share** — FOREVER QRs + `CardClaim` / `LightningAddressShare` / `RemoteWalletShare` model + share-revoke
+- **NWC Proxy Lite** settlement layer + full **LUD-16 / LUD-21 / LUD-22 / NIP-57** closeout
+- **`@lawallet-nwc/react`** extraction, **WordPress plugin**, **Resend** adapter, **Nostr scheduler**, threat model + audit prep, Vercel / Netlify configs
 
 ---
 
 ## Phase 4: Monetization & Intelligence (Months 7-8)
 
-### Month 7: Monetization Plane (Subscription Manager + Nostr Chat)
+### Month 7: Monetization Plane (Subscription Manager + Nostr Chat) — In Progress
 
-Operators can charge users in sats for tier access; users can talk to each other.
+The active window. First it clears the work carried over from Month 6, then operators can charge users in sats for tier access and users can talk to each other.
+
+**Carried over from Month 6 (do first):** MASTER card account-share (FOREVER QRs), NWC Proxy Lite + full LUD-16 / LUD-21 / LUD-22 / NIP-57 closeout, `@lawallet-nwc/react` extraction, WordPress plugin, Resend adapter, Nostr scheduler, threat model + audit prep, Vercel / Netlify deploy configs.
+
+**Month 7 scope:**
 
 - **Subscription Manager** — operator-defined plans with monthly or one-time pricing in sats
 - **Perks (P0):** vanity Lightning address, email-to-Nostr bridge, sat allowance credited monthly
@@ -175,24 +182,29 @@ Group chat threads (NIP-29), operator-hosted paid Nostr relay (strfry/khatru), C
 
 ---
 
-## Current State (as of Month 4)
+## Current State (as of v1.4.0)
 
 Snapshot of what has shipped so far. This grows each month as deliverables land.
 
 | Area | State |
 |------|-------|
-| API Routes | 47 handlers, all wrapped with error handling, Zod validation, and unified auth |
+| API Routes | 79 route handlers, all wrapped with error handling, Zod validation, and unified auth |
 | Admin Dashboard | Full Figma rebuild — Home / Users / Activity / Cards / Designs / Settings, fully responsive |
-| Wallet UI | Onboarding, Send / Receive / Scan, offline cache, NWC setup, settings |
+| Wallet UI | Onboarding, Send / Receive / Scan, offline cache, NWC setup, full settings; **PWA installable** with offline service worker; **Activate Card** flow |
+| Remote Wallets | `RemoteWallet` model + pluggable NWC driver + Connection Map UI (desktop canvas + mobile tabs); LNCurl disposable wallets |
+| NWC Listener | Live transport service in `apps/listener/` — relay pool, HMAC webhooks, missed-event recovery, never-drop retry, realtime dashboard |
 | Landing | Split into the [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing) repo; this app redirects `/` there |
 | Auth Backend | NIP-98 → JWT exchange, dual-method (`Authorization: Nostr` or `Bearer`), RBAC with 4 roles, maintenance mode |
-| Testing | 578 tests across 50 files (Vitest + MSW + happy-dom), CI-enforced coverage thresholds; Playwright E2E in M5 |
-| Database | 8 models — `User`, `Card`, `CardDesign`, `Ntag424`, `LightningAddress`, `AlbySubAccount`, `Settings`, `Invoice` |
-| Lightning Address | LUD-12 (payer comments) and LUD-21 (verification) live; LUD-16 alias / NWC modes; LUD-22 plumbed in M5 |
-| NFC Cards | Full NTAG424 encryption, scan, write, OTC activation, BoltCard QR pairing |
+| Testing | 108 unit/integration test files (Vitest + MSW + happy-dom) + 8 Playwright E2E specs, CI-enforced coverage thresholds |
+| Database | 15 Prisma models incl. `User`, `LightningAddress`, `RemoteWallet`, `Card`, `CardActivationToken`, `CardPaymentAttempt`, `CardDesign`, `Ntag424`, `ActivityLog`, `PluginRecord`, `NostrProfileCache`, `Settings`, `Invoice` |
+| Lightning Address | LUD-12 (comments) + LUD-21 (verify) live; LUD-16 alias / NWC modes; NIP-05 (`.well-known/nostr.json`); LUD-22 webhook *transport* via listener — full LUD-16/22 + NIP-57 closeout in M7 |
+| NFC Cards | Full NTAG424 encryption, scan, write, OTC activation, BoltCard QR pairing, SIMPLE/ONE_TIME activation tokens |
+| Backup & Restore | ADMIN zip export/import of 14 models with optional AES-256-GCM encryption (merge / replace modes) |
+| Deploy | Multi-arch Docker Hub images, Umbrel app-store auto-update, published Start9 `.s9pk`, installer CLI |
+| Plugins | In-codebase plugin system (`apps/web/plugins/`) with a `badges` reference plugin; `pnpm plugin:new` scaffold |
 | Alby Integration | Sub-account management via `@getalby/sdk` v7 |
-| Developer Surface | OpenAPI 3.1 spec + Scalar Playground at [beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs); TS SDK + React Hooks |
-| Monorepo | pnpm workspaces + Turborepo — 3 apps (`web`, `docs`, `listener`) + 3 packages (`sdk`, `shared`, `openapi`) |
+| Developer Surface | OpenAPI 3.1 spec + Scalar Playground at [beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs); TS SDK + `@lawallet-nwc/react` extraction in M7 |
+| Monorepo | pnpm workspaces + Turborepo — 4 apps (`web`, `docs`, `listener`, `cli`) + 3 packages (`sdk`, `shared`, `openapi`) |
 
 ---
 
@@ -204,11 +216,11 @@ Snapshot of what has shipped so far. This grows each month as deliverables land.
 | User dashboard + npub | — | 4 | <StatusDone /> |
 | Payer comments | LUD-12 | 4 | <StatusDone /> |
 | Verify endpoint | LUD-21 | 4 | <StatusDone /> |
-| Address redirect | — | 5 | <StatusInProgress /> |
-| Base Lightning address (full) | LUD-16 | 6 | <StatusPlanned /> |
-| Webhooks | LUD-22 | 6 | <StatusPlanned /> |
-| Zaps | NIP-57 | 6 | <StatusPlanned /> |
-| Courtesy NWC (Alby, LNBits, etc.) | — | 6 | <StatusPlanned /> |
+| Address redirect | — | 5 | <StatusDone /> |
+| Base Lightning address | LUD-16 | 4 | <StatusDone /> |
+| Webhooks | LUD-22 | 6 → 7 | <StatusInProgress /> |
+| Zaps | NIP-57 | 7 | <StatusPlanned /> |
+| Courtesy NWC (Proxy Lite) | — | 7 | <StatusPlanned /> |
 
 ---
 
@@ -217,7 +229,7 @@ Snapshot of what has shipped so far. This grows each month as deliverables land.
 | Month | Container | Status | Service |
 |-------|-----------|--------|---------|
 | 4 | `lawallet-listener` | Stub in `apps/listener/` (echo) | NWC Payment Listener — added during the monorepo migration |
-| 5 | `lawallet-listener` | M5: Lite (transport-only) | NWC relay monitoring + LUD-22 webhook plumbing |
-| 6 | `lawallet-nwc-proxy` | M6: Lite | Courtesy NWC settlement layer for external providers |
+| 6 | `lawallet-listener` | ✅ Live (transport-only) | NWC relay pool + HMAC payment webhooks + missed-event recovery (v1.1.0) |
+| 7 | `lawallet-nwc-proxy` | ⏳ Planned (Lite) | Courtesy NWC settlement layer for external providers (carried over from M6) |
 
-M7 and M8 add **no new containers**. The email-to-Nostr bridge (M7) and the agent scheduler / heartbeat ticker (M8) extend `apps/listener`. Agent inference (M8) runs inside `apps/web` route handlers via the Vercel AI SDK. Container count stays at 3 (`web`, `listener`, `nwc-proxy`).
+The **NWC Proxy** (carried into M7) is the last new container; M8 adds none. The email-to-Nostr bridge (M7) and the agent scheduler / heartbeat ticker (M8) extend `apps/listener`. Agent inference (M8) runs inside `apps/web` route handlers via the Vercel AI SDK. Container count settles at 3 (`web`, `listener`, `nwc-proxy`).

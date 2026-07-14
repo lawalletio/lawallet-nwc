@@ -1,0 +1,51 @@
+---
+title: "Report: Month 5"
+description: "OpenSats progress report for May 7 - June 29, 2026 — Remote Wallets, card system apps, plugin system, and first stable v1.0.0."
+---
+
+**Project:** LaWallet NWC<br />
+**Period:** May 7 – June 29, 2026<br />
+**Grant:** [OpenSats — Fifteenth Wave of Bitcoin Grants](https://opensats.org/blog/fifteenth-wave-of-bitcoin-grants)
+
+---
+
+## Summary
+
+This report covers all work completed since the [Month 4 report](./month-4), which closed at the `v0.10.1` release on May 7, 2026.
+
+Month 5 was the **Expansion** phase. Its through-line was the **Remote Wallets** platform — a named, pluggable Lightning-source abstraction that every card and Lightning address now binds to — followed by the card-system apps and a broad sweep of platform polish. The month also hardened the release and deployment pipeline all the way to a first stable **v1.0.0**.
+
+Highlights:
+
+- **Remote Wallets (Connections Manager)** — a `RemoteWallet` model with a pluggable driver layer (`lib/wallet/drivers/`), the **NWC driver** (LND / CLN / BTCPay reserved), and a **Connection Map** UI (desktop canvas + mobile tabs). Legacy `NWCConnection` rows migrate forward to `RemoteWallet` rows of `type = NWC`.
+- **Card System Apps** — the two external apps [`card-installer`](https://github.com/lawalletio/card-installer) (Android / NFC; bulk-writes blank NTAG424 cards and registers them as *initialized*) and [`card-manager`](https://github.com/lawalletio/card-manager) (prints an Activation QR), plus the **SIMPLE / ONE_TIME activation-token backend** (`Card.kind`, `CardActivationToken`).
+- **QR-based JWT device-token login** — an admin mints a scoped, time-boxed JWT rendered as a QR for a device to scan.
+- **In-codebase plugin system** — `apps/web/plugins/` runtime (registry, loader, JSON-first storage), a `pnpm plugin:new` scaffold, and a `badges` reference plugin — all with zero core edits.
+- **Developer-experience program** — one-command bootstrap, per-worktree isolated Postgres + ports, a rewritten Turbo graph, a Playwright E2E tier, and a docs-drift CI gate.
+- **Standalone `lawallet` installer CLI** — the `curl | bash` bootstrap for a local stack (`apps/cli`).
+- **NTAG424 key lockdown**, Blocked-card lifecycle, and write-token replay protection (`v0.12.0`).
+- **LNCurl disposable / remote wallets** + a wallet detail page; domain verification on LNURL / NIP-05 (`v0.12.0`).
+- **First stable `v1.0.0`** (June 20) — card activation QRs and on-demand LNCurl wallets.
+- **Deployment pipeline** — multi-arch `masize/lawallet-nwc` Docker Hub publish + Umbrel app-store auto-update, admin wallet-view redesign + dev impersonation ([#55](https://github.com/lawalletio/lawallet-nwc/pull/55)), card design page + emulator payment flow + 3D card ([#56](https://github.com/lawalletio/lawallet-nwc/pull/56)), card-detail tabs + spend history ([#59](https://github.com/lawalletio/lawallet-nwc/pull/59)).
+
+**Main repository stats (`lawallet-nwc`):** 546 files changed, **59,590 insertions**, 10,673 deletions across the `v0.11.0` → `v1.0.10` release window (287 commits).
+
+---
+
+## Releases
+
+| Tag | Date | Notes |
+|-----|------|-------|
+| `v0.11.0` | 2026-06-10 | Remote Wallets platform + NWC driver + Connection Map; QR JWT device login; in-codebase plugin system + badges; DevX program; installer CLI. |
+| `v0.12.0` | 2026-06-19 | NTAG424 key lockdown + Blocked card lifecycle + write-token replay protection; LNCurl disposable / remote wallets + wallet detail; domain verification on LNURL / NIP-05. |
+| `v1.0.0` | 2026-06-20 | First stable release — card activation QRs, on-demand LNCurl wallets. |
+| `v1.0.1` – `v1.0.10` | 2026-06-24 → 06-29 | Multi-arch Docker Hub publish + Umbrel app-store auto-update; admin wallet redesign + dev impersonation; card design page + emulator + 3D card; card-detail tabs + spend history; Vercel + release-flow hardening. |
+
+---
+
+## Deferred / carried forward
+
+- The **end-user "Activate Card" wallet flow** (built on the SIMPLE / ONE_TIME activation-token backend above) and the **NWC Payment Listener** service both landed in [Month 6](../roadmap/month-6).
+- **MASTER card account-share** (FOREVER QRs) remains reserved — see [Month 7](../roadmap/month-7).
+
+See the [Month 5 roadmap](../roadmap/month-5) for the full plan of record.

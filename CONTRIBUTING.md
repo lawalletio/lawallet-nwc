@@ -4,7 +4,7 @@ Thanks for your interest in contributing! This guide walks through getting the
 backend running locally, the commands you'll use day-to-day, and the workflow
 we follow for pull requests.
 
-> **Status:** Pre-alpha (OpenSats grant, Dec 2025–June 2026). Expect breaking
+> **Status:** Pre-alpha (OpenSats grant, Dec 2025–September 2026). Expect breaking
 > changes — coordinate larger changes via an issue before opening a PR.
 
 ---
