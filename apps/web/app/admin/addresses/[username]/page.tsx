@@ -3,14 +3,16 @@
 import React, { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, Forward } from 'lucide-react'
+import { ChevronDown, Forward, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -25,6 +27,14 @@ import {
 } from '@/components/ui/collapsible'
 import { BalanceCard } from '@/components/wallet/balance-card'
 import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
+import {
+  FIXED_PRICE_CURRENCY_CATALOG,
+  estimateFixedPriceSats,
+  formatFixedPrice,
+  isValidFixedPriceAmount,
+  saveFixedPrice,
+  useFixedPrice,
+} from '@/lib/client/fixed-price'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import {
   useMyAddress,
@@ -32,6 +42,7 @@ import {
   type LightningAddressMode,
   type WalletRemoteWalletSummary,
 } from '@/lib/client/hooks/use-wallet-addresses'
+import { useYadioRates } from '@/lib/client/use-yadio-ticker'
 import { isLightningAddress } from '@/lib/ln-address'
 import { cn } from '@/lib/utils'
 import { trackEvent } from '@/lib/analytics/gtag'
@@ -63,10 +74,15 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   const { data: settings } = useSettings()
   const { data, loading, refetch } = useMyAddress(username)
   const { updateAddress, updating } = useAddressMutations()
+  const { rates, loading: ratesLoading, error: ratesError } = useYadioRates()
+  const savedFixedPrice = useFixedPrice(username)
 
   const [mode, setMode] = useState<LightningAddressMode>('DEFAULT_NWC')
   const [redirect, setRedirect] = useState('')
   const [remoteWalletId, setRemoteWalletId] = useState<string>('')
+  const [fixedPriceEnabled, setFixedPriceEnabled] = useState(false)
+  const [fixedPriceAmount, setFixedPriceAmount] = useState('')
+  const [fixedPriceCurrency, setFixedPriceCurrency] = useState('SAT')
   // Combined busy flag held across the full save flow: mutation + refetch.
   // `updating` alone drops to false as soon as the PUT resolves, but the
   // form's `isDirty` hasn't re-synced until refetch finishes — that gap
@@ -92,11 +108,30 @@ export default function AdminAddressEditPage({ params }: PageProps) {
     setRemoteWalletId(data.address.remoteWalletId ?? '')
   }, [data, updatedAt])
 
+  useEffect(() => {
+    setFixedPriceEnabled(Boolean(savedFixedPrice))
+    setFixedPriceAmount(savedFixedPrice?.amount ?? '')
+    setFixedPriceCurrency(savedFixedPrice?.currency ?? 'SAT')
+  }, [savedFixedPrice, username])
+
   const domain = settings?.domain || 'your-domain'
   const fullAddress = `${username}@${domain}`
   const aliasInvalid = mode === 'ALIAS' && redirect.length > 0 && !isLightningAddress(redirect)
   const aliasMissing = mode === 'ALIAS' && redirect.length === 0
   const customMissing = mode === 'CUSTOM_NWC' && !remoteWalletId
+  const fixedPriceAmountValue = fixedPriceAmount.trim()
+  const fixedPriceInvalid =
+    fixedPriceEnabled &&
+    !isValidFixedPriceAmount(fixedPriceAmountValue, fixedPriceCurrency)
+  const fixedPricePreviewSats = fixedPriceEnabled
+    ? estimateFixedPriceSats(fixedPriceAmountValue, fixedPriceCurrency, rates)
+    : null
+  const fixedPriceRateMissing =
+    fixedPriceEnabled &&
+    fixedPriceCurrency !== 'SAT' &&
+    fixedPriceAmountValue.length > 0 &&
+    !fixedPriceInvalid &&
+    fixedPricePreviewSats === null
 
   // Dirty check: compare the current form state to the last-saved baseline.
   // `redirect` and `remoteWalletId` are normalised to empty string on load
@@ -105,30 +140,51 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   // Without this the Save button was always enabled as long as inputs were
   // valid, even when the user hadn't touched anything.
   const baseline = data?.address
-  const isDirty =
+  const nextFixedPrice = fixedPriceEnabled
+    ? { amount: fixedPriceAmountValue, currency: fixedPriceCurrency }
+    : null
+  const baselineFixedPrice = savedFixedPrice
+  const fixedPriceDirty =
+    !!baseline &&
+    ((baselineFixedPrice === null) !== (nextFixedPrice === null) ||
+      (baselineFixedPrice !== null &&
+        nextFixedPrice !== null &&
+        (baselineFixedPrice.amount !== nextFixedPrice.amount ||
+          baselineFixedPrice.currency !== nextFixedPrice.currency)))
+  const addressDirty =
     !!baseline &&
     (mode !== baseline.mode ||
       (redirect ?? '') !== (baseline.redirect ?? '') ||
       (remoteWalletId ?? '') !== (baseline.remoteWalletId ?? ''))
+  const isDirty = addressDirty || fixedPriceDirty
 
   const saveDisabled =
-    saving || updating || !isDirty || aliasInvalid || aliasMissing || customMissing
+    saving ||
+    updating ||
+    !isDirty ||
+    aliasInvalid ||
+    aliasMissing ||
+    customMissing ||
+    fixedPriceInvalid
 
   async function handleSave() {
     setSaving(true)
     try {
-      await updateAddress(username, {
-        mode,
-        redirect: mode === 'ALIAS' ? redirect : null,
-        remoteWalletId: mode === 'CUSTOM_NWC' ? remoteWalletId : null,
-      })
-      // Wait for the refetch to land too — this is what prevents the
-      // Save button from briefly un-disabling between "mutation done"
-      // and "form reset to clean".
-      await refetch()
-      trackEvent(AnalyticsEvent.ADDRESS_MODE_CHANGED, { mode })
+      if (addressDirty) {
+        await updateAddress(username, {
+          mode,
+          redirect: mode === 'ALIAS' ? redirect : null,
+          remoteWalletId: mode === 'CUSTOM_NWC' ? remoteWalletId : null,
+        })
+        // Wait for the refetch to land too — this is what prevents the
+        // Save button from briefly un-disabling between "mutation done"
+        // and "form reset to clean".
+        await refetch()
+        trackEvent(AnalyticsEvent.ADDRESS_MODE_CHANGED, { mode })
+      }
+      if (fixedPriceDirty) saveFixedPrice(username, nextFixedPrice)
       setModeOpen(false)
-      toast.success('Saved')
+      toast.success(addressDirty ? 'Saved' : 'Fixed price saved on this device')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save')
     } finally {
@@ -209,14 +265,22 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                 <span className="text-xs uppercase tracking-wider text-muted-foreground">
                   Mode
                 </span>
-                <span className="truncate text-sm font-medium">
-                  {MODE_DESCRIPTIONS[data.address.mode].label}
-                  {data.address.mode === 'ALIAS' && data.address.redirect && (
-                    <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
-                      → {data.address.redirect}
-                    </span>
+                <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-medium">
+                  <span className="truncate">
+                    {MODE_DESCRIPTIONS[data.address.mode].label}
+                    {data.address.mode === 'ALIAS' && data.address.redirect && (
+                      <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+                        → {data.address.redirect}
+                      </span>
+                    )}
+                  </span>
+                  {savedFixedPrice && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Tag className="size-3" aria-hidden />
+                      {formatFixedPrice(savedFixedPrice)}
+                    </Badge>
                   )}
-                </span>
+                </div>
               </div>
               <ChevronDown
                 className={cn(
@@ -336,6 +400,89 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                   </p>
                 )}
 
+                <div className="flex flex-col gap-4 rounded-md border border-border/70 bg-background/60 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <Label htmlFor="fixed-price-enabled">Fixed price</Label>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        Keep a price reference for this address on this device.
+                      </p>
+                    </div>
+                    <Switch
+                      id="fixed-price-enabled"
+                      checked={fixedPriceEnabled}
+                      disabled={saving}
+                      onCheckedChange={setFixedPriceEnabled}
+                    />
+                  </div>
+
+                  {fixedPriceEnabled && (
+                    <div className="flex flex-col gap-3">
+                      <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="fixed-price-amount">Amount</Label>
+                          <Input
+                            id="fixed-price-amount"
+                            inputMode={fixedPriceCurrency === 'SAT' ? 'numeric' : 'decimal'}
+                            placeholder={fixedPriceCurrency === 'SAT' ? '2500' : '10.00'}
+                            value={fixedPriceAmount}
+                            disabled={saving}
+                            aria-invalid={fixedPriceInvalid}
+                            onChange={e => setFixedPriceAmount(e.target.value.replace(',', '.'))}
+                            className={cn(fixedPriceInvalid && 'border-destructive')}
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="fixed-price-currency">Currency</Label>
+                          <Select
+                            value={fixedPriceCurrency}
+                            onValueChange={setFixedPriceCurrency}
+                            disabled={saving}
+                          >
+                            <SelectTrigger id="fixed-price-currency">
+                              <SelectValue placeholder="Currency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FIXED_PRICE_CURRENCY_CATALOG.map(currency => (
+                                <SelectItem key={currency.code} value={currency.code}>
+                                  {currency.code === 'SAT'
+                                    ? 'SAT - Satoshi'
+                                    : `${currency.code} - ${currency.name}`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {fixedPriceInvalid ? (
+                        <p className="text-xs text-destructive">
+                          {fixedPriceCurrency === 'SAT'
+                            ? 'Enter a positive whole number of sats.'
+                            : 'Enter a positive fiat amount with up to 8 decimals.'}
+                        </p>
+                      ) : fixedPricePreviewSats !== null ? (
+                        <p className="text-xs text-muted-foreground">
+                          Current reference:{' '}
+                          <span className="font-medium text-foreground">
+                            {fixedPricePreviewSats.toLocaleString()} sats
+                          </span>
+                          {fixedPriceCurrency === 'SAT' ? '.' : ' at the current Yadio rate.'}
+                        </p>
+                      ) : fixedPriceRateMissing ? (
+                        <p className="text-xs text-muted-foreground">
+                          {ratesLoading
+                            ? 'Fetching Yadio rate...'
+                            : ratesError
+                              ? 'Yadio preview unavailable.'
+                              : `Yadio has no usable ${fixedPriceCurrency} rate right now.`}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+
                 {/* Save/Cancel live inside the collapsible — once the user
                     expands Mode and makes changes, the actions are right
                     there with the form; the rest of the page stays calm.
@@ -350,6 +497,9 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                       setMode(data.address.mode)
                       setRedirect(data.address.redirect ?? '')
                       setRemoteWalletId(data.address.remoteWalletId ?? '')
+                      setFixedPriceEnabled(Boolean(savedFixedPrice))
+                      setFixedPriceAmount(savedFixedPrice?.amount ?? '')
+                      setFixedPriceCurrency(savedFixedPrice?.currency ?? 'SAT')
                       setModeOpen(false)
                     }}
                   >

@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Copy, Forward, MoreHorizontal, Plus, Star } from 'lucide-react'
+import { Copy, Forward, MoreHorizontal, Plus, Star, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,7 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/components/admin/auth-context'
 import { Role } from '@/lib/auth/permissions'
 import { truncateNpub } from '@/lib/client/format'
+import { formatFixedPrice, useFixedPrice } from '@/lib/client/fixed-price'
 import { cn } from '@/lib/utils'
 
 const NWC_LABEL: Record<WalletAddress['nwcMode'], string> = {
@@ -362,6 +363,8 @@ export default function AdminAddressesPage() {
                               {NWC_LABEL[addr.nwcMode]}
                             </span>
                           )}
+
+                        <FixedPriceBadge username={addr.username} />
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -407,5 +410,17 @@ export default function AdminAddressesPage() {
         onCreated={refetch}
       />
     </div>
+  )
+}
+
+function FixedPriceBadge({ username }: { username: string }) {
+  const fixedPrice = useFixedPrice(username)
+  if (!fixedPrice) return null
+
+  return (
+    <Badge variant="secondary" className="w-fit items-center gap-1 text-xs">
+      <Tag className="size-3" aria-hidden />
+      {formatFixedPrice(fixedPrice)}
+    </Badge>
   )
 }

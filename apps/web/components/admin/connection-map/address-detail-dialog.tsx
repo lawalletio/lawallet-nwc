@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { AtSign, ExternalLink, Star } from 'lucide-react'
+import { AtSign, ExternalLink, Star, Tag } from 'lucide-react'
 import {
   DialogFooter,
   DialogHeader,
@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatRelativeTime } from '@/lib/client/format'
+import { formatFixedPrice, useFixedPrice } from '@/lib/client/fixed-price'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import type { RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
 import { SuccessHeroCard } from '@/components/wallet/new-address-dialog'
@@ -52,6 +53,7 @@ export function AddressDetailBody({
   wallets,
   onOpenWallet,
 }: Props) {
+  const fixedPrice = useFixedPrice(address.username)
   // For CUSTOM_NWC the wallet is the explicitly-bound one. For DEFAULT_NWC
   // the implicit binding is whatever the user's primary wallet is — the
   // PUT endpoint clears `remoteWalletId` for that mode, so we look up the
@@ -99,6 +101,18 @@ export function AddressDetailBody({
               label="Effective NWC"
               value={<Badge variant="outline">{address.nwcMode}</Badge>}
             />
+
+            {fixedPrice && (
+              <InfoField
+                label="Fixed price"
+                value={
+                  <Badge variant="secondary" className="gap-1">
+                    <Tag className="size-3" aria-hidden />
+                    {formatFixedPrice(fixedPrice)}
+                  </Badge>
+                }
+              />
+            )}
 
             {address.mode === 'ALIAS' && address.redirect && (
               <InfoField
