@@ -19,6 +19,13 @@ import {
   lud16CallbackQuerySchema,
   lud16UsernameParam,
   otcParam,
+  passkeyAuthenticationVerifyRequestSchema,
+  passkeyCredentialListResponseSchema,
+  passkeyCredentialSummarySchema,
+  passkeyNsecExportRequestSchema,
+  passkeyRegistrationOptionsRequestSchema,
+  passkeyRegistrationVerifyRequestSchema,
+  passkeySessionResponseSchema,
   payActionQuerySchema,
   probeAliasAddressSchema,
   remoteWalletListQuerySchema,
@@ -26,6 +33,7 @@ import {
   settingsBodySchema,
   updateCardDesignSchema,
   updateLightningAddressSchema,
+  updatePasskeyCredentialSchema,
   updateRemoteWalletSchema,
   updateRoleSchema,
   updateWalletCardSchema,
@@ -169,6 +177,52 @@ export const schemas = {
   // ── JWT ───────────────────────────────────────────────────────────────
   JwtRequest: registry.register('JwtRequest', jwtRequestSchema),
   QrJwtGenerateRequest: registry.register('QrJwtGenerateRequest', qrJwtGenerateSchema),
+
+  // ── Passkeys ──────────────────────────────────────────────────────────
+  PasskeyRegistrationOptionsRequest: registry.register(
+    'PasskeyRegistrationOptionsRequest',
+    passkeyRegistrationOptionsRequestSchema.openapi({
+      description:
+        'Optional label for the passkey being created. The body may be omitted ' +
+        'entirely — the label is only applied at verify time.',
+    }),
+  ),
+  PasskeyRegistrationVerifyRequest: registry.register(
+    'PasskeyRegistrationVerifyRequest',
+    passkeyRegistrationVerifyRequestSchema.openapi({
+      description:
+        'Attestation result of a WebAuthn registration ceremony: the `challenge` ' +
+        'echoed from the options step plus the browser `RegistrationResponseJSON` ' +
+        'produced by @simplewebauthn/browser `startRegistration()`.',
+    }),
+  ),
+  PasskeyAuthenticationVerifyRequest: registry.register(
+    'PasskeyAuthenticationVerifyRequest',
+    passkeyAuthenticationVerifyRequestSchema.openapi({
+      description:
+        'Assertion result of a WebAuthn authentication ceremony: the `challenge` ' +
+        'echoed from the options step plus the browser `AuthenticationResponseJSON` ' +
+        'produced by @simplewebauthn/browser `startAuthentication()`.',
+    }),
+  ),
+  PasskeyNsecExportRequest: registry.register(
+    'PasskeyNsecExportRequest',
+    passkeyNsecExportRequestSchema.openapi({
+      description:
+        'Fresh EXPORT-flow WebAuthn assertion. Same wire shape as the login ' +
+        'verify body, but the challenge must come from ' +
+        '`POST /api/auth/passkey/nsec/export/options` — a LOGIN challenge can ' +
+        'never unlock an export.',
+    }),
+  ),
+  PasskeyCredentialUpdateRequest: registry.register(
+    'PasskeyCredentialUpdateRequest',
+    updatePasskeyCredentialSchema.openapi({
+      description:
+        'Rename payload. Only the label is mutable — key material, counter, and ' +
+        'device metadata are fixed at registration.',
+    }),
+  ),
 }
 
 // ── Inline response component schemas ─────────────────────────────────────
@@ -230,6 +284,54 @@ export const Lud16Callback = registry.register(
       successAction: z.unknown().optional(),
     })
     .openapi({ description: 'LUD-16 callback response containing the BOLT11 invoice.' }),
+)
+
+export const PasskeyOptionsResponse = registry.register(
+  'PasskeyOptionsResponse',
+  z
+    .object({
+      options: z.record(z.unknown()).openapi({
+        description:
+          'WebAuthn PublicKeyCredential options JSON — pass to ' +
+          '@simplewebauthn/browser (`startRegistration` / `startAuthentication`) unchanged.',
+      }),
+    })
+    .openapi({
+      description:
+        'Envelope for WebAuthn ceremony options. The `options` object follows the ' +
+        'WebAuthn spec and is not modeled field-by-field here. Its challenge is ' +
+        'stored server-side, is single-use, and expires after the ceremony timeout.',
+    }),
+)
+
+export const PasskeySessionResponse = registry.register(
+  'PasskeySessionResponse',
+  passkeySessionResponseSchema.openapi({
+    description:
+      'Passkey session JWT + context, mirroring `POST /api/jwt`. The token carries ' +
+      'the passkey claims (`amr: ["webauthn"]`, `cred`, `custody`, `auth_time`) ' +
+      'required by the signer-key and session-refresh endpoints. `custody` is ' +
+      '`managed` when the server custodies the account’s Nostr key, `linked` when ' +
+      'the user brought their own signer.',
+  }),
+)
+
+export const PasskeyCredentialSummary = registry.register(
+  'PasskeyCredentialSummary',
+  passkeyCredentialSummarySchema.openapi({
+    description:
+      'Non-sensitive passkey credential summary — never exposes the stored public ' +
+      'key or signature counter.',
+  }),
+)
+
+export const PasskeyCredentialListResponse = registry.register(
+  'PasskeyCredentialListResponse',
+  passkeyCredentialListResponseSchema.openapi({
+    description:
+      'The caller’s passkeys plus `hasManagedKey`: true when the server custodies ' +
+      'this account’s Nostr key (passkey-native signup), false for linked accounts.',
+  }),
 )
 
 export const Lud21Verify = registry.register(

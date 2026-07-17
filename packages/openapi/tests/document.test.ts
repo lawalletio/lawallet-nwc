@@ -26,6 +26,18 @@ describe('getOpenApiDocument', () => {
     const paths = Object.keys(doc.paths ?? {})
     const expectations = [
       '/api/jwt',
+      '/api/auth/passkey/registration/options',
+      '/api/auth/passkey/registration/verify',
+      '/api/auth/passkey/link/options',
+      '/api/auth/passkey/link/verify',
+      '/api/auth/passkey/authentication/options',
+      '/api/auth/passkey/authentication/verify',
+      '/api/auth/passkey/signer-key',
+      '/api/auth/passkey/nsec/export/options',
+      '/api/auth/passkey/nsec/export',
+      '/api/auth/passkey/credentials',
+      '/api/auth/passkey/credentials/{id}',
+      '/api/auth/passkey/session/refresh',
       '/api/cards',
       '/api/cards/{id}',
       '/api/card-designs',

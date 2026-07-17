@@ -88,6 +88,16 @@ async function findPort(start) {
   throw new Error(`No free port found starting at ${start}`)
 }
 
+// Guards against a literal "undefined"/short value leaking from an env file
+// written by an older or broken revision of this script.
+function validSecret(value) {
+  return typeof value === 'string' &&
+    value.length >= 32 &&
+    value !== 'undefined'
+    ? value
+    : null
+}
+
 async function loadOrCreateEnv() {
   const existing = parseEnvFile(rootEnvPath)
   const state = existsSync(statePath)
@@ -132,6 +142,10 @@ async function loadOrCreateEnv() {
     JWT_SECRET:
       existing.JWT_SECRET ||
       state.JWT_SECRET ||
+      randomBytes(48).toString('base64url'),
+    KEY_VAULT_SECRET:
+      validSecret(existing.KEY_VAULT_SECRET) ||
+      validSecret(state.KEY_VAULT_SECRET) ||
       randomBytes(48).toString('base64url'),
     LISTENER_PORT: listenerPort,
     LISTENER_AUTH_SECRET:

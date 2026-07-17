@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ChevronLeft,
@@ -14,6 +14,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { useAuth, type LoginMethod } from '@/components/admin/auth-context'
+import { PasskeysSection } from '@/components/wallet/settings/passkeys-section'
+import { ExportKeyDialog } from '@/components/wallet/settings/export-key-dialog'
+import { usePasskeys } from '@/lib/client/hooks/use-passkeys'
 import { toNpub, truncateNpub } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
 
@@ -29,6 +32,8 @@ export function SecurityScreen() {
     signer,
     status
   } = useAuth()
+  const { hasManagedKey } = usePasskeys()
+  const [exportOpen, setExportOpen] = useState(false)
 
   async function handleCopyPubkey() {
     if (!pubkey) return
@@ -120,6 +125,28 @@ export function SecurityScreen() {
           </Button>
         </Section>
 
+        <Section title="Passkeys">
+          <PasskeysSection onExportRequest={() => setExportOpen(true)} />
+        </Section>
+
+        {hasManagedKey && (
+          <Section title="Secret key">
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-12 w-full"
+              onClick={() => setExportOpen(true)}
+            >
+              <KeyRound data-icon="inline-start" />
+              Export secret key
+            </Button>
+            <p className="px-1 text-xs text-muted-foreground">
+              Your Nostr key is kept safe on this instance. Export it to back
+              it up or take your identity to another app.
+            </p>
+          </Section>
+        )}
+
         <Section title="Device" className="mt-auto">
           <Button
             type="button"
@@ -132,6 +159,8 @@ export function SecurityScreen() {
           </Button>
         </Section>
       </main>
+
+      <ExportKeyDialog open={exportOpen} onOpenChange={setExportOpen} />
 
       <NavTabbar />
     </div>
@@ -251,6 +280,8 @@ function loginMethodLabel(method: LoginMethod | null) {
       return 'Extension'
     case 'nsec':
       return 'Private key'
+    case 'passkey':
+      return 'Passkey'
     default:
       return 'Unknown'
   }

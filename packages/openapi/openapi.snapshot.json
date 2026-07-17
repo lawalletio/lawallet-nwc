@@ -32,6 +32,10 @@
       "description": "NIP-98 → JWT exchange and validation."
     },
     {
+      "name": "Passkeys",
+      "description": "WebAuthn passkey signup, login, account linking, credential management, and custodied Nostr key release."
+    },
+    {
       "name": "Cards",
       "description": "Card lifecycle: create, list, scan, write, OTC."
     },
@@ -699,6 +703,253 @@
           "permissions"
         ]
       },
+      "PasskeyRegistrationOptionsRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "description": "Optional label for the passkey being created. The body may be omitted entirely — the label is only applied at verify time."
+      },
+      "PasskeyRegistrationVerifyRequest": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128
+          },
+          "credential": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rawId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "public-key"
+                ]
+              },
+              "response": {
+                "type": "object",
+                "properties": {
+                  "clientDataJSON": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "attestationObject": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "transports": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "clientDataJSON",
+                  "attestationObject"
+                ]
+              },
+              "clientExtensionResults": {
+                "type": "object",
+                "additionalProperties": {},
+                "default": {}
+              },
+              "authenticatorAttachment": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "rawId",
+              "type",
+              "response"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "challenge",
+          "credential"
+        ],
+        "description": "Attestation result of a WebAuthn registration ceremony: the `challenge` echoed from the options step plus the browser `RegistrationResponseJSON` produced by @simplewebauthn/browser `startRegistration()`."
+      },
+      "PasskeyAuthenticationVerifyRequest": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128
+          },
+          "credential": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rawId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "public-key"
+                ]
+              },
+              "response": {
+                "type": "object",
+                "properties": {
+                  "clientDataJSON": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "authenticatorData": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "userHandle": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "clientDataJSON",
+                  "authenticatorData",
+                  "signature"
+                ]
+              },
+              "clientExtensionResults": {
+                "type": "object",
+                "additionalProperties": {},
+                "default": {}
+              }
+            },
+            "required": [
+              "id",
+              "rawId",
+              "type",
+              "response"
+            ]
+          }
+        },
+        "required": [
+          "challenge",
+          "credential"
+        ],
+        "description": "Assertion result of a WebAuthn authentication ceremony: the `challenge` echoed from the options step plus the browser `AuthenticationResponseJSON` produced by @simplewebauthn/browser `startAuthentication()`."
+      },
+      "PasskeyNsecExportRequest": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 128
+          },
+          "credential": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rawId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "public-key"
+                ]
+              },
+              "response": {
+                "type": "object",
+                "properties": {
+                  "clientDataJSON": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "authenticatorData": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "userHandle": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "clientDataJSON",
+                  "authenticatorData",
+                  "signature"
+                ]
+              },
+              "clientExtensionResults": {
+                "type": "object",
+                "additionalProperties": {},
+                "default": {}
+              }
+            },
+            "required": [
+              "id",
+              "rawId",
+              "type",
+              "response"
+            ]
+          }
+        },
+        "required": [
+          "challenge",
+          "credential"
+        ],
+        "description": "Fresh EXPORT-flow WebAuthn assertion. Same wire shape as the login verify body, but the challenge must come from `POST /api/auth/passkey/nsec/export/options` — a LOGIN challenge can never unlock an export."
+      },
+      "PasskeyCredentialUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "description": "Rename payload. Only the label is mutable — key material, counter, and device metadata are fixed at registration."
+      },
       "SuccessEnvelope": {
         "type": "object",
         "properties": {
@@ -816,6 +1067,175 @@
           "pr"
         ],
         "description": "LUD-16 callback response containing the BOLT11 invoice."
+      },
+      "PasskeyOptionsResponse": {
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "WebAuthn PublicKeyCredential options JSON — pass to @simplewebauthn/browser (`startRegistration` / `startAuthentication`) unchanged."
+          }
+        },
+        "required": [
+          "options"
+        ],
+        "description": "Envelope for WebAuthn ceremony options. The `options` object follows the WebAuthn spec and is not modeled field-by-field here. Its challenge is stored server-side, is single-use, and expires after the ceremony timeout."
+      },
+      "PasskeySessionResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "pubkey": {
+            "type": "string"
+          },
+          "custody": {
+            "type": "string",
+            "enum": [
+              "managed",
+              "linked"
+            ]
+          }
+        },
+        "required": [
+          "token",
+          "expiresIn",
+          "type",
+          "pubkey",
+          "custody"
+        ],
+        "description": "Passkey session JWT + context, mirroring `POST /api/jwt`. The token carries the passkey claims (`amr: [\"webauthn\"]`, `cred`, `custody`, `auth_time`) required by the signer-key and session-refresh endpoints. `custody` is `managed` when the server custodies the account’s Nostr key, `linked` when the user brought their own signer."
+      },
+      "PasskeyCredentialSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deviceType": {
+            "type": "string"
+          },
+          "backedUp": {
+            "type": "boolean"
+          },
+          "aaguid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rpId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "deviceType",
+          "backedUp",
+          "aaguid",
+          "rpId",
+          "createdAt",
+          "lastUsedAt"
+        ],
+        "description": "Non-sensitive passkey credential summary — never exposes the stored public key or signature counter."
+      },
+      "PasskeyCredentialListResponse": {
+        "type": "object",
+        "properties": {
+          "credentials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "deviceType": {
+                  "type": "string"
+                },
+                "backedUp": {
+                  "type": "boolean"
+                },
+                "aaguid": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "rpId": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "lastUsedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "deviceType",
+                "backedUp",
+                "aaguid",
+                "rpId",
+                "createdAt",
+                "lastUsedAt"
+              ]
+            }
+          },
+          "hasManagedKey": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "credentials",
+          "hasManagedKey"
+        ],
+        "description": "The caller’s passkeys plus `hasManagedKey`: true when the server custodies this account’s Nostr key (passkey-native signup), false for linked accounts."
       },
       "Lud21Verify": {
         "type": "object",
@@ -1253,6 +1673,1188 @@
           },
           "401": {
             "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/registration/options": {
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Start a new-account passkey signup.",
+        "description": "Mints WebAuthn registration options for a brand-new managed identity. Unauthenticated — anyone may begin a signup ceremony; nothing is persisted besides the single-use challenge. A user id is pre-allocated (it travels as the WebAuthn user handle) but no `User` row is created until `verify` proves possession of the authenticator. The body is optional; a malformed body is tolerated because the label is only applied at verify time.",
+        "operationId": "passkey.registration.options",
+        "security": [],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRegistrationOptionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "WebAuthn registration options. The challenge is stored server-side, single-use.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptionsResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Passkey signup is not configured — the key vault or JWT support is missing on this instance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/registration/verify": {
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Complete a new-account passkey signup.",
+        "description": "Verifies the authenticator’s attestation against the single-use challenge minted by `registration/options`, then materializes the account: a fresh server-generated Nostr identity (custodied at rest in the key vault), the `User` row, and the passkey credential itself. The private key (`signerKey`) is returned exactly ONCE — here — so the client can build its in-memory signer without a second round-trip; afterwards it is only obtainable via the signer-key and nsec-export flows.",
+        "operationId": "passkey.registration.verify",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRegistrationVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Account created; passkey session issued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "expiresIn": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ]
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "Bearer"
+                      ]
+                    },
+                    "pubkey": {
+                      "type": "string"
+                    },
+                    "custody": {
+                      "type": "string",
+                      "enum": [
+                        "managed",
+                        "linked"
+                      ]
+                    },
+                    "signerKey": {
+                      "type": "string",
+                      "description": "Server-generated Nostr private key (hex) — returned exactly once, at account creation. Afterwards obtainable only via `GET /api/auth/passkey/signer-key` or the nsec-export step-up flow."
+                    }
+                  },
+                  "required": [
+                    "token",
+                    "expiresIn",
+                    "type",
+                    "pubkey",
+                    "custody",
+                    "signerKey"
+                  ],
+                  "description": "PasskeySessionResponse plus the one-time `signerKey` (custody is always `managed` here)."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Passkey verification failed. Every failure path (bad attestation, wrong origin/rpID, burned or expired challenge) returns this same generic message — no oracle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This passkey (credential id) is already registered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Passkey signup is not configured — the key vault is missing on this instance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/link/options": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Start linking a passkey to the authenticated account.",
+        "description": "Mints WebAuthn registration options so an existing, currently authenticated user (NIP-98 or Bearer JWT) can attach a passkey to their account. The challenge is bound to the caller’s user id and re-checked at verify time. Authenticators the account already registered are excluded so the OS picker greys them out. Never creates accounts — that is the registration flow’s job.",
+        "operationId": "passkey.link.options",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "WebAuthn registration options. The challenge is stored server-side, single-use, bound to the caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No `User` row exists for the authenticated pubkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/link/verify": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Complete linking a passkey to the authenticated account.",
+        "description": "Verifies the attestation against the single-use challenge minted by `link/options` and attaches the new credential to the CURRENTLY authenticated user. The challenge is re-bound to the caller at consume time, so a challenge minted for account A can never attach a passkey to account B. Only the credential is created — the server never takes custody of a linked user’s Nostr key.",
+        "operationId": "passkey.link.verify",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRegistrationVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Passkey linked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "credential": {
+                      "$ref": "#/components/schemas/PasskeyCredentialSummary"
+                    }
+                  },
+                  "required": [
+                    "credential"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No `User` row exists for the authenticated pubkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This passkey (credential id) is already registered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/authentication/options": {
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Start a passkey login (username-less).",
+        "description": "Unauthenticated first leg of a passkey login. Mints WebAuthn assertion options with an empty `allowCredentials` list — discoverable-credential (username-less) login: the authenticator picks which resident passkey to use, so the server learns nothing about who is logging in until the signed assertion comes back. Available even when the key vault is unconfigured, so linked-custody users can always log in.",
+        "operationId": "passkey.authentication.options",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "WebAuthn assertion options. The challenge is stored server-side, single-use.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptionsResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/authentication/verify": {
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Complete a passkey login.",
+        "description": "Unauthenticated second leg of a passkey login. Consumes the single-use LOGIN challenge, verifies the WebAuthn assertion against the stored credential, applies signature-counter clone detection, and mints a passkey session JWT (`amr: [\"webauthn\"]`, `cred`, `custody`, `auth_time`) identical in base shape to `POST /api/jwt`.",
+        "operationId": "passkey.authentication.verify",
+        "security": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAuthenticationVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login verified; passkey session issued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeySessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Passkey verification failed. Unknown credential, bad signature, wrong origin/rpID, burned challenge, and counter regression all return this same generic message — no oracle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/signer-key": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Release the custodied Nostr signer key to a passkey session.",
+        "description": "Returns the server-custodied Nostr private key (hex) so the client can construct an in-memory signer. Bearer-only and stricter than normal auth: the JWT must carry the passkey claims (`amr: [\"webauthn\"]` + `cred`) minted by the WebAuthn login/refresh flow — a NIP-98-exchanged JWT or a QR device token can never unlock key material. The `cred` claim is re-checked against a live credential row on every call, so deleting a passkey is a hard revocation. The response is a secret and is never cached.",
+        "operationId": "passkey.signerKey",
+        "security": [
+          {
+            "BearerJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Custodied signer key released.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signerKey": {
+                      "type": "string",
+                      "description": "The account’s Nostr private key, hex-encoded. Treat as a secret."
+                    },
+                    "pubkey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "signerKey",
+                    "pubkey"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session for key access — missing/expired Bearer token, token without the passkey claims, or the credential in `cred` no longer exists or belongs to another pubkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No managed key for this account — linked custody; the user brought their own signer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/nsec/export/options": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Start the nsec-export step-up ceremony.",
+        "description": "Mints a fresh WebAuthn authentication challenge bound to the EXPORT flow, restricted to the caller’s own credentials. A login challenge can never be replayed to unlock an export — the flow is pinned server-side and checked on consumption.",
+        "operationId": "passkey.nsec.export.options",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "WebAuthn assertion options for the EXPORT flow. Single-use, bound to the caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found, no managed key for this account, or no passkey available to step up with. Always 404 — never 403 — matching the ownership idiom used across the API.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/nsec/export": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Export the custodied nsec after a passkey step-up.",
+        "description": "Completes the step-up ceremony and releases the custodied Nostr key in NIP-19 `nsec` form. The most sensitive endpoint in the system: requires a fresh EXPORT-flow WebAuthn assertion (single-use challenge bound to the authenticated user) verified against a credential the user owns, applies clone detection, marks the key exported, and always logs the export. The response is a secret and is never cached.",
+        "operationId": "passkey.nsec.export",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyNsecExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Custodied key exported.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "nsec": {
+                      "type": "string",
+                      "description": "The account’s Nostr private key in NIP-19 `nsec` form. Treat as a secret."
+                    },
+                    "pubkey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "nsec",
+                    "pubkey"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found, or no managed key for this account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/credentials": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "List the caller’s passkeys.",
+        "description": "Returns credential summaries only — never the stored public key or signature counter — plus `hasManagedKey`, which tells the client whether this account’s Nostr key is server-custodied (passkey-native signup) or linked to an external signer.",
+        "operationId": "passkey.credentials.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller’s passkeys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyCredentialListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No `User` row exists for the authenticated pubkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/credentials/{id}": {
+      "patch": {
+        "x-required-role": "USER",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Rename a passkey.",
+        "description": "Ownership-scoped: a credential that does not exist or belongs to another user returns 404 (never 403) so credential ids cannot be enumerated. Only the label is mutable.",
+        "operationId": "passkey.credentials.update",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyCredentialUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Passkey renamed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "credential": {
+                      "$ref": "#/components/schemas/PasskeyCredentialSummary"
+                    }
+                  },
+                  "required": [
+                    "credential"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkey not found (or not owned by the caller).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "x-required-role": "USER",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Delete a passkey.",
+        "description": "Hard revocation: passkey session JWTs carry the credential id in their `cred` claim and key-releasing endpoints check it live, so deletion kills those sessions immediately. Last-credential guard: when this is the account’s only passkey AND the server custodies a Nostr key that has not been exported yet, deletion would orphan the account — 409 until the user exports the key or adds another passkey. Linked accounts can always delete. Ownership-scoped (404, never 403).",
+        "operationId": "passkey.credentials.delete",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Passkey deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Passkey not found (or not owned by the caller).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Last-credential guard: export your Nostr key or add another passkey before deleting the last one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/passkey/session/refresh": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Passkeys"
+        ],
+        "summary": "Re-issue a passkey session JWT.",
+        "description": "Bearer-only session continuity for passkey users (linked-custody users have no Nostr signer to run the NIP-98 `/api/jwt` refresh path). Only passkey session tokens qualify (`amr: [\"webauthn\"]` + `cred`); NIP-98 JWTs and device tokens are rejected. The credential row is re-checked live (hard revocation), the original `auth_time` is preserved and capped at 30 days — past that the user must perform a full WebAuthn login again — and role/permissions/custody are re-resolved so demotions propagate.",
+        "operationId": "passkey.session.refresh",
+        "security": [
+          {
+            "BearerJWT": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeySessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired token, a non-passkey session, a revoked credential, or a refresh chain past the 30-day cap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
             "content": {
               "application/json": {
                 "schema": {
