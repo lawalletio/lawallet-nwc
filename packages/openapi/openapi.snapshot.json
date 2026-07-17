@@ -1229,11 +1229,15 @@
           },
           "hasManagedKey": {
             "type": "boolean"
+          },
+          "managedKeyExported": {
+            "type": "boolean"
           }
         },
         "required": [
           "credentials",
-          "hasManagedKey"
+          "hasManagedKey",
+          "managedKeyExported"
         ],
         "description": "The caller’s passkeys plus `hasManagedKey`: true when the server custodies this account’s Nostr key (passkey-native signup), false for linked accounts."
       },

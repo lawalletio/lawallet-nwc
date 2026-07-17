@@ -36,6 +36,7 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   return NextResponse.json({
     credentials: credentials.map(toCredentialSummary),
-    hasManagedKey: !!managed
+    hasManagedKey: !!managed,
+    managedKeyExported: !!managed?.exportedAt
   })
 })

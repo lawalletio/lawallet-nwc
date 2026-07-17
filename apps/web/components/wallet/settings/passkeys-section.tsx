@@ -47,6 +47,7 @@ export function PasskeysSection({
   const {
     credentials,
     hasManagedKey,
+    managedKeyExported,
     loading,
     addPasskey,
     renameCredential,
@@ -62,7 +63,12 @@ export function PasskeysSection({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const isLastCredential = credentials.length === 1
-  const deleteNeedsExport = isLastCredential && hasManagedKey
+  // Only block the last-passkey delete while the custodied key has NOT been
+  // exported yet — once exported, the user provably holds the key and the
+  // server allows the delete, so the UI must too (otherwise export→delete
+  // dead-ends).
+  const deleteNeedsExport =
+    isLastCredential && hasManagedKey && !managedKeyExported
 
   function openCredential(credential: PasskeyCredentialSummary) {
     setSelected(credential)

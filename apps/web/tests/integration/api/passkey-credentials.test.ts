@@ -114,6 +114,8 @@ describe('GET /api/auth/passkey/credentials', () => {
 
     expect(body.credentials).toHaveLength(2)
     expect(body.hasManagedKey).toBe(true)
+    // Managed key present but never exported.
+    expect(body.managedKeyExported).toBe(false)
     for (const cred of body.credentials) {
       expect(cred).not.toHaveProperty('publicKey')
       expect(cred).not.toHaveProperty('counter')
@@ -142,7 +144,27 @@ describe('GET /api/auth/passkey/credentials', () => {
     const res = await GET(createNextRequest('/api/auth/passkey/credentials'))
     const body: any = await assertResponse(res, 200)
 
-    expect(body).toEqual({ credentials: [], hasManagedKey: false })
+    expect(body).toEqual({
+      credentials: [],
+      hasManagedKey: false,
+      managedKeyExported: false,
+    })
+  })
+
+  it('reports managedKeyExported true once the key has been exported', async () => {
+    mockUser()
+    vi.mocked(prismaMock.passkeyCredential.findMany).mockResolvedValue([
+      makeCredential(),
+    ] as any)
+    vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(
+      makeManagedKey({ exportedAt: new Date('2026-03-01T00:00:00.000Z') }) as any
+    )
+
+    const res = await GET(createNextRequest('/api/auth/passkey/credentials'))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.hasManagedKey).toBe(true)
+    expect(body.managedKeyExported).toBe(true)
   })
 
   it('returns 404 when the user row is missing', async () => {

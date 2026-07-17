@@ -19,6 +19,8 @@ interface PasskeyListResponse {
   credentials: PasskeyCredentialSummary[]
   /** True when the server custodies this account's Nostr key (passkey-native). */
   hasManagedKey: boolean
+  /** True once the custodied key has been exported — unblocks last-passkey delete. */
+  managedKeyExported: boolean
 }
 
 /**
@@ -40,6 +42,7 @@ export function usePasskeys() {
   return {
     credentials: data?.credentials ?? [],
     hasManagedKey: data?.hasManagedKey ?? false,
+    managedKeyExported: data?.managedKeyExported ?? false,
     loading,
     error,
     refetch,

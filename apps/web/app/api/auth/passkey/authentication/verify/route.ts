@@ -122,17 +122,17 @@ export const POST = withErrorHandling(async (request: Request) => {
     throw new AuthenticationError(GENERIC_FAILURE)
   }
 
-  await prisma.passkeyCredential.update({
-    where: { id: credential.id },
-    data: { counter: BigInt(newCounter), lastUsedAt: new Date() }
-  })
-
-  const role = await resolveRole(credential.user.pubkey)
+  // The counter write, role resolution, and custody lookup are independent —
+  // run them together rather than three serial round trips on the login path.
+  const [, role, managed] = await Promise.all([
+    prisma.passkeyCredential.update({
+      where: { id: credential.id },
+      data: { counter: BigInt(newCounter), lastUsedAt: new Date() }
+    }),
+    resolveRole(credential.user.pubkey),
+    prisma.managedNostrKey.findUnique({ where: { userId: credential.userId } })
+  ])
   const permissions = getRolePermissions(role)
-
-  const managed = await prisma.managedNostrKey.findUnique({
-    where: { userId: credential.userId }
-  })
   const custody = managed ? 'managed' : 'linked'
 
   const token = mintPasskeySessionJwt({

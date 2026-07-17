@@ -764,7 +764,13 @@ export type PasskeyCredentialSummary = z.infer<
 export const passkeyCredentialListResponseSchema = z.object({
   credentials: z.array(passkeyCredentialSummarySchema),
   /** True when the server custodies this account's Nostr key (passkey-native). */
-  hasManagedKey: z.boolean()
+  hasManagedKey: z.boolean(),
+  /**
+   * True once the custodied key has been exported at least once. Lets the
+   * client permit deleting the final passkey (the server unblocks it too).
+   * Always false when `hasManagedKey` is false.
+   */
+  managedKeyExported: z.boolean()
 })
 export type PasskeyCredentialListResponse = z.infer<
   typeof passkeyCredentialListResponseSchema

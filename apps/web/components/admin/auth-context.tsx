@@ -232,28 +232,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-          if (signer) {
-            const { token } = await exchangeNip98ForJwt(signer)
-            await commitRefreshedToken(token, signer)
+          const { jwt, loginMethod } = sessionRef.current
+
+          // Passkey sessions always refresh through the passkey endpoint —
+          // never the NIP-98 → /api/jwt path — so the re-issued token keeps
+          // its `amr`/`cred` claims. Those claims are what let the managed
+          // key be silently re-fetched on the next reload; a plain /api/jwt
+          // token would 401 against the signer-key endpoint and strand a
+          // managed user at the nsec unlock dialog. The passkey endpoint also
+          // enforces the 30-day WebAuthn re-auth cap. Any in-memory signer is
+          // retained across the refresh.
+          if (loginMethod === 'passkey' && jwt) {
+            const session = await refreshPasskeySession(jwt)
+            await commitRefreshedToken(session.token, signer)
             return
           }
 
-          const { jwt, loginMethod } = sessionRef.current
-          if (loginMethod === 'passkey' && jwt) {
-            // Managed-custody sessions: recover the signer from the server
-            // and refresh through the normal NIP-98 path. Linked-custody
-            // sessions (no server-held key) fall back to the JWT re-issue
-            // endpoint, which is server-capped at 30 days of session age.
-            const managed = await fetchManagedKey(jwt).catch(() => null)
-            if (managed) {
-              const restored = createNsecSigner(managed.signerKey)
-              const { token } = await exchangeNip98ForJwt(restored)
-              await commitRefreshedToken(token, restored)
-              return
-            }
-
-            const session = await refreshPasskeySession(jwt)
-            await commitRefreshedToken(session.token, null)
+          if (signer) {
+            const { token } = await exchangeNip98ForJwt(signer)
+            await commitRefreshedToken(token, signer)
             return
           }
 
