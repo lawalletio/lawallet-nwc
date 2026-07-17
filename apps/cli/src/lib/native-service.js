@@ -351,7 +351,10 @@ function getManagedServices(state) {
       env: {
         NODE_ENV: 'production',
         PORT: String(state.services.web.port),
-        JWT_SECRET: state.jwtSecret
+        JWT_SECRET: state.jwtSecret,
+        ...(state.keyVaultSecret
+          ? { KEY_VAULT_SECRET: state.keyVaultSecret }
+          : {})
       },
       buildBeforeStart: true,
       startArgs: ['start']

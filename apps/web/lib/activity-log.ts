@@ -20,6 +20,20 @@ export const ActivityEvent = {
   USER_ROLE_CHANGED: 'user.role_changed',
   USER_RELAYS_UPDATED: 'user.relays_updated',
   USER_ERROR: 'user.error',
+  // Passkey (WebAuthn) lifecycle
+  PASSKEY_REGISTERED: 'user.passkey_registered',
+  PASSKEY_LINKED: 'user.passkey_linked',
+  PASSKEY_RENAMED: 'user.passkey_renamed',
+  PASSKEY_DELETED: 'user.passkey_deleted',
+  // A previously nonzero signature counter failed to increase — possible
+  // cloned authenticator. Logged at WARN; operators should investigate.
+  PASSKEY_COUNTER_REGRESSION: 'user.passkey_counter_regression',
+  PASSKEY_SESSION_REFRESHED: 'user.passkey_session_refreshed',
+  // Custodied-key release events. NSEC_EXPORTED is the most sensitive event
+  // in the system and always logs at WARN; SIGNER_KEY_FETCHED fires on every
+  // session restore and stays at INFO.
+  NSEC_EXPORTED: 'user.nsec_exported',
+  SIGNER_KEY_FETCHED: 'user.signer_key_fetched',
   // ADDRESS
   ADDRESS_CREATED: 'address.created',
   ADDRESS_UPDATED: 'address.updated',

@@ -54,6 +54,7 @@ function renderEnv(env) {
     `PORT="${env.PORT}"`,
     `WEB_PORT="${env.WEB_PORT}"`,
     `JWT_SECRET="${env.JWT_SECRET}"`,
+    `KEY_VAULT_SECRET="${env.KEY_VAULT_SECRET}"`,
     // NWC listener bridge (optional service; web falls back without it).
     `LISTENER_PORT="${env.LISTENER_PORT}"`,
     `LISTENER_AUTH_SECRET="${env.LISTENER_AUTH_SECRET}"`,

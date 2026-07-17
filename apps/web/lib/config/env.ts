@@ -27,6 +27,28 @@ const envSchema = z.object({
     .optional()
     .describe('Secret key for JWT token signing and verification'),
 
+  // Nostr key vault (passkey accounts)
+  KEY_VAULT_SECRET: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .min(32, 'KEY_VAULT_SECRET must be at least 32 characters long')
+      .optional()
+      .describe(
+        'Master secret encrypting server-custodied Nostr keys (passkey accounts). Losing it makes those keys unrecoverable.'
+      )
+  ),
+
+  KEY_VAULT_SECRET_PREVIOUS: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .optional()
+      .describe(
+        'Comma-separated previous KEY_VAULT_SECRET values still accepted for decryption during rotation'
+      )
+  ),
+
   // NWC Listener service (optional — web runs without it)
   LISTENER_URL: z.preprocess(
     emptyEnvToUndefined,
