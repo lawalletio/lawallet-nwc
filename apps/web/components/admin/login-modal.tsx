@@ -8,6 +8,7 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
+  Fingerprint,
   QrCode,
   Copy,
   Link,
@@ -38,6 +39,8 @@ import {
   createNostrConnectSigner,
   hasBrowserExtension,
 } from '@/lib/client/nostr-signer'
+import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
+import { isPasskeySupported } from '@/lib/client/passkey-api'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -54,6 +57,9 @@ type BunkerConnectionStatus = 'generating' | 'waiting' | 'connecting' | 'error'
 export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const dismissible = !!onOpenChange
   const [bunkerBusy, setBunkerBusy] = useState(false)
+  // WebAuthn support is stable for the page's lifetime; unsupported browsers
+  // see the original three-tab layout untouched.
+  const [passkeySupported] = useState(() => isPasskeySupported())
 
   return (
     <Dialog open={open} onOpenChange={dismissible ? onOpenChange : undefined}>
@@ -76,19 +82,30 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
 
         <Tabs defaultValue="extension" className="w-full">
           {!bunkerBusy && (
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList
+              className={cn(
+                'grid w-full',
+                passkeySupported ? 'grid-cols-4' : 'grid-cols-3',
+              )}
+            >
               <TabsTrigger value="extension" className="text-xs">
-                <Globe className="mr-1.5 size-3.5" />
+                <Globe className="mr-1 size-3.5" />
                 Extension
               </TabsTrigger>
               <TabsTrigger value="nsec" className="text-xs">
-                <Key className="mr-1.5 size-3.5" />
+                <Key className="mr-1 size-3.5" />
                 Secret Key
               </TabsTrigger>
               <TabsTrigger value="bunker" className="text-xs">
-                <Plug className="mr-1.5 size-3.5" />
+                <Plug className="mr-1 size-3.5" />
                 Bunker
               </TabsTrigger>
+              {passkeySupported && (
+                <TabsTrigger value="passkey" className="text-xs">
+                  <Fingerprint className="mr-1 size-3.5" />
+                  Passkey
+                </TabsTrigger>
+              )}
             </TabsList>
           )}
 
@@ -101,6 +118,11 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
           <TabsContent value="bunker">
             <BunkerTab onBusyChange={setBunkerBusy} />
           </TabsContent>
+          {passkeySupported && (
+            <TabsContent value="passkey">
+              <PasskeyTab />
+            </TabsContent>
+          )}
         </Tabs>
       </DialogContent>
     </Dialog>
@@ -568,5 +590,23 @@ function BunkerPasteMode({
         )}
       </Button>
     </form>
+  )
+}
+
+// ─── Passkey Tab (WebAuthn) ────────────────────────────────────────────────
+
+function PasskeyTab() {
+  return (
+    <div className="space-y-4 pt-2">
+      <p className="text-sm text-muted-foreground">
+        Sign in with the passkey you created on this instance — Face ID, Touch
+        ID, or your device screen lock. No keys to paste.
+      </p>
+      <PasskeyLoginButton
+        mode="authenticate"
+        className="h-11 w-full"
+        showCrossDeviceHint
+      />
+    </div>
   )
 }
