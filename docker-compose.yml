@@ -28,6 +28,11 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-2288}
       JWT_SECRET: ${JWT_SECRET:-lawallet_local_development_secret_change_me_please}
+      # Encrypts server-custodied Nostr keys (passkey signup). Empty disables
+      # passkey account creation. Back the value up — losing it makes
+      # custodied keys unrecoverable.
+      KEY_VAULT_SECRET: ${KEY_VAULT_SECRET:-}
+      KEY_VAULT_SECRET_PREVIOUS: ${KEY_VAULT_SECRET_PREVIOUS:-}
       # NWC listener bridge — web works without these, but with them the NWC
       # driver reuses the listener's open relay connections and accepts its
       # payment webhooks. No depends_on: the listener is optional by design.

@@ -30,6 +30,11 @@ services:
       # The container runs `prisma migrate deploy` on startup, then `node server.js`.
       DATABASE_URL: postgresql://${POSTGRES_USER:-lawallet}:${POSTGRES_PASSWORD:-lawallet_password}@postgres:5432/${POSTGRES_DB:-lawallet}
       JWT_SECRET: ${JWT_SECRET:-change_me_to_a_secure_secret_at_least_32_chars}
+      # Encrypts server-custodied Nostr keys (passkey signup). Empty disables
+      # passkey account creation. Back the value up — losing it makes
+      # custodied keys unrecoverable.
+      KEY_VAULT_SECRET: ${KEY_VAULT_SECRET:-}
+      KEY_VAULT_SECRET_PREVIOUS: ${KEY_VAULT_SECRET_PREVIOUS:-}
       NODE_ENV: production
       PORT: 2288
       # Next standalone binds to $HOSTNAME; Docker defaults it to the container

@@ -2,6 +2,7 @@
 // resource group. Keep this file a flat list; ordering doesn't matter because
 // path registration is independent across files.
 import './auth'
+import './passkeys'
 import './cards'
 import './card-activation'
 import './card-designs'

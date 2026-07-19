@@ -54,6 +54,7 @@ function renderEnv(env) {
     `PORT="${env.PORT}"`,
     `WEB_PORT="${env.WEB_PORT}"`,
     `JWT_SECRET="${env.JWT_SECRET}"`,
+    `KEY_VAULT_SECRET="${env.KEY_VAULT_SECRET}"`,
     // NWC listener bridge (optional service; web falls back without it).
     `LISTENER_PORT="${env.LISTENER_PORT}"`,
     `LISTENER_AUTH_SECRET="${env.LISTENER_AUTH_SECRET}"`,
@@ -85,6 +86,16 @@ async function findPort(start) {
   }
 
   throw new Error(`No free port found starting at ${start}`)
+}
+
+// Guards against a literal "undefined"/short value leaking from an env file
+// written by an older or broken revision of this script.
+function validSecret(value) {
+  return typeof value === 'string' &&
+    value.length >= 32 &&
+    value !== 'undefined'
+    ? value
+    : null
 }
 
 async function loadOrCreateEnv() {
@@ -131,6 +142,10 @@ async function loadOrCreateEnv() {
     JWT_SECRET:
       existing.JWT_SECRET ||
       state.JWT_SECRET ||
+      randomBytes(48).toString('base64url'),
+    KEY_VAULT_SECRET:
+      validSecret(existing.KEY_VAULT_SECRET) ||
+      validSecret(state.KEY_VAULT_SECRET) ||
       randomBytes(48).toString('base64url'),
     LISTENER_PORT: listenerPort,
     LISTENER_AUTH_SECRET:

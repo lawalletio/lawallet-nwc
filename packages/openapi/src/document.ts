@@ -100,6 +100,11 @@ export function getOpenApiDocument(options: OpenApiDocumentOptions = {}): OpenAP
         ].join('\n'),
       },
       { name: 'Auth', description: 'NIP-98 → JWT exchange and validation.' },
+      {
+        name: 'Passkeys',
+        description:
+          'WebAuthn passkey signup, login, account linking, credential management, and custodied Nostr key release.',
+      },
       { name: 'Cards', description: 'Card lifecycle: create, list, scan, write, OTC.' },
       { name: 'Card Designs', description: 'Visual templates assigned to cards.' },
       {

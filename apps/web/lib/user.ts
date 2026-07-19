@@ -22,7 +22,17 @@ import { createLncurlRemoteWallet } from './wallet/lncurl-wallet'
  *
  * Also fires (best-effort, non-blocking) a `USER_SIGNUP` activity log entry.
  */
-export async function createNewUser(pubkey: string) {
+export async function createNewUser(
+  pubkey: string,
+  opts?: {
+    /**
+     * Pre-allocated user id. The passkey registration flow reserves the id at
+     * options time (it travels as the WebAuthn user handle) and materializes
+     * the row here on verify.
+     */
+    userId?: string
+  },
+) {
   const {
     alby_api_url,
     alby_bearer_token,
@@ -36,7 +46,7 @@ export async function createNewUser(pubkey: string) {
     'lncurl_auto_create',
     'lncurl_server_url',
   ])
-  const userId = randomUUID()
+  const userId = opts?.userId ?? randomUUID()
 
   const albyHub = new AlbyHub(alby_api_url, alby_bearer_token)
 

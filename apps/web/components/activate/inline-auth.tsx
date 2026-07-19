@@ -1,18 +1,18 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Check, Copy, Eye, EyeOff, KeyRound, Plus } from 'lucide-react'
+import { ArrowLeft, KeyRound, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { generateSecretKey } from 'nostr-tools/pure'
 import { nip19 } from 'nostr-tools'
 import { bytesToHex } from 'nostr-tools/utils'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
+import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
+import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
-import { cn } from '@/lib/utils'
 
 type Mode = 'choose' | 'create' | 'existing'
 
@@ -34,8 +34,6 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
     const secretKey = generateSecretKey()
     return { nsec: nip19.nsecEncode(secretKey), hex: bytesToHex(secretKey) }
   }, [])
-  const [revealed, setRevealed] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
 
   async function runLogin(make: () => Promise<void> | void) {
@@ -53,23 +51,17 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
     }
   }
 
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(nsec)
-      setCopied(true)
-      toast.success('Private key copied')
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      toast.error('Copy failed — reveal and write the key down')
-    }
-  }
-
   if (mode === 'choose') {
     return (
       <div className="w-full space-y-3">
         <p className="text-center text-sm text-muted-foreground">
           Connect a wallet to activate this card.
         </p>
+        <PasskeyLoginButton
+          mode="authenticate"
+          className="h-12 w-full"
+          onSuccess={onAuthStart}
+        />
         <Button
           className="h-12 w-full"
           onClick={() => setMode('create')}
@@ -103,49 +95,13 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
           </p>
         </div>
 
-        <div className="rounded-xl border border-border bg-card px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                'flex-1 break-all font-mono text-xs text-foreground',
-                !revealed && 'select-none blur-sm'
-              )}
-            >
-              {nsec}
-            </span>
-            <button
-              type="button"
-              onClick={() => setRevealed(v => !v)}
-              aria-label={revealed ? 'Hide private key' : 'Reveal private key'}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </button>
-          </div>
-        </div>
-
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={handleCopy}
+        <SecretKeyReveal
+          nsec={nsec}
           disabled={loading}
-        >
-          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-          {copied ? 'Copied' : 'Copy private key'}
-        </Button>
-
-        <label className="flex items-start gap-3 rounded-xl border border-border bg-card/50 p-3 text-xs text-foreground">
-          <Checkbox
-            checked={confirmed}
-            onCheckedChange={v => setConfirmed(v === true)}
-            disabled={loading}
-            className="mt-0.5"
-          />
-          <span className="leading-snug">
-            I&apos;ve saved my private key and understand it can&apos;t be
-            recovered.
-          </span>
-        </label>
+          confirmed={confirmed}
+          onConfirmedChange={setConfirmed}
+          confirmLabel="I've saved my private key and understand it can't be recovered."
+        />
 
         {error && <p className="text-xs text-destructive">{error}</p>}
 

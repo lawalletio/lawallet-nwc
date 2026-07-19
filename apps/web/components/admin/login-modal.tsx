@@ -3,11 +3,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Key,
+  KeyRound,
   Globe,
   Plug,
   Eye,
   EyeOff,
   AlertTriangle,
+  Fingerprint,
   QrCode,
   Copy,
   Link,
@@ -38,6 +40,8 @@ import {
   createNostrConnectSigner,
   hasBrowserExtension,
 } from '@/lib/client/nostr-signer'
+import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
+import { isPasskeySupported } from '@/lib/client/passkey-api'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -54,6 +58,9 @@ type BunkerConnectionStatus = 'generating' | 'waiting' | 'connecting' | 'error'
 export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const dismissible = !!onOpenChange
   const [bunkerBusy, setBunkerBusy] = useState(false)
+  // WebAuthn support is stable for the page's lifetime; unsupported browsers
+  // see the original three-tab layout untouched.
+  const [passkeySupported] = useState(() => isPasskeySupported())
 
   return (
     <Dialog open={open} onOpenChange={dismissible ? onOpenChange : undefined}>
@@ -70,72 +77,142 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
         <DialogHeader>
           <DialogTitle className="text-center">Connect to LaWallet</DialogTitle>
           <DialogDescription id="login-description" className="text-center">
-            Sign in with your Nostr identity to access the admin dashboard.
+            Sign in to access the admin dashboard.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="extension" className="w-full">
-          {!bunkerBusy && (
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="extension" className="text-xs">
-                <Globe className="mr-1.5 size-3.5" />
-                Extension
-              </TabsTrigger>
-              <TabsTrigger value="nsec" className="text-xs">
-                <Key className="mr-1.5 size-3.5" />
-                Secret Key
-              </TabsTrigger>
-              <TabsTrigger value="bunker" className="text-xs">
-                <Plug className="mr-1.5 size-3.5" />
-                Bunker
-              </TabsTrigger>
-            </TabsList>
-          )}
+        {passkeySupported ? (
+          // Two top-level methods: Nostr (extension / secret key / bunker) and
+          // Passkey. Hidden entirely while the bunker QR is connecting so the
+          // QR gets the full dialog.
+          <Tabs defaultValue="nostr" className="w-full">
+            {!bunkerBusy && (
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="nostr">
+                  <KeyRound className="mr-1.5 size-4" />
+                  Nostr
+                </TabsTrigger>
+                <TabsTrigger value="passkey">
+                  <Fingerprint className="mr-1.5 size-4" />
+                  Passkey
+                </TabsTrigger>
+              </TabsList>
+            )}
 
-          <TabsContent value="extension">
-            <ExtensionTab />
-          </TabsContent>
-          <TabsContent value="nsec">
-            <NsecTab />
-          </TabsContent>
-          <TabsContent value="bunker">
-            <BunkerTab onBusyChange={setBunkerBusy} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="nostr">
+              <NostrMethods
+                bunkerBusy={bunkerBusy}
+                onBunkerBusyChange={setBunkerBusy}
+              />
+            </TabsContent>
+            <TabsContent value="passkey">
+              <PasskeyTab />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          // No WebAuthn support — Nostr is the only method, so skip the
+          // redundant top-level wrapper and show its sub-tabs directly.
+          <NostrMethods
+            bunkerBusy={bunkerBusy}
+            onBunkerBusyChange={setBunkerBusy}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
 }
 
-// ─── Extension Tab (NIP-07) ────────────────────────────────────────────────
+// ─── Nostr methods (extension / secret key / bunker) ───────────────────────
 
-function ExtensionTab() {
-  const { login } = useAuth()
-  const [loading, setLoading] = useState(false)
-  const [available, setAvailable] = useState(false)
+/**
+ * Polls for a NIP-07 browser extension. Some extensions inject `window.nostr`
+ * asynchronously, so we re-check for a few seconds after mount. The Extension
+ * sub-tab is only shown once one is detected.
+ */
+function useBrowserExtensionDetected(): boolean {
+  const [detected, setDetected] = useState(() => hasBrowserExtension())
 
-  // Poll for extension availability (some inject asynchronously)
   useEffect(() => {
-    if (hasBrowserExtension()) {
-      setAvailable(true)
-      return
-    }
+    if (detected) return
 
     const interval = setInterval(() => {
       if (hasBrowserExtension()) {
-        setAvailable(true)
+        setDetected(true)
         clearInterval(interval)
       }
     }, 500)
-
-    // Stop polling after 5 seconds
     const timeout = setTimeout(() => clearInterval(interval), 5000)
 
     return () => {
       clearInterval(interval)
       clearTimeout(timeout)
     }
-  }, [])
+  }, [detected])
+
+  return detected
+}
+
+function NostrMethods({
+  bunkerBusy,
+  onBunkerBusyChange,
+}: {
+  bunkerBusy: boolean
+  onBunkerBusyChange: (busy: boolean) => void
+}) {
+  const extensionAvailable = useBrowserExtensionDetected()
+
+  return (
+    <Tabs
+      // Default to the extension when one is present, otherwise the secret key.
+      defaultValue={extensionAvailable ? 'extension' : 'nsec'}
+      className="w-full"
+    >
+      {!bunkerBusy && (
+        <TabsList
+          className={cn(
+            'mt-3 grid w-full',
+            extensionAvailable ? 'grid-cols-3' : 'grid-cols-2',
+          )}
+        >
+          {extensionAvailable && (
+            <TabsTrigger value="extension" className="text-xs">
+              <Globe className="mr-1 size-3.5" />
+              Extension
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="nsec" className="text-xs">
+            <Key className="mr-1 size-3.5" />
+            Secret Key
+          </TabsTrigger>
+          <TabsTrigger value="bunker" className="text-xs">
+            <Plug className="mr-1 size-3.5" />
+            Bunker
+          </TabsTrigger>
+        </TabsList>
+      )}
+
+      {extensionAvailable && (
+        <TabsContent value="extension">
+          <ExtensionTab />
+        </TabsContent>
+      )}
+      <TabsContent value="nsec">
+        <NsecTab />
+      </TabsContent>
+      <TabsContent value="bunker">
+        <BunkerTab onBusyChange={onBunkerBusyChange} />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+// ─── Extension Tab (NIP-07) ────────────────────────────────────────────────
+
+// Only rendered once `useBrowserExtensionDetected()` has found `window.nostr`,
+// so there's no "no extension" fallback state here.
+function ExtensionTab() {
+  const { login } = useAuth()
+  const [loading, setLoading] = useState(false)
 
   async function handleConnect() {
     setLoading(true)
@@ -157,40 +234,19 @@ function ExtensionTab() {
         Connect using a Nostr browser extension like Alby, nos2x, or Nostr Connect.
       </p>
 
-      <Button
-        onClick={handleConnect}
-        disabled={!available || loading}
-        className="w-full"
-      >
+      <Button onClick={handleConnect} disabled={loading} className="w-full">
         {loading ? (
           <>
             <Spinner size={16} className="mr-2" />
             Connecting...
           </>
-        ) : available ? (
+        ) : (
           <>
             <Globe className="mr-2 size-4" />
             Connect with Extension
           </>
-        ) : (
-          'No extension detected'
         )}
       </Button>
-
-      {!available && (
-        <p className="text-xs text-muted-foreground text-center">
-          Install a{' '}
-          <a
-            href="https://getalby.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-foreground"
-          >
-            Nostr browser extension
-          </a>{' '}
-          to use this method.
-        </p>
-      )}
     </div>
   )
 }
@@ -568,5 +624,23 @@ function BunkerPasteMode({
         )}
       </Button>
     </form>
+  )
+}
+
+// ─── Passkey Tab (WebAuthn) ────────────────────────────────────────────────
+
+function PasskeyTab() {
+  return (
+    <div className="space-y-4 pt-2">
+      <p className="text-sm text-muted-foreground">
+        Sign in with the passkey you created on this instance — Face ID, Touch
+        ID, or your device screen lock. No keys to paste.
+      </p>
+      <PasskeyLoginButton
+        mode="authenticate"
+        className="h-11 w-full"
+        showCrossDeviceHint
+      />
+    </div>
   )
 }

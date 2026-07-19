@@ -22,6 +22,13 @@ export interface AppConfig {
     enabled: boolean
   }
 
+  // Nostr key vault — at-rest encryption of custodied keys (passkey accounts)
+  keyVault: {
+    secret: string | undefined
+    previousSecrets: string[]
+    enabled: boolean
+  }
+
   // NWC Listener service env values — raw inputs only. The EFFECTIVE config
   // (merged with the Settings DB, incl. the enable toggle) comes from
   // lib/listener-config.ts `getListenerConfig()`; consumers use that, not this.
@@ -119,6 +126,15 @@ export function getConfig(strict: boolean = true): AppConfig {
     jwt: {
       secret: env.JWT_SECRET,
       enabled: !!env.JWT_SECRET
+    },
+
+    keyVault: {
+      secret: env.KEY_VAULT_SECRET,
+      previousSecrets: (env.KEY_VAULT_SECRET_PREVIOUS ?? '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean),
+      enabled: !!env.KEY_VAULT_SECRET
     },
 
     listener: {

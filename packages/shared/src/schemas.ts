@@ -673,3 +673,115 @@ export const backupImportResultSchema = z.object({
   importedAt: z.string()
 })
 export type BackupImportResult = z.infer<typeof backupImportResultSchema>
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Passkeys (WebAuthn)
+// ─────────────────────────────────────────────────────────────────────────────
+// Structural validation only — deep cryptographic validation of the WebAuthn
+// payloads belongs to @simplewebauthn/server on the route side.
+
+export const passkeyLabelSchema = z.string().trim().min(1).max(64)
+
+/** Minimal structural shape of a browser RegistrationResponseJSON. */
+export const webauthnRegistrationResponseSchema = z
+  .object({
+    id: z.string().min(1),
+    rawId: z.string().min(1),
+    type: z.literal('public-key'),
+    response: z
+      .object({
+        clientDataJSON: z.string().min(1),
+        attestationObject: z.string().min(1),
+        transports: z.array(z.string()).optional()
+      })
+      .passthrough(),
+    clientExtensionResults: z.record(z.unknown()).default({}),
+    authenticatorAttachment: z.string().optional()
+  })
+  .passthrough()
+
+/** Minimal structural shape of a browser AuthenticationResponseJSON. */
+export const webauthnAuthenticationResponseSchema = z
+  .object({
+    id: z.string().min(1),
+    rawId: z.string().min(1),
+    type: z.literal('public-key'),
+    response: z
+      .object({
+        clientDataJSON: z.string().min(1),
+        authenticatorData: z.string().min(1),
+        signature: z.string().min(1),
+        userHandle: z.string().nullish()
+      })
+      .passthrough(),
+    clientExtensionResults: z.record(z.unknown()).default({})
+  })
+  .passthrough()
+
+export const passkeyRegistrationOptionsRequestSchema = z.object({
+  label: passkeyLabelSchema.optional()
+})
+
+export const passkeyRegistrationVerifyRequestSchema = z.object({
+  challenge: z.string().min(16).max(128),
+  credential: webauthnRegistrationResponseSchema,
+  label: passkeyLabelSchema.optional()
+})
+export type PasskeyRegistrationVerifyRequest = z.infer<
+  typeof passkeyRegistrationVerifyRequestSchema
+>
+
+export const passkeyAuthenticationVerifyRequestSchema = z.object({
+  challenge: z.string().min(16).max(128),
+  credential: webauthnAuthenticationResponseSchema
+})
+export type PasskeyAuthenticationVerifyRequest = z.infer<
+  typeof passkeyAuthenticationVerifyRequestSchema
+>
+
+/** nsec export = a fresh EXPORT-flow assertion, same wire shape as login verify. */
+export const passkeyNsecExportRequestSchema =
+  passkeyAuthenticationVerifyRequestSchema
+
+export const updatePasskeyCredentialSchema = z.object({
+  label: passkeyLabelSchema
+})
+
+export const passkeyCredentialSummarySchema = z.object({
+  id: z.string(),
+  label: z.string().nullable(),
+  deviceType: z.string(),
+  backedUp: z.boolean(),
+  aaguid: z.string().nullable(),
+  rpId: z.string(),
+  createdAt: z.string(),
+  lastUsedAt: z.string().nullable()
+})
+export type PasskeyCredentialSummary = z.infer<
+  typeof passkeyCredentialSummarySchema
+>
+
+export const passkeyCredentialListResponseSchema = z.object({
+  credentials: z.array(passkeyCredentialSummarySchema),
+  /** True when the server custodies this account's Nostr key (passkey-native). */
+  hasManagedKey: z.boolean(),
+  /**
+   * True once the custodied key has been exported at least once. Lets the
+   * client permit deleting the final passkey (the server unblocks it too).
+   * Always false when `hasManagedKey` is false.
+   */
+  managedKeyExported: z.boolean()
+})
+export type PasskeyCredentialListResponse = z.infer<
+  typeof passkeyCredentialListResponseSchema
+>
+
+/** Session token payload returned by passkey auth endpoints (mirrors /api/jwt). */
+export const passkeySessionResponseSchema = z.object({
+  token: z.string(),
+  expiresIn: z.union([z.string(), z.number()]),
+  type: z.literal('Bearer'),
+  pubkey: z.string(),
+  custody: z.enum(['managed', 'linked'])
+})
+export type PasskeySessionResponse = z.infer<typeof passkeySessionResponseSchema>

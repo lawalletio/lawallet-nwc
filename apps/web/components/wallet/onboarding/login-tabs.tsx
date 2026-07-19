@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
+import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
+import { Separator } from '@/components/ui/separator'
 
 export function LoginTabs() {
   const router = useRouter()
@@ -16,11 +18,28 @@ export function LoginTabs() {
         <div className="w-full space-y-2 text-center">
           <h1 className="text-2xl font-semibold text-foreground">Login</h1>
           <p className="text-sm text-muted-foreground">
-            Sign in using your Nostr credentials.
+            Sign in with a passkey or your Nostr credentials.
           </p>
         </div>
 
-        <div className="w-full">
+        <div className="w-full space-y-5">
+          {/* Passkey-first: renders nothing on unsupported browsers, leaving
+              the Nostr form exactly as before. */}
+          <PasskeyLoginButton
+            mode="authenticate"
+            variant="theme"
+            className="h-12 w-full"
+            showCrossDeviceHint
+            onSuccess={() => router.replace('/wallet')}
+          />
+
+          <div className="relative">
+            <Separator />
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
+              or use a Nostr key
+            </span>
+          </div>
+
           <NostrConnectForm
             submitLabel="Login"
             loadingLabel="Signing in..."

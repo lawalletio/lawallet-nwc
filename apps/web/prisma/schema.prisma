@@ -110,6 +110,17 @@ enum CardPaymentStatus {
   UNKNOWN
 }
 
+/// The ceremony a WebAuthnChallenge was minted for. REGISTER = new-account
+/// signup (unauthenticated), LINK = add a credential to an existing account,
+/// LOGIN = discoverable-credential authentication, EXPORT = step-up assertion
+/// gating nsec export.
+enum WebAuthnFlow {
+  REGISTER
+  LINK
+  LOGIN
+  EXPORT
+}
+
 model User {
   id                 String             @id
   pubkey             String             @unique
@@ -134,8 +145,77 @@ model User {
   /// the server-side relay-list cache TTL so nostr.json doesn't re-query relays
   /// on every request.
   relaysUpdatedAt    DateTime?
+  passkeyCredentials PasskeyCredential[]
+  managedNostrKey    ManagedNostrKey?
 
   @@index([role])
+}
+
+/// One WebAuthn credential (passkey) bound to a user. `id` is the base64url
+/// credential ID — globally unique per the WebAuthn spec, which is what lets
+/// username-less (discoverable) login resolve the user. A duplicate
+/// registration across accounts fails the PK constraint (mapped to 409)
+/// instead of silently rebinding the credential.
+model PasskeyCredential {
+  id         String    @id
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// COSE public key, verbatim from registration.
+  publicKey  Bytes
+  /// Signature counter (uint32; BigInt to avoid overflow). Platform passkeys
+  /// (iCloud/Google) legitimately always report 0.
+  counter    BigInt    @default(0)
+  /// JSON string[] of AuthenticatorTransportFuture values.
+  transports String?
+  /// 'singleDevice' | 'multiDevice'
+  deviceType String
+  backedUp   Boolean   @default(false)
+  /// Authenticator model id — audit/display only (attestation is 'none').
+  aaguid     String?
+  /// User-assigned name ("MacBook Touch ID").
+  label      String?
+  /// rpID captured at registration. Passkeys are cryptographically scoped to
+  /// it — if the operator changes the instance domain, this lets login errors
+  /// explain why an old credential no longer verifies.
+  rpId       String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
+}
+
+/// Server-custodied Nostr secret key for passkey-native users. The key is
+/// NEVER stored in plaintext: `ciphertext` is the AES-256-GCM envelope from
+/// lib/auth/key-vault.ts, AAD-bound to `userId`. Absent row = the user brought
+/// their own signer (linked custody); the server never had their key.
+model ManagedNostrKey {
+  userId     String    @id
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ciphertext Bytes
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  /// Last successful nsec export. Non-null unlocks deleting the user's final
+  /// passkey (they provably hold the key themselves).
+  exportedAt DateTime?
+}
+
+/// Single-use WebAuthn challenge. Consumed atomically (delete) on verify;
+/// expired rows are opportunistically purged by the options endpoints.
+/// rpId/origin are pinned at options time and used as the expected values at
+/// verify, so a Host-header flip between the two calls fails closed. `userId`
+/// is a plain column (not a relation): REGISTER challenges reference a
+/// pre-allocated user id that doesn't exist yet.
+model WebAuthnChallenge {
+  id        String       @id @default(cuid())
+  challenge String       @unique
+  flow      WebAuthnFlow
+  userId    String?
+  rpId      String
+  origin    String
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+
+  @@index([expiresAt])
 }
 
 model CardDesign {

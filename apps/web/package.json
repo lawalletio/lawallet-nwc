@@ -63,6 +63,8 @@
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
     "@scalar/api-reference-react": "^0.9.45",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
     "@types/jsonwebtoken": "^9.0.10",
     "@xyflow/react": "^12.10.2",
     "@zxing/library": "^0.21.3",
