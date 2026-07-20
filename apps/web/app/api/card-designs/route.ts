@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { Permission } from '@/lib/auth/permissions'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { validateBody } from '@/lib/validation/middleware'
@@ -32,14 +33,11 @@ export const POST = withErrorHandling(async (request: Request) => {
     createCardDesignSchema,
   )
 
-  // Resolve the caller's user record so the design is attributed. When the
+  // Resolve the caller's account so the design is attributed. When the
   // authenticated pubkey isn't mapped to a user (shouldn't happen for an
   // ADMIN, but guard anyway), we leave `userId` null — the column is
   // optional for global/community designs.
-  const user = await prisma.user.findUnique({
-    where: { pubkey: auth.pubkey },
-    select: { id: true },
-  })
+  const user = await resolveAccountByPubkey(auth.pubkey)
 
   const design = await prisma.cardDesign.create({
     data: {

@@ -7,6 +7,7 @@ import {
   NotFoundError,
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { requireAddressRegistration } from '@/lib/auth/paid-registration-guard'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -37,15 +38,18 @@ export const revalidate = 0
  */
 export const GET = withErrorHandling(async (request: Request) => {
   const { pubkey } = await authenticate(request)
-  const user = await prisma.user.findUnique({
-    where: { pubkey },
-    include: {
-      lightningAddresses: {
-        include: { remoteWallet: true },
-        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-      },
-    },
-  })
+  const account = await resolveAccountByPubkey(pubkey)
+  const user = account
+    ? await prisma.user.findUnique({
+        where: { id: account.id },
+        include: {
+          lightningAddresses: {
+            include: { remoteWallet: true },
+            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+          },
+        },
+      })
+    : null
 
   if (!user) throw new NotFoundError('User not found')
   const defaultWallet = derivePrimaryWallet(
@@ -71,7 +75,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   const { pubkey, role } = await authenticate(request)
   const { username, mode } = await validateBody(request, createWalletAddressSchema)
 
-  const user = await prisma.user.findUnique({ where: { pubkey } })
+  const user = await resolveAccountByPubkey(pubkey)
   if (!user) throw new AuthenticationError('User not found')
 
   // Gate self-service address creation behind the instance policy. When user

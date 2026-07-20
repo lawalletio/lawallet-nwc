@@ -284,7 +284,9 @@ describe('POST /api/auth/passkey/registration/verify', () => {
     expect(claims.custody).toBe('managed')
     expect(claims.auth_time).toEqual(expect.any(Number))
     expect(claims.pubkey).toBe(PUBKEY)
-    expect(claims.userId).toBe(PUBKEY)
+    // Multi-pubkey accounts: the session's userId claim is the ACCOUNT id,
+    // not the pubkey.
+    expect(claims.userId).toBe(USER_ID)
     expect(claims.role).toBe(Role.USER)
     expect(claims.iss).toBe('lawallet-nwc')
     expect(claims.aud).toBe('lawallet-users')

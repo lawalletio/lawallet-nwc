@@ -23,6 +23,11 @@ vi.mock('@/lib/prisma', () => ({
     user: {
       findUnique: vi.fn(),
     },
+    // Account resolution (lib/auth/account) checks NostrIdentity first and
+    // falls back to User.pubkey — the tests mock only the User fallback.
+    nostrIdentity: {
+      findUnique: vi.fn(),
+    },
   },
 }))
 

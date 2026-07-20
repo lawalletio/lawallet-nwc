@@ -128,6 +128,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   const role = await resolveRole(pubkey)
   const permissions = getRolePermissions(role)
   const token = mintPasskeySessionJwt({
+    userId,
     pubkey,
     role,
     permissions,

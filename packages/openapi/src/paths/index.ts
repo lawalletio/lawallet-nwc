@@ -3,6 +3,7 @@
 // path registration is independent across files.
 import './auth'
 import './passkeys'
+import './account'
 import './cards'
 import './card-activation'
 import './card-designs'

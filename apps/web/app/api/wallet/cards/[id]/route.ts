@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ConflictError, NotFoundError } from '@/types/server/errors'
 import { idParam, updateWalletCardSchema } from '@/lib/validation/schemas'
@@ -26,17 +27,20 @@ export const PATCH = withErrorHandling(
     const { id } = validateParams(await params, idParam)
     const body = await validateBody(request, updateWalletCardSchema)
 
-    const user = await prisma.user.findUnique({
-      where: { pubkey },
-      select: {
-        id: true,
-        remoteWallets: {
-          where: { isDefault: true, status: 'ACTIVE' },
-          take: 1,
-          select: { id: true }
-        }
-      }
-    })
+    const account = await resolveAccountByPubkey(pubkey)
+    const user = account
+      ? await prisma.user.findUnique({
+          where: { id: account.id },
+          select: {
+            id: true,
+            remoteWallets: {
+              where: { isDefault: true, status: 'ACTIVE' },
+              take: 1,
+              select: { id: true }
+            }
+          }
+        })
+      : null
     if (!user) throw new NotFoundError('User not found')
 
     const defaultRemoteWalletId = user.remoteWallets?.[0]?.id ?? null

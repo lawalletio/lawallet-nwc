@@ -4,6 +4,7 @@ import type { Card } from '@/types/card'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -24,17 +25,20 @@ export const revalidate = 0
 export const GET = withErrorHandling(async (request: Request) => {
   const { pubkey } = await authenticate(request)
 
-  const user = await prisma.user.findUnique({
-    where: { pubkey },
-    select: {
-      id: true,
-      remoteWallets: {
-        where: { isDefault: true, status: 'ACTIVE' },
-        take: 1,
-        select: { id: true }
-      }
-    }
-  })
+  const account = await resolveAccountByPubkey(pubkey)
+  const user = account
+    ? await prisma.user.findUnique({
+        where: { id: account.id },
+        select: {
+          id: true,
+          remoteWallets: {
+            where: { isDefault: true, status: 'ACTIVE' },
+            take: 1,
+            select: { id: true }
+          }
+        }
+      })
+    : null
   if (!user) throw new NotFoundError('User not found')
 
   const defaultRemoteWalletId = user.remoteWallets?.[0]?.id ?? null

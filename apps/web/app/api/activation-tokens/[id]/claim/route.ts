@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { idParam, claimActivationTokenSchema } from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -39,10 +40,9 @@ export const POST = withErrorHandling(
       claimActivationTokenSchema,
     )
 
-    // Resolve the claimer, creating the account on first sight.
-    const existing = await prisma.user.findUnique({
-      where: { pubkey },
-    })
+    // Resolve the claimer (any linked pubkey maps to the owning account),
+    // creating the account on first sight.
+    const existing = await resolveAccountByPubkey(pubkey)
     const claimer = existing ?? (await createNewUser(pubkey))
     const primaryWallet = await getPrimaryRemoteWalletForUser(claimer.id)
 

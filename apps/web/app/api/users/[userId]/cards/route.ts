@@ -9,6 +9,7 @@ import {
 import { userIdParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
@@ -25,7 +26,9 @@ export const GET = withErrorHandling(
       throw new NotFoundError('User not found')
     }
 
-    if (user.pubkey !== authenticatedPubkey) {
+    // Account-id comparison: a secondary-pubkey session still counts as "me".
+    const me = await resolveAccountByPubkey(authenticatedPubkey)
+    if (me?.id !== user.id) {
       throw new AuthorizationError('Not authorized to view this user')
     }
 

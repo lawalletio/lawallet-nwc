@@ -41,6 +41,14 @@ const userPubkey = 'b'.repeat(64)
 const mockAuth = (role: Role, pubkey: string) =>
   vi.mocked(authenticate).mockResolvedValue({ role, pubkey, method: 'jwt' })
 
+// Resolves the caller's pubkey to their OWN account via the NostrIdentity
+// seam, so the "is this me" account-id comparison doesn't accidentally hit
+// the blanket user.findUnique target mock.
+const mockCallerAccount = (id: string, pubkey: string, role: Role) =>
+  vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+    user: { id, pubkey, role },
+  } as any)
+
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
@@ -74,6 +82,7 @@ describe('GET /api/users/[userId]/role', () => {
   it('rejects non-admin viewing another user role', async () => {
     const target = createUserFixture({ pubkey: 'c'.repeat(64), role: 'USER' })
     mockAuth(Role.USER, userPubkey)
+    mockCallerAccount('caller-account', userPubkey, Role.USER)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
 
     const req = createNextRequest(`/api/users/${target.id}/role`)
@@ -97,6 +106,7 @@ describe('PUT /api/users/[userId]/role', () => {
   it('allows admin to promote user to OPERATOR', async () => {
     const target = createUserFixture({ pubkey: userPubkey, role: 'USER' })
     mockAuth(Role.ADMIN, adminPubkey)
+    mockCallerAccount('admin-account', adminPubkey, Role.ADMIN)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({
       id: target.id,
@@ -116,6 +126,7 @@ describe('PUT /api/users/[userId]/role', () => {
   it('allows admin to demote user to USER', async () => {
     const target = createUserFixture({ pubkey: userPubkey, role: 'OPERATOR' })
     mockAuth(Role.ADMIN, adminPubkey)
+    mockCallerAccount('admin-account', adminPubkey, Role.ADMIN)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({
       id: target.id,
@@ -181,6 +192,7 @@ describe('PUT /api/users/[userId]/role', () => {
   it('prevents removing last admin', async () => {
     const target = createAdminUserFixture({ pubkey: userPubkey })
     mockAuth(Role.ADMIN, adminPubkey)
+    mockCallerAccount('admin-account', adminPubkey, Role.ADMIN)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
       id: target.id,
       role: 'ADMIN',

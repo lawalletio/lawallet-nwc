@@ -1,10 +1,11 @@
-import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
+import { resolveAccountByPubkey } from './account'
 import { Role } from './permissions'
 
 /**
  * Resolves the role for an authenticated pubkey.
- * Checks the User record first; falls back to the legacy Settings `root`
+ * Any of an account's linked pubkeys (primary or secondary NostrIdentity)
+ * resolves to the account's role; falls back to the legacy Settings `root`
  * value so a freshly-bootstrapped instance still recognises its admin
  * before any User row exists.
  *
@@ -12,13 +13,10 @@ import { Role } from './permissions'
  * @returns The resolved role, defaulting to {@link Role.USER} when nothing matches.
  */
 export async function resolveRole(pubkey: string): Promise<Role> {
-  const user = await prisma.user.findUnique({
-    where: { pubkey },
-    select: { role: true },
-  })
+  const account = await resolveAccountByPubkey(pubkey)
 
-  if (user?.role && user.role !== 'USER') {
-    return user.role as Role
+  if (account?.role && account.role !== 'USER') {
+    return account.role as Role
   }
 
   // Backwards compatibility: check if pubkey is the root in Settings
@@ -27,5 +25,5 @@ export async function resolveRole(pubkey: string): Promise<Role> {
     return Role.ADMIN
   }
 
-  return (user?.role as Role) ?? Role.USER
+  return (account?.role as Role) ?? Role.USER
 }

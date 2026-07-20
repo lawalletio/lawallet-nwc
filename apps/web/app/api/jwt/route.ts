@@ -14,8 +14,8 @@ import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { validateNip98 } from '@/lib/nip98'
 import { getRolePermissions } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
-import { prisma } from '@/lib/prisma'
 
 /**
  * POST /api/jwt - Authenticate with NIP-98, receive a JWT session token.
@@ -62,15 +62,21 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new InternalServerError('Server configuration error')
   }
 
-  // 4. Resolve user role and permissions
+  // 4. Resolve the account (any linked pubkey → same account) and its role.
+  // The session presents the account's PRIMARY pubkey as its identity even
+  // when a secondary identity signed the NIP-98 event; `authPubkey` records
+  // which key actually authenticated.
+  const account = await resolveAccountByPubkey(pubkey).catch(() => null)
+  const sessionPubkey = account?.primaryPubkey ?? pubkey
   const role = await resolveRole(pubkey)
   const permissions = getRolePermissions(role)
 
   // 5. Create JWT with identity and authorization claims
   const token = createJwtToken(
     {
-      userId: pubkey,
-      pubkey,
+      userId: account?.id ?? sessionPubkey,
+      pubkey: sessionPubkey,
+      authPubkey: pubkey,
       role,
       permissions,
     },
@@ -82,18 +88,12 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
   )
 
-  // Best-effort resolve of userId for attribution; pubkey is the stable id,
-  // but the ActivityLog.userId column FKs to User.id so we look it up.
-  const userRecord = await prisma.user
-    .findUnique({ where: { pubkey }, select: { id: true } })
-    .catch(() => null)
-
   logActivity.fireAndForget({
     category: 'USER',
     event: ActivityEvent.USER_JWT_ISSUED,
-    message: `JWT issued for ${pubkey.slice(0, 8)}… (role=${role})`,
-    userId: userRecord?.id ?? null,
-    metadata: { pubkey, role, expiresIn },
+    message: `JWT issued for ${sessionPubkey.slice(0, 8)}… (role=${role})`,
+    userId: account?.id ?? null,
+    metadata: { pubkey: sessionPubkey, authPubkey: pubkey, role, expiresIn },
   })
 
   return NextResponse.json({

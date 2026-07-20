@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { generateAuthenticationOptions } from '@simplewebauthn/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -34,10 +35,13 @@ export const POST = withErrorHandling(async (request: Request) => {
     identifier: 'nsec-export:' + auth.pubkey
   })
 
-  const user = await prisma.user.findUnique({
-    where: { pubkey: auth.pubkey },
-    include: { passkeyCredentials: true }
-  })
+  const account = await resolveAccountByPubkey(auth.pubkey)
+  const user = account
+    ? await prisma.user.findUnique({
+        where: { id: account.id },
+        include: { passkeyCredentials: true }
+      })
+    : null
   if (!user) throw new NotFoundError('User not found')
 
   const managed = await prisma.managedNostrKey.findUnique({

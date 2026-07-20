@@ -1,4 +1,13 @@
 import {
+  accountLinkBeginRequestSchema,
+  accountLinkBeginResponseSchema,
+  accountLinkVerifyRequestSchema,
+  accountLinkVerifyResponseSchema,
+  accountMergePreviewRequestSchema,
+  accountMergePreviewResponseSchema,
+  accountMergeRequestSchema,
+  accountMergeResponseSchema,
+  accountSummaryResponseSchema,
   cardScanCallbackQuerySchema,
   cardListQuerySchema,
   claimActivationTokenSchema,
@@ -18,6 +27,7 @@ import {
   lightningAddressModeSchema,
   lud16CallbackQuerySchema,
   lud16UsernameParam,
+  nostrIdentitySummarySchema,
   otcParam,
   passkeyAuthenticationVerifyRequestSchema,
   passkeyCredentialListResponseSchema,
@@ -32,6 +42,7 @@ import {
   scanCardQuerySchema,
   settingsBodySchema,
   updateCardDesignSchema,
+  updateIdentityRequestSchema,
   updateLightningAddressSchema,
   updatePasskeyCredentialSchema,
   updateRemoteWalletSchema,
@@ -223,6 +234,57 @@ export const schemas = {
         'device metadata are fixed at registration.',
     }),
   ),
+
+  // ── Account ───────────────────────────────────────────────────────────
+  AccountLinkBeginRequest: registry.register(
+    'AccountLinkBeginRequest',
+    accountLinkBeginRequestSchema.openapi({
+      description:
+        'Which proof mechanism the client will use to demonstrate control of ' +
+        'the other key: `nostr` (NIP-42-style signed event) or `passkey` ' +
+        '(WebAuthn assertion).',
+    }),
+  ),
+  AccountLinkVerifyRequest: registry.register(
+    'AccountLinkVerifyRequest',
+    accountLinkVerifyRequestSchema.openapi({
+      description:
+        'Proof of control of another Nostr key, discriminated by `method`. ' +
+        '`nostr`: the challenge from link/begin plus a kind-22242 event signed ' +
+        'by the key being linked (nonce echoed in a `challenge` tag). ' +
+        '`passkey`: a LOGIN-flow WebAuthn assertion — challenge from ' +
+        '`POST /api/auth/passkey/authentication/options` — proving control of ' +
+        'a credential and thereby of the account that owns it.',
+    }),
+  ),
+  AccountMergePreviewRequest: registry.register(
+    'AccountMergePreviewRequest',
+    accountMergePreviewRequestSchema.openapi({
+      description:
+        'The short-lived merge ticket returned by link/verify. Possession of ' +
+        'the ticket IS the proof that the caller controls both accounts.',
+    }),
+  ),
+  AccountMergeRequest: registry.register(
+    'AccountMergeRequest',
+    accountMergeRequestSchema.openapi({
+      description:
+        'Merge commit payload: the merge ticket from link/verify plus ' +
+        '`mainPubkey`, which selects which of the combined identities becomes ' +
+        'the surviving account’s primary.',
+    }),
+  ),
+  UpdateIdentityRequest: registry.register(
+    'UpdateIdentityRequest',
+    // The .refine() (at least one of isPrimary/label) can't be expressed in
+    // JSON Schema, so we ship the shape and document the constraint.
+    updateIdentityRequestSchema.openapi({
+      description:
+        'Identity update. Provide at least one field, otherwise the route ' +
+        'returns 400: `label` renames (null clears it), `isPrimary: true` ' +
+        'promotes the identity to primary.',
+    }),
+  ),
 }
 
 // ── Inline response component schemas ─────────────────────────────────────
@@ -331,6 +393,68 @@ export const PasskeyCredentialListResponse = registry.register(
     description:
       'The caller’s passkeys plus `hasManagedKey`: true when the server custodies ' +
       'this account’s Nostr key (passkey-native signup), false for linked accounts.',
+  }),
+)
+
+// ── Account ───────────────────────────────────────────────────────────────
+
+export const NostrIdentitySummary = registry.register(
+  'NostrIdentitySummary',
+  nostrIdentitySummarySchema.openapi({
+    description:
+      'One Nostr identity linked to an account. Exactly one identity per ' +
+      'account is primary — it mirrors `User.pubkey` and is the account’s ' +
+      'public identity.',
+  }),
+)
+
+export const AccountSummaryResponse = registry.register(
+  'AccountSummaryResponse',
+  accountSummaryResponseSchema.openapi({
+    description:
+      'The caller’s own account: every linked Nostr identity (one primary), ' +
+      'every passkey credential, and the managed-key custody state.',
+  }),
+)
+
+export const AccountLinkBeginResponse = registry.register(
+  'AccountLinkBeginResponse',
+  accountLinkBeginResponseSchema.openapi({
+    description:
+      'Link-proof bootstrap. `nostr` method: `challenge` (opaque token to echo ' +
+      'back at verify) + `nonce` (to embed in the signed kind-22242 event). ' +
+      '`passkey` method: both fields are absent — the client uses the standard ' +
+      'passkey authentication/options endpoint instead. `expiresIn` is seconds.',
+  }),
+)
+
+export const AccountLinkVerifyResponse = registry.register(
+  'AccountLinkVerifyResponse',
+  accountLinkVerifyResponseSchema.openapi({
+    description:
+      'Outcome of a link proof. `linked: true` + `identity` when the pubkey was ' +
+      'unowned and is now attached as a secondary identity. `linked: false` + ' +
+      '`mergeTicket` + `otherAccount` when the key belongs to another account — ' +
+      'nothing was written; the ticket gates the merge preview/commit flow.',
+  }),
+)
+
+export const AccountMergePreviewResponse = registry.register(
+  'AccountMergePreviewResponse',
+  accountMergePreviewResponseSchema.openapi({
+    description:
+      'Read-only merge dry run: both accounts’ resource summaries, the ' +
+      'collisions the merge would reconcile, and `blocked` — true while the ' +
+      'absorbed account custodies a never-exported key.',
+  }),
+)
+
+export const AccountMergeResponse = registry.register(
+  'AccountMergeResponse',
+  accountMergeResponseSchema.openapi({
+    description:
+      'Merge result: the surviving account id, the chosen primary pubkey, and ' +
+      'counts of the resources re-parented from the absorbed account.',
   }),
 )
 

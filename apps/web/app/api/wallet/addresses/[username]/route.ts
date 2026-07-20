@@ -7,6 +7,7 @@ import {
   ValidationError,
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { Permission, hasPermission } from '@/lib/auth/permissions'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -99,10 +100,7 @@ export const GET = withErrorHandling(
       throw new NotFoundError('Address not found')
     }
 
-    const caller = await prisma.user.findUnique({
-      where: { pubkey: auth.pubkey },
-      select: { id: true },
-    })
+    const caller = await resolveAccountByPubkey(auth.pubkey)
     const isOwner = !!caller && caller.id === address.userId
 
     if (!isOwner) {
@@ -184,10 +182,7 @@ export const PUT = withErrorHandling(
     const { username } = validateParams(await params, walletAddressUsernameParam)
     const body = await validateBody(request, updateWalletAddressSchema)
 
-    const user = await prisma.user.findUnique({
-      where: { pubkey },
-      select: { id: true },
-    })
+    const user = await resolveAccountByPubkey(pubkey)
     if (!user) throw new AuthenticationError('User not found')
 
     const existing = await prisma.lightningAddress.findUnique({ where: { username } })
@@ -303,10 +298,7 @@ export const DELETE = withErrorHandling(
     const { pubkey } = await authenticate(request)
     const { username } = validateParams(await params, walletAddressUsernameParam)
 
-    const user = await prisma.user.findUnique({
-      where: { pubkey },
-      select: { id: true },
-    })
+    const user = await resolveAccountByPubkey(pubkey)
     if (!user) throw new AuthenticationError('User not found')
 
     const existing = await prisma.lightningAddress.findUnique({ where: { username } })

@@ -3,6 +3,7 @@ import { verifyRegistrationResponse } from '@simplewebauthn/server'
 import type { RegistrationResponseJSON } from '@simplewebauthn/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthenticationError,
@@ -48,10 +49,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     identifier: 'passkey-link:' + auth.pubkey
   })
 
-  const user = await prisma.user.findUnique({
-    where: { pubkey: auth.pubkey },
-    select: { id: true }
-  })
+  const user = await resolveAccountByPubkey(auth.pubkey)
   if (!user) throw new NotFoundError('User not found')
 
   const body = await validateBody(request, passkeyRegistrationVerifyRequestSchema)

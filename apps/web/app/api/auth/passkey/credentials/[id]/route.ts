@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ConflictError, NotFoundError } from '@/types/server/errors'
 import { idParam, updatePasskeyCredentialSchema } from '@/lib/validation/schemas'
@@ -23,10 +24,7 @@ async function resolveOwnedCredential(
   pubkey: string,
   params: Promise<{ id: string }>
 ): Promise<{ userId: string; credential: PasskeyCredential }> {
-  const user = await prisma.user.findUnique({
-    where: { pubkey },
-    select: { id: true }
-  })
+  const user = await resolveAccountByPubkey(pubkey)
   if (!user) throw new NotFoundError('User not found')
 
   const { id } = validateParams(await params, idParam)

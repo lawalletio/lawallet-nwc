@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey, resolveAccountId } from '@/lib/auth/account'
 import { AuthorizationError, NotFoundError } from '@/types/server/errors'
 import { updateUserRelaysSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
@@ -12,11 +13,16 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** Accept the internal id or a 64-char hex pubkey, mirroring the user GET. */
-function resolveWhere(userId: string) {
-  return /^[0-9a-f]{64}$/i.test(userId)
-    ? { pubkey: userId.toLowerCase() }
-    : { id: userId }
+/**
+ * Accept the internal id or a 64-char hex pubkey, mirroring the user GET.
+ * A hex pubkey resolves through the account seam (NostrIdentity first) so
+ * secondary identities land on the same account; null when unknown.
+ */
+async function resolveTargetUserId(userId: string): Promise<string | null> {
+  if (/^[0-9a-f]{64}$/i.test(userId)) {
+    return resolveAccountId(userId.toLowerCase())
+  }
+  return userId
 }
 
 /**
@@ -33,14 +39,19 @@ export const PUT = withErrorHandling(
     const auth = await authenticate(request)
     const { userId } = await params
 
-    const user = await prisma.user.findUnique({
-      where: resolveWhere(userId),
-      select: { id: true, pubkey: true },
-    })
+    const targetId = await resolveTargetUserId(userId)
+    const user = targetId
+      ? await prisma.user.findUnique({
+          where: { id: targetId },
+          select: { id: true, pubkey: true },
+        })
+      : null
     if (!user) throw new NotFoundError('User not found')
 
     // Post-lookup ownership check (so a 403 vs 404 can't probe for existence).
-    if (user.pubkey !== auth.pubkey) {
+    // Account-id comparison: a secondary-pubkey session still counts as "me".
+    const me = await resolveAccountByPubkey(auth.pubkey)
+    if (!me || me.id !== user.id) {
       throw new AuthorizationError('You can only edit your own relays')
     }
 
