@@ -1,0 +1,155 @@
+---
+title: 'Coolify Deployment'
+description: 'Deploy the complete LaWallet NWC stack from GitHub with Docker Compose, TLS, the NWC listener, and push-to-deploy.'
+---
+
+[Coolify](https://coolify.io/) can deploy the complete repository directly from
+GitHub. This is the production layout used for LaWallet: Coolify builds the
+root `docker-compose.yml`, runs Postgres, web, docs, OpenAPI, and the optional
+NWC listener, then routes the public web service through its managed proxy.
+
+This guide uses a domain such as `wallet.example.com`. Replace it with the
+domain you control.
+
+## Before you start
+
+- A Coolify server with a public IP address.
+- A GitHub repository or fork of
+  [`lawalletio/lawallet-nwc`](https://github.com/lawalletio/lawallet-nwc).
+- A DNS `A` record for `wallet.example.com` pointing to the Coolify server.
+- Coolify reachable publicly over HTTPS. GitHub must be able to deliver the
+  push webhook to it for automatic deployments.
+
+## Create the application
+
+1. In Coolify, create a project and choose **New Resource → Application**.
+2. Select the GitHub repository and the production branch (normally `main`).
+   For a public repository, the built-in **Public GitHub** source is enough;
+   a GitHub App also works.
+3. Choose the **Docker Compose** build pack.
+4. Set **Docker Compose Location** to `/docker-compose.yml` and leave **Base
+   Directory** as `/`.
+5. Create the application. Do not deploy it until the environment variables
+   below are saved.
+
+The Compose file builds four public-facing/internal services plus Postgres:
+
+| Service | Purpose | Public domain needed? |
+| --- | --- | --- |
+| `web` | LaWallet UI, REST API, LUD-16 endpoints | Yes |
+| `listener` | Long-lived NWC relay bridge | No — internal only |
+| `postgres` | Application and listener data | No — internal only |
+| `docs` / `openapi` | Documentation and OpenAPI surfaces | Optional |
+
+## Configure environment variables
+
+In **Environment Variables**, add the following values. Mark every secret as
+secret in Coolify; do not commit them to the repository.
+
+```dotenv
+# Core application and database
+NODE_ENV=production
+JWT_SECRET=<generate-with-openssl-rand-hex-32>
+POSTGRES_DB=lawallet
+POSTGRES_USER=lawallet
+POSTGRES_PASSWORD=<generate-with-openssl-rand-hex-32>
+
+# Enable the listener service declared with profiles: ['listener']
+COMPOSE_PROFILES=listener
+LISTENER_URL=http://listener:4100
+
+# Listener → web webhook signature (minimum 32 characters)
+LISTENER_AUTH_SECRET=<generate-with-openssl-rand-hex-32>
+
+# Web → listener authenticated requests (minimum 32 characters)
+LISTENER_REQUEST_AUTH_SECRET=<generate-with-openssl-rand-hex-32>
+```
+
+Generate each value locally with:
+
+```bash
+openssl rand -hex 32
+```
+
+`COMPOSE_PROFILES=listener` is important: without it Docker Compose does not
+start the optional `listener` service. `LISTENER_URL` uses Docker's internal
+service DNS, so it must remain `http://listener:4100`; it should not be exposed
+as a public URL.
+
+`LISTENER_AUTH_SECRET` and `LISTENER_REQUEST_AUTH_SECRET` may be different.
+Keeping them separate isolates listener-to-web webhook signing from web-to-listener
+requests. Both must be supplied to the Compose deployment.
+
+## Add the domain and TLS
+
+In the application **Domains** / Compose domain configuration, assign the
+domain to the `web` service with its internal port:
+
+```text
+https://wallet.example.com:2288
+```
+
+Enable **Force HTTPS**. Coolify requests and renews the TLS certificate after
+the DNS record resolves to the server. The `:2288` suffix tells Coolify which
+container port to route to; visitors still use the normal HTTPS URL without a
+port.
+
+Do not add a public domain to `postgres` or `listener`. The listener is reached
+by `web` over the Compose network and its `/health` endpoint is checked by
+Docker Compose.
+
+## Deploy and verify
+
+Click **Deploy**. The first deployment builds the images, waits for Postgres,
+runs Prisma migrations through the web container startup, and then starts the
+listener and web services.
+
+Verify the public application after Coolify reports `running:healthy`:
+
+```bash
+curl https://wallet.example.com/api/health
+# {"status":"ok","service":"web","database":"up"}
+```
+
+In the deployment log, confirm that Coolify created and started both services:
+
+```text
+Container listener-... Created
+Container listener-... Started
+Container web-... Started
+```
+
+The listener is private by design. To check its integration after the first
+administrator setup, use **Admin → Settings → NWC Services** in LaWallet and
+run the connection test.
+
+## Enable automatic deploys
+
+Enable **Auto Deploy** in the application's advanced settings. With a GitHub
+App source, Coolify manages push events automatically. For the public GitHub
+source used by this stack, configure a repository webhook instead:
+
+1. In Coolify's application webhook settings, copy the GitHub manual webhook
+   URL and its secret.
+2. In GitHub, open **Repository → Settings → Webhooks → Add webhook**.
+3. Paste the Coolify URL, set the copied secret, select content type
+   `application/json`, enable SSL verification, and choose only the **Push**
+   event.
+4. Save it and confirm GitHub's initial `ping` delivery returns HTTP 200.
+
+Every push to the configured branch now makes Coolify pull the new commit,
+build the Compose images, and replace the stack. GitHub sends push events for
+all branches, but Coolify deploys only the application's configured branch
+(`main` in this guide).
+
+## Updating and rollback
+
+- Push a commit to `main` to trigger the automatic deployment.
+- Use Coolify's **Deployments** history to inspect build logs and redeploy a
+  known good commit if necessary.
+- Back up the Postgres volume before destructive maintenance. The Compose
+  database is the source of truth for both the web app and listener state.
+
+For more detail on the listener's health endpoints, pairing, and failure modes,
+see [NWC Listener Setup](/docs/deploy/listener-setup). For a local Compose or
+Docker Hub deployment, see [Docker Deployment](/docs/deploy/docker).
