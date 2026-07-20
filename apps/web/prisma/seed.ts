@@ -17,7 +17,10 @@ async function main() {
         data: {
           id: user.id,
           pubkey: user.pubkey,
-          createdAt: user.createdAt
+          createdAt: user.createdAt,
+          nostrIdentities: {
+            create: { pubkey: user.pubkey, isPrimary: true }
+          }
         }
       })
     )

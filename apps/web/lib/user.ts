@@ -60,6 +60,11 @@ export async function createNewUser(
       id: userId,
       pubkey,
       createdAt: new Date(),
+      // The signup pubkey is the account's primary Nostr identity;
+      // User.pubkey stays a denormalized mirror of it (see NostrIdentity).
+      nostrIdentities: {
+        create: { pubkey, isPrimary: true }
+      },
       albyEnabled: !!subAccount,
       albySubAccount: subAccount
         ? {

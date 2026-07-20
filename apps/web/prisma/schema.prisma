@@ -147,8 +147,27 @@ model User {
   relaysUpdatedAt    DateTime?
   passkeyCredentials PasskeyCredential[]
   managedNostrKey    ManagedNostrKey?
+  nostrIdentities    NostrIdentity[]
 
   @@index([role])
+}
+
+/// One Nostr pubkey belonging to an account. An account owns one or more
+/// identities; exactly one is primary (enforced by a raw partial unique
+/// index — Prisma can't express it). `User.pubkey` stays as a denormalized
+/// mirror of the primary identity's pubkey: any of the account's pubkeys
+/// authenticates it (see lib/auth/account.ts), but the account always
+/// presents the primary as its public identity.
+model NostrIdentity {
+  pubkey    String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isPrimary Boolean  @default(false)
+  /// User-assigned name ("Old laptop key").
+  label     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 /// One WebAuthn credential (passkey) bound to a user. `id` is the base64url
