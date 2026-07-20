@@ -39,11 +39,25 @@ export async function resolveProfiles(
   const normalized = uniqueNormalized(inputs)
   if (normalized.length === 0) return []
 
-  const users = await db.user.findMany({
-    where: { pubkey: { in: normalized.map(n => n.pubkey) } },
-    select: { pubkey: true },
-  })
-  const registeredPubkeys = new Set(users.map(u => u.pubkey))
+  // A pubkey is "registered" if it belongs to any account — as the primary
+  // (mirrored on User.pubkey) OR as a linked NostrIdentity. Secondary
+  // identities only live in NostrIdentity, so gating on User.pubkey alone
+  // would drop their profiles (and their avatars on /admin/account).
+  const candidatePubkeys = normalized.map(n => n.pubkey)
+  const [users, identities] = await Promise.all([
+    db.user.findMany({
+      where: { pubkey: { in: candidatePubkeys } },
+      select: { pubkey: true },
+    }),
+    db.nostrIdentity.findMany({
+      where: { pubkey: { in: candidatePubkeys } },
+      select: { pubkey: true },
+    }),
+  ])
+  const registeredPubkeys = new Set([
+    ...users.map(u => u.pubkey),
+    ...identities.map(i => i.pubkey),
+  ])
   const registered = normalized.filter(n => registeredPubkeys.has(n.pubkey))
   if (registered.length === 0) return []
 

@@ -40,6 +40,9 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   vi.mocked(prismaMock.nostrProfileCache.upsert).mockResolvedValue({} as any)
+  // Registration is resolved from User.pubkey ∪ NostrIdentity; default the
+  // identity lookup to empty so tests opt in via User.pubkey as before.
+  vi.mocked(prismaMock.nostrIdentity.findMany).mockResolvedValue([] as any)
 })
 
 describe('resolveProfiles', () => {
@@ -58,6 +61,42 @@ describe('resolveProfiles', () => {
 
     expect(relayFetcher).not.toHaveBeenCalled()
     expect(profiles).toMatchObject([{ pubkey: PUBKEY_A, name: 'cached' }])
+  })
+
+  it('resolves a secondary identity pubkey not mirrored on User.pubkey', async () => {
+    // The pubkey belongs to an account only via NostrIdentity (a linked
+    // secondary), so User.pubkey does not match — it must still resolve.
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([] as any)
+    vi.mocked(prismaMock.nostrIdentity.findMany).mockResolvedValue([
+      { pubkey: PUBKEY_A },
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([
+      cacheRow(),
+    ] as any)
+    const relayFetcher = vi.fn()
+
+    const profiles = await resolveProfiles([PUBKEY_A], {
+      now: NOW,
+      relayFetcher,
+      precacheImages: vi.fn(),
+    })
+
+    expect(profiles).toMatchObject([{ pubkey: PUBKEY_A, name: 'cached' }])
+  })
+
+  it('omits a pubkey linked to no account (not a relay proxy)', async () => {
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([] as any)
+    vi.mocked(prismaMock.nostrIdentity.findMany).mockResolvedValue([] as any)
+    const relayFetcher = vi.fn()
+
+    const profiles = await resolveProfiles([PUBKEY_A], {
+      now: NOW,
+      relayFetcher,
+      precacheImages: vi.fn(),
+    })
+
+    expect(relayFetcher).not.toHaveBeenCalled()
+    expect(profiles).toEqual([])
   })
 
   it('revalidates stale cache and stores the newest kind-0 event', async () => {
