@@ -1477,6 +1477,9 @@
           },
           "createdAt": {
             "type": "string"
+          },
+          "custodied": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1517,6 +1520,9 @@
                 },
                 "createdAt": {
                   "type": "string"
+                },
+                "custodied": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -1637,6 +1643,9 @@
               },
               "createdAt": {
                 "type": "string"
+              },
+              "custodied": {
+                "type": "boolean"
               }
             },
             "required": [

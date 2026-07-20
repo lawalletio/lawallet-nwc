@@ -64,6 +64,15 @@ vi.mock('@/lib/auth/passkey', async importOriginal => {
   }
 })
 
+vi.mock('@/lib/auth/key-vault', () => ({
+  isVaultConfigured: vi.fn(() => true),
+  decryptNsec: vi.fn(() => 'f'.repeat(64)),
+}))
+
+vi.mock('@/lib/nostr', () => ({
+  getPublicKeyFromPrivate: vi.fn(() => 'a'.repeat(64)), // == PK_A
+}))
+
 import { GET } from '@/app/api/account/route'
 import { POST as linkBegin } from '@/app/api/account/identities/link/begin/route'
 import { POST as linkVerify } from '@/app/api/account/identities/link/verify/route'
@@ -108,6 +117,36 @@ beforeEach(() => {
 describe('GET /api/account', () => {
   it('returns the summary shape', async () => {
     authedAs()
+    const PK_SECONDARY = 'b'.repeat(64)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-a',
+      pubkey: PK_A,
+      nostrIdentities: [
+        { pubkey: PK_A, isPrimary: true, label: null, createdAt: new Date() },
+        { pubkey: PK_SECONDARY, isPrimary: false, label: 'Old', createdAt: new Date() },
+      ],
+      passkeyCredentials: [],
+      // ciphertext decrypts (mocked) to a key deriving PK_A → custodied.
+      managedNostrKey: { exportedAt: null, ciphertext: Buffer.from('x') },
+    } as any)
+
+    const response = await GET(createNextRequest('/api/account'))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.primaryPubkey).toBe(PK_A)
+    expect(body.identities).toHaveLength(2)
+    expect(body.identities[0].isPrimary).toBe(true)
+    expect(body.hasManagedKey).toBe(true)
+    expect(body.managedKeyExported).toBe(false)
+    // Only the identity whose derived pubkey matches the managed key is custodied.
+    expect(body.identities.find((i: any) => i.pubkey === PK_A).custodied).toBe(true)
+    expect(
+      body.identities.find((i: any) => i.pubkey === PK_SECONDARY).custodied
+    ).toBe(false)
+  })
+
+  it('marks no identity custodied when the account has no managed key', async () => {
+    authedAs()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
       id: 'user-a',
       pubkey: PK_A,
@@ -115,17 +154,12 @@ describe('GET /api/account', () => {
         { pubkey: PK_A, isPrimary: true, label: null, createdAt: new Date() },
       ],
       passkeyCredentials: [],
-      managedNostrKey: { exportedAt: null },
+      managedNostrKey: null,
     } as any)
 
-    const response = await GET(createNextRequest('/api/account'))
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.primaryPubkey).toBe(PK_A)
-    expect(body.identities).toHaveLength(1)
-    expect(body.identities[0].isPrimary).toBe(true)
-    expect(body.hasManagedKey).toBe(true)
-    expect(body.managedKeyExported).toBe(false)
+    const body = await (await GET(createNextRequest('/api/account'))).json()
+    expect(body.hasManagedKey).toBe(false)
+    expect(body.identities[0].custodied).toBe(false)
   })
 
   it('401s without auth', async () => {

@@ -798,7 +798,14 @@ export const nostrIdentitySummarySchema = z.object({
   pubkey: hexPubkeySchema,
   isPrimary: z.boolean(),
   label: z.string().nullable(),
-  createdAt: z.string()
+  createdAt: z.string(),
+  /**
+   * True when the server custodies this identity's secret key (a passkey-
+   * native "hosted" key), so it can be exported via a passkey assertion.
+   * Optional: only the account summary populates it; link/rename responses
+   * omit it (the Account screen re-reads the summary after mutations).
+   */
+  custodied: z.boolean().optional()
 })
 export type NostrIdentitySummary = z.infer<typeof nostrIdentitySummarySchema>
 

@@ -8,6 +8,7 @@ import {
   MoreHorizontal,
   Pencil,
   RefreshCw,
+  ShieldCheck,
   Star,
   Unlink
 } from 'lucide-react'
@@ -174,6 +175,7 @@ export function AccountScreen() {
                           setRenameValue(identity.label ?? '')
                         }}
                         onUnlink={() => setUnlinkTarget(identity)}
+                        onExport={() => setExportOpen(true)}
                       />
                     ))}
                   </div>
@@ -320,13 +322,15 @@ function IdentityRow({
   busy,
   onMakePrimary,
   onRename,
-  onUnlink
+  onUnlink,
+  onExport
 }: {
   identity: NostrIdentitySummary
   busy: boolean
   onMakePrimary: () => void
   onRename: () => void
   onUnlink: () => void
+  onExport: () => void
 }) {
   const { profile } = useNostrProfile(identity.pubkey)
 
@@ -356,6 +360,12 @@ function IdentityRow({
               <Copy className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
             </button>
             {identity.isPrimary && <Badge>Primary</Badge>}
+            {identity.custodied && (
+              <Badge variant="secondary" title="Secret key held on this server">
+                <ShieldCheck className="size-3" />
+                Custodied
+              </Badge>
+            )}
           </div>
           <p className="truncate text-xs text-muted-foreground">
             {identity.label ? `${identity.label} · ` : ''}
@@ -381,6 +391,12 @@ function IdentityRow({
             <DropdownMenuItem onClick={onMakePrimary}>
               <Star className="size-4" />
               Make primary
+            </DropdownMenuItem>
+          )}
+          {identity.custodied && (
+            <DropdownMenuItem onClick={onExport}>
+              <KeyRound className="size-4" />
+              Export secret key
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={onRename}>
