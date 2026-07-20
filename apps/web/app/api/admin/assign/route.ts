@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { AuthorizationError } from '@/types/server/errors'
@@ -26,14 +27,11 @@ export const POST = withErrorHandling(async (request: Request) => {
     )
   }
 
-  // Ensure user exists in the database
-  const existingUser = await prisma.user.findUnique({
-    where: {
-      pubkey: authenticatedPubkey
-    }
-  })
+  // Ensure an account exists for this pubkey (any linked identity resolves
+  // to its owning account); create one only when the pubkey is truly unknown.
+  const existingAccount = await resolveAccountByPubkey(authenticatedPubkey)
 
-  const user = existingUser || (await createNewUser(authenticatedPubkey))
+  const user = existingAccount || (await createNewUser(authenticatedPubkey))
 
   // Check if user is already the root
   const isAlreadyRoot =
@@ -63,7 +61,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     }),
     prisma.user.update({
       where: {
-        pubkey: authenticatedPubkey
+        id: user.id
       },
       data: {
         role: 'ADMIN'

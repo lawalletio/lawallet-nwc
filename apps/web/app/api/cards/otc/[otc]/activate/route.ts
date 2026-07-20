@@ -13,6 +13,7 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { eventBus } from '@/lib/events/event-bus'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const POST = withErrorHandling(
@@ -28,15 +29,18 @@ export const POST = withErrorHandling(
       throw new ValidationError('Public key is required')
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { pubkey },
-      include: {
-        // Primary address (at most one) — see addresses_nwc_connection migration.
-        lightningAddresses: { where: { isPrimary: true }, take: 1 },
-        albySubAccount: true
-      }
-    })
+    // Check if an account already owns this pubkey (any linked identity).
+    const account = await resolveAccountByPubkey(pubkey)
+    const existingUser = account
+      ? await prisma.user.findUnique({
+          where: { id: account.id },
+          include: {
+            // Primary address (at most one) — see addresses_nwc_connection migration.
+            lightningAddresses: { where: { isPrimary: true }, take: 1 },
+            albySubAccount: true
+          }
+        })
+      : null
 
     const user = existingUser || (await createNewUser(pubkey))
     // If OTC is provided, try to assign a card to this user

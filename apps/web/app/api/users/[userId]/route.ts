@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { Permission, hasPermission } from '@/lib/auth/permissions'
 import { AuthorizationError, NotFoundError } from '@/types/server/errors'
 import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
@@ -47,10 +48,20 @@ export const GET = withErrorHandling(
 
     // Accept either the internal UUID id or a 64-char hex pubkey so the
     // sidebar's "go to my profile" shortcut (which only has a pubkey in
-    // auth context) can hit this route without a prior id lookup.
+    // auth context) can hit this route without a prior id lookup. A hex
+    // pubkey resolves through the account seam so secondary identities
+    // land on the same account.
     const isHexPubkey = /^[0-9a-f]{64}$/i.test(userId)
+    let lookupId = userId
+    if (isHexPubkey) {
+      const target = await resolveAccountByPubkey(userId.toLowerCase())
+      if (!target) {
+        throw new NotFoundError('User not found')
+      }
+      lookupId = target.id
+    }
     const user = await prisma.user.findUnique({
-      where: isHexPubkey ? { pubkey: userId.toLowerCase() } : { id: userId },
+      where: { id: lookupId },
       include: {
         lightningAddresses: {
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
@@ -65,8 +76,10 @@ export const GET = withErrorHandling(
 
     // Self can always read their own profile; otherwise require USERS_READ.
     // Check post-lookup so callers can't probe for pubkey existence via
-    // 403 vs 404.
-    const isSelf = user.pubkey === auth.pubkey
+    // 403 vs 404. Compared by account id so a secondary-pubkey session
+    // still counts as "me".
+    const me = await resolveAccountByPubkey(auth.pubkey)
+    const isSelf = me?.id === user.id
     if (!isSelf && !hasPermission(auth.role, Permission.USERS_READ)) {
       throw new AuthorizationError('Not authorized to view this user')
     }

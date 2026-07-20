@@ -116,6 +116,12 @@ export interface AuthContextValue extends AuthState {
    * user dismisses the dialog.
    */
   requestSigner: () => Promise<NostrSigner>
+  /**
+   * Re-mints the session token immediately so identity changes (new primary
+   * pubkey, account merge) reflect without re-login. Resolves false when the
+   * session has no way to re-mint (signer-less non-passkey session).
+   */
+  refreshSession: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -202,6 +208,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     jwt: null,
     loginMethod: null,
   })
+  // Latest in-memory signer, for callbacks that outlive their closure
+  // (refreshSession after an account mutation).
+  const signerRef = useRef<NostrSigner | null>(null)
 
   // Schedule token refresh before expiry
   const scheduleRefresh = useCallback(
@@ -364,10 +373,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [scheduleRefresh]
   )
 
+  // Re-mints the session token NOW and re-reads identity/role from it.
+  // Used after account mutations that change what the session presents —
+  // setting a new primary pubkey or merging accounts — so `pubkey`/`role`
+  // update without a logout. Passkey sessions go through the passkey
+  // refresh endpoint (keeps `amr`/`cred`); signer sessions re-run the
+  // NIP-98 exchange. Signer-less non-passkey sessions can't re-mint — the
+  // stale token stays (it still authenticates; identity updates on next
+  // login) and we return false.
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    const { jwt, loginMethod } = sessionRef.current
+    const signer = signerRef.current
+
+    let token: string | null = null
+    if (loginMethod === 'passkey' && jwt) {
+      token = (await refreshPasskeySession(jwt)).token
+    } else if (signer) {
+      token = (await exchangeNip98ForJwt(signer)).token
+    }
+    if (!token) return false
+
+    const validation = await validateJwt(token)
+    localStorage.setItem(JWT_STORAGE_KEY, token)
+    setState(prev => ({
+      ...prev,
+      jwt: token,
+      pubkey: validation.pubkey,
+      role: validation.role,
+      permissions: validation.permissions,
+    }))
+    scheduleRefresh(validation.expiresAt, signer)
+    return true
+  }, [scheduleRefresh])
+
   // Keep the refresh timer's session snapshot current.
   useEffect(() => {
     sessionRef.current = { jwt: state.jwt, loginMethod: state.loginMethod }
   }, [state.jwt, state.loginMethod])
+  useEffect(() => {
+    signerRef.current = state.signer
+  }, [state.signer])
 
   // Check for existing JWT on mount
   useEffect(() => {
@@ -585,6 +630,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthorized,
     apiClient,
     requestSigner,
+    refreshSession,
   }
 
   return (

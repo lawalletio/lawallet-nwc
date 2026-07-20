@@ -785,3 +785,157 @@ export const passkeySessionResponseSchema = z.object({
   custody: z.enum(['managed', 'linked'])
 })
 export type PasskeySessionResponse = z.infer<typeof passkeySessionResponseSchema>
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Account (multi-pubkey identities, linking & merge)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const hexPubkeySchema = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/, 'Must be a 64-char lowercase hex pubkey')
+
+export const nostrIdentitySummarySchema = z.object({
+  pubkey: hexPubkeySchema,
+  isPrimary: z.boolean(),
+  label: z.string().nullable(),
+  createdAt: z.string()
+})
+export type NostrIdentitySummary = z.infer<typeof nostrIdentitySummarySchema>
+
+export const accountSummaryResponseSchema = z.object({
+  userId: z.string(),
+  /** The account's public identity — mirrors the isPrimary NostrIdentity. */
+  primaryPubkey: hexPubkeySchema,
+  identities: z.array(nostrIdentitySummarySchema),
+  credentials: z.array(passkeyCredentialSummarySchema),
+  hasManagedKey: z.boolean(),
+  managedKeyExported: z.boolean()
+})
+export type AccountSummaryResponse = z.infer<typeof accountSummaryResponseSchema>
+
+export const accountLinkBeginRequestSchema = z.object({
+  method: z.enum(['nostr', 'passkey'])
+})
+export const accountLinkBeginResponseSchema = z.object({
+  /**
+   * Nostr: signed challenge token whose embedded nonce the other key must
+   * sign (NIP-42-style kind-22242 event with a `challenge` tag).
+   * Passkey: absent — the client uses POST /api/auth/passkey/authentication/options.
+   */
+  challenge: z.string().optional(),
+  /** The nonce to embed in the proof event (nostr method only). */
+  nonce: z.string().optional(),
+  expiresIn: z.number()
+})
+export type AccountLinkBeginResponse = z.infer<typeof accountLinkBeginResponseSchema>
+
+/** A signed Nostr event, as proof of key control (NIP-42 kind 22242). */
+export const signedNostrEventSchema = z
+  .object({
+    id: z.string(),
+    pubkey: hexPubkeySchema,
+    created_at: z.number(),
+    kind: z.number(),
+    tags: z.array(z.array(z.string())),
+    content: z.string(),
+    sig: z.string()
+  })
+  .passthrough()
+
+export const accountLinkVerifyRequestSchema = z.discriminatedUnion('method', [
+  z.object({
+    method: z.literal('nostr'),
+    challenge: z.string().min(16),
+    event: signedNostrEventSchema,
+    label: z.string().trim().min(1).max(64).optional()
+  }),
+  z.object({
+    method: z.literal('passkey'),
+    challenge: z.string().min(16).max(128),
+    credential: webauthnAuthenticationResponseSchema
+  })
+])
+export type AccountLinkVerifyRequest = z.infer<typeof accountLinkVerifyRequestSchema>
+
+export const accountMergeCollisionSchema = z.object({
+  kind: z.enum([
+    'managed-key-unexported',
+    'managed-key-dropped',
+    'alby-subaccount-dropped',
+    'wallet-name-renamed',
+    'primary-address-kept',
+    'default-wallet-kept'
+  ]),
+  detail: z.string()
+})
+
+export const accountResourceSummarySchema = z.object({
+  userId: z.string(),
+  primaryPubkey: hexPubkeySchema,
+  identities: z.array(
+    z.object({
+      pubkey: hexPubkeySchema,
+      isPrimary: z.boolean(),
+      label: z.string().nullable()
+    })
+  ),
+  passkeys: z.number(),
+  lightningAddresses: z.array(z.string()),
+  remoteWallets: z.number(),
+  cards: z.number(),
+  cardDesigns: z.number(),
+  invoices: z.number(),
+  hasAlbySubAccount: z.boolean(),
+  hasManagedKey: z.boolean(),
+  managedKeyExported: z.boolean()
+})
+
+/**
+ * Result of the link/verify proof. Either the pubkey was unowned and is now
+ * linked, or it belongs to another account and a merge ticket is returned
+ * for the preview/commit flow.
+ */
+export const accountLinkVerifyResponseSchema = z.object({
+  linked: z.boolean(),
+  identity: nostrIdentitySummarySchema.optional(),
+  mergeTicket: z.string().optional(),
+  otherAccount: accountResourceSummarySchema.optional()
+})
+export type AccountLinkVerifyResponse = z.infer<typeof accountLinkVerifyResponseSchema>
+
+export const accountMergePreviewRequestSchema = z.object({
+  mergeTicket: z.string().min(16)
+})
+export const accountMergePreviewResponseSchema = z.object({
+  survivor: accountResourceSummarySchema,
+  absorbed: accountResourceSummarySchema,
+  collisions: z.array(accountMergeCollisionSchema),
+  blocked: z.boolean()
+})
+export type AccountMergePreviewResponse = z.infer<
+  typeof accountMergePreviewResponseSchema
+>
+
+export const accountMergeRequestSchema = z.object({
+  mergeTicket: z.string().min(16),
+  mainPubkey: hexPubkeySchema
+})
+export const accountMergeResponseSchema = z.object({
+  survivorId: z.string(),
+  mainPubkey: hexPubkeySchema,
+  movedIdentities: z.number(),
+  movedPasskeys: z.number(),
+  movedAddresses: z.number(),
+  movedWallets: z.number()
+})
+export type AccountMergeResponse = z.infer<typeof accountMergeResponseSchema>
+
+export const updateIdentityRequestSchema = z
+  .object({
+    isPrimary: z.literal(true).optional(),
+    label: z.string().trim().min(1).max(64).nullable().optional()
+  })
+  .refine(d => d.isPrimary !== undefined || d.label !== undefined, {
+    message: 'Provide isPrimary or label'
+  })
+export type UpdateIdentityRequest = z.infer<typeof updateIdentityRequestSchema>

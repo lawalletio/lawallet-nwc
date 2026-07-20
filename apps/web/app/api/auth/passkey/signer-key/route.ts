@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getConfig } from '@/lib/config'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthenticationError,
@@ -68,12 +69,15 @@ export const GET = withErrorHandling(async (request: Request) => {
   })
 
   // The credential id in the token must still exist and belong to the same
-  // pubkey — passkey deletion revokes key access immediately.
+  // account — passkey deletion revokes key access immediately. Ownership is
+  // compared by account id so a session minted for a secondary linked pubkey
+  // still reaches its own credential.
   const credential = await prisma.passkeyCredential.findUnique({
     where: { id: payload.cred },
     include: { user: true }
   })
-  if (!credential || credential.user.pubkey !== payload.pubkey) {
+  const account = await resolveAccountByPubkey(payload.pubkey)
+  if (!credential || !account || credential.userId !== account.id) {
     throw new AuthenticationError('Invalid session for key access')
   }
 

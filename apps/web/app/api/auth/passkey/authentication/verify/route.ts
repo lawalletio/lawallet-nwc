@@ -136,6 +136,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   const custody = managed ? 'managed' : 'linked'
 
   const token = mintPasskeySessionJwt({
+    userId: credential.userId,
     pubkey: credential.user.pubkey,
     role,
     permissions,

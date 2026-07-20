@@ -83,6 +83,11 @@ describe('GET /api/users/[userId]/cards', () => {
     const otherUser = createUserFixture({ pubkey: 'b'.repeat(64) })
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(otherUser as any)
+    // The caller's pubkey resolves to their OWN account (distinct from the
+    // target) via the NostrIdentity seam.
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+      user: { id: 'caller-account', pubkey: mockPubkey, role: 'USER' },
+    } as any)
 
     const req = createNextRequest(`/api/users/${otherUser.id}/cards`)
     const res = await GET(req, createParamsPromise({ userId: otherUser.id }))

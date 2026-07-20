@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 import { toCredentialSummary } from '@/lib/auth/passkey'
@@ -20,10 +21,7 @@ export const dynamic = 'force-dynamic'
 export const GET = withErrorHandling(async (request: Request) => {
   const auth = await authenticate(request)
 
-  const user = await prisma.user.findUnique({
-    where: { pubkey: auth.pubkey },
-    select: { id: true }
-  })
+  const user = await resolveAccountByPubkey(auth.pubkey)
   if (!user) throw new NotFoundError('User not found')
 
   const [credentials, managed] = await Promise.all([

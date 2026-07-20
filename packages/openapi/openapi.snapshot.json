@@ -950,6 +950,224 @@
         ],
         "description": "Rename payload. Only the label is mutable — key material, counter, and device metadata are fixed at registration."
       },
+      "AccountLinkBeginRequest": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "nostr",
+              "passkey"
+            ]
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "description": "Which proof mechanism the client will use to demonstrate control of the other key: `nostr` (NIP-42-style signed event) or `passkey` (WebAuthn assertion)."
+      },
+      "AccountLinkVerifyRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "nostr"
+                ]
+              },
+              "challenge": {
+                "type": "string",
+                "minLength": 16
+              },
+              "event": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "pubkey": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "created_at": {
+                    "type": "number"
+                  },
+                  "kind": {
+                    "type": "number"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "content": {
+                    "type": "string"
+                  },
+                  "sig": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "pubkey",
+                  "created_at",
+                  "kind",
+                  "tags",
+                  "content",
+                  "sig"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "method",
+              "challenge",
+              "event"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "passkey"
+                ]
+              },
+              "challenge": {
+                "type": "string",
+                "minLength": 16,
+                "maxLength": 128
+              },
+              "credential": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "rawId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "public-key"
+                    ]
+                  },
+                  "response": {
+                    "type": "object",
+                    "properties": {
+                      "clientDataJSON": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "authenticatorData": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "signature": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "userHandle": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "clientDataJSON",
+                      "authenticatorData",
+                      "signature"
+                    ]
+                  },
+                  "clientExtensionResults": {
+                    "type": "object",
+                    "additionalProperties": {},
+                    "default": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "rawId",
+                  "type",
+                  "response"
+                ]
+              }
+            },
+            "required": [
+              "method",
+              "challenge",
+              "credential"
+            ]
+          }
+        ],
+        "description": "Proof of control of another Nostr key, discriminated by `method`. `nostr`: the challenge from link/begin plus a kind-22242 event signed by the key being linked (nonce echoed in a `challenge` tag). `passkey`: a LOGIN-flow WebAuthn assertion — challenge from `POST /api/auth/passkey/authentication/options` — proving control of a credential and thereby of the account that owns it."
+      },
+      "AccountMergePreviewRequest": {
+        "type": "object",
+        "properties": {
+          "mergeTicket": {
+            "type": "string",
+            "minLength": 16
+          }
+        },
+        "required": [
+          "mergeTicket"
+        ],
+        "description": "The short-lived merge ticket returned by link/verify. Possession of the ticket IS the proof that the caller controls both accounts."
+      },
+      "AccountMergeRequest": {
+        "type": "object",
+        "properties": {
+          "mergeTicket": {
+            "type": "string",
+            "minLength": 16
+          },
+          "mainPubkey": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "mergeTicket",
+          "mainPubkey"
+        ],
+        "description": "Merge commit payload: the merge ticket from link/verify plus `mainPubkey`, which selects which of the combined identities becomes the surviving account’s primary."
+      },
+      "UpdateIdentityRequest": {
+        "type": "object",
+        "properties": {
+          "isPrimary": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "description": "Identity update. Provide at least one field, otherwise the route returns 400: `label` renames (null clears it), `isPrimary: true` promotes the identity to primary."
+      },
       "SuccessEnvelope": {
         "type": "object",
         "properties": {
@@ -1240,6 +1458,522 @@
           "managedKeyExported"
         ],
         "description": "The caller’s passkeys plus `hasManagedKey`: true when the server custodies this account’s Nostr key (passkey-native signup), false for linked accounts."
+      },
+      "NostrIdentitySummary": {
+        "type": "object",
+        "properties": {
+          "pubkey": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "isPrimary": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pubkey",
+          "isPrimary",
+          "label",
+          "createdAt"
+        ],
+        "description": "One Nostr identity linked to an account. Exactly one identity per account is primary — it mirrors `User.pubkey` and is the account’s public identity."
+      },
+      "AccountSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "primaryPubkey": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "identities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pubkey": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "isPrimary": {
+                  "type": "boolean"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pubkey",
+                "isPrimary",
+                "label",
+                "createdAt"
+              ]
+            }
+          },
+          "credentials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "deviceType": {
+                  "type": "string"
+                },
+                "backedUp": {
+                  "type": "boolean"
+                },
+                "aaguid": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "rpId": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "lastUsedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "deviceType",
+                "backedUp",
+                "aaguid",
+                "rpId",
+                "createdAt",
+                "lastUsedAt"
+              ]
+            }
+          },
+          "hasManagedKey": {
+            "type": "boolean"
+          },
+          "managedKeyExported": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "userId",
+          "primaryPubkey",
+          "identities",
+          "credentials",
+          "hasManagedKey",
+          "managedKeyExported"
+        ],
+        "description": "The caller’s own account: every linked Nostr identity (one primary), every passkey credential, and the managed-key custody state."
+      },
+      "AccountLinkBeginResponse": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "expiresIn"
+        ],
+        "description": "Link-proof bootstrap. `nostr` method: `challenge` (opaque token to echo back at verify) + `nonce` (to embed in the signed kind-22242 event). `passkey` method: both fields are absent — the client uses the standard passkey authentication/options endpoint instead. `expiresIn` is seconds."
+      },
+      "AccountLinkVerifyResponse": {
+        "type": "object",
+        "properties": {
+          "linked": {
+            "type": "boolean"
+          },
+          "identity": {
+            "type": "object",
+            "properties": {
+              "pubkey": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "isPrimary": {
+                "type": "boolean"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "createdAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pubkey",
+              "isPrimary",
+              "label",
+              "createdAt"
+            ]
+          },
+          "mergeTicket": {
+            "type": "string"
+          },
+          "otherAccount": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "primaryPubkey": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "identities": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pubkey": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "isPrimary": {
+                      "type": "boolean"
+                    },
+                    "label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "pubkey",
+                    "isPrimary",
+                    "label"
+                  ]
+                }
+              },
+              "passkeys": {
+                "type": "number"
+              },
+              "lightningAddresses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "remoteWallets": {
+                "type": "number"
+              },
+              "cards": {
+                "type": "number"
+              },
+              "cardDesigns": {
+                "type": "number"
+              },
+              "invoices": {
+                "type": "number"
+              },
+              "hasAlbySubAccount": {
+                "type": "boolean"
+              },
+              "hasManagedKey": {
+                "type": "boolean"
+              },
+              "managedKeyExported": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "userId",
+              "primaryPubkey",
+              "identities",
+              "passkeys",
+              "lightningAddresses",
+              "remoteWallets",
+              "cards",
+              "cardDesigns",
+              "invoices",
+              "hasAlbySubAccount",
+              "hasManagedKey",
+              "managedKeyExported"
+            ]
+          }
+        },
+        "required": [
+          "linked"
+        ],
+        "description": "Outcome of a link proof. `linked: true` + `identity` when the pubkey was unowned and is now attached as a secondary identity. `linked: false` + `mergeTicket` + `otherAccount` when the key belongs to another account — nothing was written; the ticket gates the merge preview/commit flow."
+      },
+      "AccountMergePreviewResponse": {
+        "type": "object",
+        "properties": {
+          "survivor": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "primaryPubkey": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "identities": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pubkey": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "isPrimary": {
+                      "type": "boolean"
+                    },
+                    "label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "pubkey",
+                    "isPrimary",
+                    "label"
+                  ]
+                }
+              },
+              "passkeys": {
+                "type": "number"
+              },
+              "lightningAddresses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "remoteWallets": {
+                "type": "number"
+              },
+              "cards": {
+                "type": "number"
+              },
+              "cardDesigns": {
+                "type": "number"
+              },
+              "invoices": {
+                "type": "number"
+              },
+              "hasAlbySubAccount": {
+                "type": "boolean"
+              },
+              "hasManagedKey": {
+                "type": "boolean"
+              },
+              "managedKeyExported": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "userId",
+              "primaryPubkey",
+              "identities",
+              "passkeys",
+              "lightningAddresses",
+              "remoteWallets",
+              "cards",
+              "cardDesigns",
+              "invoices",
+              "hasAlbySubAccount",
+              "hasManagedKey",
+              "managedKeyExported"
+            ]
+          },
+          "absorbed": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "primaryPubkey": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "identities": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "pubkey": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "isPrimary": {
+                      "type": "boolean"
+                    },
+                    "label": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "pubkey",
+                    "isPrimary",
+                    "label"
+                  ]
+                }
+              },
+              "passkeys": {
+                "type": "number"
+              },
+              "lightningAddresses": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "remoteWallets": {
+                "type": "number"
+              },
+              "cards": {
+                "type": "number"
+              },
+              "cardDesigns": {
+                "type": "number"
+              },
+              "invoices": {
+                "type": "number"
+              },
+              "hasAlbySubAccount": {
+                "type": "boolean"
+              },
+              "hasManagedKey": {
+                "type": "boolean"
+              },
+              "managedKeyExported": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "userId",
+              "primaryPubkey",
+              "identities",
+              "passkeys",
+              "lightningAddresses",
+              "remoteWallets",
+              "cards",
+              "cardDesigns",
+              "invoices",
+              "hasAlbySubAccount",
+              "hasManagedKey",
+              "managedKeyExported"
+            ]
+          },
+          "collisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "managed-key-unexported",
+                    "managed-key-dropped",
+                    "alby-subaccount-dropped",
+                    "wallet-name-renamed",
+                    "primary-address-kept",
+                    "default-wallet-kept"
+                  ]
+                },
+                "detail": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "detail"
+              ]
+            }
+          },
+          "blocked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "survivor",
+          "absorbed",
+          "collisions",
+          "blocked"
+        ],
+        "description": "Read-only merge dry run: both accounts’ resource summaries, the collisions the merge would reconcile, and `blocked` — true while the absorbed account custodies a never-exported key."
+      },
+      "AccountMergeResponse": {
+        "type": "object",
+        "properties": {
+          "survivorId": {
+            "type": "string"
+          },
+          "mainPubkey": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "movedIdentities": {
+            "type": "number"
+          },
+          "movedPasskeys": {
+            "type": "number"
+          },
+          "movedAddresses": {
+            "type": "number"
+          },
+          "movedWallets": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "survivorId",
+          "mainPubkey",
+          "movedIdentities",
+          "movedPasskeys",
+          "movedAddresses",
+          "movedWallets"
+        ],
+        "description": "Merge result: the surviving account id, the chosen primary pubkey, and counts of the resources re-parented from the absorbed account."
       },
       "Lud21Verify": {
         "type": "object",
@@ -2849,6 +3583,742 @@
           },
           "401": {
             "description": "Invalid or expired token, a non-passkey session, a revoked credential, or a refresh chain past the 30-day cap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Get the caller’s account summary.",
+        "description": "The caller’s own account: every linked Nostr identity (exactly one is primary and mirrors the account’s public pubkey), every passkey credential, and the managed-key custody state. Powers the Account Settings page.",
+        "operationId": "account.get",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller’s account summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No account exists for the authenticated pubkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/identities/link/begin": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Start proving control of another Nostr key.",
+        "description": "First leg of linking another Nostr key (or merging another account) into the caller’s account. `method: \"nostr\"` returns a challenge token plus a nonce; the other key signs a NIP-42-style kind-22242 event carrying the nonce in a `challenge` tag, and the pair goes to `link/verify`. `method: \"passkey\"` needs no server state here — the client obtains a standard LOGIN assertion via `POST /api/auth/passkey/authentication/options` and submits it to `link/verify` directly (single-use challenge semantics included), so only `expiresIn` is returned.",
+        "operationId": "account.link.begin",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountLinkBeginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Proof bootstrap. `challenge` + `nonce` for the nostr method; both absent for passkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountLinkBeginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No account exists for the authenticated pubkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/identities/link/verify": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Verify the proof and link or stage a merge.",
+        "description": "Second leg of the link/merge flow. The caller proves control of another key — a kind-22242 event signed by it (nostr) or a WebAuthn assertion for a stored credential (passkey) — and the outcome depends on where that key lives. Unowned pubkey: attached to the caller’s account as a secondary identity (`linked: true` + `identity`). Owned by another account: nothing is written; a short-lived merge ticket bound to the (caller, other account) pair is returned together with the other account’s resource summary for the side-by-side preview (`linked: false` + `mergeTicket` + `otherAccount`). Already on the caller’s account: 409.",
+        "operationId": "account.link.verify",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountLinkVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Proof accepted — identity linked, or a merge ticket staged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountLinkVerifyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid authentication, or the proof failed: expired or burned challenge, an event that does not answer it, a bad signature, or an unknown/invalid WebAuthn assertion.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No account exists for the authenticated pubkey.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This key is already linked to the caller’s account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/merge/preview": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Preview an account merge (dry run).",
+        "description": "Read-only dry run of a merge: both accounts’ resource summaries, the collisions the merge would reconcile, and whether it is blocked because the absorbed account custodies a never-exported key. Requires a valid merge ticket from `link/verify` — possession of the ticket IS the proof that the caller controls both accounts. Nothing is written.",
+        "operationId": "account.merge.preview",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountMergePreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Merge dry-run summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountMergePreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid authentication, or the merge ticket is invalid, expired, or bound to a different account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No account exists for the authenticated pubkey, or one side of the merge no longer exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/merge": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Commit an account merge.",
+        "description": "Destructive commit. The merge ticket (from `link/verify`) proves the caller controls both accounts; `mainPubkey` selects which of the combined identities becomes primary. The absorbed account’s resources are re-parented onto the caller’s account inside one transaction and its User row is deleted. Refused with 409 while the absorbed account custodies a never-exported key — export it first. The caller’s session stays valid (its JWT pubkey remains one of the merged identities), but clients should refresh their token so the session presents the new primary.",
+        "operationId": "account.merge",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountMergeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Merge committed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountMergeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing/invalid authentication, or the merge ticket is invalid, expired, or bound to a different account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No account exists for the authenticated pubkey, or one side of the merge no longer exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The absorbed account custodies a never-exported Nostr key — export it via the passkey nsec-export flow before merging.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/account/identities/{pubkey}": {
+      "patch": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Rename an identity or promote it to primary.",
+        "description": "Ownership-scoped: an identity that does not exist or belongs to another account returns 404 (never 403) so pubkeys cannot be enumerated. `label` renames (null clears it); `isPrimary: true` promotes the identity, mirroring the new primary onto the account’s public pubkey — the caller should refresh its session token afterwards so the JWT presents the new primary.",
+        "operationId": "account.identities.update",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "The linked identity’s Nostr pubkey (64-char lowercase hex)."
+            },
+            "required": true,
+            "name": "pubkey",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIdentityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NostrIdentitySummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Identity not found (or not owned by the caller).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "x-required-role": "USER",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Unlink a secondary identity.",
+        "description": "Detaches a SECONDARY identity from the caller’s account; the pubkey becomes a bare key again and can be re-linked later. The primary identity cannot be unlinked (409 — promote another identity first) and neither can the last remaining identity (409). Ownership-scoped (404, never 403).",
+        "operationId": "account.identities.delete",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "The linked identity’s Nostr pubkey (64-char lowercase hex)."
+            },
+            "required": true,
+            "name": "pubkey",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Identity unlinked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "pubkey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "pubkey"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Identity not found (or not owned by the caller).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The identity is the account’s primary (promote another identity first) or its last remaining identity.",
             "content": {
               "application/json": {
                 "schema": {

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { getSettings } from '@/lib/settings'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
@@ -12,24 +13,27 @@ export const dynamic = 'force-dynamic'
 export const GET = withErrorHandling(async (request: Request) => {
   const { pubkey: authenticatedPubkey } = await authenticate(request)
 
-  const existingUser = await prisma.user.findUnique({
-    where: {
-      pubkey: authenticatedPubkey
-    },
-    include: {
-      // The user's "primary" address (at most one). Pull its bound
-      // RemoteWallet so we can run `resolveWalletRoute` on it below — the
-      // dashboard needs the same resolution an address-detail page does,
-      // since balance is only meaningful when the primary address is
-      // actually routable (CUSTOM_NWC / DEFAULT_NWC with a wallet).
-      lightningAddresses: {
-        where: { isPrimary: true },
-        take: 1,
-        include: { remoteWallet: true }
-      },
-      albySubAccount: true
-    }
-  })
+  // Any linked pubkey (primary or secondary identity) resolves to the same
+  // account; a truly unknown pubkey materialises a fresh one below.
+  const account = await resolveAccountByPubkey(authenticatedPubkey)
+  const existingUser = account
+    ? await prisma.user.findUnique({
+        where: { id: account.id },
+        include: {
+          // The user's "primary" address (at most one). Pull its bound
+          // RemoteWallet so we can run `resolveWalletRoute` on it below — the
+          // dashboard needs the same resolution an address-detail page does,
+          // since balance is only meaningful when the primary address is
+          // actually routable (CUSTOM_NWC / DEFAULT_NWC with a wallet).
+          lightningAddresses: {
+            where: { isPrimary: true },
+            take: 1,
+            include: { remoteWallet: true }
+          },
+          albySubAccount: true
+        }
+      })
+    : null
 
   const user = existingUser || (await createNewUser(authenticatedPubkey))
 

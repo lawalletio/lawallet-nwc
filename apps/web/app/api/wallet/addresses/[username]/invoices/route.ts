@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { AuthenticationError, NotFoundError } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { validateParams } from '@/lib/validation/middleware'
 import { walletAddressUsernameParam } from '@/lib/validation/schemas'
 import type { InvoiceMetadata } from '@/lib/invoice-utils'
@@ -51,10 +52,7 @@ export const GET = withErrorHandling(
     const { pubkey } = await authenticate(request)
     const { username } = validateParams(await params, walletAddressUsernameParam)
 
-    const user = await prisma.user.findUnique({
-      where: { pubkey },
-      select: { id: true },
-    })
+    const user = await resolveAccountByPubkey(pubkey)
     if (!user) throw new AuthenticationError('User not found')
 
     const address = await prisma.lightningAddress.findUnique({

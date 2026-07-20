@@ -255,7 +255,9 @@ describe('POST /api/auth/passkey/authentication/verify', () => {
     // The session JWT carries the passkey-specific claims.
     const payload = decodeJwtPayload(body.token)
     expect(payload.pubkey).toBe(USER_PUBKEY)
-    expect(payload.userId).toBe(USER_PUBKEY)
+    // Multi-pubkey accounts: the session's userId claim is the ACCOUNT id,
+    // not the pubkey.
+    expect(payload.userId).toBe('user_1')
     expect(payload.role).toBe(Role.USER)
     expect(payload.amr).toEqual(['webauthn'])
     expect(payload.cred).toBe(CRED_ID)
