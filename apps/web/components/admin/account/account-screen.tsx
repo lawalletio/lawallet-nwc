@@ -79,7 +79,6 @@ import type { NostrIdentitySummary } from '@/lib/validation/schemas'
 export function AccountScreen() {
   const {
     identities,
-    hasManagedKey,
     loading,
     error,
     refetch,
@@ -201,33 +200,6 @@ export function AccountScreen() {
                 <PasskeysSection onExportRequest={() => setExportOpen(true)} />
               </CardContent>
             </Card>
-
-            {/* ── Secret key (managed accounts only) ───────────────────── */}
-            {hasManagedKey && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Secret key</CardTitle>
-                  <CardDescription>
-                    Your Nostr secret key is held for you on this server,
-                    unlocked only by your passkeys.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-                  <p className="text-sm text-muted-foreground">
-                    Export it to take self-custody or to use this identity in
-                    other Nostr apps.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setExportOpen(true)}
-                  >
-                    <KeyRound className="size-4" />
-                    Export secret key
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
 
             {/* ── Link / merge another account ─────────────────────────── */}
             <Card>
