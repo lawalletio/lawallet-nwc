@@ -87,6 +87,9 @@ services:
       - '${DOCS_PORT:-3000}:${DOCS_PORT:-3000}'
     environment:
       DOCS_PORT: ${DOCS_PORT:-3000}
+      # The docs start command reads PORT; keep it aligned with the published
+      # Compose port even when a deployment platform defines PORT globally.
+      PORT: ${DOCS_PORT:-3000}
       DOCS_HOST: 0.0.0.0
       NODE_ENV: ${NODE_ENV:-production}
     restart: unless-stopped
