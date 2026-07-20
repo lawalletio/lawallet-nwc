@@ -1140,6 +1140,17 @@
           "mainPubkey": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
+          },
+          "resolutions": {
+            "type": "object",
+            "properties": {
+              "primaryAddressUsername": {
+                "type": "string"
+              },
+              "defaultWalletId": {
+                "type": "string"
+              }
+            }
           }
         },
         "required": [
@@ -1703,8 +1714,36 @@
                   "type": "string"
                 }
               },
+              "primaryAddress": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "remoteWallets": {
                 "type": "number"
+              },
+              "wallets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "isDefault": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "isDefault"
+                  ]
+                }
               },
               "cards": {
                 "type": "number"
@@ -1714,6 +1753,29 @@
               },
               "invoices": {
                 "type": "number"
+              },
+              "relays": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "profile": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "picture": {
+                    "type": "string"
+                  }
+                }
               },
               "hasAlbySubAccount": {
                 "type": "boolean"
@@ -1731,10 +1793,14 @@
               "identities",
               "passkeys",
               "lightningAddresses",
+              "primaryAddress",
               "remoteWallets",
+              "wallets",
               "cards",
               "cardDesigns",
               "invoices",
+              "relays",
+              "profile",
               "hasAlbySubAccount",
               "hasManagedKey",
               "managedKeyExported"
@@ -1794,8 +1860,36 @@
                   "type": "string"
                 }
               },
+              "primaryAddress": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "remoteWallets": {
                 "type": "number"
+              },
+              "wallets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "isDefault": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "isDefault"
+                  ]
+                }
               },
               "cards": {
                 "type": "number"
@@ -1805,6 +1899,29 @@
               },
               "invoices": {
                 "type": "number"
+              },
+              "relays": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "profile": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "picture": {
+                    "type": "string"
+                  }
+                }
               },
               "hasAlbySubAccount": {
                 "type": "boolean"
@@ -1822,10 +1939,14 @@
               "identities",
               "passkeys",
               "lightningAddresses",
+              "primaryAddress",
               "remoteWallets",
+              "wallets",
               "cards",
               "cardDesigns",
               "invoices",
+              "relays",
+              "profile",
               "hasAlbySubAccount",
               "hasManagedKey",
               "managedKeyExported"
@@ -1876,8 +1997,36 @@
                   "type": "string"
                 }
               },
+              "primaryAddress": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "remoteWallets": {
                 "type": "number"
+              },
+              "wallets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "isDefault": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "isDefault"
+                  ]
+                }
               },
               "cards": {
                 "type": "number"
@@ -1887,6 +2036,29 @@
               },
               "invoices": {
                 "type": "number"
+              },
+              "relays": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "profile": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "picture": {
+                    "type": "string"
+                  }
+                }
               },
               "hasAlbySubAccount": {
                 "type": "boolean"
@@ -1904,10 +2076,14 @@
               "identities",
               "passkeys",
               "lightningAddresses",
+              "primaryAddress",
               "remoteWallets",
+              "wallets",
               "cards",
               "cardDesigns",
               "invoices",
+              "relays",
+              "profile",
               "hasAlbySubAccount",
               "hasManagedKey",
               "managedKeyExported"
@@ -1972,6 +2148,9 @@
           },
           "movedWallets": {
             "type": "number"
+          },
+          "mergedRelays": {
+            "type": "number"
           }
         },
         "required": [
@@ -1980,7 +2159,8 @@
           "movedIdentities",
           "movedPasskeys",
           "movedAddresses",
-          "movedWallets"
+          "movedWallets",
+          "mergedRelays"
         ],
         "description": "Merge result: the surviving account id, the chosen primary pubkey, and counts of the resources re-parented from the absorbed account."
       },

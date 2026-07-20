@@ -96,13 +96,22 @@ export function fetchMergePreview(
   })
 }
 
-/** Destructive merge commit. `mainPubkey` picks the surviving primary. */
+/**
+ * Destructive merge commit. `mainPubkey` picks the surviving primary;
+ * `resolutions` carries the wizard's per-conflict answers (omitted fields
+ * fall back to survivor-wins defaults server-side).
+ */
 export function commitMerge(
   token: string,
   mergeTicket: string,
-  mainPubkey: string
+  mainPubkey: string,
+  resolutions?: { primaryAddressUsername?: string; defaultWalletId?: string }
 ): Promise<AccountMergeResponse> {
   return request<AccountMergeResponse>('/api/account/merge', token, {
-    body: { mergeTicket, mainPubkey }
+    body: {
+      mergeTicket,
+      mainPubkey,
+      ...(resolutions ? { resolutions } : {})
+    }
   })
 }

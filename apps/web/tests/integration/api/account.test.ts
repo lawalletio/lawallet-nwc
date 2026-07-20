@@ -415,7 +415,7 @@ describe('merge preview + commit', () => {
     expect(vi.mocked(previewMerge)).not.toHaveBeenCalled()
   })
 
-  it('commit calls the engine with the selected main pubkey', async () => {
+  it('commit calls the engine with the selected main pubkey and resolutions', async () => {
     authedAs()
     const ticket = mintMergeTicket({
       survivorId: 'user-a',
@@ -429,12 +429,20 @@ describe('merge preview + commit', () => {
       movedPasskeys: 0,
       movedAddresses: 2,
       movedWallets: 1,
+      mergedRelays: 3,
     } as any)
 
     const response = await mergeCommit(
       createNextRequest('/api/account/merge', {
         method: 'POST',
-        body: { mergeTicket: ticket, mainPubkey: 'c'.repeat(64) },
+        body: {
+          mergeTicket: ticket,
+          mainPubkey: 'c'.repeat(64),
+          resolutions: {
+            primaryAddressUsername: 'bob',
+            defaultWalletId: 'w-2',
+          },
+        },
       })
     )
     expect(response.status).toBe(200)
@@ -442,6 +450,7 @@ describe('merge preview + commit', () => {
       survivorId: 'user-a',
       absorbedId: 'user-b',
       mainPubkey: 'c'.repeat(64),
+      resolutions: { primaryAddressUsername: 'bob', defaultWalletId: 'w-2' },
     })
   })
 })

@@ -2,20 +2,37 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@/lib/generated/prisma'
 import { ConflictError, NotFoundError, ValidationError } from '@/types/server/errors'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import { parseStoredRelays } from '@/lib/nostr/relay-list'
+import { resolveProfiles } from '@/lib/nostr/profile-cache'
 
 type Tx = Prisma.TransactionClient
 
-/** Per-account resource counts shown in the side-by-side merge preview. */
+/**
+ * Per-account snapshot shown in the side-by-side merge preview, with enough
+ * detail for the resolve step's conflict choices (primary address, default
+ * wallet, profile fields, relays).
+ */
 export interface AccountResourceSummary {
   userId: string
   primaryPubkey: string
   identities: { pubkey: string; isPrimary: boolean; label: string | null }[]
   passkeys: number
   lightningAddresses: string[]
+  /** Username of the primary lightning address, when one exists. */
+  primaryAddress: string | null
   remoteWallets: number
+  /** Full wallet list so the wizard can offer a default-wallet choice. */
+  wallets: { id: string; name: string; isDefault: boolean }[]
   cards: number
   cardDesigns: number
   invoices: number
+  /** NIP-65 relay list stored for this account (empty = operator defaults). */
+  relays: string[]
+  /**
+   * Cached kind-0 profile of the account's primary pubkey, when resolved.
+   * Lets the wizard offer per-field (avatar / display name) choices.
+   */
+  profile: { name?: string; displayName?: string; picture?: string } | null
   hasAlbySubAccount: boolean
   hasManagedKey: boolean
   managedKeyExported: boolean
@@ -46,17 +63,21 @@ async function summarizeAccount(userId: string): Promise<AccountResourceSummary>
     select: {
       id: true,
       pubkey: true,
+      relays: true,
       nostrIdentities: {
         select: { pubkey: true, isPrimary: true, label: true },
         orderBy: { createdAt: 'asc' }
       },
       managedNostrKey: { select: { exportedAt: true } },
       albySubAccount: { select: { appId: true } },
-      lightningAddresses: { select: { username: true } },
+      lightningAddresses: { select: { username: true, isPrimary: true } },
+      remoteWallets: {
+        select: { id: true, name: true, isDefault: true },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }]
+      },
       _count: {
         select: {
           passkeyCredentials: true,
-          remoteWallets: true,
           cards: true,
           cardDesigns: true,
           invoices: true
@@ -66,16 +87,37 @@ async function summarizeAccount(userId: string): Promise<AccountResourceSummary>
   })
   if (!user) throw new NotFoundError('Account not found')
 
+  // Best-effort profile lookup for the primary pubkey (serves the wizard's
+  // avatar / display-name choices). A relay hiccup must never break preview.
+  let profile: AccountResourceSummary['profile'] = null
+  try {
+    const [resolved] = await resolveProfiles([user.pubkey])
+    if (resolved) {
+      profile = {
+        name: resolved.name,
+        displayName: resolved.displayName,
+        picture: resolved.picture
+      }
+    }
+  } catch {
+    profile = null
+  }
+
   return {
     userId: user.id,
     primaryPubkey: user.pubkey,
     identities: user.nostrIdentities,
     passkeys: user._count.passkeyCredentials,
     lightningAddresses: user.lightningAddresses.map(a => a.username),
-    remoteWallets: user._count.remoteWallets,
+    primaryAddress:
+      user.lightningAddresses.find(a => a.isPrimary)?.username ?? null,
+    remoteWallets: user.remoteWallets.length,
+    wallets: user.remoteWallets,
     cards: user._count.cards,
     cardDesigns: user._count.cardDesigns,
     invoices: user._count.invoices,
+    relays: parseStoredRelays(user.relays),
+    profile,
     hasAlbySubAccount: !!user.albySubAccount,
     hasManagedKey: !!user.managedNostrKey,
     managedKeyExported: !!user.managedNostrKey?.exportedAt
@@ -125,19 +167,21 @@ export async function previewMerge(
     })
   }
 
-  const survivorHasPrimaryAddress = survivor.lightningAddresses.length > 0
-  if (survivorHasPrimaryAddress && absorbed.lightningAddresses.length > 0) {
+  if (survivor.primaryAddress && absorbed.primaryAddress) {
     collisions.push({
       kind: 'primary-address-kept',
       detail:
-        "Your current primary lightning address stays primary; the other account's addresses join as secondaries."
+        "Both accounts have a primary lightning address — you'll choose which one stays primary."
     })
   }
-  if (survivor.remoteWallets > 0 && absorbed.remoteWallets > 0) {
+  if (
+    survivor.wallets.some(w => w.isDefault) &&
+    absorbed.wallets.some(w => w.isDefault)
+  ) {
     collisions.push({
       kind: 'default-wallet-kept',
       detail:
-        "Your current default wallet stays default; identically-named incoming wallets are renamed with a suffix."
+        "Both accounts have a default wallet — you'll choose which one stays default. Identically-named incoming wallets are renamed with a suffix."
     })
   }
 
@@ -183,15 +227,32 @@ export interface MergeResult {
   movedPasskeys: number
   movedAddresses: number
   movedWallets: number
+  /** Size of the merged (unioned) relay list on the surviving account. */
+  mergedRelays: number
+}
+
+/**
+ * User-selected answers to merge conflicts, gathered by the wizard's resolve
+ * step. Everything is optional — omitted fields fall back to the engine's
+ * survivor-wins defaults.
+ */
+export interface MergeResolutions {
+  /** Username (from either account) that stays the primary lightning address. */
+  primaryAddressUsername?: string
+  /** Wallet id (from either account) that stays the default wallet. */
+  defaultWalletId?: string
 }
 
 /**
  * Merges account `absorbedId` into `survivorId` inside one transaction:
  * every resource is re-parented onto the survivor, per-user uniqueness
- * collisions are reconciled (primary address / default wallet keep the
- * survivor's, colliding wallet names get a suffix, 1:1 rows keep the
- * survivor's), the absorbed User row is deleted, and `mainPubkey` — any of
- * the combined identities — becomes the primary.
+ * collisions are reconciled, the absorbed User row is deleted, and
+ * `mainPubkey` — any of the combined identities — becomes the primary.
+ * Relay lists are always unioned onto the survivor.
+ *
+ * Conflict outcomes honor {@link MergeResolutions} when provided (which
+ * address stays primary, which wallet stays default); otherwise the
+ * survivor's win. Colliding wallet names get a suffix either way.
  *
  * Refused (409) when the absorbed account custodies a never-exported key:
  * deleting it would permanently destroy a secret only the server holds.
@@ -200,8 +261,9 @@ export async function mergeAccounts(params: {
   survivorId: string
   absorbedId: string
   mainPubkey: string
+  resolutions?: MergeResolutions
 }): Promise<MergeResult> {
-  const { survivorId, absorbedId, mainPubkey } = params
+  const { survivorId, absorbedId, mainPubkey, resolutions = {} } = params
   if (survivorId === absorbedId) {
     throw new ValidationError('Cannot merge an account with itself')
   }
@@ -213,10 +275,11 @@ export async function mergeAccounts(params: {
         select: {
           id: true,
           pubkey: true,
+          relays: true,
           managedNostrKey: { select: { exportedAt: true } },
           albySubAccount: { select: { appId: true } },
-          lightningAddresses: { where: { isPrimary: true }, select: { username: true } },
-          remoteWallets: { where: { isDefault: true }, select: { id: true } }
+          lightningAddresses: { select: { username: true, isPrimary: true } },
+          remoteWallets: { select: { id: true, isDefault: true } }
         }
       }),
       tx.user.findUnique({
@@ -224,9 +287,11 @@ export async function mergeAccounts(params: {
         select: {
           id: true,
           pubkey: true,
+          relays: true,
           managedNostrKey: { select: { exportedAt: true } },
           albySubAccount: { select: { appId: true } },
           nostrIdentities: { select: { pubkey: true } },
+          lightningAddresses: { select: { username: true } },
           remoteWallets: { select: { id: true, name: true } }
         }
       })
@@ -254,6 +319,32 @@ export async function mergeAccounts(params: {
       )
     }
 
+    // Resolutions may only reference resources of the two merging accounts.
+    const combinedUsernames = new Set([
+      ...survivor.lightningAddresses.map(a => a.username),
+      ...absorbed.lightningAddresses.map(a => a.username)
+    ])
+    if (
+      resolutions.primaryAddressUsername &&
+      !combinedUsernames.has(resolutions.primaryAddressUsername)
+    ) {
+      throw new ValidationError(
+        'primaryAddressUsername must belong to one of the merged accounts'
+      )
+    }
+    const combinedWalletIds = new Set([
+      ...survivor.remoteWallets.map(w => w.id),
+      ...absorbed.remoteWallets.map(w => w.id)
+    ])
+    if (
+      resolutions.defaultWalletId &&
+      !combinedWalletIds.has(resolutions.defaultWalletId)
+    ) {
+      throw new ValidationError(
+        'defaultWalletId must belong to one of the merged accounts'
+      )
+    }
+
     // ── 1:1 rows first (survivor's always win) ────────────────────────────
     if (absorbed.managedNostrKey) {
       // Always dropped, never moved: the export guard above proves the user
@@ -275,15 +366,22 @@ export async function mergeAccounts(params: {
       }
     }
 
-    // ── Partial-unique flags: survivor keeps primacy ─────────────────────
-    const survivorHasPrimaryAddress = survivor.lightningAddresses.length > 0
+    // ── Partial-unique flags: survivor keeps primacy (default). The user's
+    // explicit choice, when given, is applied after the re-parent — here we
+    // only make sure two flag-holders never coexist under one userId, which
+    // the partial unique indexes reject mid-statement.
+    const survivorHasPrimaryAddress = survivor.lightningAddresses.some(
+      a => a.isPrimary
+    )
     if (survivorHasPrimaryAddress) {
       await tx.lightningAddress.updateMany({
         where: { userId: absorbedId, isPrimary: true },
         data: { isPrimary: false }
       })
     }
-    const survivorHasDefaultWallet = survivor.remoteWallets.length > 0
+    const survivorHasDefaultWallet = survivor.remoteWallets.some(
+      w => w.isDefault
+    )
     if (survivorHasDefaultWallet) {
       await tx.remoteWallet.updateMany({
         where: { userId: absorbedId, isDefault: true },
@@ -327,6 +425,37 @@ export async function mergeAccounts(params: {
     // the cascade has nothing left to take.
     await tx.user.delete({ where: { id: absorbedId } })
 
+    // ── Apply the user's conflict choices (clear-then-set under the
+    // partial unique indexes; everything now lives under survivorId) ─────
+    if (resolutions.primaryAddressUsername) {
+      await tx.lightningAddress.updateMany({
+        where: { userId: survivorId, isPrimary: true },
+        data: { isPrimary: false }
+      })
+      await tx.lightningAddress.update({
+        where: { username: resolutions.primaryAddressUsername },
+        data: { isPrimary: true }
+      })
+    }
+    if (resolutions.defaultWalletId) {
+      await tx.remoteWallet.updateMany({
+        where: { userId: survivorId, isDefault: true },
+        data: { isDefault: false }
+      })
+      await tx.remoteWallet.update({
+        where: { id: resolutions.defaultWalletId },
+        data: { isDefault: true }
+      })
+    }
+
+    // ── Relays: union both lists onto the survivor ───────────────────────
+    const mergedRelays = Array.from(
+      new Set([
+        ...parseStoredRelays(survivor.relays),
+        ...parseStoredRelays(absorbed.relays)
+      ])
+    )
+
     // ── Settle the primary identity + the User.pubkey mirror ─────────────
     await tx.nostrIdentity.updateMany({
       where: { userId: survivorId, isPrimary: true },
@@ -338,7 +467,12 @@ export async function mergeAccounts(params: {
     })
     await tx.user.update({
       where: { id: survivorId },
-      data: { pubkey: mainPubkey }
+      data: {
+        pubkey: mainPubkey,
+        ...(mergedRelays.length > 0
+          ? { relays: JSON.stringify(mergedRelays), relaysUpdatedAt: new Date() }
+          : {})
+      }
     })
 
     return {
@@ -348,6 +482,7 @@ export async function mergeAccounts(params: {
       movedPasskeys: passkeys.count,
       movedAddresses: addresses.count,
       movedWallets: wallets.count,
+      mergedRelays: mergedRelays.length,
       absorbedPubkey: absorbed.pubkey
     }
   })

@@ -888,10 +888,26 @@ export const accountResourceSummarySchema = z.object({
   ),
   passkeys: z.number(),
   lightningAddresses: z.array(z.string()),
+  /** Username of the primary lightning address, when one exists. */
+  primaryAddress: z.string().nullable(),
   remoteWallets: z.number(),
+  /** Full wallet list so the merge wizard can offer a default-wallet choice. */
+  wallets: z.array(
+    z.object({ id: z.string(), name: z.string(), isDefault: z.boolean() })
+  ),
   cards: z.number(),
   cardDesigns: z.number(),
   invoices: z.number(),
+  /** Stored NIP-65 relay list (empty = operator defaults). */
+  relays: z.array(z.string()),
+  /** Cached kind-0 profile of the primary pubkey, for per-field choices. */
+  profile: z
+    .object({
+      name: z.string().optional(),
+      displayName: z.string().optional(),
+      picture: z.string().optional()
+    })
+    .nullable(),
   hasAlbySubAccount: z.boolean(),
   hasManagedKey: z.boolean(),
   managedKeyExported: z.boolean()
@@ -925,7 +941,18 @@ export type AccountMergePreviewResponse = z.infer<
 
 export const accountMergeRequestSchema = z.object({
   mergeTicket: z.string().min(16),
-  mainPubkey: hexPubkeySchema
+  mainPubkey: hexPubkeySchema,
+  /**
+   * Answers to merge conflicts from the wizard's resolve step. Omitted
+   * fields fall back to survivor-wins defaults. Relay lists are always
+   * unioned; profile choices are applied client-side (kind-0 publish).
+   */
+  resolutions: z
+    .object({
+      primaryAddressUsername: z.string().optional(),
+      defaultWalletId: z.string().optional()
+    })
+    .optional()
 })
 export const accountMergeResponseSchema = z.object({
   survivorId: z.string(),
@@ -933,7 +960,9 @@ export const accountMergeResponseSchema = z.object({
   movedIdentities: z.number(),
   movedPasskeys: z.number(),
   movedAddresses: z.number(),
-  movedWallets: z.number()
+  movedWallets: z.number(),
+  /** Size of the merged (unioned) relay list on the surviving account. */
+  mergedRelays: z.number()
 })
 export type AccountMergeResponse = z.infer<typeof accountMergeResponseSchema>
 

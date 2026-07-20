@@ -45,7 +45,8 @@ export const POST = withErrorHandling(async (request: Request) => {
   const result = await mergeAccounts({
     survivorId: ticket.survivorId,
     absorbedId: ticket.absorbedId,
-    mainPubkey: body.mainPubkey
+    mainPubkey: body.mainPubkey,
+    resolutions: body.resolutions
   })
 
   return NextResponse.json(result)

@@ -25,6 +25,12 @@ vi.mock('@/lib/activity-log', () => ({
   logActivity: { fireAndForget: vi.fn() },
 }))
 
+// summarizeAccount resolves the primary pubkey's kind-0 through the server
+// cache; the engine tests don't exercise relay behavior.
+vi.mock('@/lib/nostr/profile-cache', () => ({
+  resolveProfiles: vi.fn(async () => []),
+}))
+
 import {
   mergeAccounts,
   previewMerge,
@@ -48,18 +54,21 @@ function seedMergeUsers(overrides?: {
   const survivor = {
     id: A,
     pubkey: PK_A,
+    relays: null,
     managedNostrKey: null,
     albySubAccount: null,
-    lightningAddresses: [{ username: 'alice' }],
-    remoteWallets: [{ id: 'wa-default' }],
+    lightningAddresses: [{ username: 'alice', isPrimary: true }],
+    remoteWallets: [{ id: 'wa-default', isDefault: true }],
     ...overrides?.survivor,
   }
   const absorbed = {
     id: B,
     pubkey: PK_B,
+    relays: null,
     managedNostrKey: null,
     albySubAccount: null,
     nostrIdentities: [{ pubkey: PK_B }],
+    lightningAddresses: [{ username: 'bob' }],
     remoteWallets: [{ id: 'wb-1', name: 'NWC Wallet' }],
     ...overrides?.absorbed,
   }
@@ -212,6 +221,88 @@ describe('mergeAccounts', () => {
     })
   })
 
+  it('applies the chosen primary address and default wallet (clear-then-set)', async () => {
+    seedMergeUsers()
+    seedMergeDefaults()
+
+    await mergeAccounts({
+      survivorId: A,
+      absorbedId: B,
+      mainPubkey: PK_A,
+      resolutions: { primaryAddressUsername: 'bob', defaultWalletId: 'wb-1' },
+    })
+
+    // Address: clear every survivor-scope primary, then set the chosen one.
+    expect(prismaMock.lightningAddress.updateMany).toHaveBeenCalledWith({
+      where: { userId: A, isPrimary: true },
+      data: { isPrimary: false },
+    })
+    expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith({
+      where: { username: 'bob' },
+      data: { isPrimary: true },
+    })
+    // Wallet: same clear-then-set under the survivor scope.
+    expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
+      where: { userId: A, isDefault: true },
+      data: { isDefault: false },
+    })
+    expect(prismaMock.remoteWallet.update).toHaveBeenCalledWith({
+      where: { id: 'wb-1' },
+      data: { isDefault: true },
+    })
+  })
+
+  it('rejects resolutions referencing resources outside the two accounts', async () => {
+    seedMergeUsers()
+    seedMergeDefaults()
+    await expect(
+      mergeAccounts({
+        survivorId: A,
+        absorbedId: B,
+        mainPubkey: PK_A,
+        resolutions: { primaryAddressUsername: 'mallory' },
+      })
+    ).rejects.toBeInstanceOf(ValidationError)
+
+    seedMergeUsers()
+    seedMergeDefaults()
+    await expect(
+      mergeAccounts({
+        survivorId: A,
+        absorbedId: B,
+        mainPubkey: PK_A,
+        resolutions: { defaultWalletId: 'not-theirs' },
+      })
+    ).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('unions both relay lists onto the survivor', async () => {
+    seedMergeUsers({
+      survivor: { relays: JSON.stringify(['wss://a.example', 'wss://shared.example']) },
+      absorbed: { relays: JSON.stringify(['wss://b.example', 'wss://shared.example']) },
+    })
+    seedMergeDefaults()
+
+    const result = await mergeAccounts({
+      survivorId: A,
+      absorbedId: B,
+      mainPubkey: PK_A,
+    })
+
+    expect(result.mergedRelays).toBe(3)
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: A },
+      data: expect.objectContaining({
+        pubkey: PK_A,
+        relays: JSON.stringify([
+          'wss://a.example',
+          'wss://shared.example',
+          'wss://b.example',
+        ]),
+      }),
+    })
+  })
+
   it('drops the absorbed AlbySubAccount when the survivor has one, moves it otherwise', async () => {
     seedMergeUsers({
       survivor: { albySubAccount: { appId: 1 } },
@@ -244,12 +335,13 @@ describe('previewMerge', () => {
   function seedSummaries(absorbedManaged: { exportedAt: Date | null } | null) {
     vi.mocked(prismaMock.user.findUnique).mockImplementation((args: any) => {
       const base = {
+        relays: null,
         nostrIdentities: [],
         lightningAddresses: [],
+        remoteWallets: [],
         albySubAccount: null,
         _count: {
           passkeyCredentials: 0,
-          remoteWallets: 0,
           cards: 0,
           cardDesigns: 0,
           invoices: 0,

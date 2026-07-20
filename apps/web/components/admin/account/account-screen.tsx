@@ -91,9 +91,17 @@ export function AccountScreen() {
 
   const [exportOpen, setExportOpen] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
+  const [mergeInitialTab, setMergeInitialTab] = useState<'nostr' | 'passkey'>('nostr')
+  const [mergeHint, setMergeHint] = useState<string | undefined>(undefined)
   const [renameTarget, setRenameTarget] = useState<NostrIdentitySummary | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [unlinkTarget, setUnlinkTarget] = useState<NostrIdentitySummary | null>(null)
+
+  function openMergeDialog(tab: 'nostr' | 'passkey', hint?: string) {
+    setMergeInitialTab(tab)
+    setMergeHint(hint)
+    setMergeOpen(true)
+  }
 
   async function handleMakePrimary(identity: NostrIdentitySummary) {
     try {
@@ -197,7 +205,15 @@ export function AccountScreen() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <PasskeysSection onExportRequest={() => setExportOpen(true)} />
+                <PasskeysSection
+                  onExportRequest={() => setExportOpen(true)}
+                  onDuplicatePasskey={() =>
+                    openMergeDialog(
+                      'passkey',
+                      'That passkey already belongs to another account. Prove it below to merge the two accounts into this one.'
+                    )
+                  }
+                />
               </CardContent>
             </Card>
 
@@ -211,7 +227,11 @@ export function AccountScreen() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button type="button" variant="secondary" onClick={() => setMergeOpen(true)}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => openMergeDialog('nostr')}
+                >
                   <Link2 className="size-4" />
                   Link / merge account
                 </Button>
@@ -222,7 +242,12 @@ export function AccountScreen() {
       </div>
 
       <ExportKeyDialog open={exportOpen} onOpenChange={setExportOpen} />
-      <MergeDialog open={mergeOpen} onOpenChange={setMergeOpen} />
+      <MergeDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        initialTab={mergeInitialTab}
+        hint={mergeHint}
+      />
 
       {/* Rename dialog */}
       <Dialog
