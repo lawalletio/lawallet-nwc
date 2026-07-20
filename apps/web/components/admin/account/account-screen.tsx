@@ -16,6 +16,11 @@ import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -361,10 +366,19 @@ function IdentityRow({
             </button>
             {identity.isPrimary && <Badge>Primary</Badge>}
             {identity.custodied && (
-              <Badge variant="secondary" title="Secret key held on this server">
-                <ShieldCheck className="size-3" />
-                Custodied
-              </Badge>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="secondary" className="cursor-default gap-1">
+                    <ShieldCheck className="size-3" />
+                    Custodied
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[220px]">
+                  This identity&apos;s Nostr secret key (nsec) is stored on this
+                  server and unlocked by your passkey. Export it any time to take
+                  self-custody.
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
           <p className="truncate text-xs text-muted-foreground">
