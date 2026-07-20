@@ -60,6 +60,7 @@ import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { MergeDialog } from '@/components/admin/account/merge-dialog'
 import { PasskeysSection } from '@/components/wallet/settings/passkeys-section'
 import { ExportKeyDialog } from '@/components/wallet/settings/export-key-dialog'
+import { useAuth } from '@/components/admin/auth-context'
 import { useAccount } from '@/lib/client/hooks/use-account'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import {
@@ -77,6 +78,7 @@ import type { NostrIdentitySummary } from '@/lib/validation/schemas'
  * account. Everything here is per-user; no admin permission is involved.
  */
 export function AccountScreen() {
+  const { requestSigner, refreshSession } = useAuth()
   const {
     identities,
     loading,
@@ -105,7 +107,22 @@ export function AccountScreen() {
 
   async function handleMakePrimary(identity: NostrIdentitySummary) {
     try {
-      await setPrimary(identity.pubkey)
+      const sessionRefreshed = await setPrimary(identity.pubkey)
+      if (!sessionRefreshed) {
+        // Signer-less session: the server-side switch succeeded but the
+        // session token still presents the old primary. Unlock a signer and
+        // re-mint so the visible npub/avatar flip right away; if the user
+        // dismisses the dialog, be honest about when it will take effect.
+        try {
+          const signer = await requestSigner()
+          await refreshSession(signer)
+        } catch {
+          toast.info(
+            'Primary updated — the new identity shows after your next sign-in'
+          )
+          return
+        }
+      }
       toast.success('Primary identity updated')
     } catch (err) {
       toast.error(

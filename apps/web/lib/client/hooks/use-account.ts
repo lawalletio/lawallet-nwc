@@ -40,14 +40,20 @@ export function useAccount() {
     loading,
     error,
     refetch,
-    setPrimary: async (pubkey: string) => {
+    /**
+     * Promotes an identity to primary. Returns whether the session was
+     * re-minted to present the new primary — false means the caller should
+     * offer a recovery path (unlock a signer and call refreshSession again),
+     * otherwise the visible npub/avatar stay stale until the next sign-in.
+     */
+    setPrimary: async (pubkey: string): Promise<boolean> => {
       await update.mutate('patch', `${ACCOUNT_PATH}/identities/${pubkey}`, {
         isPrimary: true
       })
       invalidateApiPath(ACCOUNT_PATH)
-      // The session should present the new primary; a failure here is
-      // non-fatal (the old token still authenticates the same account).
-      await refreshSession().catch(() => false)
+      // A re-mint failure is non-fatal (the old token still authenticates
+      // the same account) — but surface it so the UI can recover.
+      return refreshSession().catch(() => false)
     },
     renameIdentity: async (pubkey: string, label: string | null) => {
       await update.mutate('patch', `${ACCOUNT_PATH}/identities/${pubkey}`, {

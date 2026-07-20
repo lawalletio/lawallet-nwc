@@ -119,9 +119,10 @@ export interface AuthContextValue extends AuthState {
   /**
    * Re-mints the session token immediately so identity changes (new primary
    * pubkey, account merge) reflect without re-login. Resolves false when the
-   * session has no way to re-mint (signer-less non-passkey session).
+   * session has no way to re-mint (signer-less non-passkey session) — pass a
+   * freshly-unlocked signer (from requestSigner()) to cover that case.
    */
-  refreshSession: () => Promise<boolean>
+  refreshSession: (signerOverride?: NostrSigner) => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -381,11 +382,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // NIP-98 exchange. Signer-less non-passkey sessions can't re-mint — the
   // stale token stays (it still authenticates; identity updates on next
   // login) and we return false.
-  const refreshSession = useCallback(async (): Promise<boolean> => {
+  const refreshSession = useCallback(async (signerOverride?: NostrSigner): Promise<boolean> => {
     const { jwt, loginMethod } = sessionRef.current
-    const signer = signerRef.current
+    // An explicit signer (e.g. one the caller just obtained via
+    // requestSigner()) wins over the ref — the ref is synced from state in
+    // an effect, so it can lag a just-unlocked signer by a render.
+    const signer = signerOverride ?? signerRef.current
 
     let token: string | null = null
+    // Passkey sessions must re-mint through the passkey endpoint even when a
+    // signer is in memory — the NIP-98 path would drop the `amr`/`cred`
+    // claims that gate the managed-key endpoints.
     if (loginMethod === 'passkey' && jwt) {
       token = (await refreshPasskeySession(jwt)).token
     } else if (signer) {
