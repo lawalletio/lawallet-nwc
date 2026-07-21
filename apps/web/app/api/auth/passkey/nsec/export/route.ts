@@ -3,6 +3,7 @@ import { verifyAuthenticationResponse } from '@simplewebauthn/server'
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthenticationError,
@@ -46,9 +47,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     identifier: 'nsec-export:' + auth.pubkey
   })
 
-  const user = await prisma.user.findUnique({
-    where: { pubkey: auth.pubkey }
-  })
+  const user = await resolveAccountByPubkey(auth.pubkey)
   if (!user) throw new NotFoundError('User not found')
 
   const body = await validateBody(request, passkeyNsecExportRequestSchema)
@@ -135,13 +134,15 @@ export const POST = withErrorHandling(async (request: Request) => {
     category: 'USER',
     event: ActivityEvent.NSEC_EXPORTED,
     level: 'WARN',
-    message: `Custodied nsec exported by ${user.pubkey.slice(0, 8)}… after passkey step-up`,
+    message: `Custodied nsec exported by ${user.primaryPubkey.slice(0, 8)}… after passkey step-up`,
     userId: user.id,
     metadata: { credentialId: credential.id }
   })
 
   return NextResponse.json({
     nsec: hexToNsec(hex),
-    pubkey: user.pubkey
+    // The managed nsec derives the account's primary pubkey — return that
+    // even when the session authenticated with a secondary identity.
+    pubkey: user.primaryPubkey
   })
 })

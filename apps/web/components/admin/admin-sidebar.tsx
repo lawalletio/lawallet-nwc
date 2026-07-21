@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   Home,
+  UserCog,
   Users,
   CreditCard,
   AtSign,
@@ -119,6 +120,14 @@ const platformItems: NavItem[] = [
 ]
 
 const systemItems: NavItem[] = [
+  // Account — the caller's own login methods (Nostr identities + passkeys),
+  // key export, and account linking/merge. Per-user data, so no permission
+  // gate: every authenticated user manages their own account.
+  {
+    title: 'Account',
+    href: '/admin/account',
+    icon: UserCog,
+  },
   {
     title: 'Activity',
     href: '/admin/activity',

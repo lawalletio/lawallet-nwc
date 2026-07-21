@@ -104,6 +104,11 @@ describe('PUT /api/users/[userId]/relays', () => {
   it('rejects a non-owner with 403 and does not write', async () => {
     mockAuth(otherPubkey)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'u1', pubkey: ownerPubkey } as any)
+    // The caller's pubkey resolves to their OWN account (distinct from the
+    // target) via the NostrIdentity seam.
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+      user: { id: 'u2', pubkey: otherPubkey, role: 'USER' },
+    } as any)
 
     await assertResponse(await put('u1', { relays: ['wss://nos.lol'] }), 403)
     expect(prismaMock.user.update).not.toHaveBeenCalled()

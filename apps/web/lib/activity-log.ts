@@ -34,6 +34,12 @@ export const ActivityEvent = {
   // session restore and stays at INFO.
   NSEC_EXPORTED: 'user.nsec_exported',
   SIGNER_KEY_FETCHED: 'user.signer_key_fetched',
+  // Multi-pubkey account events. ACCOUNT_MERGED is destructive (the absorbed
+  // User row is deleted) and always logs at WARN.
+  ACCOUNT_PUBKEY_LINKED: 'user.account_pubkey_linked',
+  ACCOUNT_PUBKEY_UNLINKED: 'user.account_pubkey_unlinked',
+  ACCOUNT_PRIMARY_CHANGED: 'user.account_primary_changed',
+  ACCOUNT_MERGED: 'user.account_merged',
   // ADDRESS
   ADDRESS_CREATED: 'address.created',
   ADDRESS_UPDATED: 'address.updated',

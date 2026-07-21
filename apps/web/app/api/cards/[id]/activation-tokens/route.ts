@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { Permission } from '@/lib/auth/permissions'
 import { idParam, createActivationTokenSchema } from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
@@ -61,11 +62,8 @@ export const POST = withErrorHandling(
     // Activation links point at the wallet app, so use this instance's API
     // endpoint (or request host) — never the LUD-16 lightning-address domain.
     const url = await resolveApiUrl(request)
-    // Audit-only: resolve the minting operator's user row if they have one.
-    const issuer = await prisma.user.findUnique({
-      where: { pubkey: auth.pubkey },
-      select: { id: true },
-    })
+    // Audit-only: resolve the minting operator's account if they have one.
+    const issuer = await resolveAccountByPubkey(auth.pubkey)
 
     let token
     try {

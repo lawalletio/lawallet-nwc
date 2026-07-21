@@ -244,8 +244,16 @@ describe('GET /api/auth/passkey/signer-key', () => {
 
   it('rejects when the credential belongs to a different pubkey', async () => {
     vi.mocked(prismaMock.passkeyCredential.findUnique).mockResolvedValue(
-      credentialRow({ user: { id: USER_ID, pubkey: OTHER_PUBKEY } }) as any,
+      credentialRow({
+        userId: 'other_user',
+        user: { id: 'other_user', pubkey: OTHER_PUBKEY },
+      }) as any,
     )
+    // The session pubkey resolves to its own account — which does NOT own
+    // the credential.
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+      user: { id: USER_ID, pubkey: USER_PUBKEY, role: 'USER' },
+    } as any)
 
     const req = createNextRequest('/api/auth/passkey/signer-key', {
       headers: { authorization: `Bearer ${passkeyToken()}` },
@@ -260,6 +268,9 @@ describe('GET /api/auth/passkey/signer-key', () => {
     vi.mocked(prismaMock.passkeyCredential.findUnique).mockResolvedValue(
       credentialRow({ user: { id: USER_ID, pubkey: USER_PUBKEY } }) as any,
     )
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+      user: { id: USER_ID, pubkey: USER_PUBKEY, role: 'USER' },
+    } as any)
     vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/auth/passkey/signer-key', {
@@ -275,6 +286,9 @@ describe('GET /api/auth/passkey/signer-key', () => {
     vi.mocked(prismaMock.passkeyCredential.findUnique).mockResolvedValue(
       credentialRow({ user: { id: USER_ID, pubkey: USER_PUBKEY } }) as any,
     )
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+      user: { id: USER_ID, pubkey: USER_PUBKEY, role: 'USER' },
+    } as any)
     vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(
       managedKeyRow() as any,
     )

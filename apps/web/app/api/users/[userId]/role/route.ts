@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { eventBus } from '@/lib/events/event-bus'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
@@ -41,8 +42,10 @@ export const GET = withErrorHandling(
       throw new NotFoundError('User not found')
     }
 
-    // Allow if caller is the target user or has USERS_READ permission
-    const isSelf = targetUser.pubkey === auth.pubkey
+    // Allow if caller is the target user or has USERS_READ permission.
+    // Compared by account id so a secondary-pubkey session still counts.
+    const me = await resolveAccountByPubkey(auth.pubkey)
+    const isSelf = me?.id === targetUser.id
     if (!isSelf && !hasPermission(auth.role, Permission.USERS_READ)) {
       throw new AuthorizationError('Not authorized to view this user\'s role')
     }
@@ -92,8 +95,10 @@ export const PUT = withErrorHandling(
       )
     }
 
-    // Prevent self-demotion
-    if (targetUser.pubkey === pubkey && getRoleLevel(targetRole) < getRoleLevel(callerRole)) {
+    // Prevent self-demotion (account-id comparison: a secondary-pubkey
+    // session is still "you")
+    const me = await resolveAccountByPubkey(pubkey)
+    if (me?.id === targetUser.id && getRoleLevel(targetRole) < getRoleLevel(callerRole)) {
       throw new AuthorizationError('Cannot lower your own role')
     }
 

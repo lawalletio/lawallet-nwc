@@ -148,6 +148,30 @@ export async function registerPasskeyAccount(
   })
 }
 
+/**
+ * Runs ONLY the assertion ceremony (options + authenticator prompt) without
+ * exchanging it for a session. Used when an assertion serves as proof of
+ * account control — e.g. the account link/merge flow — where a different
+ * endpoint consumes the challenge.
+ */
+export async function getPasskeyAssertion(): Promise<{
+  challenge: string
+  credential: unknown
+}> {
+  const { options } = await postJson<{
+    options: { challenge: string } & Record<string, unknown>
+  }>('/api/auth/passkey/authentication/options')
+
+  let credential
+  try {
+    credential = await startAuthentication({ optionsJSON: options as never })
+  } catch (err) {
+    throw translatePasskeyError(err)
+  }
+
+  return { challenge: options.challenge, credential }
+}
+
 /** Username-less login with any passkey registered on this instance. */
 export async function authenticateWithPasskey(): Promise<PasskeySession> {
   const { options } = await postJson<{

@@ -185,7 +185,12 @@ describe('GET /api/users/me', () => {
     const res = await GET(req)
     const body: any = await assertResponse(res, 200)
 
-    const query = vi.mocked(prismaMock.user.findUnique).mock.calls[0]?.[0]
+    // Account resolution (lib/auth/account) issues its own user.findUnique
+    // fallback first — assert on the call that carries the include.
+    const query = vi
+      .mocked(prismaMock.user.findUnique)
+      .mock.calls.map(c => c[0])
+      .find((arg: any) => arg?.include)
     expect(query).toEqual(
       expect.objectContaining({
         include: expect.objectContaining({

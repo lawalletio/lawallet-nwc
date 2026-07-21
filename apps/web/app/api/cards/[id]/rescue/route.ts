@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { Permission } from '@/lib/auth/permissions'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
@@ -46,10 +47,7 @@ export const POST = withErrorHandling(
     // Activation links target the wallet app — use the instance endpoint, not
     // the LUD-16 domain.
     const url = await resolveApiUrl(request)
-    const issuer = await prisma.user.findUnique({
-      where: { pubkey: auth.pubkey },
-      select: { id: true },
-    })
+    const issuer = await resolveAccountByPubkey(auth.pubkey)
 
     const token = await prisma.$transaction(async tx => {
       // Revoke every outstanding token and unassign the card (holder, lightning

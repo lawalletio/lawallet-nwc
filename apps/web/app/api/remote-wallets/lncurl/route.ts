@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountId } from '@/lib/auth/account'
 import { getSettings } from '@/lib/settings'
 import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -59,12 +60,9 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
 }
 
 async function resolveUserId(pubkey: string): Promise<string> {
-  const user = await prisma.user.findUnique({
-    where: { pubkey },
-    select: { id: true },
-  })
-  if (!user) throw new NotFoundError('User not found')
-  return user.id
+  const userId = await resolveAccountId(pubkey)
+  if (!userId) throw new NotFoundError('User not found')
+  return userId
 }
 
 /**

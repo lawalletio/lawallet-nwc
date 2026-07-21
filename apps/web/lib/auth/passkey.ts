@@ -1,11 +1,17 @@
-import type { AuthenticatorTransportFuture, WebAuthnCredential } from '@simplewebauthn/server'
-import type { PasskeyCredential, WebAuthnFlow } from '@/lib/generated/prisma'
+import { verifyAuthenticationResponse } from '@simplewebauthn/server'
+import type {
+  AuthenticationResponseJSON,
+  AuthenticatorTransportFuture,
+  WebAuthnCredential
+} from '@simplewebauthn/server'
+import type { PasskeyCredential, User, WebAuthnFlow } from '@/lib/generated/prisma'
 import { prisma } from '@/lib/prisma'
 import { createJwtToken } from '@/lib/jwt'
 import { Permission, Role } from '@/lib/auth/permissions'
 import { resolveApiUrl } from '@/lib/public-url'
 import { getSettings } from '@/lib/settings'
 import { AuthenticationError } from '@/types/server/errors'
+import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { logger } from '@/lib/logger'
 
 /** How long a minted WebAuthn challenge stays consumable. */
@@ -154,6 +160,9 @@ export function toWebAuthnCredential(row: PasskeyCredential): WebAuthnCredential
 export type PasskeyCustody = 'managed' | 'linked'
 
 export interface MintPasskeySessionParams {
+  /** Account id (`User.id`) — becomes the JWT `userId` claim. */
+  userId: string
+  /** The account's PRIMARY pubkey (`User.pubkey`) — the session identity. */
   pubkey: string
   role: Role
   permissions: Permission[]
@@ -174,6 +183,7 @@ export interface MintPasskeySessionParams {
  */
 export function mintPasskeySessionJwt(params: MintPasskeySessionParams): string {
   const {
+    userId,
     pubkey,
     role,
     permissions,
@@ -185,7 +195,7 @@ export function mintPasskeySessionJwt(params: MintPasskeySessionParams): string 
   } = params
   return createJwtToken(
     {
-      userId: pubkey,
+      userId,
       pubkey,
       role,
       permissions,
@@ -201,6 +211,73 @@ export function mintPasskeySessionJwt(params: MintPasskeySessionParams): string 
       audience: 'lawallet-users'
     }
   )
+}
+
+/**
+ * Verifies a WebAuthn assertion against its stored credential: consumes the
+ * single-use challenge (of the given flow), checks the signature, applies
+ * counter clone-detection, and persists the counter/lastUsedAt bump.
+ * Throws a generic AuthenticationError on ANY failure (no oracle).
+ * Returns the credential row with its user — the caller decides what the
+ * proof authorizes (session mint, account link, export…).
+ */
+export async function verifyStoredCredentialAssertion(params: {
+  challenge: string
+  credential: { id: string } & Record<string, unknown>
+  flow: WebAuthnFlow
+  expectedUserId?: string
+}): Promise<PasskeyCredential & { user: User }> {
+  const { challenge, credential: response, flow, expectedUserId } = params
+  const GENERIC = 'Passkey verification failed'
+
+  const row = await consumeWebAuthnChallenge(challenge, flow, {
+    expectedUserId
+  })
+
+  const credential = await prisma.passkeyCredential.findUnique({
+    where: { id: response.id },
+    include: { user: true }
+  })
+  if (!credential) throw new AuthenticationError(GENERIC)
+
+  let verified = false
+  let newCounter = 0
+  try {
+    const verification = await verifyAuthenticationResponse({
+      response: response as unknown as AuthenticationResponseJSON,
+      expectedChallenge: row.challenge,
+      expectedOrigin: row.origin,
+      expectedRPID: row.rpId,
+      credential: toWebAuthnCredential(credential),
+      requireUserVerification: true
+    })
+    verified = verification.verified
+    newCounter = verification.authenticationInfo.newCounter
+  } catch {
+    verified = false
+  }
+  if (!verified) throw new AuthenticationError(GENERIC)
+
+  const stored = Number(credential.counter)
+  if (stored > 0 && newCounter <= stored) {
+    logActivity.fireAndForget({
+      category: 'USER',
+      event: ActivityEvent.PASSKEY_COUNTER_REGRESSION,
+      level: 'WARN',
+      message:
+        'Passkey signature counter regression — possible cloned authenticator',
+      userId: credential.userId,
+      metadata: { credentialId: credential.id, stored, newCounter }
+    })
+    throw new AuthenticationError(GENERIC)
+  }
+
+  await prisma.passkeyCredential.update({
+    where: { id: credential.id },
+    data: { counter: BigInt(newCounter), lastUsedAt: new Date() }
+  })
+
+  return credential
 }
 
 /** Shape returned to clients when listing a user's passkeys. Never includes key material. */

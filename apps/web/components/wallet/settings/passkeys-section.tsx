@@ -38,11 +38,17 @@ import { formatRelativeTime } from '@/lib/client/format'
  * nsec/extension/bunker users. Deleting the last passkey of a managed
  * account whose key was never exported is rejected server-side (409) — the
  * dialog surfaces that with an export hint instead of a dead-end error.
+ *
+ * `onDuplicatePasskey` (optional) intercepts the "this passkey already
+ * belongs to another account" failure so callers can offer an account
+ * merge instead of a dead-end toast (the Account Settings page does).
  */
 export function PasskeysSection({
-  onExportRequest
+  onExportRequest,
+  onDuplicatePasskey
 }: {
   onExportRequest: () => void
+  onDuplicatePasskey?: () => void
 }) {
   const {
     credentials,
@@ -81,7 +87,9 @@ export function PasskeysSection({
       toast.success('Passkey added')
     } catch (err) {
       const error = err as { kind?: string; message?: string }
-      if (error.kind !== 'cancelled') {
+      if (error.kind === 'duplicate' && onDuplicatePasskey) {
+        onDuplicatePasskey()
+      } else if (error.kind !== 'cancelled') {
         toast.error(error.message || 'Could not add passkey')
       }
     }

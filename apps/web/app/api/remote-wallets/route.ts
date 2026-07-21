@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountId } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
@@ -64,15 +65,12 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
 }
 
 async function resolveUserId(pubkey: string): Promise<string> {
-  const user = await prisma.user.findUnique({
-    where: { pubkey },
-    select: { id: true },
-  })
+  const userId = await resolveAccountId(pubkey)
   // The unified-auth flow upserts a User row before we get here, so a miss
   // would mean someone deleted the row mid-request. Surface as a 404 rather
   // than crashing with a Prisma `userId` violation downstream.
-  if (!user) throw new NotFoundError('User not found')
-  return user.id
+  if (!userId) throw new NotFoundError('User not found')
+  return userId
 }
 
 /**

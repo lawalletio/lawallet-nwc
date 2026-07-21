@@ -11,6 +11,7 @@ import { userIdParam, updateLightningAddressSchema } from '@/lib/validation/sche
 import { validateParams, validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { requireAddressRegistration } from '@/lib/auth/paid-registration-guard'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
@@ -40,7 +41,9 @@ export const PUT = withErrorHandling(
       throw new NotFoundError('User not found')
     }
 
-    if (user.pubkey !== authenticatedPubkey) {
+    // Account-id comparison: a secondary-pubkey session still counts as "me".
+    const me = await resolveAccountByPubkey(authenticatedPubkey)
+    if (me?.id !== user.id) {
       throw new AuthorizationError('Not authorized to update this user')
     }
 

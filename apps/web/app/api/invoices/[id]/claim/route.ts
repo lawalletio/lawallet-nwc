@@ -10,6 +10,7 @@ import {
   ValidationError,
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { requireUserAddressRegistration } from '@/lib/auth/paid-registration-guard'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -44,8 +45,8 @@ export const POST = withErrorHandling(
     const { id } = await params
     const body = await validateBody(request, claimInvoiceSchema)
 
-    // Resolve the user
-    const user = await prisma.user.findUnique({ where: { pubkey } })
+    // Resolve the user (any linked pubkey maps to the owning account)
+    const user = await resolveAccountByPubkey(pubkey)
     if (!user) {
       throw new ValidationError('User not found')
     }
