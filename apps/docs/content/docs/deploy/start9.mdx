@@ -18,28 +18,47 @@ and wraps the same published image as every other target,
 | Architectures | `x86_64`, `aarch64` |
 | Web UI | port `2288` (LAN, `.local`, Tor, or a custom domain) |
 
-## Install
+## Install the current release
 
-Once LaWallet NWC is in your marketplace:
+LaWallet NWC is **not yet listed in the Start9 Marketplace**. Until the
+listing is available, install the current release by sideloading its package:
 
-1. Open the **Marketplace** in your StartOS dashboard and install **LaWallet NWC**.
-2. Start the service. Postgres comes up first; the web app then applies pending
-   Prisma migrations (`prisma migrate deploy`) and starts.
-3. Open the **Web UI** from the service's Dashboard.
+1. Download the universal package —
+   [`lawallet-nwc.s9pk`](https://github.com/lawalletio/lawallet-startos/releases/latest/download/lawallet-nwc.s9pk).
+   It supports both `x86_64` and `aarch64` StartOS servers. You can also choose
+   a specific version from the [release history](https://github.com/lawalletio/lawallet-startos/releases).
+2. In the StartOS dashboard, open **System → Sideload a Service**, select the
+   downloaded `.s9pk`, and complete the install.
+3. Start the service. Postgres starts first; once it is ready, the web app
+   applies pending Prisma migrations and starts automatically.
+4. Open the service's **Web UI** from the StartOS dashboard.
 
-Until it appears in a public registry you can **sideload** the `.s9pk`:
+The `releases/latest` download always resolves to the newest package release.
+When LaWallet NWC is added to the Start9 Marketplace, you will be able to
+install and update it from the Marketplace instead.
 
-1. Download the latest package —
-   [`lawallet-nwc.s9pk`](https://github.com/lawalletio/lawallet-startos/releases/latest/download/lawallet-nwc.s9pk)
-   (universal, `x86_64` + `aarch64`) from the
-   [releases page](https://github.com/lawalletio/lawallet-startos/releases).
-2. In StartOS, go to **System → Sideload a Service** and upload it.
+## Build the package yourself
 
-Every upstream release is published automatically as a GitHub Release, so
-`releases/latest/download/lawallet-nwc.s9pk` always points at the newest build.
-Prefer building it yourself? Clone
-[`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos)
-and run `make universal`.
+Build from [`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos)
+when you need to inspect or change the package, or prefer not to use a released
+artifact. The build machine needs the [StartOS SDK](https://docs.start9.com/),
+including `start-cli`, plus Node.js, Docker, and `make`.
+
+```bash
+git clone https://github.com/lawalletio/lawallet-startos.git
+cd lawallet-startos
+npm install
+make universal
+```
+
+This produces `lawallet-nwc.s9pk`, a universal package that you can upload
+through **System → Sideload a Service** as above. To make separate
+architecture-specific packages instead, run `make`; it creates
+`lawallet-nwc_x86_64.s9pk` and `lawallet-nwc_aarch64.s9pk`.
+
+For a StartOS host already configured for the SDK, `make install` builds and
+sideloads the package directly. See the package repository for its current
+[build and update details](https://github.com/lawalletio/lawallet-startos#building).
 
 ## First run — claim root
 
