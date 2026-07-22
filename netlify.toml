@@ -1,0 +1,36 @@
+# Netlify one-click deploy for the LaWallet NWC web app (apps/web).
+#
+# The base directory stays at the repository root on purpose: pnpm-lock.yaml
+# lives here, and Netlify only detects pnpm when it can see the lockfile in the
+# base directory. apps/web consumes packages/* straight from TypeScript source
+# (their package.json `main` points at src/), so installing the workspace is
+# all the build needs.
+#
+# Mirrors apps/web/vercel.json — keep the two in sync.
+
+[build]
+  # Migrations run only on the production context and only once a database is
+  # attached, so preview builds and the very first deploy (before DATABASE_URL
+  # is filled in) still succeed. Retries cover a cold serverless Postgres that
+  # is still waking up.
+  command = "if [ \"$CONTEXT\" = production ] && [ -n \"$DATABASE_URL\" ]; then n=0; until pnpm --filter @lawallet-nwc/web exec prisma migrate deploy; do n=$((n+1)); [ $n -ge 5 ] && exit 1; sleep 10; done; else echo skip-migrate; fi && pnpm --filter @lawallet-nwc/web build"
+  publish = "apps/web/.next"
+
+# Netlify's framework detection reads the base directory's package.json, and
+# the monorepo root has no `next` dependency — declare the runtime explicitly.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Prompts shown by the "Deploy to Netlify" button. Values can't be preset here
+# (Netlify only uses these strings as labels), so keep them instructional.
+[template.environment]
+  DATABASE_URL = "Postgres connection string — create a free database at neon.com or supabase.com, e.g. postgresql://user:pass@host/db?sslmode=require"
+  JWT_SECRET = "Random 32+ character string. Generate one with: openssl rand -base64 32"
+
+[[headers]]
+  for = "/api/*"
+
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"

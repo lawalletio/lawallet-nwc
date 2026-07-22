@@ -139,8 +139,11 @@ Required: `DATABASE_URL`, `JWT_SECRET` (32+ chars). See `apps/web/.env.example` 
 
 - **Docker**: `docker compose up` from root (builds apps/web, starts PostgreSQL)
 - **Vercel**: Set Root Directory to `apps/web` in Vercel dashboard
+  (`apps/web/vercel.json`)
+- **Netlify**: root `netlify.toml` — base stays at the repo root, publishes
+  `apps/web/.next`. Keep it in sync with `apps/web/vercel.json`.
 - **Standalone**: `apps/web/Dockerfile` produces standalone Next.js output
-- Targets planned: Umbrel, Start9, Netlify (Month 6)
+- Targets planned: Umbrel, Start9 (Month 6)
 
 ## Docs App (apps/docs/)
 

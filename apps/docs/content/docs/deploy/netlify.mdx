@@ -1,0 +1,121 @@
+---
+title: 'Netlify Deployment'
+description: 'One-click deploy of the LaWallet NWC web app to Netlify, with a Postgres database and the NWC listener hosted alongside it.'
+---
+
+Netlify deploys `apps/web` — the UI, the REST API, and the LUD-16 endpoints —
+as a Next.js site backed by Netlify Functions. Everything the platform needs at
+runtime is a Postgres database; the long-lived NWC listener runs elsewhere
+(see [below](#the-nwc-listener)).
+
+<a href="https://app.netlify.com/start/deploy?repository=https://github.com/lawalletio/lawallet-nwc" target="_blank" rel="noopener noreferrer">
+  <img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" />
+</a>
+
+## Before you start
+
+- A [Netlify](https://netlify.com) account connected to GitHub. The button
+  copies `lawalletio/lawallet-nwc` into your own GitHub account and creates a
+  Netlify site from that copy.
+- A Postgres connection string. Netlify does not provision one for you, unlike
+  the Vercel button. Any Postgres 14+ works — [Neon](https://neon.com) and
+  [Supabase](https://supabase.com) both have free tiers, as does any VPS you
+  already run.
+
+Create the database first, then start the deploy. You will be asked to paste
+the connection string during setup.
+
+## Deploy
+
+1. Click **Deploy to Netlify**. Authorize GitHub if prompted.
+2. Pick a repository name for your copy and a Netlify site name.
+3. Fill in the two environment variables Netlify asks for:
+
+   | Variable | Value |
+   | --- | --- |
+   | `DATABASE_URL` | Your Postgres connection string, e.g. `postgresql://user:pass@host/db?sslmode=require` |
+   | `JWT_SECRET` | A random string of 32 characters or more |
+
+   Generate the secret locally with:
+
+   ```bash
+   openssl rand -base64 32
+   ```
+
+4. Select **Save & Deploy**.
+
+The first build installs the pnpm workspace, generates the Prisma client, and
+runs `next build`. Migrations run on production builds as soon as
+`DATABASE_URL` is set, so the schema is created for you — no manual
+`prisma migrate deploy` step.
+
+Build settings come from `netlify.toml` at the repository root; you do not need
+to set a base directory, build command, or publish directory in the UI.
+
+## After the first deploy
+
+Open `https://<your-site>.netlify.app/admin` and complete the setup wizard. The
+first Nostr pubkey to log in claims the ADMIN role.
+
+To use your own domain, add it under **Domain management** in Netlify, then set
+the domain inside **Admin → Settings** so Lightning Addresses resolve against
+it.
+
+### Optional environment variables
+
+Add these under **Site configuration → Environment variables**. A redeploy
+picks them up.
+
+| Variable | Purpose |
+| --- | --- |
+| `KEY_VAULT_SECRET` | Encrypts server-custodied Nostr keys for passkey accounts. Required for passkey login — back it up, losing it makes those keys unrecoverable. |
+| `NEXT_PUBLIC_LAWALLET_LANDING_URL` | Where `/` redirects. Defaults to `https://lawallet.io`. |
+| `UPSTASH_REDIS_URL` / `UPSTASH_REDIS_TOKEN` | Shared rate-limit state. Netlify Functions are horizontally scaled, so the default in-memory limiter counts per instance. |
+| `LISTENER_URL` / `LISTENER_AUTH_SECRET` | Point the web app at an NWC listener. |
+
+The full list lives in
+[`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example).
+
+## The NWC listener
+
+The [NWC listener](/docs/deploy/listener-setup) holds long-lived WebSocket
+subscriptions to Nostr relays, which serverless functions cannot do. Netlify
+runs the web app only.
+
+Lightning Addresses, the admin dashboard, and NWC payments initiated from the
+UI all work without it. You need the listener for push-style payment
+notifications and webhooks. Host it on any always-on target — a VPS, Fly.io,
+Railway, or Render — and set `LISTENER_URL` and `LISTENER_AUTH_SECRET` on the
+Netlify site to connect the two.
+
+## Updating
+
+The button leaves you with your own GitHub copy, not a fork tracking upstream.
+To pull in new releases, add this repository as a remote and merge:
+
+```bash
+git remote add upstream https://github.com/lawalletio/lawallet-nwc.git
+```
+
+```bash
+git fetch upstream && git merge upstream/main
+```
+
+Pushing to your default branch triggers a Netlify build, which applies any new
+migrations before the site goes live.
+
+## Troubleshooting
+
+**Build fails on `prisma migrate deploy`** — the database is unreachable from
+Netlify's build network. Check that the connection string includes
+`?sslmode=require` and that the provider does not restrict connections by IP.
+The build retries five times before giving up, which covers a serverless
+database that is still waking up.
+
+**Every request 500s with a database error** — `DATABASE_URL` is missing or
+wrong on the site. Environment variables set after the initial deploy only
+apply to builds that come after them, so trigger a redeploy.
+
+**Function timeouts on slow endpoints** — Netlify Functions cap synchronous
+execution at 10 seconds on the free plan. Payment calls proxied to a remote NWC
+wallet can exceed that when the wallet is slow; the listener path avoids it.
