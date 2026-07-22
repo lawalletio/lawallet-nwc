@@ -1,0 +1,207 @@
+---
+title: 'Netlify Deployment'
+description: 'One-click deploy of the LaWallet NWC web app to Netlify, with a Postgres database and the NWC listener hosted alongside it.'
+---
+
+Netlify deploys `apps/web` — the UI, the REST API, and the LUD-16 endpoints —
+as a Next.js site backed by Netlify Functions. Everything the platform needs at
+runtime is a Postgres database; the long-lived NWC listener runs elsewhere
+(see [below](#the-nwc-listener)).
+
+<a href="https://app.netlify.com/start/deploy?repository=https://github.com/lawalletio/lawallet-nwc" target="_blank" rel="noopener noreferrer">
+  <img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" />
+</a>
+
+## Before you start
+
+- A [Netlify](https://netlify.com) account connected to GitHub. The button
+  copies `lawalletio/lawallet-nwc` into your own GitHub account and creates a
+  Netlify site from that copy.
+- A Postgres 14+ connection string. Netlify does not provision a database for
+  you the way the Vercel button does, so create one first — the next section
+  walks through two free options that take about two minutes each.
+
+## Create a database
+
+<Callout type="warn" title="Copy a connection string that supports migrations">
+The build runs `prisma migrate deploy` to create the schema. Prisma Migrate
+opens a single direct session and uses prepared statements, which
+**transaction-mode poolers reject** — deploys fail with
+`prepared statement "s0" already exists`. That rules out Neon's `-pooler`
+hostname and Supabase's port `6543`. Each option below names the exact string
+to copy.
+</Callout>
+
+### Neon — recommended
+
+[Neon](https://neon.com) is serverless Postgres that scales to zero, and it is
+what the Vercel button provisions automatically.
+
+1. Sign up at [neon.com](https://neon.com) and create a project. Pick the region
+   closest to your users.
+2. On the project dashboard, open **Connect** (or **Connection Details**).
+3. Turn **Connection pooling** *off* — the hostname must **not** contain
+   `-pooler`.
+4. Copy the string. It looks like:
+
+   ```
+   postgresql://user:password@ep-xxx-123456.us-east-2.aws.neon.tech/neondb?sslmode=require
+   ```
+
+The free plan gives you 0.5 GB of storage per project, 100 compute-hours a
+month, and 5 GB of egress. An idle database suspends after 5 minutes and wakes
+on the next query, which adds roughly a second to the first request after a
+quiet spell. The build's migration step retries for this reason.
+
+### Supabase
+
+[Supabase](https://supabase.com) is Postgres plus a dashboard, useful if you
+want to browse tables in a UI.
+
+1. Sign up at [supabase.com](https://supabase.com) and create a project. Save
+   the database password it generates — it appears once.
+2. Open **Connect** in the project header.
+3. Choose **Session pooler**, not Transaction pooler and not Direct connection.
+   The host ends in `.pooler.supabase.com` and the port is `5432`:
+
+   ```
+   postgresql://postgres.abcdefgh:password@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+   ```
+
+4. Replace `[YOUR-PASSWORD]` with the password from step 1.
+
+Session mode is the one to pick because Supabase's direct connection is
+IPv6-only unless you buy the IPv4 add-on, and Netlify Functions run on IPv4.
+Transaction mode is IPv4 too, but it drops the prepared statements the
+migration needs.
+
+<Callout type="warn" title="Free Supabase projects pause after a week">
+A Supabase project with no database activity for 7 days is paused until you
+restore it by hand. A paused database means Lightning Addresses stop resolving
+and the wallet stops working. For anything people actually rely on, use Neon —
+it suspends and wakes on its own — or a paid Supabase plan.
+</Callout>
+
+### Something else
+
+Any Postgres 14 or newer reachable from the public internet works: a VPS you
+already run, RDS, DigitalOcean, Railway, Fly.io. Two requirements — the
+provider must accept connections from Netlify's build and function networks
+(no IP allowlisting), and the string should end in `?sslmode=require`.
+
+### Keep the connection count down
+
+Each concurrent Netlify function instance opens its own pool, and a busy site
+can exhaust a small database's connection limit. Append `connection_limit=1` so
+each instance holds a single connection:
+
+```
+postgresql://user:password@host/db?sslmode=require&connection_limit=1
+```
+
+Add it with `&` if the string already has a `?`, otherwise start with `?`.
+
+## Deploy
+
+1. Click **Deploy to Netlify**. Authorize GitHub if prompted.
+2. Pick a repository name for your copy and a Netlify site name.
+3. Fill in the two environment variables Netlify asks for:
+
+   | Variable | Value |
+   | --- | --- |
+   | `DATABASE_URL` | The connection string from [Create a database](#create-a-database) |
+   | `JWT_SECRET` | A random string of 32 characters or more |
+
+   Generate the secret locally with:
+
+   ```bash
+   openssl rand -base64 32
+   ```
+
+4. Select **Save & Deploy**.
+
+The first build installs the pnpm workspace, generates the Prisma client, and
+runs `next build`. Migrations run on production builds as soon as
+`DATABASE_URL` is set, so the schema is created for you — no manual
+`prisma migrate deploy` step.
+
+Build settings come from `netlify.toml` at the repository root; you do not need
+to set a base directory, build command, or publish directory in the UI.
+
+## After the first deploy
+
+Open `https://<your-site>.netlify.app/admin` and complete the setup wizard. The
+first Nostr pubkey to log in claims the ADMIN role.
+
+To use your own domain, add it under **Domain management** in Netlify, then set
+the domain inside **Admin → Settings** so Lightning Addresses resolve against
+it.
+
+### Optional environment variables
+
+Add these under **Site configuration → Environment variables**. A redeploy
+picks them up.
+
+| Variable | Purpose |
+| --- | --- |
+| `KEY_VAULT_SECRET` | Encrypts server-custodied Nostr keys for passkey accounts. Required for passkey login — back it up, losing it makes those keys unrecoverable. |
+| `NEXT_PUBLIC_LAWALLET_LANDING_URL` | Where `/` redirects. Defaults to `https://lawallet.io`. |
+| `UPSTASH_REDIS_URL` / `UPSTASH_REDIS_TOKEN` | Shared rate-limit state. Netlify Functions are horizontally scaled, so the default in-memory limiter counts per instance. |
+| `LISTENER_URL` / `LISTENER_AUTH_SECRET` | Point the web app at an NWC listener. |
+
+The full list lives in
+[`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example).
+
+## The NWC listener
+
+The [NWC listener](/docs/deploy/listener-setup) holds long-lived WebSocket
+subscriptions to Nostr relays, which serverless functions cannot do. Netlify
+runs the web app only.
+
+Lightning Addresses, the admin dashboard, and NWC payments initiated from the
+UI all work without it. You need the listener for push-style payment
+notifications and webhooks. Host it on any always-on target — a VPS, Fly.io,
+Railway, or Render — and set `LISTENER_URL` and `LISTENER_AUTH_SECRET` on the
+Netlify site to connect the two.
+
+## Updating
+
+The button leaves you with your own GitHub copy, not a fork tracking upstream.
+To pull in new releases, add this repository as a remote and merge:
+
+```bash
+git remote add upstream https://github.com/lawalletio/lawallet-nwc.git
+```
+
+```bash
+git fetch upstream && git merge upstream/main
+```
+
+Pushing to your default branch triggers a Netlify build, which applies any new
+migrations before the site goes live.
+
+## Troubleshooting
+
+**Build fails with `prepared statement "s0" already exists`** — `DATABASE_URL`
+points at a transaction-mode pooler, which Prisma Migrate can't use. Swap it for
+Neon's unpooled hostname (no `-pooler`) or Supabase's Session pooler on port
+`5432`. See [Create a database](#create-a-database).
+
+**Build fails on `prisma migrate deploy` with a connection error** — the
+database is unreachable from Netlify's build network. Check that the string
+includes `?sslmode=require`, that the provider does not restrict connections by
+IP, and — on Supabase — that you are not using the IPv6-only direct connection.
+The build retries five times before giving up, which covers a serverless
+database that is still waking up.
+
+**Everything worked, then stopped after a quiet week** — a free Supabase
+project pauses after 7 days without activity. Restore it from the Supabase
+dashboard, or move to a provider that suspends and wakes on its own.
+
+**Every request 500s with a database error** — `DATABASE_URL` is missing or
+wrong on the site. Environment variables set after the initial deploy only
+apply to builds that come after them, so trigger a redeploy.
+
+**Function timeouts on slow endpoints** — Netlify Functions cap synchronous
+execution at 10 seconds on the free plan. Payment calls proxied to a remote NWC
+wallet can exceed that when the wallet is slow; the listener path avoids it.

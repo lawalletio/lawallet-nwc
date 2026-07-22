@@ -39,6 +39,11 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 # One Click Deploy 👇
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&root-directory=apps%2Fweb&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD&env=JWT_SECRET&envDescription=JWT_SECRET%20must%20be%20a%2032%2B%20character%20random%20string.%20Generate%20one%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc%2Fblob%2Fmain%2Fapps%2Fweb%2F.env.example)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/lawalletio/lawallet-nwc)
+
+Vercel provisions Postgres for you. On Netlify, bring a Postgres connection
+string ([Neon](https://neon.com) and [Supabase](https://supabase.com) both have
+free tiers) — see the [Netlify guide](https://docs.lawallet.io/docs/deploy/netlify).
 
 ---
 
@@ -64,7 +69,7 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 
 - OpenAPI 3.1 spec + interactive [Scalar Playground](https://beta.lawallet.io/api-docs)
 - TypeScript SDK + `@lawallet-nwc/react` hooks — package extraction in progress (Month 7)
-- One-click deploy to Vercel; Docker, Umbrel, and Start9 targets available
+- One-click deploy to Vercel or Netlify; Docker, Umbrel, and Start9 targets available
 
 > The public marketing site lives in [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing). This repo's `/` redirects there; the product entrypoint is `/admin`.
 

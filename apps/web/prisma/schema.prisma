@@ -1,7 +1,11 @@
 generator client {
-  provider      = "prisma-client-js"
-  output        = "../lib/generated/prisma"
-  binaryTargets = ["native"]
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+  // `rhel-openssl-3.0.x` is for AWS Lambda hosts (Netlify Functions): the
+  // build image is Ubuntu, so `native` alone produces an engine the runtime
+  // can't load. Vercel builds on Amazon Linux, where `native` already resolves
+  // to this target.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {

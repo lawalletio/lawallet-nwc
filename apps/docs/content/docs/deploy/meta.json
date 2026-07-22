@@ -1,1 +1,1 @@
-{ "title": "Deploy", "pages": ["index", "local", "docker", "coolify", "start9", "listener-setup", "onboarding"] }
+{ "title": "Deploy", "pages": ["index", "local", "docker", "coolify", "start9", "umbrel", "listener-setup", "netlify", "onboarding"] }
