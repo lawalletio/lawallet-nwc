@@ -22,10 +22,11 @@
   package = "@netlify/plugin-nextjs"
 
 # Prompts shown by the "Deploy to Netlify" button. Values can't be preset here
-# (Netlify only uses these strings as labels), so keep them instructional.
+# (Netlify only uses these strings as labels), and the deploy form renders the
+# label INSTEAD of the variable name — so each one has to name its own variable.
 [template.environment]
-  DATABASE_URL = "Postgres connection string — create a free database at neon.com or supabase.com, e.g. postgresql://user:pass@host/db?sslmode=require"
-  JWT_SECRET = "Random 32+ character string. Generate one with: openssl rand -base64 32"
+  DATABASE_URL = "DATABASE_URL — Postgres connection string, e.g. postgresql://user:pass@host/db?sslmode=require (free tiers at neon.com and supabase.com)"
+  JWT_SECRET = "JWT_SECRET — random 32+ character string. Generate one with: openssl rand -base64 32"
 
 [[headers]]
   for = "/api/*"
