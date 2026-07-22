@@ -1,0 +1,108 @@
+---
+title: 'Umbrel Deployment'
+description: 'Install LaWallet NWC on umbrelOS from the LaWallet community app store — web app, NWC listener, and PostgreSQL in one app.'
+---
+
+[Umbrel](https://umbrel.com) is a personal server OS for self-hosting. LaWallet
+NWC ships as an Umbrel app that bundles the **whole stack** — the web app, the
+NWC listener, and its own PostgreSQL — into a single install. Nothing external
+to wire up, and no dependency on Alby Hub or any other Umbrel app.
+
+That makes Umbrel the fullest of the hosted targets: the serverless ones
+([Vercel](https://vercel.com), [Netlify](/docs/deploy/netlify)) run the web app
+alone and leave the [listener](/docs/deploy/listener-setup) to you.
+
+The package lives in its own repository,
+[`lawalletio/umbrel-app-store`](https://github.com/lawalletio/umbrel-app-store),
+and runs the same published images as every other target.
+
+| Property | Value |
+|----------|-------|
+| App id | `lawallet-nwc` |
+| Images | `masize/lawallet-nwc` (web) + `masize/lawallet-nwc-listener` + `postgres:15-alpine` |
+| Web UI | port `2288`, entrypoint `/admin/` |
+| Health check | `GET /api/health` |
+| Data | PostgreSQL persisted in `${APP_DATA_DIR}/data/postgres` |
+| Dependencies | none |
+
+## Install
+
+LaWallet NWC is **not in the official Umbrel App Store** yet. Install it from
+the LaWallet community app store:
+
+1. Open the **App Store** from the umbrelOS dock.
+2. Click the **three dots** in the top-right corner and select **Community App
+   Stores**.
+3. Paste the store URL and click **Add**:
+
+   ```
+   https://github.com/lawalletio/umbrel-app-store
+   ```
+
+4. Open the **LaWallet App Store** from that same menu and install **LaWallet
+   NWC**.
+
+Postgres starts first; once it is ready the web app applies pending Prisma
+migrations and starts on its own. When the app is running, open it from the
+umbrelOS desktop — it lands on `/admin`.
+
+## After installing
+
+Complete the setup wizard at `/admin`. The first Nostr pubkey to log in claims
+the ADMIN role.
+
+The listener is already running alongside the web app and wired to it, so
+push-style payment notifications and webhooks work out of the box — no
+`LISTENER_URL` to configure.
+
+<Callout type="warn" title="Lightning Addresses need a public domain">
+An Umbrel app is reachable on your LAN and over Tor. Lightning Addresses are
+resolved by *other people's* wallets over the public internet, so
+`you@yourdomain.com` only works once `/.well-known/lnurlp/` on a public domain
+reaches this app — through a tunnel, a reverse proxy, or Umbrel's own remote
+access. Set the domain in **Admin → Settings** afterwards, and see
+[User Onboarding](/docs/deploy/onboarding) for the per-host rewrite recipes.
+</Callout>
+
+## Updates
+
+Publishing a LaWallet NWC release updates the Umbrel package automatically: the
+release workflow dispatches to `lawalletio/umbrel-app-store` once the Docker
+images are live, which bumps the manifest to the new version. Umbrel then offers
+the update in the App Store like any other app.
+
+## Run the package locally
+
+To inspect or change the package without an Umbrel device, the store repository
+ships a smoke test that runs the app against local Postgres plus Bitcoin Core
+and LND on regtest:
+
+```bash
+git clone https://github.com/lawalletio/umbrel-app-store.git
+```
+
+```bash
+cd umbrel-app-store && ./scripts/smoke-local.sh
+```
+
+It leaves the stack running on success — admin at `http://127.0.0.1:2289/admin`,
+health at `http://127.0.0.1:2289/api/health`. Tear it down with:
+
+```bash
+docker compose --project-name lawallet-nwc-local --file test/docker-compose.regtest.yml down
+```
+
+## Troubleshooting
+
+**The app won't start** — check the app logs in umbrelOS. The web container
+waits on Postgres and then runs migrations; a first start on a slow disk can
+take a minute.
+
+**Lightning Addresses resolve locally but not from other wallets** — the
+public-domain step above is missing. Confirm with
+`curl https://yourdomain.com/.well-known/lnurlp/<username>` from outside your
+network.
+
+**The app store doesn't appear after adding the URL** — re-open the **Community
+App Stores** menu and use **Open** next to *LaWallet App Store*; community
+stores are browsed from there rather than mixed into the official listing.
