@@ -17,13 +17,89 @@ runtime is a Postgres database; the long-lived NWC listener runs elsewhere
 - A [Netlify](https://netlify.com) account connected to GitHub. The button
   copies `lawalletio/lawallet-nwc` into your own GitHub account and creates a
   Netlify site from that copy.
-- A Postgres connection string. Netlify does not provision one for you, unlike
-  the Vercel button. Any Postgres 14+ works — [Neon](https://neon.com) and
-  [Supabase](https://supabase.com) both have free tiers, as does any VPS you
-  already run.
+- A Postgres 14+ connection string. Netlify does not provision a database for
+  you the way the Vercel button does, so create one first — the next section
+  walks through two free options that take about two minutes each.
 
-Create the database first, then start the deploy. You will be asked to paste
-the connection string during setup.
+## Create a database
+
+<Callout type="warn" title="Copy a connection string that supports migrations">
+The build runs `prisma migrate deploy` to create the schema. Prisma Migrate
+opens a single direct session and uses prepared statements, which
+**transaction-mode poolers reject** — deploys fail with
+`prepared statement "s0" already exists`. That rules out Neon's `-pooler`
+hostname and Supabase's port `6543`. Each option below names the exact string
+to copy.
+</Callout>
+
+### Neon — recommended
+
+[Neon](https://neon.com) is serverless Postgres that scales to zero, and it is
+what the Vercel button provisions automatically.
+
+1. Sign up at [neon.com](https://neon.com) and create a project. Pick the region
+   closest to your users.
+2. On the project dashboard, open **Connect** (or **Connection Details**).
+3. Turn **Connection pooling** *off* — the hostname must **not** contain
+   `-pooler`.
+4. Copy the string. It looks like:
+
+   ```
+   postgresql://user:password@ep-xxx-123456.us-east-2.aws.neon.tech/neondb?sslmode=require
+   ```
+
+The free plan gives you 0.5 GB of storage per project, 100 compute-hours a
+month, and 5 GB of egress. An idle database suspends after 5 minutes and wakes
+on the next query, which adds roughly a second to the first request after a
+quiet spell. The build's migration step retries for this reason.
+
+### Supabase
+
+[Supabase](https://supabase.com) is Postgres plus a dashboard, useful if you
+want to browse tables in a UI.
+
+1. Sign up at [supabase.com](https://supabase.com) and create a project. Save
+   the database password it generates — it appears once.
+2. Open **Connect** in the project header.
+3. Choose **Session pooler**, not Transaction pooler and not Direct connection.
+   The host ends in `.pooler.supabase.com` and the port is `5432`:
+
+   ```
+   postgresql://postgres.abcdefgh:password@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+   ```
+
+4. Replace `[YOUR-PASSWORD]` with the password from step 1.
+
+Session mode is the one to pick because Supabase's direct connection is
+IPv6-only unless you buy the IPv4 add-on, and Netlify Functions run on IPv4.
+Transaction mode is IPv4 too, but it drops the prepared statements the
+migration needs.
+
+<Callout type="warn" title="Free Supabase projects pause after a week">
+A Supabase project with no database activity for 7 days is paused until you
+restore it by hand. A paused database means Lightning Addresses stop resolving
+and the wallet stops working. For anything people actually rely on, use Neon —
+it suspends and wakes on its own — or a paid Supabase plan.
+</Callout>
+
+### Something else
+
+Any Postgres 14 or newer reachable from the public internet works: a VPS you
+already run, RDS, DigitalOcean, Railway, Fly.io. Two requirements — the
+provider must accept connections from Netlify's build and function networks
+(no IP allowlisting), and the string should end in `?sslmode=require`.
+
+### Keep the connection count down
+
+Each concurrent Netlify function instance opens its own pool, and a busy site
+can exhaust a small database's connection limit. Append `connection_limit=1` so
+each instance holds a single connection:
+
+```
+postgresql://user:password@host/db?sslmode=require&connection_limit=1
+```
+
+Add it with `&` if the string already has a `?`, otherwise start with `?`.
 
 ## Deploy
 
@@ -33,7 +109,7 @@ the connection string during setup.
 
    | Variable | Value |
    | --- | --- |
-   | `DATABASE_URL` | Your Postgres connection string, e.g. `postgresql://user:pass@host/db?sslmode=require` |
+   | `DATABASE_URL` | The connection string from [Create a database](#create-a-database) |
    | `JWT_SECRET` | A random string of 32 characters or more |
 
    Generate the secret locally with:
@@ -106,11 +182,21 @@ migrations before the site goes live.
 
 ## Troubleshooting
 
-**Build fails on `prisma migrate deploy`** — the database is unreachable from
-Netlify's build network. Check that the connection string includes
-`?sslmode=require` and that the provider does not restrict connections by IP.
+**Build fails with `prepared statement "s0" already exists`** — `DATABASE_URL`
+points at a transaction-mode pooler, which Prisma Migrate can't use. Swap it for
+Neon's unpooled hostname (no `-pooler`) or Supabase's Session pooler on port
+`5432`. See [Create a database](#create-a-database).
+
+**Build fails on `prisma migrate deploy` with a connection error** — the
+database is unreachable from Netlify's build network. Check that the string
+includes `?sslmode=require`, that the provider does not restrict connections by
+IP, and — on Supabase — that you are not using the IPv6-only direct connection.
 The build retries five times before giving up, which covers a serverless
 database that is still waking up.
+
+**Everything worked, then stopped after a quiet week** — a free Supabase
+project pauses after 7 days without activity. Restore it from the Supabase
+dashboard, or move to a provider that suspends and wakes on its own.
 
 **Every request 500s with a database error** — `DATABASE_URL` is missing or
 wrong on the site. Environment variables set after the initial deploy only
