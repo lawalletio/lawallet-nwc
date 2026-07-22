@@ -7,6 +7,13 @@
 # all the build needs.
 #
 # Mirrors apps/web/vercel.json — keep the two in sync.
+#
+# Netlify's monorepo auto-detection picks apps/docs as the site's "package
+# directory" (first Next.js app it finds) and that field can only be changed in
+# the UI, never from here. It doesn't matter: an explicit command and publish
+# directory override what the package directory would have implied, and Netlify
+# builds on any change under the base directory, so pushes to apps/web still
+# deploy.
 
 [build]
   # Migrations run only on the production context and only once a database is
