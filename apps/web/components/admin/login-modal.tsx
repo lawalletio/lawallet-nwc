@@ -26,6 +26,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -640,6 +641,23 @@ function PasskeyTab() {
         mode="authenticate"
         className="h-11 w-full"
         showCrossDeviceHint
+      />
+
+      {/* First-time visitors have no passkey to sign in with — this is the
+          only entry point on the admin surface (the wallet has its own
+          /wallet/create-passkey flow). Creating one derives a fresh Nostr
+          identity from the passkey; claiming root then happens through the
+          setup wizard as usual. */}
+      <div className="flex items-center gap-3 pt-1">
+        <Separator className="flex-1" />
+        <span className="text-xs text-muted-foreground">New here?</span>
+        <Separator className="flex-1" />
+      </div>
+      <PasskeyLoginButton
+        mode="register"
+        variant="outline"
+        label="Create a passkey account"
+        className="h-11 w-full"
       />
     </div>
   )
