@@ -103,7 +103,7 @@ export function getOpenApiDocument(options: OpenApiDocumentOptions = {}): OpenAP
       {
         name: 'Passkeys',
         description:
-          'WebAuthn passkey signup, login, account linking, credential management, and custodied Nostr key release.',
+          'WebAuthn passkey creation (signup and add-to-account) and credential management. Each passkey derives its Nostr identity client-side via the WebAuthn PRF extension — the server only records credentials; login is a normal NIP-98 exchange with the derived key.',
       },
       { name: 'Cards', description: 'Card lifecycle: create, list, scan, write, OTC.' },
       { name: 'Card Designs', description: 'Visual templates assigned to cards.' },

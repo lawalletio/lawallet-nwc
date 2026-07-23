@@ -4,12 +4,12 @@ import type { NostrSigner } from '@nostrify/nostrify'
 
 // happy-dom has no WebAuthn API and the provider pulls a wide import graph —
 // stub every collaborator so the test exercises only the passkey session
-// logic inside AuthProvider itself.
+// logic inside AuthProvider itself. Under the PRF model a passkey session
+// is an nsec session whose secret came from the passkey: the derived key is
+// persisted to localStorage and restored exactly like the nsec method.
 const mocks = vi.hoisted(() => ({
   validateJwt: vi.fn(),
   exchangeNip98ForJwt: vi.fn(),
-  fetchManagedKey: vi.fn(),
-  refreshPasskeySession: vi.fn(),
   createNsecSigner: vi.fn(),
   createBrowserSigner: vi.fn(),
   createBunkerSigner: vi.fn(),
@@ -23,10 +23,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/client/auth-api', () => ({
   validateJwt: mocks.validateJwt,
   exchangeNip98ForJwt: mocks.exchangeNip98ForJwt
-}))
-vi.mock('@/lib/client/passkey-api', () => ({
-  fetchManagedKey: mocks.fetchManagedKey,
-  refreshPasskeySession: mocks.refreshPasskeySession
 }))
 vi.mock('@/lib/client/nostr-signer', () => ({
   createNsecSigner: mocks.createNsecSigner,
@@ -70,7 +66,7 @@ const METHOD_KEY = 'lawallet-login-method'
 const SECRET_KEY = 'lawallet-signer-secret'
 
 const PUBKEY = 'f'.repeat(64)
-const MANAGED_KEY = 'a'.repeat(64)
+const DERIVED_SECRET = 'a'.repeat(64)
 
 const STUB_SIGNER = {
   getPublicKey: vi.fn(async () => PUBKEY),
@@ -127,18 +123,14 @@ beforeEach(() => {
   localStorage.clear()
   held.ctx = null
   mocks.validateJwt.mockResolvedValue(validation())
+  mocks.exchangeNip98ForJwt.mockResolvedValue({ token: 'tok' })
   mocks.createNsecSigner.mockReturnValue(STUB_SIGNER)
   mocks.hasBrowserExtension.mockReturnValue(false)
 })
 
-describe('AuthProvider passkey sessions', () => {
-  describe('loginWithToken', () => {
-    it('commits a passkey session, never persists a secret, and hydrates the signer async', async () => {
-      mocks.fetchManagedKey.mockResolvedValue({
-        signerKey: MANAGED_KEY,
-        pubkey: PUBKEY
-      })
-
+describe('AuthProvider passkey sessions (PRF model)', () => {
+  describe('login', () => {
+    it('persists the derived secret like the nsec method and keeps the signer', async () => {
       renderProvider()
       await waitFor(() =>
         expect(screen.getByTestId('status')).toHaveTextContent(
@@ -147,57 +139,29 @@ describe('AuthProvider passkey sessions', () => {
       )
 
       await act(async () => {
-        await held.ctx!.loginWithToken('tok', 'passkey')
+        await held.ctx!.login(STUB_SIGNER, 'passkey', {
+          secret: DERIVED_SECRET
+        })
       })
 
       expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
       expect(screen.getByTestId('pubkey')).toHaveTextContent(PUBKEY)
       expect(screen.getByTestId('method')).toHaveTextContent('passkey')
+      expect(screen.getByTestId('signer')).toHaveTextContent('yes')
+      expect(mocks.exchangeNip98ForJwt).toHaveBeenCalledWith(STUB_SIGNER)
       expect(localStorage.getItem(JWT_KEY)).toBe('tok')
       expect(localStorage.getItem(METHOD_KEY)).toBe('passkey')
-      // The server custodies the key — nothing key-shaped may sit at rest.
-      expect(localStorage.getItem(SECRET_KEY)).toBeNull()
-
-      // No signerKey in the session response → async managed-key hydration.
-      await waitFor(() =>
-        expect(screen.getByTestId('signer')).toHaveTextContent('yes')
-      )
-      expect(mocks.fetchManagedKey).toHaveBeenCalledWith('tok')
-      expect(mocks.createNsecSigner).toHaveBeenCalledWith(MANAGED_KEY)
-    })
-
-    it('builds the signer synchronously from signerKey and skips fetchManagedKey', async () => {
-      mocks.fetchManagedKey.mockResolvedValue(null)
-
-      renderProvider()
-      await waitFor(() =>
-        expect(screen.getByTestId('status')).toHaveTextContent(
-          'unauthenticated'
-        )
-      )
-
-      await act(async () => {
-        await held.ctx!.loginWithToken('tok', 'passkey', MANAGED_KEY)
-      })
-
-      // Signer present immediately — no async hydration round trip.
-      expect(screen.getByTestId('signer')).toHaveTextContent('yes')
-      expect(mocks.createNsecSigner).toHaveBeenCalledWith(MANAGED_KEY)
-      expect(localStorage.getItem(SECRET_KEY)).toBeNull()
-
-      await flush()
-      expect(mocks.fetchManagedKey).not.toHaveBeenCalled()
+      // The PRF-derived key persists at rest — that's what makes reloads
+      // silent; there is no server custody to fall back to anymore.
+      expect(localStorage.getItem(SECRET_KEY)).toBe(DERIVED_SECRET)
     })
   })
 
   describe('reload restore', () => {
-    it('restores a managed-custody session: validateJwt then silent signer re-fetch', async () => {
+    it('restores the session and silently rebuilds the signer from the stored secret', async () => {
       localStorage.setItem(JWT_KEY, 'stored-tok')
       localStorage.setItem(METHOD_KEY, 'passkey')
-      mocks.fetchManagedKey.mockResolvedValue({
-        signerKey: MANAGED_KEY,
-        pubkey: PUBKEY
-      })
+      localStorage.setItem(SECRET_KEY, DERIVED_SECRET)
 
       renderProvider()
 
@@ -210,16 +174,12 @@ describe('AuthProvider passkey sessions', () => {
       await waitFor(() =>
         expect(screen.getByTestId('signer')).toHaveTextContent('yes')
       )
-      expect(mocks.fetchManagedKey).toHaveBeenCalledWith('stored-tok')
-      expect(mocks.createNsecSigner).toHaveBeenCalledWith(MANAGED_KEY)
-      // Restore never writes the key to disk either.
-      expect(localStorage.getItem(SECRET_KEY)).toBeNull()
+      expect(mocks.createNsecSigner).toHaveBeenCalledWith(DERIVED_SECRET)
     })
 
-    it('keeps a linked-custody session alive signer-less when fetchManagedKey returns null', async () => {
+    it('keeps the session alive signer-less when no secret is stored', async () => {
       localStorage.setItem(JWT_KEY, 'stored-tok')
       localStorage.setItem(METHOD_KEY, 'passkey')
-      mocks.fetchManagedKey.mockResolvedValue(null)
 
       renderProvider()
 
@@ -229,24 +189,36 @@ describe('AuthProvider passkey sessions', () => {
       await flush()
 
       // Session survives; the signer simply stays empty (unlock on demand).
-      expect(mocks.fetchManagedKey).toHaveBeenCalledWith('stored-tok')
-      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
       expect(screen.getByTestId('signer')).toHaveTextContent('no')
       expect(mocks.createNsecSigner).not.toHaveBeenCalled()
       expect(localStorage.getItem(JWT_KEY)).toBe('stored-tok')
     })
+
+    it('drops a malformed stored secret instead of failing every reload', async () => {
+      localStorage.setItem(JWT_KEY, 'stored-tok')
+      localStorage.setItem(METHOD_KEY, 'passkey')
+      localStorage.setItem(SECRET_KEY, 'not-a-key')
+      mocks.createNsecSigner.mockImplementation(() => {
+        throw new Error('bad key')
+      })
+
+      renderProvider()
+
+      await waitFor(() =>
+        expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+      )
+      await flush()
+
+      expect(screen.getByTestId('signer')).toHaveTextContent('no')
+      expect(localStorage.getItem(SECRET_KEY)).toBeNull()
+    })
   })
 
   describe('requestSigner silent branch', () => {
-    it('rebuilds the signer from the managed key without opening the unlock dialog', async () => {
+    it('rebuilds the signer from the stored secret without opening the unlock dialog', async () => {
       localStorage.setItem(JWT_KEY, 'stored-tok')
       localStorage.setItem(METHOD_KEY, 'passkey')
-      // Mount-time restore fails (network hiccup) → session stays signer-less;
-      // the on-demand requestSigner() retry then succeeds silently.
-      mocks.fetchManagedKey
-        .mockRejectedValueOnce(new Error('network down'))
-        .mockResolvedValue({ signerKey: MANAGED_KEY, pubkey: PUBKEY })
-
+      // No secret at mount → the session restores signer-less…
       renderProvider()
 
       await waitFor(() =>
@@ -255,17 +227,46 @@ describe('AuthProvider passkey sessions', () => {
       await flush()
       expect(screen.getByTestId('signer')).toHaveTextContent('no')
 
+      // …then the secret shows up (e.g. written by another tab's login) and
+      // requestSigner reads localStorage at call time, silently rebuilding.
+      localStorage.setItem(SECRET_KEY, DERIVED_SECRET)
+
       let signer: NostrSigner | null = null
       await act(async () => {
         signer = await held.ctx!.requestSigner()
       })
 
       expect(signer).toBe(STUB_SIGNER)
-      expect(mocks.fetchManagedKey).toHaveBeenCalledTimes(2)
-      expect(mocks.createNsecSigner).toHaveBeenCalledWith(MANAGED_KEY)
+      expect(mocks.createNsecSigner).toHaveBeenCalledWith(DERIVED_SECRET)
       await waitFor(() =>
         expect(screen.getByTestId('signer')).toHaveTextContent('yes')
       )
+    })
+  })
+
+  describe('logout', () => {
+    it('clears the persisted secret with the session', async () => {
+      localStorage.setItem(JWT_KEY, 'stored-tok')
+      localStorage.setItem(METHOD_KEY, 'passkey')
+      localStorage.setItem(SECRET_KEY, DERIVED_SECRET)
+
+      renderProvider()
+      await waitFor(() =>
+        expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+      )
+
+      act(() => {
+        held.ctx!.logout()
+      })
+
+      await waitFor(() =>
+        expect(screen.getByTestId('status')).toHaveTextContent(
+          'unauthenticated'
+        )
+      )
+      expect(localStorage.getItem(JWT_KEY)).toBeNull()
+      expect(localStorage.getItem(METHOD_KEY)).toBeNull()
+      expect(localStorage.getItem(SECRET_KEY)).toBeNull()
     })
   })
 })

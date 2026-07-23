@@ -20,10 +20,9 @@ export const dynamic = 'force-dynamic'
  *
  * - `method: 'nostr'` — returns a challenge token + nonce. The other key
  *   signs a NIP-42 (kind 22242) event carrying the nonce in a `challenge`
- *   tag; the pair goes to link/verify.
- * - `method: 'passkey'` — no server state needed here: the client obtains a
- *   standard LOGIN assertion via `POST /api/auth/passkey/authentication/options`
- *   and submits it to link/verify (single-use challenge semantics included).
+ *   tag; the pair goes to link/verify. Proving a PASSKEY-held account uses
+ *   this same flow — the client derives that passkey's key via PRF and signs
+ *   the proof with it; the server never sees a WebAuthn assertion here.
  */
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'json')
@@ -35,11 +34,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   const account = await resolveAccountByPubkey(auth.pubkey)
   if (!account) throw new NotFoundError('Account not found')
 
-  const body = await validateBody(request, accountLinkBeginRequestSchema)
-
-  if (body.method === 'passkey') {
-    return NextResponse.json({ expiresIn: 300 })
-  }
+  await validateBody(request, accountLinkBeginRequestSchema)
 
   const { challenge, nonce, expiresIn } = mintNostrLinkChallenge(account.id)
   return NextResponse.json({ challenge, nonce, expiresIn })

@@ -17,17 +17,19 @@ const CREDENTIALS_PATH = '/api/auth/passkey/credentials'
 
 interface PasskeyListResponse {
   credentials: PasskeyCredentialSummary[]
-  /** True when the server custodies this account's Nostr key (passkey-native). */
+  /**
+   * Legacy custody flags — pre-PRF accounts whose key the server still
+   * holds. Informational only under the PRF model (no export UI, no delete
+   * guards); kept because the endpoint still reports them.
+   */
   hasManagedKey: boolean
-  /** True once the custodied key has been exported — unblocks last-passkey delete. */
   managedKeyExported: boolean
 }
 
 /**
- * Passkey management for the security settings screen: list/rename/delete
- * own credentials, link a new one (also the entry point for nsec/extension/
- * bunker users adding their first passkey), and the `hasManagedKey` flag
- * that gates the export-key UI.
+ * Passkey management for the security settings screens: list/rename/delete
+ * own credentials and link a new one (also the entry point for nsec/
+ * extension/bunker users adding their first passkey).
  */
 export function usePasskeys() {
   const { status, jwt } = useAuth()

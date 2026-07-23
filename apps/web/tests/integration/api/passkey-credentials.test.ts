@@ -301,35 +301,9 @@ describe('DELETE /api/auth/passkey/credentials/[id]', () => {
     return credential
   }
 
-  it('409s on the last credential when the managed key was never exported', async () => {
+  it('deletes any credential — no export guard under the PRF model', async () => {
     mockUser()
     const credential = setupOwnedCredential()
-    vi.mocked(prismaMock.passkeyCredential.count).mockResolvedValue(1)
-    vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(
-      makeManagedKey({ exportedAt: null }) as any
-    )
-
-    const res = await DELETE(
-      deleteReq(credential.id),
-      createParamsPromise({ id: credential.id })
-    )
-    const body: any = await assertResponse(res, 409)
-
-    expect(body.error.message).toContain('Export your Nostr key')
-    expect(prismaMock.passkeyCredential.delete).not.toHaveBeenCalled()
-    // The error handler logs the 409 itself; the deletion event must not fire.
-    expect(logActivity.fireAndForget).not.toHaveBeenCalledWith(
-      expect.objectContaining({ event: 'user.passkey_deleted' })
-    )
-  })
-
-  it('deletes the last credential once the managed key was exported', async () => {
-    mockUser()
-    const credential = setupOwnedCredential()
-    vi.mocked(prismaMock.passkeyCredential.count).mockResolvedValue(1)
-    vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(
-      makeManagedKey({ exportedAt: new Date('2026-03-01T00:00:00.000Z') }) as any
-    )
 
     const res = await DELETE(
       deleteReq(credential.id),
@@ -341,51 +315,27 @@ describe('DELETE /api/auth/passkey/credentials/[id]', () => {
     expect(prismaMock.passkeyCredential.delete).toHaveBeenCalledWith({
       where: { id: credential.id },
     })
-  })
-
-  it('deletes the last credential of a linked account (no managed key)', async () => {
-    mockUser()
-    const credential = setupOwnedCredential()
-    vi.mocked(prismaMock.passkeyCredential.count).mockResolvedValue(1)
-    vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(null)
-
-    const res = await DELETE(
-      deleteReq(credential.id),
-      createParamsPromise({ id: credential.id })
-    )
-    const body: any = await assertResponse(res, 200)
-
-    expect(body.id).toBe(credential.id)
-    expect(prismaMock.passkeyCredential.delete).toHaveBeenCalled()
     expect(logActivity.fireAndForget).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'user.passkey_deleted',
-        metadata: { credentialId: credential.id, lastCredential: true },
+        metadata: { credentialId: credential.id },
       })
     )
   })
 
-  it('deletes a non-last credential even with an unexported managed key', async () => {
+  it('deletes the last credential even when a legacy managed key exists', async () => {
     mockUser()
     const credential = setupOwnedCredential()
-    vi.mocked(prismaMock.passkeyCredential.count).mockResolvedValue(2)
+    vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(
+      makeManagedKey({ exportedAt: null }) as any
+    )
 
     const res = await DELETE(
       deleteReq(credential.id),
       createParamsPromise({ id: credential.id })
     )
     await assertResponse(res, 200)
-
-    // Guard only consults the managed key when this is the last credential.
-    expect(prismaMock.managedNostrKey.findUnique).not.toHaveBeenCalled()
     expect(prismaMock.passkeyCredential.delete).toHaveBeenCalled()
-    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event: 'user.passkey_deleted',
-        userId: 'user-1',
-        metadata: { credentialId: credential.id, lastCredential: false },
-      })
-    )
   })
 
   it('rate-limits per user with the sensitive preset', async () => {

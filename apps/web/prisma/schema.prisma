@@ -201,6 +201,10 @@ model PasskeyCredential {
   /// it — if the operator changes the instance domain, this lets login errors
   /// explain why an old credential no longer verifies.
   rpId       String
+  /// The Nostr pubkey this credential's PRF output derives — i.e. which of
+  /// the account's identities this passkey IS. Display/bookkeeping only;
+  /// authentication goes through the derived key's NIP-98 signature.
+  pubkey     String?
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
 

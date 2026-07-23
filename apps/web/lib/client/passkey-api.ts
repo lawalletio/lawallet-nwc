@@ -1,40 +1,40 @@
 import {
   browserSupportsWebAuthn,
-  startAuthentication,
   startRegistration
 } from '@simplewebauthn/browser'
+import { finalizeEvent } from 'nostr-tools/pure'
 import type { PasskeyCredentialSummary } from '@/lib/validation/schemas'
+import { getPublicKeyFromPrivate, hexToNsec } from '@/lib/nostr'
+import { derivePrfNsecHex, getPrfAssertion } from '@/lib/client/passkey-prf'
 
 export type { PasskeyCredentialSummary }
 
 /**
- * Client side of the passkey (WebAuthn) auth flows. Each ceremony helper runs
- * the full begin → browser prompt → verify round trip and must be called from
- * a user gesture (click handler) — Safari/iOS reject WebAuthn calls outside
- * transient activation.
+ * Client side of passkey auth under the PRF model: the WebAuthn PRF
+ * extension (evaluated with a fixed app salt) deterministically derives the
+ * credential's Nostr secret key CLIENT-SIDE — the server only records
+ * credentials and never holds a key. Login is therefore a local ceremony
+ * (PRF → nsec) followed by the ordinary NIP-98 → /api/jwt exchange.
+ *
+ * Every ceremony helper must be called from a user gesture (click handler) —
+ * Safari/iOS reject WebAuthn calls outside transient activation.
  */
 
-export type PasskeyCustody = 'managed' | 'linked'
-
-/** Session payload minted by the passkey auth endpoints (mirrors /api/jwt). */
-export interface PasskeySession {
-  token: string
-  expiresIn: string | number
-  type: 'Bearer'
+/** A passkey resolved to its deterministic Nostr identity. */
+export interface PasskeyIdentity {
+  /** 64-char hex secret key — what the signer and stored secret use. */
+  secretHex: string
+  /** bech32 nsec of the same key — for display/backup UI. */
+  nsec: string
   pubkey: string
-  custody: PasskeyCustody
-  /**
-   * The account's Nostr private key (hex) — present ONLY on the response of
-   * a brand-new registration, so the client can build its in-memory signer
-   * without a second round trip. Never persisted.
-   */
-  signerKey?: string
+  credentialId: string
 }
 
 export type PasskeyErrorKind =
   | 'cancelled'
   | 'duplicate'
   | 'unsupported'
+  | 'prf-unsupported'
   | 'security'
   | 'unknown'
 
@@ -81,6 +81,12 @@ export function translatePasskeyError(err: unknown): PasskeyError {
           'This device does not support passkeys',
           err
         )
+      case 'PrfUnsupportedError':
+        return new PasskeyError(
+          'prf-unsupported',
+          'This passkey cannot derive a key on this device — use iOS 18+/macOS 15+, a recent Chrome/Android, or another login method',
+          err
+        )
     }
   }
 
@@ -122,162 +128,149 @@ async function postJson<T>(
   return response.json()
 }
 
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  }
+  return bytes
+}
+
 /**
- * Creates a brand-new account with a passkey: the server generates and
- * custodies a Nostr key; the response carries the session JWT plus the key
- * (once) so the caller can build an in-memory signer immediately.
+ * The registration ceremony shared by signup and add-a-passkey: create the
+ * credential (requiring PRF support), evaluate the PRF against the fixed
+ * salt, derive the key, and prove it to the server with a NIP-42 event
+ * answering the WebAuthn challenge. The server records the credential and —
+ * depending on `token` — creates the account (signup) or links the derived
+ * pubkey as a secondary identity (add).
  */
-export async function registerPasskeyAccount(
-  label?: string
-): Promise<PasskeySession> {
+async function runRegistrationCeremony(
+  label?: string,
+  token?: string
+): Promise<PasskeyIdentity & { credential: PasskeyCredentialSummary }> {
   const { options } = await postJson<{
     options: { challenge: string } & Record<string, unknown>
-  }>('/api/auth/passkey/registration/options', label ? { label } : {})
+  }>(
+    '/api/auth/passkey/registration/options',
+    label ? { label } : {},
+    token
+  )
 
-  let credential
+  // Ask for the PRF extension at creation so `prf.enabled` tells us up front
+  // whether this authenticator can derive keys at all.
+  const optionsWithPrf = {
+    ...options,
+    extensions: {
+      ...(options.extensions as Record<string, unknown> | undefined),
+      prf: {}
+    }
+  }
+
+  let registration
   try {
-    credential = await startRegistration({ optionsJSON: options as never })
+    registration = await startRegistration({
+      optionsJSON: optionsWithPrf as never
+    })
   } catch (err) {
     throw translatePasskeyError(err)
   }
 
-  return postJson<PasskeySession>('/api/auth/passkey/registration/verify', {
-    challenge: options.challenge,
-    credential,
-    ...(label ? { label } : {})
-  })
-}
-
-/**
- * Runs ONLY the assertion ceremony (options + authenticator prompt) without
- * exchanging it for a session. Used when an assertion serves as proof of
- * account control — e.g. the account link/merge flow — where a different
- * endpoint consumes the challenge.
- */
-export async function getPasskeyAssertion(): Promise<{
-  challenge: string
-  credential: unknown
-}> {
-  const { options } = await postJson<{
-    options: { challenge: string } & Record<string, unknown>
-  }>('/api/auth/passkey/authentication/options')
-
-  let credential
-  try {
-    credential = await startAuthentication({ optionsJSON: options as never })
-  } catch (err) {
-    throw translatePasskeyError(err)
-  }
-
-  return { challenge: options.challenge, credential }
-}
-
-/** Username-less login with any passkey registered on this instance. */
-export async function authenticateWithPasskey(): Promise<PasskeySession> {
-  const { options } = await postJson<{
-    options: { challenge: string } & Record<string, unknown>
-  }>('/api/auth/passkey/authentication/options')
-
-  let credential
-  try {
-    credential = await startAuthentication({ optionsJSON: options as never })
-  } catch (err) {
-    throw translatePasskeyError(err)
-  }
-
-  return postJson<PasskeySession>('/api/auth/passkey/authentication/verify', {
-    challenge: options.challenge,
-    credential
-  })
-}
-
-/**
- * Fetches the server-custodied key for silent signer restore. Returns null
- * for linked-credential accounts (the server never had their key) — callers
- * fall back to the signer-unlock flow.
- */
-export async function fetchManagedKey(
-  token: string
-): Promise<{ signerKey: string; pubkey: string } | null> {
-  const response = await fetch('/api/auth/passkey/signer-key', {
-    method: 'GET',
-    cache: 'no-store',
-    headers: { Authorization: `Bearer ${token}` }
-  })
-
-  if (response.status === 404) return null
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null)
+  const prfEnabled = (
+    registration.clientExtensionResults as { prf?: { enabled?: boolean } }
+  ).prf?.enabled
+  if (!prfEnabled) {
     throw new PasskeyError(
-      'unknown',
-      payload?.error?.message || `Request failed (${response.status})`
+      'prf-unsupported',
+      'This passkey cannot derive a key on this device — use iOS 18+/macOS 15+, a recent Chrome/Android, or another login method'
     )
   }
 
-  return response.json()
-}
-
-/**
- * Explicit nsec export: requires a fresh passkey assertion on top of the
- * session token, so a stolen JWT alone can never exfiltrate the key.
- */
-export async function exportManagedKey(
-  token: string
-): Promise<{ nsec: string; pubkey: string }> {
-  const { options } = await postJson<{
-    options: { challenge: string } & Record<string, unknown>
-  }>('/api/auth/passkey/nsec/export/options', undefined, token)
-
-  let credential
+  // Evaluate the PRF with a second (pinned) ceremony and derive the key.
+  let identity: PasskeyIdentity
   try {
-    credential = await startAuthentication({ optionsJSON: options as never })
+    const assertion = await getPrfAssertion(registration.id)
+    const secretHex = await derivePrfNsecHex(assertion.prfOutput)
+    identity = {
+      secretHex,
+      nsec: hexToNsec(secretHex),
+      pubkey: getPublicKeyFromPrivate(secretHex),
+      credentialId: assertion.credentialId
+    }
   } catch (err) {
     throw translatePasskeyError(err)
   }
 
-  return postJson<{ nsec: string; pubkey: string }>(
-    '/api/auth/passkey/nsec/export',
-    { challenge: options.challenge, credential },
+  // Prove the derived key: kind-22242 answering the WebAuthn challenge.
+  const proof = finalizeEvent(
+    {
+      kind: 22242,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['challenge', options.challenge]],
+      content: ''
+    },
+    hexToBytes(identity.secretHex)
+  )
+
+  const { credential } = await postJson<{
+    pubkey: string
+    credential: PasskeyCredentialSummary
+  }>(
+    '/api/auth/passkey/registration/verify',
+    {
+      challenge: options.challenge,
+      credential: registration,
+      pubkey: identity.pubkey,
+      proof,
+      ...(label ? { label } : {})
+    },
     token
   )
+
+  return { ...identity, credential }
 }
 
-/** Links a new passkey to the currently authenticated account. */
+/**
+ * Creates a brand-new passkey account: registers the credential, derives its
+ * Nostr identity via PRF, and registers the account server-side. The caller
+ * completes login with the ordinary NIP-98 exchange using `secretHex`.
+ */
+export function registerPasskeyAccount(
+  label?: string
+): Promise<PasskeyIdentity & { credential: PasskeyCredentialSummary }> {
+  return runRegistrationCeremony(label)
+}
+
+/**
+ * Passkey login — fully client-side: a discoverable assertion evaluates the
+ * PRF and the same nsec falls out every time. No server round trip; the
+ * caller logs in via NIP-98 with the derived key, which resolves to the
+ * account that pubkey is linked to.
+ */
+export async function authenticateWithPasskey(): Promise<PasskeyIdentity> {
+  try {
+    const assertion = await getPrfAssertion()
+    const secretHex = await derivePrfNsecHex(assertion.prfOutput)
+    return {
+      secretHex,
+      nsec: hexToNsec(secretHex),
+      pubkey: getPublicKeyFromPrivate(secretHex),
+      credentialId: assertion.credentialId
+    }
+  } catch (err) {
+    throw translatePasskeyError(err)
+  }
+}
+
+/**
+ * Adds a passkey to the CURRENT account: same ceremony as signup, but the
+ * authenticated verify links the derived pubkey as a secondary identity.
+ * 409 → 'duplicate' (credential already registered / pubkey owned by another
+ * account) — the UI surfaces the merge suggestion.
+ */
 export async function linkPasskey(
   token: string,
   label?: string
 ): Promise<PasskeyCredentialSummary> {
-  const { options } = await postJson<{
-    options: { challenge: string } & Record<string, unknown>
-  }>('/api/auth/passkey/link/options', label ? { label } : {}, token)
-
-  let credential
-  try {
-    credential = await startRegistration({ optionsJSON: options as never })
-  } catch (err) {
-    throw translatePasskeyError(err)
-  }
-
-  const { credential: summary } = await postJson<{
-    credential: PasskeyCredentialSummary
-  }>(
-    '/api/auth/passkey/link/verify',
-    { challenge: options.challenge, credential, ...(label ? { label } : {}) },
-    token
-  )
-  return summary
-}
-
-/**
- * Re-issues a passkey session JWT (linked-custody accounts have no signer to
- * run the NIP-98 refresh path). Server-capped at 30 days of total session age.
- */
-export async function refreshPasskeySession(
-  token: string
-): Promise<PasskeySession> {
-  return postJson<PasskeySession>(
-    '/api/auth/passkey/session/refresh',
-    undefined,
-    token
-  )
+  const result = await runRegistrationCeremony(label, token)
+  return result.credential
 }
