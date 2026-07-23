@@ -680,6 +680,23 @@ export type BackupImportResult = z.infer<typeof backupImportResultSchema>
 // Structural validation only — deep cryptographic validation of the WebAuthn
 // payloads belongs to @simplewebauthn/server on the route side.
 
+export const hexPubkeySchema = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/, 'Must be a 64-char lowercase hex pubkey')
+
+/** A signed Nostr event, as proof of key control (NIP-42 kind 22242). */
+export const signedNostrEventSchema = z
+  .object({
+    id: z.string(),
+    pubkey: hexPubkeySchema,
+    created_at: z.number(),
+    kind: z.number(),
+    tags: z.array(z.array(z.string())),
+    content: z.string(),
+    sig: z.string()
+  })
+  .passthrough()
+
 export const passkeyLabelSchema = z.string().trim().min(1).max(64)
 
 /** Minimal structural shape of a browser RegistrationResponseJSON. */
@@ -700,24 +717,6 @@ export const webauthnRegistrationResponseSchema = z
   })
   .passthrough()
 
-/** Minimal structural shape of a browser AuthenticationResponseJSON. */
-export const webauthnAuthenticationResponseSchema = z
-  .object({
-    id: z.string().min(1),
-    rawId: z.string().min(1),
-    type: z.literal('public-key'),
-    response: z
-      .object({
-        clientDataJSON: z.string().min(1),
-        authenticatorData: z.string().min(1),
-        signature: z.string().min(1),
-        userHandle: z.string().nullish()
-      })
-      .passthrough(),
-    clientExtensionResults: z.record(z.unknown()).default({})
-  })
-  .passthrough()
-
 export const passkeyRegistrationOptionsRequestSchema = z.object({
   label: passkeyLabelSchema.optional()
 })
@@ -725,23 +724,19 @@ export const passkeyRegistrationOptionsRequestSchema = z.object({
 export const passkeyRegistrationVerifyRequestSchema = z.object({
   challenge: z.string().min(16).max(128),
   credential: webauthnRegistrationResponseSchema,
+  /** The PRF-derived Nostr pubkey this credential IS (client-derived). */
+  pubkey: hexPubkeySchema,
+  /**
+   * NIP-42 (kind 22242) event signed by the derived key, carrying the
+   * WebAuthn challenge in a `challenge` tag — proves the client actually
+   * controls the pubkey it claims for this credential.
+   */
+  proof: signedNostrEventSchema,
   label: passkeyLabelSchema.optional()
 })
 export type PasskeyRegistrationVerifyRequest = z.infer<
   typeof passkeyRegistrationVerifyRequestSchema
 >
-
-export const passkeyAuthenticationVerifyRequestSchema = z.object({
-  challenge: z.string().min(16).max(128),
-  credential: webauthnAuthenticationResponseSchema
-})
-export type PasskeyAuthenticationVerifyRequest = z.infer<
-  typeof passkeyAuthenticationVerifyRequestSchema
->
-
-/** nsec export = a fresh EXPORT-flow assertion, same wire shape as login verify. */
-export const passkeyNsecExportRequestSchema =
-  passkeyAuthenticationVerifyRequestSchema
 
 export const updatePasskeyCredentialSchema = z.object({
   label: passkeyLabelSchema
@@ -754,6 +749,8 @@ export const passkeyCredentialSummarySchema = z.object({
   backedUp: z.boolean(),
   aaguid: z.string().nullable(),
   rpId: z.string(),
+  /** The Nostr identity this passkey derives (PRF); null for pre-PRF rows. */
+  pubkey: z.string().nullable(),
   createdAt: z.string(),
   lastUsedAt: z.string().nullable()
 })
@@ -776,23 +773,10 @@ export type PasskeyCredentialListResponse = z.infer<
   typeof passkeyCredentialListResponseSchema
 >
 
-/** Session token payload returned by passkey auth endpoints (mirrors /api/jwt). */
-export const passkeySessionResponseSchema = z.object({
-  token: z.string(),
-  expiresIn: z.union([z.string(), z.number()]),
-  type: z.literal('Bearer'),
-  pubkey: z.string(),
-  custody: z.enum(['managed', 'linked'])
-})
-export type PasskeySessionResponse = z.infer<typeof passkeySessionResponseSchema>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Account (multi-pubkey identities, linking & merge)
 // ─────────────────────────────────────────────────────────────────────────────
-
-export const hexPubkeySchema = z
-  .string()
-  .regex(/^[0-9a-f]{64}$/, 'Must be a 64-char lowercase hex pubkey')
 
 export const nostrIdentitySummarySchema = z.object({
   pubkey: hexPubkeySchema,
@@ -821,7 +805,7 @@ export const accountSummaryResponseSchema = z.object({
 export type AccountSummaryResponse = z.infer<typeof accountSummaryResponseSchema>
 
 export const accountLinkBeginRequestSchema = z.object({
-  method: z.enum(['nostr', 'passkey'])
+  method: z.literal('nostr')
 })
 export const accountLinkBeginResponseSchema = z.object({
   /**
@@ -836,32 +820,17 @@ export const accountLinkBeginResponseSchema = z.object({
 })
 export type AccountLinkBeginResponse = z.infer<typeof accountLinkBeginResponseSchema>
 
-/** A signed Nostr event, as proof of key control (NIP-42 kind 22242). */
-export const signedNostrEventSchema = z
-  .object({
-    id: z.string(),
-    pubkey: hexPubkeySchema,
-    created_at: z.number(),
-    kind: z.number(),
-    tags: z.array(z.array(z.string())),
-    content: z.string(),
-    sig: z.string()
-  })
-  .passthrough()
-
-export const accountLinkVerifyRequestSchema = z.discriminatedUnion('method', [
-  z.object({
-    method: z.literal('nostr'),
-    challenge: z.string().min(16),
-    event: signedNostrEventSchema,
-    label: z.string().trim().min(1).max(64).optional()
-  }),
-  z.object({
-    method: z.literal('passkey'),
-    challenge: z.string().min(16).max(128),
-    credential: webauthnAuthenticationResponseSchema
-  })
-])
+/**
+ * Link/merge proof is Nostr-only: proving control of another account's
+ * passkey happens CLIENT-SIDE (PRF → derived key → this same signed-event
+ * proof), so there is no server-side passkey-assertion arm.
+ */
+export const accountLinkVerifyRequestSchema = z.object({
+  method: z.literal('nostr'),
+  challenge: z.string().min(16),
+  event: signedNostrEventSchema,
+  label: z.string().trim().min(1).max(64).optional()
+})
 export type AccountLinkVerifyRequest = z.infer<typeof accountLinkVerifyRequestSchema>
 
 export const accountMergeCollisionSchema = z.object({

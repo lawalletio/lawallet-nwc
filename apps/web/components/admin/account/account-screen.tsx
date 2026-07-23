@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import {
   Copy,
-  KeyRound,
   Link2,
   MoreHorizontal,
   Pencil,
@@ -59,7 +58,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { MergeDialog } from '@/components/admin/account/merge-dialog'
 import { PasskeysSection } from '@/components/wallet/settings/passkeys-section'
-import { ExportKeyDialog } from '@/components/wallet/settings/export-key-dialog'
 import { useAuth } from '@/components/admin/auth-context'
 import { useAccount } from '@/lib/client/hooks/use-account'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
@@ -91,7 +89,6 @@ export function AccountScreen() {
     unlinking
   } = useAccount()
 
-  const [exportOpen, setExportOpen] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [mergeInitialTab, setMergeInitialTab] = useState<'nostr' | 'passkey'>('nostr')
   const [mergeHint, setMergeHint] = useState<string | undefined>(undefined)
@@ -204,7 +201,6 @@ export function AccountScreen() {
                           setRenameValue(identity.label ?? '')
                         }}
                         onUnlink={() => setUnlinkTarget(identity)}
-                        onExport={() => setExportOpen(true)}
                       />
                     ))}
                   </div>
@@ -223,7 +219,6 @@ export function AccountScreen() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <PasskeysSection
-                  onExportRequest={() => setExportOpen(true)}
                   onDuplicatePasskey={() =>
                     openMergeDialog(
                       'passkey',
@@ -258,7 +253,6 @@ export function AccountScreen() {
         )}
       </div>
 
-      <ExportKeyDialog open={exportOpen} onOpenChange={setExportOpen} />
       <MergeDialog
         open={mergeOpen}
         onOpenChange={setMergeOpen}
@@ -341,15 +335,13 @@ function IdentityRow({
   busy,
   onMakePrimary,
   onRename,
-  onUnlink,
-  onExport
+  onUnlink
 }: {
   identity: NostrIdentitySummary
   busy: boolean
   onMakePrimary: () => void
   onRename: () => void
   onUnlink: () => void
-  onExport: () => void
 }) {
   const { profile } = useNostrProfile(identity.pubkey)
 
@@ -419,12 +411,6 @@ function IdentityRow({
             <DropdownMenuItem onClick={onMakePrimary}>
               <Star className="size-4" />
               Make primary
-            </DropdownMenuItem>
-          )}
-          {identity.custodied && (
-            <DropdownMenuItem onClick={onExport}>
-              <KeyRound className="size-4" />
-              Export secret key
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={onRename}>

@@ -77,12 +77,10 @@ export const PATCH = withErrorHandling(
 /**
  * `DELETE /api/auth/passkey/credentials/[id]` — remove a passkey.
  *
- * Deleting a credential is a hard revocation: passkey session JWTs carry the
- * credential id in their `cred` claim and key-releasing endpoints check it
- * live. Last-credential guard: when this is the account's only passkey AND
- * the server custodies its Nostr key that hasn't been exported yet, deletion
- * would orphan the account — 409 until the user exports the key or adds
- * another passkey. Linked accounts (external signer) can always delete.
+ * Deleting a credential only removes the LOGIN METHOD record — under the PRF
+ * model the passkey's derived identity (and its nsec) live entirely client-
+ * side, so nothing is orphaned and no export guard applies. The identity the
+ * passkey derived stays linked to the account until unlinked explicitly.
  */
 export const DELETE = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -101,18 +99,6 @@ export const DELETE = withErrorHandling(
       params
     )
 
-    const count = await prisma.passkeyCredential.count({ where: { userId } })
-    if (count === 1) {
-      const managed = await prisma.managedNostrKey.findUnique({
-        where: { userId }
-      })
-      if (managed && !managed.exportedAt) {
-        throw new ConflictError(
-          'Export your Nostr key or add another passkey before deleting the last one'
-        )
-      }
-    }
-
     await prisma.passkeyCredential.delete({ where: { id: credential.id } })
 
     logActivity.fireAndForget({
@@ -120,7 +106,7 @@ export const DELETE = withErrorHandling(
       event: ActivityEvent.PASSKEY_DELETED,
       message: `Passkey deleted${credential.label ? ` ("${credential.label}")` : ''}`,
       userId,
-      metadata: { credentialId: credential.id, lastCredential: count === 1 }
+      metadata: { credentialId: credential.id }
     })
 
     return NextResponse.json({ message: 'Passkey deleted', id: credential.id })

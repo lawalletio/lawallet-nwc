@@ -78,11 +78,25 @@ export function verifyNostrLinkProof(params: {
     throw new AuthenticationError('Link challenge is invalid or expired')
   }
 
+  return verifySignedChallengeEvent(event, String(payload.nonce))
+}
+
+/**
+ * Core NIP-42 proof check, shared by the link flow (JWT-embedded nonce) and
+ * passkey registration (the WebAuthn challenge string is the nonce): the
+ * event must be kind 22242, carry `nonce` in a `challenge` tag, be fresh,
+ * and carry a valid Schnorr signature. Returns the proven pubkey.
+ */
+export function verifySignedChallengeEvent(
+  event: NostrEvent,
+  nonce: string,
+  expectedPubkey?: string
+): string {
   if (event.kind !== LINK_PROOF_EVENT_KIND) {
     throw new ValidationError('Proof event must be kind 22242 (NIP-42 auth)')
   }
   const challengeTag = event.tags.find(t => t[0] === 'challenge')?.[1]
-  if (!challengeTag || challengeTag !== payload.nonce) {
+  if (!challengeTag || challengeTag !== nonce) {
     throw new AuthenticationError('Proof event does not answer this challenge')
   }
   const skew = Math.abs(Math.floor(Date.now() / 1000) - event.created_at)
@@ -92,7 +106,9 @@ export function verifyNostrLinkProof(params: {
   if (!verifyEvent(event)) {
     throw new AuthenticationError('Proof event signature is invalid')
   }
-
+  if (expectedPubkey && event.pubkey !== expectedPubkey) {
+    throw new AuthenticationError('Proof event was signed by a different key')
+  }
   return event.pubkey
 }
 

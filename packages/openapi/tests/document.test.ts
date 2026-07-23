@@ -28,16 +28,8 @@ describe('getOpenApiDocument', () => {
       '/api/jwt',
       '/api/auth/passkey/registration/options',
       '/api/auth/passkey/registration/verify',
-      '/api/auth/passkey/link/options',
-      '/api/auth/passkey/link/verify',
-      '/api/auth/passkey/authentication/options',
-      '/api/auth/passkey/authentication/verify',
-      '/api/auth/passkey/signer-key',
-      '/api/auth/passkey/nsec/export/options',
-      '/api/auth/passkey/nsec/export',
       '/api/auth/passkey/credentials',
       '/api/auth/passkey/credentials/{id}',
-      '/api/auth/passkey/session/refresh',
       '/api/account',
       '/api/account/identities/link/begin',
       '/api/account/identities/link/verify',
@@ -68,6 +60,23 @@ describe('getOpenApiDocument', () => {
     ]
     for (const expected of expectations) {
       expect(paths).toContain(expected)
+    }
+  })
+
+  it('does not document endpoints removed by the client-side PRF model', () => {
+    const paths = Object.keys(doc.paths ?? {})
+    const removed = [
+      '/api/auth/passkey/authentication/options',
+      '/api/auth/passkey/authentication/verify',
+      '/api/auth/passkey/link/options',
+      '/api/auth/passkey/link/verify',
+      '/api/auth/passkey/signer-key',
+      '/api/auth/passkey/nsec/export/options',
+      '/api/auth/passkey/nsec/export',
+      '/api/auth/passkey/session/refresh',
+    ]
+    for (const gone of removed) {
+      expect(paths).not.toContain(gone)
     }
   })
 

@@ -30,7 +30,7 @@ import {
   isPasskeySupported,
   type PasskeyCredentialSummary
 } from '@/lib/client/passkey-api'
-import { formatRelativeTime } from '@/lib/client/format'
+import { formatRelativeTime, truncateNpub } from '@/lib/client/format'
 
 /**
  * Passkey management for the wallet security screen: list, rename, delete,
@@ -44,16 +44,12 @@ import { formatRelativeTime } from '@/lib/client/format'
  * merge instead of a dead-end toast (the Account Settings page does).
  */
 export function PasskeysSection({
-  onExportRequest,
   onDuplicatePasskey
 }: {
-  onExportRequest: () => void
   onDuplicatePasskey?: () => void
-}) {
+} = {}) {
   const {
     credentials,
-    hasManagedKey,
-    managedKeyExported,
     loading,
     addPasskey,
     renameCredential,
@@ -73,8 +69,6 @@ export function PasskeysSection({
   // exported yet — once exported, the user provably holds the key and the
   // server allows the delete, so the UI must too (otherwise export→delete
   // dead-ends).
-  const deleteNeedsExport =
-    isLastCredential && hasManagedKey && !managedKeyExported
 
   function openCredential(credential: PasskeyCredentialSummary) {
     setSelected(credential)
@@ -156,6 +150,11 @@ export function PasskeysSection({
                     ? `Last used ${formatRelativeTime(credential.lastUsedAt)}`
                     : `Added ${formatRelativeTime(credential.createdAt)}`}
                 </p>
+                {credential.pubkey && (
+                  <p className="truncate font-mono text-[11px] text-muted-foreground/80">
+                    {truncateNpub(credential.pubkey)}
+                  </p>
+                )}
               </div>
             </div>
             {credential.deviceType === 'multiDevice' && credential.backedUp && (
@@ -239,31 +238,17 @@ export function PasskeysSection({
               {isLastCredential ? 'Delete your only passkey?' : 'Delete this passkey?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteNeedsExport
-                ? 'This is your only passkey and your secret key is still held for you. Export your secret key first — otherwise this account would be lost forever.'
-                : isLastCredential
-                  ? 'This is your only passkey. Make sure you can still sign in another way before deleting it.'
-                  : 'You can no longer sign in with this passkey after deleting it.'}
+              {isLastCredential
+                ? 'This is your only passkey. Its key stays derivable from the passkey itself, but make sure you can still sign in another way before removing it here.'
+                : 'You can no longer sign in with this passkey after deleting it. The identity it derives stays linked to your account.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            {deleteNeedsExport ? (
-              <AlertDialogAction
-                onClick={() => {
-                  setConfirmingDelete(false)
-                  setSelected(null)
-                  onExportRequest()
-                }}
-              >
-                Export key first
-              </AlertDialogAction>
-            ) : (
-              <AlertDialogAction onClick={() => void handleDelete()}>
-                {deleting ? <Spinner size={16} /> : null}
-                Delete
-              </AlertDialogAction>
-            )}
+            <AlertDialogAction onClick={() => void handleDelete()}>
+              {deleting ? <Spinner size={16} /> : null}
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

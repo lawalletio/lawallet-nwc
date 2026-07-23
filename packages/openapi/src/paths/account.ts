@@ -51,13 +51,12 @@ registry.registerPath({
   summary: 'Start proving control of another Nostr key.',
   description:
     'First leg of linking another Nostr key (or merging another account) into ' +
-    'the caller’s account. `method: "nostr"` returns a challenge token plus a ' +
-    'nonce; the other key signs a NIP-42-style kind-22242 event carrying the ' +
-    'nonce in a `challenge` tag, and the pair goes to `link/verify`. ' +
-    '`method: "passkey"` needs no server state here — the client obtains a ' +
-    'standard LOGIN assertion via `POST /api/auth/passkey/authentication/options` ' +
-    'and submits it to `link/verify` directly (single-use challenge semantics ' +
-    'included), so only `expiresIn` is returned.',
+    'the caller’s account. `method` is always `nostr`: the response carries a ' +
+    'challenge token plus a nonce; the other key signs a NIP-42-style ' +
+    'kind-22242 event carrying the nonce in a `challenge` tag, and the pair ' +
+    'goes to `link/verify`. Passkey-held accounts are proven the same way — ' +
+    'the client derives the passkey’s key via the WebAuthn PRF extension and ' +
+    'signs the event client-side, so there is no server-side passkey arm.',
   operationId: 'account.link.begin',
   security: protectedSecurity,
   request: {
@@ -86,8 +85,8 @@ registry.registerPath({
   summary: 'Verify the proof and link or stage a merge.',
   description:
     'Second leg of the link/merge flow. The caller proves control of another ' +
-    'key — a kind-22242 event signed by it (nostr) or a WebAuthn assertion ' +
-    'for a stored credential (passkey) — and the outcome depends on where ' +
+    'key — a kind-22242 event signed by it, answering the challenge from ' +
+    '`link/begin` — and the outcome depends on where ' +
     'that key lives. Unowned pubkey: attached to the caller’s account as a ' +
     'secondary identity (`linked: true` + `identity`). Owned by another ' +
     'account: nothing is written; a short-lived merge ticket bound to the ' +
@@ -112,8 +111,7 @@ registry.registerPath({
     ...commonErrorResponses,
     401: errorResponse(
       'Missing/invalid authentication, or the proof failed: expired or burned ' +
-        'challenge, an event that does not answer it, a bad signature, or an ' +
-        'unknown/invalid WebAuthn assertion.',
+        'challenge, an event that does not answer it, or a bad signature.',
     ),
     404: errorResponse('No account exists for the authenticated pubkey.'),
     409: errorResponse('This key is already linked to the caller’s account.'),
@@ -191,7 +189,7 @@ registry.registerPath({
     404: errorResponse('No account exists for the authenticated pubkey, or one side of the merge no longer exists.'),
     409: errorResponse(
       'The absorbed account custodies a never-exported Nostr key — export it ' +
-        'via the passkey nsec-export flow before merging.',
+        'before merging.',
     ),
     429: responses.rateLimited,
   },

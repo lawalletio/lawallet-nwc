@@ -56,14 +56,6 @@ vi.mock('@/lib/account/merge', () => ({
   unlinkIdentity: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/passkey', async importOriginal => {
-  const original = await importOriginal<typeof import('@/lib/auth/passkey')>()
-  return {
-    ...original,
-    verifyStoredCredentialAssertion: vi.fn(),
-  }
-})
-
 vi.mock('@/lib/auth/key-vault', () => ({
   isVaultConfigured: vi.fn(() => true),
   decryptNsec: vi.fn(() => 'f'.repeat(64)),
@@ -88,7 +80,6 @@ import {
   setPrimaryIdentity,
   unlinkIdentity,
 } from '@/lib/account/merge'
-import { verifyStoredCredentialAssertion } from '@/lib/auth/passkey'
 import { mintMergeTicket, LINK_PROOF_EVENT_KIND } from '@/lib/account/proof'
 import { Role } from '@/lib/auth/permissions'
 
@@ -294,82 +285,6 @@ describe('POST /api/account/identities/link — nostr proof', () => {
       })
     )
     expect(response.status).toBe(401)
-  })
-})
-
-describe('POST /api/account/identities/link — passkey proof', () => {
-  it('always yields a merge ticket (credentials always have an account)', async () => {
-    authedAs()
-    vi.mocked(verifyStoredCredentialAssertion).mockResolvedValue({
-      id: 'cred-1',
-      userId: 'user-b',
-      user: { id: 'user-b', pubkey: 'c'.repeat(64) },
-    } as any)
-    vi.mocked(previewMerge).mockResolvedValue({
-      survivor: {},
-      absorbed: { userId: 'user-b' },
-      collisions: [],
-      blocked: false,
-    } as any)
-
-    const response = await linkVerify(
-      createNextRequest('/api/account/identities/link/verify', {
-        method: 'POST',
-        body: {
-          method: 'passkey',
-          challenge: 'x'.repeat(32),
-          credential: {
-            id: 'cred-1',
-            rawId: 'cred-1',
-            type: 'public-key',
-            response: {
-              clientDataJSON: 'x',
-              authenticatorData: 'x',
-              signature: 'x',
-            },
-            clientExtensionResults: {},
-          },
-        },
-      })
-    )
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.linked).toBe(false)
-    expect(body.mergeTicket).toBeTruthy()
-    expect(vi.mocked(verifyStoredCredentialAssertion)).toHaveBeenCalledWith(
-      expect.objectContaining({ flow: 'LOGIN' })
-    )
-  })
-
-  it('409s when the credential belongs to the caller already', async () => {
-    authedAs()
-    vi.mocked(verifyStoredCredentialAssertion).mockResolvedValue({
-      id: 'cred-1',
-      userId: 'user-a',
-      user: { id: 'user-a', pubkey: PK_A },
-    } as any)
-
-    const response = await linkVerify(
-      createNextRequest('/api/account/identities/link/verify', {
-        method: 'POST',
-        body: {
-          method: 'passkey',
-          challenge: 'x'.repeat(32),
-          credential: {
-            id: 'cred-1',
-            rawId: 'cred-1',
-            type: 'public-key',
-            response: {
-              clientDataJSON: 'x',
-              authenticatorData: 'x',
-              signature: 'x',
-            },
-            clientExtensionResults: {},
-          },
-        },
-      })
-    )
-    expect(response.status).toBe(409)
   })
 })
 

@@ -8,21 +8,23 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 import { useAuth } from '@/components/admin/auth-context'
+import { createNsecSigner } from '@/lib/client/nostr-signer'
 import {
   registerPasskeyAccount,
   translatePasskeyError,
 } from '@/lib/client/passkey-api'
 
 /**
- * Create-account flow for passkey users. Unlike `CreateAccountFlow` there is
- * no forced key backup step — the server custodies the account's Nostr key,
- * which stays exportable any time from Settings → Security. The whole
+ * Create-account flow for passkey users. The account's Nostr key is DERIVED
+ * from the passkey via the WebAuthn PRF extension — deterministic, client-
+ * side, never held by the server — so there is no forced backup step: the
+ * passkey itself regenerates the key on any device it syncs to. The whole
  * WebAuthn ceremony runs inside the button's click handler (Safari/iOS
  * transient-activation requirement).
  */
 export function PasskeyCreateFlow() {
   const router = useRouter()
-  const { loginWithToken } = useAuth()
+  const { login } = useAuth()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -30,8 +32,10 @@ export function PasskeyCreateFlow() {
     setError(null)
     setBusy(true)
     try {
-      const session = await registerPasskeyAccount()
-      await loginWithToken(session.token, 'passkey', session.signerKey)
+      const identity = await registerPasskeyAccount()
+      await login(createNsecSigner(identity.secretHex), 'passkey', {
+        secret: identity.secretHex,
+      })
       router.replace('/wallet/welcome')
     } catch (err) {
       const passkeyError = translatePasskeyError(err)
@@ -67,8 +71,8 @@ export function PasskeyCreateFlow() {
               and any browser can use a phone via QR.
             </Benefit>
             <Benefit icon={<KeyRound className="size-4" />}>
-              Your Nostr key is kept safe for you. Export it any time from
-              Settings → Security to take your identity elsewhere.
+              Your Nostr key is derived from the passkey itself — the same
+              key on every device it syncs to, never stored on a server.
             </Benefit>
           </ul>
 
