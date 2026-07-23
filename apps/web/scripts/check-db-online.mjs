@@ -7,8 +7,9 @@ import { fileURLToPath } from 'node:url'
 
 const webDir = dirname(dirname(fileURLToPath(import.meta.url)))
 
-loadEnvFile(resolve(webDir, '.env'))
+// First value wins, so load in Next.js precedence order: .env.local beats .env
 loadEnvFile(resolve(webDir, '.env.local'))
+loadEnvFile(resolve(webDir, '.env'))
 
 if (process.env.SKIP_DATABASE_CHECK === 'true') {
   console.warn('[db] Skipping database check because SKIP_DATABASE_CHECK=true')
