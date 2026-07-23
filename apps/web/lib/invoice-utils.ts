@@ -118,16 +118,18 @@ export function parseCardPaymentInvoice(
     timestampSection && 'value' in timestampSection
       ? Number(timestampSection.value)
       : Number.NaN
-  // light-bolt11-decoder exposes `expiry` as the absolute expiry timestamp
-  // (`timestamp + expiry_tag`), not as the tag's duration. When the optional
-  // tag is absent BOLT-11's default lifetime is one hour.
-  const expiresAtSeconds =
-    typeof decoded.expiry === 'number' && Number.isFinite(decoded.expiry)
-      ? decoded.expiry
-      : timestamp + 3600
   if (!Number.isFinite(timestamp)) {
     throw new Error('Invoice timestamp is missing or invalid')
   }
+  // light-bolt11-decoder exposes `expiry` as the tag's *duration* in seconds,
+  // not as an absolute timestamp, so it must be added to the invoice
+  // timestamp. When the optional tag is absent BOLT-11's default lifetime is
+  // one hour.
+  const expirySeconds =
+    typeof decoded.expiry === 'number' && Number.isFinite(decoded.expiry)
+      ? decoded.expiry
+      : 3600
+  const expiresAtSeconds = timestamp + expirySeconds
   const expiresAt = expiresAtSeconds * 1000
   const invoice = {
     bolt11,

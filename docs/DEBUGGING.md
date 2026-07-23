@@ -54,6 +54,32 @@ Set `0` to disable, or lower it while hunting a regression.
 | 403 `AUTHORIZATION_ERROR` | Authenticated but missing the permission — check `lib/auth/permissions.ts` mapping and the user's role in the DB (or the role claim in the JWT). |
 | 503 from `/api/health` | The server is up but can't reach the database — see below. |
 
+## Card tap payments
+
+The BoltCard spend path (`app/api/cards/[id]/scan/cb/actions/pay.ts`) validates
+the bolt11 invoice **before** consuming the SUN counter, so a rejected invoice
+never burns a tap. That also means a parse-level rejection leaves **no**
+`CardPaymentAttempt` row — an empty attempt history for a card that visibly
+fails is the signature of a failure *upstream* of the claim, not a wallet or
+NWC problem.
+
+| Symptom | Cause / fix |
+|---------|-------------|
+| `Lightning invoice has expired` on every tap | Check the decoded expiry first. `light-bolt11-decoder` returns `expiry` as the BOLT-11 `x` tag's **duration in seconds**, not an absolute timestamp — it must be added to the invoice `timestamp`. Treating it as absolute puts every expiry in 1970 and rejects all invoices that carry the tag. |
+| `Card is not configured for payments` | The card has no `remoteWallet` and the owner's primary lightning address has none either — check `resolveCardWallet`. |
+| `Card wallet is not enabled for outgoing payments` | The routed NWC wallet's `config.mode` is `RECEIVE`; card spends need `SEND_RECEIVE`. |
+| `Payment outcome is still being resolved` | Ambiguous listener/driver result, persisted as `UNKNOWN`. This is deliberate — it is reconciled in the background, never blindly retried. |
+
+Inspect a specific card's routing and attempt history directly:
+
+```sql
+SELECT counter, status, "errorCode", "amountMsats", transport, "createdAt"
+FROM "CardPaymentAttempt" WHERE "cardId" = '<card-id>' ORDER BY "createdAt" DESC;
+```
+
+Note the admin UI's card identifier is the **card ID**, not the NTAG UID
+(`ntag424Cid`) — they are different columns and easy to confuse when querying.
+
 ## Database issues
 
 - **"Can't reach database" / health 503** — wrong `DATABASE_URL` for this
