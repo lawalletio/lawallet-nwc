@@ -8,10 +8,6 @@ import {
   hasPermission as checkPermission,
 } from '@/lib/auth/permissions'
 import { exchangeNip98ForJwt, validateJwt } from '@/lib/client/auth-api'
-import {
-  fetchManagedKey,
-  refreshPasskeySession,
-} from '@/lib/client/passkey-api'
 import { createApiClient, type ApiClient } from '@/lib/client/api-client'
 import {
   createBrowserSigner,
@@ -39,9 +35,9 @@ const LOGIN_METHOD_KEY = 'lawallet-login-method'
  * reloads — the user opted into this explicitly. A future iteration should
  * replace this with WebAuthn-encrypted storage or a passphrase wrap.
  *
- * `'passkey'` sessions never write this key: the server custodies the
- * secret and re-releases it per session over the authenticated API, so
- * nothing key-shaped sits at rest on the device.
+ * `'passkey'` sessions store the PRF-DERIVED key here too — a passkey is
+ * just a deterministic way to produce an nsec, so its session persists and
+ * restores exactly like the nsec method.
  */
 const SIGNER_SECRET_KEY = 'lawallet-signer-secret'
 
@@ -83,6 +79,7 @@ export interface AuthState {
  * - `nsec`: the bech32 nsec (or 64-char hex) the user supplied
  * - `bunker`: the `bunker://…` URL with relay + secret
  * - `extension`: omit; recreated from `window.nostr`
+ * - `passkey`: the PRF-derived 64-char hex key
  */
 export interface SignerCredentials {
   secret: string
@@ -93,18 +90,6 @@ export interface AuthContextValue extends AuthState {
     signer: NostrSigner,
     method: LoginMethod,
     credentials?: SignerCredentials,
-  ) => Promise<void>
-  /**
-   * Session entry for flows where the server minted the JWT directly
-   * (passkey login/registration) instead of the NIP-98 exchange. When
-   * `signerKey` (hex) is provided — passkey registration returns it once —
-   * the in-memory signer is built immediately; otherwise a passkey session
-   * hydrates it asynchronously from the managed-key endpoint.
-   */
-  loginWithToken: (
-    token: string,
-    method: LoginMethod,
-    signerKey?: string,
   ) => Promise<void>
   logout: () => void
   isAuthorized: (permission: Permission) => boolean
@@ -119,8 +104,8 @@ export interface AuthContextValue extends AuthState {
   /**
    * Re-mints the session token immediately so identity changes (new primary
    * pubkey, account merge) reflect without re-login. Resolves false when the
-   * session has no way to re-mint (signer-less non-passkey session) — pass a
-   * freshly-unlocked signer (from requestSigner()) to cover that case.
+   * session has no way to re-mint (signer-less session) — pass a freshly
+   * unlocked signer (from requestSigner()) to cover that case.
    */
   refreshSession: (signerOverride?: NostrSigner) => Promise<boolean>
 }
@@ -242,22 +227,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-          const { jwt, loginMethod } = sessionRef.current
-
-          // Passkey sessions always refresh through the passkey endpoint —
-          // never the NIP-98 → /api/jwt path — so the re-issued token keeps
-          // its `amr`/`cred` claims. Those claims are what let the managed
-          // key be silently re-fetched on the next reload; a plain /api/jwt
-          // token would 401 against the signer-key endpoint and strand a
-          // managed user at the nsec unlock dialog. The passkey endpoint also
-          // enforces the 30-day WebAuthn re-auth cap. Any in-memory signer is
-          // retained across the refresh.
-          if (loginMethod === 'passkey' && jwt) {
-            const session = await refreshPasskeySession(jwt)
-            await commitRefreshedToken(session.token, signer)
-            return
-          }
-
           if (signer) {
             const { token } = await exchangeNip98ForJwt(signer)
             await commitRefreshedToken(token, signer)
@@ -313,89 +282,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [scheduleRefresh]
   )
 
-  // Session entry for server-minted JWTs (passkey login/registration): no
-  // NIP-98 exchange — the WebAuthn assertion already authenticated the user.
-  // Never persists anything into SIGNER_SECRET_KEY; a passkey session's
-  // signer lives in memory only and is re-fetched from the server per
-  // session.
-  const loginWithToken = useCallback(
-    async (token: string, method: LoginMethod, signerKey?: string) => {
-      const validation = await validateJwt(token)
-
-      localStorage.setItem(JWT_STORAGE_KEY, token)
-      localStorage.setItem(LOGIN_METHOD_KEY, method)
-      localStorage.removeItem(SIGNER_SECRET_KEY)
-
-      let signer: NostrSigner | null = null
-      if (signerKey) {
-        try {
-          signer = createNsecSigner(signerKey)
-        } catch {
-          // Malformed key from the server — session still works JWT-only.
-        }
-      }
-
-      setState({
-        status: 'authenticated',
-        jwt: token,
-        pubkey: validation.pubkey,
-        role: validation.role,
-        permissions: validation.permissions,
-        signer,
-        loginMethod: method,
-      })
-
-      trackEvent(AnalyticsEvent.LOGIN_SUCCEEDED, { method, role: validation.role })
-
-      scheduleRefresh(validation.expiresAt, signer)
-
-      // Passkey logins don't carry the key in the session response — hydrate
-      // the signer asynchronously so the UI unblocks immediately (mirrors
-      // the reload-restore flow). Linked accounts 404 here and simply stay
-      // signer-less until the unlock dialog is needed.
-      if (!signer && method === 'passkey') {
-        void fetchManagedKey(token)
-          .then(managed => {
-            if (!managed) return
-            const restored = createNsecSigner(managed.signerKey)
-            setState(prev => {
-              if (prev.jwt !== token || prev.status !== 'authenticated') {
-                return prev
-              }
-              return { ...prev, signer: restored }
-            })
-            scheduleRefresh(validation.expiresAt, restored)
-          })
-          .catch(() => {
-            // Network hiccup — requestSigner() retries on demand.
-          })
-      }
-    },
-    [scheduleRefresh]
-  )
-
   // Re-mints the session token NOW and re-reads identity/role from it.
   // Used after account mutations that change what the session presents —
   // setting a new primary pubkey or merging accounts — so `pubkey`/`role`
-  // update without a logout. Passkey sessions go through the passkey
-  // refresh endpoint (keeps `amr`/`cred`); signer sessions re-run the
-  // NIP-98 exchange. Signer-less non-passkey sessions can't re-mint — the
-  // stale token stays (it still authenticates; identity updates on next
-  // login) and we return false.
+  // update without a logout. Signer sessions (nsec/extension/bunker/passkey —
+  // a passkey session restores a normal nsec signer) re-run the NIP-98
+  // exchange. Signer-less sessions can't re-mint — the stale token stays (it
+  // still authenticates; identity updates on next login) and we return false.
   const refreshSession = useCallback(async (signerOverride?: NostrSigner): Promise<boolean> => {
-    const { jwt, loginMethod } = sessionRef.current
     // An explicit signer (e.g. one the caller just obtained via
     // requestSigner()) wins over the ref — the ref is synced from state in
     // an effect, so it can lag a just-unlocked signer by a render.
     const signer = signerOverride ?? signerRef.current
 
     let token: string | null = null
-    // Passkey sessions must re-mint through the passkey endpoint even when a
-    // signer is in memory — the NIP-98 path would drop the `amr`/`cred`
-    // claims that gate the managed-key endpoints.
-    if (loginMethod === 'passkey' && jwt) {
-      token = (await refreshPasskeySession(jwt)).token
-    } else if (signer) {
+    if (signer) {
       token = (await exchangeNip98ForJwt(signer)).token
     }
     if (!token) return false
@@ -454,19 +355,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Bunker relay unreachable or signer rejected the resume.
           // Keep the secret so a manual retry can pick it up later.
         }
-      } else if (storedMethod === 'passkey') {
-        // Managed-custody sessions re-fetch the key from the server with the
-        // still-valid JWT (nothing key-shaped is stored on the device).
-        // Linked accounts get null back and stay signer-less — the unlock
-        // dialog covers them on demand.
-        const token = localStorage.getItem(JWT_STORAGE_KEY)
-        if (token) {
-          try {
-            const managed = await fetchManagedKey(token)
-            if (managed) signer = createNsecSigner(managed.signerKey)
-          } catch {
-            // Network hiccup — requestSigner() retries on demand.
-          }
+      } else if (storedMethod === 'passkey' && storedSecret) {
+        // A passkey session is an nsec session whose key came from the PRF
+        // extension — restore it exactly like the nsec method.
+        try {
+          signer = createNsecSigner(storedSecret)
+        } catch {
+          localStorage.removeItem(SIGNER_SECRET_KEY)
         }
       }
 
@@ -574,20 +469,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUnlockOpen(true)
       })
 
-    // Managed passkey sessions can rebuild the signer silently — no dialog.
-    // Linked accounts (404) and transient failures fall through to it.
-    if (state.loginMethod === 'passkey' && state.jwt) {
-      const token = state.jwt
-      return fetchManagedKey(token)
-        .then(managed => {
-          if (!managed) return openUnlockDialog()
-          const signer = createNsecSigner(managed.signerKey)
-          setState(prev =>
-            prev.jwt === token ? { ...prev, signer } : prev,
-          )
-          return signer
-        })
-        .catch(() => openUnlockDialog())
+    // Passkey sessions restore from the stored PRF-derived secret like any
+    // nsec session; when it's gone (cleared storage) the dialog covers it.
+    if (state.loginMethod === 'passkey') {
+      const storedSecret = localStorage.getItem(SIGNER_SECRET_KEY)
+      if (storedSecret) {
+        try {
+          const signer = createNsecSigner(storedSecret)
+          setState(prev => ({ ...prev, signer }))
+          return Promise.resolve(signer)
+        } catch {
+          localStorage.removeItem(SIGNER_SECRET_KEY)
+        }
+      }
     }
 
     return openUnlockDialog()
@@ -632,7 +526,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextValue = {
     ...state,
     login,
-    loginWithToken,
     logout,
     isAuthorized,
     apiClient,

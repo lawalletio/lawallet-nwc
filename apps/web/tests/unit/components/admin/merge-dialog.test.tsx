@@ -493,7 +493,6 @@ describe('PasskeysSection duplicate-passkey escalation', () => {
 
     render(
       <PasskeysSection
-        onExportRequest={vi.fn()}
         onDuplicatePasskey={onDuplicatePasskey}
       />
     )
@@ -509,7 +508,7 @@ describe('PasskeysSection duplicate-passkey escalation', () => {
       new PasskeyError('duplicate', 'This passkey is already registered')
     )
 
-    render(<PasskeysSection onExportRequest={vi.fn()} />)
+    render(<PasskeysSection />)
 
     await user.click(screen.getByRole('button', { name: /add a passkey/i }))
     await waitFor(() =>

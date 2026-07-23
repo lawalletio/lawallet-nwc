@@ -8,7 +8,6 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { validateBody } from '@/lib/validation/middleware'
 import { passkeyRegistrationOptionsRequestSchema } from '@/lib/validation/schemas'
-import { isVaultConfigured } from '@/lib/auth/key-vault'
 import {
   CEREMONY_TIMEOUT_MS,
   resolveRpContext,
@@ -20,20 +19,20 @@ export const runtime = 'nodejs'
 /**
  * `POST /api/auth/passkey/registration/options`
  *
- * Starts a NEW-ACCOUNT passkey signup: mints WebAuthn registration options
- * for a brand-new managed identity. Unauthenticated — anyone may begin a
- * signup ceremony; nothing is persisted besides the single-use challenge.
- *
- * A user id is pre-allocated here (it travels as the WebAuthn user handle)
- * but NO `User` row is created until `verify` proves possession of the
- * authenticator. Abandoned ceremonies leave only an expiring challenge row.
+ * Starts a passkey creation ceremony (new-account signup AND add-to-account
+ * share this ceremony — `verify` branches on the caller's auth). The
+ * credential's Nostr identity is derived CLIENT-SIDE from the WebAuthn PRF
+ * extension; the server only records the credential and never holds a key,
+ * so there is no key-vault gating here. Nothing is persisted besides the
+ * single-use challenge; the user handle is random opaque bytes (the account
+ * is keyed by the PRF-derived pubkey, not by this handle).
  */
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'json')
   await rateLimit(request, { ...RateLimitPresets.auth })
 
-  if (!isVaultConfigured() || !getConfig().jwt.enabled) {
-    throw new ServiceUnavailableError('Passkey signup is not configured')
+  if (!getConfig().jwt.enabled) {
+    throw new ServiceUnavailableError('Passkey login is not configured')
   }
 
   // Body is optional for this endpoint (mirrors /api/jwt) — tolerate an
@@ -45,13 +44,13 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
 
   const rp = await resolveRpContext(request)
-  const userId = randomUUID()
+  const handle = randomUUID()
 
   const options = await generateRegistrationOptions({
     rpName: rp.rpName,
     rpID: rp.rpId,
-    userName: `lawallet-${userId.slice(0, 8)}`,
-    userID: new TextEncoder().encode(userId),
+    userName: `lawallet-${handle.slice(0, 8)}`,
+    userID: new TextEncoder().encode(handle),
     attestationType: 'none',
     authenticatorSelection: {
       residentKey: 'required',
@@ -63,7 +62,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   await storeWebAuthnChallenge({
     challenge: options.challenge,
     flow: 'REGISTER',
-    userId,
+    userId: null,
     rpId: rp.rpId,
     origin: rp.origin
   })

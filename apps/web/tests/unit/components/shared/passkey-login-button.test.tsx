@@ -10,12 +10,17 @@ vi.mock('@simplewebauthn/browser', () => ({
 }))
 
 const mocks = vi.hoisted(() => ({
-  loginWithToken: vi.fn(),
+  login: vi.fn(),
+  createNsecSigner: vi.fn(),
   toastError: vi.fn()
 }))
 
 vi.mock('@/components/admin/auth-context', () => ({
-  useAuth: () => ({ loginWithToken: mocks.loginWithToken })
+  useAuth: () => ({ login: mocks.login })
+}))
+
+vi.mock('@/lib/client/nostr-signer', () => ({
+  createNsecSigner: mocks.createNsecSigner
 }))
 
 vi.mock('sonner', () => ({
@@ -42,18 +47,21 @@ import {
   authenticateWithPasskey,
   isPasskeySupported,
   registerPasskeyAccount,
-  type PasskeySession
+  type PasskeyIdentity
 } from '@/lib/client/passkey-api'
 
-const SIGNER_KEY = 'a'.repeat(64)
+const SECRET_HEX = 'a'.repeat(64)
 
-const SESSION: PasskeySession = {
-  token: 'jwt-token',
-  expiresIn: '24h',
-  type: 'Bearer',
+// Under the PRF model the ceremony yields the derived Nostr identity — the
+// key IS the login; no server-minted session token exists anymore.
+const IDENTITY: PasskeyIdentity = {
+  secretHex: SECRET_HEX,
+  nsec: 'nsec1derivedexample',
   pubkey: 'b'.repeat(64),
-  custody: 'linked'
+  credentialId: 'cred-1'
 }
+
+const STUB_SIGNER = { getPublicKey: vi.fn(), signEvent: vi.fn() }
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -68,7 +76,8 @@ function deferred<T>() {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(isPasskeySupported).mockReturnValue(true)
-  mocks.loginWithToken.mockResolvedValue(undefined)
+  mocks.login.mockResolvedValue(undefined)
+  mocks.createNsecSigner.mockReturnValue(STUB_SIGNER)
 })
 
 describe('PasskeyLoginButton', () => {
@@ -79,9 +88,9 @@ describe('PasskeyLoginButton', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('authenticate mode: runs the ceremony then commits the session', async () => {
+  it('authenticate mode: derives the identity then logs in with an nsec signer', async () => {
     const user = userEvent.setup()
-    vi.mocked(authenticateWithPasskey).mockResolvedValue(SESSION)
+    vi.mocked(authenticateWithPasskey).mockResolvedValue(IDENTITY)
     const onSuccess = vi.fn()
 
     render(<PasskeyLoginButton mode="authenticate" onSuccess={onSuccess} />)
@@ -93,20 +102,29 @@ describe('PasskeyLoginButton', () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1))
     expect(authenticateWithPasskey).toHaveBeenCalledTimes(1)
     expect(registerPasskeyAccount).not.toHaveBeenCalled()
-    // Authentication sessions carry no signerKey — the third arg is undefined.
-    expect(mocks.loginWithToken).toHaveBeenCalledWith(
-      'jwt-token',
-      'passkey',
-      undefined
-    )
+    // The derived hex secret feeds both the signer and the persisted
+    // credentials — exactly like the nsec method.
+    expect(mocks.createNsecSigner).toHaveBeenCalledWith(SECRET_HEX)
+    expect(mocks.login).toHaveBeenCalledWith(STUB_SIGNER, 'passkey', {
+      secret: SECRET_HEX
+    })
   })
 
-  it('register mode: passes the one-time signerKey through to loginWithToken', async () => {
+  it('register mode: runs the registration ceremony then the same login path', async () => {
     const user = userEvent.setup()
     vi.mocked(registerPasskeyAccount).mockResolvedValue({
-      ...SESSION,
-      custody: 'managed',
-      signerKey: SIGNER_KEY
+      ...IDENTITY,
+      credential: {
+        id: 'cred-1',
+        label: null,
+        deviceType: 'multiDevice',
+        backedUp: true,
+        aaguid: null,
+        rpId: 'localhost',
+        pubkey: IDENTITY.pubkey,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: null
+      }
     })
 
     render(<PasskeyLoginButton mode="register" />)
@@ -116,11 +134,9 @@ describe('PasskeyLoginButton', () => {
     )
 
     await waitFor(() =>
-      expect(mocks.loginWithToken).toHaveBeenCalledWith(
-        'jwt-token',
-        'passkey',
-        SIGNER_KEY
-      )
+      expect(mocks.login).toHaveBeenCalledWith(STUB_SIGNER, 'passkey', {
+        secret: SECRET_HEX
+      })
     )
     expect(registerPasskeyAccount).toHaveBeenCalledTimes(1)
     expect(authenticateWithPasskey).not.toHaveBeenCalled()
@@ -145,7 +161,7 @@ describe('PasskeyLoginButton', () => {
       ).toBeEnabled()
     )
     expect(mocks.toastError).not.toHaveBeenCalled()
-    expect(mocks.loginWithToken).not.toHaveBeenCalled()
+    expect(mocks.login).not.toHaveBeenCalled()
     expect(
       screen.queryByText(/passkey prompt was closed/i)
     ).not.toBeInTheDocument()
@@ -169,12 +185,33 @@ describe('PasskeyLoginButton', () => {
     expect(mocks.toastError).toHaveBeenCalledWith(
       'Passkeys need a secure origin'
     )
-    expect(mocks.loginWithToken).not.toHaveBeenCalled()
+    expect(mocks.login).not.toHaveBeenCalled()
+  })
+
+  it('surfaces the PRF-unsupported error from the derive step', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authenticateWithPasskey).mockRejectedValue(
+      new PasskeyError(
+        'prf-unsupported',
+        'This passkey cannot derive a key on this device'
+      )
+    )
+
+    render(<PasskeyLoginButton mode="authenticate" />)
+
+    await user.click(
+      screen.getByRole('button', { name: /continue with passkey/i })
+    )
+
+    expect(
+      await screen.findByText(/cannot derive a key on this device/i)
+    ).toBeInTheDocument()
+    expect(mocks.login).not.toHaveBeenCalled()
   })
 
   it('disables the button and shows the waiting label while the ceremony is pending', async () => {
     const user = userEvent.setup()
-    const pending = deferred<PasskeySession>()
+    const pending = deferred<PasskeyIdentity>()
     vi.mocked(authenticateWithPasskey).mockReturnValue(pending.promise)
 
     render(<PasskeyLoginButton mode="authenticate" />)
@@ -188,14 +225,14 @@ describe('PasskeyLoginButton', () => {
     })
     expect(busyButton).toBeDisabled()
 
-    pending.resolve(SESSION)
+    pending.resolve(IDENTITY)
 
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: /continue with passkey/i })
       ).toBeEnabled()
     )
-    expect(mocks.loginWithToken).toHaveBeenCalledTimes(1)
+    expect(mocks.login).toHaveBeenCalledTimes(1)
   })
 
   it('honors a custom label and the disabled prop', () => {

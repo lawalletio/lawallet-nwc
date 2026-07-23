@@ -10,7 +10,6 @@ import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { validateBody } from '@/lib/validation/middleware'
 import { accountLinkVerifyRequestSchema } from '@/lib/validation/schemas'
 import { verifyNostrLinkProof, mintMergeTicket } from '@/lib/account/proof'
-import { verifyStoredCredentialAssertion } from '@/lib/auth/passkey'
 import { linkPubkeyToAccount, previewMerge } from '@/lib/account/merge'
 
 export const runtime = 'nodejs'
@@ -44,32 +43,16 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const body = await validateBody(request, accountLinkVerifyRequestSchema)
 
-  // ── Prove control → the proven pubkey (and, for passkeys, its account) ──
-  let provenPubkey: string
-  let provenAccountId: string | null = null
-  let label: string | undefined
-
-  if (body.method === 'nostr') {
-    provenPubkey = verifyNostrLinkProof({
-      challenge: body.challenge,
-      event: body.event as NostrEvent,
-      accountId: account.id
-    })
-    label = body.label
-    const owner = await resolveAccountByPubkey(provenPubkey)
-    provenAccountId = owner?.id ?? null
-  } else {
-    // A LOGIN-flow assertion proves control of the credential — and thereby
-    // of the account that owns it. Single-use challenge; clone detection and
-    // counter bump included.
-    const credential = await verifyStoredCredentialAssertion({
-      challenge: body.challenge,
-      credential: body.credential,
-      flow: 'LOGIN'
-    })
-    provenAccountId = credential.userId
-    provenPubkey = credential.user.pubkey
-  }
+  // ── Prove control → the proven pubkey. Nostr-only: a passkey proof is the
+  // same signed event, produced client-side from the PRF-derived key. ──────
+  const provenPubkey = verifyNostrLinkProof({
+    challenge: body.challenge,
+    event: body.event as NostrEvent,
+    accountId: account.id
+  })
+  const label = body.label
+  const owner = await resolveAccountByPubkey(provenPubkey)
+  const provenAccountId = owner?.id ?? null
 
   // ── Decide: attach vs merge ticket ──────────────────────────────────────
   if (provenAccountId === account.id) {

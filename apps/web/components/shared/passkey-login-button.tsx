@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Button, type ButtonProps } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useAuth } from '@/components/admin/auth-context'
+import { createNsecSigner } from '@/lib/client/nostr-signer'
 import {
   authenticateWithPasskey,
   isPasskeySupported,
@@ -16,7 +17,9 @@ import {
 interface PasskeyLoginButtonProps {
   /**
    * `authenticate` signs in with an existing passkey (username-less);
-   * `register` creates a brand-new account with a server-custodied Nostr key.
+   * `register` creates a brand-new account whose Nostr key is derived from
+   * the passkey via the WebAuthn PRF extension — the same key on every
+   * device the passkey syncs to.
    */
   mode: 'authenticate' | 'register'
   onSuccess?: () => void
@@ -47,7 +50,7 @@ export function PasskeyLoginButton({
   showCrossDeviceHint = false,
   disabled = false,
 }: PasskeyLoginButtonProps) {
-  const { loginWithToken } = useAuth()
+  const { login } = useAuth()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Support is browser-dependent but stable for the page's lifetime.
@@ -62,11 +65,15 @@ export function PasskeyLoginButton({
     setError(null)
     setBusy(true)
     try {
-      const session =
+      const identity =
         mode === 'register'
           ? await registerPasskeyAccount()
           : await authenticateWithPasskey()
-      await loginWithToken(session.token, 'passkey', session.signerKey)
+      // The derived key IS the login: ordinary NIP-98 exchange, secret
+      // persisted like the nsec method so reloads restore silently.
+      await login(createNsecSigner(identity.secretHex), 'passkey', {
+        secret: identity.secretHex,
+      })
       onSuccess?.()
     } catch (err) {
       const passkeyError = translatePasskeyError(err)

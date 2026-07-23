@@ -29,13 +29,10 @@ import {
   lud16UsernameParam,
   nostrIdentitySummarySchema,
   otcParam,
-  passkeyAuthenticationVerifyRequestSchema,
   passkeyCredentialListResponseSchema,
   passkeyCredentialSummarySchema,
-  passkeyNsecExportRequestSchema,
   passkeyRegistrationOptionsRequestSchema,
   passkeyRegistrationVerifyRequestSchema,
-  passkeySessionResponseSchema,
   payActionQuerySchema,
   probeAliasAddressSchema,
   remoteWalletListQuerySchema,
@@ -202,28 +199,13 @@ export const schemas = {
     'PasskeyRegistrationVerifyRequest',
     passkeyRegistrationVerifyRequestSchema.openapi({
       description:
-        'Attestation result of a WebAuthn registration ceremony: the `challenge` ' +
-        'echoed from the options step plus the browser `RegistrationResponseJSON` ' +
-        'produced by @simplewebauthn/browser `startRegistration()`.',
-    }),
-  ),
-  PasskeyAuthenticationVerifyRequest: registry.register(
-    'PasskeyAuthenticationVerifyRequest',
-    passkeyAuthenticationVerifyRequestSchema.openapi({
-      description:
-        'Assertion result of a WebAuthn authentication ceremony: the `challenge` ' +
-        'echoed from the options step plus the browser `AuthenticationResponseJSON` ' +
-        'produced by @simplewebauthn/browser `startAuthentication()`.',
-    }),
-  ),
-  PasskeyNsecExportRequest: registry.register(
-    'PasskeyNsecExportRequest',
-    passkeyNsecExportRequestSchema.openapi({
-      description:
-        'Fresh EXPORT-flow WebAuthn assertion. Same wire shape as the login ' +
-        'verify body, but the challenge must come from ' +
-        '`POST /api/auth/passkey/nsec/export/options` — a LOGIN challenge can ' +
-        'never unlock an export.',
+        'Attestation result of a WebAuthn registration ceremony under the PRF ' +
+        'model: the `challenge` echoed from the options step, the browser ' +
+        '`RegistrationResponseJSON` produced by @simplewebauthn/browser ' +
+        '`startRegistration()`, the PRF-derived Nostr `pubkey` this credential ' +
+        'IS, and `proof` — a NIP-42 (kind 22242) event signed by the derived ' +
+        'key with the WebAuthn challenge in a `challenge` tag, proving the ' +
+        'client actually controls the pubkey it claims.',
     }),
   ),
   PasskeyCredentialUpdateRequest: registry.register(
@@ -240,21 +222,22 @@ export const schemas = {
     'AccountLinkBeginRequest',
     accountLinkBeginRequestSchema.openapi({
       description:
-        'Which proof mechanism the client will use to demonstrate control of ' +
-        'the other key: `nostr` (NIP-42-style signed event) or `passkey` ' +
-        '(WebAuthn assertion).',
+        'Link-proof bootstrap request. `method` is always `nostr` — control of ' +
+        'the other key is proven with a NIP-42-style signed event. Passkey-held ' +
+        'accounts use the same proof: the client derives the passkey’s key via ' +
+        'the WebAuthn PRF extension and signs the event client-side, so there ' +
+        'is no server-side passkey arm.',
     }),
   ),
   AccountLinkVerifyRequest: registry.register(
     'AccountLinkVerifyRequest',
     accountLinkVerifyRequestSchema.openapi({
       description:
-        'Proof of control of another Nostr key, discriminated by `method`. ' +
-        '`nostr`: the challenge from link/begin plus a kind-22242 event signed ' +
-        'by the key being linked (nonce echoed in a `challenge` tag). ' +
-        '`passkey`: a LOGIN-flow WebAuthn assertion — challenge from ' +
-        '`POST /api/auth/passkey/authentication/options` — proving control of ' +
-        'a credential and thereby of the account that owns it.',
+        'Proof of control of another Nostr key: the challenge from link/begin ' +
+        'plus a kind-22242 event signed by the key being linked (nonce echoed ' +
+        'in a `challenge` tag). For a passkey-held key the client derives the ' +
+        'signing key via the WebAuthn PRF extension and produces this same ' +
+        'proof client-side.',
     }),
   ),
   AccountMergePreviewRequest: registry.register(
@@ -366,24 +349,13 @@ export const PasskeyOptionsResponse = registry.register(
     }),
 )
 
-export const PasskeySessionResponse = registry.register(
-  'PasskeySessionResponse',
-  passkeySessionResponseSchema.openapi({
-    description:
-      'Passkey session JWT + context, mirroring `POST /api/jwt`. The token carries ' +
-      'the passkey claims (`amr: ["webauthn"]`, `cred`, `custody`, `auth_time`) ' +
-      'required by the signer-key and session-refresh endpoints. `custody` is ' +
-      '`managed` when the server custodies the account’s Nostr key, `linked` when ' +
-      'the user brought their own signer.',
-  }),
-)
-
 export const PasskeyCredentialSummary = registry.register(
   'PasskeyCredentialSummary',
   passkeyCredentialSummarySchema.openapi({
     description:
       'Non-sensitive passkey credential summary — never exposes the stored public ' +
-      'key or signature counter.',
+      'key or signature counter. `pubkey` is the Nostr identity this passkey ' +
+      'derives via the WebAuthn PRF extension; null for pre-PRF rows.',
   }),
 )
 
@@ -391,8 +363,10 @@ export const PasskeyCredentialListResponse = registry.register(
   'PasskeyCredentialListResponse',
   passkeyCredentialListResponseSchema.openapi({
     description:
-      'The caller’s passkeys plus `hasManagedKey`: true when the server custodies ' +
-      'this account’s Nostr key (passkey-native signup), false for linked accounts.',
+      'The caller’s passkeys plus the pre-PRF custody state: `hasManagedKey` is ' +
+      'true while the server still custodies this account’s Nostr key, and ' +
+      '`managedKeyExported` is true once that key has been exported (always ' +
+      'false without a managed key).',
   }),
 )
 
@@ -421,10 +395,9 @@ export const AccountLinkBeginResponse = registry.register(
   'AccountLinkBeginResponse',
   accountLinkBeginResponseSchema.openapi({
     description:
-      'Link-proof bootstrap. `nostr` method: `challenge` (opaque token to echo ' +
-      'back at verify) + `nonce` (to embed in the signed kind-22242 event). ' +
-      '`passkey` method: both fields are absent — the client uses the standard ' +
-      'passkey authentication/options endpoint instead. `expiresIn` is seconds.',
+      'Link-proof bootstrap: `challenge` (opaque token to echo back at verify) ' +
+      'plus `nonce` (to embed in the signed kind-22242 event). `expiresIn` is ' +
+      'seconds.',
   }),
 )
 
