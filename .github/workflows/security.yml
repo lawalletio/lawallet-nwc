@@ -24,6 +24,11 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      # Runs from the repo root on purpose. `pnpm audit` always resolves the
+      # shared workspace lockfile, so a `working-directory` here would be a
+      # no-op — it audits every workspace package either way, which is why
+      # reported paths look like `apps__docs>next>sharp`. `--prod` drops
+      # devDependencies but keeps optionalDependencies, so transitive optional
+      # deps (next > sharp) stay in scope.
       - name: Check for known vulnerabilities
-        working-directory: apps/web
         run: pnpm audit --prod --audit-level=high
