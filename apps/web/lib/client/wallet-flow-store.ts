@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react'
 import type { ParsedDestination } from './nwc/parse-destination'
+import type { LnurlWithdrawParams } from './lnurl-scan'
 
 /**
  * State for the multi-step send/receive flows. Kept in a module-level store
@@ -49,9 +50,23 @@ export interface ReceiveFlowState {
   error: string | null
 }
 
+export interface WithdrawFlowState {
+  /** Resolved LNURL-withdraw voucher the confirm screen claims against. */
+  params: LnurlWithdrawParams | null
+  amountSats: number | null
+  /** Set once the incoming payment is observed (or the request is accepted). */
+  result: {
+    amountSats: number
+    /** False when we accepted the request but never saw settlement in time. */
+    settled: boolean
+  } | null
+  error: string | null
+}
+
 interface WalletFlowState {
   send: SendFlowState
   receive: ReceiveFlowState
+  withdraw: WithdrawFlowState
 }
 
 const INITIAL_STATE: WalletFlowState = {
@@ -67,6 +82,12 @@ const INITIAL_STATE: WalletFlowState = {
     description: '',
     invoice: null,
     settledPreimage: null,
+    error: null,
+  },
+  withdraw: {
+    params: null,
+    amountSats: null,
+    result: null,
     error: null,
   },
 }
@@ -110,6 +131,14 @@ export function useReceiveFlow(): ReceiveFlowState {
     subscribe,
     () => getSnapshot().receive,
     () => getServerSnapshot().receive,
+  )
+}
+
+export function useWithdrawFlow(): WithdrawFlowState {
+  return useSyncExternalStore(
+    subscribe,
+    () => getSnapshot().withdraw,
+    () => getServerSnapshot().withdraw,
   )
 }
 
@@ -172,6 +201,41 @@ export const receiveActions = {
   },
   reset() {
     state = { ...state, receive: INITIAL_STATE.receive }
+    emit()
+  },
+}
+
+export const withdrawActions = {
+  setParams(params: LnurlWithdrawParams | null) {
+    state = {
+      ...state,
+      withdraw: {
+        ...INITIAL_STATE.withdraw,
+        params,
+        // Default the amount to the max for fixed-amount vouchers; the confirm
+        // screen overrides this when a range lets the user choose.
+        amountSats: params ? params.maxWithdrawableSats : null,
+      },
+    }
+    emit()
+  },
+  setAmount(amountSats: number | null) {
+    state = {
+      ...state,
+      withdraw: { ...state.withdraw, amountSats, error: null },
+    }
+    emit()
+  },
+  setResult(result: WithdrawFlowState['result']) {
+    state = { ...state, withdraw: { ...state.withdraw, result, error: null } }
+    emit()
+  },
+  setError(error: string | null) {
+    state = { ...state, withdraw: { ...state.withdraw, error } }
+    emit()
+  },
+  reset() {
+    state = { ...state, withdraw: INITIAL_STATE.withdraw }
     emit()
   },
 }
