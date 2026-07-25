@@ -25,7 +25,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   const { buffer, manifest, filename } = await buildBackup(
     body.categories,
     body.options,
-    body.password,
+    body.password
   )
 
   logActivity.fireAndForget({
@@ -39,9 +39,12 @@ export const POST = withErrorHandling(async (request: Request) => {
       encrypted: manifest.encrypted,
       // Only counts — never serialize the secret values themselves.
       counts: Object.fromEntries(
-        Object.entries(manifest.tables).map(([table, meta]) => [table, meta?.count ?? 0]),
-      ),
-    },
+        Object.entries(manifest.tables).map(([table, meta]) => [
+          table,
+          meta?.count ?? 0
+        ])
+      )
+    }
   })
 
   const bytes = new Uint8Array(buffer)
@@ -51,7 +54,7 @@ export const POST = withErrorHandling(async (request: Request) => {
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Length': String(bytes.byteLength),
-      'Cache-Control': 'no-store',
-    },
+      'Cache-Control': 'no-store'
+    }
   })
 })

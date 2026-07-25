@@ -31,12 +31,12 @@ export const GET = withErrorHandling(async (request: Request) => {
           lightningAddresses: {
             where: { isPrimary: true },
             take: 1,
-            include: { remoteWallet: true },
-          },
-        },
-      },
+            include: { remoteWallet: true }
+          }
+        }
+      }
     },
-    orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+    orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }]
   })
 
   const transformed = addresses.map(address => ({
@@ -48,10 +48,10 @@ export const GET = withErrorHandling(async (request: Request) => {
     isPrimary: address.isPrimary,
     nwcMode: deriveEffectiveNwcMode(
       address,
-      derivePrimaryWallet(address.user.lightningAddresses?.[0]),
+      derivePrimaryWallet(address.user.lightningAddresses?.[0])
     ),
     createdAt: address.createdAt.toISOString(),
-    updatedAt: address.updatedAt.toISOString(),
+    updatedAt: address.updatedAt.toISOString()
   }))
 
   return NextResponse.json(transformed)

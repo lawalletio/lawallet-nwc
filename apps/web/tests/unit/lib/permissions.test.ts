@@ -5,7 +5,7 @@ import {
   hasPermission,
   hasRole,
   getRolePermissions,
-  isValidRole,
+  isValidRole
 } from '@/lib/auth/permissions'
 
 describe('hasPermission', () => {
@@ -33,7 +33,9 @@ describe('hasPermission', () => {
 
   it('OPERATOR does not have USERS_WRITE or USERS_MANAGE_ROLES', () => {
     expect(hasPermission(Role.OPERATOR, Permission.USERS_WRITE)).toBe(false)
-    expect(hasPermission(Role.OPERATOR, Permission.USERS_MANAGE_ROLES)).toBe(false)
+    expect(hasPermission(Role.OPERATOR, Permission.USERS_MANAGE_ROLES)).toBe(
+      false
+    )
   })
 
   it('OPERATOR has USERS_READ', () => {

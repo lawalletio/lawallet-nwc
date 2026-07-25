@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,7 +48,7 @@ function validateImageFile(file: File) {
 export function UploadDesignDialog({
   open,
   onOpenChange,
-  onCreated,
+  onCreated
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -168,7 +168,7 @@ export function UploadDesignDialog({
               className={cn(
                 'relative flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/30 px-6 py-10 text-center transition-colors',
                 dragging && 'border-primary bg-primary/10',
-                submitting && 'pointer-events-none opacity-80',
+                submitting && 'pointer-events-none opacity-80'
               )}
             >
               {previewUrl ? (

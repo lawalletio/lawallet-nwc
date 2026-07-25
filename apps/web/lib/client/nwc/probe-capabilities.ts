@@ -40,7 +40,11 @@ class TimeoutError extends Error {
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, signal?: AbortSignal): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  signal?: AbortSignal
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new TimeoutError()), ms)
     const onAbort = () => {
@@ -58,7 +62,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, signal?: AbortSignal): 
         clearTimeout(timer)
         signal?.removeEventListener('abort', onAbort)
         reject(e)
-      },
+      }
     )
   })
 }
@@ -85,7 +89,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, signal?: AbortSignal): 
  */
 export async function probeNwcCapabilities(
   nwcString: string,
-  options: { signal?: AbortSignal; timeoutMs?: number } = {},
+  options: { signal?: AbortSignal; timeoutMs?: number } = {}
 ): Promise<NwcCapabilities> {
   const { signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options
 
@@ -98,11 +102,14 @@ export async function probeNwcCapabilities(
     const canReceive = methods.includes('make_invoice')
     const canSend = methods.includes('pay_invoice')
     return {
-      alias: typeof info.alias === 'string' && info.alias.length > 0 ? info.alias : null,
+      alias:
+        typeof info.alias === 'string' && info.alias.length > 0
+          ? info.alias
+          : null,
       methods,
       canReceive,
       canSend,
-      mode: canSend ? 'SEND_RECEIVE' : 'RECEIVE',
+      mode: canSend ? 'SEND_RECEIVE' : 'RECEIVE'
     }
   } finally {
     // Probing creates a relay subscription that the user is unlikely to

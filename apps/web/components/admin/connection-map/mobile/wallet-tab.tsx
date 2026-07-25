@@ -12,7 +12,7 @@ import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 import type { CardData } from '@/lib/client/hooks/use-cards'
 import {
   useRemoteWalletMutations,
-  type RemoteWalletData,
+  type RemoteWalletData
 } from '@/lib/client/hooks/use-remote-wallets'
 import { WalletLiveBalance } from '../wallet-live-balance'
 import { routesThroughPrimaryWallet } from '../primary-wallet'
@@ -67,10 +67,7 @@ export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
                     />
                   )}
                 </span>
-                <WalletLiveBalance
-                  walletId={isLive ? w.id : null}
-                  size="sm"
-                />
+                <WalletLiveBalance walletId={isLive ? w.id : null} size="sm" />
               </div>
 
               <div className="flex items-center gap-1.5">
@@ -84,7 +81,9 @@ export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
 
               {/* Bound entities */}
               {boundLas.length === 0 && boundCards.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nothing bound yet.</p>
+                <p className="text-xs text-muted-foreground">
+                  Nothing bound yet.
+                </p>
               ) : (
                 <div className="flex flex-col gap-1.5">
                   {boundLas.map(a => (
@@ -93,7 +92,9 @@ export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
                       className="flex items-center gap-1.5 text-xs text-muted-foreground"
                     >
                       <AtSign className="size-3 shrink-0 text-emerald-400" />
-                      <span className="truncate text-foreground">{a.username}</span>
+                      <span className="truncate text-foreground">
+                        {a.username}
+                      </span>
                       {a.mode === 'DEFAULT_NWC' && (
                         <span className="text-[10px] uppercase tracking-wider">
                           primary
@@ -108,7 +109,9 @@ export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
                     >
                       <CreditCard className="size-3 shrink-0 text-sky-400" />
                       <span className="truncate text-foreground">
-                        {c.title ?? c.lightningAddress?.username ?? truncateHex(c.id)}
+                        {c.title ??
+                          c.lightningAddress?.username ??
+                          truncateHex(c.id)}
                       </span>
                     </span>
                   ))}
@@ -137,7 +140,9 @@ function EmptyWalletsState() {
       await createLncurlWallet()
       toast.success('LNCurl wallet created')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not create LNCurl wallet')
+      toast.error(
+        err instanceof Error ? err.message : 'Could not create LNCurl wallet'
+      )
     }
   }
 

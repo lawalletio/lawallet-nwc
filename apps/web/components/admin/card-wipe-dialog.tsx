@@ -8,7 +8,7 @@ import {
   Eraser,
   Eye,
   ShieldAlert,
-  Trash2,
+  Trash2
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
@@ -18,7 +18,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -60,7 +60,7 @@ export function CardWipeDialog({
   open,
   onOpenChange,
   onConfirmDelete,
-  deleting,
+  deleting
 }: {
   cardId: string
   uid: string
@@ -108,7 +108,7 @@ export function CardWipeDialog({
       setWipeData(await res.json())
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to load reset keys',
+        err instanceof Error ? err.message : 'Failed to load reset keys'
       )
     } finally {
       setRevealing(false)
@@ -125,10 +125,10 @@ export function CardWipeDialog({
           k3: wipeData.k3,
           k4: wipeData.k4,
           uid: wipeData.uid,
-          version: 1,
+          version: 1
         },
         null,
-        2,
+        2
       )
     : ''
 
@@ -139,7 +139,7 @@ export function CardWipeDialog({
         ['K1', wipeData.k1],
         ['K2', wipeData.k2],
         ['K3', wipeData.k3],
-        ['K4', wipeData.k4],
+        ['K4', wipeData.k4]
       ]
     : []
 

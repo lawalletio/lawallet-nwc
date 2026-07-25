@@ -5,7 +5,7 @@ import type {
   BackupImportRequest,
   BackupImportResult,
   BackupResolutionStrategy,
-  BackupTableName,
+  BackupTableName
 } from '@/lib/validation/schemas'
 
 export type {
@@ -15,7 +15,7 @@ export type {
   BackupImportRequest,
   BackupImportResult,
   BackupResolutionStrategy,
-  BackupTableName,
+  BackupTableName
 }
 export type { BackupAnalyzeResponse } from '@/lib/validation/schemas'
 
@@ -37,38 +37,38 @@ export const BACKUP_CATEGORIES: CategoryMeta[] = [
     label: 'Core data',
     description:
       'Users, lightning addresses, remote wallets, cards, designs, NTAG keys, activation tokens, and Alby accounts.',
-    defaultOn: true,
+    defaultOn: true
   },
   {
     key: 'settings',
     label: 'System settings',
     description: 'Domain, branding, and infrastructure configuration.',
-    defaultOn: true,
+    defaultOn: true
   },
   {
     key: 'plugins',
     label: 'Plugins',
     description: 'Installed plugin state.',
-    defaultOn: true,
+    defaultOn: true
   },
   {
     key: 'activityLogs',
     label: 'Activity logs',
     description: 'The audit trail. Can be large.',
-    defaultOn: false,
+    defaultOn: false
   },
   {
     key: 'invoices',
     label: 'Invoices',
     description: 'Lightning invoice history.',
-    defaultOn: false,
+    defaultOn: false
   },
   {
     key: 'nostrCache',
     label: 'Nostr cache',
     description: 'Cached Nostr profiles and images (re-fetchable).',
-    defaultOn: false,
-  },
+    defaultOn: false
+  }
 ]
 
 /** Human, plural labels per table for the review UI. */
@@ -86,7 +86,7 @@ export const TABLE_LABELS: Record<BackupTableName, string> = {
   settings: 'Settings',
   nostrProfileCache: 'Cached profiles',
   nostrProfileImageCache: 'Cached images',
-  pluginRecords: 'Plugin records',
+  pluginRecords: 'Plugin records'
 }
 
 export function tableLabel(table: BackupTableName): string {

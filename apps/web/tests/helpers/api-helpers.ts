@@ -21,15 +21,18 @@ export function createNextRequest(
     method,
     headers: new Headers({
       'Content-Type': 'application/json',
-      ...headers,
-    }),
+      ...headers
+    })
   }
 
   if (body && method !== 'GET') {
     requestInit.body = JSON.stringify(body)
   }
 
-  return new NextRequest(urlObj, requestInit as ConstructorParameters<typeof NextRequest>[1])
+  return new NextRequest(
+    urlObj,
+    requestInit as ConstructorParameters<typeof NextRequest>[1]
+  )
 }
 
 // Extract JSON from NextResponse

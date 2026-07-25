@@ -44,7 +44,10 @@ function loadCustomServers(): CustomServer[] {
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
       (e): e is CustomServer =>
-        e && typeof e.id === 'string' && typeof e.label === 'string' && typeof e.url === 'string',
+        e &&
+        typeof e.id === 'string' &&
+        typeof e.label === 'string' &&
+        typeof e.url === 'string'
     )
   } catch {
     return []
@@ -86,7 +89,8 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
   useEffect(() => {
     if (!open) return
     function onDoc(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      if (rootRef.current && !rootRef.current.contains(e.target as Node))
+        setOpen(false)
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false)
@@ -103,12 +107,12 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
     id: 'local',
     label: 'Public Beta',
     url: localUrl,
-    builtIn: true,
+    builtIn: true
   }
   const allOptions: ServerOption[] = [
     localOption,
     ...DEFAULTS,
-    ...customs.map(c => ({ id: c.id, label: c.label, url: c.url })),
+    ...customs.map(c => ({ id: c.id, label: c.label, url: c.url }))
   ]
 
   function pick(url: string) {
@@ -138,7 +142,7 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
     const entry: CustomServer = {
       id: `custom-${Date.now()}`,
       label,
-      url,
+      url
     }
     const next = [...customs, entry]
     setCustoms(next)
@@ -168,10 +172,18 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
         gap: 8,
         color: 'var(--scalar-color-1)',
         fontFamily: 'var(--scalar-font, inherit)',
-        fontSize: 13,
+        fontSize: 13
       }}
     >
-      <span style={{ color: 'var(--scalar-color-2)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>
+      <span
+        style={{
+          color: 'var(--scalar-color-2)',
+          fontSize: 11,
+          textTransform: 'uppercase',
+          letterSpacing: 0.4,
+          fontWeight: 600
+        }}
+      >
         API Server
       </span>
 
@@ -191,17 +203,22 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
             background: 'var(--scalar-background-2)',
             color: 'var(--scalar-color-1)',
             cursor: 'pointer',
-            fontFamily: 'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
+            fontFamily:
+              'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
             fontSize: 12,
             maxWidth: 360,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            whiteSpace: 'nowrap'
           }}
           title={current.url}
         >
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.url}</span>
-          <span aria-hidden style={{ opacity: 0.6 }}>▾</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {current.url}
+          </span>
+          <span aria-hidden style={{ opacity: 0.6 }}>
+            ▾
+          </span>
         </button>
 
         {open && (
@@ -220,7 +237,7 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
               boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
               padding: 4,
               maxHeight: '60vh',
-              overflowY: 'auto',
+              overflowY: 'auto'
             }}
           >
             {allOptions.map(opt => {
@@ -249,7 +266,7 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
                       color: 'var(--scalar-color-1)',
                       borderRadius: 6,
                       cursor: 'pointer',
-                      textAlign: 'left',
+                      textAlign: 'left'
                     }}
                   >
                     <span style={{ fontSize: 12, fontWeight: 600 }}>
@@ -261,7 +278,7 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
                         fontSize: 11,
                         color: 'var(--scalar-color-2)',
                         fontFamily:
-                          'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
+                          'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)'
                       }}
                     >
                       {opt.url}
@@ -279,7 +296,7 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
                         border: '1px solid transparent',
                         color: 'var(--scalar-color-2)',
                         cursor: 'pointer',
-                        borderRadius: 6,
+                        borderRadius: 6
                       }}
                     >
                       ×
@@ -290,7 +307,10 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
             })}
 
             <div
-              style={{ borderTop: '1px solid var(--scalar-border-color)', margin: '4px 0' }}
+              style={{
+                borderTop: '1px solid var(--scalar-border-color)',
+                margin: '4px 0'
+              }}
             />
 
             {!adding ? (
@@ -311,7 +331,7 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
                   cursor: 'pointer',
                   fontSize: 12,
                   fontWeight: 600,
-                  borderRadius: 6,
+                  borderRadius: 6
                 }}
               >
                 + Add custom server…
@@ -340,13 +360,19 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
                   <div
                     style={{
                       fontSize: 11,
-                      color: 'var(--scalar-color-red, #ef4444)',
+                      color: 'var(--scalar-color-red, #ef4444)'
                     }}
                   >
                     {error}
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 6,
+                    justifyContent: 'flex-end'
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => {
@@ -359,7 +385,11 @@ export function ServerSelector({ localUrl, value, onChange }: Props) {
                   >
                     Cancel
                   </button>
-                  <button type="button" onClick={addCustom} style={primaryBtnStyle()}>
+                  <button
+                    type="button"
+                    onClick={addCustom}
+                    style={primaryBtnStyle()}
+                  >
                     Save & select
                   </button>
                 </div>
@@ -394,7 +424,7 @@ function inputStyle(): React.CSSProperties {
     borderRadius: 6,
     fontSize: 12,
     fontFamily: 'var(--scalar-font, inherit)',
-    outline: 'none',
+    outline: 'none'
   }
 }
 
@@ -407,7 +437,7 @@ function primaryBtnStyle(): React.CSSProperties {
     color: 'var(--scalar-button-1-color, white)',
     fontSize: 12,
     fontWeight: 600,
-    cursor: 'pointer',
+    cursor: 'pointer'
   }
 }
 
@@ -420,6 +450,6 @@ function ghostBtnStyle(): React.CSSProperties {
     color: 'var(--scalar-color-1)',
     fontSize: 12,
     fontWeight: 500,
-    cursor: 'pointer',
+    cursor: 'pointer'
   }
 }

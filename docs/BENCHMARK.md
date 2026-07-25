@@ -17,11 +17,11 @@ Results print to the console and a JSON report is written to
 
 `apps/web/bench/auth.bench.ts`:
 
-| Path | Why it matters |
-|------|----------------|
+| Path                                               | Why it matters                      |
+| -------------------------------------------------- | ----------------------------------- |
 | `createJwtToken` / `verifyJwtToken` (`lib/jwt.ts`) | Runs on every authenticated request |
-| `getRolePermissions` (`lib/auth/permissions.ts`) | RBAC resolution on every request |
-| `generateNtag424Values` (`lib/ntag424.ts`) | Card key derivation during pairing |
+| `getRolePermissions` (`lib/auth/permissions.ts`)   | RBAC resolution on every request    |
+| `generateNtag424Values` (`lib/ntag424.ts`)         | Card key derivation during pairing  |
 
 Config: `apps/web/vitest.bench.config.ts` (separate from the test config so
 benches never pollute coverage runs). Add new benches as

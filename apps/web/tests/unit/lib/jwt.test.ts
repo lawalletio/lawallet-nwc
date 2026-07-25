@@ -7,7 +7,7 @@ import {
   validateJwtFromRequest,
   isTokenExpired,
   getTimeUntilExpiration,
-  type JwtPayload,
+  type JwtPayload
 } from '@/lib/jwt'
 
 const SECRET = 'test-secret-key-that-is-long-enough'
@@ -16,11 +16,9 @@ function makeToken(
   overrides: Record<string, any> = {},
   options: { expiresIn?: string | number } = {}
 ) {
-  return createJwtToken(
-    { userId: 'user_1', ...overrides },
-    SECRET,
-    { expiresIn: options.expiresIn ?? '1h' }
-  )
+  return createJwtToken({ userId: 'user_1', ...overrides }, SECRET, {
+    expiresIn: options.expiresIn ?? '1h'
+  })
 }
 
 describe('createJwtToken', () => {
@@ -49,11 +47,10 @@ describe('createJwtToken', () => {
   })
 
   it('supports issuer and audience options', () => {
-    const token = createJwtToken(
-      { userId: 'u1' },
-      SECRET,
-      { issuer: 'test-issuer', audience: 'test-audience' }
-    )
+    const token = createJwtToken({ userId: 'u1' }, SECRET, {
+      issuer: 'test-issuer',
+      audience: 'test-audience'
+    })
     const result = decodeJwtToken(token)
     expect(result.payload.iss).toBe('test-issuer')
     expect(result.payload.aud).toBe('test-audience')
@@ -74,11 +71,7 @@ describe('verifyJwtToken', () => {
   })
 
   it('throws for expired token', () => {
-    const token = createJwtToken(
-      { userId: 'u1' },
-      SECRET,
-      { expiresIn: 0 }
-    )
+    const token = createJwtToken({ userId: 'u1' }, SECRET, { expiresIn: 0 })
     expect(() => verifyJwtToken(token, SECRET)).toThrow('Token has expired')
   })
 
@@ -87,33 +80,25 @@ describe('verifyJwtToken', () => {
   })
 
   it('accepts clockTolerance', () => {
-    const token = createJwtToken(
-      { userId: 'u1' },
-      SECRET,
-      { expiresIn: 0 }
-    )
+    const token = createJwtToken({ userId: 'u1' }, SECRET, { expiresIn: 0 })
     // With a large clock tolerance, the expired token should pass
     const result = verifyJwtToken(token, SECRET, { clockTolerance: 60 })
     expect(result.payload.userId).toBe('u1')
   })
 
   it('validates issuer when specified', () => {
-    const token = createJwtToken(
-      { userId: 'u1' },
-      SECRET,
-      { issuer: 'correct-issuer' }
-    )
+    const token = createJwtToken({ userId: 'u1' }, SECRET, {
+      issuer: 'correct-issuer'
+    })
     expect(() =>
       verifyJwtToken(token, SECRET, { issuer: 'wrong-issuer' })
     ).toThrow('Invalid token')
   })
 
   it('validates audience when specified', () => {
-    const token = createJwtToken(
-      { userId: 'u1' },
-      SECRET,
-      { audience: 'correct-audience' }
-    )
+    const token = createJwtToken({ userId: 'u1' }, SECRET, {
+      audience: 'correct-audience'
+    })
     expect(() =>
       verifyJwtToken(token, SECRET, { audience: 'wrong-audience' })
     ).toThrow('Invalid token')
@@ -139,7 +124,9 @@ describe('extractJwtFromHeader', () => {
   })
 
   it('throws for null header', () => {
-    expect(() => extractJwtFromHeader(null)).toThrow('Authorization header is required')
+    expect(() => extractJwtFromHeader(null)).toThrow(
+      'Authorization header is required'
+    )
   })
 
   it('throws for non-Bearer prefix', () => {
@@ -157,7 +144,7 @@ describe('validateJwtFromRequest', () => {
   it('validates JWT from request Authorization header', async () => {
     const token = makeToken()
     const request = new Request('http://localhost/api/test', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` }
     })
     const result = await validateJwtFromRequest(request, SECRET)
     expect(result.payload.userId).toBe('user_1')
@@ -174,21 +161,21 @@ describe('validateJwtFromRequest', () => {
 describe('isTokenExpired', () => {
   it('returns false for future expiration', () => {
     const payload = {
-      exp: Math.floor(Date.now() / 1000) + 3600,
+      exp: Math.floor(Date.now() / 1000) + 3600
     } as JwtPayload
     expect(isTokenExpired(payload)).toBe(false)
   })
 
   it('returns true for past expiration', () => {
     const payload = {
-      exp: Math.floor(Date.now() / 1000) - 10,
+      exp: Math.floor(Date.now() / 1000) - 10
     } as JwtPayload
     expect(isTokenExpired(payload)).toBe(true)
   })
 
   it('respects clockTolerance', () => {
     const payload = {
-      exp: Math.floor(Date.now() / 1000) - 5,
+      exp: Math.floor(Date.now() / 1000) - 5
     } as JwtPayload
     // Without tolerance, expired
     expect(isTokenExpired(payload, 0)).toBe(true)
@@ -200,7 +187,7 @@ describe('isTokenExpired', () => {
 describe('getTimeUntilExpiration', () => {
   it('returns positive for future expiration', () => {
     const payload = {
-      exp: Math.floor(Date.now() / 1000) + 100,
+      exp: Math.floor(Date.now() / 1000) + 100
     } as JwtPayload
     const time = getTimeUntilExpiration(payload)
     expect(time).toBeGreaterThan(0)
@@ -209,7 +196,7 @@ describe('getTimeUntilExpiration', () => {
 
   it('returns negative for past expiration', () => {
     const payload = {
-      exp: Math.floor(Date.now() / 1000) - 50,
+      exp: Math.floor(Date.now() / 1000) - 50
     } as JwtPayload
     expect(getTimeUntilExpiration(payload)).toBeLessThan(0)
   })

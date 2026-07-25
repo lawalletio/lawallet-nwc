@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   probeLightningAddressCapabilities,
-  probeLud21Support,
+  probeLud21Support
 } from '@/lib/lnurl-probe'
 
 const originalFetch = global.fetch
@@ -28,19 +28,21 @@ describe('probeLud21Support', () => {
           tag: 'payRequest',
           callback: 'https://example.com/cb',
           minSendable: 1_000,
-          maxSendable: 1_000_000_000,
-        }),
+          maxSendable: 1_000_000_000
+        })
       }),
       () => ({
         ok: true,
         json: async () => ({
           pr: 'lnbc1...',
-          verify: 'https://example.com/verify/xyz',
-        }),
-      }),
+          verify: 'https://example.com/verify/xyz'
+        })
+      })
     ])
 
-    await expect(probeLud21Support('admin@example.com', 21)).resolves.toBeUndefined()
+    await expect(
+      probeLud21Support('admin@example.com', 21)
+    ).resolves.toBeUndefined()
   })
 
   it('rejects when callback response omits verify URL', async () => {
@@ -51,13 +53,13 @@ describe('probeLud21Support', () => {
           tag: 'payRequest',
           callback: 'https://example.com/cb',
           minSendable: 1_000,
-          maxSendable: 1_000_000_000,
-        }),
+          maxSendable: 1_000_000_000
+        })
       }),
       () => ({
         ok: true,
-        json: async () => ({ pr: 'lnbc1...' }), // no verify
-      }),
+        json: async () => ({ pr: 'lnbc1...' }) // no verify
+      })
     ])
 
     await expect(probeLud21Support('admin@example.com', 21)).rejects.toThrow(
@@ -69,8 +71,8 @@ describe('probeLud21Support', () => {
     mockFetchSequence([
       () => ({
         ok: true,
-        json: async () => ({ tag: 'withdrawRequest', callback: 'x' }),
-      }),
+        json: async () => ({ tag: 'withdrawRequest', callback: 'x' })
+      })
     ])
 
     await expect(probeLud21Support('admin@example.com', 21)).rejects.toThrow(
@@ -86,9 +88,9 @@ describe('probeLud21Support', () => {
           tag: 'payRequest',
           callback: 'https://example.com/cb',
           minSendable: 100_000_000, // 100_000 sats floor
-          maxSendable: 1_000_000_000,
-        }),
-      }),
+          maxSendable: 1_000_000_000
+        })
+      })
     ])
 
     await expect(probeLud21Support('admin@example.com', 21)).rejects.toThrow(
@@ -132,16 +134,16 @@ describe('probeLightningAddressCapabilities', () => {
           minSendable: 1_000,
           maxSendable: 1_000_000_000,
           allowsNostr: true,
-          nostrPubkey: 'a'.repeat(64),
-        }),
+          nostrPubkey: 'a'.repeat(64)
+        })
       }),
       () => ({
         ok: true,
         json: async () => ({
           pr: 'lnbc1...',
-          verify: 'https://example.com/verify/xyz',
-        }),
-      }),
+          verify: 'https://example.com/verify/xyz'
+        })
+      })
     ])
 
     const result = await probeLightningAddressCapabilities('Admin@Example.com')
@@ -173,13 +175,13 @@ describe('probeLightningAddressCapabilities', () => {
           tag: 'payRequest',
           callback: 'https://example.com/cb',
           minSendable: 1_000,
-          maxSendable: 1_000_000_000,
-        }),
+          maxSendable: 1_000_000_000
+        })
       }),
       () => ({
         ok: true,
-        json: async () => ({ pr: 'lnbc1...' }),
-      }),
+        json: async () => ({ pr: 'lnbc1...' })
+      })
     ])
 
     const result = await probeLightningAddressCapabilities('admin@example.com')

@@ -29,7 +29,9 @@ interface ProgressContextValue {
   report: (step: ProgressStep) => void
 }
 
-const ProgressContext = createContext<ProgressContextValue>({ report: () => {} })
+const ProgressContext = createContext<ProgressContextValue>({
+  report: () => {}
+})
 
 /** Report a first-load milestone. No-op after the first load completes. */
 export function useFirstLoadProgress() {
@@ -45,7 +47,11 @@ function alreadyLoaded(): boolean {
   }
 }
 
-export function FirstLoadProgressProvider({ children }: { children: React.ReactNode }) {
+export function FirstLoadProgressProvider({
+  children
+}: {
+  children: React.ReactNode
+}) {
   const pathname = usePathname() ?? ''
   const expected = useMemo(
     () => (pathname === '/wallet' ? HOME_STEPS : OTHER_STEPS),
@@ -102,7 +108,9 @@ export function FirstLoadProgressProvider({ children }: { children: React.ReactN
     if (!armed || finished.current) return
     const done = expected.filter(s => reported.current.has(s)).length
     const fraction = done / expected.length
-    setProgress(Math.max(BASELINE, Math.round(BASELINE + fraction * (100 - BASELINE))))
+    setProgress(
+      Math.max(BASELINE, Math.round(BASELINE + fraction * (100 - BASELINE)))
+    )
     if (done >= expected.length) finish()
   }, [tick, armed, expected, finish])
 

@@ -4,17 +4,17 @@ import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     jwt: { enabled: true, secret: 'x'.repeat(40) },
-    maintenance: { enabled: false },
-  })),
+    maintenance: { enabled: false }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 // The route doesn't touch the DB, but its `withErrorHandling` wrapper imports
@@ -35,7 +35,9 @@ describe('POST /api/dev/login', () => {
   it('mints an ADMIN JWT in development', async () => {
     vi.stubEnv('NODE_ENV', 'development')
 
-    const res = await POST(createNextRequest('/api/dev/login', { method: 'POST' }))
+    const res = await POST(
+      createNextRequest('/api/dev/login', { method: 'POST' })
+    )
     const body: any = await assertResponse(res, 200)
 
     expect(body.token).toBeTruthy()
@@ -51,7 +53,9 @@ describe('POST /api/dev/login', () => {
     async env => {
       vi.stubEnv('NODE_ENV', env)
 
-      const res = await POST(createNextRequest('/api/dev/login', { method: 'POST' }))
+      const res = await POST(
+        createNextRequest('/api/dev/login', { method: 'POST' })
+      )
 
       expect(res.status).toBe(404)
     }

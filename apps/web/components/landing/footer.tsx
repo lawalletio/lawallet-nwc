@@ -13,7 +13,9 @@ export function Footer() {
           height={24}
           className="h-5 w-auto opacity-50"
         />
-        <span className="text-xs text-muted-foreground">Powered by LaWallet</span>
+        <span className="text-xs text-muted-foreground">
+          Powered by LaWallet
+        </span>
       </div>
     </footer>
   )

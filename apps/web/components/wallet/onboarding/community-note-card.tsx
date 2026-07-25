@@ -19,8 +19,8 @@ export function CommunityNoteCard() {
             Welcome to LaWallet
           </h1>
           <p className="text-sm text-muted-foreground">
-            This wallet is part of a self-custodial community platform built
-            on Lightning and Nostr. You hold your own keys, and every payment
+            This wallet is part of a self-custodial community platform built on
+            Lightning and Nostr. You hold your own keys, and every payment
             routes through your Nostr Wallet Connect connection.
           </p>
         </div>

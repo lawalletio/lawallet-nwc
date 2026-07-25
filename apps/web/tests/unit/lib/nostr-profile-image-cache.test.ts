@@ -19,7 +19,9 @@ beforeEach(async () => {
   resetPrismaMock()
   vi.clearAllMocks()
   tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lawallet-nostr-cache-'))
-  vi.mocked(prismaMock.nostrProfileImageCache.upsert).mockResolvedValue({} as any)
+  vi.mocked(prismaMock.nostrProfileImageCache.upsert).mockResolvedValue(
+    {} as any
+  )
 })
 
 afterEach(async () => {
@@ -30,26 +32,27 @@ describe('precacheProfileImage', () => {
   it('writes valid image bytes and stores cache metadata', async () => {
     const fetchImpl = mockFetch(
       new Response(new Uint8Array([1, 2, 3]), {
-        headers: { 'content-type': 'image/png' },
-      }),
+        headers: { 'content-type': 'image/png' }
+      })
     )
 
     await precacheProfileImage(
       { npub: NPUB, kind: 'AVATAR', remoteUrl: PUBLIC_IMAGE_URL },
-      { fetchImpl, cacheDir: tempDir },
+      { fetchImpl, cacheDir: tempDir }
     )
 
-    const call = vi.mocked(prismaMock.nostrProfileImageCache.upsert).mock.calls[0]?.[0] as any
+    const call = vi.mocked(prismaMock.nostrProfileImageCache.upsert).mock
+      .calls[0]?.[0] as any
     expect(call.update).toMatchObject({
       remoteUrl: PUBLIC_IMAGE_URL,
       contentType: 'image/png',
       byteSize: 3,
       failedAt: null,
-      lastError: null,
+      lastError: null
     })
     expect(call.update.cachePath).toContain(tempDir)
     await expect(fs.stat(call.update.cachePath)).resolves.toMatchObject({
-      size: 3,
+      size: 3
     })
   })
 
@@ -59,8 +62,8 @@ describe('precacheProfileImage', () => {
     await expect(
       precacheProfileImage(
         { npub: NPUB, kind: 'AVATAR', remoteUrl: 'http://127.0.0.1/a.png' },
-        { fetchImpl, cacheDir: tempDir },
-      ),
+        { fetchImpl, cacheDir: tempDir }
+      )
     ).resolves.toBeUndefined()
 
     expect(fetchImpl).not.toHaveBeenCalled()
@@ -68,31 +71,31 @@ describe('precacheProfileImage', () => {
       expect.objectContaining({
         update: expect.objectContaining({
           failedAt: expect.any(Date),
-          lastError: expect.stringContaining('Private image hosts'),
-        }),
-      }),
+          lastError: expect.stringContaining('Private image hosts')
+        })
+      })
     )
   })
 
   it('records unsupported content types as cache failures', async () => {
     const fetchImpl = mockFetch(
       new Response('not image', {
-        headers: { 'content-type': 'text/html' },
-      }),
+        headers: { 'content-type': 'text/html' }
+      })
     )
 
     await precacheProfileImage(
       { npub: NPUB, kind: 'COVER', remoteUrl: PUBLIC_IMAGE_URL },
-      { fetchImpl, cacheDir: tempDir },
+      { fetchImpl, cacheDir: tempDir }
     )
 
     expect(prismaMock.nostrProfileImageCache.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({
           cachePath: null,
-          lastError: expect.stringContaining('Unsupported image content type'),
-        }),
-      }),
+          lastError: expect.stringContaining('Unsupported image content type')
+        })
+      })
     )
   })
 
@@ -101,22 +104,22 @@ describe('precacheProfileImage', () => {
       new Response(new Uint8Array([1]), {
         headers: {
           'content-type': 'image/jpeg',
-          'content-length': String(5 * 1024 * 1024 + 1),
-        },
-      }),
+          'content-length': String(5 * 1024 * 1024 + 1)
+        }
+      })
     )
 
     await precacheProfileImage(
       { npub: NPUB, kind: 'AVATAR', remoteUrl: PUBLIC_IMAGE_URL },
-      { fetchImpl, cacheDir: tempDir },
+      { fetchImpl, cacheDir: tempDir }
     )
 
     expect(prismaMock.nostrProfileImageCache.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: expect.objectContaining({
-          lastError: 'Image exceeds 5MB limit',
-        }),
-      }),
+          lastError: 'Image exceeds 5MB limit'
+        })
+      })
     )
   })
 })

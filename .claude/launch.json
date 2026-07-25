@@ -4,14 +4,20 @@
     {
       "name": "web",
       "runtimeExecutable": "/bin/zsh",
-      "runtimeArgs": ["-c", "source $HOME/.nvm/nvm.sh && nvm use 22.14.0 > /dev/null && pnpm --filter @lawallet-nwc/web dev"],
+      "runtimeArgs": [
+        "-c",
+        "source $HOME/.nvm/nvm.sh && nvm use 22.14.0 > /dev/null && pnpm --filter @lawallet-nwc/web dev"
+      ],
       "port": 3750,
       "autoPort": true
     },
     {
       "name": "docs",
       "runtimeExecutable": "/bin/zsh",
-      "runtimeArgs": ["-c", "source $HOME/.nvm/nvm.sh && nvm use 22.14.0 > /dev/null && pnpm --filter @lawallet-nwc/docs dev"],
+      "runtimeArgs": [
+        "-c",
+        "source $HOME/.nvm/nvm.sh && nvm use 22.14.0 > /dev/null && pnpm --filter @lawallet-nwc/docs dev"
+      ],
       "port": 3001,
       "autoPort": true
     }

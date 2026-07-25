@@ -69,7 +69,9 @@ vi.mock('@/components/shared/nostr-connect-form', () => ({
   }) => (
     <button
       type="button"
-      onClick={() => void handleSigner({ fake: 'signer' }, 'nsec').catch(() => {})}
+      onClick={() =>
+        void handleSigner({ fake: 'signer' }, 'nsec').catch(() => {})
+      }
     >
       mock-nostr-prove
     </button>
@@ -147,7 +149,11 @@ const PREVIEW: AccountMergePreviewResponse = {
     cardDesigns: 0,
     invoices: 4,
     relays: ['wss://a.example', 'wss://b.example'],
-    profile: { name: 'alice', displayName: 'Alice', picture: 'https://img/alice.png' },
+    profile: {
+      name: 'alice',
+      displayName: 'Alice',
+      picture: 'https://img/alice.png'
+    },
     hasAlbySubAccount: false,
     hasManagedKey: false,
     managedKeyExported: false
@@ -212,7 +218,10 @@ beforeEach(() => {
   mocks.requestSigner.mockResolvedValue({ getPublicKey: async () => PK_A })
 })
 
-function renderDialog(props?: { initialTab?: 'nostr' | 'passkey'; hint?: string }) {
+function renderDialog(props?: {
+  initialTab?: 'nostr' | 'passkey'
+  hint?: string
+}) {
   const onOpenChange = vi.fn()
   render(<MergeDialog open onOpenChange={onOpenChange} {...props} />)
   return { onOpenChange }
@@ -306,11 +315,15 @@ describe('MergeDialog', () => {
     await user.click(identityRadios[2])
 
     await user.click(within(radioGroup('Avatar')).getAllByRole('radio')[1])
-    await user.click(within(radioGroup('Display name')).getAllByRole('radio')[1])
+    await user.click(
+      within(radioGroup('Display name')).getAllByRole('radio')[1]
+    )
     await user.click(
       within(radioGroup('Primary lightning address')).getAllByRole('radio')[1]
     )
-    await user.click(within(radioGroup('Default wallet')).getAllByRole('radio')[1])
+    await user.click(
+      within(radioGroup('Default wallet')).getAllByRole('radio')[1]
+    )
     expect(
       screen.getByText(/Relay lists will be merged — 3 relays/)
     ).toBeInTheDocument()
@@ -413,9 +426,7 @@ describe('MergeDialog', () => {
       )
     )
     await screen.findByText('Accounts merged')
-    expect(
-      screen.queryByText(/merged relay list/)
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/merged relay list/)).not.toBeInTheDocument()
     // No profile conflict → no signer request, no kind-0 publish.
     expect(mocks.requestSigner).not.toHaveBeenCalled()
     expect(publishProfile).not.toHaveBeenCalled()
@@ -491,11 +502,7 @@ describe('PasskeysSection duplicate-passkey escalation', () => {
     )
     const onDuplicatePasskey = vi.fn()
 
-    render(
-      <PasskeysSection
-        onDuplicatePasskey={onDuplicatePasskey}
-      />
-    )
+    render(<PasskeysSection onDuplicatePasskey={onDuplicatePasskey} />)
 
     await user.click(screen.getByRole('button', { name: /add a passkey/i }))
     await waitFor(() => expect(onDuplicatePasskey).toHaveBeenCalledTimes(1))

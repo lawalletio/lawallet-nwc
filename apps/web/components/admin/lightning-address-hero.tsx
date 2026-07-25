@@ -35,7 +35,9 @@ export function LightningAddressHero({
   /** When set, clicking the pill reveals a "Configure" link below for 4s. */
   configureHref?: string
 }) {
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>(
+    'idle'
+  )
   const [showConfigure, setShowConfigure] = useState(false)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const configureTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -143,19 +145,25 @@ export function LightningAddressHero({
           <Copy
             className={cn(
               'absolute inset-0 size-4 text-muted-foreground transition-all duration-200 group-hover:text-foreground',
-              copyState === 'idle' ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
+              copyState === 'idle'
+                ? 'scale-100 opacity-100'
+                : 'scale-75 opacity-0'
             )}
           />
           <Check
             className={cn(
               'absolute inset-0 size-4 text-green-500 transition-all duration-200',
-              copyState === 'copied' ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
+              copyState === 'copied'
+                ? 'scale-100 opacity-100'
+                : 'scale-75 opacity-0'
             )}
           />
           <AlertCircle
             className={cn(
               'absolute inset-0 size-4 text-red-500 transition-all duration-200',
-              copyState === 'error' ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
+              copyState === 'error'
+                ? 'scale-100 opacity-100'
+                : 'scale-75 opacity-0'
             )}
           />
         </span>

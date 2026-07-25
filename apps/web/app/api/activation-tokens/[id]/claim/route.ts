@@ -8,7 +8,11 @@ import { idParam, claimActivationTokenSchema } from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
-import { ConflictError, NotFoundError, ValidationError } from '@/types/server/errors'
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 import { createNewUser } from '@/lib/user'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
@@ -37,7 +41,7 @@ export const POST = withErrorHandling(
     const { id } = validateParams(await params, idParam)
     const { remoteWalletId } = await validateBody(
       request,
-      claimActivationTokenSchema,
+      claimActivationTokenSchema
     )
 
     // Resolve the claimer (any linked pubkey maps to the owning account),
@@ -54,15 +58,15 @@ export const POST = withErrorHandling(
         qrKind: true,
         status: true,
         expiresAt: true,
-        card: { select: { blockedAt: true } },
-      },
+        card: { select: { blockedAt: true } }
+      }
     })
     if (!token) throw new NotFoundError('Activation token not found')
 
     // Claimability checks (cheap, pre-transaction).
     if (token.card?.blockedAt) {
       throw new ConflictError(
-        'This card has been blocked (reset keys exported) and can no longer be activated.',
+        'This card has been blocked (reset keys exported) and can no longer be activated.'
       )
     }
     if (token.status === 'CLAIMED') throw new ConflictError('Already claimed')
@@ -88,9 +92,13 @@ export const POST = withErrorHandling(
     if (remoteWalletId) {
       const wallet = await prisma.remoteWallet.findUnique({
         where: { id: remoteWalletId },
-        select: { id: true, userId: true, status: true },
+        select: { id: true, userId: true, status: true }
       })
-      if (!wallet || wallet.userId !== claimer.id || wallet.status !== 'ACTIVE') {
+      if (
+        !wallet ||
+        wallet.userId !== claimer.id ||
+        wallet.status !== 'ACTIVE'
+      ) {
         throw new ValidationError('Unknown or inactive wallet')
       }
       nextWalletId = wallet.id
@@ -98,7 +106,8 @@ export const POST = withErrorHandling(
       // Only an ACTIVE primary-address wallet is a usable fallback binding.
       // Otherwise leave the card unbound so normal default resolution can
       // evaluate again at tap time.
-      nextWalletId = primaryWallet?.status === 'ACTIVE' ? primaryWallet.id : null
+      nextWalletId =
+        primaryWallet?.status === 'ACTIVE' ? primaryWallet.id : null
     }
 
     // Atomic transfer + burn. Scoping the token update to status=PENDING and
@@ -109,8 +118,8 @@ export const POST = withErrorHandling(
         data: {
           status: 'CLAIMED',
           claimedAt: new Date(),
-          claimedByUserId: claimer.id,
-        },
+          claimedByUserId: claimer.id
+        }
       })
       if (burn.count === 0) throw new ConflictError('Already claimed')
 
@@ -126,10 +135,15 @@ export const POST = withErrorHandling(
           remoteWalletId: true,
           kind: true,
           design: {
-            select: { id: true, imageUrl: true, description: true, createdAt: true },
+            select: {
+              id: true,
+              imageUrl: true,
+              description: true,
+              createdAt: true
+            }
           },
-          user: { select: { pubkey: true } },
-        },
+          user: { select: { pubkey: true } }
+        }
       })
     })
 
@@ -142,8 +156,8 @@ export const POST = withErrorHandling(
       metadata: {
         cardId: token.cardId,
         tokenId: token.id,
-        remoteWalletId: nextWalletId,
-      },
+        remoteWalletId: nextWalletId
+      }
     })
 
     // Card preview for the confirmation screen — intentionally omits NTAG keys.
@@ -156,9 +170,9 @@ export const POST = withErrorHandling(
       pubkey: updated.user?.pubkey,
       username: updated.username || undefined,
       remoteWalletId: updated.remoteWalletId ?? null,
-      kind: updated.kind,
+      kind: updated.kind
     }
 
     return NextResponse.json({ qrKind: 'ONE_TIME', card })
-  },
+  }
 )

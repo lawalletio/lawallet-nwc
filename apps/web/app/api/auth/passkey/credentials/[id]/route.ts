@@ -4,7 +4,10 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ConflictError, NotFoundError } from '@/types/server/errors'
-import { idParam, updatePasskeyCredentialSchema } from '@/lib/validation/schemas'
+import {
+  idParam,
+  updatePasskeyCredentialSchema
+} from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'

@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@/lib/generated/prisma'
-import { ConflictError, NotFoundError, ValidationError } from '@/types/server/errors'
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { parseStoredRelays } from '@/lib/nostr/relay-list'
 import { resolveProfiles } from '@/lib/nostr/profile-cache'
@@ -57,7 +61,9 @@ export interface MergePreview {
   blocked: boolean
 }
 
-async function summarizeAccount(userId: string): Promise<AccountResourceSummary> {
+async function summarizeAccount(
+  userId: string
+): Promise<AccountResourceSummary> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -307,10 +313,12 @@ export async function mergeAccounts(params: {
 
     // The chosen main pubkey must be one of the combined identities.
     const combined = new Set<string>([
-      ...(await tx.nostrIdentity.findMany({
-        where: { userId: survivorId },
-        select: { pubkey: true }
-      })).map(i => i.pubkey),
+      ...(
+        await tx.nostrIdentity.findMany({
+          where: { userId: survivorId },
+          select: { pubkey: true }
+        })
+      ).map(i => i.pubkey),
       ...absorbed.nostrIdentities.map(i => i.pubkey)
     ])
     if (!combined.has(mainPubkey)) {
@@ -412,12 +420,27 @@ export async function mergeAccounts(params: {
         data: { userId: survivorId }
       })
     ])
-    await tx.card.updateMany({ where: { userId: absorbedId }, data: { userId: survivorId } })
-    await tx.ntag424.updateMany({ where: { userId: absorbedId }, data: { userId: survivorId } })
-    await tx.cardDesign.updateMany({ where: { userId: absorbedId }, data: { userId: survivorId } })
-    await tx.invoice.updateMany({ where: { userId: absorbedId }, data: { userId: survivorId } })
+    await tx.card.updateMany({
+      where: { userId: absorbedId },
+      data: { userId: survivorId }
+    })
+    await tx.ntag424.updateMany({
+      where: { userId: absorbedId },
+      data: { userId: survivorId }
+    })
+    await tx.cardDesign.updateMany({
+      where: { userId: absorbedId },
+      data: { userId: survivorId }
+    })
+    await tx.invoice.updateMany({
+      where: { userId: absorbedId },
+      data: { userId: survivorId }
+    })
     // Audit history follows the surviving account instead of being nulled.
-    await tx.activityLog.updateMany({ where: { userId: absorbedId }, data: { userId: survivorId } })
+    await tx.activityLog.updateMany({
+      where: { userId: absorbedId },
+      data: { userId: survivorId }
+    })
 
     // ── Delete the empty shell BEFORE settling the primary: its
     // User.pubkey would collide with the survivor's mirror if the chosen
@@ -470,7 +493,10 @@ export async function mergeAccounts(params: {
       data: {
         pubkey: mainPubkey,
         ...(mergedRelays.length > 0
-          ? { relays: JSON.stringify(mergedRelays), relaysUpdatedAt: new Date() }
+          ? {
+              relays: JSON.stringify(mergedRelays),
+              relaysUpdatedAt: new Date()
+            }
           : {})
       }
     })

@@ -8,12 +8,16 @@ import { idParam, createActivationTokenSchema } from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
-import { ConflictError, NotFoundError, ValidationError } from '@/types/server/errors'
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError
+} from '@/types/server/errors'
 import { resolveApiUrl } from '@/lib/public-url'
 import {
   effectiveTokenStatus,
   mintActivationToken,
-  resolveExpiresAt,
+  resolveExpiresAt
 } from '@/lib/card-activation'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
@@ -30,31 +34,34 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await checkRequestLimits(request, 'json')
-    const auth = await authenticateWithPermission(request, Permission.CARDS_WRITE)
+    const auth = await authenticateWithPermission(
+      request,
+      Permission.CARDS_WRITE
+    )
     await rateLimit(request, RateLimitPresets.sensitive)
 
     const { id } = validateParams(await params, idParam)
     const { qrKind, expiresIn } = await validateBody(
       request,
-      createActivationTokenSchema,
+      createActivationTokenSchema
     )
 
     const card = await prisma.card.findUnique({
       where: { id },
-      select: { id: true, kind: true, blockedAt: true },
+      select: { id: true, kind: true, blockedAt: true }
     })
     if (!card) throw new NotFoundError('Card not found')
 
     if (card.blockedAt !== null) {
       throw new ConflictError(
-        'This card has been blocked (reset keys exported) and can no longer be activated — delete it instead.',
+        'This card has been blocked (reset keys exported) and can no longer be activated — delete it instead.'
       )
     }
 
     if (qrKind === 'FOREVER') {
       throw new ValidationError(
         'FOREVER activation QRs are not yet supported',
-        'Account sharing (MASTER cards) is a future milestone',
+        'Account sharing (MASTER cards) is a future milestone'
       )
     }
 
@@ -73,8 +80,8 @@ export const POST = withErrorHandling(
           qrKind,
           baseUrl: url,
           issuedByUserId: issuer?.id ?? null,
-          expiresAt,
-        }),
+          expiresAt
+        })
       )
     } catch (err) {
       // The partial unique index maps a racing concurrent mint to P2002.
@@ -85,7 +92,7 @@ export const POST = withErrorHandling(
         (err as { code?: string }).code === 'P2002'
       ) {
         throw new ConflictError(
-          'Another active token of this kind was just issued — retry',
+          'Another active token of this kind was just issued — retry'
         )
       }
       throw err
@@ -97,7 +104,7 @@ export const POST = withErrorHandling(
       event: ActivityEvent.CARD_ACTIVATION_TOKEN_ISSUED,
       message: `Activation QR issued for card ${id} (${qrKind})`,
       userId: issuer?.id ?? undefined,
-      metadata: { cardId: id, tokenId: token.id, qrKind },
+      metadata: { cardId: id, tokenId: token.id, qrKind }
     })
 
     return NextResponse.json(
@@ -105,11 +112,11 @@ export const POST = withErrorHandling(
         tokenId: token.id,
         qrPayload: token.qrPayload,
         qrKind: token.qrKind,
-        expiresAt: token.expiresAt,
+        expiresAt: token.expiresAt
       },
-      { status: 201 },
+      { status: 201 }
     )
-  },
+  }
 )
 
 /**
@@ -123,7 +130,7 @@ export const GET = withErrorHandling(
 
     const card = await prisma.card.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true }
     })
     if (!card) throw new NotFoundError('Card not found')
 
@@ -137,8 +144,8 @@ export const GET = withErrorHandling(
         qrPayload: true,
         status: true,
         expiresAt: true,
-        createdAt: true,
-      },
+        createdAt: true
+      }
     })
 
     const active = tokens
@@ -150,9 +157,9 @@ export const GET = withErrorHandling(
         qrPayload: t.qrPayload,
         status: t.status,
         expiresAt: t.expiresAt,
-        createdAt: t.createdAt,
+        createdAt: t.createdAt
       }))
 
     return NextResponse.json(active)
-  },
+  }
 )

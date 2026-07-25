@@ -34,19 +34,20 @@ const MAX_EMBEDDED_IMAGE_BYTES = 256 * 1024
  */
 export async function getLud16AvatarMetadataEntry(
   pubkey: string,
-  db: typeof prisma = prisma,
+  db: typeof prisma = prisma
 ): Promise<[string, string] | null> {
   const normalized = normalizeNostrPubkey(pubkey)
   if (!normalized) return null
 
   const row = await db.nostrProfileImageCache.findUnique({
     where: { npub_kind: { npub: normalized.npub, kind: 'AVATAR' } },
-    select: { cachePath: true, contentType: true, byteSize: true },
+    select: { cachePath: true, contentType: true, byteSize: true }
   })
 
   if (!row?.cachePath || !row.contentType) return null
   if (!EMBEDDABLE_MIME.has(row.contentType)) return null
-  if (row.byteSize != null && row.byteSize > MAX_EMBEDDED_IMAGE_BYTES) return null
+  if (row.byteSize != null && row.byteSize > MAX_EMBEDDED_IMAGE_BYTES)
+    return null
 
   try {
     const bytes = await fs.readFile(row.cachePath)
@@ -56,8 +57,11 @@ export async function getLud16AvatarMetadataEntry(
     // A missing/unreadable cache file just means "no avatar this time" — the
     // payRequest must still succeed.
     logger.warn(
-      { err: err instanceof Error ? err.message : String(err), npub: normalized.npub },
-      'LUD16 avatar read failed',
+      {
+        err: err instanceof Error ? err.message : String(err),
+        npub: normalized.npub
+      },
+      'LUD16 avatar read failed'
     )
     return null
   }
@@ -72,7 +76,7 @@ export async function getLud16AvatarMetadataEntry(
  */
 export function warmNostrProfileForLud16(
   pubkey: string,
-  db: typeof prisma = prisma,
+  db: typeof prisma = prisma
 ): void {
   void (async () => {
     try {
@@ -80,14 +84,14 @@ export function warmNostrProfileForLud16(
       if (!normalized) return
       const existing = await db.nostrProfileCache.findUnique({
         where: { pubkey: normalized.pubkey },
-        select: { pubkey: true },
+        select: { pubkey: true }
       })
       if (existing) return
       await resolveProfiles([normalized.pubkey], { db })
     } catch (err) {
       logger.warn(
         { err: err instanceof Error ? err.message : String(err) },
-        'LUD16 profile warm failed',
+        'LUD16 profile warm failed'
       )
     }
   })()

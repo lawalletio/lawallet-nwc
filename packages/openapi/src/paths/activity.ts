@@ -3,7 +3,7 @@ import {
   commonErrorResponses,
   inlineJsonResponse,
   protectedSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 
@@ -16,7 +16,7 @@ const activityEntrySchema = z
     actor: z.string().nullable().optional(),
     target: z.string().nullable().optional(),
     timestamp: z.string().datetime(),
-    metadata: z.record(z.string(), z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional()
   })
   .openapi({ description: 'Single activity log entry.' })
 
@@ -31,8 +31,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Activity entries.',
-      z.object({ data: z.array(activityEntrySchema) }),
+      z.object({ data: z.array(activityEntrySchema) })
     ),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })

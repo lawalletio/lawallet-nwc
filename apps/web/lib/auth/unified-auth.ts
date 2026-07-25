@@ -3,7 +3,14 @@ import { validateNip98 } from '@/lib/nip98'
 import { validateJwtFromRequest, JwtValidationResult } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { AuthenticationError, AuthorizationError } from '@/types/server/errors'
-import { Role, Permission, hasRole, hasPermission, isValidRole, isValidPermission } from '@/lib/auth/permissions'
+import {
+  Role,
+  Permission,
+  hasRole,
+  hasPermission,
+  isValidRole,
+  isValidPermission
+} from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
 import { resolveApiUrl } from '@/lib/public-url'
 
@@ -61,7 +68,9 @@ export async function authenticate(request: Request): Promise<AuthResult> {
     return authenticateJwt(request)
   }
 
-  throw new AuthenticationError('Authorization header must use "Nostr" or "Bearer" scheme')
+  throw new AuthenticationError(
+    'Authorization header must use "Nostr" or "Bearer" scheme'
+  )
 }
 
 async function authenticateNip98(request: Request): Promise<AuthResult> {
@@ -71,7 +80,7 @@ async function authenticateNip98(request: Request): Promise<AuthResult> {
     return { pubkey, role, method: 'nip98' }
   } catch (error) {
     throw new AuthenticationError('Invalid NIP-98 authentication', {
-      details: error instanceof Error ? error.message : 'Invalid Nostr auth',
+      details: error instanceof Error ? error.message : 'Invalid Nostr auth'
     })
   }
 }
@@ -86,7 +95,7 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
   try {
     const result = await validateJwtFromRequest(request, config.jwt.secret, {
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users',
+      audience: 'lawallet-users'
     })
 
     const pubkey = result.payload.pubkey
@@ -94,7 +103,9 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
       throw new AuthenticationError('JWT missing pubkey claim')
     }
 
-    const role = isValidRole(result.payload.role) ? result.payload.role : Role.USER
+    const role = isValidRole(result.payload.role)
+      ? result.payload.role
+      : Role.USER
 
     // Device tokens (B.0) carry an explicit `scopes` claim that narrows what the
     // token can do regardless of role. Only trust a well-formed array of known
@@ -104,7 +115,7 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
     const scopes = Array.isArray(rawScopes)
       ? rawScopes.filter(
           (s: unknown): s is Permission =>
-            typeof s === 'string' && isValidPermission(s),
+            typeof s === 'string' && isValidPermission(s)
         )
       : undefined
 
@@ -116,7 +127,7 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
       const url = await resolveApiUrl(request)
       if (normalizeApiUrl(result.payload.apiUrl) !== normalizeApiUrl(url)) {
         throw new AuthenticationError('Token is not valid for this instance', {
-          details: 'Device token apiUrl does not match this platform',
+          details: 'Device token apiUrl does not match this platform'
         })
       }
     }
@@ -125,7 +136,7 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
   } catch (error) {
     if (error instanceof AuthenticationError) throw error
     throw new AuthenticationError('Invalid or expired JWT', {
-      details: error instanceof Error ? error.message : 'Invalid token',
+      details: error instanceof Error ? error.message : 'Invalid token'
     })
   }
 }
@@ -185,8 +196,16 @@ export async function authenticateWithPermission(
  *   then `requiredRole`, then plain authentication.
  */
 export function withAuth<T extends any[]>(
-  handler: (request: Request, auth: AuthResult, ...args: T) => Promise<NextResponse>,
-  options?: { requiredRole?: Role; requiredPermission?: Permission; requireNip98?: boolean }
+  handler: (
+    request: Request,
+    auth: AuthResult,
+    ...args: T
+  ) => Promise<NextResponse>,
+  options?: {
+    requiredRole?: Role
+    requiredPermission?: Permission
+    requireNip98?: boolean
+  }
 ) {
   return async (request: Request, ...args: T): Promise<NextResponse> => {
     let auth: AuthResult
@@ -194,7 +213,10 @@ export function withAuth<T extends any[]>(
     if (options?.requireNip98) {
       auth = await authenticateNip98(request)
     } else if (options?.requiredPermission) {
-      auth = await authenticateWithPermission(request, options.requiredPermission)
+      auth = await authenticateWithPermission(
+        request,
+        options.requiredPermission
+      )
     } else if (options?.requiredRole) {
       auth = await authenticateWithRole(request, options.requiredRole)
     } else {

@@ -17,7 +17,7 @@ const HOP_BY_HOP_HEADERS = new Set([
   'te',
   'trailer',
   'transfer-encoding',
-  'upgrade',
+  'upgrade'
 ])
 
 function normalizeTarget(value) {
@@ -33,15 +33,20 @@ function sendJson(res, status, body) {
   const payload = JSON.stringify(body)
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(payload),
+    'content-length': Buffer.byteLength(payload)
   })
   res.end(payload)
 }
 
-function sendText(res, status, body, contentType = 'text/plain; charset=utf-8') {
+function sendText(
+  res,
+  status,
+  body,
+  contentType = 'text/plain; charset=utf-8'
+) {
   res.writeHead(status, {
     'content-type': contentType,
-    'content-length': Buffer.byteLength(body),
+    'content-length': Buffer.byteLength(body)
   })
   res.end(body)
 }
@@ -74,7 +79,8 @@ function responseHeaders(upstream) {
 function requestHeaders(req) {
   const headers = new Headers()
   for (const [key, value] of Object.entries(req.headers)) {
-    if (HOP_BY_HOP_HEADERS.has(key.toLowerCase()) || value === undefined) continue
+    if (HOP_BY_HOP_HEADERS.has(key.toLowerCase()) || value === undefined)
+      continue
     headers.set(key, Array.isArray(value) ? value.join(', ') : value)
   }
   if (req.headers.host) {
@@ -92,7 +98,7 @@ function statusFor(server, state) {
     rewriteEnabled: state.rewriteEnabled,
     target: state.target,
     port,
-    localUrl: port ? `http://${state.host}:${port}` : null,
+    localUrl: port ? `http://${state.host}:${port}` : null
   }
 }
 
@@ -147,17 +153,20 @@ async function proxyWellKnown(req, res, state) {
   if (!state.rewriteEnabled) {
     sendJson(res, 404, {
       error: 'well-known rewrite disabled',
-      service: 'lawallet-domain-tester',
+      service: 'lawallet-domain-tester'
     })
     return
   }
 
   const incoming = new URL(req.url ?? '/', 'http://domain-tester.local')
-  const upstreamUrl = new URL(incoming.pathname + incoming.search, `${state.target}/`)
+  const upstreamUrl = new URL(
+    incoming.pathname + incoming.search,
+    `${state.target}/`
+  )
   const method = req.method ?? 'GET'
   const init = {
     method,
-    headers: requestHeaders(req),
+    headers: requestHeaders(req)
   }
 
   if (method !== 'GET' && method !== 'HEAD') {
@@ -165,7 +174,8 @@ async function proxyWellKnown(req, res, state) {
   }
 
   const upstream = await fetch(upstreamUrl, init)
-  const body = method === 'HEAD' ? null : Buffer.from(await upstream.arrayBuffer())
+  const body =
+    method === 'HEAD' ? null : Buffer.from(await upstream.arrayBuffer())
   res.writeHead(upstream.status, responseHeaders(upstream))
   res.end(body)
 }
@@ -175,8 +185,12 @@ export function createDomainTesterServer(options = {}) {
     host: options.host ?? process.env.DOMAIN_TESTER_HOST ?? DEFAULT_HOST,
     rewriteEnabled:
       options.rewriteEnabled ??
-      ['1', 'true', 'yes'].includes((process.env.REWRITE_ENABLED ?? '').toLowerCase()),
-    target: normalizeTarget(options.target ?? process.env.LAWALLET_TARGET ?? process.env.E2E_BASE_URL),
+      ['1', 'true', 'yes'].includes(
+        (process.env.REWRITE_ENABLED ?? '').toLowerCase()
+      ),
+    target: normalizeTarget(
+      options.target ?? process.env.LAWALLET_TARGET ?? process.env.E2E_BASE_URL
+    )
   }
 
   const server = http.createServer(async (req, res) => {
@@ -184,7 +198,12 @@ export function createDomainTesterServer(options = {}) {
       const url = new URL(req.url ?? '/', 'http://domain-tester.local')
 
       if (req.method === 'GET' && url.pathname === '/') {
-        sendText(res, 200, renderIndex(state, statusFor(server, state)), 'text/html; charset=utf-8')
+        sendText(
+          res,
+          200,
+          renderIndex(state, statusFor(server, state)),
+          'text/html; charset=utf-8'
+        )
         return
       }
 
@@ -216,7 +235,10 @@ export function createDomainTesterServer(options = {}) {
       sendJson(res, 404, { error: 'not found' })
     } catch (error) {
       sendJson(res, 500, {
-        error: error instanceof Error ? error.message : 'unexpected domain tester error',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'unexpected domain tester error'
       })
     }
   })
@@ -233,7 +255,7 @@ export async function listen(server, { host = DEFAULT_HOST, port = 0 } = {}) {
   }
   return {
     port: address.port,
-    localUrl: `http://${host}:${address.port}`,
+    localUrl: `http://${host}:${address.port}`
   }
 }
 
@@ -243,7 +265,10 @@ export async function closeServer(server) {
   await once(server, 'close')
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   const port = Number(process.env.PORT || process.env.DOMAIN_TESTER_PORT || 0)
   const host = process.env.DOMAIN_TESTER_HOST || DEFAULT_HOST
   const { server, getStatus } = createDomainTesterServer({ host })

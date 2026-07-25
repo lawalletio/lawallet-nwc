@@ -2,12 +2,7 @@
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  ChevronLeft,
-  RefreshCw,
-  Star,
-  Wallet
-} from 'lucide-react'
+import { ChevronLeft, RefreshCw, Star, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -56,7 +51,9 @@ export function RemoteWalletsScreen() {
       toast.success(success)
       await refetch()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not update wallet')
+      toast.error(
+        err instanceof Error ? err.message : 'Could not update wallet'
+      )
     } finally {
       setPending(null)
     }
@@ -119,7 +116,9 @@ export function RemoteWalletsScreen() {
                   wallet={wallet}
                   pending={pending}
                   onSetPrimary={() => handleSetPrimary(wallet)}
-                  onToggleStatus={checked => handleToggleStatus(wallet, checked)}
+                  onToggleStatus={checked =>
+                    handleToggleStatus(wallet, checked)
+                  }
                 />
               ))}
             </section>
@@ -244,7 +243,10 @@ function WalletSkeleton() {
   return (
     <section className="flex flex-col gap-3" aria-label="Loading wallets">
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="flex flex-col gap-4 rounded-2xl bg-card p-4">
+        <div
+          key={index}
+          className="flex flex-col gap-4 rounded-2xl bg-card p-4"
+        >
           <div className="flex gap-3">
             <Skeleton className="size-11 rounded-xl" />
             <div className="flex flex-1 flex-col gap-2">

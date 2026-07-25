@@ -35,7 +35,7 @@ function toDesignData(d: ApiDesign): DesignData {
     image: d.imageUrl,
     createdAt: d.createdAt,
     updatedAt: d.createdAt,
-    archivedAt: d.archivedAt ?? null,
+    archivedAt: d.archivedAt ?? null
   }
 }
 
@@ -52,7 +52,7 @@ export function useDesigns(options?: { enabled?: boolean }) {
   const result = useApi<ApiDesign[]>(enabled ? '/api/card-designs/list' : null)
   const data = useMemo(
     () => (result.data ? result.data.map(toDesignData) : null),
-    [result.data],
+    [result.data]
   )
   return { ...result, data }
 }
@@ -115,11 +115,7 @@ export function useDesignMutations() {
       createMut.mutate('post', '/api/card-designs', input).then(toDesignData),
     updateDesign: (id: string, input: UpdateDesignInput) =>
       updateMut
-        .mutate(
-          'put',
-          `/api/card-designs/${encodeURIComponent(id)}`,
-          input,
-        )
+        .mutate('put', `/api/card-designs/${encodeURIComponent(id)}`, input)
         .then(toDesignData),
     loading:
       importMut.loading ||
@@ -137,6 +133,6 @@ export function useDesignMutations() {
       importVeintiunoMut.error ??
       removeVeintiunoMut.error ??
       createMut.error ??
-      updateMut.error,
+      updateMut.error
   }
 }

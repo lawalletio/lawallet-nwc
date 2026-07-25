@@ -30,41 +30,41 @@ A decentralized badge system built on Nostr (NIP-58) where:
 
 ### Badge Types
 
-| Type | Description | Example |
-|------|-------------|---------|
-| **Attendance** | Issued for attending events | "La Crypta Meetup #42" |
-| **Achievement** | Earned through specific actions | "First Lightning Payment" |
-| **Membership** | Represents community membership | "La Crypta Member 2026" |
-| **Tier** | Progressive levels | "Bronze → Silver → Gold" |
-| **Contribution** | Recognizes contributions | "Open Source Contributor" |
-| **Custom** | Organization-defined | "Workshop Instructor" |
+| Type             | Description                     | Example                   |
+| ---------------- | ------------------------------- | ------------------------- |
+| **Attendance**   | Issued for attending events     | "La Crypta Meetup #42"    |
+| **Achievement**  | Earned through specific actions | "First Lightning Payment" |
+| **Membership**   | Represents community membership | "La Crypta Member 2026"   |
+| **Tier**         | Progressive levels              | "Bronze → Silver → Gold"  |
+| **Contribution** | Recognizes contributions        | "Open Source Contributor" |
+| **Custom**       | Organization-defined            | "Workshop Instructor"     |
 
 ### Badge Templates
 
 ```typescript
 interface BadgeTemplate {
-  id: string;                    // Unique identifier
-  name: string;                  // Badge name
-  description: string;           // What this badge represents
-  image: string;                 // Badge image URL
-  issuer: string;                // Nostr pubkey of issuing organization
-  category: BadgeCategory;       // attendance, achievement, membership, tier, custom
+  id: string // Unique identifier
+  name: string // Badge name
+  description: string // What this badge represents
+  image: string // Badge image URL
+  issuer: string // Nostr pubkey of issuing organization
+  category: BadgeCategory // attendance, achievement, membership, tier, custom
   tier?: {
-    level: number;               // 1 = Bronze, 2 = Silver, 3 = Gold
-    nextTier?: string;           // ID of next tier badge
-    requirements?: string;       // How to reach next tier
-  };
-  benefits?: Benefit[];          // What this badge unlocks
-  expiresAt?: number;            // Unix timestamp (optional)
-  transferable: boolean;         // Can be transferred to another user
-  revocable: boolean;            // Can issuer revoke it
+    level: number // 1 = Bronze, 2 = Silver, 3 = Gold
+    nextTier?: string // ID of next tier badge
+    requirements?: string // How to reach next tier
+  }
+  benefits?: Benefit[] // What this badge unlocks
+  expiresAt?: number // Unix timestamp (optional)
+  transferable: boolean // Can be transferred to another user
+  revocable: boolean // Can issuer revoke it
 }
 
 interface Benefit {
-  type: 'discount' | 'access' | 'zap';
-  description: string;
-  value?: number;                // Percentage for discount, sats for zap
-  merchantId?: string;           // Specific merchant or '*' for all
+  type: 'discount' | 'access' | 'zap'
+  description: string
+  value?: number // Percentage for discount, sats for zap
+  merchantId?: string // Specific merchant or '*' for all
 }
 ```
 
@@ -72,12 +72,12 @@ interface Benefit {
 
 ```typescript
 interface BadgeAward {
-  templateId: string;            // Which badge template
-  recipient: string;             // Recipient's Nostr pubkey
-  issuedAt: number;              // Unix timestamp
-  reason?: string;               // Why badge was issued
-  eventId?: string;              // Related event (for attendance badges)
-  metadata?: Record<string, any>;// Additional data
+  templateId: string // Which badge template
+  recipient: string // Recipient's Nostr pubkey
+  issuedAt: number // Unix timestamp
+  reason?: string // Why badge was issued
+  eventId?: string // Related event (for attendance badges)
+  metadata?: Record<string, any> // Additional data
 }
 ```
 
@@ -228,12 +228,12 @@ Level 4: Diamond (exclusive)
 
 ### Tier Benefits Example
 
-| Tier | Discount | Perks |
-|------|----------|-------|
-| Bronze | 5% | Event notifications |
-| Silver | 10% | Priority registration |
-| Gold | 15% | VIP access + merch |
-| Diamond | 20% | All above + speaking invites |
+| Tier    | Discount | Perks                        |
+| ------- | -------- | ---------------------------- |
+| Bronze  | 5%       | Event notifications          |
+| Silver  | 10%      | Priority registration        |
+| Gold    | 15%      | VIP access + merch           |
+| Diamond | 20%      | All above + speaking invites |
 
 ## Integration with Other Plugins
 
@@ -266,14 +266,14 @@ Level 4: Diamond (exclusive)
 
 ## Status
 
-| Component | Status |
-|-----------|--------|
-| Specification | 📋 Proposal |
+| Component          | Status      |
+| ------------------ | ----------- |
+| Specification      | 📋 Proposal |
 | NIP-58 Integration | 📋 Proposal |
-| Database Schema | 📋 Proposal |
-| API Endpoints | 📋 Proposal |
-| UI Components | 📋 Proposal |
+| Database Schema    | 📋 Proposal |
+| API Endpoints      | 📋 Proposal |
+| UI Components      | 📋 Proposal |
 
 ---
 
-*Proposed by [Claudio](https://github.com/claudiomolt) as a community contribution.*
+_Proposed by [Claudio](https://github.com/claudiomolt) as a community contribution._

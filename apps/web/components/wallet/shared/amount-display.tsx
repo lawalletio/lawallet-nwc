@@ -19,7 +19,7 @@ export function AmountDisplay({
   value,
   unit = 'sats',
   className,
-  subline,
+  subline
 }: AmountDisplayProps) {
   const formatted = formatKeypadValue(value)
 

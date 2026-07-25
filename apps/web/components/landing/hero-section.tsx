@@ -13,7 +13,16 @@ interface HeroSectionProps {
   loading: boolean
 }
 
-const usernames = ['user', 'agent', 'bot', 'member', 'volunteer', 'friend', 'father', 'brother']
+const usernames = [
+  'user',
+  'agent',
+  'bot',
+  'member',
+  'volunteer',
+  'friend',
+  'father',
+  'brother'
+]
 const SCRAMBLE_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%&*'
 
 const techItems = [
@@ -30,7 +39,7 @@ const techItems = [
   'WebLN',
   'LND',
   'PostgreSQL',
-  'Next.js',
+  'Next.js'
 ]
 
 function useScrambleText(words: string[], interval = 3000) {
@@ -48,12 +57,15 @@ function useScrambleText(words: string[], interval = 3000) {
       const scramble = setInterval(() => {
         const result = target.split('').map((char, i) => {
           if (i < iteration - 3) return char
-          return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)]
+          return SCRAMBLE_CHARS[
+            Math.floor(Math.random() * SCRAMBLE_CHARS.length)
+          ]
         })
 
         // Trim or pad to animate length transition
         const currentLen = Math.round(
-          display.length + (target.length - display.length) * (iteration / totalSteps)
+          display.length +
+            (target.length - display.length) * (iteration / totalSteps)
         )
         setDisplay(result.slice(0, Math.max(currentLen, 1)).join(''))
 
@@ -71,7 +83,13 @@ function useScrambleText(words: string[], interval = 3000) {
   return display
 }
 
-export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: HeroSectionProps) {
+export function HeroSection({
+  onClaim,
+  onSetup,
+  setupNeeded,
+  domain,
+  loading
+}: HeroSectionProps) {
   const scrambledUser = useScrambleText(usernames, 3000)
   const displayDomain = domain || 'domain.com'
 
@@ -85,7 +103,7 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
             radial-gradient(ellipse 80% 60% at 50% 0%, var(--theme-200) 0%, transparent 60%),
             radial-gradient(ellipse 60% 50% at 80% 100%, var(--theme-400) 0%, transparent 50%)
           `,
-          opacity: 0.08,
+          opacity: 0.08
         }}
       />
 
@@ -95,7 +113,7 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
         style={{
           backgroundImage: `linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)`,
           backgroundSize: '60px 60px',
-          color: 'var(--theme-400)',
+          color: 'var(--theme-400)'
         }}
       />
 
@@ -106,7 +124,7 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
           style={{
             background: `linear-gradient(180deg, var(--theme-400) 0%, transparent 80%)`,
             WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
+            WebkitTextFillColor: 'transparent'
           }}
         >
           @
@@ -121,7 +139,7 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
             style={{
               background: 'linear-gradient(180deg, #ffffff 0%, #a3a3a3 100%)',
               WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              WebkitTextFillColor: 'transparent'
             }}
           >
             Get your
@@ -131,7 +149,7 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
             style={{
               background: `linear-gradient(135deg, var(--theme-400), var(--theme-200), var(--theme-400))`,
               WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              WebkitTextFillColor: 'transparent'
             }}
           >
             Lightning Address
@@ -143,12 +161,13 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
           <div
             className="pointer-events-none absolute inset-0 rounded-2xl"
             style={{
-              background: `linear-gradient(135deg, rgba(var(--theme-400), 0.05), transparent 60%)`,
+              background: `linear-gradient(135deg, rgba(var(--theme-400), 0.05), transparent 60%)`
             }}
           />
           <span className="relative z-10 font-mono text-xl md:text-2xl tracking-wide text-muted-foreground">
-            <span style={{ color: 'var(--theme-400)' }}>&#9889;</span>
-            {' '}<span className="text-foreground">{scrambledUser}</span>@{displayDomain}{' '}
+            <span style={{ color: 'var(--theme-400)' }}>&#9889;</span>{' '}
+            <span className="text-foreground">{scrambledUser}</span>@
+            {displayDomain}{' '}
             <span style={{ color: 'var(--theme-400)' }}>&#9889;</span>
           </span>
         </div>
@@ -179,8 +198,12 @@ export function HeroSection({ onClaim, onSetup, setupNeeded, domain, loading }: 
 
       <style jsx>{`
         @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
         }
         .marquee-scroll {
           animation: marquee 30s linear infinite;

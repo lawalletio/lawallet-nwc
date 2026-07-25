@@ -6,10 +6,10 @@ import { nip19 } from 'nostr-tools'
 
 // Mock the data sources so the component renders without real API/relay calls.
 vi.mock('@/lib/client/hooks/use-users', () => ({
-  useUsers: vi.fn(),
+  useUsers: vi.fn()
 }))
 vi.mock('@/lib/client/nostr-profile', () => ({
-  useNostrProfiles: vi.fn(),
+  useNostrProfiles: vi.fn()
 }))
 
 import { UserSelector } from '@/components/admin/user-selector'
@@ -27,7 +27,7 @@ const USERS = [
     createdAt: '2026-01-01T00:00:00.000Z',
     primaryAddress: 'alice',
     addressCount: 1,
-    hasNwc: false,
+    hasNwc: false
   },
   {
     id: 'user_b',
@@ -36,8 +36,8 @@ const USERS = [
     createdAt: '2026-01-01T00:00:00.000Z',
     primaryAddress: null,
     addressCount: 0,
-    hasNwc: false,
-  },
+    hasNwc: false
+  }
 ]
 
 function mockData() {
@@ -49,11 +49,11 @@ function mockData() {
         name: 'alice',
         displayName: 'Alice',
         picture: 'https://x/a.png',
-        fetchedAt: Date.now(),
+        fetchedAt: Date.now()
       },
-      [PK_B]: null,
+      [PK_B]: null
     },
-    loading: false,
+    loading: false
   } as any)
 }
 
@@ -117,7 +117,7 @@ describe('UserSelector', () => {
     expect(screen.getByTestId('value').textContent).toBe('')
     expect(screen.getByText('Select a user')).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: /clear selection/i }),
+      screen.queryByRole('button', { name: /clear selection/i })
     ).not.toBeInTheDocument()
   })
 
@@ -132,7 +132,7 @@ describe('UserSelector', () => {
 
     // The non-matching OPERATOR row drops out of the filtered list.
     await waitFor(() =>
-      expect(screen.queryByText('OPERATOR')).not.toBeInTheDocument(),
+      expect(screen.queryByText('OPERATOR')).not.toBeInTheDocument()
     )
     expect(screen.getByText('Alice')).toBeInTheDocument()
   })

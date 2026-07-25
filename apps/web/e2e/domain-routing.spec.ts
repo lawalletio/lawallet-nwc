@@ -1,4 +1,8 @@
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import {
+  spawn,
+  spawnSync,
+  type ChildProcessWithoutNullStreams
+} from 'node:child_process'
 import { once } from 'node:events'
 import path from 'node:path'
 import { test, expect } from './fixtures/auth'
@@ -22,11 +26,12 @@ interface StartedDomainTester {
 const liveEnabled = process.env.E2E_DOMAIN_LIVE === '1'
 const hasTunnelProvider =
   Boolean(process.env.NGROK_AUTHTOKEN) ||
-  spawnSync('sh', ['-lc', 'command -v cloudflared'], { stdio: 'ignore' }).status === 0
+  spawnSync('sh', ['-lc', 'command -v cloudflared'], { stdio: 'ignore' })
+    .status === 0
 
 test.skip(
   !liveEnabled || !hasTunnelProvider,
-  'Domain routing E2E requires E2E_DOMAIN_LIVE=1 and either cloudflared or NGROK_AUTHTOKEN.',
+  'Domain routing E2E requires E2E_DOMAIN_LIVE=1 and either cloudflared or NGROK_AUTHTOKEN.'
 )
 
 test.describe.configure({ mode: 'serial' })
@@ -47,10 +52,10 @@ function startDomainTester(): Promise<StartedDomainTester> {
         env: {
           ...process.env,
           LAWALLET_TARGET: E2E_BASE_URL,
-          REWRITE_ENABLED: 'false',
+          REWRITE_ENABLED: 'false'
         },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      },
+        stdio: ['pipe', 'pipe', 'pipe']
+      }
     )
     child.stdout.setEncoding('utf8')
     child.stderr.setEncoding('utf8')
@@ -76,12 +81,16 @@ function startDomainTester(): Promise<StartedDomainTester> {
       for (const line of output.split(/\r?\n/)) {
         if (!line.startsWith(READY_PREFIX)) continue
         try {
-          const info = JSON.parse(line.slice(READY_PREFIX.length)) as DomainTesterInfo
+          const info = JSON.parse(
+            line.slice(READY_PREFIX.length)
+          ) as DomainTesterInfo
           settled = true
           clearTimeout(timeout)
           resolve({ child, info })
         } catch (error) {
-          settleWithError(error instanceof Error ? error : new Error('Invalid tester payload'))
+          settleWithError(
+            error instanceof Error ? error : new Error('Invalid tester payload')
+          )
         }
       }
     })
@@ -94,7 +103,9 @@ function startDomainTester(): Promise<StartedDomainTester> {
     child.once('exit', (code, signal) => {
       if (!settled) {
         settleWithError(
-          new Error(`Domain tester exited before ready (code=${code}, signal=${signal}).\n${output}`),
+          new Error(
+            `Domain tester exited before ready (code=${code}, signal=${signal}).\n${output}`
+          )
         )
       }
     })
@@ -117,7 +128,7 @@ async function stopDomainTester(started: StartedDomainTester | null) {
         }
         resolve()
       }, 5_000)
-    }),
+    })
   ])
 }
 
@@ -126,7 +137,7 @@ async function setRewrite(enabled: boolean) {
   const response = await fetch(`${tester.info.localUrl}/__control/rewrite`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ enabled }),
+    body: JSON.stringify({ enabled })
   })
   expect(response.status).toBe(200)
 }
@@ -148,7 +159,7 @@ test.afterAll(async () => {
 
 test('verified .well-known rewrite clears domain setup alerts', async ({
   adminPage,
-  request,
+  request
 }) => {
   test.slow()
   if (!tester) throw new Error('Domain tester was not started')
@@ -161,11 +172,15 @@ test('verified .well-known rewrite clears domain setup alerts', async ({
   const dialog = adminPage.getByRole('dialog', { name: /Domain setup/i })
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('Domain', { exact: true }).fill(publicHost)
-  await dialog.getByLabel('LaWallet endpoint', { exact: true }).fill(E2E_BASE_URL)
+  await dialog
+    .getByLabel('LaWallet endpoint', { exact: true })
+    .fill(E2E_BASE_URL)
   await dialog.getByRole('button', { name: /Verify/i }).click()
 
   await expect(
-    dialog.getByRole('heading', { name: /Route \.well-known here|Saved\. Check routing next/i }),
+    dialog.getByRole('heading', {
+      name: /Route \.well-known here|Saved\. Check routing next/i
+    })
   ).toBeVisible({ timeout: 30_000 })
 
   await expect
@@ -174,39 +189,52 @@ test('verified .well-known rewrite clears domain setup alerts', async ({
 
   await dialog.getByRole('button', { name: /Done/i }).click()
   await expect(dialog).toBeHidden()
-  await expect(adminPage.getByRole('button', { name: /Fix domain/i }).first()).toBeVisible()
+  await expect(
+    adminPage.getByRole('button', { name: /Fix domain/i }).first()
+  ).toBeVisible()
 
   await setRewrite(true)
-  await adminPage.getByRole('button', { name: /Fix domain/i }).first().click()
+  await adminPage
+    .getByRole('button', { name: /Fix domain/i })
+    .first()
+    .click()
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('Domain', { exact: true }).fill(publicHost)
-  await dialog.getByLabel('LaWallet endpoint', { exact: true }).fill(E2E_BASE_URL)
+  await dialog
+    .getByLabel('LaWallet endpoint', { exact: true })
+    .fill(E2E_BASE_URL)
   await dialog.getByRole('button', { name: /Verify/i }).click()
 
   await expect(
-    dialog.getByRole('heading', { name: /Domain successfully connected/i }),
+    dialog.getByRole('heading', { name: /Domain successfully connected/i })
   ).toBeVisible({ timeout: 30_000 })
 
   const probeId = `e2e-${Date.now()}`
   const probeResponse = await request.get(
     `${publicUrl}/.well-known/lawallet.json?probe=${probeId}`,
-    { headers: { 'ngrok-skip-browser-warning': 'true' } },
+    { headers: { 'ngrok-skip-browser-warning': 'true' } }
   )
   expect(probeResponse.status()).toBe(200)
   expect(await probeResponse.json()).toMatchObject({
     service: 'lawallet',
-    probe: probeId,
+    probe: probeId
   })
 
-  const nip05Response = await request.get(`${publicUrl}/.well-known/nostr.json?name=_`, {
-    headers: { 'ngrok-skip-browser-warning': 'true' },
-  })
+  const nip05Response = await request.get(
+    `${publicUrl}/.well-known/nostr.json?name=_`,
+    {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    }
+  )
   expect(nip05Response.status()).toBe(200)
   expect(await nip05Response.json()).toMatchObject({ names: {} })
 
-  const lnurlResponse = await request.get(`${publicUrl}/.well-known/lnurlp/alice`, {
-    headers: { 'ngrok-skip-browser-warning': 'true' },
-  })
+  const lnurlResponse = await request.get(
+    `${publicUrl}/.well-known/lnurlp/alice`,
+    {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    }
+  )
   expect(lnurlResponse.status()).toBe(200)
   const lnurlBody = await lnurlResponse.json()
   expect(lnurlBody.tag).toBe('payRequest')
@@ -218,10 +246,14 @@ test('verified .well-known rewrite clears domain setup alerts', async ({
   await expect
     .poll(async () => (await readPublicSettings(adminPage)).domain_verified)
     .toBe('true')
-  await expect(adminPage.getByRole('button', { name: /Fix domain/i })).toHaveCount(0)
+  await expect(
+    adminPage.getByRole('button', { name: /Fix domain/i })
+  ).toHaveCount(0)
   await expect(adminPage.getByText('Setup Domain')).toHaveCount(0)
 
   await adminPage.goto('/admin/cards')
   await expect(adminPage.getByText('Configure your domain')).toHaveCount(0)
-  await expect(adminPage.getByRole('button', { name: /Configure now/i })).toHaveCount(0)
+  await expect(
+    adminPage.getByRole('button', { name: /Configure now/i })
+  ).toHaveCount(0)
 })

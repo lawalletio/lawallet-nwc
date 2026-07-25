@@ -9,7 +9,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { formatCardId } from '@/lib/client/nfc-card-id'
@@ -29,7 +29,7 @@ interface NDEFReaderLike {
   scan(opts?: { signal?: AbortSignal }): Promise<void>
   addEventListener(
     type: 'reading',
-    listener: (event: NDEFReadingEvent) => void,
+    listener: (event: NDEFReadingEvent) => void
   ): void
   addEventListener(type: 'readingerror', listener: (event: Event) => void): void
   removeEventListener(type: string, listener: EventListener): void
@@ -55,7 +55,7 @@ type ScanState = 'idle' | 'scanning' | 'unsupported' | 'error'
 export function NfcScanDialog({
   open,
   onOpenChange,
-  onDetected,
+  onDetected
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -175,7 +175,7 @@ export function NfcScanDialog({
             {state === 'unsupported'
               ? 'This browser doesn’t expose Web NFC. Use Chrome on Android, or enter the card UID manually.'
               : state === 'error'
-                ? error ?? 'Could not read the card.'
+                ? (error ?? 'Could not read the card.')
                 : 'Hold an NFC card close to the back of your device.'}
           </DialogDescription>
         </DialogHeader>
@@ -187,9 +187,7 @@ export function NfcScanDialog({
               <span className="absolute inset-2 animate-pulse rounded-full bg-primary/10" />
               <Nfc className="relative size-10 text-primary" aria-hidden />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Waiting for a card…
-            </p>
+            <p className="text-xs text-muted-foreground">Waiting for a card…</p>
           </div>
         )}
 

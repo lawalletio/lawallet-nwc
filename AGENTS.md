@@ -27,6 +27,7 @@ The NWC Proxy is no longer vendored here — it will be provisioned as an **exte
 ## Commands
 
 ### Workspace-level (from repo root)
+
 ```bash
 pnpm install                    # Install all workspace dependencies
 pnpm build                      # Build all packages via turbo
@@ -38,6 +39,7 @@ pnpm format                     # Prettier format all files
 ```
 
 ### Filtered (single app/package)
+
 ```bash
 pnpm --filter @lawallet-nwc/web dev          # Dev server on :3000
 pnpm --filter @lawallet-nwc/web build        # Production build
@@ -49,6 +51,7 @@ pnpm --filter @lawallet-nwc/docs dev         # Docs dev server
 ```
 
 ### Database (run from apps/web/)
+
 ```bash
 cd apps/web
 pnpm exec prisma generate        # Generate Prisma client
@@ -61,12 +64,15 @@ pnpm exec prisma studio          # Visual DB browser
 ## Web App Architecture (apps/web/)
 
 ### Three-Service Design
+
 The platform consists of 3 independent services with no shared infrastructure:
+
 1. **lawallet-web** (this repo) — Next.js: frontend + REST API + LUD-16
 2. **lawallet-nwc-proxy** — External service that provisions courtesy NWC connections via LNURL (not vendored here; see `docs/services/NWC-PROXY.md`)
 3. **lawallet-listener** — Monitors NWC relays, dispatches LUD-22 webhooks (stub in `apps/listener/`; see `docs/services/NWC-LISTENER.md`)
 
 ### Auth System (Dual Method)
+
 - **NIP-98**: `Authorization: Nostr <base64-event>` — Nostr protocol native auth
 - **JWT**: `Authorization: Bearer <jwt>` — Web-friendly tokens exchanged via POST /api/jwt
 - **Unified auth**: `lib/auth/unified-auth.ts` detects method from header, resolves role via DB + Settings fallback
@@ -74,9 +80,11 @@ The platform consists of 3 independent services with no shared infrastructure:
 - **Admin wrappers**: `lib/admin-auth.ts` provides `withAdminAuth()` HOF for route handlers
 
 ### API Routes (apps/web/app/api/)
+
 34 route handlers organized by resource: `cards`, `card-designs`, `lightning-addresses`, `users`, `settings`, `jwt`, `lud16`, `admin`, `root`, `remote-connections`, `invoices`, `events` (SSE). All wrapped with `withErrorHandling()` from `types/server/error-handler.ts`. The public `lud16/` endpoints support **LUD-12** (payer comments) and **LUD-21** (payment verification).
 
 ### Middleware Stack
+
 - **Error handling**: `types/server/error-handler.ts` — catches errors, returns structured JSON
 - **Rate limiting**: `lib/middleware/rate-limit.ts` — in-memory, configurable per endpoint
 - **Request limits**: `lib/middleware/request-limits.ts` — body size validation
@@ -84,13 +92,16 @@ The platform consists of 3 independent services with no shared infrastructure:
 - **Maintenance**: `lib/middleware/maintenance.ts` — global maintenance toggle
 
 ### Error Hierarchy
+
 All errors extend `ApiError` in `types/server/errors.ts`:
 ValidationError(400), AuthenticationError(401), AuthorizationError(403), NotFoundError(404), ConflictError(409), PayloadTooLargeError(413), TooManyRequestsError(429), ServiceUnavailableError(503)
 
 ### Database
+
 PostgreSQL via Prisma. Schema at `apps/web/prisma/schema.prisma`. 8 models: User, Card, CardDesign, Ntag424, LightningAddress, AlbySubAccount, Settings, Invoice. Generated client at `apps/web/lib/generated/prisma`.
 
 ### Frontend
+
 - shadcn/ui + Radix UI + Tailwind CSS 3.4
 - React Hook Form + Zod for forms
 - Provider hierarchy: ThemeProvider → AuthProvider → NostrProfileProvider → Toaster
@@ -100,11 +111,13 @@ PostgreSQL via Prisma. Schema at `apps/web/prisma/schema.prisma`. 8 models: User
 - `@/*` path alias maps to `apps/web/` root
 
 ### Real-time (SSE)
+
 - `app/api/events/` emits server-sent event streams for live updates
 - `lib/client/hooks/use-sse.ts` is the generic SSE client hook
 - `lib/client/use-nwc-balance.ts` demonstrates the pattern — powers the dashboard NWC card's real-time balance and status
 
 ### Open Standards
+
 NIP-47 (NWC), NIP-05 (Nostr ID), NIP-07/46 (Nostr signing), NIP-57 (Zaps), NIP-98 (HTTP Auth), LUD-16 (Lightning Address), LUD-21/22 (Payment verification/webhooks), BoltCard (NFC)
 
 ## Testing (apps/web/)
@@ -117,6 +130,7 @@ Vitest 3.2 + MSW + happy-dom. Config at `apps/web/vitest.config.ts`.
 - **Helpers**: `tests/helpers/` — auth-helpers, api-helpers, fixtures, route-helpers
 
 ### Key Testing Patterns
+
 - Mock config: `vi.mock('@/lib/config')`, mock DB: `vi.mock('@/lib/prisma')`
 - For config/env tests: `vi.resetModules()` + dynamic `import()` to bust cache
 - Prisma mock uses `createModelMock()` per model; call `resetPrismaMock()` in beforeEach
@@ -125,6 +139,7 @@ Vitest 3.2 + MSW + happy-dom. Config at `apps/web/vitest.config.ts`.
 - Logger module calls `getConfig()` at module load — mock config BEFORE import
 
 ### Coverage Thresholds
+
 statements: 60%, branches: 75%, functions: 70%, lines: 60%
 
 ## Code Style
@@ -144,7 +159,7 @@ Required: `DATABASE_URL`, `JWT_SECRET` (32+ chars). See `apps/web/.env.example` 
   `apps/web/.next`. Keep it in sync with `apps/web/vercel.json`.
 - **Standalone**: `apps/web/Dockerfile` produces standalone Next.js output
 - **Umbrel**: community app store, `lawalletio/umbrel-app-store` — bundles web
-  + listener + Postgres in one install
+  - listener + Postgres in one install
 - **Start9**: StartOS service package, `lawalletio/lawallet-startos`
 
 ## Docs App (apps/docs/)

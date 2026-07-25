@@ -1,11 +1,16 @@
 import { NextRequest } from 'next/server'
-import { authenticate, authenticateWithPermission } from '@/lib/auth/unified-auth'
+import {
+  authenticate,
+  authenticateWithPermission
+} from '@/lib/auth/unified-auth'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { hasPermission, Permission } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
 import { AuthorizationError } from '@/types/server/errors'
 
-export async function authenticateSettingsRequest(request: NextRequest): Promise<string> {
+export async function authenticateSettingsRequest(
+  request: NextRequest
+): Promise<string> {
   const authHeader = request.headers.get('authorization')
 
   if (!authHeader) {
@@ -18,7 +23,7 @@ export async function authenticateSettingsRequest(request: NextRequest): Promise
 
 async function authenticateSettingsPermission(
   request: NextRequest,
-  permission: Permission,
+  permission: Permission
 ): Promise<string> {
   const authHeader = request.headers.get('authorization')
 
@@ -36,10 +41,14 @@ async function authenticateSettingsPermission(
   return pubkey
 }
 
-export async function authenticateSettingsReadRequest(request: NextRequest): Promise<string> {
+export async function authenticateSettingsReadRequest(
+  request: NextRequest
+): Promise<string> {
   return authenticateSettingsPermission(request, Permission.SETTINGS_READ)
 }
 
-export async function authenticateSettingsWriteRequest(request: NextRequest): Promise<string> {
+export async function authenticateSettingsWriteRequest(
+  request: NextRequest
+): Promise<string> {
   return authenticateSettingsPermission(request, Permission.SETTINGS_WRITE)
 }

@@ -4,33 +4,33 @@ import { NextRequest } from 'next/server'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    jwt: { secret: 'test-secret-32-characters-long-xx' },
-  })),
+    jwt: { secret: 'test-secret-32-characters-long-xx' }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/jwt', () => ({
-  verifyJwtToken: vi.fn(),
+  verifyJwtToken: vi.fn()
 }))
 
 const { addClientMock, removeClientMock } = vi.hoisted(() => ({
   addClientMock: vi.fn(),
-  removeClientMock: vi.fn(),
+  removeClientMock: vi.fn()
 }))
 
 vi.mock('@/lib/events/event-bus', () => ({
   eventBus: {
     addClient: addClientMock,
-    removeClient: removeClientMock,
-  },
+    removeClient: removeClientMock
+  }
 }))
 
 import { GET } from '@/app/api/events/route'
@@ -62,7 +62,7 @@ describe('GET /api/events', () => {
   it('returns 503 when JWT is not configured', async () => {
     vi.mocked(getConfig).mockReturnValueOnce({
       maintenance: { enabled: false },
-      jwt: { secret: '' },
+      jwt: { secret: '' }
     } as any)
 
     const res = await GET(makeRequest('/api/events?token=abc'))
@@ -92,9 +92,9 @@ describe('GET /api/events', () => {
         pubkey: 'a'.repeat(64),
         role: 'ADMIN',
         iat: 0,
-        exp: 9_999_999_999,
+        exp: 9_999_999_999
       },
-      header: {},
+      header: {}
     } as any)
 
     const res = await GET(makeRequest('/api/events?token=valid'))
@@ -131,9 +131,9 @@ describe('GET /api/events', () => {
         pubkey: 'a'.repeat(64),
         role: 'USER',
         iat: 0,
-        exp: 9_999_999_999,
+        exp: 9_999_999_999
       },
-      header: {},
+      header: {}
     } as any)
 
     const res = await GET(makeRequest('/api/events?token=valid'))
@@ -152,9 +152,9 @@ describe('GET /api/events', () => {
         pubkey: 'a'.repeat(64),
         role: 'NOT_A_REAL_ROLE',
         iat: 0,
-        exp: 9_999_999_999,
+        exp: 9_999_999_999
       },
-      header: {},
+      header: {}
     } as any)
 
     const res = await GET(makeRequest('/api/events?token=valid'))

@@ -60,7 +60,9 @@ export function PasskeysSection({
   } = usePasskeys()
 
   const [supported] = useState(() => isPasskeySupported())
-  const [selected, setSelected] = useState<PasskeyCredentialSummary | null>(null)
+  const [selected, setSelected] = useState<PasskeyCredentialSummary | null>(
+    null
+  )
   const [label, setLabel] = useState('')
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
@@ -125,8 +127,8 @@ export function PasskeysSection({
 
         {!loading && credentials.length === 0 && (
           <p className="px-4 py-4 text-sm text-muted-foreground">
-            No passkeys yet. Add one to sign in with Face ID, Touch ID, or
-            your device screen lock — no keys to paste.
+            No passkeys yet. Add one to sign in with Face ID, Touch ID, or your
+            device screen lock — no keys to paste.
           </p>
         )}
 
@@ -235,7 +237,9 @@ export function PasskeysSection({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {isLastCredential ? 'Delete your only passkey?' : 'Delete this passkey?'}
+              {isLastCredential
+                ? 'Delete your only passkey?'
+                : 'Delete this passkey?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {isLastCredential

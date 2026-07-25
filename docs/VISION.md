@@ -33,25 +33,30 @@ You get:
 ## Core Principles
 
 ### Lightning addresses for everyone
+
 Every user on your platform gets a lightning address on your domain. Receive payments, zaps, and tips — instantly. No apps to install, no seeds to back up (unless they want to).
 
 ### Connect your domain, deploy instantly
+
 Point your domain to LaWallet NWC and you're live. One-click deploy on Vercel. Docker for your server. Umbrel/Start9 for your node. Choose your path.
 
 ### CRM with Lightning and Nostr built in
+
 Not a wallet with CRM bolted on. Not a CRM with payments bolted on. Lightning and Nostr are the foundation — user identity, payments, and communication are native from day one.
 
 ### Progressive self-custody
+
 Users start with zero friction (alias redirect to an existing address), graduate to a courtesy NWC wallet, then bring their own NWC-compatible wallet when ready. Sovereignty is a journey, not a gate.
 
-| Stage | Friction | What happens |
-|-------|----------|-------------|
-| 1. Alias/Redirect | Zero | Lightning address redirects to user's existing address |
-| 2. Courtesy NWC | Low | Platform provides a temporary NWC wallet |
-| 3. Own NWC Wallet | Medium | User connects Alby, Primal, or any NWC wallet |
-| 4. Self-Hosted | Full sovereignty | User runs their own LaWallet NWC instance |
+| Stage             | Friction         | What happens                                           |
+| ----------------- | ---------------- | ------------------------------------------------------ |
+| 1. Alias/Redirect | Zero             | Lightning address redirects to user's existing address |
+| 2. Courtesy NWC   | Low              | Platform provides a temporary NWC wallet               |
+| 3. Own NWC Wallet | Medium           | User connects Alby, Primal, or any NWC wallet          |
+| 4. Self-Hosted    | Full sovereignty | User runs their own LaWallet NWC instance              |
 
 ### 100% Open Source, FOREVER
+
 MIT licensed. No open-core tricks. No proprietary features behind a paywall. Fork it, hack it, deploy it. The community owns this.
 
 ---
@@ -71,11 +76,11 @@ MIT licensed. No open-core tricks. No proprietary features behind a paywall. For
 
 Three independent services, no shared databases:
 
-| Service | Role |
-|---------|------|
-| **lawallet-web** | Next.js app — frontend, REST API, address resolution, dashboards, wallet |
-| **lawallet-listener** | NWC Payment Listener — monitors relays, dispatches webhooks |
-| **lawallet-nwc-proxy** | Courtesy NWC Proxy — provisions temporary wallets from providers |
+| Service                | Role                                                                     |
+| ---------------------- | ------------------------------------------------------------------------ |
+| **lawallet-web**       | Next.js app — frontend, REST API, address resolution, dashboards, wallet |
+| **lawallet-listener**  | NWC Payment Listener — monitors relays, dispatches webhooks              |
+| **lawallet-nwc-proxy** | Courtesy NWC Proxy — provisions temporary wallets from providers         |
 
 Deploy all three, or just `lawallet-web` to start. Each service scales independently.
 
@@ -83,12 +88,12 @@ Deploy all three, or just `lawallet-web` to start. Each service scales independe
 
 ## Deployment Options
 
-| Option | Best for | Setup time |
-|--------|----------|-----------|
-| **Vercel** | Communities that want instant deploy | 2 minutes |
-| **Docker** | Servers and VPS | 5 minutes |
-| **Umbrel / Start9** | Node runners | 5 minutes |
-| **Manual** | Full control | 15 minutes |
+| Option              | Best for                             | Setup time |
+| ------------------- | ------------------------------------ | ---------- |
+| **Vercel**          | Communities that want instant deploy | 2 minutes  |
+| **Docker**          | Servers and VPS                      | 5 minutes  |
+| **Umbrel / Start9** | Node runners                         | 5 minutes  |
+| **Manual**          | Full control                         | 15 minutes |
 
 ---
 
@@ -131,6 +136,7 @@ Months 7–8 are formally committed in [ROADMAP.md](./ROADMAP.md). They turn the
 These items extend the platform after M8 ships. They are not on the formal roadmap.
 
 **Communications & CRM**
+
 - Payment history and frequency tracking per user
 - Onboarding stage tracking and user segmentation
 - **Newsletter-style long-form posts** (kind:30023) published to relays
@@ -138,18 +144,22 @@ These items extend the platform after M8 ships. They are not on the formal roadm
 - Inbox management for admin
 
 **Group Messaging**
+
 - **Nostr group chat threads** (NIP-29) — multi-party threads beyond the M7 DM surface
 
 **AI Extensions**
+
 - Message personalization based on user profile and payment history
 - User behavior analysis, churn prediction, segment recommendations
 - Natural language search across users, payments, and communications
 
 **Money Layer**
+
 - **Operator-hosted paid Nostr relay** — vendor strfry or khatru as a 4th container
 - **Cashu eCash mint integration** (NIP-60/61) — eCash perks alongside the sat allowance
 
 **Plugins (Community)**
+
 - **Events** — event management with check-in via QR/NFC, badge issuance
 - **Badges** — Nostr badges (NIP-58) for attendance, achievements, tiers
 - **Commerce** — merchant directory with badge-based discounts
@@ -160,17 +170,17 @@ These items extend the platform after M8 ships. They are not on the formal roadm
 
 Every piece of the platform is built on open, interoperable protocols:
 
-| Protocol | Usage |
-|----------|-------|
-| NIP-47 (NWC) | Wallet Connect — payment backend |
-| NIP-05 | Nostr identity verification |
-| NIP-07 / NIP-46 | Browser extension and remote signing |
-| NIP-57 | Nostr zaps |
-| NIP-04 / NIP-17 / NIP-44 | Encrypted DMs and communication |
-| LUD-16 | Lightning Address (LNURL-pay) |
-| LUD-21 | Payment verification |
-| LUD-22 | Webhooks |
-| BoltCard / NTAG424 | NFC tap-to-pay cards |
+| Protocol                 | Usage                                |
+| ------------------------ | ------------------------------------ |
+| NIP-47 (NWC)             | Wallet Connect — payment backend     |
+| NIP-05                   | Nostr identity verification          |
+| NIP-07 / NIP-46          | Browser extension and remote signing |
+| NIP-57                   | Nostr zaps                           |
+| NIP-04 / NIP-17 / NIP-44 | Encrypted DMs and communication      |
+| LUD-16                   | Lightning Address (LNURL-pay)        |
+| LUD-21                   | Payment verification                 |
+| LUD-22                   | Webhooks                             |
+| BoltCard / NTAG424       | NFC tap-to-pay cards                 |
 
 No vendor lock-in. No proprietary protocols. Interoperability or death.
 

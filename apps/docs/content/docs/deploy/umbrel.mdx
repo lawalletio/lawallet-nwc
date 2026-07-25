@@ -16,14 +16,14 @@ The package lives in its own repository,
 [`lawalletio/umbrel-app-store`](https://github.com/lawalletio/umbrel-app-store),
 and runs the same published images as every other target.
 
-| Property | Value |
-|----------|-------|
-| App id | `lawallet-nwc` |
-| Images | `masize/lawallet-nwc` (web) + `masize/lawallet-nwc-listener` + `postgres:15-alpine` |
-| Web UI | port `2288`, entrypoint `/admin/` |
-| Health check | `GET /api/health` |
-| Data | PostgreSQL persisted in `${APP_DATA_DIR}/data/postgres` |
-| Dependencies | none |
+| Property     | Value                                                                               |
+| ------------ | ----------------------------------------------------------------------------------- |
+| App id       | `lawallet-nwc`                                                                      |
+| Images       | `masize/lawallet-nwc` (web) + `masize/lawallet-nwc-listener` + `postgres:15-alpine` |
+| Web UI       | port `2288`, entrypoint `/admin/`                                                   |
+| Health check | `GET /api/health`                                                                   |
+| Data         | PostgreSQL persisted in `${APP_DATA_DIR}/data/postgres`                             |
+| Dependencies | none                                                                                |
 
 ## Install
 
@@ -58,12 +58,12 @@ push-style payment notifications and webhooks work out of the box — no
 `LISTENER_URL` to configure.
 
 <Callout type="warn" title="Lightning Addresses need a public domain">
-An Umbrel app is reachable on your LAN and over Tor. Lightning Addresses are
-resolved by *other people's* wallets over the public internet, so
-`you@yourdomain.com` only works once `/.well-known/lnurlp/` on a public domain
-reaches this app — through a tunnel, a reverse proxy, or Umbrel's own remote
-access. Set the domain in **Admin → Settings** afterwards, and see
-[User Onboarding](/docs/deploy/onboarding) for the per-host rewrite recipes.
+  An Umbrel app is reachable on your LAN and over Tor. Lightning Addresses are
+  resolved by *other people's* wallets over the public internet, so
+  `you@yourdomain.com` only works once `/.well-known/lnurlp/` on a public domain
+  reaches this app — through a tunnel, a reverse proxy, or Umbrel's own remote
+  access. Set the domain in **Admin → Settings** afterwards, and see [User
+  Onboarding](/docs/deploy/onboarding) for the per-host rewrite recipes.
 </Callout>
 
 ## Updates
@@ -106,5 +106,5 @@ public-domain step above is missing. Confirm with
 network.
 
 **The app store doesn't appear after adding the URL** — re-open the **Community
-App Stores** menu and use **Open** next to *LaWallet App Store*; community
+App Stores** menu and use **Open** next to _LaWallet App Store_; community
 stores are browsed from there rather than mixed into the official listing.

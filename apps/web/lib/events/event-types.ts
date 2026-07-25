@@ -30,5 +30,5 @@ export const ALL_SSE_EVENT_TYPES: readonly SSEEventType[] = [
   'invoices:updated',
   'users:updated',
   'activity:new',
-  'listener:updated',
+  'listener:updated'
 ] as const

@@ -17,6 +17,18 @@ export interface QrCodeLazyProps {
   }
 }
 
-export default function QrCodeLazy({ value, size, level = 'M', imageSettings }: QrCodeLazyProps) {
-  return <QRCodeSVG value={value} size={size} level={level} imageSettings={imageSettings} />
+export default function QrCodeLazy({
+  value,
+  size,
+  level = 'M',
+  imageSettings
+}: QrCodeLazyProps) {
+  return (
+    <QRCodeSVG
+      value={value}
+      size={size}
+      level={level}
+      imageSettings={imageSettings}
+    />
+  )
 }

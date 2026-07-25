@@ -4,22 +4,23 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { eventBus } from '@/lib/events/event-bus'
 import { withErrorHandling } from '@/types/server/error-handler'
-import {
-  Role,
-  Permission,
-  hasPermission,
-} from '@/lib/auth/permissions'
+import { Role, Permission, hasPermission } from '@/lib/auth/permissions'
 import {
   AuthorizationError,
   ValidationError,
-  NotFoundError,
+  NotFoundError
 } from '@/types/server/errors'
 import { updateRoleSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
-const ROLE_HIERARCHY: Role[] = [Role.USER, Role.VIEWER, Role.OPERATOR, Role.ADMIN]
+const ROLE_HIERARCHY: Role[] = [
+  Role.USER,
+  Role.VIEWER,
+  Role.OPERATOR,
+  Role.ADMIN
+]
 
 function getRoleLevel(role: Role): number {
   return ROLE_HIERARCHY.indexOf(role)
@@ -35,7 +36,7 @@ export const GET = withErrorHandling(
 
     const targetUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, pubkey: true, role: true },
+      select: { id: true, pubkey: true, role: true }
     })
 
     if (!targetUser) {
@@ -47,12 +48,12 @@ export const GET = withErrorHandling(
     const me = await resolveAccountByPubkey(auth.pubkey)
     const isSelf = me?.id === targetUser.id
     if (!isSelf && !hasPermission(auth.role, Permission.USERS_READ)) {
-      throw new AuthorizationError('Not authorized to view this user\'s role')
+      throw new AuthorizationError("Not authorized to view this user's role")
     }
 
     return NextResponse.json({
       userId: targetUser.id,
-      role: targetUser.role,
+      role: targetUser.role
     })
   }
 )
@@ -79,7 +80,7 @@ export const PUT = withErrorHandling(
 
     const targetUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, pubkey: true, role: true },
+      select: { id: true, pubkey: true, role: true }
     })
 
     if (!targetUser) {
@@ -90,25 +91,23 @@ export const PUT = withErrorHandling(
     // (top of the hierarchy) can therefore grant ADMIN, while a lower role
     // could never mint one. Only assigning a role *above* yourself is blocked.
     if (getRoleLevel(targetRole) > getRoleLevel(callerRole)) {
-      throw new AuthorizationError(
-        'Cannot assign a role higher than your own'
-      )
+      throw new AuthorizationError('Cannot assign a role higher than your own')
     }
 
     // Prevent self-demotion (account-id comparison: a secondary-pubkey
     // session is still "you")
     const me = await resolveAccountByPubkey(pubkey)
-    if (me?.id === targetUser.id && getRoleLevel(targetRole) < getRoleLevel(callerRole)) {
+    if (
+      me?.id === targetUser.id &&
+      getRoleLevel(targetRole) < getRoleLevel(callerRole)
+    ) {
       throw new AuthorizationError('Cannot lower your own role')
     }
 
     // Prevent removing last admin
-    if (
-      (targetUser.role as Role) === Role.ADMIN &&
-      targetRole !== Role.ADMIN
-    ) {
+    if ((targetUser.role as Role) === Role.ADMIN && targetRole !== Role.ADMIN) {
       const adminCount = await prisma.user.count({
-        where: { role: 'ADMIN' },
+        where: { role: 'ADMIN' }
       })
       if (adminCount <= 1) {
         throw new ValidationError('Cannot remove the last admin')
@@ -118,7 +117,7 @@ export const PUT = withErrorHandling(
     const updated = await prisma.user.update({
       where: { id: userId },
       data: { role: targetRole },
-      select: { id: true, role: true },
+      select: { id: true, role: true }
     })
 
     eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
@@ -131,13 +130,13 @@ export const PUT = withErrorHandling(
       metadata: {
         previousRole: targetUser.role,
         newRole: updated.role,
-        changedBy: pubkey,
-      },
+        changedBy: pubkey
+      }
     })
 
     return NextResponse.json({
       userId: updated.id,
-      role: updated.role,
+      role: updated.role
     })
   }
 )

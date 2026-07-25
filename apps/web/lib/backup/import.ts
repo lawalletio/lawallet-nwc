@@ -3,7 +3,7 @@ import {
   type BackupImportRequest,
   type BackupImportResult,
   type BackupResolutionStrategy,
-  type BackupTableName,
+  type BackupTableName
 } from '@/lib/validation/schemas'
 import {
   BACKUP_TABLE_ORDER,
@@ -11,10 +11,14 @@ import {
   TABLE_DESCRIPTORS,
   fieldsKey,
   pkKey,
-  resolveTables,
+  resolveTables
 } from '@/lib/backup/tables'
 import { ROW_SCHEMAS, toPrismaData } from '@/lib/backup/row-schemas'
-import { classifyRow, loadTableContext, type DbClient } from '@/lib/backup/classify'
+import {
+  classifyRow,
+  loadTableContext,
+  type DbClient
+} from '@/lib/backup/classify'
 import type { ParsedBackup } from '@/lib/backup/archive'
 
 const IMPORT_TX_TIMEOUT_MS = 120_000
@@ -42,7 +46,15 @@ interface MergeState {
 type TableResult = NonNullable<BackupImportResult['tables'][BackupTableName]>
 
 function emptyTableResult(): TableResult {
-  return { imported: 0, skipped: 0, overwritten: 0, renamed: 0, deleted: 0, failed: 0, notes: [] }
+  return {
+    imported: 0,
+    skipped: 0,
+    overwritten: 0,
+    renamed: 0,
+    deleted: 0,
+    failed: 0,
+    notes: []
+  }
 }
 
 function pkWhere(desc: TableDescriptor, row: Row): Record<string, unknown> {
@@ -52,7 +64,12 @@ function pkWhere(desc: TableDescriptor, row: Row): Record<string, unknown> {
 }
 
 /** Loads DB-present PKs for this table's FK targets into `livePks`. */
-async function prefetchFkTargets(db: DbClient, desc: TableDescriptor, rows: Row[], state: MergeState) {
+async function prefetchFkTargets(
+  db: DbClient,
+  desc: TableDescriptor,
+  rows: Row[],
+  state: MergeState
+) {
   for (const fk of desc.fks) {
     const set = (state.livePks[fk.target] ??= new Set<string>())
     const missing = new Set<unknown>()
@@ -66,7 +83,7 @@ async function prefetchFkTargets(db: DbClient, desc: TableDescriptor, rows: Row[
     const field = tdesc.pk[0]
     const found = (await db[tdesc.model].findMany({
       where: { [field]: { in: [...missing] } },
-      select: { [field]: true },
+      select: { [field]: true }
     })) as Row[]
     for (const f of found) set.add(String(f[field]))
   }
@@ -77,7 +94,9 @@ function applySoftRefs(desc: TableDescriptor, row: Row, state: MergeState) {
   for (const sr of desc.softRefs) {
     const value = row[sr.field]
     if (value == null) continue
-    const entry = state.renames.find(e => e.old === value && e.userId === row.userId)
+    const entry = state.renames.find(
+      e => e.old === value && e.userId === row.userId
+    )
     if (entry) row[sr.field] = entry.next
   }
 }
@@ -86,7 +105,11 @@ function applySoftRefs(desc: TableDescriptor, row: Row, state: MergeState) {
  * Nulls nullable FKs whose target is absent; signals a skip when a required FK
  * target is absent. Assumes `prefetchFkTargets` has run for this table.
  */
-function fkGuard(desc: TableDescriptor, row: Row, state: MergeState): { skip: boolean } {
+function fkGuard(
+  desc: TableDescriptor,
+  row: Row,
+  state: MergeState
+): { skip: boolean } {
   for (const fk of desc.fks) {
     const value = row[fk.field]
     if (value == null) continue
@@ -109,7 +132,7 @@ async function reconcilePartialUniques(
   desc: TableDescriptor,
   row: Row,
   state: MergeState,
-  prefer: boolean,
+  prefer: boolean
 ): Promise<{ skip: boolean }> {
   for (const pu of desc.partialUniques) {
     if (pu.flag) {
@@ -119,12 +142,17 @@ async function reconcilePartialUniques(
         row[pu.flag] = false
         continue
       }
-      const where = { AND: [{ [pu.flag]: true }, ...pu.scope.map(f => ({ [f]: row[f] }))] }
+      const where = {
+        AND: [{ [pu.flag]: true }, ...pu.scope.map(f => ({ [f]: row[f] }))]
+      }
       const existing = (await db[desc.model].findMany({ where })) as Row[]
       const other = existing.find(e => pkKey(desc, e) !== pkKey(desc, row))
       if (other) {
         if (prefer) {
-          await db[desc.model].update({ where: pkWhere(desc, other), data: { [pu.flag]: false } })
+          await db[desc.model].update({
+            where: pkWhere(desc, other),
+            data: { [pu.flag]: false }
+          })
         } else {
           row[pu.flag] = false
         }
@@ -135,7 +163,10 @@ async function reconcilePartialUniques(
       const scopeKey = `${desc.name}:${pu.where.field}:${fieldsKey(pu.scope, row)}`
       if (state.claimedScopes.has(scopeKey)) return { skip: true }
       const where = {
-        AND: [{ [pu.where.field]: pu.where.equals }, ...pu.scope.map(f => ({ [f]: row[f] }))],
+        AND: [
+          { [pu.where.field]: pu.where.equals },
+          ...pu.scope.map(f => ({ [f]: row[f] }))
+        ]
       }
       const existing = (await db[desc.model].findMany({ where })) as Row[]
       const other = existing.find(e => pkKey(desc, e) !== pkKey(desc, row))
@@ -153,14 +184,14 @@ async function uniqueValue(
   field: string,
   base: string,
   extraWhere: Record<string, unknown>,
-  taken: Set<string>,
+  taken: Set<string>
 ): Promise<string> {
   for (let n = 1; n < 10_000; n++) {
     const candidate = `${base}-${n}`
     if (taken.has(candidate)) continue
     const clash = await db[desc.model].findFirst({
       where: { ...extraWhere, [field]: candidate },
-      select: { [field]: true },
+      select: { [field]: true }
     })
     if (!clash) return candidate
   }
@@ -175,9 +206,11 @@ async function uniqueValue(
  */
 export async function applyBackup(
   parsed: ParsedBackup,
-  resolution: BackupImportRequest,
+  resolution: BackupImportRequest
 ): Promise<BackupImportResult> {
-  const tablesInScope = resolveTables(parsed.manifest.categories).filter(t => parsed.tables[t])
+  const tablesInScope = resolveTables(parsed.manifest.categories).filter(
+    t => parsed.tables[t]
+  )
 
   // 1. Schema-validate; invalid rows are recorded as failed and never written.
   const validByTable: Partial<Record<BackupTableName, Row[]>> = {}
@@ -186,7 +219,7 @@ export async function applyBackup(
     tables: {},
     hadErrors: false,
     errors: [],
-    importedAt: new Date().toISOString(),
+    importedAt: new Date().toISOString()
   }
   for (const table of tablesInScope) {
     const tableResult = emptyTableResult()
@@ -204,22 +237,48 @@ export async function applyBackup(
     result.tables[table] = tableResult
   }
 
-  const state: MergeState = { renames: [], livePks: {}, claimedScopes: new Set() }
+  const state: MergeState = {
+    renames: [],
+    livePks: {},
+    claimedScopes: new Set()
+  }
 
-  const perConflict = new Map(resolution.perConflict.map(p => [p.id, p.strategy]))
-  const strategyFor = (conflictId: string, allowed: BackupResolutionStrategy[], suggested: BackupResolutionStrategy): BackupResolutionStrategy => {
+  const perConflict = new Map(
+    resolution.perConflict.map(p => [p.id, p.strategy])
+  )
+  const strategyFor = (
+    conflictId: string,
+    allowed: BackupResolutionStrategy[],
+    suggested: BackupResolutionStrategy
+  ): BackupResolutionStrategy => {
     const override = perConflict.get(conflictId)
     if (override && allowed.includes(override)) return override
-    if (resolution.defaultStrategy && allowed.includes(resolution.defaultStrategy)) {
+    if (
+      resolution.defaultStrategy &&
+      allowed.includes(resolution.defaultStrategy)
+    ) {
       return resolution.defaultStrategy
     }
     return suggested
   }
 
   if (resolution.mode === 'replace') {
-    await runReplace(tablesInScope, validByTable, state, result, resolution.atomic)
+    await runReplace(
+      tablesInScope,
+      validByTable,
+      state,
+      result,
+      resolution.atomic
+    )
   } else {
-    await runMerge(tablesInScope, validByTable, state, result, resolution, strategyFor)
+    await runMerge(
+      tablesInScope,
+      validByTable,
+      state,
+      result,
+      resolution,
+      strategyFor
+    )
   }
 
   result.hadErrors =
@@ -235,14 +294,16 @@ async function runReplace(
   validByTable: Partial<Record<BackupTableName, Row[]>>,
   state: MergeState,
   result: BackupImportResult,
-  atomic: boolean,
+  atomic: boolean
 ) {
   const apply = async (db: WriteClient) => {
     // Delete children-first so cascades/RESTRICTs are satisfied.
     for (const table of [...BACKUP_TABLE_ORDER].reverse()) {
       if (!tables.includes(table)) continue
       const desc = TABLE_DESCRIPTORS[table]
-      const { count } = (await db[desc.model].deleteMany({})) as { count: number }
+      const { count } = (await db[desc.model].deleteMany({})) as {
+        count: number
+      }
       result.tables[table]!.deleted += count
     }
     // Insert parents-first; every row is "new" against the now-empty tables.
@@ -260,16 +321,21 @@ async function runReplace(
   if (atomic) {
     await prisma.$transaction(async tx => apply(tx as unknown as WriteClient), {
       timeout: IMPORT_TX_TIMEOUT_MS,
-      maxWait: IMPORT_TX_MAX_WAIT_MS,
+      maxWait: IMPORT_TX_MAX_WAIT_MS
     })
   } else {
     try {
-      await prisma.$transaction(async tx => apply(tx as unknown as WriteClient), {
-        timeout: IMPORT_TX_TIMEOUT_MS,
-        maxWait: IMPORT_TX_MAX_WAIT_MS,
-      })
+      await prisma.$transaction(
+        async tx => apply(tx as unknown as WriteClient),
+        {
+          timeout: IMPORT_TX_TIMEOUT_MS,
+          maxWait: IMPORT_TX_MAX_WAIT_MS
+        }
+      )
     } catch (err) {
-      result.errors.push({ message: err instanceof Error ? err.message : 'Replace failed' })
+      result.errors.push({
+        message: err instanceof Error ? err.message : 'Replace failed'
+      })
     }
   }
 }
@@ -282,7 +348,11 @@ async function runMerge(
   state: MergeState,
   result: BackupImportResult,
   resolution: BackupImportRequest,
-  strategyFor: (id: string, allowed: BackupResolutionStrategy[], suggested: BackupResolutionStrategy) => BackupResolutionStrategy,
+  strategyFor: (
+    id: string,
+    allowed: BackupResolutionStrategy[],
+    suggested: BackupResolutionStrategy
+  ) => BackupResolutionStrategy
 ) {
   const processTable = async (db: WriteClient, table: BackupTableName) => {
     const desc = TABLE_DESCRIPTORS[table]
@@ -293,7 +363,12 @@ async function runMerge(
     const ctx = await loadTableContext(db as DbClient, desc, rows)
 
     for (const row of rows) {
-      const { status, conflict } = classifyRow(desc, row, ctx, isParentAvailable)
+      const { status, conflict } = classifyRow(
+        desc,
+        row,
+        ctx,
+        isParentAvailable
+      )
 
       if (status === 'identical') {
         markLive(state, desc, row)
@@ -301,19 +376,35 @@ async function runMerge(
         continue
       }
       if (status === 'new') {
-        const outcome = await insertNewRow(db, desc, row, state, resolution.preferBackupPrimary)
+        const outcome = await insertNewRow(
+          db,
+          desc,
+          row,
+          state,
+          resolution.preferBackupPrimary
+        )
         applyOutcome(result, table, outcome)
         continue
       }
 
       // conflicting
       const c = conflict!
-      const strategy = strategyFor(c.id, c.allowedStrategies, c.suggestedStrategy)
+      const strategy = strategyFor(
+        c.id,
+        c.allowedStrategies,
+        c.suggestedStrategy
+      )
 
-      if (c.kind === 'fk-target-missing' || (c.kind !== 'partial-unique' && strategy === 'skip')) {
+      if (
+        c.kind === 'fk-target-missing' ||
+        (c.kind !== 'partial-unique' && strategy === 'skip')
+      ) {
         result.tables[table]!.skipped++
         if (c.kind === 'fk-target-missing') {
-          result.tables[table]!.notes.push({ id: c.id, reason: 'fk-target-missing' })
+          result.tables[table]!.notes.push({
+            id: c.id,
+            reason: 'fk-target-missing'
+          })
         }
         // A skipped PK-conflict keeps the existing (live) row; mark it available.
         if (c.kind === 'pk') markLive(state, desc, row)
@@ -322,15 +413,25 @@ async function runMerge(
 
       if (c.kind === 'pk') {
         if (strategy === 'overwrite') {
-          await reconcilePartialUniques(db, desc, row, state, resolution.preferBackupPrimary)
+          await reconcilePartialUniques(
+            db,
+            desc,
+            row,
+            state,
+            resolution.preferBackupPrimary
+          )
           await db[desc.model].upsert({
             where: pkWhere(desc, row),
             update: toPrismaData(desc.name, row),
-            create: toPrismaData(desc.name, row),
+            create: toPrismaData(desc.name, row)
           })
           markLive(state, desc, row)
           result.tables[table]!.overwritten++
-        } else if (strategy === 'rename' && desc.renameChangesPk && desc.renameField) {
+        } else if (
+          strategy === 'rename' &&
+          desc.renameChangesPk &&
+          desc.renameField
+        ) {
           await renamePkRow(db, desc, row, state, result, table)
         } else {
           result.tables[table]!.skipped++
@@ -340,7 +441,11 @@ async function runMerge(
       }
 
       if (c.kind === 'secondary-unique') {
-        if (strategy === 'rename' && desc.renameField && !desc.renameChangesPk) {
+        if (
+          strategy === 'rename' &&
+          desc.renameField &&
+          !desc.renameChangesPk
+        ) {
           const base = String(row[desc.renameField])
           const next = await uniqueValue(
             db,
@@ -348,10 +453,16 @@ async function runMerge(
             desc.renameField,
             base,
             { userId: row.userId },
-            new Set(),
+            new Set()
           )
           row[desc.renameField] = next
-          const outcome = await insertNewRow(db, desc, row, state, resolution.preferBackupPrimary)
+          const outcome = await insertNewRow(
+            db,
+            desc,
+            row,
+            state,
+            resolution.preferBackupPrimary
+          )
           if (outcome === 'imported') result.tables[table]!.renamed++
           else applyOutcome(result, table, outcome)
         } else {
@@ -362,7 +473,8 @@ async function runMerge(
 
       if (c.kind === 'partial-unique') {
         // The row itself is new; import it, letting reconciliation settle the flag.
-        const prefer = resolution.preferBackupPrimary || strategy === 'overwrite'
+        const prefer =
+          resolution.preferBackupPrimary || strategy === 'overwrite'
         const outcome = await insertNewRow(db, desc, row, state, prefer)
         applyOutcome(result, table, outcome)
         continue
@@ -373,20 +485,27 @@ async function runMerge(
   if (resolution.atomic) {
     await prisma.$transaction(
       async tx => {
-        for (const table of tables) await processTable(tx as unknown as WriteClient, table)
+        for (const table of tables)
+          await processTable(tx as unknown as WriteClient, table)
       },
-      { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS },
+      { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
     )
   } else {
     for (const table of tables) {
       try {
-        await prisma.$transaction(async tx => processTable(tx as unknown as WriteClient, table), {
-          timeout: IMPORT_TX_TIMEOUT_MS,
-          maxWait: IMPORT_TX_MAX_WAIT_MS,
-        })
+        await prisma.$transaction(
+          async tx => processTable(tx as unknown as WriteClient, table),
+          {
+            timeout: IMPORT_TX_TIMEOUT_MS,
+            maxWait: IMPORT_TX_MAX_WAIT_MS
+          }
+        )
       } catch (err) {
         result.tables[table]!.failed++
-        result.errors.push({ table, message: err instanceof Error ? err.message : 'Import failed' })
+        result.errors.push({
+          table,
+          message: err instanceof Error ? err.message : 'Import failed'
+        })
       }
     }
   }
@@ -402,11 +521,12 @@ async function insertNewRow(
   desc: TableDescriptor,
   row: Row,
   state: MergeState,
-  prefer: boolean,
+  prefer: boolean
 ): Promise<InsertOutcome> {
   applySoftRefs(desc, row, state)
   if (fkGuard(desc, row, state).skip) return 'skipped'
-  if ((await reconcilePartialUniques(db, desc, row, state, prefer)).skip) return 'skipped'
+  if ((await reconcilePartialUniques(db, desc, row, state, prefer)).skip)
+    return 'skipped'
   await db[desc.model].create({ data: toPrismaData(desc.name, row) })
   markLive(state, desc, row)
   return 'imported'
@@ -419,11 +539,18 @@ async function renamePkRow(
   row: Row,
   state: MergeState,
   result: BackupImportResult,
-  table: BackupTableName,
+  table: BackupTableName
 ) {
   const field = desc.renameField!
   const base = String(row[field])
-  const next = await uniqueValue(db, desc, field, base, {}, new Set(state.renames.map(r => r.next)))
+  const next = await uniqueValue(
+    db,
+    desc,
+    field,
+    base,
+    {},
+    new Set(state.renames.map(r => r.next))
+  )
   state.renames.push({ old: base, userId: row.userId, next })
   const renamed: Row = { ...row, [field]: next }
   applySoftRefs(desc, renamed, state)
@@ -441,7 +568,11 @@ function markLive(state: MergeState, desc: TableDescriptor, row: Row) {
   ;(state.livePks[desc.name] ??= new Set<string>()).add(pkKey(desc, row))
 }
 
-function applyOutcome(result: BackupImportResult, table: BackupTableName, outcome: InsertOutcome) {
+function applyOutcome(
+  result: BackupImportResult,
+  table: BackupTableName,
+  outcome: InsertOutcome
+) {
   if (outcome === 'imported') result.tables[table]!.imported++
   else result.tables[table]!.skipped++
 }

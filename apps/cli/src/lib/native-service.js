@@ -68,18 +68,39 @@ function buildPostgresInstallSteps(packageManager) {
         [{ command: 'brew', args: ['install', 'postgresql'] }]
       ]
     case 'apt':
-      return [[
-        withSudo('apt-get', ['update']),
-        withSudo('apt-get', ['install', '-y', 'postgresql', 'postgresql-contrib'])
-      ]]
+      return [
+        [
+          withSudo('apt-get', ['update']),
+          withSudo('apt-get', [
+            'install',
+            '-y',
+            'postgresql',
+            'postgresql-contrib'
+          ])
+        ]
+      ]
     case 'dnf':
-      return [[
-        withSudo('dnf', ['install', '-y', 'postgresql-server', 'postgresql-contrib']),
-      ]]
+      return [
+        [
+          withSudo('dnf', [
+            'install',
+            '-y',
+            'postgresql-server',
+            'postgresql-contrib'
+          ])
+        ]
+      ]
     case 'yum':
-      return [[
-        withSudo('yum', ['install', '-y', 'postgresql-server', 'postgresql-contrib']),
-      ]]
+      return [
+        [
+          withSudo('yum', [
+            'install',
+            '-y',
+            'postgresql-server',
+            'postgresql-contrib'
+          ])
+        ]
+      ]
     case 'pacman':
       return [[withSudo('pacman', ['-Sy', '--noconfirm', 'postgresql'])]]
     case 'apk':
@@ -180,7 +201,10 @@ async function initializePostgresDataDirectory(packageManager) {
     await runCommand(mkdirStep.command, mkdirStep.args)
     await runCommand(chownStep.command, chownStep.args)
 
-    const initdb = withPostgresUser('initdb', ['-D', '/var/lib/postgresql/data'])
+    const initdb = withPostgresUser('initdb', [
+      '-D',
+      '/var/lib/postgresql/data'
+    ])
 
     if (!initdb) {
       return
@@ -194,8 +218,14 @@ async function startPostgresService(packageManager) {
   const candidates = []
 
   if (packageManager.manager === 'brew') {
-    candidates.push({ command: 'brew', args: ['services', 'start', 'postgresql@16'] })
-    candidates.push({ command: 'brew', args: ['services', 'start', 'postgresql'] })
+    candidates.push({
+      command: 'brew',
+      args: ['services', 'start', 'postgresql@16']
+    })
+    candidates.push({
+      command: 'brew',
+      args: ['services', 'start', 'postgresql']
+    })
   } else if (commandExists('systemctl')) {
     candidates.push(withSudo('systemctl', ['enable', '--now', 'postgresql']))
     candidates.push(withSudo('systemctl', ['start', 'postgresql']))
@@ -403,7 +433,10 @@ async function ensureManagedBuilds(state) {
 
 async function readPid(repoRoot, serviceName) {
   try {
-    const contents = await readFile(getServicePidFilePath(repoRoot, serviceName), 'utf8')
+    const contents = await readFile(
+      getServicePidFilePath(repoRoot, serviceName),
+      'utf8'
+    )
     const pid = Number.parseInt(contents.trim(), 10)
     return Number.isInteger(pid) ? pid : null
   } catch {
@@ -412,7 +445,11 @@ async function readPid(repoRoot, serviceName) {
 }
 
 async function writePid(repoRoot, serviceName, pid) {
-  await writeFile(getServicePidFilePath(repoRoot, serviceName), `${pid}\n`, 'utf8')
+  await writeFile(
+    getServicePidFilePath(repoRoot, serviceName),
+    `${pid}\n`,
+    'utf8'
+  )
 }
 
 async function startManagedService(state, service) {
@@ -423,11 +460,17 @@ async function startManagedService(state, service) {
     return
   }
 
-  await mkdir(path.dirname(getServiceLogFilePath(state.repoRoot, service.name)), {
-    recursive: true
-  })
+  await mkdir(
+    path.dirname(getServiceLogFilePath(state.repoRoot, service.name)),
+    {
+      recursive: true
+    }
+  )
 
-  const logFile = await open(getServiceLogFilePath(state.repoRoot, service.name), 'a')
+  const logFile = await open(
+    getServiceLogFilePath(state.repoRoot, service.name),
+    'a'
+  )
   const child = spawn('pnpm', service.startArgs, {
     cwd: service.cwd,
     env: {
@@ -452,21 +495,27 @@ async function stopManagedService(state, service) {
   }
 
   if (!isProcessRunning(pid)) {
-    await rm(getServicePidFilePath(state.repoRoot, service.name), { force: true })
+    await rm(getServicePidFilePath(state.repoRoot, service.name), {
+      force: true
+    })
     return
   }
 
   try {
     process.kill(-pid, 'SIGTERM')
   } catch {
-    await rm(getServicePidFilePath(state.repoRoot, service.name), { force: true })
+    await rm(getServicePidFilePath(state.repoRoot, service.name), {
+      force: true
+    })
     return
   }
 
   const startedAt = Date.now()
   while (Date.now() - startedAt < 15_000) {
     if (!isProcessRunning(pid)) {
-      await rm(getServicePidFilePath(state.repoRoot, service.name), { force: true })
+      await rm(getServicePidFilePath(state.repoRoot, service.name), {
+        force: true
+      })
       return
     }
 
@@ -546,6 +595,8 @@ Database ready: ${databaseReady ? 'yes' : 'no'}`)
   console.log('\nLog files:')
 
   for (const service of services) {
-    console.log(`  - ${service.name}: ${getServiceLogFilePath(state.repoRoot, service.name)}`)
+    console.log(
+      `  - ${service.name}: ${getServiceLogFilePath(state.repoRoot, service.name)}`
+    )
   }
 }

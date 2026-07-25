@@ -11,7 +11,7 @@ import {
   authenticateWithPasskey,
   isPasskeySupported,
   registerPasskeyAccount,
-  translatePasskeyError,
+  translatePasskeyError
 } from '@/lib/client/passkey-api'
 
 interface PasskeyLoginButtonProps {
@@ -48,7 +48,7 @@ export function PasskeyLoginButton({
   variant = 'default',
   className,
   showCrossDeviceHint = false,
-  disabled = false,
+  disabled = false
 }: PasskeyLoginButtonProps) {
   const { login } = useAuth()
   const [busy, setBusy] = useState(false)
@@ -59,7 +59,8 @@ export function PasskeyLoginButton({
   if (!supported) return null
 
   const buttonLabel =
-    label ?? (mode === 'register' ? 'Create with a passkey' : 'Continue with passkey')
+    label ??
+    (mode === 'register' ? 'Create with a passkey' : 'Continue with passkey')
 
   async function handleClick() {
     setError(null)
@@ -72,7 +73,7 @@ export function PasskeyLoginButton({
       // The derived key IS the login: ordinary NIP-98 exchange, secret
       // persisted like the nsec method so reloads restore silently.
       await login(createNsecSigner(identity.secretHex), 'passkey', {
-        secret: identity.secretHex,
+        secret: identity.secretHex
       })
       onSuccess?.()
     } catch (err) {

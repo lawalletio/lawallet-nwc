@@ -75,9 +75,7 @@ export const PATCH = withErrorHandling(
         body.linkDefaultWallet === true
           ? { remoteWalletId: defaultRemoteWalletId }
           : {
-              disabledAt: body.enabled
-                ? null
-                : (card.disabledAt ?? new Date())
+              disabledAt: body.enabled ? null : (card.disabledAt ?? new Date())
             },
       select: {
         id: true,

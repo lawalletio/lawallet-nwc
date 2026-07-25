@@ -5,9 +5,12 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthorizationError,
   ConflictError,
-  NotFoundError,
+  NotFoundError
 } from '@/types/server/errors'
-import { userIdParam, updateLightningAddressSchema } from '@/lib/validation/schemas'
+import {
+  userIdParam,
+  updateLightningAddressSchema
+} from '@/lib/validation/schemas'
 import { validateParams, validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { authenticate } from '@/lib/auth/unified-auth'
@@ -18,16 +21,23 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import {
   findInitialPrimaryWalletCandidate,
   getPrimaryRemoteWalletForUser,
-  syncPrimaryRemoteWalletFlag,
+  syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 
 export const PUT = withErrorHandling(
-  async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
+  async (
+    request: Request,
+    { params }: { params: Promise<{ userId: string }> }
+  ) => {
     await checkRequestLimits(request, 'json')
-    const { pubkey: authenticatedPubkey, role: actorRole } = await authenticate(request)
+    const { pubkey: authenticatedPubkey, role: actorRole } =
+      await authenticate(request)
 
     const { userId } = validateParams(await params, userIdParam)
-    const { username } = await validateBody(request, updateLightningAddressSchema)
+    const { username } = await validateBody(
+      request,
+      updateLightningAddressSchema
+    )
 
     // Check if user exists. Pull the user's primary address (at most one) —
     // this endpoint preserves the legacy "one primary lightning address per
@@ -80,9 +90,13 @@ export const PUT = withErrorHandling(
     }
 
     await prisma.$transaction(async tx => {
-      const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(userId, tx)
+      const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(
+        userId,
+        tx
+      )
       const candidate =
-        currentPrimaryWallet ?? (await findInitialPrimaryWalletCandidate(userId, tx))
+        currentPrimaryWallet ??
+        (await findInitialPrimaryWalletCandidate(userId, tx))
 
       // Replace the primary address atomically: delete the old primary first
       // (if any) so the partial-unique-on-(userId) WHERE isPrimary=true index
@@ -98,7 +112,7 @@ export const PUT = withErrorHandling(
           userId,
           isPrimary: true,
           mode: candidate ? 'CUSTOM_NWC' : 'IDLE',
-          remoteWalletId: candidate?.id ?? null,
+          remoteWalletId: candidate?.id ?? null
         }
       })
       await syncPrimaryRemoteWalletFlag(userId, tx)
@@ -118,8 +132,8 @@ export const PUT = withErrorHandling(
         userId,
         metadata: {
           previousUsername: oldLightningAddress.username,
-          newUsername: username,
-        },
+          newUsername: username
+        }
       })
     }
 
@@ -128,7 +142,7 @@ export const PUT = withErrorHandling(
       event: ActivityEvent.ADDRESS_CREATED,
       message: `Primary lightning address set: ${username}`,
       userId,
-      metadata: { username, isPrimary: true },
+      metadata: { username, isPrimary: true }
     })
 
     // Return the complete lightning address string

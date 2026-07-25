@@ -10,5 +10,5 @@ export const handlers = [
   // Veintiuno card designs mock
   http.get('https://veintiuno.lat/api/cards.json', () => {
     return HttpResponse.json([])
-  }),
+  })
 ]

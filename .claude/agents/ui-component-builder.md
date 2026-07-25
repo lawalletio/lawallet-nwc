@@ -7,6 +7,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 You build UI for `apps/web` (React 19, Tailwind CSS 3.4, shadcn/ui + Radix).
 
 Conventions:
+
 - Primitives live in `components/ui/` (shadcn) — compose them, don't fork
   them; feature components live in `components/admin/`, `components/wallet/`,
   etc.

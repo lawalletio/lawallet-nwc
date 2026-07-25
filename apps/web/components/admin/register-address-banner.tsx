@@ -14,7 +14,9 @@ interface RegisterAddressBannerProps {
 // Renders nothing once dismissed, or for non-admins, or once an address
 // exists. The dismissal is intentionally session-only — if the admin
 // reloads, the prompt comes back until they claim something.
-export function RegisterAddressBanner({ lightningAddress }: RegisterAddressBannerProps) {
+export function RegisterAddressBanner({
+  lightningAddress
+}: RegisterAddressBannerProps) {
   const router = useRouter()
   const { role } = useAuth()
   const [dismissed, setDismissed] = useState(false)
@@ -36,8 +38,9 @@ export function RegisterAddressBanner({ lightningAddress }: RegisterAddressBanne
               Claim your first Lightning Address
             </h3>
             <p className="text-sm text-muted-foreground">
-              You haven&apos;t set up a Lightning Address yet. Pick a username so
-              you can start receiving payments and identifying yourself on Nostr.
+              You haven&apos;t set up a Lightning Address yet. Pick a username
+              so you can start receiving payments and identifying yourself on
+              Nostr.
             </p>
           </div>
 

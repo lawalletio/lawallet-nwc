@@ -33,7 +33,7 @@ export const AnalyticsEvent = {
   WALLET_RECEIVE_STARTED: 'wallet_receive_started',
   WALLET_RECEIVE_INVOICE_GENERATED: 'wallet_receive_invoice_generated',
   WALLET_RECEIVE_COMPLETED: 'wallet_receive_completed',
-  WALLET_SCAN_USED: 'wallet_scan_used',
+  WALLET_SCAN_USED: 'wallet_scan_used'
 } as const
 
 export type AnalyticsEventName =

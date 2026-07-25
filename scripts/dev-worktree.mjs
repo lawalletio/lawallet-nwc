@@ -126,7 +126,9 @@ async function loadOrCreateEnv() {
 
   const env = {
     DEV_COMPOSE_PROJECT:
-      existing.DEV_COMPOSE_PROJECT || state.DEV_COMPOSE_PROJECT || composeProject,
+      existing.DEV_COMPOSE_PROJECT ||
+      state.DEV_COMPOSE_PROJECT ||
+      composeProject,
     POSTGRES_DB: postgresDb,
     POSTGRES_USER: postgresUser,
     POSTGRES_PASSWORD: postgresPassword,
@@ -270,7 +272,11 @@ async function isFreshDatabase(env) {
       '-tAc',
       "SELECT to_regclass('public._prisma_migrations') IS NULL"
     ],
-    { cwd: root, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'ignore'] }
+    {
+      cwd: root,
+      env: { ...process.env, ...env },
+      stdio: ['ignore', 'pipe', 'ignore']
+    }
   )
 
   let output = ''
@@ -293,15 +299,25 @@ async function bootstrap(env, { reset }) {
   console.log(`Starting isolated Postgres for ${env.DEV_COMPOSE_PROJECT}...`)
   await run(
     'docker',
-    ['compose', '--project-name', env.DEV_COMPOSE_PROJECT, 'up', '-d', 'postgres'],
+    [
+      'compose',
+      '--project-name',
+      env.DEV_COMPOSE_PROJECT,
+      'up',
+      '-d',
+      'postgres'
+    ],
     { env }
   )
   await waitForPostgres(env)
 
   console.log('Generating Prisma client...')
-  await runPnpm(['--filter', '@lawallet-nwc/web', 'exec', 'prisma', 'generate'], {
-    env
-  })
+  await runPnpm(
+    ['--filter', '@lawallet-nwc/web', 'exec', 'prisma', 'generate'],
+    {
+      env
+    }
+  )
 
   const fresh = await isFreshDatabase(env)
 

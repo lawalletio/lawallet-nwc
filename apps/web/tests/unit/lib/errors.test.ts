@@ -9,7 +9,7 @@ import {
   PayloadTooLargeError,
   ServiceUnavailableError,
   TooManyRequestsError,
-  InternalServerError,
+  InternalServerError
 } from '@/types/server/errors'
 
 describe('ApiError', () => {
@@ -18,7 +18,7 @@ describe('ApiError', () => {
       statusCode: 418,
       code: 'TEAPOT',
       details: { foo: 'bar' },
-      cause: new Error('root'),
+      cause: new Error('root')
     })
     expect(err.message).toBe('test')
     expect(err.statusCode).toBe(418)
@@ -128,7 +128,7 @@ describe('TooManyRequestsError', () => {
   it('accepts details', () => {
     const err = new TooManyRequestsError('rate limited', {
       retryAfter: 30,
-      details: { ip: '1.2.3.4' },
+      details: { ip: '1.2.3.4' }
     })
     expect(err.details).toEqual({ ip: '1.2.3.4' })
   })

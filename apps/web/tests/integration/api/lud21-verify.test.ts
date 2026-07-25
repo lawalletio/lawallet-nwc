@@ -4,20 +4,20 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/events/event-bus', () => ({
-  eventBus: { emit: vi.fn() },
+  eventBus: { emit: vi.fn() }
 }))
 
 const lookupInvoiceMock = vi.fn()
@@ -26,8 +26,8 @@ const nwcCloseMock = vi.fn()
 vi.mock('@getalby/sdk', () => ({
   NWCClient: vi.fn().mockImplementation(() => ({
     lookupInvoice: lookupInvoiceMock,
-    close: nwcCloseMock,
-  })),
+    close: nwcCloseMock
+  }))
 }))
 
 import { GET } from '@/app/api/lud16/[username]/verify/[paymentHash]/route'
@@ -51,10 +51,10 @@ const baseInvoice = {
         username: 'alice',
         mode: 'DEFAULT_NWC',
         redirect: null,
-        remoteWallet: null,
-      },
-    ],
-  },
+        remoteWallet: null
+      }
+    ]
+  }
 }
 
 const primaryWalletAddress = {
@@ -64,15 +64,18 @@ const primaryWalletAddress = {
     id: 'wallet-1',
     type: 'NWC',
     status: 'ACTIVE',
-    config: { connectionString: 'nostr+walletconnect://abc', mode: 'SEND_RECEIVE' },
-  },
+    config: {
+      connectionString: 'nostr+walletconnect://abc',
+      mode: 'SEND_RECEIVE'
+    }
+  }
 }
 
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
-    primaryWalletAddress as any,
+    primaryWalletAddress as any
   )
 })
 
@@ -105,7 +108,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
   it('returns 404 when username does not match invoice owner', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      user: { ...baseInvoice.user, lightningAddresses: [{ username: 'bob' }] },
+      user: { ...baseInvoice.user, lightningAddresses: [{ username: 'bob' }] }
     } as any)
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
@@ -121,7 +124,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
       status: 'PAID',
-      preimage: 'b'.repeat(64),
+      preimage: 'b'.repeat(64)
     } as any)
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
@@ -135,7 +138,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
       status: 'OK',
       settled: true,
       preimage: 'b'.repeat(64),
-      pr: 'lnbc100n1test',
+      pr: 'lnbc100n1test'
     })
     // Should not query NWC when already cached
     expect(lookupInvoiceMock).not.toHaveBeenCalled()
@@ -144,7 +147,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
   it('returns unsettled for expired invoices without querying NWC', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      expiresAt: PAST,
+      expiresAt: PAST
     } as any)
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
@@ -158,17 +161,19 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
       status: 'OK',
       settled: false,
       preimage: null,
-      pr: 'lnbc100n1test',
+      pr: 'lnbc100n1test'
     })
     expect(lookupInvoiceMock).not.toHaveBeenCalled()
   })
 
   it('queries NWC and persists settled state when payment arrives', async () => {
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
     lookupInvoiceMock.mockResolvedValue({
       state: 'settled',
       preimage: 'c'.repeat(64),
-      settled_at: 1_700_000_000,
+      settled_at: 1_700_000_000
     })
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
@@ -186,8 +191,8 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
         where: { paymentHash: VALID_HASH },
         data: expect.objectContaining({
           status: 'PAID',
-          preimage: 'c'.repeat(64),
-        }),
+          preimage: 'c'.repeat(64)
+        })
       })
     )
     // The PENDING → PAID transition must fire `invoices:updated` so the
@@ -196,7 +201,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     // change — re-verifying an already-paid invoice must NOT re-emit.
     const { eventBus } = await import('@/lib/events/event-bus')
     expect(eventBus.emit).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'invoices:updated' }),
+      expect.objectContaining({ type: 'invoices:updated' })
     )
     expect(nwcCloseMock).toHaveBeenCalled()
   })
@@ -205,7 +210,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
       status: 'PAID',
-      preimage: 'c'.repeat(64),
+      preimage: 'c'.repeat(64)
     } as any)
 
     const { eventBus } = await import('@/lib/events/event-bus')
@@ -224,10 +229,12 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
   })
 
   it('returns unsettled without preimage when NWC says pending', async () => {
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
     lookupInvoiceMock.mockResolvedValue({
       state: 'pending',
-      preimage: '',
+      preimage: ''
     })
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
@@ -243,7 +250,9 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
   })
 
   it('returns unsettled when NWC call fails (retry-later semantics)', async () => {
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
     lookupInvoiceMock.mockRejectedValue(new Error('relay timeout'))
 
     const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
@@ -262,7 +271,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
   it('returns unsettled when user has no wallet configured', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      user: { ...baseInvoice.user },
+      user: { ...baseInvoice.user }
     } as any)
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
 

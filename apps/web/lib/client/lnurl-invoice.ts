@@ -25,13 +25,15 @@ interface LnurlPayCallbackResponse {
 export async function requestLnurlInvoice(
   lnurlpUrl: string,
   amountSats: number,
-  comment?: string,
+  comment?: string
 ): Promise<string> {
   if (!Number.isFinite(amountSats) || amountSats <= 0) {
     throw new Error('Enter an amount')
   }
 
-  const metaRes = await fetch(lnurlpUrl, { headers: { accept: 'application/json' } })
+  const metaRes = await fetch(lnurlpUrl, {
+    headers: { accept: 'application/json' }
+  })
   if (!metaRes.ok) {
     throw new Error(`Recipient returned ${metaRes.status}`)
   }
@@ -53,7 +55,9 @@ export async function requestLnurlInvoice(
     cbUrl.searchParams.set('comment', comment.slice(0, meta.commentAllowed))
   }
 
-  const cbRes = await fetch(cbUrl.toString(), { headers: { accept: 'application/json' } })
+  const cbRes = await fetch(cbUrl.toString(), {
+    headers: { accept: 'application/json' }
+  })
   if (!cbRes.ok) {
     throw new Error(`Recipient callback returned ${cbRes.status}`)
   }

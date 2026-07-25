@@ -43,7 +43,9 @@ describe('web app manifest', () => {
     const m = await manifest()
     const purposes = (m.icons ?? []).map(i => i.purpose)
     expect(purposes).toContain('maskable')
-    expect((m.icons ?? []).some(i => i.src === '/icons/icon-192.png')).toBe(true)
+    expect((m.icons ?? []).some(i => i.src === '/icons/icon-192.png')).toBe(
+      true
+    )
   })
 
   it('prepends a custom isotype ahead of the bundled icons', async () => {

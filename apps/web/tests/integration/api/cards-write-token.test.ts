@@ -6,24 +6,26 @@ import { createParamsPromise } from '@/tests/helpers/route-helpers'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
-vi.mock('@/lib/middleware/request-limits', () => ({ checkRequestLimits: vi.fn() }))
+vi.mock('@/lib/middleware/request-limits', () => ({
+  checkRequestLimits: vi.fn()
+}))
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticateWithPermission: vi.fn(),
+  authenticateWithPermission: vi.fn()
 }))
 vi.mock('@/lib/public-url', () => ({
   // The write-token URL now derives from the API endpoint, not the public
   // lightning-address domain (so the `/write` call it targets is reachable).
-  resolveApiUrl: vi.fn(async () => 'https://test.com'),
+  resolveApiUrl: vi.fn(async () => 'https://test.com')
 }))
 
 import { POST } from '@/app/api/cards/[id]/write-token/route'
@@ -32,7 +34,9 @@ import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
-  vi.mocked(authenticateWithPermission).mockResolvedValue({ pubkey: 'x' } as any)
+  vi.mocked(authenticateWithPermission).mockResolvedValue({
+    pubkey: 'x'
+  } as any)
 })
 
 describe('POST /api/cards/[id]/write-token', () => {
@@ -41,19 +45,19 @@ describe('POST /api/cards/[id]/write-token', () => {
       id: 'card-1',
       lastUsedAt: null,
       blockedAt: null,
-      ntag424: { ctr: 0 },
+      ntag424: { ctr: 0 }
     } as any)
     vi.mocked(prismaMock.card.update).mockResolvedValue({} as any)
 
     const req = createNextRequest('/api/cards/card-1/write-token', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     const res = await POST(req, createParamsPromise({ id: 'card-1' }))
     const body: any = await assertResponse(res, 200)
 
     expect(body.url).toMatch(
-      /^https:\/\/test\.com\/api\/cards\/card-1\/write\?token=[a-f0-9]+$/,
+      /^https:\/\/test\.com\/api\/cards\/card-1\/write\?token=[a-f0-9]+$/
     )
     // The raw token is returned too, and matches the one embedded in the url —
     // clients on a different host build their own baseUrl-anchored write URL.
@@ -66,9 +70,9 @@ describe('POST /api/cards/[id]/write-token', () => {
         where: { id: 'card-1' },
         data: expect.objectContaining({
           writeToken: expect.any(String),
-          writeTokenExpiresAt: expect.any(Date),
-        }),
-      }),
+          writeTokenExpiresAt: expect.any(Date)
+        })
+      })
     )
   })
 
@@ -79,19 +83,19 @@ describe('POST /api/cards/[id]/write-token', () => {
       id: 'card-1',
       lastUsedAt: null,
       blockedAt: null,
-      ntag424: { ctr: 0 },
+      ntag424: { ctr: 0 }
     } as any)
     vi.mocked(prismaMock.card.update).mockResolvedValue({} as any)
 
     const req = createNextRequest('/api/cards/card-1/write-token', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     await POST(req, createParamsPromise({ id: 'card-1' }))
 
     expect(authenticateWithPermission).toHaveBeenCalledWith(
       expect.anything(),
-      'cards:write',
+      'cards:write'
     )
   })
 
@@ -100,12 +104,12 @@ describe('POST /api/cards/[id]/write-token', () => {
       id: 'card-1',
       lastUsedAt: new Date(),
       blockedAt: null,
-      ntag424: { ctr: 2 },
+      ntag424: { ctr: 2 }
     } as any)
 
     const req = createNextRequest('/api/cards/card-1/write-token', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     const res = await POST(req, createParamsPromise({ id: 'card-1' }))
 
@@ -118,12 +122,12 @@ describe('POST /api/cards/[id]/write-token', () => {
       id: 'card-1',
       lastUsedAt: null,
       blockedAt: new Date(),
-      ntag424: { ctr: 0 },
+      ntag424: { ctr: 0 }
     } as any)
 
     const req = createNextRequest('/api/cards/card-1/write-token', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     const res = await POST(req, createParamsPromise({ id: 'card-1' }))
 
@@ -136,7 +140,7 @@ describe('POST /api/cards/[id]/write-token', () => {
 
     const req = createNextRequest('/api/cards/nope/write-token', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     const res = await POST(req, createParamsPromise({ id: 'nope' }))
 
@@ -148,12 +152,12 @@ describe('POST /api/cards/[id]/write-token', () => {
       id: 'card-1',
       lastUsedAt: null,
       blockedAt: null,
-      ntag424: null,
+      ntag424: null
     } as any)
 
     const req = createNextRequest('/api/cards/card-1/write-token', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     const res = await POST(req, createParamsPromise({ id: 'card-1' }))
 

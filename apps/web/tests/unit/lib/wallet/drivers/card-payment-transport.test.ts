@@ -65,8 +65,7 @@ import { PaymentOutcomeUnknownError } from '@/lib/wallet/drivers/errors'
 import { nwcDriver } from '@/lib/wallet/drivers/nwc-driver'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 
-const CONNECTION =
-  `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`
+const CONNECTION = `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`
 const CONFIG = { connectionString: CONNECTION, mode: 'SEND_RECEIVE' as const }
 const INVOICE = 'lnbc-card-payment'
 const PAYMENT_HASH = 'ab'.repeat(32)

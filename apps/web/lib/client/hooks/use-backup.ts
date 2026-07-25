@@ -6,7 +6,7 @@ import type {
   BackupAnalyzeResponse,
   BackupCategory,
   BackupImportRequest,
-  BackupImportResult,
+  BackupImportResult
 } from '@/lib/client/backup-types'
 
 /** Error carrying the server-side `code` so callers can branch (password flow). */
@@ -22,17 +22,20 @@ export class BackupRequestError extends Error {
 }
 
 async function toError(res: Response): Promise<BackupRequestError> {
-  const body = (await res.json().catch(() => null)) as
-    | { error?: { message?: string; code?: string } }
-    | null
+  const body = (await res.json().catch(() => null)) as {
+    error?: { message?: string; code?: string }
+  } | null
   return new BackupRequestError(
     res.status,
     body?.error?.message ?? `Request failed (${res.status})`,
-    body?.error?.code,
+    body?.error?.code
   )
 }
 
-function filenameFromDisposition(header: string | null, fallback: string): string {
+function filenameFromDisposition(
+  header: string | null,
+  fallback: string
+): string {
   if (!header) return fallback
   const match = /filename\*?=(?:UTF-8'')?"?([^"';]+)"?/i.exec(header)
   return match?.[1] ? decodeURIComponent(match[1]) : fallback
@@ -57,13 +60,19 @@ export interface ExportedBackup {
 }
 
 export interface UseBackup {
-  exportBackup: (categories: BackupCategory[], password?: string) => Promise<ExportedBackup>
-  analyzeBackup: (file: File, password?: string) => Promise<BackupAnalyzeResponse>
+  exportBackup: (
+    categories: BackupCategory[],
+    password?: string
+  ) => Promise<ExportedBackup>
+  analyzeBackup: (
+    file: File,
+    password?: string
+  ) => Promise<BackupAnalyzeResponse>
   importBackup: (
     file: File,
     resolution: BackupImportRequest,
     password?: string,
-    onProgress?: (percent: number) => void,
+    onProgress?: (percent: number) => void
   ) => Promise<BackupImportResult>
 }
 
@@ -76,27 +85,30 @@ export function useBackup(): UseBackup {
   const { jwt } = useAuth()
 
   const exportBackup = useCallback(
-    async (categories: BackupCategory[], password?: string): Promise<ExportedBackup> => {
+    async (
+      categories: BackupCategory[],
+      password?: string
+    ): Promise<ExportedBackup> => {
       const res = await fetch('/api/admin/backup/export', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+          ...(jwt ? { Authorization: `Bearer ${jwt}` } : {})
         },
         body: JSON.stringify({
           categories,
-          ...(password ? { password } : {}),
-        }),
+          ...(password ? { password } : {})
+        })
       })
       if (!res.ok) throw await toError(res)
       const filename = filenameFromDisposition(
         res.headers.get('content-disposition'),
-        'lawallet-backup.zip',
+        'lawallet-backup.zip'
       )
       const blob = await res.blob()
       return { blob, filename }
     },
-    [jwt],
+    [jwt]
   )
 
   const analyzeBackup = useCallback(
@@ -108,12 +120,12 @@ export function useBackup(): UseBackup {
       const res = await fetch('/api/admin/backup/analyze', {
         method: 'POST',
         headers: jwt ? { Authorization: `Bearer ${jwt}` } : {},
-        body: form,
+        body: form
       })
       if (!res.ok) throw await toError(res)
       return (await res.json()) as BackupAnalyzeResponse
     },
-    [jwt],
+    [jwt]
   )
 
   const importBackup = useCallback(
@@ -121,7 +133,7 @@ export function useBackup(): UseBackup {
       file: File,
       resolution: BackupImportRequest,
       password?: string,
-      onProgress?: (percent: number) => void,
+      onProgress?: (percent: number) => void
     ): Promise<BackupImportResult> => {
       const form = new FormData()
       form.append('file', file)
@@ -148,21 +160,24 @@ export function useBackup(): UseBackup {
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve(parsed as BackupImportResult)
           } else {
-            const err = (parsed as { error?: { message?: string; code?: string } } | null)?.error
+            const err = (
+              parsed as { error?: { message?: string; code?: string } } | null
+            )?.error
             reject(
               new BackupRequestError(
                 xhr.status,
                 err?.message ?? `Request failed (${xhr.status})`,
-                err?.code,
-              ),
+                err?.code
+              )
             )
           }
         }
-        xhr.onerror = () => reject(new BackupRequestError(0, 'Network error during import'))
+        xhr.onerror = () =>
+          reject(new BackupRequestError(0, 'Network error during import'))
         xhr.send(form)
       })
     },
-    [jwt],
+    [jwt]
   )
 
   return { exportBackup, analyzeBackup, importBackup }

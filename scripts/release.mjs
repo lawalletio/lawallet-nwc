@@ -31,16 +31,25 @@ const bumpIndex = args.indexOf('--bump')
 const bump = bumpIndex >= 0 ? args[bumpIndex + 1] : null
 
 if (!['patch', 'minor', 'major'].includes(bump)) {
-  console.error('Usage: node scripts/release.mjs --bump patch|minor|major [--dry]')
+  console.error(
+    'Usage: node scripts/release.mjs --bump patch|minor|major [--dry]'
+  )
   process.exit(1)
 }
 
-const LOCKSTEP_PACKAGES = ['package.json', 'apps/web/package.json', 'apps/cli/package.json']
+const LOCKSTEP_PACKAGES = [
+  'package.json',
+  'apps/web/package.json',
+  'apps/cli/package.json'
+]
 
-const git = cmd => execSync(`git ${cmd}`, { cwd: root, encoding: 'utf8' }).trim()
+const git = cmd =>
+  execSync(`git ${cmd}`, { cwd: root, encoding: 'utf8' }).trim()
 
 function parseSemver(v) {
-  const m = String(v).replace(/^v/, '').match(/^(\d+)\.(\d+)\.(\d+)$/)
+  const m = String(v)
+    .replace(/^v/, '')
+    .match(/^(\d+)\.(\d+)\.(\d+)$/)
   if (!m) return null
   return [Number(m[1]), Number(m[2]), Number(m[3])]
 }
@@ -52,7 +61,9 @@ function compareSemver(a, b) {
 
 // ── 1. Resolve base version (max of package.json and latest tag) ──────────
 
-const pkgVersion = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).version
+const pkgVersion = JSON.parse(
+  readFileSync(path.join(root, 'package.json'), 'utf8')
+).version
 
 const tags = git('tag -l "v*"')
   .split('\n')
@@ -120,9 +131,14 @@ if (lastTagName) {
 // ── 3. Report / apply ──────────────────────────────────────────────────────
 
 console.log(`Release: ${bump} bump → v${nextVersion}`)
-console.log(`Base: package.json ${pkgVersion}` + (lastTagName ? `, latest tag ${lastTagName}` : ''))
+console.log(
+  `Base: package.json ${pkgVersion}` +
+    (lastTagName ? `, latest tag ${lastTagName}` : '')
+)
 console.log(`Lockstep bumps: ${LOCKSTEP_PACKAGES.join(', ')}`)
-console.log(`Merged PRs since ${lastTagName ?? 'the beginning'}: ${prLines.length}`)
+console.log(
+  `Merged PRs since ${lastTagName ?? 'the beginning'}: ${prLines.length}`
+)
 
 if (dry) {
   console.log('\n--dry: no files written. Changelog preview:\n')
@@ -138,7 +154,12 @@ for (const rel of LOCKSTEP_PACKAGES) {
   console.log(`bumped ${rel}`)
 }
 
-const changelogPath = path.join(root, 'docs', 'changelogs', `v${nextVersion}.md`)
+const changelogPath = path.join(
+  root,
+  'docs',
+  'changelogs',
+  `v${nextVersion}.md`
+)
 if (!existsSync(changelogPath)) {
   const today = new Date().toISOString().slice(0, 10)
   writeFileSync(
@@ -165,5 +186,7 @@ ${prLines.join('\n') || '- (no merged PRs found since the last tag)'}
 
 // Machine-readable output for the workflow.
 if (process.env.GITHUB_OUTPUT) {
-  writeFileSync(process.env.GITHUB_OUTPUT, `version=${nextVersion}\n`, { flag: 'a' })
+  writeFileSync(process.env.GITHUB_OUTPUT, `version=${nextVersion}\n`, {
+    flag: 'a'
+  })
 }

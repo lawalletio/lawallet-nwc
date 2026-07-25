@@ -32,11 +32,11 @@ export const GET = withErrorHandling(
             title: true,
             kind: true,
             design: {
-              select: { id: true, imageUrl: true, description: true },
-            },
-          },
-        },
-      },
+              select: { id: true, imageUrl: true, description: true }
+            }
+          }
+        }
+      }
     })
     if (!token) throw new NotFoundError('Activation token not found')
 
@@ -48,8 +48,8 @@ export const GET = withErrorHandling(
         id: token.card.id,
         title: token.card.title ?? undefined,
         kind: token.card.kind,
-        design: token.card.design,
-      },
+        design: token.card.design
+      }
     })
-  },
+  }
 )

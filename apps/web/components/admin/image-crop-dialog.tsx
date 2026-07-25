@@ -5,7 +5,7 @@ import ReactCrop, {
   centerCrop,
   makeAspectCrop,
   type Crop,
-  type PixelCrop,
+  type PixelCrop
 } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
@@ -56,7 +56,7 @@ export function ImageCropDialog({
   kind,
   onCropped,
   title,
-  description,
+  description
 }: ImageCropDialogProps) {
   const [crop, setCrop] = useState<Crop | undefined>()
   const [completed, setCompleted] = useState<PixelCrop | undefined>()
@@ -80,7 +80,13 @@ export function ImageCropDialog({
   useEffect(() => {
     const canvas = previewCanvasRef.current
     const img = imgRef.current
-    if (!canvas || !img || !completed || completed.width === 0 || completed.height === 0) {
+    if (
+      !canvas ||
+      !img ||
+      !completed ||
+      completed.width === 0 ||
+      completed.height === 0
+    ) {
       return
     }
     const PREVIEW_W = kind === 'avatar' ? 120 : 240
@@ -102,7 +108,7 @@ export function ImageCropDialog({
       0,
       0,
       PREVIEW_W,
-      PREVIEW_H,
+      PREVIEW_H
     )
     setPreviewReady(true)
   }, [completed, aspect, kind])
@@ -113,16 +119,22 @@ export function ImageCropDialog({
     // the shorter dimension, so first-time users see the full intended
     // framing without dragging anything.
     const initial = centerCrop(
-      makeAspectCrop({ unit: '%', width: 90 }, aspect, naturalWidth, naturalHeight),
+      makeAspectCrop(
+        { unit: '%', width: 90 },
+        aspect,
+        naturalWidth,
+        naturalHeight
+      ),
       naturalWidth,
-      naturalHeight,
+      naturalHeight
     )
     setCrop(initial)
   }
 
   async function handleSave() {
     const img = imgRef.current
-    if (!img || !completed || completed.width === 0 || completed.height === 0) return
+    if (!img || !completed || completed.width === 0 || completed.height === 0)
+      return
     setBusy(true)
     try {
       const canvas = document.createElement('canvas')
@@ -147,11 +159,15 @@ export function ImageCropDialog({
         0,
         0,
         outputWidth,
-        outputHeight,
+        outputHeight
       )
 
       const blob: Blob = await new Promise((resolve, reject) => {
-        canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Canvas encode failed'))), 'image/jpeg', 0.9)
+        canvas.toBlob(
+          b => (b ? resolve(b) : reject(new Error('Canvas encode failed'))),
+          'image/jpeg',
+          0.9
+        )
       })
       onCropped(blob)
       onOpenChange(false)
@@ -204,13 +220,11 @@ export function ImageCropDialog({
               className={cn(
                 'border bg-background shadow-sm transition-all duration-300',
                 kind === 'avatar' ? 'rounded-full' : 'rounded-md',
-                previewReady
-                  ? 'scale-100 opacity-100'
-                  : 'scale-95 opacity-0',
+                previewReady ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
               )}
               style={{
                 width: kind === 'avatar' ? 56 : 120,
-                height: kind === 'avatar' ? 56 : 40,
+                height: kind === 'avatar' ? 56 : 40
               }}
             />
             <span className="ml-auto text-xs text-muted-foreground">

@@ -3,7 +3,14 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, ExternalLink, RefreshCw, Star, Wallet, Zap } from 'lucide-react'
+import {
+  ArrowLeft,
+  ExternalLink,
+  RefreshCw,
+  Star,
+  Wallet,
+  Zap
+} from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,7 +20,7 @@ import {
   useRemoteWallet,
   useLiveRemoteWalletBalance,
   useRemoteWalletConnectionString,
-  type RemoteWalletData,
+  type RemoteWalletData
 } from '@/lib/client/hooks/use-remote-wallets'
 import { useNwcTransactions } from '@/lib/client/hooks/use-nwc-transactions'
 import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
@@ -31,7 +38,7 @@ const STATUS_VARIANT: Record<
   ACTIVE: 'default',
   DISABLED: 'secondary',
   REVOKED: 'outline',
-  DEAD: 'destructive',
+  DEAD: 'destructive'
 }
 
 export default function RemoteWalletDetailPage() {
@@ -84,12 +91,17 @@ export default function RemoteWalletDetailPage() {
                   <Wallet className="size-5 shrink-0 text-amber-400" />
                   <span className="break-all">{wallet.name}</span>
                   {wallet.isDefault && (
-                    <Star className="size-4 shrink-0 fill-amber-400 text-amber-400" aria-label="Primary" />
+                    <Star
+                      className="size-4 shrink-0 fill-amber-400 text-amber-400"
+                      aria-label="Primary"
+                    />
                   )}
                 </h1>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline">{wallet.type}</Badge>
-                  <Badge variant={STATUS_VARIANT[wallet.status]}>{wallet.status}</Badge>
+                  <Badge variant={STATUS_VARIANT[wallet.status]}>
+                    {wallet.status}
+                  </Badge>
                   {isLncurl && (
                     <a
                       href={wallet.lncurlServerUrl ?? DEFAULT_LNCURL_SERVER}
@@ -117,8 +129,8 @@ export default function RemoteWalletDetailPage() {
 
             {!isActive && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
-                This wallet is {wallet.status.toLowerCase()} — its live balance and
-                activity aren’t available.
+                This wallet is {wallet.status.toLowerCase()} — its live balance
+                and activity aren’t available.
               </div>
             )}
 
@@ -173,7 +185,9 @@ export default function RemoteWalletDetailPage() {
                   disabled={txs.loading || !isActive}
                   aria-label="Refresh transactions"
                 >
-                  <RefreshCw className={cn('size-4', txs.loading && 'animate-spin')} />
+                  <RefreshCw
+                    className={cn('size-4', txs.loading && 'animate-spin')}
+                  />
                 </Button>
               </div>
               {isActive ? (
@@ -204,7 +218,7 @@ function BalanceHero({
   state,
   onPaid,
   receiving,
-  onReceivingChange,
+  onReceivingChange
 }: {
   wallet: RemoteWalletData
   animatedSats: number
@@ -218,7 +232,7 @@ function BalanceHero({
     connected: 'Connected',
     searching: 'Searching…',
     error: 'Unavailable',
-    disabled: 'Disabled',
+    disabled: 'Disabled'
   }[state]
 
   return (
@@ -235,7 +249,7 @@ function BalanceHero({
             state === 'connected' && 'bg-emerald-400',
             state === 'searching' && 'animate-pulse bg-amber-400',
             state === 'error' && 'bg-destructive',
-            state === 'disabled' && 'bg-muted-foreground',
+            state === 'disabled' && 'bg-muted-foreground'
           )}
         />
         {stateLabel}
@@ -249,7 +263,7 @@ function BalanceHero({
           <span
             className={cn(
               'text-4xl font-semibold leading-none transition-colors',
-              receiving && 'animate-pulse text-emerald-500',
+              receiving && 'animate-pulse text-emerald-500'
             )}
           >
             {hasBalance ? animatedSats.toLocaleString() : '—'}

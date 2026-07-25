@@ -37,7 +37,10 @@ export function usePasskeys() {
     status === 'authenticated' ? CREDENTIALS_PATH : null
   )
 
-  const rename = useMutation<{ label: string }, { credential: PasskeyCredentialSummary }>()
+  const rename = useMutation<
+    { label: string },
+    { credential: PasskeyCredentialSummary }
+  >()
   const del = useMutation<undefined, { message: string; id: string }>()
   const [adding, setAdding] = useState(false)
 

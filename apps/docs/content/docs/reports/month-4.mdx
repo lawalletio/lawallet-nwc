@@ -1,6 +1,6 @@
 ---
-title: "Report: Month 4"
-description: "OpenSats progress report for April 6 - May 7, 2026."
+title: 'Report: Month 4'
+description: 'OpenSats progress report for April 6 - May 7, 2026.'
 ---
 
 **Project:** LaWallet NWC<br />
@@ -35,41 +35,41 @@ This corresponds to the largest release window in the project's history. It incl
 
 All four public surfaces are now deployed and reachable:
 
-| Surface | URL | What it is |
-|---------|-----|------------|
-| Product Landing | [lawallet.io](https://lawallet.io) | Public marketing / waitlist site (separate `lawallet-landing` repo) |
-| Live Beta | [beta.lawallet.io](https://beta.lawallet.io) | The full LaWallet NWC application — admin, wallet, onboarding |
-| Main Documentation | [docs.lawallet.io](https://docs.lawallet.io) | Fumadocs site — architecture, guides, deploy, roadmap, reports |
-| API Playground | [beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs) | Live OpenAPI 3.1 reference, Scalar viewer with NIP-07 auth |
+| Surface            | URL                                                            | What it is                                                          |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Product Landing    | [lawallet.io](https://lawallet.io)                             | Public marketing / waitlist site (separate `lawallet-landing` repo) |
+| Live Beta          | [beta.lawallet.io](https://beta.lawallet.io)                   | The full LaWallet NWC application — admin, wallet, onboarding       |
+| Main Documentation | [docs.lawallet.io](https://docs.lawallet.io)                   | Fumadocs site — architecture, guides, deploy, roadmap, reports      |
+| API Playground     | [beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs) | Live OpenAPI 3.1 reference, Scalar viewer with NIP-07 auth          |
 
 ---
 
 ## Releases
 
-| Tag | Date | Notes |
-|-----|------|-------|
-| `v0.10.0` | 2026-04-30 | The biggest release since OpenSats funding. Monorepo, Admin Dashboard E2E, user Wallet, Activity Log, dynamic branding, schema rewrite. |
-| `v0.10.1` | (in progress) | Docs/OpenAPI/Vercel deploy fixes layered on top of `v0.10.0`. |
+| Tag       | Date          | Notes                                                                                                                                   |
+| --------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.10.0` | 2026-04-30    | The biggest release since OpenSats funding. Monorepo, Admin Dashboard E2E, user Wallet, Activity Log, dynamic branding, schema rewrite. |
+| `v0.10.1` | (in progress) | Docs/OpenAPI/Vercel deploy fixes layered on top of `v0.10.0`.                                                                           |
 
 ---
 
 ## Pull Requests Merged (13)
 
-| PR | Title | Date |
-|----|-------|------|
-| [#187](https://github.com/lawalletio/lawallet-nwc/pull/187) | refactor: migrate to pnpm + turborepo monorepo | 2026-04-13 |
+| PR                                                          | Title                                                                    | Date       |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------ | ---------- |
+| [#187](https://github.com/lawalletio/lawallet-nwc/pull/187) | refactor: migrate to pnpm + turborepo monorepo                           | 2026-04-13 |
 | [#188](https://github.com/lawalletio/lawallet-nwc/pull/188) | refactor: remove proxy app, add stub warnings for unimplemented packages | 2026-04-13 |
-| [#189](https://github.com/lawalletio/lawallet-nwc/pull/189) | chore: add 22 Claude Code agent skills | 2026-04-13 |
-| [#190](https://github.com/lawalletio/lawallet-nwc/pull/190) | feat: full Admin Dashboard E2E + Activity Log + LightningAddress 1→N | 2026-04-23 |
-| [#191](https://github.com/lawalletio/lawallet-nwc/pull/191) | feat: user-facing Wallet (onboarding, Send/Receive/Scan, offline cache) | 2026-04-29 |
-| [#192](https://github.com/lawalletio/lawallet-nwc/pull/192) | feat: full first-run onboarding flow with paid registration | 2026-04-30 |
-| [#193](https://github.com/lawalletio/lawallet-nwc/pull/193) | docs(lib): JSDoc on public lib/ surface for IDE tooltips | 2026-04-30 |
-| [#194](https://github.com/lawalletio/lawallet-nwc/pull/194) | docs: add CONTRIBUTING.md with backend setup, commands, and PR process | 2026-04-30 |
-| [#195](https://github.com/lawalletio/lawallet-nwc/pull/195) | docs(testing): rewrite TESTING.md as a practical contributor guide | 2026-04-30 |
-| [#196](https://github.com/lawalletio/lawallet-nwc/pull/196) | feat: live OpenAPI 3.1 reference with Scalar viewer + RBAC docs | 2026-05-05 |
-| [#197](https://github.com/lawalletio/lawallet-nwc/pull/197) | docs: rewire docs site to external API Playground | 2026-05-05 |
-| [#198](https://github.com/lawalletio/lawallet-nwc/pull/198) | fix(vercel): one-click deploy button (Neon integration + migrate) | 2026-05-05 |
-| [#199](https://github.com/lawalletio/lawallet-nwc/pull/199) | docs: overhaul docs site structure and content (v0.1.1) | 2026-05-07 |
+| [#189](https://github.com/lawalletio/lawallet-nwc/pull/189) | chore: add 22 Claude Code agent skills                                   | 2026-04-13 |
+| [#190](https://github.com/lawalletio/lawallet-nwc/pull/190) | feat: full Admin Dashboard E2E + Activity Log + LightningAddress 1→N     | 2026-04-23 |
+| [#191](https://github.com/lawalletio/lawallet-nwc/pull/191) | feat: user-facing Wallet (onboarding, Send/Receive/Scan, offline cache)  | 2026-04-29 |
+| [#192](https://github.com/lawalletio/lawallet-nwc/pull/192) | feat: full first-run onboarding flow with paid registration              | 2026-04-30 |
+| [#193](https://github.com/lawalletio/lawallet-nwc/pull/193) | docs(lib): JSDoc on public lib/ surface for IDE tooltips                 | 2026-04-30 |
+| [#194](https://github.com/lawalletio/lawallet-nwc/pull/194) | docs: add CONTRIBUTING.md with backend setup, commands, and PR process   | 2026-04-30 |
+| [#195](https://github.com/lawalletio/lawallet-nwc/pull/195) | docs(testing): rewrite TESTING.md as a practical contributor guide       | 2026-04-30 |
+| [#196](https://github.com/lawalletio/lawallet-nwc/pull/196) | feat: live OpenAPI 3.1 reference with Scalar viewer + RBAC docs          | 2026-05-05 |
+| [#197](https://github.com/lawalletio/lawallet-nwc/pull/197) | docs: rewire docs site to external API Playground                        | 2026-05-05 |
+| [#198](https://github.com/lawalletio/lawallet-nwc/pull/198) | fix(vercel): one-click deploy button (Neon integration + migrate)        | 2026-05-05 |
+| [#199](https://github.com/lawalletio/lawallet-nwc/pull/199) | docs: overhaul docs site structure and content (v0.1.1)                  | 2026-05-07 |
 
 ---
 
@@ -161,7 +161,7 @@ The address list is wallet-styled with a star icon for the primary, copy button,
 - [`4afe4f2`](https://github.com/lawalletio/lawallet-nwc/commit/4afe4f2) — feat(branding): Blossom logo uploads + global logo + admin-only settings
 - [`f2047c9`](https://github.com/lawalletio/lawallet-nwc/commit/f2047c9) — feat(ui): BrandLogotype component with skeleton + 6 consumer migrations
 - [`dd9a9f4`](https://github.com/lawalletio/lawallet-nwc/commit/dd9a9f4) — fix(brand): load community logotype on pre-auth surfaces, drop Image
-- [`8501047`](https://github.com/lawalletio/lawallet-nwc/commit/8501047) — fix(api/settings): expose social_* handles in the public subset
+- [`8501047`](https://github.com/lawalletio/lawallet-nwc/commit/8501047) — fix(api/settings): expose social\_\* handles in the public subset
 - [`95f0a58`](https://github.com/lawalletio/lawallet-nwc/commit/95f0a58) — fix(settings): endpoint field label, placeholder and trim
 - [`a01f3fd`](https://github.com/lawalletio/lawallet-nwc/commit/a01f3fd) — refactor: rename subdomain setting to endpoint, add public URL resolver
 
@@ -434,7 +434,7 @@ with three enums: `UserRole` (ADMIN / OPERATOR / VIEWER / USER), `InvoicePurpose
 
 ## Roadmap Impact
 
-The original roadmap positioned **Month 4** around *User Dashboard delivery, Courtesy NWC Proxy launch, and white-label customization*. During this period the project executed against that mandate and pulled additional work forward:
+The original roadmap positioned **Month 4** around _User Dashboard delivery, Courtesy NWC Proxy launch, and white-label customization_. During this period the project executed against that mandate and pulled additional work forward:
 
 **Completed this period:**
 

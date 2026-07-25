@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { inlineJsonResponse, publicErrorResponses, publicSecurity, withRole } from '../helpers'
+import {
+  inlineJsonResponse,
+  publicErrorResponses,
+  publicSecurity,
+  withRole
+} from '../helpers'
 import { registry } from '../registry'
 
 const TAG = 'Setup'
@@ -15,10 +20,10 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Setup status.',
-      z.object({ hasRoot: z.boolean() }),
+      z.object({ hasRoot: z.boolean() })
     ),
-    ...publicErrorResponses,
-  },
+    ...publicErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -32,10 +37,10 @@ registry.registerPath({
   responses: {
     200: {
       description: 'Plain-text verification token.',
-      content: { 'text/plain': { schema: z.string() } },
+      content: { 'text/plain': { schema: z.string() } }
     },
-    ...publicErrorResponses,
-  },
+    ...publicErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -49,10 +54,10 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Newly issued token.',
-      z.object({ token: z.string() }),
+      z.object({ token: z.string() })
     ),
-    ...publicErrorResponses,
-  },
+    ...publicErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -63,5 +68,5 @@ registry.registerPath({
   summary: 'CORS preflight for /api/setup/verify.',
   operationId: 'setup.verify.options',
   security: publicSecurity,
-  responses: { 204: { description: 'Preflight OK.' } },
+  responses: { 204: { description: 'Preflight OK.' } }
 })

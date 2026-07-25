@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { authenticate, authenticateWithPermission } from '@/lib/auth/unified-auth'
+import {
+  authenticate,
+  authenticateWithPermission
+} from '@/lib/auth/unified-auth'
 import { Permission } from '@/lib/auth/permissions'
 import { ValidationError, NotFoundError } from '@/types/server/errors'
 import { listRecords, putRecord } from '../_runtime/records'

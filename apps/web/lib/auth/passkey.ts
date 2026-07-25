@@ -134,7 +134,9 @@ export function serializeTransports(
 }
 
 /** Maps a stored credential row to SimpleWebAuthn's verification input. */
-export function toWebAuthnCredential(row: PasskeyCredential): WebAuthnCredential {
+export function toWebAuthnCredential(
+  row: PasskeyCredential
+): WebAuthnCredential {
   return {
     id: row.id,
     publicKey: new Uint8Array(row.publicKey),

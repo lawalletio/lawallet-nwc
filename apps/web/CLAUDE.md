@@ -20,8 +20,9 @@ Top-level dirs: `app/` (App Router), `lib/`, `components/`, `types/`,
 
 Resources: activation-tokens, activity, admin, auth, card-designs, cards, dev,
 events (SSE), health, invoices, jwt, lightning-addresses, lud16 (public LUD-16
-+ LUD-12/21), openapi.json, remote-connections, remote-wallets, settings,
-setup, users, wallet.
+
+- LUD-12/21), openapi.json, remote-connections, remote-wallets, settings,
+  setup, users, wallet.
 
 Every handler is wrapped in `withErrorHandling()` from
 `types/server/error-handler.ts` and validates input via

@@ -22,10 +22,8 @@ const linkCardVariants = cva(
 )
 
 export interface LinkCardProps
-  extends Omit<
-      React.AnchorHTMLAttributes<HTMLAnchorElement>,
-      'type' | 'title'
-    >,
+  extends
+    Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'type' | 'title'>,
     VariantProps<typeof linkCardVariants> {
   href: string
   title?: React.ReactNode
@@ -65,10 +63,7 @@ function LinkCardTitle({
   ...props
 }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
-    <span
-      className={cn('text-sm text-foreground', className)}
-      {...props}
-    />
+    <span className={cn('text-sm text-foreground', className)} {...props} />
   )
 }
 LinkCardTitle.displayName = 'LinkCardTitle'

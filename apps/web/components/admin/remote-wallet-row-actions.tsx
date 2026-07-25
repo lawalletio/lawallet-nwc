@@ -1,7 +1,14 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Ban, CircleCheck, MoreHorizontal, Pencil, Star, Trash2 } from 'lucide-react'
+import {
+  Ban,
+  CircleCheck,
+  MoreHorizontal,
+  Pencil,
+  Star,
+  Trash2
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,7 +18,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
@@ -21,7 +28,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import {
   Dialog,
@@ -29,12 +36,12 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Spinner } from '@/components/ui/spinner'
 import {
   useRemoteWalletMutations,
-  type RemoteWalletData,
+  type RemoteWalletData
 } from '@/lib/client/hooks/use-remote-wallets'
 import { ApiClientError } from '@/lib/client/api-client'
 
@@ -65,7 +72,10 @@ interface RemoteWalletRowActionsProps {
  *    primary-address wallet when they are implicit bindings
  *    (or unconfigured, if none).
  */
-export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowActionsProps) {
+export function RemoteWalletRowActions({
+  wallet,
+  onChanged
+}: RemoteWalletRowActionsProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState(wallet.name)
@@ -109,7 +119,11 @@ export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowAct
     const next = wallet.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
     try {
       await setStatus(wallet.id, next)
-      toast.success(next === 'DISABLED' ? `“${wallet.name}” disabled` : `“${wallet.name}” enabled`)
+      toast.success(
+        next === 'DISABLED'
+          ? `“${wallet.name}” disabled`
+          : `“${wallet.name}” enabled`
+      )
       onChanged?.()
     } catch (err) {
       toast.error(messageFor(err, 'Couldn’t update wallet'))
@@ -138,7 +152,11 @@ export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowAct
             aria-label={`Actions for ${wallet.name}`}
             disabled={loading}
           >
-            {loading ? <Spinner className="size-4" /> : <MoreHorizontal className="size-4" />}
+            {loading ? (
+              <Spinner className="size-4" />
+            ) : (
+              <MoreHorizontal className="size-4" />
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
@@ -206,7 +224,11 @@ export function RemoteWalletRowActions({ wallet, onChanged }: RemoteWalletRowAct
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRenameOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenameOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={!canRename} className="gap-2">

@@ -20,7 +20,7 @@ export function BindingChip({
   label,
   tone,
   onClick,
-  disabled,
+  disabled
 }: {
   label: string
   tone: BindingTone
@@ -44,7 +44,7 @@ export function BindingChip({
         tone === 'default' &&
           'border-border bg-secondary/60 text-secondary-foreground hover:bg-secondary/80',
         tone === 'none' &&
-          'border-dashed border-border bg-transparent text-muted-foreground hover:bg-muted/50',
+          'border-dashed border-border bg-transparent text-muted-foreground hover:bg-muted/50'
       )}
     >
       {tone === 'default' ? (
@@ -53,7 +53,7 @@ export function BindingChip({
         <Wallet
           className={cn(
             'size-3 shrink-0',
-            tone === 'bound' ? 'text-amber-400' : 'text-muted-foreground',
+            tone === 'bound' ? 'text-amber-400' : 'text-muted-foreground'
           )}
         />
       )}

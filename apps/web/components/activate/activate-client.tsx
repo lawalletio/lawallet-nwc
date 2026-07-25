@@ -33,7 +33,9 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
 
   const [claimState, setClaimState] = useState<ClaimState>('idle')
   const [claimError, setClaimError] = useState<string | null>(null)
-  const [claimedCard, setClaimedCard] = useState<ActivationPreview['card'] | null>(null)
+  const [claimedCard, setClaimedCard] = useState<
+    ActivationPreview['card'] | null
+  >(null)
   const [autoActivate, setAutoActivate] = useState(false)
 
   // Public preview — no auth required. Surfaces claimed/expired via `status`.
@@ -50,7 +52,9 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
       }
       setPreview(await res.json())
     } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : 'Could not load this card.')
+      setPreviewError(
+        err instanceof Error ? err.message : 'Could not load this card.'
+      )
     }
   }, [tokenId])
 
@@ -62,9 +66,12 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
     setClaimState('claiming')
     setClaimError(null)
     try {
-      const res = (await apiClient.post(`/api/activation-tokens/${tokenId}/claim`, {
-        remoteWalletId: null
-      })) as { card?: ActivationPreview['card'] }
+      const res = (await apiClient.post(
+        `/api/activation-tokens/${tokenId}/claim`,
+        {
+          remoteWalletId: null
+        }
+      )) as { card?: ActivationPreview['card'] }
       setClaimedCard(res?.card ?? null)
       setClaimState('success')
     } catch (err) {
@@ -84,7 +91,12 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
   // After an inline login completes, auto-fire the claim so the user flows
   // straight from "register" into the activation animation.
   useEffect(() => {
-    if (autoActivate && status === 'authenticated' && phase === 'ready' && claimState === 'idle') {
+    if (
+      autoActivate &&
+      status === 'authenticated' &&
+      phase === 'ready' &&
+      claimState === 'idle'
+    ) {
       setAutoActivate(false)
       claim()
     }
@@ -101,11 +113,18 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
           icon={<AlertCircle className="size-7 text-destructive" />}
           heading="Something went wrong"
           body={previewError ?? ''}
-          action={<Button variant="secondary" onClick={loadPreview}>Try again</Button>}
+          action={
+            <Button variant="secondary" onClick={loadPreview}>
+              Try again
+            </Button>
+          }
         />
       )}
       {phase === 'unavailable' && preview && (
-        <UnavailableView status={preview.status} onWallet={() => router.push('/wallet')} />
+        <UnavailableView
+          status={preview.status}
+          onWallet={() => router.push('/wallet')}
+        />
       )}
       {phase === 'unsupported' && (
         <StatusView
@@ -125,7 +144,9 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
                 Activate your card
               </p>
               {title && (
-                <h1 className="mt-1 text-xl font-semibold text-foreground">{title}</h1>
+                <h1 className="mt-1 text-xl font-semibold text-foreground">
+                  {title}
+                </h1>
               )}
             </header>
 
@@ -151,7 +172,9 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
                 {claimState === 'claiming' ? (
                   <div className="flex flex-col items-center gap-2 py-4 text-center">
                     <Spinner size={24} />
-                    <p className="text-sm text-muted-foreground">Activating your card…</p>
+                    <p className="text-sm text-muted-foreground">
+                      Activating your card…
+                    </p>
                   </div>
                 ) : status === 'loading' ? (
                   <div className="flex justify-center py-4">
@@ -168,7 +191,10 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
                       Activate
                     </Button>
                     {claimState === 'error' && (
-                      <ClaimError message={claimError} onWallet={() => router.push('/wallet')} />
+                      <ClaimError
+                        message={claimError}
+                        onWallet={() => router.push('/wallet')}
+                      />
                     )}
                   </div>
                 ) : (
@@ -188,15 +214,22 @@ function Shell({ children }: { children: React.ReactNode }) {
       {/* Ambient backdrop — driven by the community's configured theme color
           (--primary, set from settings by ThemeProvider) so the activate flow
           matches whatever brand the wallet uses, instead of a fixed teal. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
         <div
           className="animate-float absolute -left-24 -top-24 size-72 rounded-full blur-3xl"
-          style={{ background: 'radial-gradient(circle, hsl(var(--primary) / 0.18), transparent 70%)' }}
+          style={{
+            background:
+              'radial-gradient(circle, hsl(var(--primary) / 0.18), transparent 70%)'
+          }}
         />
         <div
           className="animate-float absolute -bottom-24 -right-16 size-72 rounded-full blur-3xl"
           style={{
-            background: 'radial-gradient(circle, hsl(var(--primary) / 0.12), transparent 70%)',
+            background:
+              'radial-gradient(circle, hsl(var(--primary) / 0.12), transparent 70%)',
             animationDelay: '2s'
           }}
         />
@@ -230,7 +263,9 @@ function StatusView({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-      <div className="grid size-14 place-items-center rounded-full bg-card">{icon}</div>
+      <div className="grid size-14 place-items-center rounded-full bg-card">
+        {icon}
+      </div>
       <h1 className="text-xl font-semibold text-foreground">{heading}</h1>
       <p className="max-w-xs text-sm text-muted-foreground">{body}</p>
       {action && <div className="pt-2">{action}</div>}
@@ -290,7 +325,9 @@ function ClaimError({
   const alreadyClaimed = !!message && /claim/i.test(message)
   return (
     <div className="space-y-2 text-center">
-      <p className="text-sm text-destructive">{message ?? 'Activation failed.'}</p>
+      <p className="text-sm text-destructive">
+        {message ?? 'Activation failed.'}
+      </p>
       {alreadyClaimed && (
         <Button variant="secondary" className="w-full" onClick={onWallet}>
           Open wallet

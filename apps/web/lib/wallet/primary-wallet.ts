@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import type {
   LightningAddressMode,
   Prisma,
-  RemoteWallet,
+  RemoteWallet
 } from '@/lib/generated/prisma'
 
 type PrismaLike = typeof prisma | Prisma.TransactionClient
@@ -18,14 +18,14 @@ type AddressWalletLink<TWallet> = {
  * Address. `isDefault` is only a synchronized display/compatibility flag.
  */
 export function derivePrimaryWalletId(
-  address: AddressWalletLink<unknown> | null | undefined,
+  address: AddressWalletLink<unknown> | null | undefined
 ): string | null {
   if (!address || address.mode !== 'CUSTOM_NWC') return null
   return address.remoteWalletId ?? null
 }
 
 export function derivePrimaryWallet<TWallet>(
-  address: AddressWalletLink<TWallet> | null | undefined,
+  address: AddressWalletLink<TWallet> | null | undefined
 ): TWallet | null {
   if (!derivePrimaryWalletId(address)) return null
   return address?.remoteWallet ?? null
@@ -33,22 +33,22 @@ export function derivePrimaryWallet<TWallet>(
 
 export async function getPrimaryRemoteWalletForUser(
   userId: string,
-  client: PrismaLike = prisma,
+  client: PrismaLike = prisma
 ): Promise<RemoteWallet | null> {
   const primaryAddress = await client.lightningAddress.findFirst({
     where: { userId, isPrimary: true },
-    include: { remoteWallet: true },
+    include: { remoteWallet: true }
   })
   return derivePrimaryWallet(primaryAddress)
 }
 
 export async function getPrimaryRemoteWalletIdForUser(
   userId: string,
-  client: PrismaLike = prisma,
+  client: PrismaLike = prisma
 ): Promise<string | null> {
   const primaryAddress = await client.lightningAddress.findFirst({
     where: { userId, isPrimary: true },
-    select: { mode: true, remoteWalletId: true },
+    select: { mode: true, remoteWalletId: true }
   })
   return derivePrimaryWalletId(primaryAddress)
 }
@@ -60,7 +60,7 @@ export async function getPrimaryRemoteWalletIdForUser(
  */
 export async function syncPrimaryRemoteWalletFlag(
   userId: string,
-  client: PrismaLike = prisma,
+  client: PrismaLike = prisma
 ): Promise<string | null> {
   const primaryWalletId = await getPrimaryRemoteWalletIdForUser(userId, client)
 
@@ -68,7 +68,7 @@ export async function syncPrimaryRemoteWalletFlag(
     where: primaryWalletId
       ? { userId, isDefault: true, id: { not: primaryWalletId } }
       : { userId, isDefault: true },
-    data: { isDefault: false },
+    data: { isDefault: false }
   })
 
   if (!primaryWalletId) return null
@@ -77,9 +77,9 @@ export async function syncPrimaryRemoteWalletFlag(
     where: {
       id: primaryWalletId,
       userId,
-      status: { notIn: ['REVOKED', 'DEAD'] },
+      status: { notIn: ['REVOKED', 'DEAD'] }
     },
-    data: { isDefault: true },
+    data: { isDefault: true }
   })
 
   return updated.count > 0 ? primaryWalletId : null
@@ -88,11 +88,11 @@ export async function syncPrimaryRemoteWalletFlag(
 export async function bindPrimaryAddressToWallet(
   userId: string,
   walletId: string,
-  client: PrismaLike = prisma,
+  client: PrismaLike = prisma
 ): Promise<string | null> {
   const primaryAddress = await client.lightningAddress.findFirst({
     where: { userId, isPrimary: true },
-    select: { username: true },
+    select: { username: true }
   })
   if (!primaryAddress) return null
 
@@ -101,8 +101,8 @@ export async function bindPrimaryAddressToWallet(
     data: {
       mode: 'CUSTOM_NWC',
       redirect: null,
-      remoteWalletId: walletId,
-    },
+      remoteWalletId: walletId
+    }
   })
   await syncPrimaryRemoteWalletFlag(userId, client)
   return primaryAddress.username
@@ -111,22 +111,22 @@ export async function bindPrimaryAddressToWallet(
 export async function clearPrimaryWalletLinkToWallet(
   userId: string,
   walletId: string,
-  client: PrismaLike = prisma,
+  client: PrismaLike = prisma
 ): Promise<void> {
   await client.lightningAddress.updateMany({
     where: { userId, isPrimary: true, remoteWalletId: walletId },
-    data: { mode: 'IDLE', redirect: null, remoteWalletId: null },
+    data: { mode: 'IDLE', redirect: null, remoteWalletId: null }
   })
   await syncPrimaryRemoteWalletFlag(userId, client)
 }
 
 export async function findInitialPrimaryWalletCandidate(
   userId: string,
-  client: PrismaLike = prisma,
+  client: PrismaLike = prisma
 ): Promise<Pick<RemoteWallet, 'id'> | null> {
   return client.remoteWallet.findFirst({
     where: { userId, status: 'ACTIVE' },
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-    select: { id: true },
+    select: { id: true }
   })
 }

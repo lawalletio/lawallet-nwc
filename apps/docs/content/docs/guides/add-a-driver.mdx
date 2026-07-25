@@ -12,12 +12,12 @@ Call sites never change — they look up drivers by type at runtime.
 
 Everything lives in `apps/web/lib/wallet/drivers/`:
 
-| File | Role |
-|------|------|
-| `types.ts` | `RemoteWalletDriver<TConfig>` interface — your contract |
-| `registry.ts` | Module-level registry: `registerDriver` / `getDriver` |
-| `index.ts` | Self-registration at import time |
-| `nwc-driver.ts` | The reference implementation to model yours on |
+| File            | Role                                                    |
+| --------------- | ------------------------------------------------------- |
+| `types.ts`      | `RemoteWalletDriver<TConfig>` interface — your contract |
+| `registry.ts`   | Module-level registry: `registerDriver` / `getDriver`   |
+| `index.ts`      | Self-registration at import time                        |
+| `nwc-driver.ts` | The reference implementation to model yours on          |
 
 ## 1. Implement the driver
 

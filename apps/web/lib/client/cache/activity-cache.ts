@@ -13,7 +13,7 @@ import {
   idbBulkPut,
   idbDeleteByIndexRange,
   idbReadIndexDesc,
-  openDb,
+  openDb
 } from './idb'
 import type { NwcTransaction } from '@/lib/client/nwc'
 
@@ -37,7 +37,7 @@ function toCachedTx(nwcKey: string, tx: NwcTransaction): CachedTx {
     ...tx,
     nwcKey,
     compositeKey: compositeKey(nwcKey, tx.paymentHash),
-    indexedAt: Date.now(),
+    indexedAt: Date.now()
   }
 }
 
@@ -61,19 +61,16 @@ function stripCacheFields(row: CachedTx): NwcTransaction {
  */
 export async function readRecent(
   nwcKey: string,
-  limit = 25,
+  limit = 25
 ): Promise<NwcTransaction[]> {
   if (!nwcKey) return []
   try {
-    const range = IDBKeyRange.bound(
-      [nwcKey, -Infinity],
-      [nwcKey, Infinity],
-    )
+    const range = IDBKeyRange.bound([nwcKey, -Infinity], [nwcKey, Infinity])
     const rows = await idbReadIndexDesc<CachedTx>(
       STORE_NWC_TX,
       INDEX_BY_NWC_AND_TIME,
       range,
-      limit,
+      limit
     )
     return rows.map(stripCacheFields)
   } catch {
@@ -93,7 +90,7 @@ export async function readRecent(
 export async function upsertMany(
   nwcKey: string,
   txs: NwcTransaction[],
-  keepCount = DEFAULT_KEEP,
+  keepCount = DEFAULT_KEEP
 ): Promise<void> {
   if (!nwcKey || txs.length === 0) return
   try {
@@ -111,19 +108,16 @@ export async function upsertMany(
  */
 export async function prune(
   nwcKey: string,
-  keepCount = DEFAULT_KEEP,
+  keepCount = DEFAULT_KEEP
 ): Promise<void> {
   if (!nwcKey || keepCount <= 0) return
   try {
-    const range = IDBKeyRange.bound(
-      [nwcKey, -Infinity],
-      [nwcKey, Infinity],
-    )
+    const range = IDBKeyRange.bound([nwcKey, -Infinity], [nwcKey, Infinity])
     const rows = await idbReadIndexDesc<CachedTx>(
       STORE_NWC_TX,
       INDEX_BY_NWC_AND_TIME,
       range,
-      Number.MAX_SAFE_INTEGER,
+      Number.MAX_SAFE_INTEGER
     )
     if (rows.length <= keepCount) return
     const overflow = rows.slice(keepCount)
@@ -152,10 +146,7 @@ export async function prune(
 export async function clearForKey(nwcKey: string): Promise<void> {
   if (!nwcKey) return
   try {
-    const range = IDBKeyRange.bound(
-      [nwcKey, -Infinity],
-      [nwcKey, Infinity],
-    )
+    const range = IDBKeyRange.bound([nwcKey, -Infinity], [nwcKey, Infinity])
     await idbDeleteByIndexRange(STORE_NWC_TX, INDEX_BY_NWC_AND_TIME, range)
   } catch {
     // ignore

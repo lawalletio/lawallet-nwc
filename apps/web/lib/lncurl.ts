@@ -93,7 +93,7 @@ function parseNwcUri(body: string): string | null {
  *         body with no parseable NWC URI.
  */
 export async function createLncurlWallet(
-  serverUrl: string = DEFAULT_LNCURL_SERVER,
+  serverUrl: string = DEFAULT_LNCURL_SERVER
 ): Promise<LncurlWallet> {
   // Strip the trailing slash so we always POST to the bare origin.
   const origin = serverUrl.replace(/\/+$/, '')
@@ -117,7 +117,9 @@ export async function createLncurlWallet(
 
   const connectionString = parseNwcUri(body)
   if (!connectionString) {
-    throw new Error('LNCurl response did not contain a nostr+walletconnect:// URI')
+    throw new Error(
+      'LNCurl response did not contain a nostr+walletconnect:// URI'
+    )
   }
 
   return { connectionString, mode: 'SEND_RECEIVE' }

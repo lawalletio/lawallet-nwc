@@ -3,7 +3,7 @@ import {
   commonErrorResponses,
   inlineJsonResponse,
   protectedSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 import { responses } from '../responses'
@@ -17,14 +17,14 @@ const walletAddressSchema = z
     mode: z.enum(['IDLE', 'ALIAS', 'CUSTOM_NWC', 'DEFAULT_NWC']),
     redirect: z.string().nullable().optional(),
     remoteWalletId: z.string().nullable().optional(),
-    isPrimary: z.boolean().optional(),
+    isPrimary: z.boolean().optional()
   })
   .passthrough()
   .openapi({ description: 'Per-user wallet lightning address record.' })
 
 const walletAliasProbeCheckSchema = z.object({
   ok: z.boolean(),
-  message: z.string(),
+  message: z.string()
 })
 
 const walletAliasProbeResultSchema = z.object({
@@ -33,8 +33,8 @@ const walletAliasProbeResultSchema = z.object({
   checks: z.object({
     lud16: walletAliasProbeCheckSchema,
     lud21: walletAliasProbeCheckSchema,
-    nip57: walletAliasProbeCheckSchema,
-  }),
+    nip57: walletAliasProbeCheckSchema
+  })
 })
 
 registry.registerPath({
@@ -46,9 +46,12 @@ registry.registerPath({
   operationId: 'wallet.addresses.list',
   security: protectedSecurity,
   responses: {
-    200: inlineJsonResponse('Addresses.', z.object({ data: z.array(walletAddressSchema) })),
-    ...commonErrorResponses,
-  },
+    200: inlineJsonResponse(
+      'Addresses.',
+      z.object({ data: z.array(walletAddressSchema) })
+    ),
+    ...commonErrorResponses
+  }
 })
 
 const walletCardSchema = z
@@ -58,13 +61,13 @@ const walletCardSchema = z
     pubkey: z.string().optional(),
     username: z.string().optional(),
     remoteWalletId: z.string().nullable().optional(),
-    kind: z.enum(['SIMPLE', 'MASTER']).optional(),
+    kind: z.enum(['SIMPLE', 'MASTER']).optional()
   })
   .passthrough()
   .openapi({
     description:
       'A card paired to the caller. Never includes NTAG424 keys (only the ' +
-      'public `cid`/`ctr` on `ntag424`).',
+      'public `cid`/`ctr` on `ntag424`).'
   })
 
 registry.registerPath({
@@ -84,8 +87,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('Cards.', z.array(walletCardSchema)),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -101,15 +104,17 @@ registry.registerPath({
   request: {
     params: schemas.IdParam,
     body: {
-      content: { 'application/json': { schema: schemas.WalletCardUpdateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.WalletCardUpdateRequest }
+      }
+    }
   },
   responses: {
     200: inlineJsonResponse('Card updated.', walletCardSchema),
     ...commonErrorResponses,
     404: responses.notFound,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })
 
 registry.registerPath({
@@ -122,14 +127,16 @@ registry.registerPath({
   security: protectedSecurity,
   request: {
     body: {
-      content: { 'application/json': { schema: schemas.WalletAddressCreateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.WalletAddressCreateRequest }
+      }
+    }
   },
   responses: {
     201: inlineJsonResponse('Address created.', walletAddressSchema),
     ...commonErrorResponses,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })
 
 registry.registerPath({
@@ -144,13 +151,18 @@ registry.registerPath({
   security: protectedSecurity,
   request: {
     body: {
-      content: { 'application/json': { schema: schemas.WalletAliasProbeRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.WalletAliasProbeRequest }
+      }
+    }
   },
   responses: {
-    200: inlineJsonResponse('Alias capabilities.', walletAliasProbeResultSchema),
-    ...commonErrorResponses,
-  },
+    200: inlineJsonResponse(
+      'Alias capabilities.',
+      walletAliasProbeResultSchema
+    ),
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -165,8 +177,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('Address.', walletAddressSchema),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -180,14 +192,16 @@ registry.registerPath({
   request: {
     params: schemas.WalletAddressUsernameParam,
     body: {
-      content: { 'application/json': { schema: schemas.WalletAddressUpdateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.WalletAddressUpdateRequest }
+      }
+    }
   },
   responses: {
     200: inlineJsonResponse('Address updated.', walletAddressSchema),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -202,11 +216,11 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Address deleted.',
-      z.object({ success: z.literal(true), username: z.string() }),
+      z.object({ success: z.literal(true), username: z.string() })
     ),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -219,10 +233,13 @@ registry.registerPath({
   security: protectedSecurity,
   request: { params: schemas.WalletAddressUsernameParam },
   responses: {
-    200: inlineJsonResponse('Primary set.', z.object({ success: z.literal(true) })),
+    200: inlineJsonResponse(
+      'Primary set.',
+      z.object({ success: z.literal(true) })
+    ),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -237,9 +254,9 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Invoices.',
-      z.object({ data: z.array(z.object({}).passthrough()) }),
+      z.object({ data: z.array(z.object({}).passthrough()) })
     ),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })

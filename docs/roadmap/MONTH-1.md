@@ -72,12 +72,12 @@ Month 1 significantly exceeded the original plan. While scoped for testing setup
 
 ## Deferred Items
 
-| Item | Reason | Moved To |
-|------|--------|----------|
-| GitHub Actions CI/CD | Prioritized infrastructure | Month 2 |
-| Hook unit tests | Focus was on lib + integration | Month 2 |
-| Coverage targets (50%) | Thresholds lowered, coverage incremental | Ongoing |
-| Prisma isolated test DB | Mocking approach chosen instead | Dropped |
+| Item                    | Reason                                   | Moved To |
+| ----------------------- | ---------------------------------------- | -------- |
+| GitHub Actions CI/CD    | Prioritized infrastructure               | Month 2  |
+| Hook unit tests         | Focus was on lib + integration           | Month 2  |
+| Coverage targets (50%)  | Thresholds lowered, coverage incremental | Ongoing  |
+| Prisma isolated test DB | Mocking approach chosen instead          | Dropped  |
 
 ---
 

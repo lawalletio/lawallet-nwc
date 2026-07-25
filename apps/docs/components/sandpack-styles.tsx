@@ -1,7 +1,7 @@
-"use client";
+'use client'
 
-import { getSandpackCssText } from "@codesandbox/sandpack-react";
-import { useServerInsertedHTML } from "next/navigation";
+import { getSandpackCssText } from '@codesandbox/sandpack-react'
+import { useServerInsertedHTML } from 'next/navigation'
 
 export function SandPackCSS() {
   useServerInsertedHTML(() => (
@@ -9,6 +9,6 @@ export function SandPackCSS() {
       dangerouslySetInnerHTML={{ __html: getSandpackCssText() }}
       id="sandpack"
     />
-  ));
-  return null;
+  ))
+  return null
 }

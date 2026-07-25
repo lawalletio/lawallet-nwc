@@ -3,14 +3,14 @@ import { ValidationError } from '@/types/server/errors'
 import { Permission, Role } from '@/lib/auth/permissions'
 
 vi.mock('@/lib/jwt', () => ({
-  createJwtToken: vi.fn(() => 'signed.jwt.token'),
+  createJwtToken: vi.fn(() => 'signed.jwt.token')
 }))
 
 import {
   parseDurationSeconds,
   normalizeDeviceTokenExpiry,
   mintDeviceToken,
-  MIN_DEVICE_TOKEN_SECONDS,
+  MIN_DEVICE_TOKEN_SECONDS
 } from '@/lib/auth/device-token'
 import { createJwtToken } from '@/lib/jwt'
 
@@ -54,13 +54,13 @@ describe('normalizeDeviceTokenExpiry', () => {
 
   it('rejects durations below the minimum', () => {
     expect(() =>
-      normalizeDeviceTokenExpiry(String(MIN_DEVICE_TOKEN_SECONDS - 1)),
+      normalizeDeviceTokenExpiry(String(MIN_DEVICE_TOKEN_SECONDS - 1))
     ).toThrow(/too short/i)
   })
 
   it('accepts the minimum and imposes no upper bound', () => {
     expect(normalizeDeviceTokenExpiry(String(MIN_DEVICE_TOKEN_SECONDS))).toBe(
-      MIN_DEVICE_TOKEN_SECONDS,
+      MIN_DEVICE_TOKEN_SECONDS
     )
     // Long lifetimes that used to be rejected now pass — there is no maximum.
     expect(normalizeDeviceTokenExpiry('30d')).toBe('30d')
@@ -78,7 +78,7 @@ describe('mintDeviceToken', () => {
       scopes: [Permission.CARDS_READ, Permission.CARDS_WRITE],
       expiresIn: '8h',
       apiUrl: 'https://app.example.com',
-      secret: 'shhh',
+      secret: 'shhh'
     })
 
     expect(token).toBe('signed.jwt.token')
@@ -93,14 +93,14 @@ describe('mintDeviceToken', () => {
         sub: 'user_123',
         kind: 'device',
         // scopes the token to the issuing instance
-        apiUrl: 'https://app.example.com',
+        apiUrl: 'https://app.example.com'
       }),
       'shhh',
       expect.objectContaining({
         expiresIn: '8h',
         issuer: 'lawallet-nwc',
-        audience: 'lawallet-users',
-      }),
+        audience: 'lawallet-users'
+      })
     )
   })
 })

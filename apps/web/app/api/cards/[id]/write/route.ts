@@ -12,7 +12,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthorizationError,
   NotFoundError,
-  ValidationError,
+  ValidationError
 } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { idParam } from '@/lib/validation/schemas'

@@ -35,13 +35,13 @@ export function isCardFresh(card: {
  * previous QR). Callers MUST verify {@link isCardFresh} first.
  */
 export async function mintWriteToken(
-  cardId: string,
+  cardId: string
 ): Promise<{ token: string; expiresAt: Date }> {
   const token = randomBytes(32).toString('hex')
   const expiresAt = new Date(Date.now() + WRITE_TOKEN_TTL_MS)
   await prisma.card.update({
     where: { id: cardId },
-    data: { writeToken: token, writeTokenExpiresAt: expiresAt },
+    data: { writeToken: token, writeTokenExpiresAt: expiresAt }
   })
   return { token, expiresAt }
 }
@@ -60,11 +60,14 @@ export function isWriteTokenValid(
     blockedAt: Date | null
     ntag424: { ctr: number } | null
   },
-  presented: string | null | undefined,
+  presented: string | null | undefined
 ): boolean {
   if (!presented || !card.writeToken) return false
   if (presented !== card.writeToken) return false
-  if (card.writeTokenExpiresAt && card.writeTokenExpiresAt.getTime() < Date.now()) {
+  if (
+    card.writeTokenExpiresAt &&
+    card.writeTokenExpiresAt.getTime() < Date.now()
+  ) {
     return false
   }
   return isCardFresh(card)

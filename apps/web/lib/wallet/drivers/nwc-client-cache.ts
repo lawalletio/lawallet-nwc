@@ -19,7 +19,9 @@ function loadSdk(): Promise<SdkModule> {
  *
  * Tests can `vi.mock('@getalby/sdk', …)` to swap the underlying class.
  */
-export async function getServerNwcClient(connectionString: string): Promise<NWCClientT> {
+export async function getServerNwcClient(
+  connectionString: string
+): Promise<NWCClientT> {
   const cached = clients.get(connectionString)
   if (cached) return cached
 

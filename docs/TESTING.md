@@ -43,14 +43,14 @@ All scripts are defined in [apps/web/package.json](../apps/web/package.json). Te
 
 ## Testing Stack
 
-| Tool | Role |
-|------|------|
-| [Vitest 3.2](https://vitest.dev) | Test runner, assertion library, watch mode, UI, coverage |
-| [happy-dom](https://github.com/capricorn86/happy-dom) | Lightweight DOM for hook/component tests |
-| [MSW](https://mswjs.io) | HTTP mocking for outbound calls (Alby, third-party) |
-| [@faker-js/faker](https://fakerjs.dev) | Random fixture data |
-| [@testing-library/jest-dom](https://github.com/testing-library/jest-dom) | DOM matchers (`toBeInTheDocument`, etc.) |
-| [fake-indexeddb](https://github.com/dumbmatter/fakeIndexedDB) | IndexedDB polyfill for client-side cache modules |
+| Tool                                                                     | Role                                                     |
+| ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| [Vitest 3.2](https://vitest.dev)                                         | Test runner, assertion library, watch mode, UI, coverage |
+| [happy-dom](https://github.com/capricorn86/happy-dom)                    | Lightweight DOM for hook/component tests                 |
+| [MSW](https://mswjs.io)                                                  | HTTP mocking for outbound calls (Alby, third-party)      |
+| [@faker-js/faker](https://fakerjs.dev)                                   | Random fixture data                                      |
+| [@testing-library/jest-dom](https://github.com/testing-library/jest-dom) | DOM matchers (`toBeInTheDocument`, etc.)                 |
+| [fake-indexeddb](https://github.com/dumbmatter/fakeIndexedDB)            | IndexedDB polyfill for client-side cache modules         |
 
 Configuration lives in [apps/web/vitest.config.ts](../apps/web/vitest.config.ts). Key settings:
 
@@ -63,15 +63,15 @@ Configuration lives in [apps/web/vitest.config.ts](../apps/web/vitest.config.ts)
 
 ## Testing Pyramid
 
-| Layer | Tool | Scope | Target |
-|-------|------|-------|--------|
-| Unit | Vitest | Hooks, utilities, lib functions | 80% |
-| Component | Vitest + RTL + happy-dom | UI components | 70% |
-| API | Vitest + MSW + Prisma mock | Route handlers, middleware, auth | 90% |
-| Integration | Vitest + Prisma mock | DB-touching flows, auth chains | 70% |
-| E2E | Playwright (`apps/web/e2e/` — see [TESTING-E2E.md](./TESTING-E2E.md)) | Real server + DB + auth, multi-browser opt-in | Critical paths |
-| Bench | Vitest bench (`apps/web/bench/` — see [BENCHMARK.md](./BENCHMARK.md)) | CPU-bound hot paths | Observational |
-| Overall | v8 coverage | Whole codebase | 60% statements / 75% branches / 70% functions / 60% lines |
+| Layer       | Tool                                                                  | Scope                                         | Target                                                    |
+| ----------- | --------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------- |
+| Unit        | Vitest                                                                | Hooks, utilities, lib functions               | 80%                                                       |
+| Component   | Vitest + RTL + happy-dom                                              | UI components                                 | 70%                                                       |
+| API         | Vitest + MSW + Prisma mock                                            | Route handlers, middleware, auth              | 90%                                                       |
+| Integration | Vitest + Prisma mock                                                  | DB-touching flows, auth chains                | 70%                                                       |
+| E2E         | Playwright (`apps/web/e2e/` — see [TESTING-E2E.md](./TESTING-E2E.md)) | Real server + DB + auth, multi-browser opt-in | Critical paths                                            |
+| Bench       | Vitest bench (`apps/web/bench/` — see [BENCHMARK.md](./BENCHMARK.md)) | CPU-bound hot paths                           | Observational                                             |
+| Overall     | v8 coverage                                                           | Whole codebase                                | 60% statements / 75% branches / 70% functions / 60% lines |
 
 The pyramid widens at the bottom — **most coverage should come from fast unit and API tests**. Reserve heavier integration tests for flows that genuinely cross module boundaries (auth chain, payment routing, NWC).
 
@@ -182,17 +182,19 @@ import { AuthorizationError } from '@/types/server/errors'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
-vi.mock('@/lib/middleware/request-limits', () => ({ checkRequestLimits: vi.fn() }))
+vi.mock('@/lib/middleware/request-limits', () => ({
+  checkRequestLimits: vi.fn()
+}))
 vi.mock('@/lib/auth/unified-auth', () => ({ authenticateWithRole: vi.fn() }))
 
 // 2. Import AFTER mocks are in place
@@ -211,7 +213,7 @@ describe('GET /api/cards', () => {
     vi.mocked(authenticateWithRole).mockResolvedValue({
       pubkey: ADMIN_PUBKEY,
       role: 'ADMIN' as any,
-      method: 'nip98',
+      method: 'nip98'
     })
     const card = createCardFixture()
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([card] as any)
@@ -231,7 +233,7 @@ describe('GET /api/cards', () => {
 })
 ```
 
-**Order matters:** every `vi.mock()` must run *before* the route module is imported, because Next.js route handlers wire up middleware at module load. Get this wrong and your mocks silently no-op.
+**Order matters:** every `vi.mock()` must run _before_ the route module is imported, because Next.js route handlers wire up middleware at module load. Get this wrong and your mocks silently no-op.
 
 For dynamic routes like `/api/cards/[id]`, wrap params with `createParamsPromise` from [route-helpers.ts](../apps/web/tests/helpers/route-helpers.ts):
 
@@ -255,7 +257,9 @@ vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 Inside [`prisma-mock.ts`](../apps/web/tests/helpers/prisma-mock.ts) — so route tests get the mock for free. Override return values per test:
 
 ```ts
-vi.mocked(prismaMock.user.findUnique).mockResolvedValue(createUserFixture({ role: 'ADMIN' }))
+vi.mocked(prismaMock.user.findUnique).mockResolvedValue(
+  createUserFixture({ role: 'ADMIN' })
+)
 vi.mocked(prismaMock.card.create).mockRejectedValue(new Error('db down'))
 ```
 
@@ -304,7 +308,7 @@ For typical tests, use [`createDefaultConfig()`](../apps/web/tests/helpers/route
 ```ts
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 ```
 
@@ -322,7 +326,7 @@ For route handlers that go through the unified auth chain, mock `authenticateWit
 vi.mocked(authenticateWithRole).mockResolvedValue({
   pubkey: 'a'.repeat(64),
   role: 'ADMIN' as any,
-  method: 'nip98',
+  method: 'nip98'
 })
 ```
 
@@ -339,27 +343,27 @@ const admin = createAdminUserFixture({ pubkey: 'a'.repeat(64) })
 
 ## Helpers Reference
 
-| Helper | File | Purpose |
-|--------|------|---------|
-| `createNextRequest(url, opts)` | `api-helpers.ts` | Build a `NextRequest` for route tests |
-| `assertResponse(res, status)` | `api-helpers.ts` | Assert status + parse JSON, throws on mismatch |
-| `getResponseJson(res)` | `api-helpers.ts` | Parse JSON without status assertion |
-| `prismaMock` | `prisma-mock.ts` | Deep PrismaClient mock |
-| `resetPrismaMock()` | `prisma-mock.ts` | Reset mock state in `beforeEach` |
-| `createParamsPromise(params)` | `route-helpers.ts` | Wrap dynamic route params (App Router style) |
-| `createDefaultConfig(overrides)` | `route-helpers.ts` | Sane `AppConfig` for tests |
-| `mockNip98(pubkey?)` | `auth-helpers.ts` | Stub NIP-98 validation |
-| `mockAdminAuth(pubkey?)` | `auth-helpers.ts` | Stub admin auth |
-| `createJwtPayload(overrides)` | `auth-helpers.ts` | Build a JWT payload object |
-| `createMockRequest(url, opts)` | `auth-helpers.ts` | Plain `Request` (not Next-specific) |
-| `createJsonRequest(url, body)` | `auth-helpers.ts` | `Request` with JSON body |
-| `createUserFixture(overrides)` | `fixtures.ts` | Faker User |
-| `createAdminUserFixture(overrides)` | `fixtures.ts` | Faker User with `role: 'ADMIN'` |
-| `createCardFixture(overrides)` | `fixtures.ts` | Faker Card |
-| `createCardDesignFixture(overrides)` | `fixtures.ts` | Faker CardDesign |
-| `createLightningAddressFixture(overrides)` | `fixtures.ts` | Faker LightningAddress |
-| `createSettingsFixture(overrides)` | `fixtures.ts` | Faker Settings KV |
-| `createNtag424Fixture(overrides)` | `fixtures.ts` | Faker NTAG424 |
+| Helper                                     | File               | Purpose                                        |
+| ------------------------------------------ | ------------------ | ---------------------------------------------- |
+| `createNextRequest(url, opts)`             | `api-helpers.ts`   | Build a `NextRequest` for route tests          |
+| `assertResponse(res, status)`              | `api-helpers.ts`   | Assert status + parse JSON, throws on mismatch |
+| `getResponseJson(res)`                     | `api-helpers.ts`   | Parse JSON without status assertion            |
+| `prismaMock`                               | `prisma-mock.ts`   | Deep PrismaClient mock                         |
+| `resetPrismaMock()`                        | `prisma-mock.ts`   | Reset mock state in `beforeEach`               |
+| `createParamsPromise(params)`              | `route-helpers.ts` | Wrap dynamic route params (App Router style)   |
+| `createDefaultConfig(overrides)`           | `route-helpers.ts` | Sane `AppConfig` for tests                     |
+| `mockNip98(pubkey?)`                       | `auth-helpers.ts`  | Stub NIP-98 validation                         |
+| `mockAdminAuth(pubkey?)`                   | `auth-helpers.ts`  | Stub admin auth                                |
+| `createJwtPayload(overrides)`              | `auth-helpers.ts`  | Build a JWT payload object                     |
+| `createMockRequest(url, opts)`             | `auth-helpers.ts`  | Plain `Request` (not Next-specific)            |
+| `createJsonRequest(url, body)`             | `auth-helpers.ts`  | `Request` with JSON body                       |
+| `createUserFixture(overrides)`             | `fixtures.ts`      | Faker User                                     |
+| `createAdminUserFixture(overrides)`        | `fixtures.ts`      | Faker User with `role: 'ADMIN'`                |
+| `createCardFixture(overrides)`             | `fixtures.ts`      | Faker Card                                     |
+| `createCardDesignFixture(overrides)`       | `fixtures.ts`      | Faker CardDesign                               |
+| `createLightningAddressFixture(overrides)` | `fixtures.ts`      | Faker LightningAddress                         |
+| `createSettingsFixture(overrides)`         | `fixtures.ts`      | Faker Settings KV                              |
+| `createNtag424Fixture(overrides)`          | `fixtures.ts`      | Faker NTAG424                                  |
 
 ---
 
@@ -367,12 +371,12 @@ const admin = createAdminUserFixture({ pubkey: 'a'.repeat(64) })
 
 The Vitest config enforces global thresholds:
 
-| Metric | Threshold |
-|--------|-----------|
-| Statements | 60% |
-| Branches | 75% |
-| Functions | 70% |
-| Lines | 60% |
+| Metric     | Threshold |
+| ---------- | --------- |
+| Statements | 60%       |
+| Branches   | 75%       |
+| Functions  | 70%       |
+| Lines      | 60%       |
 
 Coverage is computed over `app/api/**`, `lib/**`, and `hooks/**`. The following are excluded by design: `tests/`, `mocks/`, `**/*.config.*`, `**/types/**`, `prisma/`, and `lib/client/**` (the latter is browser code that requires a real DOM and component-level testing — covered separately as the component test suite grows).
 
@@ -384,8 +388,8 @@ The numbers above are a floor, not a target. New API routes and lib utilities sh
 
 ## Best Practices
 
-1. **Test behavior, not implementation.** Assert what callers observe (return value, response body, side effect on the mock). Do not assert internal call counts unless the side effect *is* the contract.
-2. **One assertion concept per `it`.** Multiple `expect()` lines are fine when they describe one outcome ("response is 200 *and* body has shape X"); avoid unrelated assertions in one case.
+1. **Test behavior, not implementation.** Assert what callers observe (return value, response body, side effect on the mock). Do not assert internal call counts unless the side effect _is_ the contract.
+2. **One assertion concept per `it`.** Multiple `expect()` lines are fine when they describe one outcome ("response is 200 _and_ body has shape X"); avoid unrelated assertions in one case.
 3. **Name tests as sentences.** `it('returns 404 when card is missing')` is better than `it('not found')`.
 4. **Always mock at the boundary.** Mock `@/lib/prisma`, `@/lib/config`, `@/lib/logger`, third-party SDKs. Do not mock the module under test — that produces tautological tests.
 5. **Use fixtures over literal objects.** Fixtures fill in irrelevant fields with random data, which catches accidental coupling and forces tests to declare what they actually care about.
@@ -400,7 +404,7 @@ The numbers above are a floor, not a target. New API routes and lib utilities sh
 
 ## Common Pitfalls
 
-**Mocks declared after the import.** `vi.mock()` is hoisted by Vitest, but only when called at the *top* of a file. Mixing `vi.mock` with imports that depend on it in unexpected order produces silent test failures where the real module loads instead of the mock. Rule of thumb: mocks first, imports second, never the reverse.
+**Mocks declared after the import.** `vi.mock()` is hoisted by Vitest, but only when called at the _top_ of a file. Mixing `vi.mock` with imports that depend on it in unexpected order produces silent test failures where the real module loads instead of the mock. Rule of thumb: mocks first, imports second, never the reverse.
 
 **Logger imports at module load.** `lib/logger.ts` calls `getConfig()` synchronously. If a route test doesn't mock the logger, importing the route handler also resolves config — and the test crashes if `JWT_SECRET` is unset in the test env. Mock the logger every time.
 
@@ -435,12 +439,12 @@ If any of these fail, fix the cause — never disable the check.
 
 ## Roadmap
 
-| Month | Addition |
-|-------|----------|
-| 3 | Playwright multi-browser smoke, visual regression baseline, admin dashboard E2E |
-| 4 | User dashboard E2E, NWC redirect flows, visual regression updates |
-| 5 | Lightning compliance flows, webhook delivery, redirect resolution |
-| 6 | Deployment smoke tests, full regression across all three services |
+| Month | Addition                                                                        |
+| ----- | ------------------------------------------------------------------------------- |
+| 3     | Playwright multi-browser smoke, visual regression baseline, admin dashboard E2E |
+| 4     | User dashboard E2E, NWC redirect flows, visual regression updates               |
+| 5     | Lightning compliance flows, webhook delivery, redirect resolution               |
+| 6     | Deployment smoke tests, full regression across all three services               |
 
 See [docs/ROADMAP.md](ROADMAP.md) for the broader plan.
 

@@ -11,7 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   QrCode,
-  Sparkles,
+  Sparkles
 } from 'lucide-react'
 import { useApi } from '@/lib/client/hooks/use-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
@@ -21,7 +21,7 @@ import { listTransactions, type NwcTransaction } from '@/lib/client/nwc'
 import { nwcCacheKey } from '@/lib/client/cache/key'
 import {
   readRecent as readRecentTxs,
-  upsertMany as upsertTxs,
+  upsertMany as upsertTxs
 } from '@/lib/client/cache/activity-cache'
 import { useAuth } from '@/components/admin/auth-context'
 import { useBrandLogotypes } from '@/lib/client/hooks/use-brand'
@@ -30,11 +30,11 @@ import { useFirstLoadProgress } from '@/components/pwa/first-load-progress'
 import {
   convertSats,
   useYadioRates,
-  type BtcRates,
+  type BtcRates
 } from '@/lib/client/use-yadio-ticker'
 import {
   useActiveCurrencies,
-  type Currency as CurrencyDef,
+  type Currency as CurrencyDef
 } from '@/lib/client/currencies-store'
 import { Button } from '@/components/ui/button'
 import {
@@ -42,7 +42,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -61,14 +61,14 @@ interface UserMeResponse {
   primaryUsername: string | null
 }
 
-
 export function HomeScreen() {
   const { logout, pubkey } = useAuth()
   const { isotypo, logotype } = useBrandLogotypes()
   const { profile } = useNostrProfile(pubkey)
   const { rates } = useYadioRates()
   const activeCurrencies = useActiveCurrencies()
-  const { data: me, loading: meLoading } = useApi<UserMeResponse>('/api/users/me')
+  const { data: me, loading: meLoading } =
+    useApi<UserMeResponse>('/api/users/me')
   // The wallet app is anchored to the primary RemoteWallet. The API also
   // reports the primary address's route for display/diagnostics, but
   // send/receive/balance/activity should spend from the primary wallet.
@@ -77,16 +77,12 @@ export function HomeScreen() {
   // refetch without spinning up its own relay subscription. `useNwcBalance`
   // already maintains one — piggyback on that.
   const [txTick, setTxTick] = useState(0)
-  const {
-    sats,
-    error,
-    loading,
-    fromCache,
-    status,
-    refetch,
-  } = useNwcBalance(effectiveNwc, {
-    onTransaction: () => setTxTick(t => t + 1),
-  })
+  const { sats, error, loading, fromCache, status, refetch } = useNwcBalance(
+    effectiveNwc,
+    {
+      onTransaction: () => setTxTick(t => t + 1)
+    }
+  )
 
   const { data: settings } = useSettings()
 
@@ -117,13 +113,13 @@ export function HomeScreen() {
   const pulseBalance = loading && fromCache && sats !== null
 
   const [currencyCode, setCurrencyCode] = useState<string>(
-    () => activeCurrencies[0]?.code ?? 'SAT',
+    () => activeCurrencies[0]?.code ?? 'SAT'
   )
   const [balanceHidden, setBalanceHidden] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
-  const [pendingAction, setPendingAction] = useState<
-    'receive' | 'send' | null
-  >(null)
+  const [pendingAction, setPendingAction] = useState<'receive' | 'send' | null>(
+    null
+  )
 
   const avatarSrc = profile?.picture || isotypo
 
@@ -141,7 +137,7 @@ export function HomeScreen() {
 
   function handleActionClick(
     action: 'receive' | 'send',
-    event: MouseEvent<HTMLAnchorElement>,
+    event: MouseEvent<HTMLAnchorElement>
   ) {
     if (
       event.defaultPrevented ||
@@ -163,7 +159,11 @@ export function HomeScreen() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={pubkey ? `Account · ${pubkey.slice(0, 8)}…${pubkey.slice(-4)}` : 'Account'}
+              aria-label={
+                pubkey
+                  ? `Account · ${pubkey.slice(0, 8)}…${pubkey.slice(-4)}`
+                  : 'Account'
+              }
               className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-card transition-colors hover:opacity-90"
             >
               <Image
@@ -172,7 +172,7 @@ export function HomeScreen() {
                 fill
                 sizes="44px"
                 className={cn(
-                  profile?.picture ? 'object-cover' : 'object-contain p-1.5',
+                  profile?.picture ? 'object-cover' : 'object-contain p-1.5'
                 )}
                 unoptimized
               />
@@ -215,7 +215,11 @@ export function HomeScreen() {
           aria-pressed={balanceHidden}
           className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-card text-foreground transition-colors hover:bg-accent"
         >
-          {balanceHidden ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+          {balanceHidden ? (
+            <EyeOff className="size-5" />
+          ) : (
+            <Eye className="size-5" />
+          )}
         </button>
       </header>
 
@@ -305,9 +309,7 @@ export function HomeScreen() {
             className="mx-4 mt-4 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent/40"
           >
             <div className="flex min-w-0 flex-1 flex-col">
-              <span className="text-xs text-muted-foreground">
-                Address
-              </span>
+              <span className="text-xs text-muted-foreground">Address</span>
               <span className="truncate text-base font-semibold text-foreground">
                 {me.lightningAddress}
               </span>
@@ -341,8 +343,9 @@ export function HomeScreen() {
         </Link>
       )}
 
-      {!hasNwc && !meLoading && (
-        autoCreate ? (
+      {!hasNwc &&
+        !meLoading &&
+        (autoCreate ? (
           // Auto-create on: receiving mints a wallet on demand, so this is an
           // invitation, not a dead end.
           <div className="mx-4 mt-4 rounded-xl border border-dashed border-nwc-purple/40 bg-nwc-purple/5 p-4 text-sm text-muted-foreground">
@@ -365,8 +368,7 @@ export function HomeScreen() {
               <Link href="/admin">Open admin</Link>
             </Button>
           </div>
-        )
-      )}
+        ))}
 
       <ActivityPreview nwcString={effectiveNwc} refreshKey={txTick} />
 
@@ -380,7 +382,7 @@ function ActionNavLink({
   href,
   label,
   loading,
-  onClick,
+  onClick
 }: {
   className?: string
   href: string
@@ -398,7 +400,7 @@ function ActionNavLink({
       <span
         className={cn(
           'inline-flex transition-[opacity,transform] duration-200 ease-out',
-          loading ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100',
+          loading ? 'translate-y-1 opacity-0' : 'translate-y-0 opacity-100'
         )}
       >
         {label}
@@ -407,7 +409,7 @@ function ActionNavLink({
         aria-hidden
         className={cn(
           'absolute inset-0 flex items-center justify-center transition-[opacity,transform] duration-200 ease-out',
-          loading ? 'scale-100 opacity-100' : 'scale-90 opacity-0',
+          loading ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
         )}
       >
         <Spinner size={16} />
@@ -430,7 +432,7 @@ function ActionNavLink({
 function formatAmount(
   sats: number,
   code: string,
-  rates: BtcRates | null,
+  rates: BtcRates | null
 ): string {
   const value = convertSats(sats, code, rates)
   if (value === null) return '—'
@@ -438,12 +440,12 @@ function formatAmount(
   if (code === 'BTC') {
     return value.toLocaleString(undefined, {
       minimumFractionDigits: 8,
-      maximumFractionDigits: 8,
+      maximumFractionDigits: 8
     })
   }
   return value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 2
   })
 }
 
@@ -458,7 +460,7 @@ function BalanceText({
   sats,
   code,
   rates,
-  pulse = false,
+  pulse = false
 }: {
   hidden: boolean
   sats: number | null
@@ -476,7 +478,7 @@ function BalanceText({
   // the digits clearly readable while signalling staleness.
   const wrapClass = cn(
     'text-5xl font-semibold leading-none',
-    pulse && 'animate-pulse opacity-70',
+    pulse && 'animate-pulse opacity-70'
   )
 
   if (hidden) {
@@ -509,7 +511,10 @@ function BalanceText({
  *   `0.00000001`  →  gray="0.0000000"  white="1"
  *   `0.00000000`  →  gray="0.00000000" white=""
  */
-export function splitBtcForEmphasis(formatted: string): { gray: string; white: string } {
+export function splitBtcForEmphasis(formatted: string): {
+  gray: string
+  white: string
+} {
   const dotIdx = formatted.indexOf('.')
   if (dotIdx === -1) {
     return { gray: '', white: formatted }
@@ -525,14 +530,14 @@ export function splitBtcForEmphasis(formatted: string): { gray: string; white: s
   }
   return {
     gray: '0.' + leadingZeros,
-    white: fraction.slice(leadingZeros.length),
+    white: fraction.slice(leadingZeros.length)
   }
 }
 
 function CurrencyChips({
   currencies,
   value,
-  onChange,
+  onChange
 }: {
   currencies: CurrencyDef[]
   value: string
@@ -552,7 +557,7 @@ function CurrencyChips({
               'rounded-full px-3 py-1 text-xs font-medium transition-colors',
               value === currency.code
                 ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
             {label}
@@ -576,7 +581,7 @@ function CurrencyChips({
  */
 function ActivityPreview({
   nwcString,
-  refreshKey,
+  refreshKey
 }: {
   nwcString: string | null
   refreshKey: number
@@ -585,7 +590,7 @@ function ActivityPreview({
   // button is currently disabled — no path can set tab to 'transfers'.
   const [tab, setTab] = useState<'activity' | 'transfers'>('activity')
   const [transactions, setTransactions] = useState<NwcTransaction[] | null>(
-    null,
+    null
   )
   const [loadingTx, setLoadingTx] = useState(false)
   const [txError, setTxError] = useState<Error | null>(null)
@@ -632,7 +637,7 @@ function ActivityPreview({
   }, [nwcString, refreshKey])
 
   const filtered = (transactions ?? []).filter(tx =>
-    tab === 'transfers' ? tx.type === 'outgoing' : true,
+    tab === 'transfers' ? tx.type === 'outgoing' : true
   )
 
   return (
@@ -646,7 +651,7 @@ function ActivityPreview({
               'rounded-full px-3 py-1 text-xs font-medium transition-colors',
               tab === 'activity'
                 ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
             Activity
@@ -687,7 +692,7 @@ function ActivityPreview({
  */
 function mergeFiveNewerFirst(
   current: NwcTransaction[] | null,
-  incoming: NwcTransaction[],
+  incoming: NwcTransaction[]
 ): NwcTransaction[] {
   const seen = new Map<string, NwcTransaction>()
   for (const tx of current ?? []) seen.set(tx.paymentHash, tx)
@@ -702,7 +707,7 @@ function ActivityList({
   loading,
   error,
   transactions,
-  emptyLabel,
+  emptyLabel
 }: {
   nwcString: string | null
   loading: boolean
@@ -745,9 +750,7 @@ function ActivityList({
       {transactions.map((tx, i) => (
         <div
           key={tx.paymentHash || i}
-          className={cn(
-            'border-b border-border/40 last:border-b-0',
-          )}
+          className={cn('border-b border-border/40 last:border-b-0')}
         >
           <TransactionRow tx={tx} />
         </div>

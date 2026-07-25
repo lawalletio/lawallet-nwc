@@ -4,12 +4,14 @@ import {
   readRecent,
   upsertMany,
   prune,
-  clearForKey,
+  clearForKey
 } from '@/lib/client/cache/activity-cache'
 import { __resetIdbForTests } from '@/lib/client/cache/idb'
 import type { NwcTransaction } from '@/lib/client/nwc'
 
-function tx(opts: Partial<NwcTransaction> & { paymentHash: string; createdAt: number }): NwcTransaction {
+function tx(
+  opts: Partial<NwcTransaction> & { paymentHash: string; createdAt: number }
+): NwcTransaction {
   return {
     type: 'incoming',
     amountSats: 1000,
@@ -17,7 +19,7 @@ function tx(opts: Partial<NwcTransaction> & { paymentHash: string; createdAt: nu
     description: '',
     preimage: null,
     settledAt: null,
-    ...opts,
+    ...opts
   }
 }
 
@@ -40,7 +42,7 @@ describe('activity-cache', () => {
     await upsertMany(KEY_A, [
       tx({ paymentHash: 'h1', createdAt: 100 }),
       tx({ paymentHash: 'h2', createdAt: 200 }),
-      tx({ paymentHash: 'h3', createdAt: 150 }),
+      tx({ paymentHash: 'h3', createdAt: 150 })
     ])
     const recent = await readRecent(KEY_A, 10)
     expect(recent.map(t => t.paymentHash)).toEqual(['h2', 'h3', 'h1'])
@@ -49,7 +51,7 @@ describe('activity-cache', () => {
   it('dedupes by paymentHash', async () => {
     await upsertMany(KEY_A, [tx({ paymentHash: 'h1', createdAt: 100 })])
     await upsertMany(KEY_A, [
-      tx({ paymentHash: 'h1', createdAt: 100, amountSats: 999 }),
+      tx({ paymentHash: 'h1', createdAt: 100, amountSats: 999 })
     ])
     const recent = await readRecent(KEY_A)
     expect(recent).toHaveLength(1)
@@ -60,8 +62,8 @@ describe('activity-cache', () => {
     await upsertMany(
       KEY_A,
       Array.from({ length: 30 }, (_, i) =>
-        tx({ paymentHash: `h${i}`, createdAt: 1000 + i }),
-      ),
+        tx({ paymentHash: `h${i}`, createdAt: 1000 + i })
+      )
     )
     const five = await readRecent(KEY_A, 5)
     expect(five).toHaveLength(5)
@@ -73,8 +75,8 @@ describe('activity-cache', () => {
     await upsertMany(
       KEY_A,
       Array.from({ length: 10 }, (_, i) =>
-        tx({ paymentHash: `h${i}`, createdAt: i }),
-      ),
+        tx({ paymentHash: `h${i}`, createdAt: i })
+      )
     )
     await prune(KEY_A, 4)
     const recent = await readRecent(KEY_A, 100)
@@ -94,7 +96,7 @@ describe('activity-cache', () => {
     await Promise.all([
       upsertMany(KEY_A, [tx({ paymentHash: 'p1', createdAt: 1 })]),
       upsertMany(KEY_A, [tx({ paymentHash: 'p2', createdAt: 2 })]),
-      upsertMany(KEY_A, [tx({ paymentHash: 'p3', createdAt: 3 })]),
+      upsertMany(KEY_A, [tx({ paymentHash: 'p3', createdAt: 3 })])
     ])
     const recent = await readRecent(KEY_A)
     expect(recent.map(t => t.paymentHash).sort()).toEqual(['p1', 'p2', 'p3'])

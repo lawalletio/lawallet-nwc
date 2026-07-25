@@ -139,7 +139,9 @@ interface LnurlWithdrawResponse {
  * is a recognizable LNURL but the endpoint is unreachable / malformed / an
  * unsupported tag. Returns `null` only when `input` isn't an LNURL at all.
  */
-export async function resolveLnurl(input: string): Promise<LnurlResolved | null> {
+export async function resolveLnurl(
+  input: string
+): Promise<LnurlResolved | null> {
   const url = lnurlToHttpUrl(input)
   if (!url) return null
 
@@ -175,7 +177,7 @@ export async function resolveLnurl(input: string): Promise<LnurlResolved | null>
 
 function parseWithdrawParams(
   json: LnurlWithdrawResponse,
-  endpointUrl: string,
+  endpointUrl: string
 ): LnurlWithdrawParams {
   const callback = typeof json.callback === 'string' ? json.callback : ''
   const k1 = typeof json.k1 === 'string' ? json.k1 : ''
@@ -208,10 +210,12 @@ function parseWithdrawParams(
     callback,
     k1,
     defaultDescription:
-      typeof json.defaultDescription === 'string' ? json.defaultDescription : '',
+      typeof json.defaultDescription === 'string'
+        ? json.defaultDescription
+        : '',
     minWithdrawableSats: Math.min(minWithdrawableSats, maxWithdrawableSats),
     maxWithdrawableSats,
-    host,
+    host
   }
 }
 
@@ -229,7 +233,7 @@ interface LnurlCallbackResponse {
 export async function submitLnurlWithdraw(
   callback: string,
   k1: string,
-  bolt11: string,
+  bolt11: string
 ): Promise<void> {
   let cbUrl: URL
   try {
@@ -242,7 +246,9 @@ export async function submitLnurlWithdraw(
 
   let res: Response
   try {
-    res = await fetch(cbUrl.toString(), { headers: { accept: 'application/json' } })
+    res = await fetch(cbUrl.toString(), {
+      headers: { accept: 'application/json' }
+    })
   } catch {
     throw new LnurlError('Could not reach the withdraw service')
   }
@@ -250,7 +256,9 @@ export async function submitLnurlWithdraw(
     throw new LnurlError(`Withdraw service returned ${res.status}`)
   }
 
-  const json = (await res.json().catch(() => null)) as LnurlCallbackResponse | null
+  const json = (await res
+    .json()
+    .catch(() => null)) as LnurlCallbackResponse | null
   if (json?.status === 'ERROR') {
     throw new LnurlError(json.reason || 'The withdraw request was rejected')
   }

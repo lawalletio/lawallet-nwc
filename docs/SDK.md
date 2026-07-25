@@ -47,27 +47,27 @@ Two packages provide typed access to the LaWallet NWC backend:
 
 ### Hooks Reference
 
-| Hook | Purpose | Month |
-|------|---------|-------|
-| `useAddress` | CRUD single lightning address (including redirect config) | 2 |
-| `useAddresses` | List/search/filter with pagination | 2 |
-| `useNWCConnection` | Connect, disconnect, status polling | 2 |
-| `usePayments` | Payment history, real-time updates | 2 |
-| `useAuth` | NIP-98 login → JWT session, session state, logout | 2 |
-| `useWebhooks` | Subscribe, unsubscribe, list active hooks | 2 |
-| `useWallet` | Balance, send, receive, NWC status | 2 |
-| `useCourtesyNWC` | Provision/revoke courtesy NWC from proxy | 3 |
-| `useZap` | Send/receive zaps, verify receipts | 5 |
-| `useVerify` | Payment settlement status (LUD-21) | 5 |
-| `useRedirect` | Address alias/redirect configuration | 5 |
+| Hook               | Purpose                                                   | Month |
+| ------------------ | --------------------------------------------------------- | ----- |
+| `useAddress`       | CRUD single lightning address (including redirect config) | 2     |
+| `useAddresses`     | List/search/filter with pagination                        | 2     |
+| `useNWCConnection` | Connect, disconnect, status polling                       | 2     |
+| `usePayments`      | Payment history, real-time updates                        | 2     |
+| `useAuth`          | NIP-98 login → JWT session, session state, logout         | 2     |
+| `useWebhooks`      | Subscribe, unsubscribe, list active hooks                 | 2     |
+| `useWallet`        | Balance, send, receive, NWC status                        | 2     |
+| `useCourtesyNWC`   | Provision/revoke courtesy NWC from proxy                  | 3     |
+| `useZap`           | Send/receive zaps, verify receipts                        | 5     |
+| `useVerify`        | Payment settlement status (LUD-21)                        | 5     |
+| `useRedirect`      | Address alias/redirect configuration                      | 5     |
 
 ---
 
 ## Lifecycle
 
-| Month | SDK Milestone | Hooks Milestone |
-|-------|---------------|-----------------|
-| 2 | Core: auth, addresses, redirect, NWC, webhooks. npm publish. | 7 base hooks. Published as @lawallet-nwc/react. |
-| 3 | Frontend + Courtesy NWC Proxy consume SDK. | Add `useCourtesyNWC`. |
-| 5 | Add LUD-21/22, redirect, zap methods. | Add `useZap`, `useVerify`, `useRedirect`. Update `useWebhooks`. |
-| 6 | Full docs + API reference. | Full docs + usage examples. |
+| Month | SDK Milestone                                                | Hooks Milestone                                                 |
+| ----- | ------------------------------------------------------------ | --------------------------------------------------------------- |
+| 2     | Core: auth, addresses, redirect, NWC, webhooks. npm publish. | 7 base hooks. Published as @lawallet-nwc/react.                 |
+| 3     | Frontend + Courtesy NWC Proxy consume SDK.                   | Add `useCourtesyNWC`.                                           |
+| 5     | Add LUD-21/22, redirect, zap methods.                        | Add `useZap`, `useVerify`, `useRedirect`. Update `useWebhooks`. |
+| 6     | Full docs + API reference.                                   | Full docs + usage examples.                                     |

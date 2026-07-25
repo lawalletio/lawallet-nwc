@@ -8,7 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
+  DialogDescription
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,7 +50,9 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/lightning-addresses/check?username=${encodeURIComponent(name)}`)
+        const res = await fetch(
+          `/api/lightning-addresses/check?username=${encodeURIComponent(name)}`
+        )
         if (res.ok) {
           const data = await res.json()
           setAvailable(data.available)
@@ -88,7 +90,10 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
   }
 
   function handleUsernameChange(value: string) {
-    const sanitized = value.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
+    const sanitized = value
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 16)
     setUsername(sanitized)
     setUsernameError(null)
     setAvailable(null)
@@ -118,7 +123,9 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
   }
 
   function handleLoginSuccess() {
-    router.push(`/admin/addresses/register?username=${encodeURIComponent(username)}`)
+    router.push(
+      `/admin/addresses/register?username=${encodeURIComponent(username)}`
+    )
   }
 
   return (
@@ -134,16 +141,31 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
         {/* ── Liquid-glass shell ───────────────────────────────────────────── */}
         <div className="claim-glass relative isolate overflow-hidden rounded-[28px] border border-white/10 px-7 pb-7 pt-9">
           {/* Single focused spotlight from the top — the one accent. */}
-          <div aria-hidden className="claim-spotlight pointer-events-none absolute -top-24 left-1/2 -z-10 h-64 w-[140%] -translate-x-1/2" />
+          <div
+            aria-hidden
+            className="claim-spotlight pointer-events-none absolute -top-24 left-1/2 -z-10 h-64 w-[140%] -translate-x-1/2"
+          />
           {/* Soft theme bloom anchored to the medallion. */}
-          <div aria-hidden className="claim-bloom pointer-events-none absolute -top-10 left-1/2 -z-10 size-56 -translate-x-1/2 rounded-full" />
+          <div
+            aria-hidden
+            className="claim-bloom pointer-events-none absolute -top-10 left-1/2 -z-10 size-56 -translate-x-1/2 rounded-full"
+          />
           {/* Hairline top inner highlight. */}
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+          />
 
           {/* Header medallion — glassy circle with a theme glow. */}
-          <div className="claim-stagger flex justify-center" style={{ animationDelay: '40ms' }}>
+          <div
+            className="claim-stagger flex justify-center"
+            style={{ animationDelay: '40ms' }}
+          >
             <div className="claim-medallion relative flex size-16 items-center justify-center rounded-2xl border border-white/10">
-              <div aria-hidden className="claim-medallion-glow absolute inset-0 -z-10 rounded-2xl" />
+              <div
+                aria-hidden
+                className="claim-medallion-glow absolute inset-0 -z-10 rounded-2xl"
+              />
               {step === 'username' ? (
                 <AtSign className="size-7 text-white/90" strokeWidth={2.25} />
               ) : (
@@ -160,22 +182,29 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
           {/* Step 1: Username */}
           {step === 'username' && (
             <>
-              <DialogHeader className="claim-stagger mt-6 space-y-2 text-center sm:text-center" style={{ animationDelay: '110ms' }}>
+              <DialogHeader
+                className="claim-stagger mt-6 space-y-2 text-center sm:text-center"
+                style={{ animationDelay: '110ms' }}
+              >
                 <DialogTitle className="text-balance text-2xl font-semibold tracking-tight text-white">
                   Claim your Lightning Address
                 </DialogTitle>
                 <DialogDescription className="mx-auto max-w-[19rem] text-balance text-sm leading-relaxed text-white/45">
-                  Pick a name. It becomes your address for getting paid anywhere over Lightning.
+                  Pick a name. It becomes your address for getting paid anywhere
+                  over Lightning.
                 </DialogDescription>
               </DialogHeader>
 
               <div className="mt-8 space-y-4">
-                <div className="claim-stagger space-y-2" style={{ animationDelay: '180ms' }}>
+                <div
+                  className="claim-stagger space-y-2"
+                  style={{ animationDelay: '180ms' }}
+                >
                   <InputGroup className="h-14 rounded-2xl border-white/10 bg-white/[0.03] shadow-none backdrop-blur-sm transition-colors focus-within:border-white/20 focus-within:ring-0 focus-within:ring-offset-0">
                     <Input
                       placeholder="satoshi"
                       value={username}
-                      onChange={(e) => handleUsernameChange(e.target.value)}
+                      onChange={e => handleUsernameChange(e.target.value)}
                       className={cn(
                         'h-full border-0 bg-transparent px-5 text-lg font-medium tracking-tight text-white shadow-none placeholder:text-white/25 focus-visible:ring-0 focus-visible:ring-offset-0',
                         usernameError && 'text-destructive'
@@ -184,7 +213,7 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                       autoCorrect="off"
                       autoCapitalize="off"
                       spellCheck={false}
-                      onKeyDown={(e) => e.key === 'Enter' && handleContinue()}
+                      onKeyDown={e => e.key === 'Enter' && handleContinue()}
                     />
                     <InputGroupText
                       position="suffix"
@@ -200,24 +229,41 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                           </span>
                           {displayDomain}
                         </span>
-                        {username.length > 0 && (
-                          checking ? (
-                            <Spinner size={12} className="shrink-0 text-white/40" />
+                        {username.length > 0 &&
+                          (checking ? (
+                            <Spinner
+                              size={12}
+                              className="shrink-0 text-white/40"
+                            />
                           ) : available === true ? (
-                            <span className="claim-pop flex size-4 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--theme-400) 22%, transparent)' }}>
-                              <Check className="size-3" style={{ color: 'var(--theme-400)' }} strokeWidth={3} />
+                            <span
+                              className="claim-pop flex size-4 shrink-0 items-center justify-center rounded-full"
+                              style={{
+                                backgroundColor:
+                                  'color-mix(in srgb, var(--theme-400) 22%, transparent)'
+                              }}
+                            >
+                              <Check
+                                className="size-3"
+                                style={{ color: 'var(--theme-400)' }}
+                                strokeWidth={3}
+                              />
                             </span>
                           ) : available === false ? (
                             <span className="claim-pop flex size-4 shrink-0 items-center justify-center rounded-full bg-destructive/20">
-                              <XIcon className="size-3 text-destructive" strokeWidth={3} />
+                              <XIcon
+                                className="size-3 text-destructive"
+                                strokeWidth={3}
+                              />
                             </span>
-                          ) : null
-                        )}
+                          ) : null)}
                       </span>
                     </InputGroupText>
                   </InputGroup>
                   {usernameError && (
-                    <p className="px-1 text-xs font-medium text-destructive">{usernameError}</p>
+                    <p className="px-1 text-xs font-medium text-destructive">
+                      {usernameError}
+                    </p>
                   )}
                 </div>
 
@@ -237,7 +283,10 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
           {/* Step 2: Connect with Nostr */}
           {step === 'connect' && (
             <>
-              <DialogHeader className="claim-stagger mt-6 space-y-2 text-center sm:text-center" style={{ animationDelay: '110ms' }}>
+              <DialogHeader
+                className="claim-stagger mt-6 space-y-2 text-center sm:text-center"
+                style={{ animationDelay: '110ms' }}
+              >
                 <DialogTitle className="text-balance text-2xl font-semibold tracking-tight text-white">
                   <span className="text-white">{username}</span>
                   <span className="text-white/35">@{displayDomain}</span>
@@ -247,7 +296,10 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="claim-stagger mt-7" style={{ animationDelay: '180ms' }}>
+              <div
+                className="claim-stagger mt-7"
+                style={{ animationDelay: '180ms' }}
+              >
                 <NostrConnectForm
                   onSuccess={handleLoginSuccess}
                   submitLabel="Login & Claim"
@@ -255,7 +307,10 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
                 />
               </div>
 
-              <div className="claim-stagger mt-4 flex justify-center" style={{ animationDelay: '250ms' }}>
+              <div
+                className="claim-stagger mt-4 flex justify-center"
+                style={{ animationDelay: '250ms' }}
+              >
                 <Button
                   variant="ghost"
                   size="sm"
@@ -374,18 +429,37 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
           }
 
           @keyframes claim-float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
+            0%,
+            100% {
+              transform: translateY(0);
+            }
+            50% {
+              transform: translateY(-5px);
+            }
           }
 
           @keyframes claim-glow {
-            0%, 100% { opacity: 0.55; transform: scale(1); }
-            50% { opacity: 0.9; transform: scale(1.12); }
+            0%,
+            100% {
+              opacity: 0.55;
+              transform: scale(1);
+            }
+            50% {
+              opacity: 0.9;
+              transform: scale(1.12);
+            }
           }
 
           @keyframes claim-bloom-pulse {
-            0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(1); }
-            50% { opacity: 0.85; transform: translateX(-50%) scale(1.08); }
+            0%,
+            100% {
+              opacity: 0.55;
+              transform: translateX(-50%) scale(1);
+            }
+            50% {
+              opacity: 0.85;
+              transform: translateX(-50%) scale(1.08);
+            }
           }
 
           @media (prefers-reduced-motion: reduce) {

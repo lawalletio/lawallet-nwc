@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import {
   useAddressMutations,
-  type WalletAddress,
+  type WalletAddress
 } from '@/lib/client/hooks/use-wallet-addresses'
 import type { RemoteWalletData } from '@/lib/client/hooks/use-remote-wallets'
 import { BindingChip, type BindingTone } from './binding-chip'
@@ -22,13 +22,14 @@ interface Props {
 /** Resolve the chip label + tone for an address's current binding. */
 function chipFor(
   addr: WalletAddress,
-  wallets: RemoteWalletData[],
+  wallets: RemoteWalletData[]
 ): { label: string; tone: BindingTone } {
   if (addr.mode === 'CUSTOM_NWC') {
     const w = wallets.find(w => w.id === addr.remoteWalletId)
     return { label: w?.name ?? 'Unknown wallet', tone: 'bound' }
   }
-  if (addr.mode === 'DEFAULT_NWC') return { label: 'Primary wallet', tone: 'default' }
+  if (addr.mode === 'DEFAULT_NWC')
+    return { label: 'Primary wallet', tone: 'default' }
   if (addr.mode === 'ALIAS') return { label: 'Alias', tone: 'none' }
   return { label: 'Idle', tone: 'none' }
 }
@@ -53,13 +54,13 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
     choice:
       | { kind: 'wallet'; walletId: string }
       | { kind: 'default' }
-      | { kind: 'idle' },
+      | { kind: 'idle' }
   ) {
     try {
       if (choice.kind === 'wallet') {
         await updateAddress(addr.username, {
           mode: 'CUSTOM_NWC',
-          remoteWalletId: choice.walletId,
+          remoteWalletId: choice.walletId
         })
       } else if (choice.kind === 'default') {
         await updateAddress(addr.username, { mode: 'DEFAULT_NWC' })
@@ -69,7 +70,9 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
       toast.success(`${addr.username} updated`)
       setPicker(null)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not update address')
+      toast.error(
+        err instanceof Error ? err.message : 'Could not update address'
+      )
     }
   }
 
@@ -79,9 +82,10 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
           key: w.id,
           label: w.name,
           sublabel: w.isDefault ? 'Primary wallet' : w.type,
-          active: picker.mode === 'CUSTOM_NWC' && picker.remoteWalletId === w.id,
+          active:
+            picker.mode === 'CUSTOM_NWC' && picker.remoteWalletId === w.id,
           tone: 'wallet' as const,
-          onSelect: () => rebind(picker, { kind: 'wallet', walletId: w.id }),
+          onSelect: () => rebind(picker, { kind: 'wallet', walletId: w.id })
         })),
         ...(picker.isPrimary
           ? []
@@ -92,8 +96,8 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
                 sublabel: 'Route through your primary address wallet',
                 active: picker.mode === 'DEFAULT_NWC',
                 tone: 'default' as const,
-                onSelect: () => rebind(picker, { kind: 'default' }),
-              },
+                onSelect: () => rebind(picker, { kind: 'default' })
+              }
             ]),
         {
           key: '__idle__',
@@ -101,8 +105,8 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
           sublabel: 'No wallet (idle)',
           active: picker.mode === 'IDLE',
           tone: 'danger' as const,
-          onSelect: () => rebind(picker, { kind: 'idle' }),
-        },
+          onSelect: () => rebind(picker, { kind: 'idle' })
+        }
       ]
     : []
 

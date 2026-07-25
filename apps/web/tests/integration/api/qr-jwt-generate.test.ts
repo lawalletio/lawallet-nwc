@@ -4,44 +4,44 @@ import { Role } from '@/lib/auth/permissions'
 import { AuthorizationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(),
+  getConfig: vi.fn()
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   withRequestLogging: (fn: any) => fn,
-  getCurrentReqId: () => 'test-req',
+  getCurrentReqId: () => 'test-req'
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/rate-limit', () => ({
   rateLimit: vi.fn(),
-  RateLimitPresets: { sensitive: { maxRequests: 5, maxRequestsAuth: 20 } },
+  RateLimitPresets: { sensitive: { maxRequests: 5, maxRequestsAuth: 20 } }
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticateWithRole: vi.fn(),
+  authenticateWithRole: vi.fn()
 }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    user: { findUnique: vi.fn() },
-  },
+    user: { findUnique: vi.fn() }
+  }
 }))
 
 vi.mock('@/lib/jwt', () => ({
-  createJwtToken: vi.fn(() => 'signed.device.jwt'),
+  createJwtToken: vi.fn(() => 'signed.device.jwt')
 }))
 
 vi.mock('@/lib/public-url', () => ({
-  resolveApiUrl: vi.fn(async () => 'https://app.example.com'),
+  resolveApiUrl: vi.fn(async () => 'https://app.example.com')
 }))
 
 import { POST } from '@/app/api/auth/qr-jwt/generate/route'
@@ -57,14 +57,14 @@ function asAdmin(role: Role = Role.ADMIN) {
   vi.mocked(authenticateWithRole).mockResolvedValue({
     pubkey: ADMIN_PUBKEY,
     role,
-    method: 'jwt',
+    method: 'jwt'
   } as any)
 }
 
 function configEnabled() {
   vi.mocked(getConfig).mockReturnValue({
     jwt: { enabled: true, secret: 'test-secret' },
-    maintenance: { enabled: false },
+    maintenance: { enabled: false }
   } as any)
 }
 
@@ -72,7 +72,7 @@ function targetUser() {
   vi.mocked(prisma.user.findUnique).mockResolvedValue({
     id: 'user_123',
     pubkey: TARGET_PUBKEY,
-    role: 'OPERATOR',
+    role: 'OPERATOR'
   } as any)
 }
 
@@ -92,8 +92,8 @@ describe('POST /api/auth/qr-jwt/generate', () => {
       body: {
         userId: 'user_123',
         permissions: ['cards:read', 'cards:write'],
-        expiresIn: '8h',
-      },
+        expiresIn: '8h'
+      }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -105,7 +105,7 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     expect(body.user).toEqual({
       id: 'user_123',
       pubkey: TARGET_PUBKEY,
-      role: 'OPERATOR',
+      role: 'OPERATOR'
     })
 
     // The minted token carries the target identity, scopes claim, and the
@@ -117,10 +117,10 @@ describe('POST /api/auth/qr-jwt/generate', () => {
         scopes: ['cards:read', 'cards:write'],
         sub: 'user_123',
         kind: 'device',
-        apiUrl: 'https://app.example.com',
+        apiUrl: 'https://app.example.com'
       }),
       'test-secret',
-      expect.objectContaining({ issuer: 'lawallet-nwc' }),
+      expect.objectContaining({ issuer: 'lawallet-nwc' })
     )
   })
 
@@ -135,8 +135,8 @@ describe('POST /api/auth/qr-jwt/generate', () => {
       body: {
         userId: 'user_123',
         permissions: ['cards:read', 'cards:read', 'ntags:read'],
-        expiresIn: '1h',
-      },
+        expiresIn: '1h'
+      }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -145,14 +145,14 @@ describe('POST /api/auth/qr-jwt/generate', () => {
 
   it('rejects non-admins with 403', async () => {
     vi.mocked(authenticateWithRole).mockRejectedValue(
-      new AuthorizationError('Not authorized to access this resource'),
+      new AuthorizationError('Not authorized to access this resource')
     )
     configEnabled()
 
     const req = createNextRequest('/api/auth/qr-jwt/generate', {
       method: 'POST',
       headers: { authorization: 'Bearer viewer-jwt' },
-      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '8h' },
+      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '8h' }
     })
     const res = await POST(req)
     expect(res.status).toBe(403)
@@ -169,8 +169,8 @@ describe('POST /api/auth/qr-jwt/generate', () => {
       body: {
         userId: 'user_123',
         permissions: ['cards:read', 'totally:bogus'],
-        expiresIn: '8h',
-      },
+        expiresIn: '8h'
+      }
     })
     const res = await POST(req)
     expect(res.status).toBe(400)
@@ -188,8 +188,8 @@ describe('POST /api/auth/qr-jwt/generate', () => {
       body: {
         userId: 'user_123',
         permissions: ['settings:write'],
-        expiresIn: '8h',
-      },
+        expiresIn: '8h'
+      }
     })
     const res = await POST(req)
     expect(res.status).toBe(403)
@@ -202,7 +202,7 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     const req = createNextRequest('/api/auth/qr-jwt/generate', {
       method: 'POST',
       headers: { authorization: 'Bearer admin-jwt' },
-      body: { userId: 'user_123', permissions: [], expiresIn: '8h' },
+      body: { userId: 'user_123', permissions: [], expiresIn: '8h' }
     })
     const res = await POST(req)
     expect(res.status).toBe(400)
@@ -217,7 +217,11 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     const longReq = createNextRequest('/api/auth/qr-jwt/generate', {
       method: 'POST',
       headers: { authorization: 'Bearer admin-jwt' },
-      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '365d' },
+      body: {
+        userId: 'user_123',
+        permissions: ['cards:read'],
+        expiresIn: '365d'
+      }
     })
     const longRes = await POST(longReq)
     const longBody: any = await assertResponse(longRes, 200)
@@ -227,7 +231,11 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     const shortReq = createNextRequest('/api/auth/qr-jwt/generate', {
       method: 'POST',
       headers: { authorization: 'Bearer admin-jwt' },
-      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '30s' },
+      body: {
+        userId: 'user_123',
+        permissions: ['cards:read'],
+        expiresIn: '30s'
+      }
     })
     const shortRes = await POST(shortReq)
     expect(shortRes.status).toBe(400)
@@ -241,7 +249,7 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     const req = createNextRequest('/api/auth/qr-jwt/generate', {
       method: 'POST',
       headers: { authorization: 'Bearer admin-jwt' },
-      body: { userId: 'missing', permissions: ['cards:read'], expiresIn: '8h' },
+      body: { userId: 'missing', permissions: ['cards:read'], expiresIn: '8h' }
     })
     const res = await POST(req)
     expect(res.status).toBe(404)
@@ -251,13 +259,13 @@ describe('POST /api/auth/qr-jwt/generate', () => {
     asAdmin()
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: false, secret: undefined },
-      maintenance: { enabled: false },
+      maintenance: { enabled: false }
     } as any)
 
     const req = createNextRequest('/api/auth/qr-jwt/generate', {
       method: 'POST',
       headers: { authorization: 'Bearer admin-jwt' },
-      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '8h' },
+      body: { userId: 'user_123', permissions: ['cards:read'], expiresIn: '8h' }
     })
     const res = await POST(req)
     expect(res.status).toBe(500)

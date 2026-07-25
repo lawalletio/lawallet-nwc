@@ -13,7 +13,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import {
@@ -22,7 +22,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table'
 import { useApi } from '@/lib/client/hooks/use-api'
 import { formatRelativeTime, truncateHex } from '@/lib/client/format'
@@ -30,7 +30,7 @@ import type {
   ListenerConnection,
   ListenerRecentEvent,
   ListenerStatusProxyResponse,
-  ListenerStatusResponse,
+  ListenerStatusResponse
 } from '@lawallet-nwc/shared'
 
 const STATE_BADGE: Record<
@@ -38,20 +38,32 @@ const STATE_BADGE: Record<
   { label: string; className: string }
 > = {
   ready: { label: 'Ready', className: 'bg-green-500/15 text-green-600' },
-  connecting: { label: 'Connecting', className: 'bg-yellow-500/15 text-yellow-600' },
-  negotiating: { label: 'Negotiating', className: 'bg-yellow-500/15 text-yellow-600' },
-  disconnected: { label: 'Disconnected', className: 'bg-muted text-muted-foreground' },
+  connecting: {
+    label: 'Connecting',
+    className: 'bg-yellow-500/15 text-yellow-600'
+  },
+  negotiating: {
+    label: 'Negotiating',
+    className: 'bg-yellow-500/15 text-yellow-600'
+  },
+  disconnected: {
+    label: 'Disconnected',
+    className: 'bg-muted text-muted-foreground'
+  },
   error: { label: 'Error', className: 'bg-red-500/15 text-red-600' },
-  closed: { label: 'Closed', className: 'bg-muted text-muted-foreground' },
+  closed: { label: 'Closed', className: 'bg-muted text-muted-foreground' }
 }
 
 const WEBHOOK_BADGE: Record<
   ListenerRecentEvent['webhookStatus'],
   { label: string; className: string }
 > = {
-  delivered: { label: 'Delivered', className: 'bg-green-500/15 text-green-600' },
+  delivered: {
+    label: 'Delivered',
+    className: 'bg-green-500/15 text-green-600'
+  },
   pending: { label: 'Pending', className: 'bg-yellow-500/15 text-yellow-600' },
-  failed: { label: 'Failed', className: 'bg-red-500/15 text-red-600' },
+  failed: { label: 'Failed', className: 'bg-red-500/15 text-red-600' }
 }
 
 function relayHost(url: string): string {
@@ -84,7 +96,11 @@ function tsMs(iso: string | null | undefined): number {
 
 /** A connection's most recent activity across event / error / catch-up. */
 function connLastActivity(c: ListenerConnection): number {
-  return Math.max(tsMs(c.lastEventAt), tsMs(c.lastErrorAt), tsMs(c.lastCatchupAt))
+  return Math.max(
+    tsMs(c.lastEventAt),
+    tsMs(c.lastErrorAt),
+    tsMs(c.lastCatchupAt)
+  )
 }
 
 /**
@@ -129,7 +145,8 @@ function getConnState(
 ): ConnState {
   if (!data) return loading ? 'loading' : 'loading'
   if (data.state === 'disabled') return 'disabled'
-  if (data.state === 'unreachable') return lastGood ? 'reconnecting' : 'unreachable'
+  if (data.state === 'unreachable')
+    return lastGood ? 'reconnecting' : 'unreachable'
   return data.status.degraded && data.status.degraded.length > 0
     ? 'degraded'
     : 'connected'
@@ -139,12 +156,42 @@ const CONN_META: Record<
   ConnState,
   { label: string; dot: string; text: string; pulse: boolean }
 > = {
-  loading: { label: 'Checking…', dot: 'bg-muted-foreground', text: 'text-muted-foreground', pulse: true },
-  connected: { label: 'Connected', dot: 'bg-green-500', text: 'text-green-600', pulse: true },
-  degraded: { label: 'Connected · feed degraded', dot: 'bg-yellow-500', text: 'text-yellow-600', pulse: true },
-  reconnecting: { label: 'Reconnecting…', dot: 'bg-yellow-500', text: 'text-yellow-600', pulse: true },
-  unreachable: { label: 'Unreachable', dot: 'bg-red-500', text: 'text-red-600', pulse: false },
-  disabled: { label: 'Not configured', dot: 'bg-muted-foreground', text: 'text-muted-foreground', pulse: false },
+  loading: {
+    label: 'Checking…',
+    dot: 'bg-muted-foreground',
+    text: 'text-muted-foreground',
+    pulse: true
+  },
+  connected: {
+    label: 'Connected',
+    dot: 'bg-green-500',
+    text: 'text-green-600',
+    pulse: true
+  },
+  degraded: {
+    label: 'Connected · feed degraded',
+    dot: 'bg-yellow-500',
+    text: 'text-yellow-600',
+    pulse: true
+  },
+  reconnecting: {
+    label: 'Reconnecting…',
+    dot: 'bg-yellow-500',
+    text: 'text-yellow-600',
+    pulse: true
+  },
+  unreachable: {
+    label: 'Unreachable',
+    dot: 'bg-red-500',
+    text: 'text-red-600',
+    pulse: false
+  },
+  disabled: {
+    label: 'Not configured',
+    dot: 'bg-muted-foreground',
+    text: 'text-muted-foreground',
+    pulse: false
+  }
 }
 
 /**
@@ -155,7 +202,7 @@ const CONN_META: Record<
 function ConnectionStatusBanner({
   state,
   status,
-  error,
+  error
 }: {
   state: ConnState
   status: ListenerStatusResponse | null
@@ -173,7 +220,9 @@ function ConnectionStatusBanner({
             )}
           />
         )}
-        <span className={cn('relative inline-flex size-2.5 rounded-full', meta.dot)} />
+        <span
+          className={cn('relative inline-flex size-2.5 rounded-full', meta.dot)}
+        />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -266,7 +315,7 @@ function ListenerContent() {
   const events =
     current && !current.degraded?.includes('recentEvents')
       ? current.recentEvents
-      : lastGood?.recentEvents ?? snapshot?.recentEvents ?? []
+      : (lastGood?.recentEvents ?? snapshot?.recentEvents ?? [])
   const view: ListenerStatusResponse | null = snapshot
     ? { ...snapshot, recentEvents: events }
     : null
@@ -290,19 +339,19 @@ function ListenerContent() {
           {
             label: 'NWC connections',
             active: activeTab === 'connections',
-            onClick: () => router.push('/admin/listener?tab=connections'),
+            onClick: () => router.push('/admin/listener?tab=connections')
           },
           {
             label: 'Realtime events',
             active: activeTab === 'events',
-            onClick: () => router.push('/admin/listener?tab=events'),
+            onClick: () => router.push('/admin/listener?tab=events')
           },
           {
             label: 'Relay connections',
             active: activeTab === 'relays',
             onClick: () => router.push('/admin/listener?tab=relays'),
-            badge: liveRelays,
-          },
+            badge: liveRelays
+          }
         ]}
       />
 
@@ -339,7 +388,11 @@ function ListenerContent() {
         </div>
 
         {activeTab === 'connections' && (
-          <ConnectionsTable status={view} loading={firstLoad} offline={offline} />
+          <ConnectionsTable
+            status={view}
+            loading={firstLoad}
+            offline={offline}
+          />
         )}
         {activeTab === 'events' && (
           <EventsTable status={view} loading={firstLoad} offline={offline} />
@@ -358,7 +411,13 @@ interface TabProps {
   offline: boolean
 }
 
-function EmptyState({ offline, message }: { offline: boolean; message: string }) {
+function EmptyState({
+  offline,
+  message
+}: {
+  offline: boolean
+  message: string
+}) {
   return (
     <div className="rounded-md border p-6 text-sm text-muted-foreground">
       {offline ? 'Data unavailable while the listener is offline.' : message}
@@ -405,38 +464,45 @@ function ConnectionsTable({ status, loading, offline }: TabProps) {
           <TableBody>
             {pageRows.map(conn => (
               <TableRow key={conn.walletId}>
-              <TableCell>
-                <Link href={walletHref(conn.walletId)} className="group flex flex-col">
-                  <span className="font-medium group-hover:underline underline-offset-2">
-                    {conn.walletName || 'Unnamed wallet'}
-                  </span>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {truncateHex(conn.walletId)}
-                  </span>
-                </Link>
-              </TableCell>
-              <TableCell className="text-sm">
-                {conn.relayUrls.map(relayHost).join(', ') || '—'}
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant="outline"
-                  className={STATE_BADGE[conn.state].className}
-                >
-                  {STATE_BADGE[conn.state].label}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {conn.lastEventAt ? formatRelativeTime(conn.lastEventAt) : '—'}
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {conn.lastCatchupAt ? formatRelativeTime(conn.lastCatchupAt) : '—'}
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground max-w-[240px] truncate">
-                {conn.lastError
-                  ? `${formatRelativeTime(conn.lastErrorAt)} · ${conn.lastError}`
-                  : '—'}
-              </TableCell>
+                <TableCell>
+                  <Link
+                    href={walletHref(conn.walletId)}
+                    className="group flex flex-col"
+                  >
+                    <span className="font-medium group-hover:underline underline-offset-2">
+                      {conn.walletName || 'Unnamed wallet'}
+                    </span>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {truncateHex(conn.walletId)}
+                    </span>
+                  </Link>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {conn.relayUrls.map(relayHost).join(', ') || '—'}
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant="outline"
+                    className={STATE_BADGE[conn.state].className}
+                  >
+                    {STATE_BADGE[conn.state].label}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {conn.lastEventAt
+                    ? formatRelativeTime(conn.lastEventAt)
+                    : '—'}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {conn.lastCatchupAt
+                    ? formatRelativeTime(conn.lastCatchupAt)
+                    : '—'}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground max-w-[240px] truncate">
+                  {conn.lastError
+                    ? `${formatRelativeTime(conn.lastErrorAt)} · ${conn.lastError}`
+                    : '—'}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -503,47 +569,49 @@ function EventsTable({ status, loading, offline }: TabProps) {
                   }
                 }}
               >
-              <TableCell>
-                <span className="inline-flex items-center gap-1.5">
-                  <Badge variant="outline">{event.type}</Badge>
-                  {event.recovered && (
-                    <Badge
-                      variant="outline"
-                      className="bg-sky-500/15 text-sky-600"
-                    >
-                      Recovered
-                    </Badge>
-                  )}
-                </span>
-              </TableCell>
-              <TableCell className="text-sm">
-                {/* stopPropagation so the wallet link doesn't also open the modal */}
-                <Link
-                  href={walletHref(event.walletId)}
-                  onClick={e => e.stopPropagation()}
-                  className="hover:underline underline-offset-2"
-                >
-                  {event.walletName || (
-                    <span className="font-mono">{truncateHex(event.walletId)}</span>
-                  )}
-                </Link>
-              </TableCell>
-              <TableCell className="text-sm">
-                {event.amountMsats !== null
-                  ? `⚡ ${Math.floor(event.amountMsats / 1000)} sats`
-                  : '—'}
-              </TableCell>
-              <TableCell>
-                <Badge
-                  variant="outline"
-                  className={WEBHOOK_BADGE[event.webhookStatus].className}
-                >
-                  {WEBHOOK_BADGE[event.webhookStatus].label}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {formatRelativeTime(event.receivedAt)}
-              </TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Badge variant="outline">{event.type}</Badge>
+                    {event.recovered && (
+                      <Badge
+                        variant="outline"
+                        className="bg-sky-500/15 text-sky-600"
+                      >
+                        Recovered
+                      </Badge>
+                    )}
+                  </span>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {/* stopPropagation so the wallet link doesn't also open the modal */}
+                  <Link
+                    href={walletHref(event.walletId)}
+                    onClick={e => e.stopPropagation()}
+                    className="hover:underline underline-offset-2"
+                  >
+                    {event.walletName || (
+                      <span className="font-mono">
+                        {truncateHex(event.walletId)}
+                      </span>
+                    )}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {event.amountMsats !== null
+                    ? `⚡ ${Math.floor(event.amountMsats / 1000)} sats`
+                    : '—'}
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant="outline"
+                    className={WEBHOOK_BADGE[event.webhookStatus].className}
+                  >
+                    {WEBHOOK_BADGE[event.webhookStatus].label}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {formatRelativeTime(event.receivedAt)}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -554,10 +622,7 @@ function EventsTable({ status, loading, offline }: TabProps) {
         totalPages={totalPages}
         onPageChange={setPage}
       />
-      <EventDetailDialog
-        event={selected}
-        onClose={() => setSelected(null)}
-      />
+      <EventDetailDialog event={selected} onClose={() => setSelected(null)} />
     </div>
   )
 }
@@ -567,14 +632,17 @@ function formatAbsolute(iso: string | null | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')
+  return d
+    .toISOString()
+    .replace('T', ' ')
+    .replace(/\.\d+Z$/, ' UTC')
 }
 
 /** One label/value row in the detail modal; long values wrap and can be copied. */
 function DetailRow({
   label,
   children,
-  mono,
+  mono
 }: {
   label: string
   children: React.ReactNode
@@ -592,7 +660,7 @@ function DetailRow({
 
 function EventDetailDialog({
   event,
-  onClose,
+  onClose
 }: {
   event: ListenerRecentEvent | null
   onClose: () => void
@@ -665,7 +733,9 @@ function EventDetailDialog({
               </DetailRow>
               {event.settledAt != null && (
                 <DetailRow label="Settled">
-                  {formatAbsolute(new Date(event.settledAt * 1000).toISOString())}
+                  {formatAbsolute(
+                    new Date(event.settledAt * 1000).toISOString()
+                  )}
                 </DetailRow>
               )}
               <DetailRow label="Webhook">

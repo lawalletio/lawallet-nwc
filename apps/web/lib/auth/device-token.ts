@@ -10,7 +10,7 @@ const UNIT_SECONDS: Record<string, number> = {
   m: 60,
   h: 60 * 60,
   d: 24 * 60 * 60,
-  w: 7 * 24 * 60 * 60,
+  w: 7 * 24 * 60 * 60
 }
 
 /**
@@ -26,7 +26,10 @@ const UNIT_SECONDS: Record<string, number> = {
 export function parseDurationSeconds(input: string): number {
   const match = /^(\d+)\s*(s|m|h|d|w)?$/i.exec(input.trim())
   if (!match) {
-    throw new ValidationError('Invalid expiration', `Could not parse "${input}"`)
+    throw new ValidationError(
+      'Invalid expiration',
+      `Could not parse "${input}"`
+    )
   }
   const value = Number(match[1])
   const unit = (match[2] ?? 's').toLowerCase()
@@ -105,13 +108,13 @@ export function mintDeviceToken(params: MintDeviceTokenParams): string {
       scopes,
       sub: userId,
       kind: 'device',
-      apiUrl,
+      apiUrl
     },
     secret,
     {
       expiresIn,
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users',
-    },
+      audience: 'lawallet-users'
+    }
   )
 }

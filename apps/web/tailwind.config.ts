@@ -73,7 +73,7 @@ const config = {
           accent: 'hsl(var(--sidebar-accent))',
           'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
           border: 'hsl(var(--sidebar-border))',
-          ring: 'hsl(var(--sidebar-ring))',
+          ring: 'hsl(var(--sidebar-ring))'
         }
       },
       borderRadius: {
@@ -158,7 +158,8 @@ const config = {
         marquee: 'marquee 30s linear infinite',
         'slide-up': 'slide-up 0.8s ease-out',
         'border-glow': 'border-glow 2s ease-in-out infinite',
-        'progress-indeterminate': 'progress-indeterminate 1.1s ease-in-out infinite'
+        'progress-indeterminate':
+          'progress-indeterminate 1.1s ease-in-out infinite'
       },
       boxShadow: {
         '3xl': '0 35px 60px -12px rgba(0, 0, 0, 0.25)'

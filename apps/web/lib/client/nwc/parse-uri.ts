@@ -22,7 +22,7 @@ export function parseNwc(nwc: string): ParsedNwc | null {
       pubkey: url.host,
       relays: url.searchParams.getAll('relay'),
       name:
-        url.searchParams.get('name') || url.searchParams.get('lud16') || null,
+        url.searchParams.get('name') || url.searchParams.get('lud16') || null
     }
   } catch {
     return null

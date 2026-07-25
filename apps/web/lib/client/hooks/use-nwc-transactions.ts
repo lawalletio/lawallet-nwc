@@ -23,12 +23,12 @@ export function useNwcTransactions(
   connectionString: string | null,
   limit = 100,
   /** Background refresh interval (ms). Set 0 to disable polling. */
-  pollMs = 15_000,
+  pollMs = 15_000
 ) {
   const [state, setState] = useState<TransactionsState>({
     data: null,
     loading: false,
-    error: null,
+    error: null
   })
   // Monotonic request id so a slow earlier fetch can't clobber a newer one
   // when the connection string changes mid-flight.
@@ -44,7 +44,8 @@ export function useNwcTransactions(
       if (!silent) setState(s => ({ ...s, loading: true, error: null }))
       try {
         const txs = await listTransactions(connectionString, { limit })
-        if (id === reqId.current) setState({ data: txs, loading: false, error: null })
+        if (id === reqId.current)
+          setState({ data: txs, loading: false, error: null })
       } catch (err) {
         if (id === reqId.current) {
           setState(s =>
@@ -54,13 +55,15 @@ export function useNwcTransactions(
                   data: null,
                   loading: false,
                   error:
-                    err instanceof Error ? err : new Error('Failed to load transactions'),
-                },
+                    err instanceof Error
+                      ? err
+                      : new Error('Failed to load transactions')
+                }
           )
         }
       }
     },
-    [connectionString, limit],
+    [connectionString, limit]
   )
 
   // Initial + on-connection-change load.

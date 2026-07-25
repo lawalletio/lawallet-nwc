@@ -3,7 +3,7 @@ import {
   commonErrorResponses,
   inlineJsonResponse,
   protectedSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 import { schemas } from '../schemas'
@@ -19,12 +19,9 @@ registry.registerPath({
   operationId: 'settings.get',
   security: protectedSecurity,
   responses: {
-    200: inlineJsonResponse(
-      'Settings map.',
-      z.record(z.string(), z.string()),
-    ),
-    ...commonErrorResponses,
-  },
+    200: inlineJsonResponse('Settings map.', z.record(z.string(), z.string())),
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -37,11 +34,14 @@ registry.registerPath({
   security: protectedSecurity,
   request: {
     body: {
-      content: { 'application/json': { schema: schemas.SettingsBody } },
-    },
+      content: { 'application/json': { schema: schemas.SettingsBody } }
+    }
   },
   responses: {
-    200: inlineJsonResponse('Settings updated.', z.record(z.string(), z.string())),
-    ...commonErrorResponses,
-  },
+    200: inlineJsonResponse(
+      'Settings updated.',
+      z.record(z.string(), z.string())
+    ),
+    ...commonErrorResponses
+  }
 })

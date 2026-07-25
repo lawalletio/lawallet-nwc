@@ -34,11 +34,13 @@ vi.mock('@/lib/logger', () => ({
   }
 }))
 
-function createMockRequest(options: {
-  ip?: string
-  url?: string
-  headers?: Record<string, string>
-} = {}): Request {
+function createMockRequest(
+  options: {
+    ip?: string
+    url?: string
+    headers?: Record<string, string>
+  } = {}
+): Request {
   const headers = new Headers(options.headers || {})
   if (options.ip) {
     headers.set('x-forwarded-for', options.ip)
@@ -201,7 +203,9 @@ describe('rate-limit', () => {
 
       expect(newResponse.headers.get('X-RateLimit-Limit')).toBe('100')
       expect(newResponse.headers.get('X-RateLimit-Remaining')).toBe('95')
-      expect(newResponse.headers.get('X-RateLimit-Reset')).toBe(result.reset.toString())
+      expect(newResponse.headers.get('X-RateLimit-Reset')).toBe(
+        result.reset.toString()
+      )
     })
 
     it('should add Retry-After header when rate limited', () => {
@@ -217,7 +221,9 @@ describe('rate-limit', () => {
       const newResponse = applyRateLimitHeaders(response, result)
 
       expect(newResponse.headers.get('Retry-After')).toBeDefined()
-      expect(parseInt(newResponse.headers.get('Retry-After')!)).toBeGreaterThan(0)
+      expect(parseInt(newResponse.headers.get('Retry-After')!)).toBeGreaterThan(
+        0
+      )
     })
   })
 

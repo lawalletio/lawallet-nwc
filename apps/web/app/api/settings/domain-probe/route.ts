@@ -12,7 +12,7 @@ import { invalidateHotSettingsCache } from '@/lib/settings'
 const domainProbeBodySchema = z.object({
   domain: z.string().min(1),
   endpoint: z.string().optional(),
-  apiGatewayEndpoint: z.string().optional(),
+  apiGatewayEndpoint: z.string().optional()
 })
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
@@ -22,7 +22,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const rawBody = await request.json().catch(() => null)
   const parsed = domainProbeBodySchema.safeParse(rawBody)
   if (!parsed.success) {
-    throw new ValidationError('Invalid domain probe request', parsed.error.flatten())
+    throw new ValidationError(
+      'Invalid domain probe request',
+      parsed.error.flatten()
+    )
   }
 
   const result = await probeDomainRouting(parsed.data)
@@ -31,7 +34,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   await prisma.settings.upsert({
     where: { name: 'domain_verified' },
     update: { value: domainVerified ? 'true' : 'false' },
-    create: { name: 'domain_verified', value: domainVerified ? 'true' : 'false' },
+    create: {
+      name: 'domain_verified',
+      value: domainVerified ? 'true' : 'false'
+    }
   })
   invalidateHotSettingsCache()
   eventBus.emit({ type: 'settings:updated', timestamp: Date.now() })

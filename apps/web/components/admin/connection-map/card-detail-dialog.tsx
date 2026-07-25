@@ -3,11 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { CreditCard, ExternalLink } from 'lucide-react'
-import {
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatRelativeTime, truncateHex } from '@/lib/client/format'
@@ -52,12 +48,13 @@ export function CardDetailBody({
   card,
   wallets,
   onOpenWallet,
-  onOpenAddress,
+  onOpenAddress
 }: Props) {
   const boundWallet = card.remoteWalletId
     ? wallets.find(w => w.id === card.remoteWalletId)
     : null
-  const title = card.title ?? card.lightningAddress?.username ?? truncateHex(card.id)
+  const title =
+    card.title ?? card.lightningAddress?.username ?? truncateHex(card.id)
 
   return (
     <>
@@ -69,122 +66,126 @@ export function CardDetailBody({
       </DialogHeader>
 
       <div className="space-y-4">
-          {/* Big design preview — falls through to a CreditCard-icon
+        {/* Big design preview — falls through to a CreditCard-icon
               placeholder when the design has no uploaded image. */}
-          {card.design?.image ? (
-            <img
-              src={card.design.image}
-              alt={card.design.description ?? 'Card design'}
-              className="aspect-[8/5] w-full rounded-md border border-border object-cover"
-            />
-          ) : (
-            <div className="flex aspect-[8/5] w-full items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
-              <CreditCard className="size-8" />
-            </div>
+        {card.design?.image ? (
+          <img
+            src={card.design.image}
+            alt={card.design.description ?? 'Card design'}
+            className="aspect-[8/5] w-full rounded-md border border-border object-cover"
+          />
+        ) : (
+          <div className="flex aspect-[8/5] w-full items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
+            <CreditCard className="size-8" />
+          </div>
+        )}
+
+        <div className="text-base font-medium">{title}</div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <InfoField label="Card ID" value={card.id} mono />
+          </div>
+
+          {card.design?.description && (
+            <InfoField label="Design" value={card.design.description} />
           )}
 
-          <div className="text-base font-medium">{title}</div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <InfoField label="Card ID" value={card.id} mono />
-            </div>
-
-            {card.design?.description && (
-              <InfoField label="Design" value={card.design.description} />
-            )}
-
-            <InfoField
-              label="Pairing"
-              value={
-                <Badge
-                  variant={
-                    card.blocked
-                      ? 'destructive'
-                      : card.lightningAddress
-                        ? 'default'
-                        : 'secondary'
-                  }
-                >
-                  {card.blocked
-                    ? 'Blocked'
+          <InfoField
+            label="Pairing"
+            value={
+              <Badge
+                variant={
+                  card.blocked
+                    ? 'destructive'
                     : card.lightningAddress
-                      ? 'Paired'
-                      : 'Unpaired'}
-                </Badge>
-              }
-            />
+                      ? 'default'
+                      : 'secondary'
+                }
+              >
+                {card.blocked
+                  ? 'Blocked'
+                  : card.lightningAddress
+                    ? 'Paired'
+                    : 'Unpaired'}
+              </Badge>
+            }
+          />
 
-            {/* Lightning Address — only when the card is claimed by a
+          {/* Lightning Address — only when the card is claimed by a
                 user. Clickable when the parent provides a handler so
                 the user can hop straight into the LA detail dialog. */}
-            {card.lightningAddress?.username && (
-              <InfoField
-                label="Lightning Address"
-                value={
-                  onOpenAddress ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onOpenAddress(card.lightningAddress!.username!)
-                      }
-                      className="text-left hover:underline"
-                    >
-                      {card.lightningAddress.username}
-                    </button>
-                  ) : (
-                    card.lightningAddress.username
-                  )
-                }
-              />
-            )}
-
+          {card.lightningAddress?.username && (
             <InfoField
-              label="Bound wallet"
+              label="Lightning Address"
               value={
-                boundWallet ? (
-                  onOpenWallet ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenWallet(boundWallet.id)}
-                      className="text-left hover:underline"
-                    >
-                      {boundWallet.name}
-                    </button>
-                  ) : (
-                    boundWallet.name
-                  )
+                onOpenAddress ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenAddress(card.lightningAddress!.username!)
+                    }
+                    className="text-left hover:underline"
+                  >
+                    {card.lightningAddress.username}
+                  </button>
                 ) : (
-                  <span className="text-muted-foreground">None (uses primary wallet)</span>
+                  card.lightningAddress.username
                 )
               }
             />
+          )}
 
-            {/* Live balance — routed through the bound wallet, same
+          <InfoField
+            label="Bound wallet"
+            value={
+              boundWallet ? (
+                onOpenWallet ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenWallet(boundWallet.id)}
+                    className="text-left hover:underline"
+                  >
+                    {boundWallet.name}
+                  </button>
+                ) : (
+                  boundWallet.name
+                )
+              ) : (
+                <span className="text-muted-foreground">
+                  None (uses primary wallet)
+                </span>
+              )
+            }
+          />
+
+          {/* Live balance — routed through the bound wallet, same
                 visual treatment as the LA + wallet dialogs. Skip
                 entirely when there's no wallet behind the card; the
                 "Bound wallet: None" line above already conveys it. */}
-            {boundWallet && (
-              <div className="col-span-2">
-                <InfoField
-                  label="Balance"
-                  value={
-                    <WalletLiveBalance
-                      walletId={boundWallet.status === 'REVOKED' ? null : boundWallet.id}
-                    />
-                  }
-                />
-              </div>
-            )}
+          {boundWallet && (
+            <div className="col-span-2">
+              <InfoField
+                label="Balance"
+                value={
+                  <WalletLiveBalance
+                    walletId={
+                      boundWallet.status === 'REVOKED' ? null : boundWallet.id
+                    }
+                  />
+                }
+              />
+            </div>
+          )}
 
-            <InfoField
-              label="Created"
-              value={formatRelativeTime(card.createdAt)}
-            />
-            <InfoField
-              label="Updated"
-              value={formatRelativeTime(card.updatedAt)}
-            />
+          <InfoField
+            label="Created"
+            value={formatRelativeTime(card.createdAt)}
+          />
+          <InfoField
+            label="Updated"
+            value={formatRelativeTime(card.updatedAt)}
+          />
         </div>
       </div>
 

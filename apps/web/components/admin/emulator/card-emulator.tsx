@@ -49,7 +49,11 @@ interface ApiNtag {
 interface ApiCard {
   id: string
   title?: string
-  design?: { id: string; description: string | null; imageUrl: string | null } | null
+  design?: {
+    id: string
+    description: string | null
+    imageUrl: string | null
+  } | null
   ntag424?: ApiNtag | null
   pubkey?: string
   username?: string
@@ -210,12 +214,15 @@ export function CardEmulator() {
       setSteps([...collected])
 
       const cbUrl =
-        scanBody && typeof scanBody.callback === 'string' ? scanBody.callback : null
+        scanBody && typeof scanBody.callback === 'string'
+          ? scanBody.callback
+          : null
       if (!scanRes.ok || !cbUrl) {
         setVerdict({
           kind: 'error',
           title: 'Invalid scan',
-          text: scanBody?.error?.message ?? `Scan failed (HTTP ${scanRes.status})`
+          text:
+            scanBody?.error?.message ?? `Scan failed (HTTP ${scanRes.status})`
         })
         toast.error('Invalid scan')
         await loadCards()
@@ -255,7 +262,8 @@ export function CardEmulator() {
         setVerdict({
           kind: 'error',
           title: 'Payment failed',
-          text: message ?? `Wallet couldn't pay the invoice (HTTP ${cbRes.status})`
+          text:
+            message ?? `Wallet couldn't pay the invoice (HTTP ${cbRes.status})`
         })
         toast.error(message ?? 'Payment failed')
       } else {
@@ -303,7 +311,9 @@ export function CardEmulator() {
   const payDisabled =
     paying ||
     !usableSelected ||
-    (destKind === 'invoice' ? !invoice.trim() : !address.trim() || !(Number(amount) > 0))
+    (destKind === 'invoice'
+      ? !invoice.trim()
+      : !address.trim() || !(Number(amount) > 0))
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-4 sm:p-6">
@@ -316,9 +326,9 @@ export function CardEmulator() {
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          Impersonate a BoltCard tap end-to-end: the server signs the NTAG424 SUN
-          (keys never leave it), the emulator hits the live scan endpoint, and the
-          card&apos;s wallet pays a real invoice. Admin-only.
+          Impersonate a BoltCard tap end-to-end: the server signs the NTAG424
+          SUN (keys never leave it), the emulator hits the live scan endpoint,
+          and the card&apos;s wallet pays a real invoice. Admin-only.
         </p>
       </header>
 
@@ -326,7 +336,9 @@ export function CardEmulator() {
       <section className="rounded-xl border border-border bg-card p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1 space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Card to emulate</Label>
+            <Label className="text-xs text-muted-foreground">
+              Card to emulate
+            </Label>
             <Select
               value={selectedId}
               onValueChange={setSelectedId}
@@ -358,9 +370,15 @@ export function CardEmulator() {
               disabled={loadingCards}
               title="Reload cards"
             >
-              <RefreshCw className={cn('size-4', loadingCards && 'animate-spin')} />
+              <RefreshCw
+                className={cn('size-4', loadingCards && 'animate-spin')}
+              />
             </Button>
-            <Button variant="secondary" onClick={handleCreateFake} disabled={creating}>
+            <Button
+              variant="secondary"
+              onClick={handleCreateFake}
+              disabled={creating}
+            >
               {creating ? <Spinner size={16} /> : <Plus className="size-4" />}
               Create fake card
             </Button>
@@ -379,7 +397,9 @@ export function CardEmulator() {
               ctr {emulatedCtr}
             </Badge>
             {!usableSelected && (
-              <span className="text-xs text-destructive">No NTAG424 — can&apos;t emulate</span>
+              <span className="text-xs text-destructive">
+                No NTAG424 — can&apos;t emulate
+              </span>
             )}
           </div>
         )}
@@ -412,8 +432,8 @@ export function CardEmulator() {
                   <Radio className="size-4" /> Tap &amp; pay
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Choose what the card pays, then tap. The card&apos;s wallet settles
-                  the invoice over its NWC connection.
+                  Choose what the card pays, then tap. The card&apos;s wallet
+                  settles the invoice over its NWC connection.
                 </p>
               </div>
 
@@ -473,7 +493,11 @@ export function CardEmulator() {
                 </TabsContent>
               </Tabs>
 
-              <Button onClick={handleTapAndPay} disabled={payDisabled} className="w-full">
+              <Button
+                onClick={handleTapAndPay}
+                disabled={payDisabled}
+                className="w-full"
+              >
                 {paying ? <Spinner size={16} /> : <Radio className="size-4" />}
                 {paying ? 'Tapping…' : 'Tap card & pay'}
               </Button>
@@ -544,7 +568,11 @@ export function CardEmulator() {
                 />
                 <dl className="grid flex-1 grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
                   <Field label="Card ID" value={selected.id} mono />
-                  <Field label="UID (cid)" value={selected.ntag424?.cid ?? '—'} mono />
+                  <Field
+                    label="UID (cid)"
+                    value={selected.ntag424?.cid ?? '—'}
+                    mono
+                  />
                   <Field
                     label="Server counter"
                     value={String(selected.ntag424?.ctr ?? '—')}
@@ -596,15 +624,19 @@ export function CardEmulator() {
                 <Ticket className="size-4" /> Activation
               </h2>
               <p className="text-xs text-muted-foreground">
-                Mint a one-time activation URL for this card and open it in another
-                tab to exercise the wallet activation flow.
+                Mint a one-time activation URL for this card and open it in
+                another tab to exercise the wallet activation flow.
               </p>
               <Button
                 variant="secondary"
                 onClick={handleMintActivation}
                 disabled={minting}
               >
-                {minting ? <Spinner size={16} /> : <Ticket className="size-4" />}
+                {minting ? (
+                  <Spinner size={16} />
+                ) : (
+                  <Ticket className="size-4" />
+                )}
                 Mint activation URL
               </Button>
               {activationUrl && (
@@ -635,10 +667,10 @@ export function CardEmulator() {
       )}
 
       <p className="text-2xs text-muted-foreground">
-        Taps are signed server-side via{' '}
-        <code>/api/cards/[id]/emulate-tap</code> (keys never reach the browser)
-        and verified by the real <code>/api/cards/[id]/scan/cb</code> endpoint —
-        identical math to a physical NTAG424 tag.
+        Taps are signed server-side via <code>/api/cards/[id]/emulate-tap</code>{' '}
+        (keys never reach the browser) and verified by the real{' '}
+        <code>/api/cards/[id]/scan/cb</code> endpoint — identical math to a
+        physical NTAG424 tag.
       </p>
     </div>
   )

@@ -6,7 +6,7 @@ export const DEFAULT_NOSTR_RELAYS = [
   'wss://relay.damus.io',
   'wss://relay.nostr.band',
   'wss://nos.lol',
-  'wss://relay.lawallet.ar',
+  'wss://relay.lawallet.ar'
 ]
 
 export interface NostrProfile {
@@ -40,7 +40,9 @@ export function toNpub(pubkey: string): string {
   return nip19.npubEncode(pubkey.toLowerCase())
 }
 
-export function normalizeNostrPubkey(input: string): NormalizedNostrPubkey | null {
+export function normalizeNostrPubkey(
+  input: string
+): NormalizedNostrPubkey | null {
   const trimmed = input.trim()
   if (!trimmed) return null
 
@@ -66,7 +68,9 @@ function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value : undefined
 }
 
-export function parseKind0Metadata(content: string): Record<string, unknown> | null {
+export function parseKind0Metadata(
+  content: string
+): Record<string, unknown> | null {
   try {
     const meta = JSON.parse(content)
     if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
@@ -84,7 +88,7 @@ export function parseKind0Metadata(content: string): Record<string, unknown> | n
 export function parseKind0Content(
   pubkey: string,
   content: string,
-  options?: { fetchedAt?: number },
+  options?: { fetchedAt?: number }
 ): NostrProfile | null {
   const parsed = parseKind0ContentWithRaw(pubkey, content, options)
   return parsed?.profile ?? null
@@ -93,7 +97,7 @@ export function parseKind0Content(
 export function parseKind0ContentWithRaw(
   pubkey: string,
   content: string,
-  options?: { fetchedAt?: number },
+  options?: { fetchedAt?: number }
 ): ParsedKind0Profile | null {
   const normalized = normalizeNostrPubkey(pubkey)
   if (!normalized) return null
@@ -107,14 +111,15 @@ export function parseKind0ContentWithRaw(
       pubkey: normalized.pubkey,
       npub: normalized.npub,
       name: optionalString(meta.name) || optionalString(meta.username),
-      displayName: optionalString(meta.display_name) || optionalString(meta.displayName),
+      displayName:
+        optionalString(meta.display_name) || optionalString(meta.displayName),
       picture: optionalString(meta.picture),
       banner: optionalString(meta.banner),
       about: optionalString(meta.about),
       nip05: optionalString(meta.nip05),
       lud16: optionalString(meta.lud16),
       website: optionalString(meta.website),
-      fetchedAt: options?.fetchedAt ?? Date.now(),
-    },
+      fetchedAt: options?.fetchedAt ?? Date.now()
+    }
   }
 }

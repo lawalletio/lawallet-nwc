@@ -5,7 +5,7 @@ import {
   protectedSecurity,
   publicErrorResponses,
   publicSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 import { responses } from '../responses'
@@ -21,9 +21,11 @@ const mintedToken = z
     tokenId: z.string(),
     qrPayload: z.string().url(),
     qrKind,
-    expiresAt: z.string().datetime().nullable(),
+    expiresAt: z.string().datetime().nullable()
   })
-  .openapi({ description: 'A freshly minted activation token + its scannable QR payload.' })
+  .openapi({
+    description: 'A freshly minted activation token + its scannable QR payload.'
+  })
 
 const activeToken = z
   .object({
@@ -32,9 +34,11 @@ const activeToken = z
     qrPayload: z.string().url(),
     status: tokenStatus,
     expiresAt: z.string().datetime().nullable(),
-    createdAt: z.string().datetime(),
+    createdAt: z.string().datetime()
   })
-  .openapi({ description: 'An active (PENDING, unexpired) activation token for a card.' })
+  .openapi({
+    description: 'An active (PENDING, unexpired) activation token for a card.'
+  })
 
 const tokenPreview = z
   .object({
@@ -48,11 +52,14 @@ const tokenPreview = z
       design: z.object({
         id: z.string(),
         imageUrl: z.string(),
-        description: z.string(),
-      }),
-    }),
+        description: z.string()
+      })
+    })
   })
-  .openapi({ description: 'Public, secret-free preview of an activation token for the wallet scanner.' })
+  .openapi({
+    description:
+      'Public, secret-free preview of an activation token for the wallet scanner.'
+  })
 
 const claimResult = z
   .object({
@@ -61,11 +68,14 @@ const claimResult = z
       .object({
         id: z.string(),
         kind: z.enum(['SIMPLE', 'MASTER']),
-        remoteWalletId: z.string().nullable(),
+        remoteWalletId: z.string().nullable()
       })
-      .passthrough(),
+      .passthrough()
   })
-  .openapi({ description: 'Result of a ONE_TIME claim — ownership transferred, token burned.' })
+  .openapi({
+    description:
+      'Result of a ONE_TIME claim — ownership transferred, token burned.'
+  })
 
 // POST /api/cards/{id}/activation-tokens — mint an activation QR (operator).
 registry.registerPath({
@@ -81,15 +91,17 @@ registry.registerPath({
   request: {
     params: schemas.IdParam,
     body: {
-      content: { 'application/json': { schema: schemas.ActivationTokenCreateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.ActivationTokenCreateRequest }
+      }
+    }
   },
   responses: {
     201: inlineJsonResponse('Activation token minted.', mintedToken),
     ...commonErrorResponses,
     404: responses.notFound,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })
 
 // GET /api/cards/{id}/activation-tokens — list active tokens (viewer).
@@ -105,8 +117,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('Active activation tokens.', z.array(activeToken)),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 // POST /api/cards/{id}/rescue — reset + re-issue (operator).
@@ -115,17 +127,21 @@ registry.registerPath({
   method: 'post',
   path: '/api/cards/{id}/rescue',
   tags: [TAG],
-  summary: 'Rescue a card — revoke outstanding tokens and re-issue a fresh ONE_TIME QR.',
+  summary:
+    'Rescue a card — revoke outstanding tokens and re-issue a fresh ONE_TIME QR.',
   description:
     'Destructive reset: revokes outstanding tokens, unassigns the card (clears holder + bound wallet), and mints a fresh ONE_TIME activation token.',
   operationId: 'cards.rescue',
   security: protectedSecurity,
   request: { params: schemas.IdParam },
   responses: {
-    201: inlineJsonResponse('Card rescued; fresh activation token minted.', mintedToken),
+    201: inlineJsonResponse(
+      'Card rescued; fresh activation token minted.',
+      mintedToken
+    ),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 // GET /api/activation-tokens/{id} — public preview for the scanner.
@@ -141,8 +157,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('Token preview.', tokenPreview),
     ...publicErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 // POST /api/activation-tokens/{id}/claim — claim/transfer (any authenticated user).
@@ -159,13 +175,15 @@ registry.registerPath({
   request: {
     params: schemas.IdParam,
     body: {
-      content: { 'application/json': { schema: schemas.ActivationTokenClaimRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.ActivationTokenClaimRequest }
+      }
+    }
   },
   responses: {
     200: inlineJsonResponse('Card claimed.', claimResult),
     ...commonErrorResponses,
     404: responses.notFound,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })

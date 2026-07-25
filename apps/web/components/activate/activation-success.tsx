@@ -7,7 +7,13 @@ import { Card3D } from '@/components/activate/card-3d'
 
 // The lead confetti colour follows the community's theme (--primary, set from
 // settings); the rest stay as festive accents.
-const CONFETTI_COLORS = ['hsl(var(--primary))', '#F5A623', '#E53935', '#A78BFA', '#ffffff']
+const CONFETTI_COLORS = [
+  'hsl(var(--primary))',
+  '#F5A623',
+  '#E53935',
+  '#A78BFA',
+  '#ffffff'
+]
 
 /**
  * Celebration screen shown after a successful claim: confetti rain, an

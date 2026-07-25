@@ -25,7 +25,12 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const apiRoot = path.join(root, 'apps', 'web', 'app', 'api')
 const docsRoot = path.join(root, 'apps', 'docs', 'content', 'docs')
 const allowlistPath = path.join(root, 'scripts', 'docs-sync.allowlist.json')
-const snapshotPath = path.join(root, 'packages', 'openapi', 'openapi.snapshot.json')
+const snapshotPath = path.join(
+  root,
+  'packages',
+  'openapi',
+  'openapi.snapshot.json'
+)
 
 const write = process.argv.includes('--write')
 const problems = []
@@ -84,7 +89,9 @@ for (const [p, ops] of Object.entries(doc.paths ?? {})) {
 }
 
 const allowlist = new Set(
-  existsSync(allowlistPath) ? JSON.parse(readFileSync(allowlistPath, 'utf8')) : []
+  existsSync(allowlistPath)
+    ? JSON.parse(readFileSync(allowlistPath, 'utf8'))
+    : []
 )
 
 const missing = []

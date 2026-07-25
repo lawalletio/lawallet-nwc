@@ -98,27 +98,34 @@ interface MergeConflicts {
   absorbedDisplayName: string | undefined
 }
 
-function computeConflicts(preview: AccountMergePreviewResponse): MergeConflicts {
+function computeConflicts(
+  preview: AccountMergePreviewResponse
+): MergeConflicts {
   const s = preview.survivor
   const a = preview.absorbed
   const survivorDisplayName = s.profile?.displayName ?? s.profile?.name
   const absorbedDisplayName = a.profile?.displayName ?? a.profile?.name
   const pictureConflict = Boolean(
-    s.profile?.picture && a.profile?.picture && s.profile.picture !== a.profile.picture
+    s.profile?.picture &&
+    a.profile?.picture &&
+    s.profile.picture !== a.profile.picture
   )
   const nameConflict = Boolean(
     survivorDisplayName &&
-      absorbedDisplayName &&
-      survivorDisplayName !== absorbedDisplayName
+    absorbedDisplayName &&
+    survivorDisplayName !== absorbedDisplayName
   )
   const survivorDefaultWallet = s.wallets.find(w => w.isDefault) ?? null
   const absorbedDefaultWallet = a.wallets.find(w => w.isDefault) ?? null
   return {
     pictureConflict,
     nameConflict,
-    profileShown: Boolean(s.profile && a.profile && (pictureConflict || nameConflict)),
+    profileShown: Boolean(
+      s.profile && a.profile && (pictureConflict || nameConflict)
+    ),
     addressConflict: s.primaryAddress !== null && a.primaryAddress !== null,
-    walletConflict: survivorDefaultWallet !== null && absorbedDefaultWallet !== null,
+    walletConflict:
+      survivorDefaultWallet !== null && absorbedDefaultWallet !== null,
     survivorDefaultWallet,
     absorbedDefaultWallet,
     relaysShown: s.relays.length > 0 || a.relays.length > 0,
@@ -152,7 +159,9 @@ export function MergeDialog({
 
   const [step, setStep] = useState<Step>('prove')
   const [ticket, setTicket] = useState<string | null>(null)
-  const [preview, setPreview] = useState<AccountMergePreviewResponse | null>(null)
+  const [preview, setPreview] = useState<AccountMergePreviewResponse | null>(
+    null
+  )
   const [mainPubkey, setMainPubkey] = useState('')
   const [profileSource, setProfileSource] = useState<{
     picture: ProfileSide
@@ -404,9 +413,8 @@ export function MergeDialog({
               <TabsContent value="passkey" className="pt-2">
                 <div className="flex flex-col gap-4 pt-2">
                   <p className="text-sm text-muted-foreground">
-                    Use a passkey that belongs to the other account. Your
-                    device will prompt for Face ID, Touch ID, or your screen
-                    lock.
+                    Use a passkey that belongs to the other account. Your device
+                    will prompt for Face ID, Touch ID, or your screen lock.
                   </p>
                   <Button
                     type="button"
@@ -419,7 +427,9 @@ export function MergeDialog({
                     ) : (
                       <Fingerprint className="size-4" />
                     )}
-                    {proving ? 'Waiting for your device…' : 'Prove with passkey'}
+                    {proving
+                      ? 'Waiting for your device…'
+                      : 'Prove with passkey'}
                   </Button>
                   {!passkeySupported && (
                     <p className="text-xs text-muted-foreground">
@@ -445,7 +455,10 @@ export function MergeDialog({
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <MergeSideCard title="This account" side={preview.survivor} />
-                <MergeSideCard title="Incoming account" side={preview.absorbed} />
+                <MergeSideCard
+                  title="Incoming account"
+                  side={preview.absorbed}
+                />
               </div>
 
               {preview.collisions.map((collision, i) => (
@@ -711,7 +724,9 @@ export function MergeDialog({
                 <ReviewRow
                   label="Main identity"
                   value={
-                    <span className="font-mono">{truncateNpub(mainPubkey)}</span>
+                    <span className="font-mono">
+                      {truncateNpub(mainPubkey)}
+                    </span>
                   }
                 />
                 {conflicts.profileShown && conflicts.pictureConflict && (
@@ -776,14 +791,20 @@ export function MergeDialog({
                   'identity',
                   'identities'
                 )}
-                , {countLabel(preview.absorbed.passkeys, 'passkey', 'passkeys')},{' '}
+                , {countLabel(preview.absorbed.passkeys, 'passkey', 'passkeys')}
+                ,{' '}
                 {countLabel(
                   preview.absorbed.lightningAddresses.length,
                   'lightning address',
                   'lightning addresses'
                 )}
                 ,{' '}
-                {countLabel(preview.absorbed.remoteWallets, 'wallet', 'wallets')}.
+                {countLabel(
+                  preview.absorbed.remoteWallets,
+                  'wallet',
+                  'wallets'
+                )}
+                .
               </p>
 
               <Alert variant="destructive">
@@ -831,7 +852,9 @@ export function MergeDialog({
                 {countLabel(result.movedIdentities, 'identity', 'identities')}{' '}
                 moved
               </li>
-              <li>{countLabel(result.movedPasskeys, 'passkey', 'passkeys')} moved</li>
+              <li>
+                {countLabel(result.movedPasskeys, 'passkey', 'passkeys')} moved
+              </li>
               <li>
                 {countLabel(
                   result.movedAddresses,
@@ -840,7 +863,9 @@ export function MergeDialog({
                 )}{' '}
                 moved
               </li>
-              <li>{countLabel(result.movedWallets, 'wallet', 'wallets')} moved</li>
+              <li>
+                {countLabel(result.movedWallets, 'wallet', 'wallets')} moved
+              </li>
               {result.mergedRelays > 0 && (
                 <li>
                   {countLabel(result.mergedRelays, 'relay', 'relays')} in the

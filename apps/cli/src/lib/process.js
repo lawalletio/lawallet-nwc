@@ -2,9 +2,11 @@ import { spawn, spawnSync } from 'node:child_process'
 import net from 'node:net'
 
 export function commandExists(command) {
-  return spawnSync('which', [command], {
-    stdio: 'ignore'
-  }).status === 0
+  return (
+    spawnSync('which', [command], {
+      stdio: 'ignore'
+    }).status === 0
+  )
 }
 
 export async function runCommand(command, args, options = {}) {

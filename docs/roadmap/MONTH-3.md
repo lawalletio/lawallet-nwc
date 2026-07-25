@@ -105,13 +105,13 @@ The admin dashboard already has a functional base (cards, designs, addresses, se
 
 ## Acceptance Criteria
 
-| Deliverable | Criteria | Priority |
-|-------------|----------|----------|
-| User management | User list, role editing, search/filter working | P0 |
-| Activity monitor | Transaction feed with filters | P1 |
-| Logs panel | Log viewer with level filtering | P1 |
-| NIP-07 login | Browser extension login working | P0 |
-| NIP-46 login | Remote signing login working | P1 |
-| Address enhancements | Create wizard, redirects, bulk ops | P0 |
-| Frontend cleanup | Component audit complete, hooks consumed | P1 |
-| E2E setup | Playwright running in CI, smoke tests passing | P1 |
+| Deliverable          | Criteria                                       | Priority |
+| -------------------- | ---------------------------------------------- | -------- |
+| User management      | User list, role editing, search/filter working | P0       |
+| Activity monitor     | Transaction feed with filters                  | P1       |
+| Logs panel           | Log viewer with level filtering                | P1       |
+| NIP-07 login         | Browser extension login working                | P0       |
+| NIP-46 login         | Remote signing login working                   | P1       |
+| Address enhancements | Create wizard, redirects, bulk ops             | P0       |
+| Frontend cleanup     | Component audit complete, hooks consumed       | P1       |
+| E2E setup            | Playwright running in CI, smoke tests passing  | P1       |

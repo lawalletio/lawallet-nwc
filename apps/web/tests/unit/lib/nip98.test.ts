@@ -3,13 +3,13 @@ import { generateAbsoluteUrl, bodyToPayload } from '@/lib/nip98-client'
 import { validateNip98 } from '@/lib/nip98'
 
 // Mock nostr-tools nip98
-vi.mock('nostr-tools', async (importOriginal) => {
+vi.mock('nostr-tools', async importOriginal => {
   const original = await importOriginal<typeof import('nostr-tools')>()
   return {
     ...original,
     nip98: {
-      validateEvent: vi.fn().mockResolvedValue(true),
-    },
+      validateEvent: vi.fn().mockResolvedValue(true)
+    }
   }
 })
 
@@ -17,7 +17,7 @@ vi.mock('nostr-tools', async (importOriginal) => {
 // configured `endpoint` is unavailable, so URL reconstruction falls back to the
 // request headers — individual tests override it to assert the endpoint anchor.
 vi.mock('@/lib/public-url', () => ({
-  resolveApiUrl: vi.fn().mockRejectedValue(new Error('settings unavailable')),
+  resolveApiUrl: vi.fn().mockRejectedValue(new Error('settings unavailable'))
 }))
 
 let consoleErrorSpy: ReturnType<typeof vi.spyOn>
@@ -33,11 +33,15 @@ afterEach(() => {
 
 describe('generateAbsoluteUrl', () => {
   it('returns absolute URL as-is', () => {
-    expect(generateAbsoluteUrl('https://example.com/api')).toBe('https://example.com/api')
+    expect(generateAbsoluteUrl('https://example.com/api')).toBe(
+      'https://example.com/api'
+    )
   })
 
   it('returns http URL as-is', () => {
-    expect(generateAbsoluteUrl('http://localhost:3000/api')).toBe('http://localhost:3000/api')
+    expect(generateAbsoluteUrl('http://localhost:3000/api')).toBe(
+      'http://localhost:3000/api'
+    )
   })
 
   it('prepends baseUrl to relative path starting with /', () => {
@@ -116,31 +120,36 @@ describe('validateNip98', () => {
       pubkey: 'a'.repeat(64),
       tags: [
         ['u', 'http://localhost:3000/api/test'],
-        ['method', 'GET'],
+        ['method', 'GET']
       ],
       content: '',
       id: 'event_id',
       sig: 'event_sig',
-      ...overrides,
+      ...overrides
     }
   }
 
-  function createNip98Request(event: any, url = 'http://localhost:3000/api/test') {
+  function createNip98Request(
+    event: any,
+    url = 'http://localhost:3000/api/test'
+  ) {
     const base64 = btoa(JSON.stringify(event))
     return new Request(url, {
       method: 'GET',
-      headers: { Authorization: `Nostr ${base64}` },
+      headers: { Authorization: `Nostr ${base64}` }
     })
   }
 
   it('throws when Authorization header is missing', async () => {
     const request = new Request('http://localhost/api/test')
-    await expect(validateNip98(request)).rejects.toThrow('Authorization header is required')
+    await expect(validateNip98(request)).rejects.toThrow(
+      'Authorization header is required'
+    )
   })
 
   it('throws when header does not start with Nostr', async () => {
     const request = new Request('http://localhost/api/test', {
-      headers: { Authorization: 'Bearer abc' },
+      headers: { Authorization: 'Bearer abc' }
     })
     await expect(validateNip98(request)).rejects.toThrow(
       'Authorization header must start with "Nostr "'
@@ -149,14 +158,16 @@ describe('validateNip98', () => {
 
   it('throws when event data is empty', async () => {
     const request = new Request('http://localhost/api/test', {
-      headers: { Authorization: 'Nostr ' },
+      headers: { Authorization: 'Nostr ' }
     })
-    await expect(validateNip98(request)).rejects.toThrow('Event data is required')
+    await expect(validateNip98(request)).rejects.toThrow(
+      'Event data is required'
+    )
   })
 
   it('throws for invalid base64/JSON', async () => {
     const request = new Request('http://localhost/api/test', {
-      headers: { Authorization: 'Nostr !!!invalid-base64!!!' },
+      headers: { Authorization: 'Nostr !!!invalid-base64!!!' }
     })
     await expect(validateNip98(request)).rejects.toThrow('Invalid event format')
   })
@@ -171,7 +182,7 @@ describe('validateNip98', () => {
 
   it('throws when event timestamp is too old', async () => {
     const event = createNip98Event({
-      created_at: Math.floor(Date.now() / 1000) - 120,
+      created_at: Math.floor(Date.now() / 1000) - 120
     })
     const request = createNip98Request(event)
     await expect(validateNip98(request, 60)).rejects.toThrow(
@@ -185,7 +196,9 @@ describe('validateNip98', () => {
 
     const event = createNip98Event()
     const request = createNip98Request(event)
-    await expect(validateNip98(request)).rejects.toThrow('Event validation failed')
+    await expect(validateNip98(request)).rejects.toThrow(
+      'Event validation failed'
+    )
   })
 
   it('uses x-forwarded-host and x-forwarded-proto headers for URL reconstruction', async () => {
@@ -198,8 +211,8 @@ describe('validateNip98', () => {
       headers: {
         Authorization: `Nostr ${btoa(JSON.stringify(event))}`,
         'x-forwarded-host': 'public.example.com',
-        'x-forwarded-proto': 'https',
-      },
+        'x-forwarded-proto': 'https'
+      }
     })
 
     await validateNip98(request)
@@ -224,15 +237,15 @@ describe('validateNip98', () => {
     const event = createNip98Event({
       tags: [
         ['u', 'https://lawallet.masize.com/api/jwt'],
-        ['method', 'GET'],
-      ],
+        ['method', 'GET']
+      ]
     })
     const request = new Request('http://internal-app:2288/api/jwt', {
       method: 'GET',
       headers: {
         Authorization: `Nostr ${btoa(JSON.stringify(event))}`,
-        host: 'internal-app:2288',
-      },
+        host: 'internal-app:2288'
+      }
     })
 
     await validateNip98(request)
@@ -256,15 +269,15 @@ describe('validateNip98', () => {
     const event = createNip98Event({
       tags: [
         ['u', 'http://internal-app:2288/api/jwt'],
-        ['method', 'GET'],
-      ],
+        ['method', 'GET']
+      ]
     })
     const request = new Request('http://internal-app:2288/api/jwt', {
       method: 'GET',
       headers: {
         Authorization: `Nostr ${btoa(JSON.stringify(event))}`,
-        host: 'internal-app:2288',
-      },
+        host: 'internal-app:2288'
+      }
     })
 
     await validateNip98(request)

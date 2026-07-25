@@ -11,7 +11,7 @@ import {
   useSettingSaver,
   SettingSwitch,
   SettingTextInput,
-  SettingInputGroup,
+  SettingInputGroup
 } from '@/components/admin/settings/auto-save-controls'
 import { DEFAULT_LNCURL_SERVER } from '@/lib/lncurl'
 
@@ -76,7 +76,7 @@ export function WalletTab() {
       await saveSetting({
         registration_ln_enabled: enabled ? 'true' : 'false',
         registration_ln_address: address,
-        registration_price: price,
+        registration_price: price
       })
     },
     [saveSetting, registrationEnabled, registrationLnAddress, registrationPrice]
@@ -93,7 +93,9 @@ export function WalletTab() {
       await persistPaid({ enabled: next })
     } catch (err) {
       setRegistrationEnabled(prev)
-      toast.error(err instanceof Error ? err.message : 'Failed to update setting')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update setting'
+      )
     } finally {
       setPaidToggleSaving(false)
     }
@@ -129,7 +131,9 @@ export function WalletTab() {
             <SettingSwitch
               checked={maintenanceEnabled}
               onCheckedChange={setMaintenanceEnabled}
-              save={next => saveSetting({ maintenance_enabled: next ? 'true' : 'false' })}
+              save={next =>
+                saveSetting({ maintenance_enabled: next ? 'true' : 'false' })
+              }
             />
           </div>
         </div>
@@ -157,7 +161,9 @@ export function WalletTab() {
               checked={registrationUserEnabled}
               onCheckedChange={setRegistrationUserEnabled}
               save={next =>
-                saveSetting({ registration_user_enabled: next ? 'true' : 'false' })
+                saveSetting({
+                  registration_user_enabled: next ? 'true' : 'false'
+                })
               }
             />
           </div>
@@ -190,7 +196,13 @@ export function WalletTab() {
                   onValueChange={setRegistrationLnAddress}
                   save={addr => persistPaid({ address: addr })}
                 />
-                <p className={paidNeedsAddress ? 'text-xs text-amber-500' : 'text-xs text-muted-foreground'}>
+                <p
+                  className={
+                    paidNeedsAddress
+                      ? 'text-xs text-amber-500'
+                      : 'text-xs text-muted-foreground'
+                  }
+                >
                   {paidNeedsAddress
                     ? 'Enter a payment address to activate paid registration.'
                     : 'Lightning address where registration payments will be sent.'}
@@ -210,16 +222,21 @@ export function WalletTab() {
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Admins & operators bypass payment</p>
+                  <p className="text-sm font-medium">
+                    Admins & operators bypass payment
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    When an admin or operator creates an address, skip the registration fee.
+                    When an admin or operator creates an address, skip the
+                    registration fee.
                   </p>
                 </div>
                 <SettingSwitch
                   checked={registrationAdminBypass}
                   onCheckedChange={setRegistrationAdminBypass}
                   save={next =>
-                    saveSetting({ registration_admin_bypass: next ? 'true' : 'false' })
+                    saveSetting({
+                      registration_admin_bypass: next ? 'true' : 'false'
+                    })
                   }
                 />
               </div>
@@ -234,8 +251,8 @@ export function WalletTab() {
         <div>
           <h3 className="text-sm font-semibold">LNCurl Wallets</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Let users spin up a disposable custodial wallet instead of pasting an
-            NWC connection string.
+            Let users spin up a disposable custodial wallet instead of pasting
+            an NWC connection string.
           </p>
         </div>
         <div className="flex flex-col gap-4">
@@ -243,7 +260,8 @@ export function WalletTab() {
             <div>
               <p className="text-sm font-medium">Enable LNCurl</p>
               <p className="text-sm text-muted-foreground">
-                Show a “Create an LNCurl wallet” option when connecting a wallet.
+                Show a “Create an LNCurl wallet” option when connecting a
+                wallet.
               </p>
             </div>
             <SettingSwitch
@@ -260,7 +278,7 @@ export function WalletTab() {
                   await saveSetting({
                     lncurl_enabled: 'false',
                     lncurl_auto_create: 'false',
-                    lncurl_auto_recreate: 'false',
+                    lncurl_auto_recreate: 'false'
                   })
                 }
               }}
@@ -277,7 +295,9 @@ export function WalletTab() {
                   value={lncurlServerUrl}
                   onValueChange={setLncurlServerUrl}
                   save={url =>
-                    saveSetting({ lncurl_server_url: url.trim() || DEFAULT_LNCURL_SERVER })
+                    saveSetting({
+                      lncurl_server_url: url.trim() || DEFAULT_LNCURL_SERVER
+                    })
                   }
                 />
                 <p className="text-xs text-muted-foreground">
@@ -287,15 +307,18 @@ export function WalletTab() {
               </div>
 
               <div className="rounded-md border border-yellow-500/40 bg-yellow-500/5 p-3 text-xs text-yellow-700 dark:text-yellow-400">
-                LNCurl wallets cost <strong>1 sat per hour</strong> to stay alive —
-                the <strong>first hour is free</strong>. If the balance runs out
-                and hits <strong>0 sats the wallet is permanently destroyed</strong>.
+                LNCurl wallets cost <strong>1 sat per hour</strong> to stay
+                alive — the <strong>first hour is free</strong>. If the balance
+                runs out and hits{' '}
+                <strong>0 sats the wallet is permanently destroyed</strong>.
                 They&apos;re for quick, low-value use — not for storing funds.
               </div>
 
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium">Autocreate wallet on new account</p>
+                  <p className="text-sm font-medium">
+                    Autocreate wallet on new account
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     Give every new account a default LNCurl wallet at signup.
                   </p>
@@ -311,7 +334,9 @@ export function WalletTab() {
 
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium">Recreate when a wallet dies</p>
+                  <p className="text-sm font-medium">
+                    Recreate when a wallet dies
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     If an LNCurl wallet is destroyed, mint a replacement on the
                     next incoming payment so the Lightning Address keeps
@@ -322,7 +347,9 @@ export function WalletTab() {
                   checked={lncurlAutoRecreate}
                   onCheckedChange={setLncurlAutoRecreate}
                   save={next =>
-                    saveSetting({ lncurl_auto_recreate: next ? 'true' : 'false' })
+                    saveSetting({
+                      lncurl_auto_recreate: next ? 'true' : 'false'
+                    })
                   }
                 />
               </div>

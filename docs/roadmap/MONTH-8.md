@@ -94,12 +94,12 @@ Spawning is interactive — no CLI, no migration steps. Operator picks Mode A or
 
 ### Task types
 
-| Task | Behavior |
-|------|----------|
-| `POST` | Publishes a `kind:1` from a stored prompt (LLM call → publish) |
-| `REPLY_TO_MENTIONS` | Scans recent mentions of the agent's npub, drafts replies, publishes |
-| `ZAP_LIST` | Zaps a stored list of npubs from a prompt-derived amount |
-| `CUSTOM_PROMPT` | Runs an LLM call with stored prompt; output handled per `taskConfig` (e.g., DM the operator with the result) |
+| Task                | Behavior                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `POST`              | Publishes a `kind:1` from a stored prompt (LLM call → publish)                                               |
+| `REPLY_TO_MENTIONS` | Scans recent mentions of the agent's npub, drafts replies, publishes                                         |
+| `ZAP_LIST`          | Zaps a stored list of npubs from a prompt-derived amount                                                     |
+| `CUSTOM_PROMPT`     | Runs an LLM call with stored prompt; output handled per `taskConfig` (e.g., DM the operator with the result) |
 
 ### Autonomous Nostr actions
 
@@ -199,25 +199,25 @@ Namespaced keys added to `Settings` (no migration):
 
 ## Acceptance Criteria
 
-| Deliverable | Criteria | Priority |
-|-------------|----------|----------|
-| One-click agent spawn | Admin form creates agent with npub + LN address + NWC wallet in under 5s | P0 |
-| Per-agent LN address | `<slug>@domain.com` resolves; agent receives sats | P0 |
-| Agent NWC wallet | Agent can pay invoices and send zaps from its own balance | P0 |
-| Dashboard funding | "Fund Agent" → invoice from agent wallet → operator pays → balance updates | P0 |
-| Agent identity Mode A (nsec) | Server-side encrypted nsec; agent signs autonomously | P0 |
-| Agent identity Mode B (Amber/NIP-46) | Operator selects bunker URI; signing requests reach Amber and return | P0 |
-| Agent run endpoint | Streams response; debits user's M7 allowance or returns invoice from agent wallet | P0 |
-| `AgentRequest` ledger | Every run logged with cost, tokens, plan, paidVia | P0 |
-| Drafter + Summarizer agents | Both spawnable in one click; work from admin UI and SDK | P0 |
-| OperatorBot custom prompt | Admin sets system prompt during spawn; new agent appears in user-facing list | P0 |
-| Agent chat participation | User DMs agent npub → agent replies via DM through M7 chat surface | P0 |
-| Scheduled tasks (cron) | Operator sets cron + task type; listener triggers at scheduled time | P0 |
-| Autonomous Nostr tasks | `POST`, `REPLY_TO_MENTIONS`, `ZAP_LIST`, `CUSTOM_PROMPT` task types execute | P0 |
-| Tier allowance / discount | Subscriber pays 0 sats while M7 allowance lasts | P0 |
-| Agent-to-agent payments | One agent zaps another's LN address from its NWC wallet | P1 |
-| Agent invocation via Nostr DM | DM the OperatorBot npub from any Nostr client → reply via DM | P1 |
-| Group threads (NIP-29) | Deferred to M9 / post-roadmap | — |
+| Deliverable                          | Criteria                                                                          | Priority |
+| ------------------------------------ | --------------------------------------------------------------------------------- | -------- |
+| One-click agent spawn                | Admin form creates agent with npub + LN address + NWC wallet in under 5s          | P0       |
+| Per-agent LN address                 | `<slug>@domain.com` resolves; agent receives sats                                 | P0       |
+| Agent NWC wallet                     | Agent can pay invoices and send zaps from its own balance                         | P0       |
+| Dashboard funding                    | "Fund Agent" → invoice from agent wallet → operator pays → balance updates        | P0       |
+| Agent identity Mode A (nsec)         | Server-side encrypted nsec; agent signs autonomously                              | P0       |
+| Agent identity Mode B (Amber/NIP-46) | Operator selects bunker URI; signing requests reach Amber and return              | P0       |
+| Agent run endpoint                   | Streams response; debits user's M7 allowance or returns invoice from agent wallet | P0       |
+| `AgentRequest` ledger                | Every run logged with cost, tokens, plan, paidVia                                 | P0       |
+| Drafter + Summarizer agents          | Both spawnable in one click; work from admin UI and SDK                           | P0       |
+| OperatorBot custom prompt            | Admin sets system prompt during spawn; new agent appears in user-facing list      | P0       |
+| Agent chat participation             | User DMs agent npub → agent replies via DM through M7 chat surface                | P0       |
+| Scheduled tasks (cron)               | Operator sets cron + task type; listener triggers at scheduled time               | P0       |
+| Autonomous Nostr tasks               | `POST`, `REPLY_TO_MENTIONS`, `ZAP_LIST`, `CUSTOM_PROMPT` task types execute       | P0       |
+| Tier allowance / discount            | Subscriber pays 0 sats while M7 allowance lasts                                   | P0       |
+| Agent-to-agent payments              | One agent zaps another's LN address from its NWC wallet                           | P1       |
+| Agent invocation via Nostr DM        | DM the OperatorBot npub from any Nostr client → reply via DM                      | P1       |
+| Group threads (NIP-29)               | Deferred to M9 / post-roadmap                                                     | —        |
 
 ---
 

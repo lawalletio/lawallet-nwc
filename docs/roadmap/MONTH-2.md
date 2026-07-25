@@ -64,15 +64,15 @@ With backend infrastructure, logging, auth, and testing delivered ahead of sched
 
 ### Hooks
 
-| Hook | Purpose | Features |
-|------|---------|----------|
-| `useAddress` | CRUD single lightning address | Create, fetch, update, delete |
-| `useAddresses` | List/search addresses | Pagination, filtering, search |
-| `useNWCConnection` | NWC wallet management | Connect, disconnect, status polling |
-| `usePayments` | Payment history | Real-time updates, filtering |
-| `useAuth` | Authentication | NIP-98 login → JWT session, session state, logout |
-| `useWebhooks` | Webhook management | Subscribe, unsubscribe, list active |
-| `useWallet` | Wallet operations | Balance, send, receive, NWC status |
+| Hook               | Purpose                       | Features                                          |
+| ------------------ | ----------------------------- | ------------------------------------------------- |
+| `useAddress`       | CRUD single lightning address | Create, fetch, update, delete                     |
+| `useAddresses`     | List/search addresses         | Pagination, filtering, search                     |
+| `useNWCConnection` | NWC wallet management         | Connect, disconnect, status polling               |
+| `usePayments`      | Payment history               | Real-time updates, filtering                      |
+| `useAuth`          | Authentication                | NIP-98 login → JWT session, session state, logout |
+| `useWebhooks`      | Webhook management            | Subscribe, unsubscribe, list active               |
+| `useWallet`        | Wallet operations             | Balance, send, receive, NWC status                |
 
 ### Technical
 
@@ -96,11 +96,11 @@ With backend infrastructure, logging, auth, and testing delivered ahead of sched
 
 ## Acceptance Criteria
 
-| Deliverable | Criteria | Priority |
-|-------------|----------|----------|
-| GitHub Actions | All jobs (lint, typecheck, test, build) pass on PRs | P0 |
-| Branch protection | `main` requires passing CI | P0 |
-| Client SDK | All endpoints covered, types generated, npm published | P0 |
-| React Hooks | 7 hooks, tests passing, npm published | P0 |
-| Hook tests | All 9 existing hooks have unit tests | P1 |
-| Coverage | 60%+ on /hooks and /lib | P1 |
+| Deliverable       | Criteria                                              | Priority |
+| ----------------- | ----------------------------------------------------- | -------- |
+| GitHub Actions    | All jobs (lint, typecheck, test, build) pass on PRs   | P0       |
+| Branch protection | `main` requires passing CI                            | P0       |
+| Client SDK        | All endpoints covered, types generated, npm published | P0       |
+| React Hooks       | 7 hooks, tests passing, npm published                 | P0       |
+| Hook tests        | All 9 existing hooks have unit tests                  | P1       |
+| Coverage          | 60%+ on /hooks and /lib                               | P1       |

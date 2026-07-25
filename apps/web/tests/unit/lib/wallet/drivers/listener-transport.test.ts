@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ResolvedListenerConfig } from '@/lib/listener-config'
 
 vi.mock('@/lib/listener-config', () => ({
-  getListenerConfig: vi.fn(),
+  getListenerConfig: vi.fn()
 }))
 
 import { getListenerConfig } from '@/lib/listener-config'
@@ -12,7 +12,7 @@ import {
   ListenerUnavailableError,
   prepareListenerPaymentFastPath,
   resetListenerPaymentCircuit,
-  resolveListenerBridge,
+  resolveListenerBridge
 } from '@/lib/wallet/drivers/listener-transport'
 
 const BRIDGE: ResolvedListenerConfig = {
@@ -22,13 +22,13 @@ const BRIDGE: ResolvedListenerConfig = {
   requestTimeoutMs: 10000,
   urlSource: 'settings',
   secretSource: 'settings',
-  enabledSource: 'settings',
+  enabledSource: 'settings'
 }
 
 const INPUT = {
   connectionString: 'nostr+walletconnect://abc?relay=wss%3A%2F%2Fr&secret=s',
   method: 'pay_invoice' as const,
-  params: { invoice: 'lnbc1' },
+  params: { invoice: 'lnbc1' }
 }
 
 beforeEach(() => {
@@ -129,7 +129,7 @@ describe('listenerNwcRequest', () => {
     expect(JSON.parse(init.body as string)).toEqual({
       connectionString: INPUT.connectionString,
       method: 'pay_invoice',
-      params: { invoice: 'lnbc1' },
+      params: { invoice: 'lnbc1' }
     })
   })
 
@@ -162,7 +162,7 @@ describe('listenerNwcRequest', () => {
       'wallet_not_connected',
       'timeout',
       'relay_error',
-      'validation_error',
+      'validation_error'
     ]) {
       vi.stubGlobal(
         'fetch',
@@ -191,8 +191,8 @@ describe('listenerNwcRequest', () => {
             error: {
               code: 'wallet_error',
               walletErrorCode: 'INSUFFICIENT_BALANCE',
-              message: 'not enough sats',
-            },
+              message: 'not enough sats'
+            }
           },
           { status: 502 }
         )

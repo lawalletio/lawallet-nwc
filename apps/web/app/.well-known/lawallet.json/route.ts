@@ -8,6 +8,6 @@ export function GET(request: NextRequest) {
 
   return NextResponse.json({
     service: 'lawallet',
-    probe,
+    probe
   })
 }

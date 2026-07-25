@@ -41,7 +41,7 @@ function slugTag(tag: string): string {
 function sampleFromSchema(
   schema: unknown,
   spec: Record<string, unknown>,
-  seen = new Set<string>(),
+  seen = new Set<string>()
 ): unknown {
   if (!schema || typeof schema !== 'object') return undefined
   const s = schema as Record<string, unknown>
@@ -70,7 +70,9 @@ function sampleFromSchema(
     default: {
       if (s.properties && typeof s.properties === 'object') {
         const out: Record<string, unknown> = {}
-        for (const [k, v] of Object.entries(s.properties as Record<string, unknown>)) {
+        for (const [k, v] of Object.entries(
+          s.properties as Record<string, unknown>
+        )) {
           out[k] = sampleFromSchema(v, spec, seen)
         }
         return out
@@ -96,7 +98,7 @@ function resolveRef(spec: Record<string, unknown>, ref: string): unknown {
 
 function defaultBodyFor(
   operation: Record<string, unknown>,
-  spec: Record<string, unknown>,
+  spec: Record<string, unknown>
 ): string | undefined {
   const requestBody = operation.requestBody as
     | { content?: Record<string, { schema?: unknown }> }
@@ -117,7 +119,7 @@ const ROLE_COLORS: Record<RequiredRole, string> = {
   USER: 'var(--scalar-color-blue)',
   VIEWER: 'var(--scalar-color-purple)',
   OPERATOR: 'var(--scalar-color-orange)',
-  ADMIN: 'var(--scalar-color-red)',
+  ADMIN: 'var(--scalar-color-red)'
 }
 
 const ROLE_TITLES: Record<RequiredRole, string> = {
@@ -125,7 +127,7 @@ const ROLE_TITLES: Record<RequiredRole, string> = {
   USER: 'Any authenticated user',
   VIEWER: 'Requires VIEWER role or higher',
   OPERATOR: 'Requires OPERATOR role or higher',
-  ADMIN: 'Requires ADMIN role',
+  ADMIN: 'Requires ADMIN role'
 }
 
 function sidebarKey(method: string, summary: string): string {
@@ -199,13 +201,13 @@ export function ApiDocsClient() {
           const signed = await createNip98Token(
             req.url,
             { method: req.method, body: req.bodyForHash },
-            connection.signer,
+            connection.signer
           )
           req.headers.set('Authorization', signed)
           return originalFetch(req.url, {
             method: req.method,
             headers: req.headers,
-            body: req.realBody,
+            body: req.realBody
           })
         }
       } catch {
@@ -229,15 +231,24 @@ export function ApiDocsClient() {
       .then((spec: Record<string, unknown>) => {
         if (cancelled) return
         const out: OperationMeta[] = []
-        const paths = (spec.paths ?? {}) as Record<string, Record<string, unknown>>
+        const paths = (spec.paths ?? {}) as Record<
+          string,
+          Record<string, unknown>
+        >
         for (const [path, methods] of Object.entries(paths)) {
           for (const [method, opUnknown] of Object.entries(methods)) {
-            if (!['get', 'post', 'put', 'delete', 'patch', 'options'].includes(method))
+            if (
+              !['get', 'post', 'put', 'delete', 'patch', 'options'].includes(
+                method
+              )
+            )
               continue
             const op = opUnknown as Record<string, unknown>
             const role = op['x-required-role']
             if (!isRequiredRole(role)) continue
-            const security = op.security as Array<Record<string, unknown>> | undefined
+            const security = op.security as
+              | Array<Record<string, unknown>>
+              | undefined
             const acceptsNip98 = !!security?.some(entry => 'NIP98' in entry)
             const tag = (op.tags as string[] | undefined)?.[0] ?? 'default'
             const domId = `api-1/tag/${slugTag(tag)}/${method.toUpperCase()}${path}`
@@ -248,7 +259,7 @@ export function ApiDocsClient() {
               summary: typeof op.summary === 'string' ? op.summary : '',
               role,
               acceptsNip98,
-              defaultBody: defaultBodyFor(op, spec),
+              defaultBody: defaultBodyFor(op, spec)
             })
           }
         }
@@ -317,7 +328,7 @@ export function ApiDocsClient() {
         'font-weight: 600',
         'letter-spacing: 0.4px',
         'vertical-align: middle',
-        'white-space: nowrap',
+        'white-space: nowrap'
       ].join(';')
       badge.textContent = op.role
       heading.appendChild(badge)
@@ -330,17 +341,21 @@ export function ApiDocsClient() {
       // the matching op, then append a small colored monogram next to the
       // method chip.
       const buttons = document.querySelectorAll<HTMLButtonElement>(
-        'aside button:not([' + SIDEBAR_MARKER + '-applied])',
+        'aside button:not([' + SIDEBAR_MARKER + '-applied])'
       )
       for (const btn of buttons) {
         const methodSpan = btn.querySelector<HTMLSpanElement>(
-          'span[class*="sidebar-heading-type--"]',
+          'span[class*="sidebar-heading-type--"]'
         )
         if (!methodSpan) continue
-        const methodMatch = methodSpan.className.match(/sidebar-heading-type--(\w+)/)
+        const methodMatch = methodSpan.className.match(
+          /sidebar-heading-type--(\w+)/
+        )
         if (!methodMatch) continue
         const method = methodMatch[1].toUpperCase()
-        const labelEl = btn.querySelector<HTMLDivElement>('.group\\/button-label')
+        const labelEl = btn.querySelector<HTMLDivElement>(
+          '.group\\/button-label'
+        )
         const summary = (labelEl?.textContent || '').trim()
         if (!summary) continue
 
@@ -373,7 +388,7 @@ export function ApiDocsClient() {
           'flex-shrink: 0',
           'align-self: start',
           'margin-top: 2px',
-          'white-space: nowrap',
+          'white-space: nowrap'
         ].join(';')
         chip.textContent = op.role
         // Sit between the label and the method chip — visually "right of the
@@ -386,7 +401,9 @@ export function ApiDocsClient() {
       const authBadge = panel.querySelector('button.security-requirement-badge')
       if (!authBadge || !authBadge.parentElement) return
 
-      let trigger = panel.querySelector<HTMLButtonElement>(`[${TRIGGER_MARKER}]`)
+      let trigger = panel.querySelector<HTMLButtonElement>(
+        `[${TRIGGER_MARKER}]`
+      )
       const created = !trigger
       if (!trigger) {
         trigger = document.createElement('button')
@@ -402,7 +419,7 @@ export function ApiDocsClient() {
           setOpened({
             method: op.method,
             path: op.path,
-            defaultBody: op.defaultBody,
+            defaultBody: op.defaultBody
           })
         })
       }
@@ -417,9 +434,10 @@ export function ApiDocsClient() {
             'border: 1px solid color-mix(in srgb, var(--scalar-color-green, #2ea043) 60%, transparent)',
             'background: color-mix(in srgb, var(--scalar-color-green, #2ea043) 14%, transparent)',
             'color: var(--scalar-color-green, #2ea043)',
-            'cursor: default',
+            'cursor: default'
           ].join(';')
-          trigger.title = 'NIP-07 extension already connected — requests are auto-signed'
+          trigger.title =
+            'NIP-07 extension already connected — requests are auto-signed'
           trigger.textContent = 'Already connected'
         } else {
           trigger.style.cssText = [
@@ -428,7 +446,7 @@ export function ApiDocsClient() {
             'border: 1px solid var(--scalar-color-accent)',
             'background: color-mix(in srgb, var(--scalar-color-accent) 14%, transparent)',
             'color: var(--scalar-color-accent)',
-            'cursor: pointer',
+            'cursor: pointer'
           ].join(';')
           trigger.title = 'Sign this request with a NIP-07 browser extension'
           trigger.textContent = 'Sign with NIP-07'
@@ -479,10 +497,17 @@ export function ApiDocsClient() {
             flexWrap: 'wrap',
             padding: '8px 16px',
             background: 'var(--scalar-background-1)',
-            borderBottom: '1px solid var(--scalar-border-color)',
+            borderBottom: '1px solid var(--scalar-border-color)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              flexWrap: 'wrap'
+            }}
+          >
             <LawalletLogo height={24} />
             <ServerSelector
               localUrl={localUrl}
@@ -510,10 +535,10 @@ export function ApiDocsClient() {
               ? {
                   preferredSecurityScheme: 'BearerJWT',
                   securitySchemes: {
-                    BearerJWT: { token: connection.jwt },
-                  },
+                    BearerJWT: { token: connection.jwt }
+                  }
                 }
-              : undefined,
+              : undefined
           }}
         />
       )}
@@ -543,7 +568,7 @@ interface NormalizedRequest {
 
 function normalizeRequest(
   input: RequestInfo | URL,
-  init?: RequestInit,
+  init?: RequestInit
 ): NormalizedRequest | null {
   // Request objects are immutable for body so we can only re-send if we
   // clone first. Skip them — Scalar's Try-It feature uses plain (input, init).
@@ -553,7 +578,7 @@ function normalizeRequest(
       method: input.method,
       headers: new Headers(input.headers),
       realBody: undefined,
-      bodyForHash: undefined,
+      bodyForHash: undefined
     }
   }
   const urlString = typeof input === 'string' ? input : input.toString()
@@ -564,11 +589,14 @@ function normalizeRequest(
     method,
     headers,
     realBody: init?.body ?? null,
-    bodyForHash: init?.body ?? undefined,
+    bodyForHash: init?.body ?? undefined
   }
 }
 
-function shouldAutoSign(req: NormalizedRequest, nip98Routes: Set<string>): boolean {
+function shouldAutoSign(
+  req: NormalizedRequest,
+  nip98Routes: Set<string>
+): boolean {
   let pathname: string
   try {
     pathname = new URL(req.url, window.location.origin).pathname

@@ -30,13 +30,13 @@ Enables users to upgrade from alias/redirect to NWC-connected addresses without 
 
 ## Supported Providers
 
-| Provider | Protocol | Notes |
-|----------|----------|-------|
-| Alby Hub | OAuth + NWC | Provisions via Alby account API |
-| LNBits | API + NWC | Provisions via LNBits wallet API |
-| BTCPayServer | API + NWC | Provisions via BTCPay Greenfield API |
-| YakiHonne | NWC | Direct NWC provisioning |
-| Generic NWC | NWC string | Any provider exposing NWC connection strings |
+| Provider     | Protocol    | Notes                                        |
+| ------------ | ----------- | -------------------------------------------- |
+| Alby Hub     | OAuth + NWC | Provisions via Alby account API              |
+| LNBits       | API + NWC   | Provisions via LNBits wallet API             |
+| BTCPayServer | API + NWC   | Provisions via BTCPay Greenfield API         |
+| YakiHonne    | NWC         | Direct NWC provisioning                      |
+| Generic NWC  | NWC string  | Any provider exposing NWC connection strings |
 
 ---
 
@@ -53,17 +53,18 @@ Enables users to upgrade from alias/redirect to NWC-connected addresses without 
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/connections` | POST | Provision new courtesy NWC connection |
-| `/connections/:id` | DELETE | Revoke courtesy NWC connection |
-| `/connections/:id` | GET | Get connection status |
-| `/providers` | GET | List available NWC providers |
-| `/health` | GET | Health check |
+| Endpoint           | Method | Description                           |
+| ------------------ | ------ | ------------------------------------- |
+| `/connections`     | POST   | Provision new courtesy NWC connection |
+| `/connections/:id` | DELETE | Revoke courtesy NWC connection        |
+| `/connections/:id` | GET    | Get connection status                 |
+| `/providers`       | GET    | List available NWC providers          |
+| `/health`          | GET    | Health check                          |
 
 ### POST /connections
 
 **Request:**
+
 ```json
 {
   "provider": "alby",
@@ -73,6 +74,7 @@ Enables users to upgrade from alias/redirect to NWC-connected addresses without 
 ```
 
 **Response:**
+
 ```json
 {
   "id": "conn_789",
@@ -87,18 +89,18 @@ Enables users to upgrade from alias/redirect to NWC-connected addresses without 
 
 ## Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PROVIDERS` | Enabled providers (comma-separated) | `alby` |
-| `ALBY_CLIENT_ID` | Alby Hub OAuth client ID | (required if alby enabled) |
-| `ALBY_CLIENT_SECRET` | Alby Hub OAuth client secret | (required if alby enabled) |
-| `LNBITS_URL` | LNBits instance URL | (required if lnbits enabled) |
-| `LNBITS_ADMIN_KEY` | LNBits admin API key | (required if lnbits enabled) |
-| `BTCPAY_URL` | BTCPayServer instance URL | (required if btcpay enabled) |
-| `BTCPAY_API_KEY` | BTCPayServer Greenfield API key | (required if btcpay enabled) |
-| `PORT` | Service port | `3003` |
-| `HEALTH_CHECK_PORT` | Health endpoint port | `3004` |
-| `LOG_LEVEL` | Minimum log level | `info` |
+| Variable             | Description                         | Default                      |
+| -------------------- | ----------------------------------- | ---------------------------- |
+| `PROVIDERS`          | Enabled providers (comma-separated) | `alby`                       |
+| `ALBY_CLIENT_ID`     | Alby Hub OAuth client ID            | (required if alby enabled)   |
+| `ALBY_CLIENT_SECRET` | Alby Hub OAuth client secret        | (required if alby enabled)   |
+| `LNBITS_URL`         | LNBits instance URL                 | (required if lnbits enabled) |
+| `LNBITS_ADMIN_KEY`   | LNBits admin API key                | (required if lnbits enabled) |
+| `BTCPAY_URL`         | BTCPayServer instance URL           | (required if btcpay enabled) |
+| `BTCPAY_API_KEY`     | BTCPayServer Greenfield API key     | (required if btcpay enabled) |
+| `PORT`               | Service port                        | `3003`                       |
+| `HEALTH_CHECK_PORT`  | Health endpoint port                | `3004`                       |
+| `LOG_LEVEL`          | Minimum log level                   | `info`                       |
 
 ---
 
@@ -117,10 +119,10 @@ Each provider implements a common interface:
 
 ```typescript
 interface NWCProvider {
-  name: string;
-  provision(userId: string): Promise<NWCConnection>;
-  revoke(connectionId: string): Promise<void>;
-  status(connectionId: string): Promise<ConnectionStatus>;
+  name: string
+  provision(userId: string): Promise<NWCConnection>
+  revoke(connectionId: string): Promise<void>
+  status(connectionId: string): Promise<ConnectionStatus>
 }
 ```
 
@@ -139,14 +141,14 @@ interface NWCProvider {
 The frontend consumes this service via the `useCourtesyNWC` hook:
 
 ```typescript
-const { provision, revoke, status, isLoading, error } = useCourtesyNWC();
+const { provision, revoke, status, isLoading, error } = useCourtesyNWC()
 
 // Provision a new connection
-const connection = await provision({ provider: 'alby' });
+const connection = await provision({ provider: 'alby' })
 
 // Check status
-const currentStatus = await status(connection.id);
+const currentStatus = await status(connection.id)
 
 // Revoke when upgrading to own wallet
-await revoke(connection.id);
+await revoke(connection.id)
 ```

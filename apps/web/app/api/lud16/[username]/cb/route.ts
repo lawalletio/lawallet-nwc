@@ -5,18 +5,18 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   InternalServerError,
   NotFoundError,
-  ServiceUnavailableError,
+  ServiceUnavailableError
 } from '@/types/server/errors'
 import {
   lud16CallbackQuerySchema,
-  LUD12_MAX_COMMENT_LENGTH,
+  LUD12_MAX_COMMENT_LENGTH
 } from '@/lib/validation/schemas'
 import { validateQuery } from '@/lib/validation/middleware'
 import { resolveApiUrl } from '@/lib/public-url'
 import {
   extractPaymentHash,
   extractExpiry,
-  type InvoiceMetadata,
+  type InvoiceMetadata
 } from '@/lib/invoice-utils'
 import type { Prisma } from '@/lib/generated/prisma'
 import { logger } from '@/lib/logger'
@@ -26,27 +26,30 @@ import { eventBus } from '@/lib/events/event-bus'
 import { getSettings } from '@/lib/settings'
 import {
   createLncurlRemoteWallet,
-  lncurlHealTarget,
+  lncurlHealTarget
 } from '@/lib/wallet/lncurl-wallet'
 import {
   bindPrimaryAddressToWallet,
   getPrimaryRemoteWalletForUser,
-  syncPrimaryRemoteWalletFlag,
+  syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 
 export const GET = withErrorHandling(
-  async (req: NextRequest, { params }: { params: Promise<{ username: string }> }) => {
+  async (
+    req: NextRequest,
+    { params }: { params: Promise<{ username: string }> }
+  ) => {
     const { username: _username } = await params
     const username = _username.trim().toLowerCase()
     const { amount, comment } = validateQuery(req.url, lud16CallbackQuerySchema)
 
     // LUD-12: sanitize the comment (defense in depth — schema enforces max length).
     // Strip control chars that some wallets might refuse in bolt11 descriptions.
-    const sanitizedComment = comment
-      ?.trim()
-      .replace(/[\x00-\x1f\x7f]/g, '')
-      .slice(0, LUD12_MAX_COMMENT_LENGTH)
-      || undefined
+    const sanitizedComment =
+      comment
+        ?.trim()
+        .replace(/[\x00-\x1f\x7f]/g, '')
+        .slice(0, LUD12_MAX_COMMENT_LENGTH) || undefined
 
     // Same shape as the metadata route — pull the address's bound wallet and
     // derive DEFAULT_NWC from the account primary address so /cb stays in
@@ -54,26 +57,30 @@ export const GET = withErrorHandling(
     const lightningAddress = await prisma.lightningAddress.findUnique({
       where: { username },
       include: {
-        remoteWallet: { select: { id: true, type: true, config: true, status: true } },
+        remoteWallet: {
+          select: { id: true, type: true, config: true, status: true }
+        },
         user: {
           select: {
-            id: true,
-          },
-        },
-      },
+            id: true
+          }
+        }
+      }
     })
 
     if (!lightningAddress) {
       throw new NotFoundError('Lightning address not found')
     }
 
-    const primaryWallet = await getPrimaryRemoteWalletForUser(lightningAddress.user.id)
+    const primaryWallet = await getPrimaryRemoteWalletForUser(
+      lightningAddress.user.id
+    )
 
     const route = resolveWalletRoute({
       mode: lightningAddress.mode,
       redirect: lightningAddress.redirect,
       remoteWallet: lightningAddress.remoteWallet,
-      defaultRemoteWallet: primaryWallet,
+      defaultRemoteWallet: primaryWallet
     })
 
     // Lazy LNCurl self-heal: an address that can't currently route — no wallet
@@ -87,20 +94,20 @@ export const GET = withErrorHandling(
         lncurl_enabled,
         lncurl_auto_create,
         lncurl_auto_recreate,
-        lncurl_server_url,
+        lncurl_server_url
       } = await getSettings([
         'lncurl_enabled',
         'lncurl_auto_create',
         'lncurl_auto_recreate',
-        'lncurl_server_url',
+        'lncurl_server_url'
       ])
       const heal = lncurlHealTarget(
         {
           mode: lightningAddress.mode,
           boundWallet: lightningAddress.remoteWallet,
-          defaultWallet: primaryWallet,
+          defaultWallet: primaryWallet
         },
-        { lncurl_enabled, lncurl_auto_create, lncurl_auto_recreate },
+        { lncurl_enabled, lncurl_auto_create, lncurl_auto_recreate }
       )
       if (heal) {
         try {
@@ -108,7 +115,7 @@ export const GET = withErrorHandling(
             userId: lightningAddress.user.id,
             previousWalletId: heal.previousWalletId ?? undefined,
             revokePrevious: heal.previousWalletId != null,
-            serverUrl: lncurl_server_url || undefined,
+            serverUrl: lncurl_server_url || undefined
           })
           let bindingChanged = heal.previousWalletId != null
           // DEFAULT_NWC routes through the primary address's wallet. A
@@ -118,7 +125,7 @@ export const GET = withErrorHandling(
             bindingChanged =
               (await bindPrimaryAddressToWallet(
                 lightningAddress.user.id,
-                provisioned.id,
+                provisioned.id
               )) != null
           }
           if (
@@ -127,7 +134,7 @@ export const GET = withErrorHandling(
           ) {
             await prisma.lightningAddress.update({
               where: { username },
-              data: { remoteWalletId: provisioned.id },
+              data: { remoteWalletId: provisioned.id }
             })
             if (lightningAddress.isPrimary) {
               await syncPrimaryRemoteWalletFlag(lightningAddress.user.id)
@@ -143,16 +150,16 @@ export const GET = withErrorHandling(
             kind: 'wallet',
             walletId: provisioned.id,
             type: provisioned.type,
-            config: provisioned.config,
+            config: provisioned.config
           }
           logger.info(
             { username, walletId: provisioned.id },
-            'LNCurl auto-heal provisioned wallet on invoice request',
+            'LNCurl auto-heal provisioned wallet on invoice request'
           )
         } catch (healErr) {
           logger.error(
             { username, err: String(healErr) },
-            'LNCurl auto-heal provisioning failed',
+            'LNCurl auto-heal provisioning failed'
           )
           throw new ServiceUnavailableError('Wallet is currently unavailable')
         }
@@ -162,7 +169,7 @@ export const GET = withErrorHandling(
     if (mintRoute.kind !== 'wallet') {
       logger.info(
         { username, mode: lightningAddress.mode, reason: mintRoute.kind },
-        'LUD16 callback rejected',
+        'LUD16 callback rejected'
       )
       throw new NotFoundError('User not configured for payments')
     }
@@ -180,7 +187,10 @@ export const GET = withErrorHandling(
     const amountSats = Math.floor(Number(amount) / 1000)
     let made
     try {
-      const { driver, config } = driverForWallet({ type: mintRoute.type, config: mintRoute.config })
+      const { driver, config } = driverForWallet({
+        type: mintRoute.type,
+        config: mintRoute.config
+      })
       made = await driver.makeInvoice(config, { amountSats, description })
     } catch (err) {
       // Driver/transport failures (relay down, wallet rejected make_invoice,
@@ -191,18 +201,16 @@ export const GET = withErrorHandling(
         // expected. When the routed wallet is an LNCurl wallet and auto-recreate
         // is on, re-provision a fresh LNCurl wallet (revoking the dead one),
         // re-point the user's bindings, and retry the mint once.
-        const provider = (mintRoute.config as { provider?: string } | null)?.provider
+        const provider = (mintRoute.config as { provider?: string } | null)
+          ?.provider
         if (provider === 'lncurl') {
-          const { lncurl_auto_recreate, lncurl_server_url } = await getSettings([
-            'lncurl_auto_recreate',
-            'lncurl_server_url',
-          ])
+          const { lncurl_auto_recreate, lncurl_server_url } = await getSettings(
+            ['lncurl_auto_recreate', 'lncurl_server_url']
+          )
           // The dead wallet is the address's bound wallet (CUSTOM_NWC) or the
           // wallet linked through the user's primary address (DEFAULT_NWC).
           const deadWalletId =
-            lightningAddress.remoteWallet?.id ??
-            primaryWallet?.id ??
-            null
+            lightningAddress.remoteWallet?.id ?? primaryWallet?.id ?? null
 
           if (lncurl_auto_recreate === 'true' && deadWalletId) {
             try {
@@ -210,29 +218,43 @@ export const GET = withErrorHandling(
                 userId: lightningAddress.user.id,
                 previousWalletId: deadWalletId,
                 revokePrevious: true,
-                serverUrl: lncurl_server_url || undefined,
+                serverUrl: lncurl_server_url || undefined
               })
               eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
-              eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
+              eventBus.emit({
+                type: 'addresses:updated',
+                timestamp: Date.now()
+              })
               eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
               const { driver, config } = driverForWallet({
                 type: replacement.type,
-                config: replacement.config,
+                config: replacement.config
               })
-              made = await driver.makeInvoice(config, { amountSats, description })
+              made = await driver.makeInvoice(config, {
+                amountSats,
+                description
+              })
             } catch (recoveryErr) {
               logger.error(
                 { username, err: String(recoveryErr) },
-                'LNCurl auto-recreate recovery failed',
+                'LNCurl auto-recreate recovery failed'
               )
-              throw new ServiceUnavailableError('Wallet is currently unavailable')
+              throw new ServiceUnavailableError(
+                'Wallet is currently unavailable'
+              )
             }
           } else {
-            logger.error({ username, walletType: mintRoute.type, err: String(err) }, 'LUD16 invoice mint failed')
+            logger.error(
+              { username, walletType: mintRoute.type, err: String(err) },
+              'LUD16 invoice mint failed'
+            )
             throw new ServiceUnavailableError('Wallet is currently unavailable')
           }
         } else {
-          logger.error({ username, walletType: mintRoute.type, err: String(err) }, 'LUD16 invoice mint failed')
+          logger.error(
+            { username, walletType: mintRoute.type, err: String(err) },
+            'LUD16 invoice mint failed'
+          )
           throw new ServiceUnavailableError('Wallet is currently unavailable')
         }
       } else {
@@ -257,7 +279,7 @@ export const GET = withErrorHandling(
     // Use upsert to gracefully handle duplicate payment hashes (unique constraint)
     const metadata: InvoiceMetadata = {
       username,
-      ...(sanitizedComment ? { comment: sanitizedComment } : {}),
+      ...(sanitizedComment ? { comment: sanitizedComment } : {})
     }
     // Prisma's JSON column accepts plain objects; cast through its branded type.
     const metadataJson = metadata as unknown as Prisma.InputJsonValue
@@ -272,15 +294,15 @@ export const GET = withErrorHandling(
         status: 'PENDING',
         userId: lightningAddress.user.id,
         expiresAt: extractExpiry(pr),
-        metadata: metadataJson,
+        metadata: metadataJson
       },
       update: {
         // If somehow re-issued with same hash, just refresh the bolt11/expiry
         bolt11: pr,
         description,
         expiresAt: extractExpiry(pr),
-        metadata: metadataJson,
-      },
+        metadata: metadataJson
+      }
     })
 
     logger.info(
@@ -289,7 +311,7 @@ export const GET = withErrorHandling(
         username,
         paymentHash,
         amountSats,
-        hasComment: Boolean(sanitizedComment),
+        hasComment: Boolean(sanitizedComment)
       },
       'LUD-16 invoice created'
     )
@@ -308,7 +330,7 @@ export const GET = withErrorHandling(
     const response: LUD06CallbackSuccess = {
       pr,
       routes: [],
-      verify,
+      verify
     }
 
     return NextResponse.json(response)

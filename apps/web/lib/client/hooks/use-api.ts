@@ -29,7 +29,8 @@ function getEventTypeForPath(path: string): SSEEventType | null {
   // Per-address invoices feed has to match before the generic
   // `/api/wallet/addresses` rule below — otherwise invoice refreshes would
   // be tied to the `addresses:updated` event instead of `invoices:updated`.
-  if (/^\/api\/wallet\/addresses\/[^/]+\/invoices/.test(path)) return 'invoices:updated'
+  if (/^\/api\/wallet\/addresses\/[^/]+\/invoices/.test(path))
+    return 'invoices:updated'
   if (path.startsWith('/api/wallet/addresses')) return 'addresses:updated'
   // The caller's own cards feed mirrors the admin `/api/cards` → `cards:updated`
   // so a newly paired/unpaired card refreshes the Connection Map + Cards view.
@@ -104,7 +105,7 @@ function getInvalidationVersion(path: string) {
 function getAuthCacheKey(
   status: string,
   pubkey: string | null,
-  role: string | null,
+  role: string | null
 ) {
   if (status !== 'authenticated') return status
   return `authenticated:${pubkey ?? 'unknown'}:${role ?? 'unknown'}`
@@ -114,7 +115,10 @@ function getInflightKey(path: string, authKey: string) {
   return `${authKey}\n${path}`
 }
 
-function getUsableCacheEntry<T>(path: string, authKey: string): ApiCacheEntry<T> | null {
+function getUsableCacheEntry<T>(
+  path: string,
+  authKey: string
+): ApiCacheEntry<T> | null {
   const entry = apiCache.get(path) as ApiCacheEntry<T> | undefined
   if (!entry) return null
   if (entry.authKey !== authKey) return null
@@ -157,7 +161,7 @@ export function invalidateApiPath(path: string) {
   apiInvalidationVersions.set(path, getInvalidationVersion(path) + 1)
   if (typeof window !== 'undefined') {
     window.dispatchEvent(
-      new CustomEvent(API_CACHE_INVALIDATED_EVENT, { detail: { path } }),
+      new CustomEvent(API_CACHE_INVALIDATED_EVENT, { detail: { path } })
     )
   }
 }
@@ -178,15 +182,13 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
   // Initialise from the cache synchronously. Without this, even a cache
   // hit would render one frame of `data=null / loading=true` before the
   // effect runs and the cached value is applied — defeating the point.
-  const [data, setData] = useState<T | null>(() =>
-    initialCacheEntry?.data ?? null,
+  const [data, setData] = useState<T | null>(
+    () => initialCacheEntry?.data ?? null
   )
   // Only block with a skeleton when we have nothing to show. A cache hit
   // renders immediately; the fetch still runs in the background and
   // updates silently if the payload changed.
-  const [loading, setLoading] = useState(
-    path ? !initialCacheEntry : false,
-  )
+  const [loading, setLoading] = useState(path ? !initialCacheEntry : false)
   const [error, setError] = useState<Error | null>(null)
   const dataRef = useRef(data)
   const dataPathRef = useRef<string | null>(data !== null ? path : null)
@@ -199,88 +201,94 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
   const eventType = path ? getEventTypeForPath(path) : null
   const sseVersion = useSSEVersion(eventType)
 
-  const fetchData = useCallback(async (options?: { force?: boolean }) => {
-    // Wait until auth has settled — firing during the `loading` window would
-    // race with the JWT becoming available and trigger a spurious no-auth
-    // request. `unauthenticated` is fine: the api-client sends no
-    // Authorization header, so endpoints that expose a public subset (notably
-    // `/api/settings` with the community branding) can still hydrate the UI
-    // shown before sign-in (e.g. the login page logo). Protected endpoints
-    // simply return 401 — same behavior as before.
-    if (!path || status === 'loading') {
-      setLoading(false)
-      return
-    }
+  const fetchData = useCallback(
+    async (options?: { force?: boolean }) => {
+      // Wait until auth has settled — firing during the `loading` window would
+      // race with the JWT becoming available and trigger a spurious no-auth
+      // request. `unauthenticated` is fine: the api-client sends no
+      // Authorization header, so endpoints that expose a public subset (notably
+      // `/api/settings` with the community branding) can still hydrate the UI
+      // shown before sign-in (e.g. the login page logo). Protected endpoints
+      // simply return 401 — same behavior as before.
+      if (!path || status === 'loading') {
+        setLoading(false)
+        return
+      }
 
-    const fetchId = ++fetchIdRef.current
-    const cacheEntry = getUsableCacheEntry<T>(path, authKey)
-    const hasCurrentData = dataPathRef.current === path && dataRef.current !== null
+      const fetchId = ++fetchIdRef.current
+      const cacheEntry = getUsableCacheEntry<T>(path, authKey)
+      const hasCurrentData =
+        dataPathRef.current === path && dataRef.current !== null
 
-    // Only show the loading skeleton when there's truly nothing to show for
-    // this path. Manual invalidations delete the cache so the next request
-    // refetches, but mounted consumers can keep rendering their current data.
-    if (cacheEntry) {
-      const cachedData = cacheEntry.data
-      dataRef.current = cachedData
-      dataPathRef.current = path
-      setData(cachedData)
-      setLoading(false)
-    } else if (!hasCurrentData) {
-      if (dataPathRef.current !== path && dataRef.current !== null) {
-        dataRef.current = null
+      // Only show the loading skeleton when there's truly nothing to show for
+      // this path. Manual invalidations delete the cache so the next request
+      // refetches, but mounted consumers can keep rendering their current data.
+      if (cacheEntry) {
+        const cachedData = cacheEntry.data
+        dataRef.current = cachedData
         dataPathRef.current = path
-        setData(null)
-      }
-      setLoading(true)
-    } else {
-      setLoading(false)
-    }
-    setError(null)
-
-    const cacheIsFresh =
-      cacheEntry !== null && Date.now() - cacheEntry.fetchedAt < API_CACHE_FRESH_MS
-    if (cacheIsFresh && !options?.force) {
-      return
-    }
-
-    try {
-      const requestEpoch = apiCacheEpoch
-      const requestVersion = getInvalidationVersion(path)
-      const requestAuthKey = authKey
-      const result = await fetchWithDedupe(getInflightKey(path, authKey), () =>
-        apiClient.get<T>(path),
-      )
-      const responseIsCurrent =
-        requestEpoch === apiCacheEpoch &&
-        requestVersion === getInvalidationVersion(path) &&
-        requestAuthKey === authKeyRef.current
-
-      if (!responseIsCurrent) return
-      // Keep the shared cache in the same invalidation generation as this
-      // request. A newer fetch for this hook can still supersede the state
-      // update below via `fetchIdRef`.
-      apiCache.set(path, {
-        data: result,
-        fetchedAt: Date.now(),
-        authKey: requestAuthKey,
-        invalidationVersion: requestVersion,
-      })
-      // Only update if this is still the latest fetch
-      if (fetchId === fetchIdRef.current) {
-        dataRef.current = result
-        dataPathRef.current = path
-        setData(result)
-      }
-    } catch (err) {
-      if (fetchId === fetchIdRef.current) {
-        setError(err instanceof Error ? err : new Error('Unknown error'))
-      }
-    } finally {
-      if (fetchId === fetchIdRef.current) {
+        setData(cachedData)
+        setLoading(false)
+      } else if (!hasCurrentData) {
+        if (dataPathRef.current !== path && dataRef.current !== null) {
+          dataRef.current = null
+          dataPathRef.current = path
+          setData(null)
+        }
+        setLoading(true)
+      } else {
         setLoading(false)
       }
-    }
-  }, [path, apiClient, status, authKey])
+      setError(null)
+
+      const cacheIsFresh =
+        cacheEntry !== null &&
+        Date.now() - cacheEntry.fetchedAt < API_CACHE_FRESH_MS
+      if (cacheIsFresh && !options?.force) {
+        return
+      }
+
+      try {
+        const requestEpoch = apiCacheEpoch
+        const requestVersion = getInvalidationVersion(path)
+        const requestAuthKey = authKey
+        const result = await fetchWithDedupe(
+          getInflightKey(path, authKey),
+          () => apiClient.get<T>(path)
+        )
+        const responseIsCurrent =
+          requestEpoch === apiCacheEpoch &&
+          requestVersion === getInvalidationVersion(path) &&
+          requestAuthKey === authKeyRef.current
+
+        if (!responseIsCurrent) return
+        // Keep the shared cache in the same invalidation generation as this
+        // request. A newer fetch for this hook can still supersede the state
+        // update below via `fetchIdRef`.
+        apiCache.set(path, {
+          data: result,
+          fetchedAt: Date.now(),
+          authKey: requestAuthKey,
+          invalidationVersion: requestVersion
+        })
+        // Only update if this is still the latest fetch
+        if (fetchId === fetchIdRef.current) {
+          dataRef.current = result
+          dataPathRef.current = path
+          setData(result)
+        }
+      } catch (err) {
+        if (fetchId === fetchIdRef.current) {
+          setError(err instanceof Error ? err : new Error('Unknown error'))
+        }
+      } finally {
+        if (fetchId === fetchIdRef.current) {
+          setLoading(false)
+        }
+      }
+    },
+    [path, apiClient, status, authKey]
+  )
 
   useEffect(() => {
     const force = sseVersion !== sseVersionRef.current
@@ -292,14 +300,19 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
     if (!path || typeof window === 'undefined') return
 
     function handleInvalidation(event: Event) {
-      const invalidatedPath = (event as CustomEvent<{ path?: string }>).detail?.path
+      const invalidatedPath = (event as CustomEvent<{ path?: string }>).detail
+        ?.path
       if (invalidatedPath === path) {
         void fetchData({ force: true })
       }
     }
 
     window.addEventListener(API_CACHE_INVALIDATED_EVENT, handleInvalidation)
-    return () => window.removeEventListener(API_CACHE_INVALIDATED_EVENT, handleInvalidation)
+    return () =>
+      window.removeEventListener(
+        API_CACHE_INVALIDATED_EVENT,
+        handleInvalidation
+      )
   }, [fetchData, path])
 
   const refetch = useCallback(() => fetchData({ force: true }), [fetchData])

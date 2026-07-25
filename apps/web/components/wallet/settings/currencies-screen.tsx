@@ -8,7 +8,7 @@ import {
   Lock,
   Minus,
   Plus,
-  Search,
+  Search
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
@@ -16,7 +16,7 @@ import {
   CURRENCY_CATALOG,
   currenciesActions,
   useActiveCurrencies,
-  type Currency,
+  type Currency
 } from '@/lib/client/currencies-store'
 import { cn } from '@/lib/utils'
 
@@ -142,8 +142,7 @@ export function CurrenciesScreen() {
   const matchesQuery = (c: { code: string; name: string }) => {
     if (!term) return true
     return (
-      c.code.toLowerCase().includes(term) ||
-      c.name.toLowerCase().includes(term)
+      c.code.toLowerCase().includes(term) || c.name.toLowerCase().includes(term)
     )
   }
 
@@ -153,9 +152,11 @@ export function CurrenciesScreen() {
   // already chosen from view, which is confusing.
   const filteredAvailable = useMemo(
     () =>
-      CURRENCY_CATALOG.filter(c => !activeCodes.has(c.code)).filter(matchesQuery),
+      CURRENCY_CATALOG.filter(c => !activeCodes.has(c.code)).filter(
+        matchesQuery
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeCodes, term],
+    [activeCodes, term]
   )
 
   return (
@@ -193,8 +194,8 @@ export function CurrenciesScreen() {
             ))}
           </div>
           <p className="px-2 text-center text-xs leading-relaxed text-muted-foreground">
-            Satoshi are your core assets. Add a reference currency to
-            visualize the fiat value of your balance.
+            Satoshi are your core assets. Add a reference currency to visualize
+            the fiat value of your balance.
           </p>
         </Section>
 
@@ -245,7 +246,7 @@ export function CurrenciesScreen() {
 
 function Section({
   title,
-  children,
+  children
 }: {
   title: string
   children: React.ReactNode
@@ -266,7 +267,7 @@ function ActiveRow({
   translateY,
   onGripPointerDown,
   onGripPointerMove,
-  onGripPointerUp,
+  onGripPointerUp
 }: {
   currency: Currency
   divider: boolean
@@ -285,12 +286,12 @@ function ActiveRow({
         // Skip the easing while the row IS the one being dragged — the
         // overlay handles its visible motion and the placeholder snaps
         // back into place after the gesture without a wobble.
-        transition: isDragging ? 'none' : 'transform 200ms ease',
+        transition: isDragging ? 'none' : 'transform 200ms ease'
       }}
       className={cn(
         'flex h-16 items-center gap-3 px-3',
         divider && 'border-b border-border/40',
-        isDragging && 'opacity-0',
+        isDragging && 'opacity-0'
       )}
     >
       {currency.locked ? (
@@ -347,7 +348,7 @@ function ActiveRow({
 function AvailableRow({
   currency,
   divider,
-  onAdd,
+  onAdd
 }: {
   currency: Currency
   divider: boolean
@@ -357,7 +358,7 @@ function AvailableRow({
     <div
       className={cn(
         'flex h-16 items-center gap-3 px-3',
-        divider && 'border-b border-border/40',
+        divider && 'border-b border-border/40'
       )}
     >
       <button
@@ -391,7 +392,7 @@ function AvailableRow({
 function DraggedPreview({
   code,
   rect,
-  top,
+  top
 }: {
   code: string
   rect: DOMRect
@@ -407,7 +408,7 @@ function DraggedPreview({
         top,
         left: rect.left,
         width: rect.width,
-        height: rect.height,
+        height: rect.height
       }}
       className="pointer-events-none z-50"
     >

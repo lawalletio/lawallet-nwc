@@ -28,7 +28,7 @@ export function WalletLoadingScreen() {
     const timer = window.setTimeout(() => {
       const hasStoredJwt = Boolean(window.localStorage.getItem(JWT_STORAGE_KEY))
       const lastRecoveryAt = Number(
-        window.sessionStorage.getItem(RECOVERY_STORAGE_KEY) ?? '0',
+        window.sessionStorage.getItem(RECOVERY_STORAGE_KEY) ?? '0'
       )
 
       if (!hasStoredJwt || Date.now() - lastRecoveryAt < RECOVERY_COOLDOWN_MS) {

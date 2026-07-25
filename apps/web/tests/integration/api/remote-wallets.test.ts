@@ -4,7 +4,7 @@ import { createParamsPromise } from '@/tests/helpers/route-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import {
   createRemoteWalletFixture,
-  createUserFixture,
+  createUserFixture
 } from '@/tests/helpers/fixtures'
 import { AuthenticationError } from '@/types/server/errors'
 
@@ -18,32 +18,35 @@ import { AuthenticationError } from '@/types/server/errors'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1_048_576, maxJsonSize: 1_048_576 },
-  })),
+    requestLimits: { maxBodySize: 1_048_576, maxJsonSize: 1_048_576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: unknown) => fn,
+  withRequestLogging: (fn: unknown) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn(),
+  authenticate: vi.fn()
 }))
 
-import { GET as listHandler, POST as createHandler } from '@/app/api/remote-wallets/route'
+import {
+  GET as listHandler,
+  POST as createHandler
+} from '@/app/api/remote-wallets/route'
 import {
   GET as getHandler,
   PATCH as patchHandler,
-  DELETE as deleteHandler,
+  DELETE as deleteHandler
 } from '@/app/api/remote-wallets/[id]/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 
@@ -54,7 +57,7 @@ function mockAuth(pubkey = USER_PUBKEY) {
   vi.mocked(authenticate).mockResolvedValue({
     pubkey,
     role: 'USER' as never,
-    method: 'jwt',
+    method: 'jwt'
   })
 }
 
@@ -70,15 +73,31 @@ beforeEach(() => {
 // ── GET /api/remote-wallets ────────────────────────────────────────────────
 
 describe('GET /api/remote-wallets', () => {
-  it('returns the caller\'s wallets, REVOKED filtered out by default', async () => {
+  it("returns the caller's wallets, REVOKED filtered out by default", async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
 
-    const active = createRemoteWalletFixture({ userId: user.id, name: 'Active', status: 'ACTIVE' })
-    const disabled = createRemoteWalletFixture({ userId: user.id, name: 'Disabled', status: 'DISABLED' })
-    const revoked = createRemoteWalletFixture({ userId: user.id, name: 'Revoked', status: 'REVOKED' })
-    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([active, disabled, revoked] as never)
+    const active = createRemoteWalletFixture({
+      userId: user.id,
+      name: 'Active',
+      status: 'ACTIVE'
+    })
+    const disabled = createRemoteWalletFixture({
+      userId: user.id,
+      name: 'Disabled',
+      status: 'DISABLED'
+    })
+    const revoked = createRemoteWalletFixture({
+      userId: user.id,
+      name: 'Revoked',
+      status: 'REVOKED'
+    })
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      active,
+      disabled,
+      revoked
+    ] as never)
 
     const res = await listHandler(createNextRequest('/api/remote-wallets'))
     const body = (await assertResponse(res, 200)) as Array<{ name: string }>
@@ -90,11 +109,24 @@ describe('GET /api/remote-wallets', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    const revoked = createRemoteWalletFixture({ userId: user.id, name: 'X', status: 'REVOKED' })
-    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([revoked] as never)
+    const revoked = createRemoteWalletFixture({
+      userId: user.id,
+      name: 'X',
+      status: 'REVOKED'
+    })
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      revoked
+    ] as never)
 
-    const res = await listHandler(createNextRequest('/api/remote-wallets', { searchParams: { status: 'REVOKED' } }))
-    const body = (await assertResponse(res, 200)) as Array<{ name: string; status: string }>
+    const res = await listHandler(
+      createNextRequest('/api/remote-wallets', {
+        searchParams: { status: 'REVOKED' }
+      })
+    )
+    const body = (await assertResponse(res, 200)) as Array<{
+      name: string
+      status: string
+    }>
 
     expect(body).toHaveLength(1)
     expect(body[0].status).toBe('REVOKED')
@@ -105,9 +137,20 @@ describe('GET /api/remote-wallets', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
 
-    const active = createRemoteWalletFixture({ userId: user.id, name: 'Active', status: 'ACTIVE' })
-    const dead = createRemoteWalletFixture({ userId: user.id, name: 'Dead', status: 'DEAD' })
-    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([active, dead] as never)
+    const active = createRemoteWalletFixture({
+      userId: user.id,
+      name: 'Active',
+      status: 'ACTIVE'
+    })
+    const dead = createRemoteWalletFixture({
+      userId: user.id,
+      name: 'Dead',
+      status: 'DEAD'
+    })
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      active,
+      dead
+    ] as never)
 
     const res = await listHandler(createNextRequest('/api/remote-wallets'))
     const body = (await assertResponse(res, 200)) as Array<{ name: string }>
@@ -123,14 +166,21 @@ describe('GET /api/remote-wallets', () => {
       userId: user.id,
       name: 'Ghost',
       status: 'DEAD',
-      diedAt: new Date('2026-06-01T00:00:00Z'),
+      diedAt: new Date('2026-06-01T00:00:00Z')
     })
-    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([dead] as never)
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      dead
+    ] as never)
 
     const res = await listHandler(
-      createNextRequest('/api/remote-wallets', { searchParams: { status: 'DEAD' } }),
+      createNextRequest('/api/remote-wallets', {
+        searchParams: { status: 'DEAD' }
+      })
     )
-    const body = (await assertResponse(res, 200)) as Array<{ status: string; diedAt: string | null }>
+    const body = (await assertResponse(res, 200)) as Array<{
+      status: string
+      diedAt: string | null
+    }>
 
     expect(body).toHaveLength(1)
     expect(body[0].status).toBe('DEAD')
@@ -143,10 +193,16 @@ describe('GET /api/remote-wallets', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([] as never)
 
-    await listHandler(createNextRequest('/api/remote-wallets', { searchParams: { type: 'NWC' } }))
+    await listHandler(
+      createNextRequest('/api/remote-wallets', {
+        searchParams: { type: 'NWC' }
+      })
+    )
 
     expect(prismaMock.remoteWallet.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ userId: user.id, type: 'NWC' }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: user.id, type: 'NWC' })
+      })
     )
   })
 
@@ -159,7 +215,9 @@ describe('GET /api/remote-wallets', () => {
     await listHandler(createNextRequest('/api/remote-wallets'))
 
     expect(prismaMock.remoteWallet.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }] }),
+      expect.objectContaining({
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
+      })
     )
   })
 
@@ -167,11 +225,16 @@ describe('GET /api/remote-wallets', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    const w = createRemoteWalletFixture({ userId: user.id, config: { connectionString: VALID_NWC, mode: 'RECEIVE' } })
+    const w = createRemoteWalletFixture({
+      userId: user.id,
+      config: { connectionString: VALID_NWC, mode: 'RECEIVE' }
+    })
     vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([w] as never)
 
     const res = await listHandler(createNextRequest('/api/remote-wallets'))
-    const body = (await assertResponse(res, 200)) as Array<Record<string, unknown>>
+    const body = (await assertResponse(res, 200)) as Array<
+      Record<string, unknown>
+    >
 
     expect(body[0]).not.toHaveProperty('config')
     expect(body[0]).not.toHaveProperty('userId')
@@ -191,16 +254,28 @@ describe('POST /api/remote-wallets', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    const created = createRemoteWalletFixture({ userId: user.id, name: 'My Wallet' })
-    vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(created as never)
+    const created = createRemoteWalletFixture({
+      userId: user.id,
+      name: 'My Wallet'
+    })
+    vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
+      created as never
+    )
 
     const res = await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
-        body: { name: 'My Wallet', type: 'NWC', config: { connectionString: VALID_NWC } },
-      }),
+        body: {
+          name: 'My Wallet',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC }
+        }
+      })
     )
-    const body = (await assertResponse(res, 201)) as { name: string; type: string }
+    const body = (await assertResponse(res, 201)) as {
+      name: string
+      type: string
+    }
 
     expect(body.name).toBe('My Wallet')
     expect(body.type).toBe('NWC')
@@ -211,22 +286,29 @@ describe('POST /api/remote-wallets', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
-      createRemoteWalletFixture({ userId: user.id }) as never,
+      createRemoteWalletFixture({ userId: user.id }) as never
     )
 
     await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
-        body: { name: 'X', type: 'NWC', config: { connectionString: VALID_NWC } },
-      }),
+        body: {
+          name: 'X',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC }
+        }
+      })
     )
 
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          config: expect.objectContaining({ connectionString: VALID_NWC, mode: 'RECEIVE' }),
-        }),
-      }),
+          config: expect.objectContaining({
+            connectionString: VALID_NWC,
+            mode: 'RECEIVE'
+          })
+        })
+      })
     )
   })
 
@@ -238,8 +320,12 @@ describe('POST /api/remote-wallets', () => {
     const res = await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
-        body: { name: 'X', type: 'NWC', config: { connectionString: 'https://not-nwc' } },
-      }),
+        body: {
+          name: 'X',
+          type: 'NWC',
+          config: { connectionString: 'https://not-nwc' }
+        }
+      })
     )
 
     expect(res.status).toBe(400)
@@ -254,8 +340,12 @@ describe('POST /api/remote-wallets', () => {
     const res = await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
-        body: { name: '   ', type: 'NWC', config: { connectionString: VALID_NWC } },
-      }),
+        body: {
+          name: '   ',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC }
+        }
+      })
     )
     expect(res.status).toBe(400)
   })
@@ -264,14 +354,20 @@ describe('POST /api/remote-wallets', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    const conflict = Object.assign(new Error('unique violation'), { code: 'P2002' })
+    const conflict = Object.assign(new Error('unique violation'), {
+      code: 'P2002'
+    })
     vi.mocked(prismaMock.remoteWallet.create).mockRejectedValue(conflict)
 
     const res = await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
-        body: { name: 'Duplicate', type: 'NWC', config: { connectionString: VALID_NWC } },
-      }),
+        body: {
+          name: 'Duplicate',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC }
+        }
+      })
     )
     expect(res.status).toBe(409)
   })
@@ -281,13 +377,19 @@ describe('POST /api/remote-wallets', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     // A generic DB failure (no P2002 code) must not be swallowed as a 409.
-    vi.mocked(prismaMock.remoteWallet.create).mockRejectedValue(new Error('connection reset'))
+    vi.mocked(prismaMock.remoteWallet.create).mockRejectedValue(
+      new Error('connection reset')
+    )
 
     const res = await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
-        body: { name: 'X', type: 'NWC', config: { connectionString: VALID_NWC } },
-      }),
+        body: {
+          name: 'X',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC }
+        }
+      })
     )
     expect(res.status).toBe(500)
   })
@@ -299,24 +401,31 @@ describe('POST /api/remote-wallets', () => {
     const created = createRemoteWalletFixture({
       id: 'new-primary',
       userId: user.id,
-      isDefault: false,
+      isDefault: false
     })
     vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
-      created as never,
+      created as never
     )
     vi.mocked(prismaMock.lightningAddress.findFirst)
       .mockResolvedValueOnce({ username: 'alice' } as never)
       .mockResolvedValueOnce({
         mode: 'CUSTOM_NWC',
-        remoteWalletId: created.id,
+        remoteWalletId: created.id
       } as never)
-    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({ count: 1 } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
 
     await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
-        body: { name: 'Default', type: 'NWC', config: { connectionString: VALID_NWC }, isDefault: true },
-      }),
+        body: {
+          name: 'Default',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC },
+          isDefault: true
+        }
+      })
     )
 
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith({
@@ -324,12 +433,12 @@ describe('POST /api/remote-wallets', () => {
       data: {
         mode: 'CUSTOM_NWC',
         redirect: null,
-        remoteWalletId: created.id,
-      },
+        remoteWalletId: created.id
+      }
     })
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
       where: { userId: user.id, isDefault: true, id: { not: created.id } },
-      data: { isDefault: false },
+      data: { isDefault: false }
     })
   })
 
@@ -338,19 +447,25 @@ describe('POST /api/remote-wallets', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
-      createRemoteWalletFixture({ userId: user.id, isDefault: false }) as never,
+      createRemoteWalletFixture({ userId: user.id, isDefault: false }) as never
     )
 
     await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
         // Note: isDefault NOT requested.
-        body: { name: 'First', type: 'NWC', config: { connectionString: VALID_NWC } },
-      }),
+        body: {
+          name: 'First',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC }
+        }
+      })
     )
 
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ isDefault: false }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ isDefault: false })
+      })
     )
   })
 
@@ -359,18 +474,24 @@ describe('POST /api/remote-wallets', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
-      createRemoteWalletFixture({ userId: user.id, isDefault: false }) as never,
+      createRemoteWalletFixture({ userId: user.id, isDefault: false }) as never
     )
 
     await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
-        body: { name: 'Second', type: 'NWC', config: { connectionString: VALID_NWC } },
-      }),
+        body: {
+          name: 'Second',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC }
+        }
+      })
     )
 
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ isDefault: false }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ isDefault: false })
+      })
     )
   })
 
@@ -379,8 +500,12 @@ describe('POST /api/remote-wallets', () => {
     const res = await createHandler(
       createNextRequest('/api/remote-wallets', {
         method: 'POST',
-        body: { name: 'X', type: 'NWC', config: { connectionString: VALID_NWC } },
-      }),
+        body: {
+          name: 'X',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC }
+        }
+      })
     )
     expect(res.status).toBe(401)
   })
@@ -393,12 +518,18 @@ describe('GET /api/remote-wallets/[id]', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id, name: 'Mine' })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: user.id,
+      name: 'Mine'
+    })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
 
     const res = await getHandler(
       createNextRequest('/api/remote-wallets/w1'),
-      createParamsPromise({ id: 'w1' }),
+      createParamsPromise({ id: 'w1' })
     )
     const body = (await assertResponse(res, 200)) as { name: string }
     expect(body.name).toBe('Mine')
@@ -409,11 +540,13 @@ describe('GET /api/remote-wallets/[id]', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: 'other-user' })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
 
     const res = await getHandler(
       createNextRequest('/api/remote-wallets/w1'),
-      createParamsPromise({ id: 'w1' }),
+      createParamsPromise({ id: 'w1' })
     )
     expect(res.status).toBe(404)
   })
@@ -422,11 +555,13 @@ describe('GET /api/remote-wallets/[id]', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(null as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
 
     const res = await getHandler(
       createNextRequest('/api/remote-wallets/missing'),
-      createParamsPromise({ id: 'missing' }),
+      createParamsPromise({ id: 'missing' })
     )
     expect(res.status).toBe(404)
   })
@@ -440,12 +575,20 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
-    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({ ...wallet, name: 'Renamed' } as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({
+      ...wallet,
+      name: 'Renamed'
+    } as never)
 
     const res = await patchHandler(
-      createNextRequest('/api/remote-wallets/w1', { method: 'PATCH', body: { name: 'Renamed' } }),
-      createParamsPromise({ id: 'w1' }),
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { name: 'Renamed' }
+      }),
+      createParamsPromise({ id: 'w1' })
     )
     const body = (await assertResponse(res, 200)) as { name: string }
     expect(body.name).toBe('Renamed')
@@ -456,24 +599,31 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
     vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue(wallet as never)
     vi.mocked(prismaMock.remoteWallet.findUniqueOrThrow).mockResolvedValue({
       ...wallet,
-      isDefault: true,
+      isDefault: true
     } as never)
     vi.mocked(prismaMock.lightningAddress.findFirst)
       .mockResolvedValueOnce({ username: 'alice' } as never)
       .mockResolvedValueOnce({ username: 'alice' } as never)
       .mockResolvedValueOnce({
         mode: 'CUSTOM_NWC',
-        remoteWalletId: 'w1',
+        remoteWalletId: 'w1'
       } as never)
-    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({ count: 1 } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
 
     await patchHandler(
-      createNextRequest('/api/remote-wallets/w1', { method: 'PATCH', body: { isDefault: true } }),
-      createParamsPromise({ id: 'w1' }),
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { isDefault: true }
+      }),
+      createParamsPromise({ id: 'w1' })
     )
 
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith({
@@ -481,12 +631,12 @@ describe('PATCH /api/remote-wallets/[id]', () => {
       data: {
         mode: 'CUSTOM_NWC',
         redirect: null,
-        remoteWalletId: 'w1',
-      },
+        remoteWalletId: 'w1'
+      }
     })
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
       where: { userId: user.id, isDefault: true, id: { not: 'w1' } },
-      data: { isDefault: false },
+      data: { isDefault: false }
     })
   })
 
@@ -495,12 +645,20 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
-    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({ ...wallet, status: 'DISABLED' } as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({
+      ...wallet,
+      status: 'DISABLED'
+    } as never)
 
     const res = await patchHandler(
-      createNextRequest('/api/remote-wallets/w1', { method: 'PATCH', body: { status: 'DISABLED' } }),
-      createParamsPromise({ id: 'w1' }),
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { status: 'DISABLED' }
+      }),
+      createParamsPromise({ id: 'w1' })
     )
     const body = (await assertResponse(res, 200)) as { status: string }
     expect(body.status).toBe('DISABLED')
@@ -511,11 +669,16 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
 
     const res = await patchHandler(
-      createNextRequest('/api/remote-wallets/w1', { method: 'PATCH', body: {} }),
-      createParamsPromise({ id: 'w1' }),
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: {}
+      }),
+      createParamsPromise({ id: 'w1' })
     )
     expect(res.status).toBe(400)
   })
@@ -525,11 +688,16 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: 'other-user' })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
 
     const res = await patchHandler(
-      createNextRequest('/api/remote-wallets/w1', { method: 'PATCH', body: { name: 'Hijack' } }),
-      createParamsPromise({ id: 'w1' }),
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { name: 'Hijack' }
+      }),
+      createParamsPromise({ id: 'w1' })
     )
     expect(res.status).toBe(404)
     expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
@@ -540,13 +708,20 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
-    const conflict = Object.assign(new Error('unique violation'), { code: 'P2002' })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    const conflict = Object.assign(new Error('unique violation'), {
+      code: 'P2002'
+    })
     vi.mocked(prismaMock.remoteWallet.update).mockRejectedValue(conflict)
 
     const res = await patchHandler(
-      createNextRequest('/api/remote-wallets/w1', { method: 'PATCH', body: { name: 'Taken' } }),
-      createParamsPromise({ id: 'w1' }),
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { name: 'Taken' }
+      }),
+      createParamsPromise({ id: 'w1' })
     )
     expect(res.status).toBe(409)
   })
@@ -556,12 +731,19 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
-    vi.mocked(prismaMock.remoteWallet.update).mockRejectedValue(new Error('connection reset'))
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    vi.mocked(prismaMock.remoteWallet.update).mockRejectedValue(
+      new Error('connection reset')
+    )
 
     const res = await patchHandler(
-      createNextRequest('/api/remote-wallets/w1', { method: 'PATCH', body: { name: 'New' } }),
-      createParamsPromise({ id: 'w1' }),
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { name: 'New' }
+      }),
+      createParamsPromise({ id: 'w1' })
     )
     expect(res.status).toBe(500)
   })
@@ -574,22 +756,28 @@ describe('DELETE /api/remote-wallets/[id]', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id, isDefault: true })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: user.id,
+      isDefault: true
+    })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
     vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({
       ...wallet,
       status: 'REVOKED',
-      isDefault: false,
+      isDefault: false
     } as never)
 
     const res = await deleteHandler(
       createNextRequest('/api/remote-wallets/w1', { method: 'DELETE' }),
-      createParamsPromise({ id: 'w1' }),
+      createParamsPromise({ id: 'w1' })
     )
     expect(res.status).toBe(204)
     expect(prismaMock.remoteWallet.update).toHaveBeenCalledWith({
       where: { id: 'w1' },
-      data: { status: 'REVOKED', isDefault: false },
+      data: { status: 'REVOKED', isDefault: false }
     })
   })
 
@@ -597,20 +785,28 @@ describe('DELETE /api/remote-wallets/[id]', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id, status: 'DEAD' })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: user.id,
+      status: 'DEAD'
+    })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
     vi.mocked(prismaMock.remoteWallet.delete).mockResolvedValue(wallet as never)
 
     const res = await deleteHandler(
       createNextRequest('/api/remote-wallets/w1', {
         method: 'DELETE',
-        searchParams: { permanent: 'true' },
+        searchParams: { permanent: 'true' }
       }),
-      createParamsPromise({ id: 'w1' }),
+      createParamsPromise({ id: 'w1' })
     )
 
     expect(res.status).toBe(204)
-    expect(prismaMock.remoteWallet.delete).toHaveBeenCalledWith({ where: { id: 'w1' } })
+    expect(prismaMock.remoteWallet.delete).toHaveBeenCalledWith({
+      where: { id: 'w1' }
+    })
     // A hard delete must NOT also run the soft-delete update.
     expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
   })
@@ -619,15 +815,21 @@ describe('DELETE /api/remote-wallets/[id]', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
-    const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id, status: 'ACTIVE' })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: user.id,
+      status: 'ACTIVE'
+    })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
 
     const res = await deleteHandler(
       createNextRequest('/api/remote-wallets/w1', {
         method: 'DELETE',
-        searchParams: { permanent: 'true' },
+        searchParams: { permanent: 'true' }
       }),
-      createParamsPromise({ id: 'w1' }),
+      createParamsPromise({ id: 'w1' })
     )
 
     expect(res.status).toBe(400)
@@ -639,11 +841,13 @@ describe('DELETE /api/remote-wallets/[id]', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     const wallet = createRemoteWalletFixture({ id: 'w1', userId: 'other-user' })
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
 
     const res = await deleteHandler(
       createNextRequest('/api/remote-wallets/w1', { method: 'DELETE' }),
-      createParamsPromise({ id: 'w1' }),
+      createParamsPromise({ id: 'w1' })
     )
     expect(res.status).toBe(404)
     expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()

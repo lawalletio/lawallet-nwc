@@ -81,7 +81,7 @@ describe('checkRequestLimits', () => {
   // ── Skip Methods ────────────────────────────────────────────────────────
 
   describe('skip methods without body', () => {
-    it.each(['GET', 'HEAD', 'OPTIONS'])('skips %s requests', async (method) => {
+    it.each(['GET', 'HEAD', 'OPTIONS'])('skips %s requests', async method => {
       const request = createRequest({ method })
       await expect(checkRequestLimits(request, 'json')).resolves.toBeUndefined()
     })
@@ -109,7 +109,9 @@ describe('checkRequestLimits', () => {
 
     it('allows request within large preset limit', async () => {
       const request = createRequest({ contentLength: 500000 }) // 500KB < 1MB
-      await expect(checkRequestLimits(request, 'large')).resolves.toBeUndefined()
+      await expect(
+        checkRequestLimits(request, 'large')
+      ).resolves.toBeUndefined()
     })
 
     it('rejects request exceeding large preset limit', async () => {
@@ -233,7 +235,9 @@ describe('checkFileLimits', () => {
     const formData = new FormData()
     for (const { name, size } of files) {
       const content = new Uint8Array(size)
-      const file = new File([content], name, { type: 'application/octet-stream' })
+      const file = new File([content], name, {
+        type: 'application/octet-stream'
+      })
       formData.append('file', file)
     }
     return formData
@@ -308,7 +312,9 @@ describe('checkFileLimits', () => {
         checkFileLimits(formData, 'upload')
         expect.unreachable('Should have thrown')
       } catch (error) {
-        expect((error as PayloadTooLargeError).message).toContain('toolarge.bin')
+        expect((error as PayloadTooLargeError).message).toContain(
+          'toolarge.bin'
+        )
         expect((error as PayloadTooLargeError).details).toEqual(
           expect.objectContaining({
             fileName: 'toolarge.bin',
@@ -323,9 +329,7 @@ describe('checkFileLimits', () => {
 
   describe('custom file options', () => {
     it('accepts custom file limits', () => {
-      const formData = createFormDataWithFiles([
-        { name: 'a.txt', size: 100 }
-      ])
+      const formData = createFormDataWithFiles([{ name: 'a.txt', size: 100 }])
       const options: RequestLimitOptions = {
         maxBodySize: 1000,
         maxFileSize: 200,

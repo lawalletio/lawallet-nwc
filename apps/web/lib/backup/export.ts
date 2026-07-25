@@ -5,10 +5,15 @@ import {
   type BackupCategory,
   type BackupExportRequest,
   type BackupManifest,
-  type BackupTableName,
+  type BackupTableName
 } from '@/lib/validation/schemas'
 import { TABLE_DESCRIPTORS, resolveTables } from '@/lib/backup/tables'
-import { BACKUP_README, sha256, toNdjson, utf8Encode } from '@/lib/backup/serialize'
+import {
+  BACKUP_README,
+  sha256,
+  toNdjson,
+  utf8Encode
+} from '@/lib/backup/serialize'
 import { encryptArchive } from '@/lib/backup/crypto'
 import packageJson from '../../package.json'
 
@@ -20,7 +25,10 @@ interface GatheredTable {
 }
 
 /** Reads every row of a table (full, un-redacted — secrets included). */
-async function gatherTable(table: BackupTableName, options: ExportOptions): Promise<GatheredTable> {
+async function gatherTable(
+  table: BackupTableName,
+  options: ExportOptions
+): Promise<GatheredTable> {
   // Large, append-only table: bound by recency + a hard cap so a huge history
   // can't blow memory or the response size. `take: limit + 1` detects overflow.
   if (table === 'activityLogs') {
@@ -30,13 +38,18 @@ async function gatherTable(table: BackupTableName, options: ExportOptions): Prom
     const rows = await prisma.activityLog.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take: options.activityLogLimit + 1,
+      take: options.activityLogLimit + 1
     })
     const truncated = rows.length > options.activityLogLimit
-    return { rows: truncated ? rows.slice(0, options.activityLogLimit) : rows, truncated }
+    return {
+      rows: truncated ? rows.slice(0, options.activityLogLimit) : rows,
+      truncated
+    }
   }
 
-  const delegate = prisma[TABLE_DESCRIPTORS[table].model as keyof typeof prisma] as {
+  const delegate = prisma[
+    TABLE_DESCRIPTORS[table].model as keyof typeof prisma
+  ] as {
     findMany: (args?: unknown) => Promise<unknown[]>
   }
   const rows = await delegate.findMany()
@@ -72,7 +85,7 @@ export interface BuiltBackup {
 export async function buildBackup(
   categories: BackupCategory[],
   options: ExportOptions,
-  password?: string,
+  password?: string
 ): Promise<BuiltBackup> {
   const tables = resolveTables(categories)
   const files: Record<string, Uint8Array> = {}
@@ -85,7 +98,7 @@ export async function buildBackup(
     tableMeta[table] = {
       count: rows.length,
       sha256: sha256(bytes),
-      ...(truncated ? { truncated: true } : {}),
+      ...(truncated ? { truncated: true } : {})
     }
   }
 
@@ -96,7 +109,7 @@ export async function buildBackup(
     exportedAt: new Date().toISOString(),
     encrypted: Boolean(password),
     categories,
-    tables: tableMeta,
+    tables: tableMeta
   }
 
   files['manifest.json'] = utf8Encode(JSON.stringify(manifest, null, 2))

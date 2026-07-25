@@ -1,35 +1,38 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
-import { createUserFixture, createAdminUserFixture } from '@/tests/helpers/fixtures'
+import {
+  createUserFixture,
+  createAdminUserFixture
+} from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 import { Role } from '@/lib/auth/permissions'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 // Route now uses unified `authenticate()` so the dashboard's JWT is accepted
 // alongside NIP-98. The AuthResult already carries role+pubkey, so there's
 // no separate caller-role DB lookup to mock anymore.
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn(),
+  authenticate: vi.fn()
 }))
 
 import { GET, PUT } from '@/app/api/users/[userId]/role/route'
@@ -46,7 +49,7 @@ const mockAuth = (role: Role, pubkey: string) =>
 // the blanket user.findUnique target mock.
 const mockCallerAccount = (id: string, pubkey: string, role: Role) =>
   vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
-    user: { id, pubkey, role },
+    user: { id, pubkey, role }
   } as any)
 
 beforeEach(() => {
@@ -110,12 +113,12 @@ describe('PUT /api/users/[userId]/role', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({
       id: target.id,
-      role: 'OPERATOR',
+      role: 'OPERATOR'
     } as any)
 
     const req = createNextRequest(`/api/users/${target.id}/role`, {
       method: 'PUT',
-      body: { role: 'OPERATOR' },
+      body: { role: 'OPERATOR' }
     })
     const res = await PUT(req, createParamsPromise({ userId: target.id }))
     const body = await assertResponse(res, 200)
@@ -130,12 +133,12 @@ describe('PUT /api/users/[userId]/role', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({
       id: target.id,
-      role: 'USER',
+      role: 'USER'
     } as any)
 
     const req = createNextRequest(`/api/users/${target.id}/role`, {
       method: 'PUT',
-      body: { role: 'USER' },
+      body: { role: 'USER' }
     })
     const res = await PUT(req, createParamsPromise({ userId: target.id }))
     const body = await assertResponse(res, 200)
@@ -149,7 +152,7 @@ describe('PUT /api/users/[userId]/role', () => {
 
     const req = createNextRequest(`/api/users/${target.id}/role`, {
       method: 'PUT',
-      body: { role: 'OPERATOR' },
+      body: { role: 'OPERATOR' }
     })
     const res = await PUT(req, createParamsPromise({ userId: target.id }))
 
@@ -162,12 +165,12 @@ describe('PUT /api/users/[userId]/role', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(target as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({
       id: target.id,
-      role: 'ADMIN',
+      role: 'ADMIN'
     } as any)
 
     const req = createNextRequest(`/api/users/${target.id}/role`, {
       method: 'PUT',
-      body: { role: 'ADMIN' },
+      body: { role: 'ADMIN' }
     })
     const res = await PUT(req, createParamsPromise({ userId: target.id }))
     const body = await assertResponse(res, 200)
@@ -182,7 +185,7 @@ describe('PUT /api/users/[userId]/role', () => {
 
     const req = createNextRequest(`/api/users/${admin.id}/role`, {
       method: 'PUT',
-      body: { role: 'USER' },
+      body: { role: 'USER' }
     })
     const res = await PUT(req, createParamsPromise({ userId: admin.id }))
 
@@ -196,13 +199,13 @@ describe('PUT /api/users/[userId]/role', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
       id: target.id,
       role: 'ADMIN',
-      pubkey: userPubkey,
+      pubkey: userPubkey
     } as any)
     vi.mocked(prismaMock.user.count).mockResolvedValue(1)
 
     const req = createNextRequest(`/api/users/${target.id}/role`, {
       method: 'PUT',
-      body: { role: 'VIEWER' },
+      body: { role: 'VIEWER' }
     })
     const res = await PUT(req, createParamsPromise({ userId: target.id }))
     const body: any = await res.json()
@@ -217,7 +220,7 @@ describe('PUT /api/users/[userId]/role', () => {
 
     const req = createNextRequest('/api/users/some-user-id/role', {
       method: 'PUT',
-      body: { role: 'VIEWER' },
+      body: { role: 'VIEWER' }
     })
     const res = await PUT(req, createParamsPromise({ userId: 'some-user-id' }))
 
@@ -229,7 +232,7 @@ describe('PUT /api/users/[userId]/role', () => {
 
     const req = createNextRequest('/api/users/some-id/role', {
       method: 'PUT',
-      body: { role: 'SUPERADMIN' },
+      body: { role: 'SUPERADMIN' }
     })
     const res = await PUT(req, createParamsPromise({ userId: 'some-id' }))
 

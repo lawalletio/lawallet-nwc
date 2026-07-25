@@ -6,7 +6,12 @@ import {
   AuthorizationError,
   InternalServerError
 } from '@/types/server/errors'
-import { Role, Permission, hasPermission, isValidRole } from '@/lib/auth/permissions'
+import {
+  Role,
+  Permission,
+  hasPermission,
+  isValidRole
+} from '@/lib/auth/permissions'
 
 export interface JwtAuthOptions {
   algorithms?: string[]

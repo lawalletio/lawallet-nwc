@@ -25,22 +25,19 @@ export const revalidate = 0
 // handler merges the provided fields only. Adding a real PATCH verb
 // across the whole client surface wasn't worth the churn for one route.
 export const PUT = withErrorHandling(
-  async (
-    request: Request,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await checkRequestLimits(request, 'json')
     await authenticateWithPermission(request, Permission.CARD_DESIGNS_WRITE)
 
     const { id } = validateParams(await params, idParam)
     const { description, imageUrl, archived } = await validateBody(
       request,
-      updateCardDesignSchema,
+      updateCardDesignSchema
     )
 
     const existing = await prisma.cardDesign.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true }
     })
     if (!existing) {
       throw new NotFoundError('Design not found')
@@ -55,15 +52,15 @@ export const PUT = withErrorHandling(
         // `true` stamps "archived now", `false` clears it back to active.
         ...(archived !== undefined
           ? { archivedAt: archived ? new Date() : null }
-          : {}),
+          : {})
       },
       select: {
         id: true,
         imageUrl: true,
         description: true,
         createdAt: true,
-        archivedAt: true,
-      },
+        archivedAt: true
+      }
     })
 
     eventBus.emit({ type: 'designs:updated', timestamp: Date.now() })
@@ -74,10 +71,10 @@ export const PUT = withErrorHandling(
       message: `Card design updated: ${updated.description}`,
       metadata: {
         designId: updated.id,
-        archived: !!updated.archivedAt,
-      },
+        archived: !!updated.archivedAt
+      }
     })
 
     return NextResponse.json(updated)
-  },
+  }
 )

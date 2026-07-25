@@ -1,6 +1,6 @@
 ---
-title: "Roles & Permissions"
-description: "Modelo RBAC de LaWallet NWC: cuatro roles jerárquicos, permisos granulares y cómo se resuelve el rol del llamante."
+title: 'Roles & Permissions'
+description: 'Modelo RBAC de LaWallet NWC: cuatro roles jerárquicos, permisos granulares y cómo se resuelve el rol del llamante.'
 ---
 
 LaWallet NWC usa un modelo RBAC con cuatro roles jerárquicos más un nivel `PUBLIC` para llamadas sin autenticar. Cada rol tiene un conjunto fijo de permisos granulares; los guards de las rutas chequean **rol mínimo** o **permiso específico** según el caso.
@@ -13,34 +13,34 @@ PUBLIC  →  USER  <  VIEWER  <  OPERATOR  <  ADMIN
 
 Un rol más alto **incluye** todo lo que puede hacer el rol inferior — los guards usan `hasRole(actual, requerido)` que compara posiciones en la jerarquía.
 
-| Rol | Quién es | Resumen de privilegios |
-|-----|----------|------------------------|
-| **PUBLIC** | Llamante sin autenticar | Endpoints abiertos: LUD-16 payRequest/callback, `/.well-known/verify`, `/api/setup/status`, exchange `POST /api/jwt`. |
-| **USER** | Cualquier `pubkey` autenticado sin permisos extra | Lee/edita su propia data (LUD-16, NWC propio). No accede al panel admin. |
-| **VIEWER** | Auditor / observador | Solo lectura sobre cards, designs, addresses, ntags, users, settings y activity log. |
-| **OPERATOR** | Operador del día a día | VIEWER + escritura sobre cards, designs, addresses y ntags. **No** toca settings ni roles de otros usuarios. |
-| **ADMIN** | Root del sistema | Todos los permisos, sin excepción. Asignado automáticamente al primer pubkey que reclama el bootstrap (`POST /api/admin/assign`). |
+| Rol          | Quién es                                          | Resumen de privilegios                                                                                                            |
+| ------------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **PUBLIC**   | Llamante sin autenticar                           | Endpoints abiertos: LUD-16 payRequest/callback, `/.well-known/verify`, `/api/setup/status`, exchange `POST /api/jwt`.             |
+| **USER**     | Cualquier `pubkey` autenticado sin permisos extra | Lee/edita su propia data (LUD-16, NWC propio). No accede al panel admin.                                                          |
+| **VIEWER**   | Auditor / observador                              | Solo lectura sobre cards, designs, addresses, ntags, users, settings y activity log.                                              |
+| **OPERATOR** | Operador del día a día                            | VIEWER + escritura sobre cards, designs, addresses y ntags. **No** toca settings ni roles de otros usuarios.                      |
+| **ADMIN**    | Root del sistema                                  | Todos los permisos, sin excepción. Asignado automáticamente al primer pubkey que reclama el bootstrap (`POST /api/admin/assign`). |
 
 ## Matriz de permisos
 
 Los permisos están definidos en [`lib/auth/permissions.ts`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/lib/auth/permissions.ts) como un enum, y cada rol mapea a una lista fija de permisos.
 
-| Permiso | USER | VIEWER | OPERATOR | ADMIN |
-|---------|:----:|:------:|:--------:|:-----:|
-| `settings:read` | | ✓ | | ✓ |
-| `settings:write` | | | | ✓ |
-| `users:read` | | ✓ | ✓ | ✓ |
-| `users:write` | | | | ✓ |
-| `users:manage_roles` | | | | ✓ |
-| `cards:read` | | ✓ | ✓ | ✓ |
-| `cards:write` | | | ✓ | ✓ |
-| `card_designs:read` | | ✓ | ✓ | ✓ |
-| `card_designs:write` | | | ✓ | ✓ |
-| `addresses:read` | | ✓ | ✓ | ✓ |
-| `addresses:write` | | | ✓ | ✓ |
-| `ntags:read` | | ✓ | ✓ | ✓ |
-| `ntags:write` | | | ✓ | ✓ |
-| `activity:read` | | ✓ | ✓ | ✓ |
+| Permiso              | USER | VIEWER | OPERATOR | ADMIN |
+| -------------------- | :--: | :----: | :------: | :---: |
+| `settings:read`      |      |   ✓    |          |   ✓   |
+| `settings:write`     |      |        |          |   ✓   |
+| `users:read`         |      |   ✓    |    ✓     |   ✓   |
+| `users:write`        |      |        |          |   ✓   |
+| `users:manage_roles` |      |        |          |   ✓   |
+| `cards:read`         |      |   ✓    |    ✓     |   ✓   |
+| `cards:write`        |      |        |    ✓     |   ✓   |
+| `card_designs:read`  |      |   ✓    |    ✓     |   ✓   |
+| `card_designs:write` |      |        |    ✓     |   ✓   |
+| `addresses:read`     |      |   ✓    |    ✓     |   ✓   |
+| `addresses:write`    |      |        |    ✓     |   ✓   |
+| `ntags:read`         |      |   ✓    |    ✓     |   ✓   |
+| `ntags:write`        |      |        |    ✓     |   ✓   |
+| `activity:read`      |      |   ✓    |    ✓     |   ✓   |
 
 `USER` no tiene ninguno de estos permisos de plataforma — es el rol por defecto para pubkeys autenticados que solo operan sobre su propia identidad.
 

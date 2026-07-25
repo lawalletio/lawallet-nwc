@@ -100,9 +100,7 @@ describe('useApi request dedupe', () => {
       const statusAtCall = authMock.authState.status
       return {
         domain:
-          statusAtCall === 'authenticated'
-            ? 'admin.example'
-            : 'public.example',
+          statusAtCall === 'authenticated' ? 'admin.example' : 'public.example',
         hasRoot: true
       }
     })

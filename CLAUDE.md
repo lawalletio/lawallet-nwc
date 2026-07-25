@@ -65,18 +65,19 @@ never wipe data (`pnpm dev:db:reset` does, on purpose).
 
 Prettier: no semicolons, single quotes, no trailing commas, arrow parens
 avoid. ESLint: Next.js core-web-vitals. An Edit/Write hook auto-formats
-changed TS/TSX files — don't hand-format.
+changed `.ts/.tsx/.js/.jsx/.mjs` files — don't hand-format. Other types
+(md, mdx, json, css) are only formatted by `pnpm format`.
 
 ## Skill & Subagent Map
 
-| Task | Use |
-|------|-----|
-| REST API route handlers | `api-route-author` agent; skills: next-best-practices, nodejs-backend-patterns |
-| Tests (Vitest/MSW) | `test-writer` agent; skill: vitest |
-| Schema / migrations / seed | `prisma-migrator` agent; skills: prisma-client-api, prisma-cli |
-| UI components | `ui-component-builder` agent; skills: shadcn, tailwind-v4-shadcn, frontend-design |
-| Auth / RBAC / validation audit | `security-auditor` agent (read-only) |
-| Wallet drivers & integrations | `integration-author` agent (the no-core-edits path) |
-| New plugin (pages/routes/hooks) | `pnpm plugin:new <id>` + docs/PLUGINS.md (JSON-first rule) |
-| Docs (Fumadocs, OpenAPI) | `docs-writer` agent; seo/accessibility skills apply to apps/docs + landing only |
-| Log/trace triage | `debug-helper` agent |
+| Task                            | Use                                                                               |
+| ------------------------------- | --------------------------------------------------------------------------------- |
+| REST API route handlers         | `api-route-author` agent; skills: next-best-practices, nodejs-backend-patterns    |
+| Tests (Vitest/MSW)              | `test-writer` agent; skill: vitest                                                |
+| Schema / migrations / seed      | `prisma-migrator` agent; skills: prisma-client-api, prisma-cli                    |
+| UI components                   | `ui-component-builder` agent; skills: shadcn, tailwind-v4-shadcn, frontend-design |
+| Auth / RBAC / validation audit  | `security-auditor` agent (read-only)                                              |
+| Wallet drivers & integrations   | `integration-author` agent (the no-core-edits path)                               |
+| New plugin (pages/routes/hooks) | `pnpm plugin:new <id>` + docs/PLUGINS.md (JSON-first rule)                        |
+| Docs (Fumadocs, OpenAPI)        | `docs-writer` agent; seo/accessibility skills apply to apps/docs + landing only   |
+| Log/trace triage                | `debug-helper` agent                                                              |

@@ -4,15 +4,15 @@ import { Role, Permission } from '@/lib/auth/permissions'
 import {
   AuthenticationError,
   AuthorizationError,
-  InternalServerError,
+  InternalServerError
 } from '@/types/server/errors'
 import { createJwtToken } from '@/lib/jwt'
 
 // Mock getConfig
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
-    jwt: { secret: 'a'.repeat(32), enabled: true },
-  })),
+    jwt: { secret: 'a'.repeat(32), enabled: true }
+  }))
 }))
 
 import {
@@ -23,7 +23,7 @@ import {
   hasClaim,
   getRoleFromRequest,
   hasPermissionFromRequest,
-  type AuthenticatedRequest,
+  type AuthenticatedRequest
 } from '@/lib/jwt-auth'
 import { getConfig } from '@/lib/config'
 
@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.mocked(getConfig).mockReturnValue({
-    jwt: { secret: SECRET, enabled: true },
+    jwt: { secret: SECRET, enabled: true }
   } as any)
 })
 
@@ -45,18 +45,17 @@ afterEach(() => {
 })
 
 function createToken(overrides: Record<string, any> = {}) {
-  return createJwtToken(
-    { userId: 'user_1', ...overrides },
-    SECRET,
-    { issuer: 'lawallet-nwc', audience: 'lawallet-users' }
-  )
+  return createJwtToken({ userId: 'user_1', ...overrides }, SECRET, {
+    issuer: 'lawallet-nwc',
+    audience: 'lawallet-users'
+  })
 }
 
 function createNextReq(token?: string) {
   const headers: Record<string, string> = {}
   if (token) headers['Authorization'] = `Bearer ${token}`
   return new NextRequest(new URL('http://localhost:3000/api/test'), {
-    headers,
+    headers
   })
 }
 
@@ -70,7 +69,7 @@ describe('authenticateJwt', () => {
 
   it('throws InternalServerError when JWT is not configured', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      jwt: { secret: undefined, enabled: false },
+      jwt: { secret: undefined, enabled: false }
     } as any)
     const request = createNextReq('some-token')
     await expect(authenticateJwt(request)).rejects.toThrow(AuthenticationError)
@@ -98,7 +97,7 @@ describe('authenticateJwt', () => {
     const token = createToken({ customClaim: 'value' })
     const request = createNextReq(token)
     const result = await authenticateJwt(request, {
-      requiredClaims: ['userId', 'customClaim'],
+      requiredClaims: ['userId', 'customClaim']
     })
     expect(result.payload.customClaim).toBe('value')
   })
@@ -130,7 +129,7 @@ describe('withJwtAuth', () => {
 describe('getUserIdFromRequest', () => {
   it('returns userId from jwt payload', () => {
     const request = {
-      jwt: { payload: { userId: 'u123' }, header: {} },
+      jwt: { payload: { userId: 'u123' }, header: {} }
     } as unknown as AuthenticatedRequest
     expect(getUserIdFromRequest(request)).toBe('u123')
   })
@@ -144,42 +143,44 @@ describe('getUserIdFromRequest', () => {
 describe('getClaimFromRequest', () => {
   it('returns claim value', () => {
     const request = {
-      jwt: { payload: { userId: 'u1', role: 'ADMIN' }, header: {} },
+      jwt: { payload: { userId: 'u1', role: 'ADMIN' }, header: {} }
     } as unknown as AuthenticatedRequest
     expect(getClaimFromRequest(request, 'role')).toBe('ADMIN')
   })
 
   it('throws AuthenticationError if not authenticated', () => {
     const request = {} as unknown as AuthenticatedRequest
-    expect(() => getClaimFromRequest(request, 'role')).toThrow(AuthenticationError)
+    expect(() => getClaimFromRequest(request, 'role')).toThrow(
+      AuthenticationError
+    )
   })
 })
 
 describe('hasClaim', () => {
   it('returns true when claim exists', () => {
     const request = {
-      jwt: { payload: { userId: 'u1', role: 'ADMIN' }, header: {} },
+      jwt: { payload: { userId: 'u1', role: 'ADMIN' }, header: {} }
     } as unknown as AuthenticatedRequest
     expect(hasClaim(request, 'role')).toBe(true)
   })
 
   it('returns true when claim matches expected value', () => {
     const request = {
-      jwt: { payload: { userId: 'u1', role: 'ADMIN' }, header: {} },
+      jwt: { payload: { userId: 'u1', role: 'ADMIN' }, header: {} }
     } as unknown as AuthenticatedRequest
     expect(hasClaim(request, 'role', 'ADMIN')).toBe(true)
   })
 
   it('returns false when claim does not match expected value', () => {
     const request = {
-      jwt: { payload: { userId: 'u1', role: 'USER' }, header: {} },
+      jwt: { payload: { userId: 'u1', role: 'USER' }, header: {} }
     } as unknown as AuthenticatedRequest
     expect(hasClaim(request, 'role', 'ADMIN')).toBe(false)
   })
 
   it('returns false when claim does not exist', () => {
     const request = {
-      jwt: { payload: { userId: 'u1' }, header: {} },
+      jwt: { payload: { userId: 'u1' }, header: {} }
     } as unknown as AuthenticatedRequest
     expect(hasClaim(request, 'nonexistent')).toBe(false)
   })
@@ -193,21 +194,21 @@ describe('hasClaim', () => {
 describe('getRoleFromRequest', () => {
   it('returns role from jwt payload', () => {
     const request = {
-      jwt: { payload: { userId: 'u1', role: 'OPERATOR' }, header: {} },
+      jwt: { payload: { userId: 'u1', role: 'OPERATOR' }, header: {} }
     } as unknown as AuthenticatedRequest
     expect(getRoleFromRequest(request)).toBe(Role.OPERATOR)
   })
 
   it('falls back to USER for missing role', () => {
     const request = {
-      jwt: { payload: { userId: 'u1' }, header: {} },
+      jwt: { payload: { userId: 'u1' }, header: {} }
     } as unknown as AuthenticatedRequest
     expect(getRoleFromRequest(request)).toBe(Role.USER)
   })
 
   it('falls back to USER for invalid role string', () => {
     const request = {
-      jwt: { payload: { userId: 'u1', role: 'SUPERADMIN' }, header: {} },
+      jwt: { payload: { userId: 'u1', role: 'SUPERADMIN' }, header: {} }
     } as unknown as AuthenticatedRequest
     expect(getRoleFromRequest(request)).toBe(Role.USER)
   })
@@ -221,20 +222,26 @@ describe('getRoleFromRequest', () => {
 describe('hasPermissionFromRequest', () => {
   it('returns true when role has permission', () => {
     const request = {
-      jwt: { payload: { userId: 'u1', role: 'ADMIN' }, header: {} },
+      jwt: { payload: { userId: 'u1', role: 'ADMIN' }, header: {} }
     } as unknown as AuthenticatedRequest
-    expect(hasPermissionFromRequest(request, Permission.SETTINGS_WRITE)).toBe(true)
+    expect(hasPermissionFromRequest(request, Permission.SETTINGS_WRITE)).toBe(
+      true
+    )
   })
 
   it('returns false when role lacks permission', () => {
     const request = {
-      jwt: { payload: { userId: 'u1', role: 'USER' }, header: {} },
+      jwt: { payload: { userId: 'u1', role: 'USER' }, header: {} }
     } as unknown as AuthenticatedRequest
-    expect(hasPermissionFromRequest(request, Permission.SETTINGS_READ)).toBe(false)
+    expect(hasPermissionFromRequest(request, Permission.SETTINGS_READ)).toBe(
+      false
+    )
   })
 
   it('returns false when not authenticated', () => {
     const request = {} as unknown as AuthenticatedRequest
-    expect(hasPermissionFromRequest(request, Permission.SETTINGS_READ)).toBe(false)
+    expect(hasPermissionFromRequest(request, Permission.SETTINGS_READ)).toBe(
+      false
+    )
   })
 })

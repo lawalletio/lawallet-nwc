@@ -1,7 +1,11 @@
 'use client'
 
 import type { NostrSigner } from '@nostrify/nostrify'
-import { DEFAULT_NOSTR_RELAYS, parseKind0Content, type NostrProfile } from '@/lib/nostr/profile'
+import {
+  DEFAULT_NOSTR_RELAYS,
+  parseKind0Content,
+  type NostrProfile
+} from '@/lib/nostr/profile'
 
 export interface ProfileFields {
   name?: string
@@ -26,17 +30,19 @@ export interface ProfileFields {
 export async function publishProfile(
   signer: NostrSigner,
   currentProfile: NostrProfile | null,
-  patch: ProfileFields,
+  patch: ProfileFields
 ): Promise<NostrProfile> {
-  const { SimplePool, finalizeEvent } = await Promise.resolve().then(async () => {
-    const pool = await import('nostr-tools/pool')
-    // finalizeEvent only fires for nsec signers; remote signers (bunker /
-    // extension) produce a fully-signed event via signEvent and don't need
-    // it. We keep the module reference here so the dynamic import graph
-    // stays symmetric.
-    const pure = await import('nostr-tools/pure')
-    return { SimplePool: pool.SimplePool, finalizeEvent: pure.finalizeEvent }
-  })
+  const { SimplePool, finalizeEvent } = await Promise.resolve().then(
+    async () => {
+      const pool = await import('nostr-tools/pool')
+      // finalizeEvent only fires for nsec signers; remote signers (bunker /
+      // extension) produce a fully-signed event via signEvent and don't need
+      // it. We keep the module reference here so the dynamic import graph
+      // stays symmetric.
+      const pure = await import('nostr-tools/pure')
+      return { SimplePool: pool.SimplePool, finalizeEvent: pure.finalizeEvent }
+    }
+  )
 
   // Preserve any kind-0 keys the app doesn't model by merging at the
   // serialized-content level when we can. If we only have a parsed
@@ -45,13 +51,17 @@ export async function publishProfile(
   const merged: Record<string, unknown> = {}
   if (currentProfile) {
     if (currentProfile.name !== undefined) merged.name = currentProfile.name
-    if (currentProfile.displayName !== undefined) merged.display_name = currentProfile.displayName
-    if (currentProfile.picture !== undefined) merged.picture = currentProfile.picture
-    if (currentProfile.banner !== undefined) merged.banner = currentProfile.banner
+    if (currentProfile.displayName !== undefined)
+      merged.display_name = currentProfile.displayName
+    if (currentProfile.picture !== undefined)
+      merged.picture = currentProfile.picture
+    if (currentProfile.banner !== undefined)
+      merged.banner = currentProfile.banner
     if (currentProfile.about !== undefined) merged.about = currentProfile.about
     if (currentProfile.nip05 !== undefined) merged.nip05 = currentProfile.nip05
     if (currentProfile.lud16 !== undefined) merged.lud16 = currentProfile.lud16
-    if (currentProfile.website !== undefined) merged.website = currentProfile.website
+    if (currentProfile.website !== undefined)
+      merged.website = currentProfile.website
   }
   if (patch.name !== undefined) merged.name = patch.name
   if (patch.displayName !== undefined) merged.display_name = patch.displayName
@@ -67,7 +77,7 @@ export async function publishProfile(
     kind: 0,
     content,
     tags: [],
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: Math.floor(Date.now() / 1000)
   }
 
   const signed = await signer.signEvent(template)
@@ -87,7 +97,9 @@ export async function publishProfile(
 
   const parsed = parseKind0Content(signed.pubkey, signed.content)
   if (!parsed) {
-    throw new Error('Published profile but failed to parse the signed content back')
+    throw new Error(
+      'Published profile but failed to parse the signed content back'
+    )
   }
   return parsed
 }

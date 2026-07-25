@@ -9,7 +9,7 @@ import {
   Webhook,
   Ticket,
   User,
-  type LucideIcon,
+  type LucideIcon
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -24,34 +24,35 @@ const FEATURES: Feature[] = [
   {
     icon: AtSign,
     title: 'Lightning Address',
-    description: 'Multiple addresses for multiple purposes — one identity, many ways to use it.',
-    tags: ['Redirect', 'Spend', 'Card', 'Lend', 'Tip', 'Share'],
+    description:
+      'Multiple addresses for multiple purposes — one identity, many ways to use it.',
+    tags: ['Redirect', 'Spend', 'Card', 'Lend', 'Tip', 'Share']
   },
   {
     icon: Wallet,
     title: 'Built-in Wallet',
-    description: 'NWC connection with disposable, instant wallets via LNCurl.',
+    description: 'NWC connection with disposable, instant wallets via LNCurl.'
   },
   {
     icon: CreditCard,
     title: 'NFC Cards',
-    description: 'Customize and create your own tap-to-pay cards.',
+    description: 'Customize and create your own tap-to-pay cards.'
   },
   {
     icon: Bell,
     title: 'Notifications',
-    description: 'Wire notifications that fire on the conditions you choose.',
+    description: 'Wire notifications that fire on the conditions you choose.'
   },
   {
     icon: Webhook,
     title: 'Webhooks',
-    description: 'Assign webhook notifications to program your payment flows.',
+    description: 'Assign webhook notifications to program your payment flows.'
   },
   {
     icon: Ticket,
     title: 'Memberships',
-    description: 'Gated access and perks for your community.',
-  },
+    description: 'Gated access and perks for your community.'
+  }
 ]
 
 const RADIUS = 156 // px from center to each node
@@ -124,85 +125,92 @@ export function FeaturesSection() {
 
       {/* ── Orbital constellation (sm and up) ─────────────────────────────── */}
       <div className="hidden sm:block">
-      <div
-        ref={stageRef}
-        data-paused={stageHovered || hovered != null}
-        onPointerEnter={() => setStageHovered(true)}
-        onPointerLeave={() => {
-          setStageHovered(false)
-          setHovered(null)
-          hoveredRef.current = false
-        }}
-        className="orbit-stage relative mx-auto select-none"
-        style={{ height: 560, maxWidth: 560 }}
-      >
-        <div className="orbit-tilt absolute inset-0 flex items-center justify-center">
-          {/* ambient theme bloom */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1/2 top-1/2 -z-10 size-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
-            style={{
-              background:
-                'radial-gradient(circle, color-mix(in srgb, var(--theme-400) 18%, transparent), transparent 70%)',
-            }}
-          />
-          {/* decorative orbit rings */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.07]" style={{ width: RADIUS * 2, height: RADIUS * 2 }} />
-          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-white/[0.05]" style={{ width: RADIUS * 1.28, height: RADIUS * 1.28 }} />
+        <div
+          ref={stageRef}
+          data-paused={stageHovered || hovered != null}
+          onPointerEnter={() => setStageHovered(true)}
+          onPointerLeave={() => {
+            setStageHovered(false)
+            setHovered(null)
+            hoveredRef.current = false
+          }}
+          className="orbit-stage relative mx-auto select-none"
+          style={{ height: 560, maxWidth: 560 }}
+        >
+          <div className="orbit-tilt absolute inset-0 flex items-center justify-center">
+            {/* ambient theme bloom */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 top-1/2 -z-10 size-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+              style={{
+                background:
+                  'radial-gradient(circle, color-mix(in srgb, var(--theme-400) 18%, transparent), transparent 70%)'
+              }}
+            />
+            {/* decorative orbit rings */}
+            <div
+              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.07]"
+              style={{ width: RADIUS * 2, height: RADIUS * 2 }}
+            />
+            <div
+              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-white/[0.05]"
+              style={{ width: RADIUS * 1.28, height: RADIUS * 1.28 }}
+            />
 
-          {/* center avatar — the Nostr identity */}
-          <CenterAvatar dimmed={hovered != null} />
+            {/* center avatar — the Nostr identity */}
+            <CenterAvatar dimmed={hovered != null} />
 
-          {/* rotating orbit: spokes + feature nodes */}
-          <div className="orbit-spin absolute left-1/2 top-1/2 size-0">
-            {FEATURES.map((f, i) => {
-              const a = (i / FEATURES.length) * Math.PI * 2 - Math.PI / 2
-              const x = Math.cos(a) * RADIUS
-              const y = Math.sin(a) * RADIUS
-              const state =
-                hovered == null ? 'idle' : hovered === i ? 'active' : 'dim'
-              return (
-                <div key={f.title}>
-                  {/* spoke from center to node (rotates with the orbit) */}
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute top-0 left-0 origin-left"
-                    style={{
-                      width: RADIUS,
-                      height: 2,
-                      marginTop: -1,
-                      transform: `rotate(${(a * 180) / Math.PI}deg)`,
-                      background:
-                        state === 'active'
-                          ? 'linear-gradient(90deg, color-mix(in srgb, var(--theme-400) 70%, transparent), transparent)'
-                          : 'linear-gradient(90deg, color-mix(in srgb, var(--theme-400) 22%, transparent), transparent)',
-                      opacity: state === 'dim' ? 0.25 : 1,
-                      transition: 'opacity 0.3s, background 0.3s',
-                    }}
-                  />
-                  {/* node, kept upright by the counter-spin */}
-                  <div
-                    className="absolute top-0 left-0"
-                    style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y}px)` }}
-                  >
-                    <div className="orbit-counter">
-                      <FeatureNode
-                        feature={f}
-                        state={state}
-                        onEnter={() => {
-                          setHovered(i)
-                          hoveredRef.current = true
-                        }}
-                      />
+            {/* rotating orbit: spokes + feature nodes */}
+            <div className="orbit-spin absolute left-1/2 top-1/2 size-0">
+              {FEATURES.map((f, i) => {
+                const a = (i / FEATURES.length) * Math.PI * 2 - Math.PI / 2
+                const x = Math.cos(a) * RADIUS
+                const y = Math.sin(a) * RADIUS
+                const state =
+                  hovered == null ? 'idle' : hovered === i ? 'active' : 'dim'
+                return (
+                  <div key={f.title}>
+                    {/* spoke from center to node (rotates with the orbit) */}
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute top-0 left-0 origin-left"
+                      style={{
+                        width: RADIUS,
+                        height: 2,
+                        marginTop: -1,
+                        transform: `rotate(${(a * 180) / Math.PI}deg)`,
+                        background:
+                          state === 'active'
+                            ? 'linear-gradient(90deg, color-mix(in srgb, var(--theme-400) 70%, transparent), transparent)'
+                            : 'linear-gradient(90deg, color-mix(in srgb, var(--theme-400) 22%, transparent), transparent)',
+                        opacity: state === 'dim' ? 0.25 : 1,
+                        transition: 'opacity 0.3s, background 0.3s'
+                      }}
+                    />
+                    {/* node, kept upright by the counter-spin */}
+                    <div
+                      className="absolute top-0 left-0"
+                      style={{
+                        transform: `translate(-50%, -50%) translate(${x}px, ${y}px)`
+                      }}
+                    >
+                      <div className="orbit-counter">
+                        <FeatureNode
+                          feature={f}
+                          state={state}
+                          onEnter={() => {
+                            setHovered(i)
+                            hoveredRef.current = true
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
         </div>
-
-      </div>
 
         <ExpandedCard active={active} />
       </div>
@@ -216,12 +224,18 @@ export function FeaturesSection() {
           >
             <span
               className="flex size-10 items-center justify-center rounded-xl"
-              style={{ background: 'color-mix(in srgb, var(--theme-400) 16%, transparent)', color: 'var(--theme-400)' }}
+              style={{
+                background:
+                  'color-mix(in srgb, var(--theme-400) 16%, transparent)',
+                color: 'var(--theme-400)'
+              }}
             >
               <f.icon className="size-5" />
             </span>
             <h3 className="mt-3 text-sm font-semibold">{f.title}</h3>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{f.description}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              {f.description}
+            </p>
             {f.tags && f.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {f.tags.map(t => (
@@ -229,8 +243,9 @@ export function FeaturesSection() {
                     key={t}
                     className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium"
                     style={{
-                      background: 'color-mix(in srgb, var(--theme-400) 12%, transparent)',
-                      color: 'color-mix(in srgb, var(--theme-400) 80%, white)',
+                      background:
+                        'color-mix(in srgb, var(--theme-400) 12%, transparent)',
+                      color: 'color-mix(in srgb, var(--theme-400) 80%, white)'
                     }}
                   >
                     {t}
@@ -316,12 +331,14 @@ function CenterAvatar({ dimmed }: { dimmed: boolean }) {
               rgba(255, 255, 255, 0) 100%
             ),
             color-mix(in srgb, var(--theme-400) 24%, rgba(12, 12, 16, 0.7));
-          border: 1px solid color-mix(in srgb, var(--theme-400) 45%, transparent);
+          border: 1px solid
+            color-mix(in srgb, var(--theme-400) 45%, transparent);
           backdrop-filter: blur(14px);
           -webkit-backdrop-filter: blur(14px);
           box-shadow:
             0 1px 0 0 rgba(255, 255, 255, 0.2) inset,
-            0 12px 40px -12px color-mix(in srgb, var(--theme-400) 60%, transparent);
+            0 12px 40px -12px
+              color-mix(in srgb, var(--theme-400) 60%, transparent);
         }
         .claim-orbit-avatar-glow {
           background: radial-gradient(
@@ -357,7 +374,7 @@ function FeatureNode({
   feature,
   state,
   onEnter,
-  onLeave,
+  onLeave
 }: {
   feature: Feature
   state: 'idle' | 'active' | 'dim'
@@ -390,12 +407,15 @@ function FeatureNode({
           boxShadow:
             state === 'active'
               ? '0 12px 36px -10px color-mix(in srgb, var(--theme-400) 70%, transparent), 0 1px 0 0 rgba(255,255,255,0.12) inset'
-              : '0 8px 24px -12px rgba(0,0,0,0.7), 0 1px 0 0 rgba(255,255,255,0.06) inset',
+              : '0 8px 24px -12px rgba(0,0,0,0.7), 0 1px 0 0 rgba(255,255,255,0.06) inset'
         }}
       >
         <Icon
           className="size-7 transition-colors"
-          style={{ color: state === 'active' ? 'var(--theme-400)' : 'rgba(255,255,255,0.78)' }}
+          style={{
+            color:
+              state === 'active' ? 'var(--theme-400)' : 'rgba(255,255,255,0.78)'
+          }}
         />
       </span>
       <span
@@ -422,14 +442,24 @@ function ExpandedCard({ active }: { active: Feature | null }) {
       <div
         aria-hidden
         className="pointer-events-none absolute -left-12 -top-12 size-44 rounded-full blur-3xl"
-        style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--theme-400) 16%, transparent), transparent 70%)' }}
+        style={{
+          background:
+            'radial-gradient(circle, color-mix(in srgb, var(--theme-400) 16%, transparent), transparent 70%)'
+        }}
       />
       {/* key forces an expand/crossfade as the focused feature changes */}
-      <div key={active?.title ?? 'idle'} className="orbit-card-pop relative flex flex-col">
+      <div
+        key={active?.title ?? 'idle'}
+        className="orbit-card-pop relative flex flex-col"
+      >
         <div className="flex items-center gap-3.5">
           <span
             className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-white/10"
-            style={{ background: 'color-mix(in srgb, var(--theme-400) 18%, transparent)', color: 'var(--theme-400)' }}
+            style={{
+              background:
+                'color-mix(in srgb, var(--theme-400) 18%, transparent)',
+              color: 'var(--theme-400)'
+            }}
           >
             <Icon className="size-6" />
           </span>
@@ -449,8 +479,9 @@ function ExpandedCard({ active }: { active: Feature | null }) {
                 key={t}
                 className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium"
                 style={{
-                  background: 'color-mix(in srgb, var(--theme-400) 12%, transparent)',
-                  color: 'color-mix(in srgb, var(--theme-400) 80%, white)',
+                  background:
+                    'color-mix(in srgb, var(--theme-400) 12%, transparent)',
+                  color: 'color-mix(in srgb, var(--theme-400) 80%, white)'
                 }}
               >
                 {t}

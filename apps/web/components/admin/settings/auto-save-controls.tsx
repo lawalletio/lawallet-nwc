@@ -44,7 +44,7 @@ export function useSettingSaver() {
       await mutate('post', '/api/settings', patch)
       invalidateApiPath('/api/settings')
       trackEvent(AnalyticsEvent.SETTINGS_UPDATED, {
-        keys: Object.keys(patch).join(','),
+        keys: Object.keys(patch).join(',')
       })
     },
     [mutate]
@@ -54,13 +54,15 @@ export function useSettingSaver() {
 /** Trailing spinner / check shown while a field is saving. */
 export function SaveStatusIcon({
   status,
-  className,
+  className
 }: {
   status: SaveStatus
   className?: string
 }) {
   if (status === 'saving') {
-    return <Spinner size={16} className={cn('text-muted-foreground', className)} />
+    return (
+      <Spinner size={16} className={cn('text-muted-foreground', className)} />
+    )
   }
   if (status === 'saved') {
     return <Check className={cn('size-4 text-emerald-500', className)} />
@@ -79,7 +81,7 @@ function useDebouncedSave(
   {
     save,
     debounceMs = SETTING_DEBOUNCE_MS,
-    isInvalid,
+    isInvalid
   }: {
     save: (value: string) => Promise<void>
     debounceMs?: number
@@ -158,8 +160,10 @@ function useDebouncedSave(
   return { status, handleChange, flush }
 }
 
-interface SettingTextInputProps
-  extends Omit<React.ComponentProps<typeof Input>, 'onChange' | 'value'> {
+interface SettingTextInputProps extends Omit<
+  React.ComponentProps<typeof Input>,
+  'onChange' | 'value'
+> {
   value: string
   /** Update the owning component's local state (keeps typing responsive). */
   onValueChange: (value: string) => void
@@ -187,7 +191,7 @@ export function SettingTextInput({
   const { status, handleChange, flush } = useDebouncedSave(value, {
     save,
     debounceMs,
-    isInvalid: isInvalidValue,
+    isInvalid: isInvalidValue
   })
   return (
     <div className="relative">
@@ -195,7 +199,11 @@ export function SettingTextInput({
         {...inputProps}
         value={value}
         aria-invalid={invalid || undefined}
-        className={cn(invalid && INVALID_CLASSES, status !== 'idle' && 'pr-9', className)}
+        className={cn(
+          invalid && INVALID_CLASSES,
+          status !== 'idle' && 'pr-9',
+          className
+        )}
         onChange={e => {
           onValueChange(e.target.value)
           handleChange(e.target.value)
@@ -215,8 +223,10 @@ export function SettingTextInput({
   )
 }
 
-interface SettingInputGroupProps
-  extends Omit<React.ComponentProps<typeof Input>, 'onChange' | 'value' | 'prefix'> {
+interface SettingInputGroupProps extends Omit<
+  React.ComponentProps<typeof Input>,
+  'onChange' | 'value' | 'prefix'
+> {
   value: string
   onValueChange: (value: string) => void
   save: (value: string) => Promise<void>
@@ -249,7 +259,7 @@ export function SettingInputGroup({
   const { status, handleChange, flush } = useDebouncedSave(value, {
     save,
     debounceMs,
-    isInvalid: isInvalidValue,
+    isInvalid: isInvalidValue
   })
   return (
     <InputGroup className={cn(invalid && INVALID_CLASSES, groupClassName)}>
@@ -276,16 +286,17 @@ export function SettingInputGroup({
           <SaveStatusIcon status={status} />
         </span>
       )}
-      {suffix != null && <InputGroupText position="suffix">{suffix}</InputGroupText>}
+      {suffix != null && (
+        <InputGroupText position="suffix">{suffix}</InputGroupText>
+      )}
     </InputGroup>
   )
 }
 
-interface SettingSwitchProps
-  extends Omit<
-    React.ComponentProps<typeof Switch>,
-    'checked' | 'onCheckedChange' | 'disabled'
-  > {
+interface SettingSwitchProps extends Omit<
+  React.ComponentProps<typeof Switch>,
+  'checked' | 'onCheckedChange' | 'disabled'
+> {
   checked: boolean
   /** Update the owning component's local state (optimistic). */
   onCheckedChange: (checked: boolean) => void
@@ -315,7 +326,9 @@ export function SettingSwitch({
       await save(next)
     } catch (err) {
       onCheckedChange(prev)
-      toast.error(err instanceof Error ? err.message : 'Failed to update setting')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update setting'
+      )
     } finally {
       setSaving(false)
     }

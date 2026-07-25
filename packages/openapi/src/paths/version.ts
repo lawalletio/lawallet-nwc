@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { inlineJsonResponse, publicErrorResponses, publicSecurity, withRole } from '../helpers'
+import {
+  inlineJsonResponse,
+  publicErrorResponses,
+  publicSecurity,
+  withRole
+} from '../helpers'
 import { registry } from '../registry'
 
 const TAG = 'Version'
@@ -19,9 +24,9 @@ registry.registerPath({
         currentVersion: z.string(),
         latestVersion: z.string().nullable(),
         releaseUrl: z.string().url(),
-        updateAvailable: z.boolean(),
-      }),
+        updateAvailable: z.boolean()
+      })
     ),
-    ...publicErrorResponses,
-  },
+    ...publicErrorResponses
+  }
 })

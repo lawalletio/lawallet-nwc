@@ -13,7 +13,7 @@ describe('getOpenApiDocument', () => {
   it('registers expected security schemes', () => {
     const schemes = doc.components?.securitySchemes ?? {}
     expect(Object.keys(schemes)).toEqual(
-      expect.arrayContaining(['BearerJWT', 'NIP98', 'EventsToken']),
+      expect.arrayContaining(['BearerJWT', 'NIP98', 'EventsToken'])
     )
   })
 
@@ -56,7 +56,7 @@ describe('getOpenApiDocument', () => {
       '/api/remote-wallets',
       '/api/remote-wallets/{id}',
       '/api/activity',
-      '/api/events',
+      '/api/events'
     ]
     for (const expected of expectations) {
       expect(paths).toContain(expected)
@@ -73,7 +73,7 @@ describe('getOpenApiDocument', () => {
       '/api/auth/passkey/signer-key',
       '/api/auth/passkey/nsec/export/options',
       '/api/auth/passkey/nsec/export',
-      '/api/auth/passkey/session/refresh',
+      '/api/auth/passkey/session/refresh'
     ]
     for (const gone of removed) {
       expect(paths).not.toContain(gone)
@@ -94,6 +94,8 @@ describe('getOpenApiDocument', () => {
   it('marks the SSE stream as text/event-stream with EventsToken security', () => {
     const events = doc.paths?.['/api/events']?.get
     expect(events?.security).toEqual([{ EventsToken: [] }])
-    expect(events?.responses?.[200]?.content?.['text/event-stream']).toBeDefined()
+    expect(
+      events?.responses?.[200]?.content?.['text/event-stream']
+    ).toBeDefined()
   })
 })

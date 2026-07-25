@@ -16,30 +16,30 @@ type Pt = { x: number; y: number }
 const LAS: Array<Pt & { name: string; primary?: boolean }> = [
   { x: 15, y: 24, name: 'alice', primary: true },
   { x: 15, y: 50, name: 'bob' },
-  { x: 15, y: 76, name: 'carol' },
+  { x: 15, y: 76, name: 'carol' }
 ]
 
 const WALLETS: Array<Pt & { name: string; sats: string; kind: string }> = [
   { x: 50, y: 35, name: 'Community NWC', sats: '128,400', kind: 'NWC' },
-  { x: 50, y: 71, name: 'LNCurl', sats: '2,100', kind: 'LNCurl' },
+  { x: 50, y: 71, name: 'LNCurl', sats: '2,100', kind: 'LNCurl' }
 ]
 
 const CARDS: Array<Pt & { name: string }> = [
   { x: 85, y: 18, name: 'Card 01' },
   { x: 85, y: 45, name: 'Card 02' },
-  { x: 85, y: 74, name: 'Card 03' },
+  { x: 85, y: 74, name: 'Card 03' }
 ]
 
 // LA → wallet, then wallet → card. Indices into the arrays above.
 const LA_EDGES: Array<[number, number]> = [
   [0, 0],
   [1, 0],
-  [2, 1],
+  [2, 1]
 ]
 const CARD_EDGES: Array<[number, number]> = [
   [0, 0],
   [0, 1],
-  [1, 2],
+  [1, 2]
 ]
 
 function edgePath(a: Pt, b: Pt): string {
@@ -63,13 +63,13 @@ export function ConnectionMapMock() {
     ...LA_EDGES.map(([la, w], i) => ({
       id: `la-${i}`,
       d: edgePath(LAS[la], WALLETS[w]),
-      delay: i * 0.6,
+      delay: i * 0.6
     })),
     ...CARD_EDGES.map(([w, c], i) => ({
       id: `card-${i}`,
       d: edgePath(WALLETS[w], CARDS[c]),
-      delay: 0.3 + i * 0.6,
-    })),
+      delay: 0.3 + i * 0.6
+    }))
   ]
 
   return (
@@ -79,7 +79,7 @@ export function ConnectionMapMock() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            'radial-gradient(60% 50% at 50% 45%, color-mix(in srgb, var(--theme-400) 14%, transparent), transparent 70%)',
+            'radial-gradient(60% 50% at 50% 45%, color-mix(in srgb, var(--theme-400) 14%, transparent), transparent 70%)'
         }}
       />
       <div
@@ -87,7 +87,7 @@ export function ConnectionMapMock() {
         style={{
           backgroundImage:
             'radial-gradient(color-mix(in srgb, var(--theme-400) 16%, transparent) 1px, transparent 1px)',
-          backgroundSize: '22px 22px',
+          backgroundSize: '22px 22px'
         }}
       />
 
@@ -106,7 +106,11 @@ export function ConnectionMapMock() {
           <linearGradient id="cm-edge" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="var(--theme-300)" stopOpacity="0.15" />
             <stop offset="50%" stopColor="var(--theme-400)" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="var(--theme-300)" stopOpacity="0.15" />
+            <stop
+              offset="100%"
+              stopColor="var(--theme-300)"
+              stopOpacity="0.15"
+            />
           </linearGradient>
         </defs>
         {allEdges.map(e => (
@@ -141,8 +145,9 @@ export function ConnectionMapMock() {
           <span
             className="flex size-7 shrink-0 items-center justify-center rounded-md"
             style={{
-              background: 'color-mix(in srgb, var(--theme-400) 16%, transparent)',
-              color: 'var(--theme-400)',
+              background:
+                'color-mix(in srgb, var(--theme-400) 16%, transparent)',
+              color: 'var(--theme-400)'
             }}
           >
             <AtSign className="size-3.5" />
@@ -153,7 +158,10 @@ export function ConnectionMapMock() {
               {la.primary && (
                 <Star
                   className="size-2.5"
-                  style={{ color: 'var(--theme-400)', fill: 'var(--theme-400)' }}
+                  style={{
+                    color: 'var(--theme-400)',
+                    fill: 'var(--theme-400)'
+                  }}
                 />
               )}
             </span>
@@ -170,8 +178,9 @@ export function ConnectionMapMock() {
           <span
             className="flex size-7 shrink-0 items-center justify-center rounded-md"
             style={{
-              background: 'color-mix(in srgb, var(--theme-400) 22%, transparent)',
-              color: 'var(--theme-400)',
+              background:
+                'color-mix(in srgb, var(--theme-400) 22%, transparent)',
+              color: 'var(--theme-400)'
             }}
           >
             <Wallet className="size-3.5" />
@@ -194,7 +203,7 @@ export function ConnectionMapMock() {
             className="flex h-7 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border border-white/10"
             style={{
               background:
-                'linear-gradient(135deg, var(--theme-300), color-mix(in srgb, var(--theme-400) 70%, #000))',
+                'linear-gradient(135deg, var(--theme-300), color-mix(in srgb, var(--theme-400) 70%, #000))'
             }}
           >
             <CreditCard className="size-3 text-white/90" />
@@ -229,7 +238,7 @@ function NodeShell({
   y,
   accent,
   wide,
-  children,
+  children
 }: {
   x: number
   y: number
@@ -249,7 +258,7 @@ function NodeShell({
           : 'rgba(255,255,255,0.08)',
         boxShadow: accent
           ? '0 8px 24px -8px color-mix(in srgb, var(--theme-400) 40%, transparent)'
-          : '0 8px 20px -10px rgba(0,0,0,0.7)',
+          : '0 8px 20px -10px rgba(0,0,0,0.7)'
       }}
     >
       {children}

@@ -35,7 +35,9 @@ export async function ensureCloneTargetAvailable(targetDir) {
   const entries = await readdir(targetDir)
 
   if (entries.length > 0) {
-    throw new Error(`The target directory already exists and is not empty: ${targetDir}`)
+    throw new Error(
+      `The target directory already exists and is not empty: ${targetDir}`
+    )
   }
 }
 
@@ -56,7 +58,9 @@ export function findRepoRoot(startDir) {
     current = parent
   }
 
-  throw new Error('Could not find the LaWallet repository root from the current directory.')
+  throw new Error(
+    'Could not find the LaWallet repository root from the current directory.'
+  )
 }
 
 export function getLawalletStateDir(repoRoot) {

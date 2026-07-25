@@ -18,7 +18,7 @@ export interface MakeInvoiceResult {
 export async function makeInvoice(
   nwcString: string,
   amountSats: number,
-  description = '',
+  description = ''
 ): Promise<MakeInvoiceResult> {
   if (!Number.isFinite(amountSats) || amountSats <= 0) {
     throw new Error('Enter an amount')
@@ -26,15 +26,16 @@ export async function makeInvoice(
   const client = await getNwcClient(nwcString)
   const res = await client.makeInvoice({
     amount: amountSats * 1000,
-    description,
+    description
   })
-  const expiresAt = typeof res.expires_at === 'number' ? res.expires_at * 1000 : null
+  const expiresAt =
+    typeof res.expires_at === 'number' ? res.expires_at * 1000 : null
   return {
     bolt11: res.invoice,
     paymentHash: res.payment_hash,
     amountSats: Math.floor(res.amount / 1000),
     description: res.description ?? description,
-    expiresAt,
+    expiresAt
   }
 }
 
@@ -54,7 +55,7 @@ export interface InvoiceStatus {
  */
 export async function lookupInvoice(
   nwcString: string,
-  paymentHash: string,
+  paymentHash: string
 ): Promise<InvoiceStatus> {
   const client = await getNwcClient(nwcString)
   const res = (await client.lookupInvoice({ payment_hash: paymentHash })) as {
@@ -63,6 +64,6 @@ export async function lookupInvoice(
   }
   return {
     settled: res.settled_at != null,
-    amountSats: Math.floor((res.amount ?? 0) / 1000),
+    amountSats: Math.floor((res.amount ?? 0) / 1000)
   }
 }

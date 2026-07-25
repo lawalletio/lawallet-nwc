@@ -1,9 +1,6 @@
 import { getSettings } from '@/lib/settings'
 import { hasRole, Role } from '@/lib/auth/permissions'
-import {
-  AuthorizationError,
-  PaymentRequiredError,
-} from '@/types/server/errors'
+import { AuthorizationError, PaymentRequiredError } from '@/types/server/errors'
 
 type RegistrationSettings = {
   registration_user_enabled?: string
@@ -17,7 +14,7 @@ export const USER_REGISTRATION_DISABLED_MESSAGE =
 
 function assertUserRegistrationAllowed(
   actorRole: Role,
-  settings: RegistrationSettings,
+  settings: RegistrationSettings
 ): void {
   const userRegistrationEnabled =
     (settings.registration_user_enabled ?? 'true') === 'true'
@@ -28,7 +25,7 @@ function assertUserRegistrationAllowed(
 
 function assertPaidRegistrationSatisfied(
   actorRole: Role,
-  settings: RegistrationSettings,
+  settings: RegistrationSettings
 ): void {
   const paidEnabled =
     settings.registration_ln_enabled === 'true' &&
@@ -49,7 +46,7 @@ function assertPaidRegistrationSatisfied(
  * only ADMIN may create addresses; operators and regular users are blocked.
  */
 export async function requireUserAddressRegistration(
-  actorRole: Role,
+  actorRole: Role
 ): Promise<void> {
   const settings = await getSettings(['registration_user_enabled'])
   assertUserRegistrationAllowed(actorRole, settings)
@@ -74,7 +71,7 @@ export async function requirePaidRegistration(actorRole: Role): Promise<void> {
   const settings = await getSettings([
     'registration_ln_enabled',
     'registration_ln_address',
-    'registration_admin_bypass',
+    'registration_admin_bypass'
   ])
 
   assertPaidRegistrationSatisfied(actorRole, settings)
@@ -85,13 +82,13 @@ export async function requirePaidRegistration(actorRole: Role): Promise<void> {
  * self-service toggle, then the optional paid-registration rule.
  */
 export async function requireAddressRegistration(
-  actorRole: Role,
+  actorRole: Role
 ): Promise<void> {
   const settings = await getSettings([
     'registration_user_enabled',
     'registration_ln_enabled',
     'registration_ln_address',
-    'registration_admin_bypass',
+    'registration_admin_bypass'
   ])
 
   assertUserRegistrationAllowed(actorRole, settings)

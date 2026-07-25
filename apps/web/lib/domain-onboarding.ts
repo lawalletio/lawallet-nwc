@@ -89,11 +89,19 @@ const FETCH_TIMEOUT_MS = 5000
 const BODY_LIMIT = 80_000
 
 function cleanHost(value: string): string {
-  return value.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '').toLowerCase()
+  return value
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase()
 }
 
 function isLocalHost(host: string): boolean {
-  return host === 'localhost' || host.startsWith('localhost:') || host.startsWith('127.')
+  return (
+    host === 'localhost' ||
+    host.startsWith('localhost:') ||
+    host.startsWith('127.')
+  )
 }
 
 export function normalizeDomainProbeInput(input: DomainProbeRequest): {
@@ -129,19 +137,32 @@ export function detectPlatform(sample: RootSample): PlatformDetection {
   }
 
   if (
-    has(/lawallet|lnurlp|lightning address|nostr/i, 'LaWallet or Lightning metadata') &&
+    has(
+      /lawallet|lnurlp|lightning address|nostr/i,
+      'LaWallet or Lightning metadata'
+    ) &&
     has(/_next\/static|x-powered-by:\s*next\.js/i, 'Next.js assets')
   ) {
     return {
       kind: 'lawallet',
       label: 'LaWallet',
       confidence: 'medium',
-      evidence,
+      evidence
     }
   }
 
-  if (has(/wp-content|wp-includes|wp-json|generator" content="wordpress/i, 'WordPress markers')) {
-    return { kind: 'wordpress', label: 'WordPress', confidence: 'high', evidence }
+  if (
+    has(
+      /wp-content|wp-includes|wp-json|generator" content="wordpress/i,
+      'WordPress markers'
+    )
+  ) {
+    return {
+      kind: 'wordpress',
+      label: 'WordPress',
+      confidence: 'high',
+      evidence
+    }
   }
 
   if (has(/x-vercel|server:\s*vercel/i, 'Vercel headers')) {
@@ -153,15 +174,32 @@ export function detectPlatform(sample: RootSample): PlatformDetection {
   }
 
   if (has(/cf-ray|server:\s*cloudflare/i, 'Cloudflare headers')) {
-    return { kind: 'cloudflare', label: 'Cloudflare', confidence: 'medium', evidence }
+    return {
+      kind: 'cloudflare',
+      label: 'Cloudflare',
+      confidence: 'medium',
+      evidence
+    }
   }
 
-  if (has(/__next_data__|\/_next\/static|x-powered-by:\s*next\.js/i, 'Next.js markers')) {
+  if (
+    has(
+      /__next_data__|\/_next\/static|x-powered-by:\s*next\.js/i,
+      'Next.js markers'
+    )
+  ) {
     return { kind: 'nextjs', label: 'Next.js', confidence: 'high', evidence }
   }
 
-  if (has(/\/@vite\/client|vite.svg|type="module" crossorigin/i, 'Vite markers')) {
-    return { kind: 'vite', label: 'Vite/static', confidence: 'medium', evidence }
+  if (
+    has(/\/@vite\/client|vite.svg|type="module" crossorigin/i, 'Vite markers')
+  ) {
+    return {
+      kind: 'vite',
+      label: 'Vite/static',
+      confidence: 'medium',
+      evidence
+    }
   }
 
   if (has(/x-powered-by:\s*php|\.php\b/i, 'PHP markers')) {
@@ -177,7 +215,7 @@ export function detectPlatform(sample: RootSample): PlatformDetection {
       kind: 'static',
       label: 'Static site',
       confidence: 'low',
-      evidence: ['root page responded'],
+      evidence: ['root page responded']
     }
   }
 
@@ -185,14 +223,14 @@ export function detectPlatform(sample: RootSample): PlatformDetection {
     kind: 'unknown',
     label: 'Unknown stack',
     confidence: 'low',
-    evidence: sample.error ? [sample.error] : [],
+    evidence: sample.error ? [sample.error] : []
   }
 }
 
 export function buildInstructionProfile(
   platform: PlatformDetection,
   domain: string,
-  endpoint: string,
+  endpoint: string
 ): InstructionProfile {
   if (platform.kind === 'lawallet') {
     const target = endpoint.replace(/\/+$/, '')
@@ -203,7 +241,7 @@ export function buildInstructionProfile(
       title: 'Domain is already on LaWallet',
       summary: 'No rewrite is needed. Keep this setup.',
       snippet: `/.well-known/* is already served by ${target}`,
-      tip,
+      tip
     }
   }
 
@@ -213,7 +251,7 @@ export function buildInstructionProfile(
 export function buildInstructionProfileByKind(
   kind: InstructionKind,
   domain: string,
-  endpoint: string,
+  endpoint: string
 ): InstructionProfile {
   const target = endpoint.replace(/\/+$/, '')
   const tip = `You can host LaWallet at lawallet.${domain} and keep ${domain} for a landing page. Only .well-known needs to route here.`
@@ -225,7 +263,7 @@ export function buildInstructionProfileByKind(
       title: 'Add a WordPress rewrite',
       summary: 'Route only .well-known to this LaWallet instance.',
       snippet: `# .htaccess before WordPress rules\nRewriteEngine On\nRewriteRule ^\\.well-known/(.*)$ ${target}/.well-known/$1 [R=307,L]`,
-      tip,
+      tip
     },
     htaccess: {
       kind: 'htaccess',
@@ -233,7 +271,7 @@ export function buildInstructionProfileByKind(
       title: 'Add an Apache .htaccess rewrite',
       summary: 'Place this before app or CMS rewrite rules.',
       snippet: `RewriteEngine On\nRewriteRule ^\\.well-known/(.*)$ ${target}/.well-known/$1 [R=307,L]`,
-      tip,
+      tip
     },
     nextjs: {
       kind: 'nextjs',
@@ -241,7 +279,7 @@ export function buildInstructionProfileByKind(
       title: 'Add a Next.js rewrite',
       summary: 'Keep the site, route wallet discovery to LaWallet.',
       snippet: `// next.config.js\nasync rewrites() {\n  return [\n    { source: '/.well-known/:path*', destination: '${target}/.well-known/:path*' },\n  ]\n}`,
-      tip,
+      tip
     },
     vite: {
       kind: 'vite',
@@ -249,7 +287,7 @@ export function buildInstructionProfileByKind(
       title: 'Add a hosting rewrite',
       summary: 'Configure your host to proxy .well-known.',
       snippet: `/.well-known/*  ${target}/.well-known/:splat  200`,
-      tip,
+      tip
     },
     php: {
       kind: 'php',
@@ -257,7 +295,7 @@ export function buildInstructionProfileByKind(
       title: 'Add an Apache/PHP rewrite',
       summary: 'Proxy discovery requests without moving the website.',
       snippet: `RewriteEngine On\nRewriteRule ^\\.well-known/(.*)$ ${target}/.well-known/$1 [R=307,L]`,
-      tip,
+      tip
     },
     nginx: {
       kind: 'nginx',
@@ -265,7 +303,7 @@ export function buildInstructionProfileByKind(
       title: 'Add an Nginx location',
       summary: 'Proxy only the discovery paths.',
       snippet: `location /.well-known/ {\n  proxy_pass ${target}/.well-known/;\n  proxy_set_header Host $host;\n}`,
-      tip,
+      tip
     },
     vercel: {
       kind: 'vercel',
@@ -273,7 +311,7 @@ export function buildInstructionProfileByKind(
       title: 'Add a Vercel rewrite',
       summary: 'Place this in vercel.json or Next rewrites.',
       snippet: `{\n  "rewrites": [\n    { "source": "/.well-known/:path*", "destination": "${target}/.well-known/:path*" }\n  ]\n}`,
-      tip,
+      tip
     },
     netlify: {
       kind: 'netlify',
@@ -281,7 +319,7 @@ export function buildInstructionProfileByKind(
       title: 'Add a Netlify rewrite',
       summary: 'Place this in _redirects.',
       snippet: `/.well-known/*  ${target}/.well-known/:splat  200`,
-      tip,
+      tip
     },
     cloudflare: {
       kind: 'cloudflare',
@@ -289,7 +327,7 @@ export function buildInstructionProfileByKind(
       title: 'Add a Cloudflare rule',
       summary: 'Forward .well-known to the LaWallet endpoint.',
       snippet: `if (url.pathname.startsWith('/.well-known/')) {\n  return fetch('${target}' + url.pathname + url.search)\n}`,
-      tip,
+      tip
     },
     caddy: {
       kind: 'caddy',
@@ -297,7 +335,7 @@ export function buildInstructionProfileByKind(
       title: 'Add a Caddy reverse proxy',
       summary: 'Proxy only .well-known to LaWallet.',
       snippet: `handle /.well-known/* {\n  reverse_proxy ${target}\n}`,
-      tip,
+      tip
     },
     static: {
       kind: 'static',
@@ -305,7 +343,7 @@ export function buildInstructionProfileByKind(
       title: 'Add a static-host rewrite',
       summary: 'Most hosts call this redirects or rewrites.',
       snippet: `/.well-known/*  ${target}/.well-known/:splat  200`,
-      tip,
+      tip
     },
     unknown: {
       kind: 'unknown',
@@ -313,28 +351,33 @@ export function buildInstructionProfileByKind(
       title: 'Add a .well-known rewrite',
       summary: 'Use your web server or DNS proxy to forward discovery.',
       snippet: `/.well-known/* -> ${target}/.well-known/*`,
-      tip,
-    },
+      tip
+    }
   }
 
   return snippets[kind]
 }
 
-export function buildInstructionOptions(domain: string, endpoint: string): InstructionProfile[] {
-  return ([
-    'wordpress',
-    'htaccess',
-    'nextjs',
-    'vite',
-    'php',
-    'nginx',
-    'vercel',
-    'netlify',
-    'cloudflare',
-    'caddy',
-    'static',
-    'unknown',
-  ] satisfies InstructionKind[]).map(kind => buildInstructionProfileByKind(kind, domain, endpoint))
+export function buildInstructionOptions(
+  domain: string,
+  endpoint: string
+): InstructionProfile[] {
+  return (
+    [
+      'wordpress',
+      'htaccess',
+      'nextjs',
+      'vite',
+      'php',
+      'nginx',
+      'vercel',
+      'netlify',
+      'cloudflare',
+      'caddy',
+      'static',
+      'unknown'
+    ] satisfies InstructionKind[]
+  ).map(kind => buildInstructionProfileByKind(kind, domain, endpoint))
 }
 
 function pass(label: string, url: string, detail: string): ProbeCheck {
@@ -358,8 +401,8 @@ async function fetchWithTimeout(url: string): Promise<Response> {
       redirect: 'follow',
       headers: {
         Accept: 'application/json,text/html;q=0.8,*/*;q=0.5',
-        'User-Agent': 'LaWallet domain onboarding',
-      },
+        'User-Agent': 'LaWallet domain onboarding'
+      }
     })
   } finally {
     clearTimeout(timeout)
@@ -375,7 +418,7 @@ async function sampleRoot(domain: string): Promise<RootSample> {
       url,
       status: response.status,
       headers: Object.fromEntries(response.headers.entries()),
-      body: text.slice(0, BODY_LIMIT),
+      body: text.slice(0, BODY_LIMIT)
     }
   } catch (error) {
     return {
@@ -383,7 +426,7 @@ async function sampleRoot(domain: string): Promise<RootSample> {
       status: 0,
       headers: {},
       body: '',
-      error: error instanceof Error ? error.message : 'Root fetch failed',
+      error: error instanceof Error ? error.message : 'Root fetch failed'
     }
   }
 }
@@ -392,10 +435,10 @@ async function probeLnurl(
   domain: string,
   endpoint: string,
   username: string,
-  probeId?: string,
+  probeId?: string
 ): Promise<ProbeCheck> {
   const url = new URL(
-    `${isLocalHost(domain) ? 'http' : 'https'}://${domain}/.well-known/lnurlp/${encodeURIComponent(username)}`,
+    `${isLocalHost(domain) ? 'http' : 'https'}://${domain}/.well-known/lnurlp/${encodeURIComponent(username)}`
   )
   if (probeId) {
     url.searchParams.set('probe', probeId)
@@ -419,7 +462,11 @@ async function probeLnurl(
     ) {
       return pass('LNURL', url.toString(), 'Discovery reaches this instance.')
     }
-    return fail('LNURL', url.toString(), 'Discovery did not return this instance callback.')
+    return fail(
+      'LNURL',
+      url.toString(),
+      'Discovery did not return this instance callback.'
+    )
   } catch {
     return fail('LNURL', url.toString(), 'Discovery request failed.')
   }
@@ -436,9 +483,17 @@ async function probeLawalletInstance(domain: string): Promise<ProbeCheck> {
       body?.service === 'lawallet' &&
       body?.probe === probeId
     ) {
-      return pass('LaWallet', url, 'Discovery routes to this LaWallet instance.')
+      return pass(
+        'LaWallet',
+        url,
+        'Discovery routes to this LaWallet instance.'
+      )
     }
-    return fail('LaWallet', url, 'Discovery is not routed to this LaWallet instance.')
+    return fail(
+      'LaWallet',
+      url,
+      'Discovery is not routed to this LaWallet instance.'
+    )
   } catch {
     return fail('LaWallet', url, 'LaWallet instance probe failed.')
   }
@@ -458,12 +513,14 @@ async function probeNip05(domain: string): Promise<ProbeCheck> {
   }
 }
 
-export async function probeDomainRouting(input: DomainProbeRequest): Promise<DomainProbeResult> {
+export async function probeDomainRouting(
+  input: DomainProbeRequest
+): Promise<DomainProbeResult> {
   const { domain, endpoint } = normalizeDomainProbeInput(input)
   const apiGatewayEndpoint = input.apiGatewayEndpoint
     ? normalizeDomainProbeInput({
         domain,
-        endpoint: input.apiGatewayEndpoint,
+        endpoint: input.apiGatewayEndpoint
       }).endpoint
     : ''
   const lnurlUsername =
@@ -484,23 +541,26 @@ export async function probeDomainRouting(input: DomainProbeRequest): Promise<Dom
   const [instance, lnurl, nip05] = await Promise.all([
     probeLawalletInstance(domain),
     probeLnurl(domain, effectiveEndpoint, lnurlUsername, lnurlProbeId),
-    probeNip05(domain),
+    probeNip05(domain)
   ])
-  const direct = instance.state === 'pass' && cleanHost(effectiveEndpoint) === domain
+  const direct =
+    instance.state === 'pass' && cleanHost(effectiveEndpoint) === domain
   // The domain is verified once both LNURL and NIP-05 discovery resolve to this
   // instance — these are the two checks surfaced to the user. The lawallet.json
   // instance probe stays informational (platform detection, direct hosting) and
   // no longer gates success.
-  const ready = [lnurl, nip05].every(check => check.state === 'pass' || check.state === 'skip')
+  const ready = [lnurl, nip05].every(
+    check => check.state === 'pass' || check.state === 'skip'
+  )
   const status = ready ? 'ready' : direct ? 'pending' : 'rewrite-needed'
   const instructionPlatform =
     platform.kind === 'lawallet' && instance.state !== 'pass'
-      ? {
+      ? ({
           kind: 'unknown',
           label: 'Unknown stack',
           confidence: 'low',
-          evidence: platform.evidence,
-        } satisfies PlatformDetection
+          evidence: platform.evidence
+        } satisfies PlatformDetection)
       : platform
 
   return {
@@ -510,7 +570,11 @@ export async function probeDomainRouting(input: DomainProbeRequest): Promise<Dom
     status,
     checks: { instance, lnurl, nip05 },
     platform,
-    instructions: buildInstructionProfile(instructionPlatform, domain, effectiveEndpoint),
-    instructionOptions: buildInstructionOptions(domain, effectiveEndpoint),
+    instructions: buildInstructionProfile(
+      instructionPlatform,
+      domain,
+      effectiveEndpoint
+    ),
+    instructionOptions: buildInstructionOptions(domain, effectiveEndpoint)
   }
 }

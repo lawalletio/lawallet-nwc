@@ -3,25 +3,31 @@ import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { AuthenticationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  createLogger: vi.fn(() => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), trace: vi.fn() })),
-  withRequestLogging: (fn: any) => fn,
+  createLogger: vi.fn(() => ({
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn()
+  })),
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn(),
+  authenticate: vi.fn()
 }))
 
 vi.mock('@/lib/nostr/profile-cache', () => ({
-  resolveProfiles: vi.fn(),
+  resolveProfiles: vi.fn()
 }))
 
 import { POST } from '@/app/api/nostr/profiles/route'
@@ -35,7 +41,7 @@ beforeEach(() => {
   vi.mocked(authenticate).mockResolvedValue({
     pubkey: PUBKEY,
     role: 'USER' as any,
-    method: 'jwt',
+    method: 'jwt'
   })
 })
 
@@ -46,13 +52,13 @@ describe('POST /api/nostr/profiles', () => {
         pubkey: PUBKEY,
         npub: 'npub1cached',
         name: 'alice',
-        fetchedAt: 123,
-      },
+        fetchedAt: 123
+      }
     ])
 
     const req = createNextRequest('/api/nostr/profiles', {
       method: 'POST',
-      body: { pubkeys: [PUBKEY], force: true },
+      body: { pubkeys: [PUBKEY], force: true }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -63,17 +69,19 @@ describe('POST /api/nostr/profiles', () => {
         pubkey: PUBKEY,
         npub: 'npub1cached',
         name: 'alice',
-        fetchedAt: 123,
-      },
+        fetchedAt: 123
+      }
     ])
   })
 
   it('rejects unauthenticated requests', async () => {
-    vi.mocked(authenticate).mockRejectedValue(new AuthenticationError('no auth'))
+    vi.mocked(authenticate).mockRejectedValue(
+      new AuthenticationError('no auth')
+    )
 
     const req = createNextRequest('/api/nostr/profiles', {
       method: 'POST',
-      body: { pubkeys: [PUBKEY] },
+      body: { pubkeys: [PUBKEY] }
     })
     const res = await POST(req)
 
@@ -84,7 +92,7 @@ describe('POST /api/nostr/profiles', () => {
   it('rejects invalid request bodies', async () => {
     const req = createNextRequest('/api/nostr/profiles', {
       method: 'POST',
-      body: { pubkeys: [] },
+      body: { pubkeys: [] }
     })
     const res = await POST(req)
 

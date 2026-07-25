@@ -11,17 +11,29 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthenticationError,
   ConflictError,
-  NotFoundError,
+  NotFoundError
 } from '@/types/server/errors'
-import { externalDeviceKeyParam, createRemoteCardSchema } from '@/lib/validation/schemas'
+import {
+  externalDeviceKeyParam,
+  createRemoteCardSchema
+} from '@/lib/validation/schemas'
 import { validateParams, validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 
 export const POST = withErrorHandling(
-  async (request: Request, { params }: { params: Promise<{ externalDeviceKey: string }> }) => {
+  async (
+    request: Request,
+    { params }: { params: Promise<{ externalDeviceKey: string }> }
+  ) => {
     await checkRequestLimits(request, 'json')
-    const { externalDeviceKey } = validateParams(await params, externalDeviceKeyParam)
-    const { designId, cardUID } = await validateBody(request, createRemoteCardSchema)
+    const { externalDeviceKey } = validateParams(
+      await params,
+      externalDeviceKeyParam
+    )
+    const { designId, cardUID } = await validateBody(
+      request,
+      createRemoteCardSchema
+    )
 
     // Get the external_device_key from settings
     const settings = await getSettings(['external_device_key'])

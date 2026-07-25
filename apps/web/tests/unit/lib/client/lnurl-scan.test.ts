@@ -5,7 +5,7 @@ import {
   looksLikeLnurl,
   resolveLnurl,
   submitLnurlWithdraw,
-  LnurlError,
+  LnurlError
 } from '@/lib/client/lnurl-scan'
 
 const originalFetch = global.fetch
@@ -19,7 +19,7 @@ function mockFetchOnce(body: unknown, ok = true, status = 200) {
   global.fetch = vi.fn(async () => ({
     ok,
     status,
-    json: async () => body,
+    json: async () => body
   })) as unknown as typeof fetch
 }
 
@@ -39,13 +39,13 @@ describe('lnurlToHttpUrl', () => {
 
   it('maps lnurlw:// to https', () => {
     expect(lnurlToHttpUrl('lnurlw://example.com/wd?k1=abc')).toBe(
-      'https://example.com/wd?k1=abc',
+      'https://example.com/wd?k1=abc'
     )
   })
 
   it('maps a .onion pseudo-scheme host to http', () => {
     expect(lnurlToHttpUrl('lnurlw://abcd.onion/wd')).toBe(
-      'http://abcd.onion/wd',
+      'http://abcd.onion/wd'
     )
   })
 
@@ -56,7 +56,7 @@ describe('lnurlToHttpUrl', () => {
 
   it('passes a plain http(s) URL through', () => {
     expect(lnurlToHttpUrl('https://example.com/x?tag=withdrawRequest')).toBe(
-      'https://example.com/x?tag=withdrawRequest',
+      'https://example.com/x?tag=withdrawRequest'
     )
   })
 
@@ -92,7 +92,7 @@ describe('resolveLnurl', () => {
       k1: 'secret-k1',
       defaultDescription: 'Voucher #1',
       minWithdrawable: 2000,
-      maxWithdrawable: 50000,
+      maxWithdrawable: 50000
     })
 
     const resolved = await resolveLnurl('lnurlw://example.com/wd')
@@ -104,8 +104,8 @@ describe('resolveLnurl', () => {
         defaultDescription: 'Voucher #1',
         minWithdrawableSats: 2,
         maxWithdrawableSats: 50,
-        host: 'example.com',
-      },
+        host: 'example.com'
+      }
     })
   })
 
@@ -114,15 +114,15 @@ describe('resolveLnurl', () => {
       tag: 'payRequest',
       callback: 'https://example.com/pay/cb',
       minSendable: 1000,
-      maxSendable: 100000,
+      maxSendable: 100000
     })
 
     const resolved = await resolveLnurl(
-      'https://example.com/lnurl/pay?tag=payRequest',
+      'https://example.com/lnurl/pay?tag=payRequest'
     )
     expect(resolved).toEqual({
       kind: 'pay',
-      lnurlpUrl: 'https://example.com/lnurl/pay?tag=payRequest',
+      lnurlpUrl: 'https://example.com/lnurl/pay?tag=payRequest'
     })
   })
 
@@ -134,15 +134,15 @@ describe('resolveLnurl', () => {
 
   it('throws on an ERROR status response', async () => {
     mockFetchOnce({ status: 'ERROR', reason: 'gone' })
-    await expect(resolveLnurl('lnurlw://example.com/wd')).rejects.toBeInstanceOf(
-      LnurlError,
-    )
+    await expect(
+      resolveLnurl('lnurlw://example.com/wd')
+    ).rejects.toBeInstanceOf(LnurlError)
   })
 
   it('throws on an unsupported tag', async () => {
     mockFetchOnce({ tag: 'channelRequest' })
     await expect(resolveLnurl('lnurlw://example.com/wd')).rejects.toThrow(
-      /unsupported/i,
+      /unsupported/i
     )
   })
 
@@ -151,11 +151,11 @@ describe('resolveLnurl', () => {
       tag: 'withdrawRequest',
       callback: 'https://example.com/cb',
       k1: 'k',
-      maxWithdrawable: 0,
+      maxWithdrawable: 0
     })
-    await expect(resolveLnurl('lnurlw://example.com/wd')).rejects.toBeInstanceOf(
-      LnurlError,
-    )
+    await expect(
+      resolveLnurl('lnurlw://example.com/wd')
+    ).rejects.toBeInstanceOf(LnurlError)
   })
 })
 
@@ -164,14 +164,14 @@ describe('submitLnurlWithdraw', () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ status: 'OK' }),
+      json: async () => ({ status: 'OK' })
     })) as unknown as typeof fetch
     global.fetch = fetchMock
 
     await submitLnurlWithdraw(
       'https://example.com/cb?voucher=1',
       'my-k1',
-      'lnbc1invoice',
+      'lnbc1invoice'
     )
 
     const calledUrl = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock
@@ -185,14 +185,14 @@ describe('submitLnurlWithdraw', () => {
   it('throws with the service reason on ERROR', async () => {
     mockFetchOnce({ status: 'ERROR', reason: 'already claimed' })
     await expect(
-      submitLnurlWithdraw('https://example.com/cb', 'k', 'lnbc1'),
+      submitLnurlWithdraw('https://example.com/cb', 'k', 'lnbc1')
     ).rejects.toThrow(/already claimed/)
   })
 
   it('throws on a non-ok HTTP status', async () => {
     mockFetchOnce(null, false, 502)
     await expect(
-      submitLnurlWithdraw('https://example.com/cb', 'k', 'lnbc1'),
+      submitLnurlWithdraw('https://example.com/cb', 'k', 'lnbc1')
     ).rejects.toBeInstanceOf(LnurlError)
   })
 })

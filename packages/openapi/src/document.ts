@@ -18,7 +18,9 @@ export interface OpenApiDocumentOptions {
   serverUrl?: string
 }
 
-export function getOpenApiDocument(options: OpenApiDocumentOptions = {}): OpenAPIObject {
+export function getOpenApiDocument(
+  options: OpenApiDocumentOptions = {}
+): OpenAPIObject {
   const generator = new OpenApiGeneratorV31(registry.definitions)
 
   return generator.generateDocument({
@@ -30,13 +32,13 @@ export function getOpenApiDocument(options: OpenApiDocumentOptions = {}): OpenAP
         'REST API exposed by `apps/web`. Documents the platform endpoints used by ' +
         'the admin dashboard, lightning address resolution (LUD-16/21), wallet ' +
         'connections, and Nostr-backed authentication (NIP-98 / JWT).',
-      license: { name: 'MIT' },
+      license: { name: 'MIT' }
     },
     servers: [
       {
         url: options.serverUrl ?? 'http://localhost:3000',
-        description: 'rest-docs',
-      },
+        description: 'rest-docs'
+      }
     ],
     security: [{ [BEARER_JWT]: [] }, { [NIP98]: [] }],
     tags: [
@@ -86,7 +88,7 @@ export function getOpenApiDocument(options: OpenApiDocumentOptions = {}): OpenAP
           '2. Otherwise, check the `root` setting (bootstrap fallback). If the pubkey matches → `ADMIN`.',
           '3. Otherwise → `USER`.',
           '',
-          'The JWT bakes in the role at issuance time. **Changing a user\'s role does not invalidate their existing tokens** — the change is only visible after the next `POST /api/jwt`. Sensitive operations (role changes, settings writes) therefore require NIP-98 directly rather than accepting JWT.',
+          "The JWT bakes in the role at issuance time. **Changing a user's role does not invalidate their existing tokens** — the change is only visible after the next `POST /api/jwt`. Sensitive operations (role changes, settings writes) therefore require NIP-98 directly rather than accepting JWT.",
           '',
           '## How roles are granted',
           '',
@@ -96,40 +98,56 @@ export function getOpenApiDocument(options: OpenApiDocumentOptions = {}): OpenAP
           '',
           '## Reading the badges',
           '',
-          'Each operation in this reference shows a colored badge with the minimum required role (`PUBLIC`, `USER`, `VIEWER`, `OPERATOR`, `ADMIN`). Use them to scan at a glance which endpoints your signer can actually exercise.',
-        ].join('\n'),
+          'Each operation in this reference shows a colored badge with the minimum required role (`PUBLIC`, `USER`, `VIEWER`, `OPERATOR`, `ADMIN`). Use them to scan at a glance which endpoints your signer can actually exercise.'
+        ].join('\n')
       },
       { name: 'Auth', description: 'NIP-98 → JWT exchange and validation.' },
       {
         name: 'Passkeys',
         description:
-          'WebAuthn passkey creation (signup and add-to-account) and credential management. Each passkey derives its Nostr identity client-side via the WebAuthn PRF extension — the server only records credentials; login is a normal NIP-98 exchange with the derived key.',
+          'WebAuthn passkey creation (signup and add-to-account) and credential management. Each passkey derives its Nostr identity client-side via the WebAuthn PRF extension — the server only records credentials; login is a normal NIP-98 exchange with the derived key.'
       },
-      { name: 'Cards', description: 'Card lifecycle: create, list, scan, write, OTC.' },
-      { name: 'Card Designs', description: 'Visual templates assigned to cards.' },
+      {
+        name: 'Cards',
+        description: 'Card lifecycle: create, list, scan, write, OTC.'
+      },
+      {
+        name: 'Card Designs',
+        description: 'Visual templates assigned to cards.'
+      },
       {
         name: 'Lightning Addresses',
-        description: 'Admin-side lightning address inventory.',
+        description: 'Admin-side lightning address inventory.'
       },
       {
         name: 'LUD-16',
-        description: 'Public LUD-16 / LUD-21 / LUD-22 lightning address resolution.',
+        description:
+          'Public LUD-16 / LUD-21 / LUD-22 lightning address resolution.'
       },
       {
         name: 'Wallet',
-        description: 'End-user wallet addresses and NWC connections.',
+        description: 'End-user wallet addresses and NWC connections.'
       },
       { name: 'Users', description: 'User profiles and role assignment.' },
-      { name: 'Invoices', description: 'Pay-then-act invoices for registration flows.' },
+      {
+        name: 'Invoices',
+        description: 'Pay-then-act invoices for registration flows.'
+      },
       {
         name: 'Settings',
-        description: 'Platform-wide settings persisted in the Settings store.',
+        description: 'Platform-wide settings persisted in the Settings store.'
       },
       { name: 'Admin', description: 'Admin role assignment and bootstrap.' },
       { name: 'Setup', description: 'Initial setup status checks.' },
-      { name: 'Remote Connections', description: 'External device pairing for cards.' },
+      {
+        name: 'Remote Connections',
+        description: 'External device pairing for cards.'
+      },
       { name: 'Activity', description: 'Activity log access.' },
-      { name: 'Events', description: 'Server-Sent Events for real-time updates.' },
-    ],
+      {
+        name: 'Events',
+        description: 'Server-Sent Events for real-time updates.'
+      }
+    ]
   })
 }

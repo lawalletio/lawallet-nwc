@@ -79,41 +79,41 @@ free tiers) — see the [Netlify guide](https://docs.lawallet.io/docs/deploy/net
 
 Three independent containerized services with no shared infrastructure:
 
-| Service | Container | Status | Role |
-|---------|-----------|--------|------|
-| [Web Application](./docs/services/LAWALLET-WEB.md) | `lawallet-web` | Active | Next.js frontend, REST API, Lightning Address resolution, dashboards, wallet |
-| [Payment Listener](./docs/services/NWC-LISTENER.md) | `lawallet-listener` | Active | Monitors NWC relays, dispatches payment webhooks (transport-only) |
-| [NWC Proxy](./docs/services/NWC-PROXY.md) | `lawallet-nwc-proxy` | M7 (planned) | Provisions courtesy NWC connections via external providers |
+| Service                                             | Container            | Status       | Role                                                                         |
+| --------------------------------------------------- | -------------------- | ------------ | ---------------------------------------------------------------------------- |
+| [Web Application](./docs/services/LAWALLET-WEB.md)  | `lawallet-web`       | Active       | Next.js frontend, REST API, Lightning Address resolution, dashboards, wallet |
+| [Payment Listener](./docs/services/NWC-LISTENER.md) | `lawallet-listener`  | Active       | Monitors NWC relays, dispatches payment webhooks (transport-only)            |
+| [NWC Proxy](./docs/services/NWC-PROXY.md)           | `lawallet-nwc-proxy` | M7 (planned) | Provisions courtesy NWC connections via external providers                   |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Language | [TypeScript 5.9](https://www.typescriptlang.org/) |
-| Framework | [Next.js 16](https://nextjs.org/) (App Router) |
-| Database | [PostgreSQL](https://www.postgresql.org/) via [Prisma 6.19](https://www.prisma.io/) |
-| Styling | [Tailwind CSS 3.4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix UI](https://www.radix-ui.com/) |
+| Layer           | Technology                                                                                                                                                            |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language        | [TypeScript 5.9](https://www.typescriptlang.org/)                                                                                                                     |
+| Framework       | [Next.js 16](https://nextjs.org/) (App Router)                                                                                                                        |
+| Database        | [PostgreSQL](https://www.postgresql.org/) via [Prisma 6.19](https://www.prisma.io/)                                                                                   |
+| Styling         | [Tailwind CSS 3.4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix UI](https://www.radix-ui.com/)                                            |
 | Lightning / NWC | [Alby SDK 7](https://github.com/getAlby/js-sdk), [nostr-tools](https://github.com/nbd-wtf/nostr-tools), [@nostrify/nostrify](https://gitlab.com/soapbox-pub/nostrify) |
-| Testing | [Vitest 3.2](https://vitest.dev/) + [MSW](https://mswjs.io/) + [happy-dom](https://github.com/capricorn86/happy-dom) |
-| Tooling | [pnpm 10](https://pnpm.io/) workspaces + [Turborepo 2](https://turbo.build/) |
-| Runtime | [Node.js ≥22.14](./.nvmrc) |
+| Testing         | [Vitest 3.2](https://vitest.dev/) + [MSW](https://mswjs.io/) + [happy-dom](https://github.com/capricorn86/happy-dom)                                                  |
+| Tooling         | [pnpm 10](https://pnpm.io/) workspaces + [Turborepo 2](https://turbo.build/)                                                                                          |
+| Runtime         | [Node.js ≥22.14](./.nvmrc)                                                                                                                                            |
 
 ---
 
 ## Open Standards
 
-| Standard | Protocol | Usage |
-|----------|----------|-------|
-| NIP-47 | Nostr Wallet Connect | Payment connections |
-| NIP-05 | Nostr Identity | User verification |
-| NIP-07 / NIP-46 | Nostr Signing | Browser + remote auth |
-| NIP-57 | Zaps | Lightning tips via Nostr |
-| LUD-16 | [Lightning Address](https://github.com/lnurl/luds/blob/luds/16.md) | Address resolution |
-| LUD-21 | [Verify](https://github.com/lnurl/luds/blob/luds/21.md) | Payment verification |
-| LUD-22 | Webhooks | Payment notifications |
-| BoltCard | [NFC Lightning](https://github.com/boltcard/boltcard) | NFC card payments |
+| Standard        | Protocol                                                           | Usage                    |
+| --------------- | ------------------------------------------------------------------ | ------------------------ |
+| NIP-47          | Nostr Wallet Connect                                               | Payment connections      |
+| NIP-05          | Nostr Identity                                                     | User verification        |
+| NIP-07 / NIP-46 | Nostr Signing                                                      | Browser + remote auth    |
+| NIP-57          | Zaps                                                               | Lightning tips via Nostr |
+| LUD-16          | [Lightning Address](https://github.com/lnurl/luds/blob/luds/16.md) | Address resolution       |
+| LUD-21          | [Verify](https://github.com/lnurl/luds/blob/luds/21.md)            | Payment verification     |
+| LUD-22          | Webhooks                                                           | Payment notifications    |
+| BoltCard        | [NFC Lightning](https://github.com/boltcard/boltcard)              | NFC card payments        |
 
 ---
 
@@ -236,11 +236,11 @@ migrates the database (seeding it only when fresh), and prints the ready
 
 ### 5. Open your browser
 
-| Surface | Local URL |
-|---------|-----------|
-| Admin Dashboard | http://localhost:3000/admin |
-| User Wallet | http://localhost:3000/wallet |
-| API Playground | http://localhost:3000/api-docs |
+| Surface          | Local URL                                                  |
+| ---------------- | ---------------------------------------------------------- |
+| Admin Dashboard  | http://localhost:3000/admin                                |
+| User Wallet      | http://localhost:3000/wallet                               |
+| API Playground   | http://localhost:3000/api-docs                             |
 | Landing redirect | http://localhost:3000 → `NEXT_PUBLIC_LAWALLET_LANDING_URL` |
 
 ---
@@ -249,28 +249,28 @@ migrates the database (seeding it only when fresh), and prints the ready
 
 The full rendered docs live at **[docs.lawallet.io](https://docs.lawallet.io)**. The interactive REST reference is at **[beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs)**. Source documents in this repo:
 
-| Document | Description |
-|----------|-------------|
-| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System design, data flow, address resolution |
-| [ROADMAP.md](./docs/ROADMAP.md) | 8-month development timeline and current progress |
-| [ONBOARDING.md](./docs/ONBOARDING.md) | Progressive self-custody: alias → NWC → self-hosted |
-| [SDK.md](./docs/SDK.md) | TypeScript Client SDK + React Hooks reference |
-| [TESTING.md](./docs/TESTING.md) | Testing strategy (Vitest, MSW, Playwright) |
-| [DOCKER.md](./docs/DOCKER.md) | Docker setup and containerized deployment |
-| [VISION.md](./docs/VISION.md) | Long-term vision: CRM + AI + Nostr communications (Beyond M8) |
+| Document                                  | Description                                                   |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System design, data flow, address resolution                  |
+| [ROADMAP.md](./docs/ROADMAP.md)           | 8-month development timeline and current progress             |
+| [ONBOARDING.md](./docs/ONBOARDING.md)     | Progressive self-custody: alias → NWC → self-hosted           |
+| [SDK.md](./docs/SDK.md)                   | TypeScript Client SDK + React Hooks reference                 |
+| [TESTING.md](./docs/TESTING.md)           | Testing strategy (Vitest, MSW, Playwright)                    |
+| [DOCKER.md](./docs/DOCKER.md)             | Docker setup and containerized deployment                     |
+| [VISION.md](./docs/VISION.md)             | Long-term vision: CRM + AI + Nostr communications (Beyond M8) |
 
 ### Roadmap by Month
 
-| Month | Phase | Focus | Status |
-|-------|-------|-------|--------|
-| [1](./docs/roadmap/MONTH-1.md) | Foundation | Backend infrastructure + testing | ✅ Completed · [Report](./docs/reports/MONTH-1.md) |
-| [2](./docs/roadmap/MONTH-2.md) | Foundation | CI/CD + Auth flow upgrade | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
-| [3](./docs/roadmap/MONTH-3.md) | Enhancement | Admin Dashboard + Nostr login + E2E | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
-| [4](./docs/roadmap/MONTH-4.md) | Enhancement | User Wallet + Admin E2E + schema rewrite | ✅ Completed · [Report](./docs/reports/MONTH-4.md) |
-| [5](./docs/roadmap/MONTH-5.md) | Expansion | Remote Wallets + card system apps + platform polish | ✅ Completed · [Report](./docs/reports/MONTH-5.md) |
-| [6](./docs/roadmap/MONTH-6.md) | Expansion | NWC Payment Listener + deploy targets + backup & restore | ✅ Completed · [Report](./docs/reports/MONTH-6.md) |
-| [7](./docs/roadmap/MONTH-7.md) | Monetization | Subscription Manager + Nostr Chat (DMs) + carried-over M6 closeout | 🟡 In Progress |
-| [8](./docs/roadmap/MONTH-8.md) | Intelligence | AI Agents (own LN address, NWC wallet, scheduled tasks) | ⏳ Planned |
+| Month                          | Phase        | Focus                                                              | Status                                                |
+| ------------------------------ | ------------ | ------------------------------------------------------------------ | ----------------------------------------------------- |
+| [1](./docs/roadmap/MONTH-1.md) | Foundation   | Backend infrastructure + testing                                   | ✅ Completed · [Report](./docs/reports/MONTH-1.md)    |
+| [2](./docs/roadmap/MONTH-2.md) | Foundation   | CI/CD + Auth flow upgrade                                          | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
+| [3](./docs/roadmap/MONTH-3.md) | Enhancement  | Admin Dashboard + Nostr login + E2E                                | ✅ Completed · [Report](./docs/reports/MONTHS-2-3.md) |
+| [4](./docs/roadmap/MONTH-4.md) | Enhancement  | User Wallet + Admin E2E + schema rewrite                           | ✅ Completed · [Report](./docs/reports/MONTH-4.md)    |
+| [5](./docs/roadmap/MONTH-5.md) | Expansion    | Remote Wallets + card system apps + platform polish                | ✅ Completed · [Report](./docs/reports/MONTH-5.md)    |
+| [6](./docs/roadmap/MONTH-6.md) | Expansion    | NWC Payment Listener + deploy targets + backup & restore           | ✅ Completed · [Report](./docs/reports/MONTH-6.md)    |
+| [7](./docs/roadmap/MONTH-7.md) | Monetization | Subscription Manager + Nostr Chat (DMs) + carried-over M6 closeout | 🟡 In Progress                                        |
+| [8](./docs/roadmap/MONTH-8.md) | Intelligence | AI Agents (own LN address, NWC wallet, scheduled tasks)            | ⏳ Planned                                            |
 
 All eight months are covered by the OpenSats Fifteenth Wave grant (Dec 2025 – Sep 2026). Full month-by-month detail in [ROADMAP.md](./docs/ROADMAP.md).
 

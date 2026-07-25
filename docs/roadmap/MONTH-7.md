@@ -191,23 +191,23 @@ Namespaced keys added to the existing `Settings` model:
 
 ## Acceptance Criteria
 
-| Deliverable | Criteria | Priority |
-|-------------|----------|----------|
-| Subscription plan CRUD (admin) | Operator creates a plan with price, interval, perk flags | P0 |
-| Subscription purchase | Pay invoice → `Subscription.status = ACTIVE`; perk gates flip | P0 |
-| Vanity LN address perk | Premium-tier user can claim a 3–7 char address | P0 |
-| Sat-allowance ledger | `TokenAllocation` credited monthly; visible in user wallet | P0 |
-| Daily expiry cron | Expired subscriptions flip to `EXPIRED`; perks revoke | P0 |
-| Renewal flow | Re-pay before expiry extends `expiresAt` | P0 |
-| Settings UI for subscriptions | Toggle + default grant amount editable | P0 |
-| Email-to-Nostr bridge | Email to `alice+inbox@domain` arrives as NIP-44 DM | P0 |
-| Chat DM (NIP-17 / NIP-44) | User-user DM round-trips through user's preferred relays | P0 |
-| NIP-04 fallback | Legacy clients can still receive DMs | P1 |
-| Operator → user broadcast | Admin sends DM to a segment via instance nsec | P0 |
-| i18n — en/es/pt-BR | Locale switcher works; key parity enforced in CI | P0 |
-| i18n — operator default locale | Anonymous visitors land in operator-selected locale | P1 |
-| Group chat threads (NIP-29) | Deferred to M9 / post-roadmap | — |
-| Paid relay perk (nostr.wine etc.) | Deferred to post-roadmap | — |
+| Deliverable                       | Criteria                                                      | Priority |
+| --------------------------------- | ------------------------------------------------------------- | -------- |
+| Subscription plan CRUD (admin)    | Operator creates a plan with price, interval, perk flags      | P0       |
+| Subscription purchase             | Pay invoice → `Subscription.status = ACTIVE`; perk gates flip | P0       |
+| Vanity LN address perk            | Premium-tier user can claim a 3–7 char address                | P0       |
+| Sat-allowance ledger              | `TokenAllocation` credited monthly; visible in user wallet    | P0       |
+| Daily expiry cron                 | Expired subscriptions flip to `EXPIRED`; perks revoke         | P0       |
+| Renewal flow                      | Re-pay before expiry extends `expiresAt`                      | P0       |
+| Settings UI for subscriptions     | Toggle + default grant amount editable                        | P0       |
+| Email-to-Nostr bridge             | Email to `alice+inbox@domain` arrives as NIP-44 DM            | P0       |
+| Chat DM (NIP-17 / NIP-44)         | User-user DM round-trips through user's preferred relays      | P0       |
+| NIP-04 fallback                   | Legacy clients can still receive DMs                          | P1       |
+| Operator → user broadcast         | Admin sends DM to a segment via instance nsec                 | P0       |
+| i18n — en/es/pt-BR                | Locale switcher works; key parity enforced in CI              | P0       |
+| i18n — operator default locale    | Anonymous visitors land in operator-selected locale           | P1       |
+| Group chat threads (NIP-29)       | Deferred to M9 / post-roadmap                                 | —        |
+| Paid relay perk (nostr.wine etc.) | Deferred to post-roadmap                                      | —        |
 
 ---
 

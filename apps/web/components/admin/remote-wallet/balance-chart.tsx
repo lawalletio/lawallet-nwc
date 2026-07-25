@@ -6,7 +6,7 @@ import { ChartContainer, type ChartConfig } from '@/components/ui/chart'
 import type { NwcTransaction } from '@/lib/client/nwc'
 
 const chartConfig = {
-  balance: { label: 'Balance', color: 'oklch(0.78 0.18 162)' /* emerald */ },
+  balance: { label: 'Balance', color: 'oklch(0.78 0.18 162)' /* emerald */ }
 } satisfies ChartConfig
 
 interface Point {
@@ -54,15 +54,17 @@ function formatCompact(n: number): string {
 
 export function WalletBalanceChart({
   transactions,
-  currentBalanceSats,
+  currentBalanceSats
 }: {
   transactions: NwcTransaction[]
   currentBalanceSats: number | null
 }) {
   const data = useMemo(
     () =>
-      currentBalanceSats == null ? [] : buildSeries(transactions, currentBalanceSats),
-    [transactions, currentBalanceSats],
+      currentBalanceSats == null
+        ? []
+        : buildSeries(transactions, currentBalanceSats),
+    [transactions, currentBalanceSats]
   )
 
   if (data.length < 2) {
@@ -74,12 +76,23 @@ export function WalletBalanceChart({
   }
 
   return (
-    <ChartContainer config={chartConfig} className="aspect-auto h-[220px] w-full">
+    <ChartContainer
+      config={chartConfig}
+      className="aspect-auto h-[220px] w-full"
+    >
       <AreaChart data={data} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
         <defs>
           <linearGradient id="fillBalance" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-balance)" stopOpacity={0.35} />
-            <stop offset="100%" stopColor="var(--color-balance)" stopOpacity={0.02} />
+            <stop
+              offset="0%"
+              stopColor="var(--color-balance)"
+              stopOpacity={0.35}
+            />
+            <stop
+              offset="100%"
+              stopColor="var(--color-balance)"
+              stopOpacity={0.02}
+            />
           </linearGradient>
         </defs>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -95,7 +108,7 @@ export function WalletBalanceChart({
           tickFormatter={t =>
             new Date(t as number).toLocaleDateString(undefined, {
               month: 'short',
-              day: 'numeric',
+              day: 'numeric'
             })
           }
         />
@@ -120,7 +133,7 @@ export function WalletBalanceChart({
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',
-                    minute: '2-digit',
+                    minute: '2-digit'
                   })}
                 </div>
               </div>

@@ -5,7 +5,7 @@ import {
   Role,
   Permission,
   getRolePermissions,
-  isValidPermission,
+  isValidPermission
 } from '@/lib/auth/permissions'
 import { qrJwtGenerateSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
@@ -18,11 +18,11 @@ import {
   AuthorizationError,
   InternalServerError,
   NotFoundError,
-  ValidationError,
+  ValidationError
 } from '@/types/server/errors'
 import {
   mintDeviceToken,
-  normalizeDeviceTokenExpiry,
+  normalizeDeviceTokenExpiry
 } from '@/lib/auth/device-token'
 import { resolveApiUrl } from '@/lib/public-url'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
@@ -59,7 +59,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   await rateLimit(request, {
     ...RateLimitPresets.sensitive,
     identifier: `qr-jwt:${admin.pubkey}`,
-    isAuthenticated: true,
+    isAuthenticated: true
   })
 
   const body = await validateBody(request, qrJwtGenerateSchema)
@@ -81,7 +81,10 @@ export const POST = withErrorHandling(async (request: Request) => {
       throw new ValidationError('Unknown permission', raw)
     }
     if (!adminPermissions.has(raw)) {
-      throw new AuthorizationError('Cannot grant a permission you do not hold', raw)
+      throw new AuthorizationError(
+        'Cannot grant a permission you do not hold',
+        raw
+      )
     }
     if (!scopes.includes(raw)) scopes.push(raw)
   }
@@ -89,7 +92,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   // Resolve the target user the device will act as.
   const user = await prisma.user.findUnique({
     where: { id: body.userId },
-    select: { id: true, pubkey: true, role: true },
+    select: { id: true, pubkey: true, role: true }
   })
   if (!user) throw new NotFoundError('User not found')
 
@@ -108,7 +111,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     scopes,
     expiresIn,
     apiUrl,
-    secret: config.jwt.secret,
+    secret: config.jwt.secret
   })
 
   logActivity.fireAndForget({
@@ -120,8 +123,8 @@ export const POST = withErrorHandling(async (request: Request) => {
       issuedBy: admin.pubkey,
       targetPubkey: user.pubkey,
       scopes,
-      expiresIn: String(expiresIn),
-    },
+      expiresIn: String(expiresIn)
+    }
   })
 
   return NextResponse.json({
@@ -129,6 +132,6 @@ export const POST = withErrorHandling(async (request: Request) => {
     expiresIn,
     scopes,
     apiUrl,
-    user: { id: user.id, pubkey: user.pubkey, role: user.role },
+    user: { id: user.id, pubkey: user.pubkey, role: user.role }
   })
 })

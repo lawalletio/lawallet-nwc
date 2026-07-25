@@ -74,14 +74,18 @@ export async function detectPackageManager() {
 
 async function runInstallPlan(steps, description, autoApprove) {
   if (steps.length === 0) {
-    throw new Error(`No install plan is available for ${description} on this platform.`)
+    throw new Error(
+      `No install plan is available for ${description} on this platform.`
+    )
   }
 
-  if (!(await promptConfirm({
-    message: `Install ${description} on this machine?`,
-    defaultValue: true,
-    skipPrompt: autoApprove
-  }))) {
+  if (
+    !(await promptConfirm({
+      message: `Install ${description} on this machine?`,
+      defaultValue: true,
+      skipPrompt: autoApprove
+    }))
+  ) {
     throw new Error(`Cancelled while installing ${description}.`)
   }
 
@@ -117,11 +121,7 @@ export async function ensureGitInstalled({ packageManager, autoApprove }) {
     return
   }
 
-  await runInstallPlan(
-    buildGitInstallPlan(packageManager),
-    'git',
-    autoApprove
-  )
+  await runInstallPlan(buildGitInstallPlan(packageManager), 'git', autoApprove)
 }
 
 export async function ensurePnpmInstalled() {
@@ -136,7 +136,9 @@ export async function ensurePnpmInstalled() {
   }
 
   if (!commandExists('npm')) {
-    throw new Error('pnpm is required, but neither corepack nor npm is available.')
+    throw new Error(
+      'pnpm is required, but neither corepack nor npm is available.'
+    )
   }
 
   await runCommand('npm', ['install', '--global', 'pnpm@10.11.0'])

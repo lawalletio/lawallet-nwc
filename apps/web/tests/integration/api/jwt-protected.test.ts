@@ -5,29 +5,29 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     jwt: { enabled: true, secret: 'test-secret' },
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: {},
+  prisma: {}
 }))
 
 vi.mock('@/lib/jwt', () => ({
-  validateJwtFromRequest: vi.fn(),
+  validateJwtFromRequest: vi.fn()
 }))
 
 import { GET, POST } from '@/app/api/jwt/protected/route'
@@ -45,13 +45,13 @@ describe('GET /api/jwt/protected', () => {
         userId: 'user-123',
         role: 'admin',
         iat: 1000000,
-        exp: 1003600,
+        exp: 1003600
       },
-      header: { alg: 'HS256' },
+      header: { alg: 'HS256' }
     } as any)
 
     const req = createNextRequest('/api/jwt/protected', {
-      headers: { authorization: 'Bearer valid-token' },
+      headers: { authorization: 'Bearer valid-token' }
     })
     const res = await GET(req)
     const body: any = await assertResponse(res, 200)
@@ -76,14 +76,14 @@ describe('GET /api/jwt/protected', () => {
         sub: 'user-123',
         userId: 'user-123',
         iat: 1000000,
-        exp: 1003600,
+        exp: 1003600
         // Missing 'role' claim
       },
-      header: { alg: 'HS256' },
+      header: { alg: 'HS256' }
     } as any)
 
     const req = createNextRequest('/api/jwt/protected', {
-      headers: { authorization: 'Bearer token-without-role' },
+      headers: { authorization: 'Bearer token-without-role' }
     })
     const res = await GET(req)
 
@@ -101,14 +101,14 @@ describe('POST /api/jwt/protected', () => {
         role: 'admin',
         permissions: ['read', 'write'],
         iat: 1000000,
-        exp: 1003600,
+        exp: 1003600
       },
-      header: { alg: 'HS256' },
+      header: { alg: 'HS256' }
     } as any)
 
     const req = createNextRequest('/api/jwt/protected', {
       method: 'POST',
-      headers: { authorization: 'Bearer valid-token' },
+      headers: { authorization: 'Bearer valid-token' }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -124,15 +124,15 @@ describe('POST /api/jwt/protected', () => {
         userId: 'user-123',
         role: 'admin',
         iat: 1000000,
-        exp: 1003600,
+        exp: 1003600
         // Missing 'permissions' claim
       },
-      header: { alg: 'HS256' },
+      header: { alg: 'HS256' }
     } as any)
 
     const req = createNextRequest('/api/jwt/protected', {
       method: 'POST',
-      headers: { authorization: 'Bearer token-without-perms' },
+      headers: { authorization: 'Bearer token-without-perms' }
     })
     const res = await POST(req)
 

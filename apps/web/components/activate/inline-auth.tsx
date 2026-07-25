@@ -62,10 +62,7 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
           className="h-12 w-full"
           onSuccess={onAuthStart}
         />
-        <Button
-          className="h-12 w-full"
-          onClick={() => setMode('create')}
-        >
+        <Button className="h-12 w-full" onClick={() => setMode('create')}>
           <Plus className="size-4" />
           Create a new wallet
         </Button>
@@ -74,8 +71,7 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
           className="h-12 w-full"
           onClick={() => setMode('existing')}
         >
-          <KeyRound className="size-4" />
-          I already have a wallet
+          <KeyRound className="size-4" />I already have a wallet
         </Button>
       </div>
     )
@@ -109,7 +105,9 @@ export function InlineAuth({ onAuthStart }: { onAuthStart: () => void }) {
           className="h-12 w-full"
           disabled={!confirmed || loading}
           onClick={() =>
-            runLogin(() => login(createNsecSigner(hex), 'nsec', { secret: nsec }))
+            runLogin(() =>
+              login(createNsecSigner(hex), 'nsec', { secret: nsec })
+            )
           }
         >
           {loading ? <Spinner size={16} /> : null}

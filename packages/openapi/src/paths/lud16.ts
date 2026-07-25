@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { inlineJsonResponse, publicErrorResponses, publicSecurity, withRole } from '../helpers'
+import {
+  inlineJsonResponse,
+  publicErrorResponses,
+  publicSecurity,
+  withRole
+} from '../helpers'
 import { registry } from '../registry'
 import { responses } from '../responses'
 import { schemas } from '../schemas'
@@ -19,13 +24,10 @@ registry.registerPath({
   security: publicSecurity,
   request: { params: schemas.Lud16UsernameParam },
   responses: {
-    200: inlineJsonResponse(
-      'Pay request.',
-      z.object({}).passthrough(),
-    ),
+    200: inlineJsonResponse('Pay request.', z.object({}).passthrough()),
     ...publicErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -38,16 +40,16 @@ registry.registerPath({
   security: publicSecurity,
   request: {
     params: schemas.Lud16UsernameParam,
-    query: schemas.Lud16CallbackQuery,
+    query: schemas.Lud16CallbackQuery
   },
   responses: {
     200: inlineJsonResponse(
       'Callback response with the BOLT11 invoice.',
-      z.object({ pr: z.string() }).passthrough(),
+      z.object({ pr: z.string() }).passthrough()
     ),
     ...publicErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -60,19 +62,22 @@ registry.registerPath({
   security: publicSecurity,
   request: {
     params: z.object({
-      username: z.string().min(1).openapi({ description: 'Lightning address username.' }),
+      username: z
+        .string()
+        .min(1)
+        .openapi({ description: 'Lightning address username.' }),
       paymentHash: z
         .string()
         .min(1)
-        .openapi({ description: 'BOLT11 payment hash returned by /cb.' }),
-    }),
+        .openapi({ description: 'BOLT11 payment hash returned by /cb.' })
+    })
   },
   responses: {
     200: inlineJsonResponse(
       'Verification status.',
-      z.object({ status: z.enum(['OK', 'ERROR']) }).passthrough(),
+      z.object({ status: z.enum(['OK', 'ERROR']) }).passthrough()
     ),
     ...publicErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })

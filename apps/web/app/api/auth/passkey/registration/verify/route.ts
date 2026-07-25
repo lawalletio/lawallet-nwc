@@ -4,10 +4,7 @@ import type { RegistrationResponseJSON } from '@simplewebauthn/server'
 import type { Event as NostrEvent } from 'nostr-tools/pure'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
-import {
-  AuthenticationError,
-  ConflictError
-} from '@/types/server/errors'
+import { AuthenticationError, ConflictError } from '@/types/server/errors'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { validateBody } from '@/lib/validation/middleware'
@@ -18,7 +15,10 @@ import { verifySignedChallengeEvent } from '@/lib/account/proof'
 import { linkPubkeyToAccount } from '@/lib/account/merge'
 import { createNewUser } from '@/lib/user'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
-import { consumeWebAuthnChallenge, toCredentialSummary } from '@/lib/auth/passkey'
+import {
+  consumeWebAuthnChallenge,
+  toCredentialSummary
+} from '@/lib/auth/passkey'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -61,7 +61,10 @@ export const POST = withErrorHandling(async (request: Request) => {
     throw new AuthenticationError('Account not found')
   }
 
-  const body = await validateBody(request, passkeyRegistrationVerifyRequestSchema)
+  const body = await validateBody(
+    request,
+    passkeyRegistrationVerifyRequestSchema
+  )
 
   // Single-use: the row is deleted on read, so replays fail generically.
   const row = await consumeWebAuthnChallenge(body.challenge, 'REGISTER')

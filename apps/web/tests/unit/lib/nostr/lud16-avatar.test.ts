@@ -2,21 +2,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }))
 
 vi.mock('@/lib/nostr/profile-cache', () => ({
-  resolveProfiles: vi.fn().mockResolvedValue([]),
+  resolveProfiles: vi.fn().mockResolvedValue([])
 }))
 
 import { promises as fsPromises } from 'node:fs'
 import {
   getLud16AvatarMetadataEntry,
-  warmNostrProfileForLud16,
+  warmNostrProfileForLud16
 } from '@/lib/nostr/lud16-avatar'
 import { resolveProfiles } from '@/lib/nostr/profile-cache'
 
@@ -40,17 +40,22 @@ describe('getLud16AvatarMetadataEntry', () => {
     vi.mocked(prismaMock.nostrProfileImageCache.findUnique).mockResolvedValue({
       cachePath: '/cache/avatar.png',
       contentType: 'image/png',
-      byteSize: 3,
+      byteSize: 3
     } as any)
     readFileMock.mockResolvedValue(Buffer.from([1, 2, 3]))
 
     const entry = await getLud16AvatarMetadataEntry(PUBKEY)
 
-    expect(entry).toEqual(['image/png;base64', Buffer.from([1, 2, 3]).toString('base64')])
+    expect(entry).toEqual([
+      'image/png;base64',
+      Buffer.from([1, 2, 3]).toString('base64')
+    ])
   })
 
   it('returns null when the user has no cached avatar', async () => {
-    vi.mocked(prismaMock.nostrProfileImageCache.findUnique).mockResolvedValue(null as any)
+    vi.mocked(prismaMock.nostrProfileImageCache.findUnique).mockResolvedValue(
+      null as any
+    )
     expect(await getLud16AvatarMetadataEntry(PUBKEY)).toBeNull()
     expect(readFileMock).not.toHaveBeenCalled()
   })
@@ -59,7 +64,7 @@ describe('getLud16AvatarMetadataEntry', () => {
     vi.mocked(prismaMock.nostrProfileImageCache.findUnique).mockResolvedValue({
       cachePath: '/cache/avatar.gif',
       contentType: 'image/gif',
-      byteSize: 3,
+      byteSize: 3
     } as any)
     expect(await getLud16AvatarMetadataEntry(PUBKEY)).toBeNull()
     expect(readFileMock).not.toHaveBeenCalled()
@@ -69,7 +74,7 @@ describe('getLud16AvatarMetadataEntry', () => {
     vi.mocked(prismaMock.nostrProfileImageCache.findUnique).mockResolvedValue({
       cachePath: '/cache/avatar.png',
       contentType: 'image/png',
-      byteSize: 5 * 1024 * 1024,
+      byteSize: 5 * 1024 * 1024
     } as any)
     expect(await getLud16AvatarMetadataEntry(PUBKEY)).toBeNull()
     expect(readFileMock).not.toHaveBeenCalled()
@@ -79,7 +84,7 @@ describe('getLud16AvatarMetadataEntry', () => {
     vi.mocked(prismaMock.nostrProfileImageCache.findUnique).mockResolvedValue({
       cachePath: '/cache/missing.png',
       contentType: 'image/png',
-      byteSize: 3,
+      byteSize: 3
     } as any)
     readFileMock.mockRejectedValue(new Error('ENOENT'))
     expect(await getLud16AvatarMetadataEntry(PUBKEY)).toBeNull()
@@ -93,7 +98,9 @@ describe('getLud16AvatarMetadataEntry', () => {
 
 describe('warmNostrProfileForLud16', () => {
   it('fetches the profile the first time a pubkey is seen', async () => {
-    vi.mocked(prismaMock.nostrProfileCache.findUnique).mockResolvedValue(null as any)
+    vi.mocked(prismaMock.nostrProfileCache.findUnique).mockResolvedValue(
+      null as any
+    )
 
     warmNostrProfileForLud16(PUBKEY)
     await flush()
@@ -103,7 +110,7 @@ describe('warmNostrProfileForLud16', () => {
 
   it('does not re-fetch once a profile row exists', async () => {
     vi.mocked(prismaMock.nostrProfileCache.findUnique).mockResolvedValue({
-      pubkey: PUBKEY,
+      pubkey: PUBKEY
     } as any)
 
     warmNostrProfileForLud16(PUBKEY)

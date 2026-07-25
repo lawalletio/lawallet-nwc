@@ -6,10 +6,7 @@ import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useNwcBalance } from '@/lib/client/use-nwc-balance'
 import { listTransactions, type NwcTransaction } from '@/lib/client/nwc'
 import { nwcCacheKey } from '@/lib/client/cache/key'
-import {
-  readRecent,
-  upsertMany,
-} from '@/lib/client/cache/activity-cache'
+import { readRecent, upsertMany } from '@/lib/client/cache/activity-cache'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { TransactionRow } from '@/components/wallet/shared/transaction-row'
@@ -31,7 +28,7 @@ export function ActivityScreen() {
   // the list in real-time without spinning up a second relay connection.
   const [refreshKey, setRefreshKey] = useState(0)
   useNwcBalance(nwcString, {
-    onTransaction: () => setRefreshKey(k => k + 1),
+    onTransaction: () => setRefreshKey(k => k + 1)
   })
 
   const [transactions, setTransactions] = useState<NwcTransaction[]>([])
@@ -89,7 +86,9 @@ export function ActivityScreen() {
       })
       .catch(err => {
         if (cancelled || id !== fetchIdRef.current) return
-        setError(err instanceof Error ? err : new Error('Failed to load activity'))
+        setError(
+          err instanceof Error ? err : new Error('Failed to load activity')
+        )
         // If we don't have a cached fallback, mark hasMore false so the
         // sentinel doesn't keep retrying. With cache, leave it true so a
         // network recovery can resume.
@@ -124,7 +123,7 @@ export function ActivityScreen() {
       const until = Math.floor(oldest.createdAt / 1000) - 1
       const next = await listTransactions(nwcString, {
         limit: PAGE_SIZE,
-        until,
+        until
       })
       if (id !== fetchIdRef.current) return
       setTransactions(prev => {
@@ -154,9 +153,9 @@ export function ActivityScreen() {
   const filtered = useMemo(
     () =>
       transactions.filter(tx =>
-        tab === 'transfers' ? tx.type === 'outgoing' : true,
+        tab === 'transfers' ? tx.type === 'outgoing' : true
       ),
-    [transactions, tab],
+    [transactions, tab]
   )
 
   const groups = useMemo(() => groupByDay(filtered), [filtered])
@@ -199,7 +198,7 @@ export function ActivityScreen() {
 function Tab({
   active,
   onClick,
-  children,
+  children
 }: {
   active: boolean
   onClick: () => void
@@ -213,7 +212,7 @@ function Tab({
         'rounded-full px-3 py-1 text-xs font-medium transition-colors',
         active
           ? 'bg-background text-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground',
+          : 'text-muted-foreground hover:text-foreground'
       )}
     >
       {children}
@@ -228,7 +227,7 @@ function Body({
   hasMore,
   error,
   groups,
-  onLoadMore,
+  onLoadMore
 }: {
   nwcString: string | null
   loadingInitial: boolean
@@ -291,10 +290,7 @@ function Body({
       ))}
 
       {hasMore && (
-        <InfiniteSentinel
-          onIntersect={onLoadMore}
-          loading={loadingMore}
-        />
+        <InfiniteSentinel onIntersect={onLoadMore} loading={loadingMore} />
       )}
       {!hasMore && groups.length > 0 && (
         <p className="py-4 text-center text-xs text-muted-foreground">
@@ -318,7 +314,7 @@ function Body({
  */
 function InfiniteSentinel({
   onIntersect,
-  loading,
+  loading
 }: {
   onIntersect: () => void
   loading: boolean
@@ -338,7 +334,7 @@ function InfiniteSentinel({
           if (entry.isIntersecting) onIntersectRef.current()
         }
       },
-      { root: null, rootMargin: '480px 0px', threshold: 0 },
+      { root: null, rootMargin: '480px 0px', threshold: 0 }
     )
     observer.observe(node)
     return () => observer.disconnect()
@@ -369,7 +365,7 @@ function InfiniteSentinel({
  */
 function mergeNewerFirst(
   current: NwcTransaction[],
-  incoming: NwcTransaction[],
+  incoming: NwcTransaction[]
 ): NwcTransaction[] {
   if (incoming.length === 0) return current
   if (current.length === 0) {
@@ -415,7 +411,7 @@ function labelForTimestamp(ms: number): string {
   return d.toLocaleDateString(undefined, {
     day: 'numeric',
     month: 'short',
-    year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric',
+    year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric'
   })
 }
 

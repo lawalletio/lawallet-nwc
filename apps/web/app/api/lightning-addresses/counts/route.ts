@@ -16,16 +16,18 @@ export const GET = withErrorHandling(async (request: Request) => {
   const [total, withNWC, withoutNWC] = await Promise.all([
     prisma.lightningAddress.count(),
     prisma.lightningAddress.count({
-      where: { user: { remoteWallets: usableWallet } },
+      where: { user: { remoteWallets: usableWallet } }
     }),
     prisma.lightningAddress.count({
-      where: { user: { remoteWallets: { none: { status: { not: 'REVOKED' } } } } },
-    }),
+      where: {
+        user: { remoteWallets: { none: { status: { not: 'REVOKED' } } } }
+      }
+    })
   ])
 
   return NextResponse.json({
     total,
     withNWC,
-    withoutNWC,
+    withoutNWC
   })
 })

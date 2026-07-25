@@ -11,7 +11,7 @@ import { useAuth } from '@/components/admin/auth-context'
 import { createNsecSigner } from '@/lib/client/nostr-signer'
 import {
   registerPasskeyAccount,
-  translatePasskeyError,
+  translatePasskeyError
 } from '@/lib/client/passkey-api'
 
 /**
@@ -34,7 +34,7 @@ export function PasskeyCreateFlow() {
     try {
       const identity = await registerPasskeyAccount()
       await login(createNsecSigner(identity.secretHex), 'passkey', {
-        secret: identity.secretHex,
+        secret: identity.secretHex
       })
       router.replace('/wallet/welcome')
     } catch (err) {
@@ -57,8 +57,8 @@ export function PasskeyCreateFlow() {
               Create with a passkey
             </h1>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Your device creates a passkey — Face ID, Touch ID, or screen
-              lock. No passwords, nothing to write down.
+              Your device creates a passkey — Face ID, Touch ID, or screen lock.
+              No passwords, nothing to write down.
             </p>
           </div>
 
@@ -67,12 +67,12 @@ export function PasskeyCreateFlow() {
               Sign in with just your fingerprint, face, or device PIN.
             </Benefit>
             <Benefit icon={<Cloud className="size-4" />}>
-              Works across your devices — synced passkeys sign in anywhere,
-              and any browser can use a phone via QR.
+              Works across your devices — synced passkeys sign in anywhere, and
+              any browser can use a phone via QR.
             </Benefit>
             <Benefit icon={<KeyRound className="size-4" />}>
-              Your Nostr key is derived from the passkey itself — the same
-              key on every device it syncs to, never stored on a server.
+              Your Nostr key is derived from the passkey itself — the same key
+              on every device it syncs to, never stored on a server.
             </Benefit>
           </ul>
 
@@ -96,7 +96,7 @@ export function PasskeyCreateFlow() {
 
 function Benefit({
   icon,
-  children,
+  children
 }: {
   icon: React.ReactNode
   children: React.ReactNode

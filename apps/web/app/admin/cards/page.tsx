@@ -17,7 +17,7 @@ import {
   Check,
   Nfc,
   Smartphone,
-  X as XIcon,
+  X as XIcon
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
@@ -40,20 +40,20 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -61,14 +61,22 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Permission, Role } from '@/lib/auth/permissions'
 import { useAuth } from '@/components/admin/auth-context'
-import { useCards, useMyCards, useCardCounts } from '@/lib/client/hooks/use-cards'
+import {
+  useCards,
+  useMyCards,
+  useCardCounts
+} from '@/lib/client/hooks/use-cards'
 import {
   useDesigns,
   useDesignMutations,
-  type DesignData,
+  type DesignData
 } from '@/lib/client/hooks/use-designs'
 import { useSettings } from '@/lib/client/hooks/use-settings'
-import { truncateNpub, formatRelativeTime, truncateHex } from '@/lib/client/format'
+import {
+  truncateNpub,
+  formatRelativeTime,
+  truncateHex
+} from '@/lib/client/format'
 import { cn } from '@/lib/utils'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
@@ -97,17 +105,23 @@ export default function CardsPage() {
   const cards = viewingAll ? adminCards.data : ownCards.data
   const cardsLoading = viewingAll ? adminCards.loading : ownCards.loading
   const refetchCards = viewingAll ? adminCards.refetch : ownCards.refetch
-  const { data: counts, loading: countsLoading, refetch: refetchCounts } =
-    useCardCounts({ enabled: viewingAll })
-  const { data: designs, loading: designsLoading, refetch: refetchDesigns } =
-    useDesigns({ enabled: canReadDesigns })
+  const {
+    data: counts,
+    loading: countsLoading,
+    refetch: refetchCounts
+  } = useCardCounts({ enabled: viewingAll })
+  const {
+    data: designs,
+    loading: designsLoading,
+    refetch: refetchDesigns
+  } = useDesigns({ enabled: canReadDesigns })
   const {
     importDesigns,
     importFromVeintiuno,
     removeFromVeintiuno,
     importing,
     importingVeintiuno,
-    removingVeintiuno,
+    removingVeintiuno
   } = useDesignMutations()
 
   const [search, setSearch] = useState('')
@@ -126,15 +140,15 @@ export default function CardsPage() {
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(
-        (card) =>
+        card =>
           card.id.toLowerCase().includes(q) ||
           card.lightningAddress?.pubkey?.toLowerCase().includes(q) ||
-          card.lightningAddress?.username?.toLowerCase().includes(q),
+          card.lightningAddress?.username?.toLowerCase().includes(q)
       )
     }
 
     if (designFilter !== 'all') {
-      result = result.filter((card) => card.designId === designFilter)
+      result = result.filter(card => card.designId === designFilter)
     }
 
     return result
@@ -159,7 +173,9 @@ export default function CardsPage() {
       toast.success('Designs synced successfully')
       refetchDesigns()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to sync designs')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to sync designs'
+      )
     }
   }
 
@@ -173,7 +189,7 @@ export default function CardsPage() {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Failed to import from veintiuno.lat',
+          : 'Failed to import from veintiuno.lat'
       )
     }
   }
@@ -187,7 +203,7 @@ export default function CardsPage() {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'Failed to remove imported designs',
+          : 'Failed to remove imported designs'
       )
     }
   }
@@ -224,7 +240,10 @@ export default function CardsPage() {
                 title: 'Configure your domain',
                 message: 'Verify domain routing to use this function',
                 action: 'Configure now',
-                onAction: () => router.push('/admin/settings?tab=infrastructure&domainSetup=open'),
+                onAction: () =>
+                  router.push(
+                    '/admin/settings?tab=infrastructure&domainSetup=open'
+                  )
               }
             : undefined
         }
@@ -300,7 +319,7 @@ export default function CardsPage() {
             <Switch
               id="show-all-cards"
               checked={viewingAll}
-              onCheckedChange={(next) => {
+              onCheckedChange={next => {
                 setShowAll(next)
                 setPage(1)
               }}
@@ -340,17 +359,20 @@ export default function CardsPage() {
               placeholder="Search cards by title or pubkey..."
               className="pl-9"
               value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
             />
           </div>
           {canReadDesigns && (
-            <Select value={designFilter} onValueChange={handleDesignFilterChange}>
+            <Select
+              value={designFilter}
+              onValueChange={handleDesignFilterChange}
+            >
               <SelectTrigger className="w-full sm:w-[200px]">
                 <SelectValue placeholder="All designs" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All designs</SelectItem>
-                {designs?.map((design) => (
+                {designs?.map(design => (
                   <SelectItem key={design.id} value={design.id}>
                     {design.description || design.id}
                   </SelectItem>
@@ -366,7 +388,9 @@ export default function CardsPage() {
         ) : !paginated.length ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-sm text-muted-foreground">
-              {search || designFilter !== 'all' ? 'No cards match your filters' : 'No cards found'}
+              {search || designFilter !== 'all'
+                ? 'No cards match your filters'
+                : 'No cards found'}
             </p>
           </div>
         ) : (
@@ -382,7 +406,7 @@ export default function CardsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginated.map((card) => {
+                  {paginated.map(card => {
                     const isPaired = !!card.lightningAddress
 
                     return (
@@ -397,7 +421,9 @@ export default function CardsPage() {
                               />
                             ) : (
                               <div className="size-10 rounded bg-muted flex items-center justify-center">
-                                <span className="text-xs text-muted-foreground">—</span>
+                                <span className="text-xs text-muted-foreground">
+                                  —
+                                </span>
                               </div>
                             )}
                             <div className="flex flex-col gap-0.5">
@@ -457,13 +483,19 @@ export default function CardsPage() {
                           {canReadAll && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="size-8">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8"
+                                >
                                   <MoreHorizontal className="size-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem asChild>
-                                  <Link href={`/admin/cards/${card.id}`}>View Details</Link>
+                                  <Link href={`/admin/cards/${card.id}`}>
+                                    View Details
+                                  </Link>
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -488,178 +520,178 @@ export default function CardsPage() {
         {/* Designs Section — instance-wide template management, shown only in
             the all-cards view and only to callers with CARD_DESIGNS_READ. */}
         {viewingAll && canReadDesigns && (
-        <div className="mt-4 flex flex-col gap-4">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Designs</h2>
-              <p className="text-sm text-muted-foreground">
-                Manage your card design templates and artwork
-              </p>
+          <div className="mt-4 flex flex-col gap-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Designs</h2>
+                <p className="text-sm text-muted-foreground">
+                  Manage your card design templates and artwork
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <PermissionGuard permission={Permission.CARD_DESIGNS_WRITE}>
+                  {hasCommunity && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSyncDesigns}
+                      disabled={importing}
+                    >
+                      {importing ? (
+                        <Spinner size={16} className="mr-2" />
+                      ) : (
+                        <RefreshCw className="mr-2 size-4" />
+                      )}
+                      Sync
+                    </Button>
+                  )}
+                  {canImportVeintiuno && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleImportVeintiuno}
+                      disabled={importingVeintiuno}
+                    >
+                      {importingVeintiuno ? (
+                        <Spinner size={16} className="mr-2" />
+                      ) : (
+                        <Download className="mr-2 size-4" />
+                      )}
+                      Import from veintiuno.lat
+                    </Button>
+                  )}
+                  {hasVeintiunoDesigns && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveVeintiuno}
+                      disabled={removingVeintiuno}
+                    >
+                      {removingVeintiuno ? (
+                        <Spinner size={16} className="mr-2" />
+                      ) : (
+                        <Trash2 className="mr-2 size-4" />
+                      )}
+                      Remove imported
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setUploadDesignOpen(true)}
+                  >
+                    <Upload className="mr-2 size-4" />
+                    Upload design
+                  </Button>
+                </PermissionGuard>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <PermissionGuard permission={Permission.CARD_DESIGNS_WRITE}>
-                {hasCommunity && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSyncDesigns}
-                    disabled={importing}
-                  >
-                    {importing ? (
-                      <Spinner size={16} className="mr-2" />
-                    ) : (
-                      <RefreshCw className="mr-2 size-4" />
-                    )}
-                    Sync
-                  </Button>
-                )}
-                {canImportVeintiuno && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleImportVeintiuno}
-                    disabled={importingVeintiuno}
-                  >
-                    {importingVeintiuno ? (
-                      <Spinner size={16} className="mr-2" />
-                    ) : (
-                      <Download className="mr-2 size-4" />
-                    )}
-                    Import from veintiuno.lat
-                  </Button>
-                )}
-                {hasVeintiunoDesigns && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemoveVeintiuno}
-                    disabled={removingVeintiuno}
-                  >
-                    {removingVeintiuno ? (
-                      <Spinner size={16} className="mr-2" />
-                    ) : (
-                      <Trash2 className="mr-2 size-4" />
-                    )}
-                    Remove imported
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setUploadDesignOpen(true)}
-                >
-                  <Upload className="mr-2 size-4" />
-                  Upload design
-                </Button>
-              </PermissionGuard>
-            </div>
-          </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Tabs
-              value={designTab}
-              onValueChange={value => {
-                setDesignTab(value)
-                setDesignPage(1)
-              }}
-            >
-              <TabsList>
-                <TabsTrigger value="active">Active</TabsTrigger>
-                <TabsTrigger value="archived">Archived</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="relative sm:w-64">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search designs..."
-                className="pl-9"
-                value={designSearch}
-                onChange={e => {
-                  setDesignSearch(e.target.value)
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Tabs
+                value={designTab}
+                onValueChange={value => {
+                  setDesignTab(value)
                   setDesignPage(1)
                 }}
-              />
-            </div>
-          </div>
-
-          {(() => {
-            // Filter by archive state (Active/Archived tab) and the search box,
-            // then paginate client-side. The server returns every design; doing
-            // it here keeps one fetch per page load and lets the SSE
-            // `designs:updated` event refresh everything at once.
-            const q = designSearch.trim().toLowerCase()
-            const filteredDesigns = (designs ?? []).filter(d => {
-              const matchesTab =
-                designTab === 'archived' ? !!d.archivedAt : !d.archivedAt
-              if (!matchesTab) return false
-              if (!q) return true
-              return (
-                (d.description || '').toLowerCase().includes(q) ||
-                d.id.toLowerCase().includes(q)
-              )
-            })
-            const pageDesigns = filteredDesigns.slice(
-              (designPage - 1) * DESIGN_PAGE_SIZE,
-              designPage * DESIGN_PAGE_SIZE,
-            )
-
-            if (designsLoading) {
-              return (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <Skeleton key={i} className="h-56 w-full rounded-lg" />
-                  ))}
-                </div>
-              )
-            }
-            if (filteredDesigns.length === 0) {
-              return (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    {designSearch.trim()
-                      ? 'No designs match your search'
-                      : designTab === 'archived'
-                        ? 'No archived designs'
-                        : 'No designs found'}
-                  </p>
-                </div>
-              )
-            }
-            return (
-              <>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {pageDesigns.map(design => (
-                    <Card key={design.id} className="overflow-hidden">
-                      <DesignCardHeader
-                        design={design}
-                        onUpdated={refetchDesigns}
-                      />
-                      <CardContent className="p-4">
-                        <Link
-                          href={`/admin/card-designs/${design.id}`}
-                          className="group block"
-                          aria-label={`View cards using ${design.description || 'this design'}`}
-                        >
-                          <DesignImage
-                            src={design.image}
-                            alt={design.description || 'Card design'}
-                            className="transition-transform duration-200 group-hover:scale-[1.02]"
-                          />
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-                <Pagination
-                  page={designPage}
-                  total={filteredDesigns.length}
-                  pageSize={DESIGN_PAGE_SIZE}
-                  onPage={setDesignPage}
+              >
+                <TabsList>
+                  <TabsTrigger value="active">Active</TabsTrigger>
+                  <TabsTrigger value="archived">Archived</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="relative sm:w-64">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search designs..."
+                  className="pl-9"
+                  value={designSearch}
+                  onChange={e => {
+                    setDesignSearch(e.target.value)
+                    setDesignPage(1)
+                  }}
                 />
-              </>
-            )
-          })()}
-        </div>
+              </div>
+            </div>
+
+            {(() => {
+              // Filter by archive state (Active/Archived tab) and the search box,
+              // then paginate client-side. The server returns every design; doing
+              // it here keeps one fetch per page load and lets the SSE
+              // `designs:updated` event refresh everything at once.
+              const q = designSearch.trim().toLowerCase()
+              const filteredDesigns = (designs ?? []).filter(d => {
+                const matchesTab =
+                  designTab === 'archived' ? !!d.archivedAt : !d.archivedAt
+                if (!matchesTab) return false
+                if (!q) return true
+                return (
+                  (d.description || '').toLowerCase().includes(q) ||
+                  d.id.toLowerCase().includes(q)
+                )
+              })
+              const pageDesigns = filteredDesigns.slice(
+                (designPage - 1) * DESIGN_PAGE_SIZE,
+                designPage * DESIGN_PAGE_SIZE
+              )
+
+              if (designsLoading) {
+                return (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <Skeleton key={i} className="h-56 w-full rounded-lg" />
+                    ))}
+                  </div>
+                )
+              }
+              if (filteredDesigns.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      {designSearch.trim()
+                        ? 'No designs match your search'
+                        : designTab === 'archived'
+                          ? 'No archived designs'
+                          : 'No designs found'}
+                    </p>
+                  </div>
+                )
+              }
+              return (
+                <>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {pageDesigns.map(design => (
+                      <Card key={design.id} className="overflow-hidden">
+                        <DesignCardHeader
+                          design={design}
+                          onUpdated={refetchDesigns}
+                        />
+                        <CardContent className="p-4">
+                          <Link
+                            href={`/admin/card-designs/${design.id}`}
+                            className="group block"
+                            aria-label={`View cards using ${design.description || 'this design'}`}
+                          >
+                            <DesignImage
+                              src={design.image}
+                              alt={design.description || 'Card design'}
+                              className="transition-transform duration-200 group-hover:scale-[1.02]"
+                            />
+                          </Link>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  <Pagination
+                    page={designPage}
+                    total={filteredDesigns.length}
+                    pageSize={DESIGN_PAGE_SIZE}
+                    onPage={setDesignPage}
+                  />
+                </>
+              )
+            })()}
+          </div>
         )}
       </div>
 
@@ -669,7 +701,10 @@ export default function CardsPage() {
         onCreated={refetchDesigns}
       />
 
-      <BulkCardGuideDialog open={bulkGuideOpen} onOpenChange={setBulkGuideOpen} />
+      <BulkCardGuideDialog
+        open={bulkGuideOpen}
+        onOpenChange={setBulkGuideOpen}
+      />
     </div>
   )
 }
@@ -682,7 +717,7 @@ function Pagination({
   page,
   total,
   pageSize,
-  onPage,
+  onPage
 }: {
   page: number
   total: number
@@ -694,8 +729,8 @@ function Pagination({
   return (
     <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
       <p className="text-sm text-muted-foreground">
-        Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of{' '}
-        {total}
+        Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}{' '}
+        of {total}
       </p>
       <div className="flex items-center gap-1">
         <Button
@@ -739,7 +774,7 @@ function Pagination({
  */
 function DesignCardHeader({
   design,
-  onUpdated,
+  onUpdated
 }: {
   design: DesignData
   onUpdated: () => void
@@ -775,7 +810,9 @@ function DesignCardHeader({
       setEditing(false)
       onUpdated()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update design')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update design'
+      )
     }
   }
 
@@ -790,13 +827,13 @@ function DesignCardHeader({
     try {
       await updateDesign(design.id, { archived: !isArchived })
       trackEvent(AnalyticsEvent.DESIGN_UPDATED, {
-        field: isArchived ? 'restored' : 'archived',
+        field: isArchived ? 'restored' : 'archived'
       })
       toast.success(isArchived ? 'Design restored' : 'Design archived')
       onUpdated()
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to update design',
+        err instanceof Error ? err.message : 'Failed to update design'
       )
     }
   }

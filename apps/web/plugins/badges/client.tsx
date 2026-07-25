@@ -53,9 +53,7 @@ function BadgesPage() {
             </CardHeader>
             <CardContent className="space-y-1 text-sm">
               <Badge variant="secondary">{truncateNpub(a.pubkey)}</Badge>
-              {a.reason && (
-                <p className="text-muted-foreground">{a.reason}</p>
-              )}
+              {a.reason && <p className="text-muted-foreground">{a.reason}</p>}
               <p className="text-xs text-muted-foreground">
                 {new Date(a.awardedAt).toLocaleString()}
               </p>

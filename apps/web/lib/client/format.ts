@@ -51,7 +51,9 @@ export function npubInitials(pubkey: string | null | undefined): string {
  * Formats a date string or Date as relative time.
  * Example: "2 hours ago", "3 days ago", "just now"
  */
-export function formatRelativeTime(date: Date | string | null | undefined): string {
+export function formatRelativeTime(
+  date: Date | string | null | undefined
+): string {
   if (!date) return '—'
   const now = new Date()
   const d = typeof date === 'string' ? new Date(date) : date

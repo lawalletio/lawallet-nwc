@@ -7,35 +7,35 @@ import { createParamsPromise } from '@/tests/helpers/route-helpers'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxJsonBodySize: 102400 },
-  })),
+    requestLimits: { maxJsonBodySize: 102400 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
   authenticate: vi
     .fn()
-    .mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'USER', method: 'jwt' }),
+    .mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'USER', method: 'jwt' })
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn().mockResolvedValue({ domain: 'test.com' }),
+  getSettings: vi.fn().mockResolvedValue({ domain: 'test.com' })
 }))
 
 vi.mock('@/lib/events/event-bus', () => ({
-  eventBus: { emit: vi.fn() },
+  eventBus: { emit: vi.fn() }
 }))
 
 import { POST } from '@/app/api/invoices/[id]/claim/route'
@@ -60,7 +60,7 @@ const baseInvoice = {
   userId: 'user-1',
   expiresAt: new Date(Date.now() + 60 * 60 * 1000),
   createdAt: new Date(),
-  paidAt: null,
+  paidAt: null
 }
 
 beforeEach(() => {
@@ -69,7 +69,7 @@ beforeEach(() => {
   vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
   vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
     id: 'user-1',
-    pubkey: 'a'.repeat(64),
+    pubkey: 'a'.repeat(64)
   } as any)
 })
 
@@ -77,7 +77,7 @@ describe('POST /api/invoices/[id]/claim', () => {
   it('rejects invalid preimage format', async () => {
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: 'not-hex' },
+      body: { preimage: 'not-hex' }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 
@@ -89,7 +89,7 @@ describe('POST /api/invoices/[id]/claim', () => {
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: PREIMAGE },
+      body: { preimage: PREIMAGE }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 
@@ -99,12 +99,12 @@ describe('POST /api/invoices/[id]/claim', () => {
   it('rejects claim when invoice belongs to another user', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      userId: 'other-user',
+      userId: 'other-user'
     } as any)
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: PREIMAGE },
+      body: { preimage: PREIMAGE }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 
@@ -115,12 +115,12 @@ describe('POST /api/invoices/[id]/claim', () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
       status: 'PAID',
-      preimage: PREIMAGE,
+      preimage: PREIMAGE
     } as any)
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: PREIMAGE },
+      body: { preimage: PREIMAGE }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 
@@ -130,12 +130,12 @@ describe('POST /api/invoices/[id]/claim', () => {
   it('rejects expired invoice', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      expiresAt: new Date(Date.now() - 60_000),
+      expiresAt: new Date(Date.now() - 60_000)
     } as any)
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: PREIMAGE },
+      body: { preimage: PREIMAGE }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 
@@ -143,12 +143,14 @@ describe('POST /api/invoices/[id]/claim', () => {
   })
 
   it('rejects preimage that does not hash to paymentHash', async () => {
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
 
     const wrongPreimage = 'b'.repeat(64)
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: wrongPreimage },
+      body: { preimage: wrongPreimage }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 
@@ -158,13 +160,15 @@ describe('POST /api/invoices/[id]/claim', () => {
   })
 
   it('marks invoice PAID and creates lightning address on REGISTRATION', async () => {
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: PREIMAGE },
+      body: { preimage: PREIMAGE }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
     const body: any = await assertResponse(res, 200)
@@ -179,8 +183,8 @@ describe('POST /api/invoices/[id]/claim', () => {
         where: { id: 'inv-1' },
         data: expect.objectContaining({
           status: 'PAID',
-          preimage: PREIMAGE,
-        }),
+          preimage: PREIMAGE
+        })
       })
     )
     // Lightning address created as the user's primary
@@ -190,8 +194,8 @@ describe('POST /api/invoices/[id]/claim', () => {
           username: 'alice',
           userId: 'user-1',
           isPrimary: true,
-          mode: 'IDLE',
-        }),
+          mode: 'IDLE'
+        })
       })
     )
   })
@@ -199,13 +203,15 @@ describe('POST /api/invoices/[id]/claim', () => {
   it('rejects address-creating claims when user address registration is disabled', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
-      registration_user_enabled: 'false',
+      registration_user_enabled: 'false'
     })
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: PREIMAGE },
+      body: { preimage: PREIMAGE }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 
@@ -215,15 +221,17 @@ describe('POST /api/invoices/[id]/claim', () => {
   })
 
   it('returns 409 when username was taken between invoice + claim', async () => {
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      userId: 'someone-else',
+      userId: 'someone-else'
     } as any)
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: PREIMAGE },
+      body: { preimage: PREIMAGE }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 
@@ -233,18 +241,20 @@ describe('POST /api/invoices/[id]/claim', () => {
   })
 
   it('deletes the old lightning address before creating the new one', async () => {
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(baseInvoice as any)
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
     // Username free globally but user already has a primary address.
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
       username: 'old-name',
       userId: 'user-1',
-      isPrimary: true,
+      isPrimary: true
     } as any)
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: PREIMAGE },
+      body: { preimage: PREIMAGE }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
     await assertResponse(res, 200)
@@ -260,8 +270,8 @@ describe('POST /api/invoices/[id]/claim', () => {
           username: 'alice',
           userId: 'user-1',
           isPrimary: true,
-          mode: 'IDLE',
-        }),
+          mode: 'IDLE'
+        })
       })
     )
   })
@@ -269,12 +279,12 @@ describe('POST /api/invoices/[id]/claim', () => {
   it('rejects REGISTRATION invoice missing username metadata', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      metadata: {},
+      metadata: {}
     } as any)
 
     const req = createNextRequest('/api/invoices/inv-1/claim', {
       method: 'POST',
-      body: { preimage: PREIMAGE },
+      body: { preimage: PREIMAGE }
     })
     const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 
@@ -286,14 +296,14 @@ describe('POST /api/invoices/[id]/claim', () => {
       vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
         ...baseInvoice,
         purpose: 'WALLET_ADDRESS',
-        metadata: { username: 'secondary1' },
+        metadata: { username: 'secondary1' }
       } as any)
       vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
       vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue({} as any)
 
       const req = createNextRequest('/api/invoices/inv-1/claim', {
         method: 'POST',
-        body: { preimage: PREIMAGE },
+        body: { preimage: PREIMAGE }
       })
       const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
       await assertResponse(res, 200)
@@ -307,8 +317,8 @@ describe('POST /api/invoices/[id]/claim', () => {
             username: 'secondary1',
             userId: 'user-1',
             isPrimary: false,
-            mode: 'IDLE',
-          }),
+            mode: 'IDLE'
+          })
         })
       )
     })
@@ -317,16 +327,16 @@ describe('POST /api/invoices/[id]/claim', () => {
       vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
         ...baseInvoice,
         purpose: 'WALLET_ADDRESS',
-        metadata: { username: 'secondary1' },
+        metadata: { username: 'secondary1' }
       } as any)
       vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
         username: 'secondary1',
-        userId: 'someone-else',
+        userId: 'someone-else'
       } as any)
 
       const req = createNextRequest('/api/invoices/inv-1/claim', {
         method: 'POST',
-        body: { preimage: PREIMAGE },
+        body: { preimage: PREIMAGE }
       })
       const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
 

@@ -16,13 +16,18 @@ export function CtaSection({ onClaim, onSetup, setupNeeded }: CtaSectionProps) {
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full blur-3xl opacity-[0.06]"
-          style={{ background: 'radial-gradient(circle, var(--theme-400), transparent 70%)' }}
+          style={{
+            background:
+              'radial-gradient(circle, var(--theme-400), transparent 70%)'
+          }}
         />
       </div>
 
       <div className="relative z-10 space-y-6">
         <h2 className="text-4xl md:text-5xl font-black tracking-tight">
-          {setupNeeded ? 'Ready to set up your community?' : 'Ready to get started?'}
+          {setupNeeded
+            ? 'Ready to set up your community?'
+            : 'Ready to get started?'}
         </h2>
         <p className="text-lg text-muted-foreground max-w-md mx-auto">
           {setupNeeded

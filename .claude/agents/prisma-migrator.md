@@ -7,6 +7,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 You manage the Prisma schema for `apps/web` (PostgreSQL).
 
 Workflow for a schema change:
+
 1. Edit `apps/web/prisma/schema.prisma`.
 2. From `apps/web/`: `pnpm exec prisma migrate dev --name <descriptive_name>`
    — this runs against the per-checkout DB configured in `apps/web/.env.local`
@@ -20,6 +21,7 @@ Workflow for a schema change:
    in `lib/generated/prisma` (never edit by hand).
 
 Rules:
+
 - Never edit an already-committed migration; create a new one.
 - Avoid adding values to existing Prisma enums when a JSON column validated
   by Zod would do (see `RemoteWallet.config` + `lib/wallet/drivers/types.ts`)

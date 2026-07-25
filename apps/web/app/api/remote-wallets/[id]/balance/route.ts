@@ -39,7 +39,10 @@ export const GET = withErrorHandling(
     }
 
     try {
-      const { driver, config } = driverForWallet({ type: wallet.type, config: wallet.config })
+      const { driver, config } = driverForWallet({
+        type: wallet.type,
+        config: wallet.config
+      })
       const { balanceSats } = await driver.getBalance(config)
       return NextResponse.json({ balanceSats })
     } catch (err) {
@@ -47,9 +50,11 @@ export const GET = withErrorHandling(
       // down, revoked NWC grant, corrupt config). Surface as 503 so the UI
       // can show "unavailable" without treating it as a hard error.
       if (err instanceof DriverError) {
-        throw new ServiceUnavailableError('Wallet balance is currently unavailable')
+        throw new ServiceUnavailableError(
+          'Wallet balance is currently unavailable'
+        )
       }
       throw err
     }
-  },
+  }
 )

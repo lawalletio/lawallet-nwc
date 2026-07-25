@@ -58,7 +58,7 @@ export function WalletLiveBalance({ walletId, size = 'md' }: Props) {
         'flex items-center tabular-nums',
         size === 'sm'
           ? 'gap-1.5 text-[10px] text-muted-foreground'
-          : 'gap-2 text-sm',
+          : 'gap-2 text-sm'
       )}
       aria-label={`Balance ${state}`}
     >
@@ -69,7 +69,7 @@ export function WalletLiveBalance({ walletId, size = 'md' }: Props) {
           state === 'connected' && 'bg-emerald-400',
           state === 'searching' && 'animate-pulse bg-amber-400',
           state === 'error' && 'bg-destructive',
-          state === 'idle' && 'bg-muted-foreground',
+          state === 'idle' && 'bg-muted-foreground'
         )}
       />
       {hasValue ? `${animatedSats.toLocaleString()} sats` : '— sats'}

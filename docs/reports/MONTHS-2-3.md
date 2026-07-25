@@ -104,11 +104,11 @@ This separation creates a cleaner architecture: the product application and the 
 
 ## Pull Requests Merged (4)
 
-| PR | Description |
-|----|-------------|
-| [#183](https://github.com/lawalletio/lawallet-nwc/pull/183) | CI/CD improvements, coverage thresholds, Vercel config |
-| [#184](https://github.com/lawalletio/lawallet-nwc/pull/184) | NIP-98 → JWT session authentication |
-| [#185](https://github.com/lawalletio/lawallet-nwc/pull/185) | Auth documentation updates |
+| PR                                                          | Description                                                      |
+| ----------------------------------------------------------- | ---------------------------------------------------------------- |
+| [#183](https://github.com/lawalletio/lawallet-nwc/pull/183) | CI/CD improvements, coverage thresholds, Vercel config           |
+| [#184](https://github.com/lawalletio/lawallet-nwc/pull/184) | NIP-98 → JWT session authentication                              |
+| [#185](https://github.com/lawalletio/lawallet-nwc/pull/185) | Auth documentation updates                                       |
 | [#186](https://github.com/lawalletio/lawallet-nwc/pull/186) | Frontend/admin refactor, onboarding, settings, landing/app split |
 
 ---

@@ -76,11 +76,10 @@ function useDimmed(id: string): boolean {
   return !!highlight && !highlight.nodes.has(id)
 }
 
-
 function shellClasses(dimmed: boolean): string {
   return cn(
     'flex w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm shadow-sm transition-opacity duration-150',
-    dimmed && 'opacity-30',
+    dimmed && 'opacity-30'
   )
 }
 
@@ -204,7 +203,10 @@ export function RemoteWalletNode({ id, data }: NodeProps) {
         <span className="flex items-center gap-1 truncate text-xs font-medium">
           {d.name}
           {d.isDefault && (
-            <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" aria-label="Primary" />
+            <Star
+              className="size-3 shrink-0 fill-amber-400 text-amber-400"
+              aria-label="Primary"
+            />
           )}
         </span>
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -244,7 +246,9 @@ export function GhostWalletNode({ id }: NodeProps) {
       await createLncurlWallet()
       toast.success('LNCurl wallet created')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not create LNCurl wallet')
+      toast.error(
+        err instanceof Error ? err.message : 'Could not create LNCurl wallet'
+      )
     }
   }
 
@@ -252,7 +256,7 @@ export function GhostWalletNode({ id }: NodeProps) {
     <div
       className={cn(
         'flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-card/40 px-3 py-4 text-center transition-opacity duration-150',
-        dimmed && 'opacity-30',
+        dimmed && 'opacity-30'
       )}
       style={{ width: NODE_WIDTH }}
     >
@@ -261,7 +265,12 @@ export function GhostWalletNode({ id }: NodeProps) {
         No wallet yet. Spin up a free disposable LNCurl wallet to start
         receiving.
       </p>
-      <Button size="sm" className="gap-2" onClick={handleCreate} disabled={loading}>
+      <Button
+        size="sm"
+        className="gap-2"
+        onClick={handleCreate}
+        disabled={loading}
+      >
         {loading ? <Spinner className="size-4" /> : <Plus className="size-4" />}
         Create LNCurl wallet
       </Button>
@@ -288,7 +297,7 @@ export const nodeTypes = {
   card: CardNode,
   'remote-wallet': RemoteWalletNode,
   'ghost-wallet': GhostWalletNode,
-  header: ColumnHeaderNode,
+  header: ColumnHeaderNode
 }
 
 /**
@@ -316,5 +325,5 @@ export const NODE_LAYOUT = {
    */
   cardRowGap: 176,
   /** Y of the first header in each column. */
-  topY: 0,
+  topY: 0
 }

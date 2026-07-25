@@ -40,9 +40,14 @@ export function Card3D({
       {/* scene: perspective */}
       <div className="relative" style={{ perspective: '1200px' }}>
         {/* tilt: fixed off-axis angle */}
-        <div style={{ transform: 'rotateX(8deg)', transformStyle: 'preserve-3d' }}>
+        <div
+          style={{ transform: 'rotateX(8deg)', transformStyle: 'preserve-3d' }}
+        >
           {/* bob: vertical float */}
-          <div className="animate-card-bob" style={{ transformStyle: 'preserve-3d' }}>
+          <div
+            className="animate-card-bob"
+            style={{ transformStyle: 'preserve-3d' }}
+          >
             {/* sway: small oscillating rotateY keeps the design facing front */}
             <div
               className="animate-card-sway relative"

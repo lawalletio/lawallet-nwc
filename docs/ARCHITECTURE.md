@@ -25,11 +25,11 @@ lawallet-nwc/
 
 ## Service Topology
 
-| Container | Service | Ports | Storage |
-|-----------|---------|-------|---------|
-| `lawallet-web` | Next.js Application | 3000 (dev), 2288 (prod) | Own PostgreSQL (Prisma) |
-| `lawallet-listener` | NWC Payment Listener | 3001 (WS), 3002 (health) | Own storage |
-| `lawallet-nwc-proxy` | Courtesy NWC Proxy | 3003, 3004 (health) | Own storage |
+| Container            | Service              | Ports                    | Storage                 |
+| -------------------- | -------------------- | ------------------------ | ----------------------- |
+| `lawallet-web`       | Next.js Application  | 3000 (dev), 2288 (prod)  | Own PostgreSQL (Prisma) |
+| `lawallet-listener`  | NWC Payment Listener | 3001 (WS), 3002 (health) | Own storage             |
+| `lawallet-nwc-proxy` | Courtesy NWC Proxy   | 3003, 3004 (health)      | Own storage             |
 
 ---
 
@@ -96,23 +96,23 @@ See: [services/NWC-PROXY.md](./services/NWC-PROXY.md)
 
 The web application is organized into clearly separated modules:
 
-| Module | Path | Responsibility |
-|--------|------|---------------|
-| **API Routes** | `app/api/` | 30 route handlers, REST endpoints |
-| **Auth** | `lib/auth/` | Unified auth, RBAC, role resolution |
-| **NIP-98** | `lib/nip98.ts` | Nostr HTTP Auth event validation |
-| **JWT** | `lib/jwt.ts` | Token creation, verification, refresh |
-| **Middleware** | `lib/middleware/` | Rate limiting, request limits, maintenance |
-| **Validation** | `lib/validation/` | Zod schemas, request validation |
-| **Config** | `lib/config/` | Environment validation, cached config |
-| **Database** | `lib/prisma.ts` + `prisma/` | Prisma client, schema, migrations |
-| **NTAG424** | `lib/ntag424.ts` | NFC card crypto, signature validation |
-| **Alby Hub** | `lib/albyhub.ts` | Alby API client for NWC provisioning |
-| **Logger** | `lib/logger.ts` | Pino structured logging, request IDs |
-| **Errors** | `types/server/` | Error hierarchy, error handler HOF |
-| **Client Hooks** | `lib/client/hooks/` | React hooks for API consumption |
-| **Client Auth** | `lib/client/` | Nostr signers, JWT exchange, API client |
-| **UI Components** | `components/` | shadcn/ui components, admin dashboard |
+| Module            | Path                        | Responsibility                             |
+| ----------------- | --------------------------- | ------------------------------------------ |
+| **API Routes**    | `app/api/`                  | 30 route handlers, REST endpoints          |
+| **Auth**          | `lib/auth/`                 | Unified auth, RBAC, role resolution        |
+| **NIP-98**        | `lib/nip98.ts`              | Nostr HTTP Auth event validation           |
+| **JWT**           | `lib/jwt.ts`                | Token creation, verification, refresh      |
+| **Middleware**    | `lib/middleware/`           | Rate limiting, request limits, maintenance |
+| **Validation**    | `lib/validation/`           | Zod schemas, request validation            |
+| **Config**        | `lib/config/`               | Environment validation, cached config      |
+| **Database**      | `lib/prisma.ts` + `prisma/` | Prisma client, schema, migrations          |
+| **NTAG424**       | `lib/ntag424.ts`            | NFC card crypto, signature validation      |
+| **Alby Hub**      | `lib/albyhub.ts`            | Alby API client for NWC provisioning       |
+| **Logger**        | `lib/logger.ts`             | Pino structured logging, request IDs       |
+| **Errors**        | `types/server/`             | Error hierarchy, error handler HOF         |
+| **Client Hooks**  | `lib/client/hooks/`         | React hooks for API consumption            |
+| **Client Auth**   | `lib/client/`               | Nostr signers, JWT exchange, API client    |
+| **UI Components** | `components/`               | shadcn/ui components, admin dashboard      |
 
 ### Module Dependencies
 
@@ -214,13 +214,14 @@ Client                              Server
 
 The `authenticate()` function in `lib/auth/unified-auth.ts` detects the method from the `Authorization` header prefix:
 
-| Header Prefix | Method | Handler |
-|---------------|--------|---------|
+| Header Prefix    | Method | Handler                |
+| ---------------- | ------ | ---------------------- |
 | `Nostr <base64>` | NIP-98 | `validateNip98Token()` |
-| `Bearer <token>` | JWT | `verifyJwtToken()` |
-| Missing/other | — | `AuthenticationError` |
+| `Bearer <token>` | JWT    | `verifyJwtToken()`     |
+| Missing/other    | —      | `AuthenticationError`  |
 
 Higher-level wrappers:
+
 - `authenticateWithRole(request, requiredRole)` — enforces role hierarchy
 - `authenticateWithPermission(request, permission)` — enforces granular permission
 - `withAuth(handler, { role?, permission? })` — HOF for route handlers
@@ -239,21 +240,21 @@ Roles are compared by hierarchy position. A user with `OPERATOR` role satisfies 
 
 ### Permission Matrix
 
-| Permission | ADMIN | OPERATOR | VIEWER | USER |
-|-----------|:-----:|:--------:|:------:|:----:|
-| `settings:read` | ✓ | | ✓ | |
-| `settings:write` | ✓ | | | |
-| `users:read` | ✓ | ✓ | ✓ | |
-| `users:write` | ✓ | | | |
-| `users:manage_roles` | ✓ | | | |
-| `cards:read` | ✓ | ✓ | ✓ | |
-| `cards:write` | ✓ | ✓ | | |
-| `card_designs:read` | ✓ | ✓ | ✓ | |
-| `card_designs:write` | ✓ | ✓ | | |
-| `addresses:read` | ✓ | ✓ | ✓ | |
-| `addresses:write` | ✓ | ✓ | | |
-| `ntags:read` | ✓ | ✓ | ✓ | |
-| `ntags:write` | ✓ | ✓ | | |
+| Permission           | ADMIN | OPERATOR | VIEWER | USER |
+| -------------------- | :---: | :------: | :----: | :--: |
+| `settings:read`      |   ✓   |          |   ✓    |      |
+| `settings:write`     |   ✓   |          |        |      |
+| `users:read`         |   ✓   |    ✓     |   ✓    |      |
+| `users:write`        |   ✓   |          |        |      |
+| `users:manage_roles` |   ✓   |          |        |      |
+| `cards:read`         |   ✓   |    ✓     |   ✓    |      |
+| `cards:write`        |   ✓   |    ✓     |        |      |
+| `card_designs:read`  |   ✓   |    ✓     |   ✓    |      |
+| `card_designs:write` |   ✓   |    ✓     |        |      |
+| `addresses:read`     |   ✓   |    ✓     |   ✓    |      |
+| `addresses:write`    |   ✓   |    ✓     |        |      |
+| `ntags:read`         |   ✓   |    ✓     |   ✓    |      |
+| `ntags:write`        |   ✓   |    ✓     |        |      |
 
 **File:** `lib/auth/permissions.ts`
 
@@ -305,13 +306,13 @@ Response (JSON)
 
 In-memory store with periodic cleanup. Limits are per-IP (extracted from `x-forwarded-for`, `x-real-ip`, or `cf-connecting-ip` headers).
 
-| Preset | Requests/Window | Window |
-|--------|:---------------:|:------:|
-| `public` | 60 | 1 min |
-| `auth` | 10 | 1 min |
-| `sensitive` | 5 | 1 min |
-| `cardScan` | 200 | 1 min |
-| `lud16` | 120 | 1 min |
+| Preset      | Requests/Window | Window |
+| ----------- | :-------------: | :----: |
+| `public`    |       60        | 1 min  |
+| `auth`      |       10        | 1 min  |
+| `sensitive` |        5        | 1 min  |
+| `cardScan`  |       200       | 1 min  |
+| `lud16`     |       120       | 1 min  |
 
 Authenticated users get separate (typically higher) limits.
 
@@ -321,10 +322,10 @@ Authenticated users get separate (typically higher) limits.
 
 Validates body size before parsing.
 
-| Preset | Max Body | Notes |
-|--------|:--------:|-------|
-| `json` | 100 KB | Default for API routes |
-| `large` | 1 MB | File metadata, bulk ops |
+| Preset   |   Max Body   | Notes                    |
+| -------- | :----------: | ------------------------ |
+| `json`   |    100 KB    | Default for API routes   |
+| `large`  |     1 MB     | File metadata, bulk ops  |
 | `upload` | Configurable | File count + size limits |
 
 **File:** `lib/middleware/request-limits.ts`
@@ -413,15 +414,15 @@ PostgreSQL via Prisma ORM. 7 models + 1 enum.
 
 ### Models
 
-| Model | Primary Key | Purpose |
-|-------|-------------|---------|
-| **User** | `id` (UUID) | Identity, auth, role assignment. `pubkey` is unique. |
-| **CardDesign** | `id` (UUID) | NFC card visual templates. Optional owner via `userId`. |
-| **Card** | `id` (UUID) | NFC card instances. Links to a design and optionally an NTAG424 chip. |
-| **Ntag424** | `cid` (chip ID) | NTAG424 cryptographic keys (k0–k4) and monotonic counter. |
-| **LightningAddress** | `username` | Maps a username to a user. One address per user. |
-| **AlbySubAccount** | `appId` (int) | Alby NWC provisioning data. One per user. |
-| **Settings** | `name` | Key-value store for platform configuration (domain, root pubkey, etc.) |
+| Model                | Primary Key     | Purpose                                                                |
+| -------------------- | --------------- | ---------------------------------------------------------------------- |
+| **User**             | `id` (UUID)     | Identity, auth, role assignment. `pubkey` is unique.                   |
+| **CardDesign**       | `id` (UUID)     | NFC card visual templates. Optional owner via `userId`.                |
+| **Card**             | `id` (UUID)     | NFC card instances. Links to a design and optionally an NTAG424 chip.  |
+| **Ntag424**          | `cid` (chip ID) | NTAG424 cryptographic keys (k0–k4) and monotonic counter.              |
+| **LightningAddress** | `username`      | Maps a username to a user. One address per user.                       |
+| **AlbySubAccount**   | `appId` (int)   | Alby NWC provisioning data. One per user.                              |
+| **Settings**         | `name`          | Key-value store for platform configuration (domain, root pubkey, etc.) |
 
 **File:** `apps/web/prisma/schema.prisma`
 
@@ -433,20 +434,20 @@ PostgreSQL via Prisma ORM. 7 models + 1 enum.
 
 All environment variables are validated at startup via Zod schema in `lib/config/env.ts`. Invalid config crashes the process immediately.
 
-| Variable | Required | Purpose |
-|----------|:--------:|---------|
-| `DATABASE_URL` | ✓ | PostgreSQL connection string |
-| `JWT_SECRET` | | 32+ char secret for HS256 signing |
-| `ALBY_API_URL` | | Alby Hub endpoint |
-| `ALBY_BEARER_TOKEN` | | Alby API authentication |
-| `AUTO_GENERATE_ALBY_SUBACCOUNTS` | | Auto-provision wallets on signup |
-| `MAINTENANCE_MODE` | | Enable 503 for non-admins |
-| `LOG_LEVEL` | | Pino log level (default: `info`) |
-| `LOG_PRETTY` | | Human-readable logs (dev) |
-| `RATE_LIMIT_WINDOW_MS` | | Rate limit window (default: 60000) |
-| `RATE_LIMIT_MAX_REQUESTS` | | Max requests per window |
-| `RATE_LIMIT_MAX_AUTHENTICATED` | | Max for authenticated users |
-| `REQUEST_MAX_BODY_SIZE` | | Max body in bytes |
+| Variable                         | Required | Purpose                            |
+| -------------------------------- | :------: | ---------------------------------- |
+| `DATABASE_URL`                   |    ✓     | PostgreSQL connection string       |
+| `JWT_SECRET`                     |          | 32+ char secret for HS256 signing  |
+| `ALBY_API_URL`                   |          | Alby Hub endpoint                  |
+| `ALBY_BEARER_TOKEN`              |          | Alby API authentication            |
+| `AUTO_GENERATE_ALBY_SUBACCOUNTS` |          | Auto-provision wallets on signup   |
+| `MAINTENANCE_MODE`               |          | Enable 503 for non-admins          |
+| `LOG_LEVEL`                      |          | Pino log level (default: `info`)   |
+| `LOG_PRETTY`                     |          | Human-readable logs (dev)          |
+| `RATE_LIMIT_WINDOW_MS`           |          | Rate limit window (default: 60000) |
+| `RATE_LIMIT_MAX_REQUESTS`        |          | Max requests per window            |
+| `RATE_LIMIT_MAX_AUTHENTICATED`   |          | Max for authenticated users        |
+| `REQUEST_MAX_BODY_SIZE`          |          | Max body in bytes                  |
 
 ### Cached Config Object
 
@@ -454,9 +455,9 @@ All environment variables are validated at startup via Zod schema in `lib/config
 
 ```typescript
 const config = getConfig()
-config.jwt.secret       // JWT_SECRET
-config.alby.apiUrl      // ALBY_API_URL
-config.server.port      // PORT
+config.jwt.secret // JWT_SECRET
+config.alby.apiUrl // ALBY_API_URL
+config.server.port // PORT
 config.rateLimit.window // RATE_LIMIT_WINDOW_MS
 config.maintenance.enabled // MAINTENANCE_MODE
 ```
@@ -471,10 +472,10 @@ Config is validated once at startup and cached for the process lifetime. Use `re
 
 HTTP client for provisioning NWC subaccounts and lightning addresses.
 
-| Method | Purpose |
-|--------|---------|
-| `createSubAccount(name)` | Provisions isolated NWC subaccount |
-| `createLightningAddress(username, appId)` | Maps address to Alby app |
+| Method                                    | Purpose                            |
+| ----------------------------------------- | ---------------------------------- |
+| `createSubAccount(name)`                  | Provisions isolated NWC subaccount |
+| `createLightningAddress(username, appId)` | Maps address to Alby app           |
 
 When `AUTO_GENERATE_ALBY_SUBACCOUNTS=true`, new users automatically get a courtesy NWC wallet via Alby on signup.
 
@@ -514,7 +515,7 @@ tap counter. Keys are exported by exactly two hardware-programming endpoints:
 
 - `GET /api/cards/[id]/write?token=…` — program a blank chip with this card's
   keys. **Replay-protected**: requires a single-use token minted by
-  `POST /api/cards/[id]/write-token` (valid only while the card is *fresh* —
+  `POST /api/cards/[id]/write-token` (valid only while the card is _fresh_ —
   never tapped — and consumed on the first fetch); returns **403** otherwise.
 - `GET /api/cards/[id]/wipe` — reset the chip's keys to factory defaults.
 
@@ -532,20 +533,20 @@ A card's status is derived, not stored as an enum:
 - **Unpaired** — no owner; can still be activated/programmed.
 - **Used** — tapped at least once (`Ntag424.ctr > 0` / `lastUsedAt` set).
 - **Blocked** — `Card.blockedAt` is set, stamped the first time `/wipe` exports
-  the *reset* keys. A blocked card is **decommissioned**: it can never be
+  the _reset_ keys. A blocked card is **decommissioned**: it can never be
   re-paired, activated (`/otc/activate`, activation-token mint + claim, and
   `/rescue` all **409**), or programmed (`/write-token` **409**) again. Its reset keys stay
   **re-fetchable** indefinitely (so the operator can finish resetting the
   physical chip), and it lingers in the DB — shown as **Blocked** in the admin —
   until the operator **explicitly deletes** it, which permanently removes the
-  record and loses the keys. (`/write` does *not* block — programming a fresh
+  record and loses the keys. (`/write` does _not_ block — programming a fresh
   card leaves it re-usable.)
 
 #### Programming integration (external NFC apps)
 
 [card-installer](https://github.com/lawalletio/card-installer) (Android, NFC) runs these
 steps in **bulk** — tapping one blank chip after another to provision a batch of cards and
-register each in the system as *initialized* (ready to activate). Per chip it:
+register each in the system as _initialized_ (ready to activate). Per chip it:
 
 1. `POST /api/cards` (JWT, `CARDS_WRITE`) — create the card. The response
    includes the NTAG424 keys for the fresh chip.
@@ -564,7 +565,7 @@ register each in the system as *initialized* (ready to activate). Per chip it:
 `/wipe` (reset) is fetched directly with the device JWT and is not token-gated.
 Neither flow uses the card read endpoint, which never returns keys.
 
-Once a card is *initialized*, [card-manager](https://github.com/lawalletio/card-manager)
+Once a card is _initialized_, [card-manager](https://github.com/lawalletio/card-manager)
 takes any such card and prints an **Activation QR** (the same artifact `card-installer` can
 emit at write time). An end user scans it to open the wallet at `/wallet`, where they create
 a new account or sign into an existing one and the card pairs to them — if the card had a
@@ -647,11 +648,11 @@ Sender Wallet                        lawallet-web
 
 ### Address Resolution Priority
 
-| Priority | Method | Description |
-|----------|--------|-------------|
-| 1 | Own NWC Connection | User connected their own NWC wallet |
-| 2 | Courtesy NWC | Temporary connection via Courtesy NWC Proxy |
-| 3 | Alias / Redirect | Redirects to external lightning address |
+| Priority | Method             | Description                                 |
+| -------- | ------------------ | ------------------------------------------- |
+| 1        | Own NWC Connection | User connected their own NWC wallet         |
+| 2        | Courtesy NWC       | Temporary connection via Courtesy NWC Proxy |
+| 3        | Alias / Redirect   | Redirects to external lightning address     |
 
 ### JWT Exchange Flow
 
@@ -695,14 +696,14 @@ In-memory singleton (`lib/events/event-bus.ts`) using the same `globalThis` patt
 
 ### Event Types
 
-| Event | Permission Required | Triggered By |
-|-------|-------------------|-------------|
-| `addresses:updated` | `ADDRESSES_READ` | Lightning address create/update |
-| `cards:updated` | `CARDS_READ` | Card create/activate |
-| `designs:updated` | `CARD_DESIGNS_READ` | Design import |
-| `settings:updated` | `SETTINGS_READ` | Settings update |
-| `invoices:updated` | Any authenticated | Invoice create/claim |
-| `users:updated` | `USERS_READ` | User role change |
+| Event               | Permission Required | Triggered By                    |
+| ------------------- | ------------------- | ------------------------------- |
+| `addresses:updated` | `ADDRESSES_READ`    | Lightning address create/update |
+| `cards:updated`     | `CARDS_READ`        | Card create/activate            |
+| `designs:updated`   | `CARD_DESIGNS_READ` | Design import                   |
+| `settings:updated`  | `SETTINGS_READ`     | Settings update                 |
+| `invoices:updated`  | Any authenticated   | Invoice create/claim            |
+| `users:updated`     | `USERS_READ`        | User role change                |
 
 ### Client Integration
 
@@ -737,106 +738,106 @@ Pino-based structured logging with AsyncLocalStorage for request ID correlation.
 
 ### Admin
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| POST | `/api/admin/assign` | NIP-98 | Assign root admin role |
-| GET | `/api/admin/assign` | NIP-98 | Check if pubkey is root |
+| Method | Path                | Auth   | Purpose                 |
+| ------ | ------------------- | ------ | ----------------------- |
+| POST   | `/api/admin/assign` | NIP-98 | Assign root admin role  |
+| GET    | `/api/admin/assign` | NIP-98 | Check if pubkey is root |
 
 ### JWT
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| POST | `/api/jwt` | NIP-98 | Exchange NIP-98 for JWT |
-| GET | `/api/jwt` | Bearer | Validate JWT, return claims |
-| GET | `/api/jwt/protected` | Bearer | Test protected endpoint |
+| Method | Path                 | Auth   | Purpose                     |
+| ------ | -------------------- | ------ | --------------------------- |
+| POST   | `/api/jwt`           | NIP-98 | Exchange NIP-98 for JWT     |
+| GET    | `/api/jwt`           | Bearer | Validate JWT, return claims |
+| GET    | `/api/jwt/protected` | Bearer | Test protected endpoint     |
 
 ### Cards
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| GET | `/api/cards` | ADMIN | List **all** cards (filter: paired, used). "Paired" === the card has an owner (`userId`) |
-| GET | `/api/wallet/cards` | Auth | List only the caller's **own** cards (paired to them). Any role; powers the per-user Cards view + Connection Map (**no keys**) |
-| POST | `/api/cards` | Auth | Create card with NTAG424 + OTC |
-| GET | `/api/cards/[id]` | Auth | Get card details (**no keys**) |
-| GET | `/api/cards/counts` | Auth | Count paired/unpaired/used (paired === has `userId`) |
-| GET | `/api/cards/[id]/scan` | Public | LUD-03 withdraw request (NFC tap); with request header `x-request-action: info` returns card status JSON instead (design, image, owner, paired/used — no keys/OTC) |
-| GET | `/api/cards/[id]/scan/cb` | Public | LUD-03 callback, issue invoice |
-| POST | `/api/cards/[id]/write-token` | OPERATOR | Mint a single-use BoltCard programming URL — only while the card is **fresh** (never tapped); **409** otherwise |
-| GET | `/api/cards/[id]/write` | Public | NFC program payload (keys). **Requires** the single-use `?token=` from `/write-token` (replay-protected; **403** without it or once tapped); **unpairs** the card and **consumes** the token |
-| GET | `/api/cards/[id]/wipe` | Public | NFC reset payload (keys); **blocks** the card (unpairs + marks `Blocked`, decommissioned). Re-fetchable; delete to remove |
-| POST | `/api/cards/[id]/emulate-tap` | Auth | Server-side SUN signing for the card emulator (no keys) |
-| GET | `/api/cards/otc/[otc]` | Public | Lookup card by one-time code |
-| POST | `/api/cards/otc/[otc]/activate` | Auth | Activate card with username |
+| Method | Path                            | Auth     | Purpose                                                                                                                                                                                      |
+| ------ | ------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/cards`                    | ADMIN    | List **all** cards (filter: paired, used). "Paired" === the card has an owner (`userId`)                                                                                                     |
+| GET    | `/api/wallet/cards`             | Auth     | List only the caller's **own** cards (paired to them). Any role; powers the per-user Cards view + Connection Map (**no keys**)                                                               |
+| POST   | `/api/cards`                    | Auth     | Create card with NTAG424 + OTC                                                                                                                                                               |
+| GET    | `/api/cards/[id]`               | Auth     | Get card details (**no keys**)                                                                                                                                                               |
+| GET    | `/api/cards/counts`             | Auth     | Count paired/unpaired/used (paired === has `userId`)                                                                                                                                         |
+| GET    | `/api/cards/[id]/scan`          | Public   | LUD-03 withdraw request (NFC tap); with request header `x-request-action: info` returns card status JSON instead (design, image, owner, paired/used — no keys/OTC)                           |
+| GET    | `/api/cards/[id]/scan/cb`       | Public   | LUD-03 callback, issue invoice                                                                                                                                                               |
+| POST   | `/api/cards/[id]/write-token`   | OPERATOR | Mint a single-use BoltCard programming URL — only while the card is **fresh** (never tapped); **409** otherwise                                                                              |
+| GET    | `/api/cards/[id]/write`         | Public   | NFC program payload (keys). **Requires** the single-use `?token=` from `/write-token` (replay-protected; **403** without it or once tapped); **unpairs** the card and **consumes** the token |
+| GET    | `/api/cards/[id]/wipe`          | Public   | NFC reset payload (keys); **blocks** the card (unpairs + marks `Blocked`, decommissioned). Re-fetchable; delete to remove                                                                    |
+| POST   | `/api/cards/[id]/emulate-tap`   | Auth     | Server-side SUN signing for the card emulator (no keys)                                                                                                                                      |
+| GET    | `/api/cards/otc/[otc]`          | Public   | Lookup card by one-time code                                                                                                                                                                 |
+| POST   | `/api/cards/otc/[otc]/activate` | Auth     | Activate card with username                                                                                                                                                                  |
 
 ### Card Designs
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| GET | `/api/card-designs/list` | Auth | List all designs |
-| POST | `/api/card-designs/import` | Auth | Import design from image URL |
-| GET | `/api/card-designs/count` | Auth | Design count |
-| GET | `/api/card-designs/get/[id]` | Auth | Get design by ID |
+| Method | Path                         | Auth | Purpose                      |
+| ------ | ---------------------------- | ---- | ---------------------------- |
+| GET    | `/api/card-designs/list`     | Auth | List all designs             |
+| POST   | `/api/card-designs/import`   | Auth | Import design from image URL |
+| GET    | `/api/card-designs/count`    | Auth | Design count                 |
+| GET    | `/api/card-designs/get/[id]` | Auth | Get design by ID             |
 
 ### Lightning Addresses
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| GET | `/api/lightning-addresses` | Auth | List user addresses |
-| POST | `/api/lightning-addresses` | Auth | Create new address |
-| GET | `/api/lightning-addresses/check` | Auth | Check username availability |
-| GET | `/api/lightning-addresses/counts` | Auth | Address statistics |
-| GET | `/api/lightning-addresses/relays` | Public | NIP-05 relay list |
+| Method | Path                              | Auth   | Purpose                     |
+| ------ | --------------------------------- | ------ | --------------------------- |
+| GET    | `/api/lightning-addresses`        | Auth   | List user addresses         |
+| POST   | `/api/lightning-addresses`        | Auth   | Create new address          |
+| GET    | `/api/lightning-addresses/check`  | Auth   | Check username availability |
+| GET    | `/api/lightning-addresses/counts` | Auth   | Address statistics          |
+| GET    | `/api/lightning-addresses/relays` | Public | NIP-05 relay list           |
 
 ### LUD-16
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| GET | `/api/lud16/[username]` | Public | LUD-16 pay metadata |
-| GET | `/api/lud16/[username]/cb` | Public | LUD-16 callback, issue invoice |
+| Method | Path                       | Auth   | Purpose                        |
+| ------ | -------------------------- | ------ | ------------------------------ |
+| GET    | `/api/lud16/[username]`    | Public | LUD-16 pay metadata            |
+| GET    | `/api/lud16/[username]/cb` | Public | LUD-16 callback, issue invoice |
 
 ### Users
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| GET | `/api/users/me` | Auth | Current user (auto-creates) |
-| GET | `/api/users/[userId]/cards` | Auth | List user's cards |
-| POST | `/api/users/[userId]/lightning-address` | Auth | Create address for user |
-| GET | `/api/users/[userId]/lightning-address` | Auth | Get user's address |
-| POST | `/api/users/[userId]/nwc` | Auth | Update NWC URI |
-| GET | `/api/users/[userId]/nwc` | Auth | Get user's NWC |
-| POST | `/api/users/[userId]/role` | Permission | Update user role |
+| Method | Path                                    | Auth       | Purpose                     |
+| ------ | --------------------------------------- | ---------- | --------------------------- |
+| GET    | `/api/users/me`                         | Auth       | Current user (auto-creates) |
+| GET    | `/api/users/[userId]/cards`             | Auth       | List user's cards           |
+| POST   | `/api/users/[userId]/lightning-address` | Auth       | Create address for user     |
+| GET    | `/api/users/[userId]/lightning-address` | Auth       | Get user's address          |
+| POST   | `/api/users/[userId]/nwc`               | Auth       | Update NWC URI              |
+| GET    | `/api/users/[userId]/nwc`               | Auth       | Get user's NWC              |
+| POST   | `/api/users/[userId]/role`              | Permission | Update user role            |
 
 ### Settings
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| GET | `/api/settings` | SETTINGS_READ | Fetch settings by keys |
-| POST | `/api/settings` | SETTINGS_WRITE | Update settings |
+| Method | Path            | Auth           | Purpose                |
+| ------ | --------------- | -------------- | ---------------------- |
+| GET    | `/api/settings` | SETTINGS_READ  | Fetch settings by keys |
+| POST   | `/api/settings` | SETTINGS_WRITE | Update settings        |
 
 ### Remote Connections
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| GET | `/api/remote-connections/[key]` | Auth | Get remote device info |
-| POST | `/api/remote-connections/[key]/cards` | Auth | Remote card creation |
+| Method | Path                                  | Auth | Purpose                |
+| ------ | ------------------------------------- | ---- | ---------------------- |
+| GET    | `/api/remote-connections/[key]`       | Auth | Get remote device info |
+| POST   | `/api/remote-connections/[key]/cards` | Auth | Remote card creation   |
 
 ### Events (SSE)
 
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| GET | `/api/events?token=<jwt>` | JWT (query) | SSE stream for real-time updates |
+| Method | Path                      | Auth        | Purpose                          |
+| ------ | ------------------------- | ----------- | -------------------------------- |
+| GET    | `/api/events?token=<jwt>` | JWT (query) | SSE stream for real-time updates |
 
 ---
 
 ## Deployment Options
 
-| Platform | Containers | Notes |
-|----------|------------|-------|
-| Vercel | web only | Listener + Proxy deployed separately |
-| Netlify | web only | Same as Vercel |
-| Umbrel | All 3 | Full app store package |
-| Start9 | All 3 | Embassy package |
-| Docker Compose | All 3 | Independent containers + reverse proxy |
+| Platform       | Containers | Notes                                  |
+| -------------- | ---------- | -------------------------------------- |
+| Vercel         | web only   | Listener + Proxy deployed separately   |
+| Netlify        | web only   | Same as Vercel                         |
+| Umbrel         | All 3      | Full app store package                 |
+| Start9         | All 3      | Embassy package                        |
+| Docker Compose | All 3      | Independent containers + reverse proxy |
 
 See: [DOCKER.md](./DOCKER.md)
 
@@ -844,18 +845,18 @@ See: [DOCKER.md](./DOCKER.md)
 
 ## Open Standards
 
-| Protocol | Usage |
-|----------|-------|
-| NIP-47 (NWC) | Wallet Connect — payment backend |
-| NIP-98 | HTTP Auth with Nostr events |
-| NIP-05 | Nostr identity verification |
-| NIP-07 / NIP-46 | Browser extension and remote signing |
-| NIP-57 | Nostr zaps |
-| LUD-16 | Lightning Address (LNURL-pay) |
-| LUD-03 | LNURL-withdraw (card taps) |
-| LUD-21 | Payment verification |
-| LUD-22 | Webhooks |
-| BoltCard / NTAG424 | NFC tap-to-pay cards |
+| Protocol           | Usage                                |
+| ------------------ | ------------------------------------ |
+| NIP-47 (NWC)       | Wallet Connect — payment backend     |
+| NIP-98             | HTTP Auth with Nostr events          |
+| NIP-05             | Nostr identity verification          |
+| NIP-07 / NIP-46    | Browser extension and remote signing |
+| NIP-57             | Nostr zaps                           |
+| LUD-16             | Lightning Address (LNURL-pay)        |
+| LUD-03             | LNURL-withdraw (card taps)           |
+| LUD-21             | Payment verification                 |
+| LUD-22             | Webhooks                             |
+| BoltCard / NTAG424 | NFC tap-to-pay cards                 |
 
 ---
 

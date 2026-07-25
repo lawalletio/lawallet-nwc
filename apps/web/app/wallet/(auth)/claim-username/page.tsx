@@ -10,8 +10,8 @@ export default function ClaimUsernamePage() {
       <ScreenHeader title="Claim username" />
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-sm text-muted-foreground">
-          Claiming a Lightning address is coming soon. For now, you can
-          register from the admin dashboard.
+          Claiming a Lightning address is coming soon. For now, you can register
+          from the admin dashboard.
         </p>
         <Button asChild variant="secondary">
           <Link href="/admin">Open admin</Link>

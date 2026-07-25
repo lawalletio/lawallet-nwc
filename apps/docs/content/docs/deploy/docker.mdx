@@ -1,6 +1,6 @@
 ---
-title: "Docker Deployment"
-description: "Run LaWallet NWC from the prebuilt multi-arch image, or build it yourself."
+title: 'Docker Deployment'
+description: 'Run LaWallet NWC from the prebuilt multi-arch image, or build it yourself.'
 ---
 
 The web app is published to Docker Hub as a multi-architecture image —
@@ -9,9 +9,9 @@ for both `linux/amd64` and `linux/arm64`. The same tag runs natively on Intel/AM
 servers and on ARM (Apple Silicon, AWS Graviton, Raspberry Pi); Docker pulls the
 variant that matches your host automatically.
 
-| Tag | Meaning |
-|-----|---------|
-| `masize/lawallet-nwc:latest` | Most recent published build |
+| Tag                             | Meaning                       |
+| ------------------------------- | ----------------------------- |
+| `masize/lawallet-nwc:latest`    | Most recent published build   |
 | `masize/lawallet-nwc:<version>` | Pinned release (e.g. `1.0.0`) |
 
 ## Run from the published image
@@ -36,14 +36,14 @@ startup (`prisma migrate deploy`), then serves on port **2288**.
 Override any of these via environment variables or a `.env` file next to the
 compose file:
 
-| Variable | Default | Notes |
-|----------|---------|-------|
-| `LAWALLET_TAG` | `latest` | Image tag to run (pin to a release, e.g. `1.0.0`) |
-| `PORT` | `2288` | Host port the app is published on |
-| `JWT_SECRET` | *(insecure placeholder)* | **Set this** — must be ≥ 32 characters |
-| `LISTENER_URL` | *(unset)* | Set to `http://listener:4100` when enabling the bundled listener profile |
-| `LISTENER_AUTH_SECRET` | *(unset)* | Operator-generated shared secret for the optional listener, ≥ 32 characters |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `lawallet` | Bundled Postgres credentials |
+| Variable                                              | Default                  | Notes                                                                       |
+| ----------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------- |
+| `LAWALLET_TAG`                                        | `latest`                 | Image tag to run (pin to a release, e.g. `1.0.0`)                           |
+| `PORT`                                                | `2288`                   | Host port the app is published on                                           |
+| `JWT_SECRET`                                          | _(insecure placeholder)_ | **Set this** — must be ≥ 32 characters                                      |
+| `LISTENER_URL`                                        | _(unset)_                | Set to `http://listener:4100` when enabling the bundled listener profile    |
+| `LISTENER_AUTH_SECRET`                                | _(unset)_                | Operator-generated shared secret for the optional listener, ≥ 32 characters |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `lawallet`               | Bundled Postgres credentials                                                |
 
 Postgres data persists in the `lawallet_hub_pgdata` named volume.
 

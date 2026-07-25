@@ -4,7 +4,7 @@ import { createDomainTesterServer, listen, closeServer } from './server.mjs'
 
 function commandExists(command) {
   const result = spawnSync('sh', ['-lc', `command -v ${command}`], {
-    stdio: 'ignore',
+    stdio: 'ignore'
   })
   return result.status === 0
 }
@@ -12,7 +12,9 @@ function commandExists(command) {
 async function startNgrokTunnel(port) {
   const token = process.env.NGROK_AUTHTOKEN
   if (!token) {
-    throw new Error('NGROK_AUTHTOKEN is required for the ngrok tunnel provider.')
+    throw new Error(
+      'NGROK_AUTHTOKEN is required for the ngrok tunnel provider.'
+    )
   }
 
   const ngrokModule = await import('@ngrok/ngrok')
@@ -20,7 +22,7 @@ async function startNgrokTunnel(port) {
   const listener = await ngrok.forward({
     addr: port,
     authtoken: token,
-    ...(process.env.NGROK_DOMAIN ? { domain: process.env.NGROK_DOMAIN } : {}),
+    ...(process.env.NGROK_DOMAIN ? { domain: process.env.NGROK_DOMAIN } : {})
   })
 
   return {
@@ -30,17 +32,19 @@ async function startNgrokTunnel(port) {
       if (typeof listener.close === 'function') {
         await listener.close()
       }
-    },
+    }
   }
 }
 
 function startCloudflaredTunnel(localUrl) {
   if (!commandExists('cloudflared')) {
-    throw new Error('cloudflared is not installed and no NGROK_AUTHTOKEN is available.')
+    throw new Error(
+      'cloudflared is not installed and no NGROK_AUTHTOKEN is available.'
+    )
   }
 
   const child = spawn('cloudflared', ['tunnel', '--url', localUrl], {
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', 'pipe', 'pipe']
   })
   child.stdout.setEncoding('utf8')
   child.stderr.setEncoding('utf8')
@@ -79,12 +83,12 @@ function startCloudflaredTunnel(localUrl) {
             child.kill('SIGTERM')
             await Promise.race([
               once(child, 'exit'),
-              new Promise(resolveClose => setTimeout(resolveClose, 5_000)),
+              new Promise(resolveClose => setTimeout(resolveClose, 5_000))
             ])
             if (child.exitCode === null) {
               child.kill('SIGKILL')
             }
-          },
+          }
         })
       }
     }
@@ -94,7 +98,11 @@ function startCloudflaredTunnel(localUrl) {
     child.once('error', error => finish(error))
     child.once('exit', (code, signal) => {
       if (!settled) {
-        finish(new Error(`cloudflared exited before ready (code=${code}, signal=${signal}).\n${output}`))
+        finish(
+          new Error(
+            `cloudflared exited before ready (code=${code}, signal=${signal}).\n${output}`
+          )
+        )
       }
     })
   })
@@ -125,7 +133,7 @@ const payload = {
   ...getStatus(),
   provider: tunnel.provider,
   publicUrl,
-  publicHost: new URL(publicUrl).host,
+  publicHost: new URL(publicUrl).host
 }
 
 console.log(`DOMAIN_TESTER_READY ${JSON.stringify(payload)}`)

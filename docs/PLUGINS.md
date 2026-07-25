@@ -5,7 +5,7 @@ hooks, persisted state — **without touching core code**. A plugin is one
 directory under `apps/web/plugins/` plus one registration line; upstream
 merges never conflict with it.
 
-> Looking for the older proposal of *external* Nostr-service plugins?
+> Looking for the older proposal of _external_ Nostr-service plugins?
 > That's `docs/plugins/*.md`. This document describes the implemented,
 > in-process system.
 
@@ -40,10 +40,10 @@ apps/web/plugins/
 A plugin has **two manifests** so server-only code (Prisma, hooks) never
 enters the client bundle:
 
-| File | Runs on | Declares |
-|------|---------|----------|
-| `plugin.ts` | server | `id`, `name`, `version`, `configSchema` (Zod), `defaultEnabled`, `routes`, `hooks`, `migrate` |
-| `client.tsx` | client | `id` (must match), `navItems`, `Page` |
+| File         | Runs on | Declares                                                                                      |
+| ------------ | ------- | --------------------------------------------------------------------------------------------- |
+| `plugin.ts`  | server  | `id`, `name`, `version`, `configSchema` (Zod), `defaultEnabled`, `routes`, `hooks`, `migrate` |
+| `client.tsx` | client  | `id` (must match), `navItems`, `Page`                                                         |
 
 ## Extension points
 

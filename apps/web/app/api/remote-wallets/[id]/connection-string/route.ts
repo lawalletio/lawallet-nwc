@@ -46,7 +46,7 @@ export const GET = withErrorHandling(
 
     if (wallet.type !== 'NWC') {
       throw new ValidationError(
-        `Connection strings are not exposed for ${wallet.type} wallets yet`,
+        `Connection strings are not exposed for ${wallet.type} wallets yet`
       )
     }
 
@@ -65,5 +65,5 @@ export const GET = withErrorHandling(
     }
 
     return NextResponse.json({ connectionString })
-  },
+  }
 )

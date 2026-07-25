@@ -10,14 +10,17 @@ import { Spinner } from '@/components/ui/spinner'
 import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 import {
   parseDestination,
-  type ParsedDestination,
+  type ParsedDestination
 } from '@/lib/client/nwc/parse-destination'
-import { parseActivationUrl, isSameInstanceHost } from '@/lib/client/activation-url'
+import {
+  parseActivationUrl,
+  isSameInstanceHost
+} from '@/lib/client/activation-url'
 import { looksLikeLnurl, resolveLnurl } from '@/lib/client/lnurl-scan'
 import {
   sendActions,
   withdrawActions,
-  type ResolvedRecipient,
+  type ResolvedRecipient
 } from '@/lib/client/wallet-flow-store'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
@@ -53,7 +56,7 @@ export function ScanScreen() {
   const [error, setError] = useState<string | null>(null)
   const [resolving, setResolving] = useState(false)
   const [notice, setNotice] = useState<{ message: string; url: string } | null>(
-    null,
+    null
   )
   // Bumped by "Scan another" to re-run the scanner effect after the notice
   // panel is dismissed and the <video> is back in the tree.
@@ -79,7 +82,7 @@ export function ScanScreen() {
         router.replace('/wallet/send/amount')
       }
     },
-    [router],
+    [router]
   )
 
   const handleResult = useCallback(
@@ -97,7 +100,7 @@ export function ScanScreen() {
         } else {
           setNotice({
             message: `This card belongs to ${activation.host}, not ${window.location.host}. Open it there to activate.`,
-            url: text.trim(),
+            url: text.trim()
           })
         }
         return
@@ -127,7 +130,7 @@ export function ScanScreen() {
               lnurlpUrl: resolved.lnurlpUrl,
               address: null,
               username: null,
-              host: null,
+              host: null
             })
             return
           }
@@ -155,7 +158,7 @@ export function ScanScreen() {
         toast.error(message)
       }
     },
-    [router, routeInvoiceOrAddress, stopScanner],
+    [router, routeInvoiceOrAddress, stopScanner]
   )
 
   const startScanner = useCallback(async () => {
@@ -163,7 +166,7 @@ export function ScanScreen() {
     setError(null)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: { facingMode: 'environment' }
       })
       stream.getTracks().forEach(t => t.stop())
       if (cancelledRef.current) return
@@ -175,14 +178,18 @@ export function ScanScreen() {
       if (cancelledRef.current) return
       const reader = new BrowserMultiFormatReader()
       readerRef.current = reader
-      await reader.decodeFromVideoDevice(null, videoRef.current!, (result, err) => {
-        if (cancelledRef.current) return
-        if (result) void handleResult(result.getText())
-        // Ignore NotFoundException — fires every frame without a match.
-        if (err && err.name !== 'NotFoundException') {
-          console.warn('[scan]', err)
+      await reader.decodeFromVideoDevice(
+        null,
+        videoRef.current!,
+        (result, err) => {
+          if (cancelledRef.current) return
+          if (result) void handleResult(result.getText())
+          // Ignore NotFoundException — fires every frame without a match.
+          if (err && err.name !== 'NotFoundException') {
+            console.warn('[scan]', err)
+          }
         }
-      })
+      )
     } catch (err) {
       if (cancelledRef.current) return
       setPermission('denied')
@@ -248,7 +255,11 @@ export function ScanScreen() {
 
   return (
     <div className="flex flex-1 flex-col bg-background">
-      <ScreenHeader title="Scan" closeStyle onBack={() => router.replace('/wallet')} />
+      <ScreenHeader
+        title="Scan"
+        closeStyle
+        onBack={() => router.replace('/wallet')}
+      />
 
       <div className="relative flex flex-1 flex-col items-center justify-center gap-6 px-6 pb-10">
         {permission === 'denied' ? (
@@ -258,7 +269,10 @@ export function ScanScreen() {
               Camera unavailable
             </h2>
             <p className="text-sm text-muted-foreground">{error}</p>
-            <Button variant="secondary" onClick={() => router.replace('/wallet')}>
+            <Button
+              variant="secondary"
+              onClick={() => router.replace('/wallet')}
+            >
               Back to wallet
             </Button>
           </div>
@@ -287,7 +301,8 @@ export function ScanScreen() {
             </div>
 
             <p className="text-center text-sm text-muted-foreground">
-              Point your camera at a Lightning invoice, address, LNURL, or card QR.
+              Point your camera at a Lightning invoice, address, LNURL, or card
+              QR.
             </p>
           </>
         )}

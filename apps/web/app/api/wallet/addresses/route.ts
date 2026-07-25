@@ -4,7 +4,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   AuthenticationError,
   ConflictError,
-  NotFoundError,
+  NotFoundError
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
@@ -16,14 +16,14 @@ import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import {
   toWalletAddressDto,
-  type WalletAddressDto,
+  type WalletAddressDto
 } from '@/lib/wallet/wallet-address-dto'
 import { resolveDefaultAddressMode } from '@/lib/wallet/default-address-mode'
 import {
   derivePrimaryWallet,
   findInitialPrimaryWalletCandidate,
   getPrimaryRemoteWalletForUser,
-  syncPrimaryRemoteWalletFlag,
+  syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
@@ -45,19 +45,19 @@ export const GET = withErrorHandling(async (request: Request) => {
         include: {
           lightningAddresses: {
             include: { remoteWallet: true },
-            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-          },
-        },
+            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }]
+          }
+        }
       })
     : null
 
   if (!user) throw new NotFoundError('User not found')
   const defaultWallet = derivePrimaryWallet(
-    user.lightningAddresses.find(addr => addr.isPrimary),
+    user.lightningAddresses.find(addr => addr.isPrimary)
   )
 
   const dtos: WalletAddressDto[] = user.lightningAddresses.map(addr =>
-    toWalletAddressDto(addr, defaultWallet),
+    toWalletAddressDto(addr, defaultWallet)
   )
   return NextResponse.json(dtos)
 })
@@ -73,7 +73,10 @@ export const GET = withErrorHandling(async (request: Request) => {
 export const POST = withErrorHandling(async (request: Request) => {
   await checkRequestLimits(request, 'json')
   const { pubkey, role } = await authenticate(request)
-  const { username, mode } = await validateBody(request, createWalletAddressSchema)
+  const { username, mode } = await validateBody(
+    request,
+    createWalletAddressSchema
+  )
 
   const user = await resolveAccountByPubkey(pubkey)
   if (!user) throw new AuthenticationError('User not found')
@@ -83,7 +86,9 @@ export const POST = withErrorHandling(async (request: Request) => {
   // non-bypassing actors must go through /api/invoices + preimage claim.
   await requireAddressRegistration(role)
 
-  const existing = await prisma.lightningAddress.findUnique({ where: { username } })
+  const existing = await prisma.lightningAddress.findUnique({
+    where: { username }
+  })
   if (existing) throw new ConflictError('Username is already taken')
 
   // A user's first/only address becomes their primary automatically — nobody
@@ -91,7 +96,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   // touch the existing primary. The DB's partial-unique index (one primary per
   // userId) makes this safe: when the count is 0 there's no primary to clash.
   const ownedCount = await prisma.lightningAddress.count({
-    where: { userId: user.id },
+    where: { userId: user.id }
   })
   const isPrimary = ownedCount === 0
 
@@ -103,7 +108,7 @@ export const POST = withErrorHandling(async (request: Request) => {
       ? primaryCandidate
         ? 'CUSTOM_NWC'
         : 'IDLE'
-      : mode ?? (await resolveDefaultAddressMode(user.id))
+      : (mode ?? (await resolveDefaultAddressMode(user.id)))
 
     const address = await tx.lightningAddress.create({
       data: {
@@ -111,9 +116,9 @@ export const POST = withErrorHandling(async (request: Request) => {
         userId: user.id,
         mode: nextMode,
         remoteWalletId: primaryCandidate?.id ?? null,
-        isPrimary,
+        isPrimary
       },
-      include: { remoteWallet: true },
+      include: { remoteWallet: true }
     })
 
     if (isPrimary) {
@@ -137,7 +142,9 @@ export const POST = withErrorHandling(async (request: Request) => {
     event: ActivityEvent.ADDRESS_CREATED,
     message: `Lightning address created: ${created.username}`,
     userId: user.id,
-    metadata: { username: created.username, mode: created.mode },
+    metadata: { username: created.username, mode: created.mode }
   })
-  return NextResponse.json(toWalletAddressDto(created, defaultWallet), { status: 201 })
+  return NextResponse.json(toWalletAddressDto(created, defaultWallet), {
+    status: 201
+  })
 })

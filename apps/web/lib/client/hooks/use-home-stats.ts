@@ -32,7 +32,7 @@ export function useSystemStatus() {
   return {
     data: { status: 'OK', lastIncident: 'No recent incidents' },
     loading: false,
-    error: null,
+    error: null
   }
 }
 

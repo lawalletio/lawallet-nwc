@@ -6,7 +6,9 @@ export function createParamsPromise<T>(params: T): { params: Promise<T> } {
 }
 
 // Returns a mock AppConfig with sane defaults for testing
-export function createDefaultConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+export function createDefaultConfig(
+  overrides: Partial<AppConfig> = {}
+): AppConfig {
   return {
     env: 'test',
     isDevelopment: false,
@@ -15,19 +17,29 @@ export function createDefaultConfig(overrides: Partial<AppConfig> = {}): AppConf
     logPretty: false,
     database: { url: 'postgresql://test' },
     jwt: { secret: 'test-jwt-secret', enabled: true },
-    alby: { apiUrl: undefined, bearerToken: undefined, autoGenerateSubAccounts: false, enabled: false },
+    alby: {
+      apiUrl: undefined,
+      bearerToken: undefined,
+      autoGenerateSubAccounts: false,
+      enabled: false
+    },
     server: { port: 3000 },
     github: { token: undefined, projectNumber: undefined, enabled: false },
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576, maxFileSize: 10485760, maxFiles: 5 },
+    requestLimits: {
+      maxBodySize: 1048576,
+      maxJsonSize: 1048576,
+      maxFileSize: 10485760,
+      maxFiles: 5
+    },
     nostrProfileCache: { dir: undefined },
     rateLimit: {
       enabled: false,
       windowMs: 60000,
       maxRequests: 100,
       maxRequestsAuth: 20,
-      upstash: { url: undefined, token: undefined, enabled: false },
+      upstash: { url: undefined, token: undefined, enabled: false }
     },
-    ...overrides,
+    ...overrides
   } as AppConfig
 }

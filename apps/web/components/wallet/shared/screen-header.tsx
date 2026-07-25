@@ -21,7 +21,7 @@ export function ScreenHeader({
   onBack,
   closeStyle = false,
   trailing,
-  className,
+  className
 }: ScreenHeaderProps) {
   const router = useRouter()
   const Icon = closeStyle ? X : ChevronLeft
@@ -35,7 +35,7 @@ export function ScreenHeader({
     <header
       className={cn(
         'sticky top-0 z-20 flex h-14 items-center justify-between bg-background/80 px-3 backdrop-blur-xl',
-        className,
+        className
       )}
     >
       <button

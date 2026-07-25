@@ -6,10 +6,15 @@ export enum Role {
   ADMIN = 'ADMIN',
   OPERATOR = 'OPERATOR',
   VIEWER = 'VIEWER',
-  USER = 'USER',
+  USER = 'USER'
 }
 
-const ROLE_HIERARCHY: Role[] = [Role.USER, Role.VIEWER, Role.OPERATOR, Role.ADMIN]
+const ROLE_HIERARCHY: Role[] = [
+  Role.USER,
+  Role.VIEWER,
+  Role.OPERATOR,
+  Role.ADMIN
+]
 
 /**
  * Granular permissions checked by RBAC guards. Each role maps to a fixed
@@ -29,7 +34,7 @@ export enum Permission {
   ADDRESSES_WRITE = 'addresses:write',
   NTAGS_READ = 'ntags:read',
   NTAGS_WRITE = 'ntags:write',
-  ACTIVITY_READ = 'activity:read',
+  ACTIVITY_READ = 'activity:read'
 }
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -44,7 +49,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.NTAGS_READ,
     Permission.NTAGS_WRITE,
     Permission.USERS_READ,
-    Permission.ACTIVITY_READ,
+    Permission.ACTIVITY_READ
   ],
   [Role.VIEWER]: [
     Permission.CARDS_READ,
@@ -53,9 +58,9 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.NTAGS_READ,
     Permission.USERS_READ,
     Permission.SETTINGS_READ,
-    Permission.ACTIVITY_READ,
+    Permission.ACTIVITY_READ
   ],
-  [Role.USER]: [],
+  [Role.USER]: []
 }
 
 /**

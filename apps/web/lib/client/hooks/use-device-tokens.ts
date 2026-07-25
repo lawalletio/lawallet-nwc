@@ -40,6 +40,6 @@ export function useGenerateDeviceToken() {
     generate: (input: GenerateDeviceTokenInput) =>
       mutate('post', '/api/auth/qr-jwt/generate', input),
     loading,
-    error,
+    error
   }
 }

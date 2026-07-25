@@ -7,7 +7,14 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { validateQuery } from '@/lib/validation/middleware'
 import type { Prisma } from '@/lib/generated/prisma'
 
-const CATEGORIES = ['USER', 'ADDRESS', 'NWC', 'INVOICE', 'CARD', 'SERVER'] as const
+const CATEGORIES = [
+  'USER',
+  'ADDRESS',
+  'NWC',
+  'INVOICE',
+  'CARD',
+  'SERVER'
+] as const
 const LEVELS = ['INFO', 'WARN', 'ERROR'] as const
 
 const listQuerySchema = z.object({
@@ -19,7 +26,7 @@ const listQuerySchema = z.object({
     .string()
     .regex(/^\d+$/)
     .transform(v => Math.min(100, Math.max(1, Number(v))))
-    .optional(),
+    .optional()
 })
 
 export const GET = withErrorHandling(async (request: Request) => {
@@ -44,7 +51,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     where,
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
-    ...(cursor ? { cursor, skip: 1 } : {}),
+    ...(cursor ? { cursor, skip: 1 } : {})
   })
 
   const hasMore = rows.length > limit

@@ -29,28 +29,51 @@ const QUIET_CLIENT_ERRORS = new Set([401, 403, 404, 429])
 function inferCategoryFromPath(pathname: string | undefined): ActivityCategory {
   if (!pathname) return 'SERVER'
   if (pathname.startsWith('/api/invoices')) return 'INVOICE'
-  if (pathname.startsWith('/api/cards') || pathname.startsWith('/api/card-designs')) return 'CARD'
-  if (pathname.startsWith('/api/wallet/addresses') || pathname.includes('/lightning-address')) return 'ADDRESS'
-  if (pathname.startsWith('/api/wallet/nwc-connections') || pathname.includes('/nwc')) return 'NWC'
+  if (
+    pathname.startsWith('/api/cards') ||
+    pathname.startsWith('/api/card-designs')
+  )
+    return 'CARD'
+  if (
+    pathname.startsWith('/api/wallet/addresses') ||
+    pathname.includes('/lightning-address')
+  )
+    return 'ADDRESS'
+  if (
+    pathname.startsWith('/api/wallet/nwc-connections') ||
+    pathname.includes('/nwc')
+  )
+    return 'NWC'
   if (
     pathname.startsWith('/api/users') ||
     pathname.startsWith('/api/jwt') ||
     pathname.startsWith('/api/admin') ||
     pathname.startsWith('/api/root')
-  ) return 'USER'
+  )
+    return 'USER'
   return 'SERVER'
 }
 
-function eventCodeForError(category: ActivityCategory, isServerError: boolean, isDbError: boolean): string {
+function eventCodeForError(
+  category: ActivityCategory,
+  isServerError: boolean,
+  isDbError: boolean
+): string {
   if (isDbError) return ActivityEvent.SERVER_DATABASE_ERROR
   if (isServerError) return ActivityEvent.SERVER_UNHANDLED_ERROR
   switch (category) {
-    case 'USER': return ActivityEvent.USER_ERROR
-    case 'ADDRESS': return ActivityEvent.ADDRESS_ERROR
-    case 'CARD': return ActivityEvent.CARD_ERROR
-    case 'NWC': return ActivityEvent.NWC_CONNECTION_ERROR
-    case 'INVOICE': return ActivityEvent.INVOICE_GENERATION_FAILED
-    default: return ActivityEvent.SERVER_UNHANDLED_ERROR
+    case 'USER':
+      return ActivityEvent.USER_ERROR
+    case 'ADDRESS':
+      return ActivityEvent.ADDRESS_ERROR
+    case 'CARD':
+      return ActivityEvent.CARD_ERROR
+    case 'NWC':
+      return ActivityEvent.NWC_CONNECTION_ERROR
+    case 'INVOICE':
+      return ActivityEvent.INVOICE_GENERATION_FAILED
+    default:
+      return ActivityEvent.SERVER_UNHANDLED_ERROR
   }
 }
 
@@ -79,7 +102,9 @@ export const handleApiError = (
 
   // Mirror qualifying errors into the ActivityLog audit trail.
   const statusCode = apiError.statusCode
-  const shouldLog = statusCode >= 500 || (statusCode >= 400 && !QUIET_CLIENT_ERRORS.has(statusCode))
+  const shouldLog =
+    statusCode >= 500 ||
+    (statusCode >= 400 && !QUIET_CLIENT_ERRORS.has(statusCode))
   if (shouldLog) {
     const isServerError = statusCode >= 500
     const isDbError =
@@ -94,7 +119,8 @@ export const handleApiError = (
         )
     const level: ActivityLevel = isServerError ? 'ERROR' : 'WARN'
     const method = request instanceof Request ? request.method : undefined
-    const pathname = request instanceof Request ? safePathname(request.url) : undefined
+    const pathname =
+      request instanceof Request ? safePathname(request.url) : undefined
     logActivity.fireAndForget({
       category,
       event: eventCodeForError(category, isServerError, isDbError),
@@ -104,8 +130,8 @@ export const handleApiError = (
         statusCode,
         code: apiError.code,
         method,
-        pathname,
-      },
+        pathname
+      }
     })
   }
 

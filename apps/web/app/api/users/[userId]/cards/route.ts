@@ -2,17 +2,17 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Card } from '@/types/card'
 import { withErrorHandling } from '@/types/server/error-handler'
-import {
-  AuthorizationError,
-  NotFoundError,
-} from '@/types/server/errors'
+import { AuthorizationError, NotFoundError } from '@/types/server/errors'
 import { userIdParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 
 export const GET = withErrorHandling(
-  async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
+  async (
+    request: Request,
+    { params }: { params: Promise<{ userId: string }> }
+  ) => {
     const { pubkey: authenticatedPubkey } = await authenticate(request)
 
     const { userId } = validateParams(await params, userIdParam)

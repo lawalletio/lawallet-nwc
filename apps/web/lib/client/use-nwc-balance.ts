@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { nwcCacheKey } from '@/lib/client/cache/key'
-import {
-  readBalance,
-  writeBalance,
-} from '@/lib/client/cache/balance-cache'
+import { readBalance, writeBalance } from '@/lib/client/cache/balance-cache'
 import { upsertMany } from '@/lib/client/cache/activity-cache'
 
 /**
@@ -89,7 +86,7 @@ const DEFAULT_POLL_MS = 30_000
  */
 const SUPPRESSED_SDK_ERROR_PREFIXES = [
   'Failed to request',
-  'failed to connect to any relay',
+  'failed to connect to any relay'
 ]
 let sdkConsolePatchInstalled = false
 function installSdkConsolePatch() {
@@ -129,22 +126,28 @@ export function useNwcBalance(
   // balance immediately. `nwcCacheKey` is synchronous (FNV-1a) so this
   // happens in the same tick as state init — no flash of `null` and no
   // microtask gap before the cache hit lands.
-  const initial = (() => {
+  const initial = () => {
     if (!nwcString) {
-      return { sats: null as number | null, fromCache: false, updatedAt: null as number | null }
+      return {
+        sats: null as number | null,
+        fromCache: false,
+        updatedAt: null as number | null
+      }
     }
     const cached = readBalance(nwcCacheKey(nwcString))
     if (!cached) {
       return { sats: null, fromCache: false, updatedAt: null }
     }
     return { sats: cached.sats, fromCache: true, updatedAt: cached.fetchedAt }
-  })
+  }
 
   const [sats, setSats] = useState<number | null>(() => initial().sats)
   const [fromCache, setFromCache] = useState<boolean>(() => initial().fromCache)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  const [updatedAt, setUpdatedAt] = useState<number | null>(() => initial().updatedAt)
+  const [updatedAt, setUpdatedAt] = useState<number | null>(
+    () => initial().updatedAt
+  )
   const [status, setStatus] = useState<NwcStatus>('idle')
 
   // Internal nonce for a manual refetch trigger
@@ -246,7 +249,7 @@ export function useNwcBalance(
             toast.error(
               isTimeout
                 ? 'Wallet relay timed out. Retrying in the background…'
-                : 'Wallet disconnected. Retrying in the background…',
+                : 'Wallet disconnected. Retrying in the background…'
             )
             lastAnnouncedRef.current = 'disconnected'
           }
@@ -260,36 +263,39 @@ export function useNwcBalance(
 
       // Subscribe to NIP-47 notifications for real-time updates
       try {
-        unsubscribe = await client.subscribeNotifications(notification => {
-          if (cancelled) return
-          const tx = notification.notification
-          // Refresh balance on any payment event so the UI stays in sync
-          fetchOnce()
-          const event = {
-            type: tx.type,
-            amountSats: Math.floor(tx.amount / 1000),
-            feesPaidSats: Math.floor((tx.fees_paid ?? 0) / 1000),
-            description: tx.description ?? '',
-            paymentHash: tx.payment_hash,
-            settledAt: tx.settled_at ? tx.settled_at * 1000 : null,
-          }
-          onTransactionRef.current?.(event)
-          // Mirror the new tx into the activity cache so the next reload
-          // (or a freshly-mounted ActivityScreen) paints with it
-          // pre-applied. `upsertMany` swallows IDB errors itself.
-          upsertMany(nwcKey, [
-            {
-              type: event.type,
-              amountSats: event.amountSats,
-              feesPaidSats: event.feesPaidSats,
-              description: event.description,
-              paymentHash: event.paymentHash,
-              preimage: null,
-              settledAt: event.settledAt,
-              createdAt: event.settledAt ?? Date.now(),
-            },
-          ])
-        }, ['payment_received', 'payment_sent'])
+        unsubscribe = await client.subscribeNotifications(
+          notification => {
+            if (cancelled) return
+            const tx = notification.notification
+            // Refresh balance on any payment event so the UI stays in sync
+            fetchOnce()
+            const event = {
+              type: tx.type,
+              amountSats: Math.floor(tx.amount / 1000),
+              feesPaidSats: Math.floor((tx.fees_paid ?? 0) / 1000),
+              description: tx.description ?? '',
+              paymentHash: tx.payment_hash,
+              settledAt: tx.settled_at ? tx.settled_at * 1000 : null
+            }
+            onTransactionRef.current?.(event)
+            // Mirror the new tx into the activity cache so the next reload
+            // (or a freshly-mounted ActivityScreen) paints with it
+            // pre-applied. `upsertMany` swallows IDB errors itself.
+            upsertMany(nwcKey, [
+              {
+                type: event.type,
+                amountSats: event.amountSats,
+                feesPaidSats: event.feesPaidSats,
+                description: event.description,
+                paymentHash: event.paymentHash,
+                preimage: null,
+                settledAt: event.settledAt,
+                createdAt: event.settledAt ?? Date.now()
+              }
+            ])
+          },
+          ['payment_received', 'payment_sent']
+        )
       } catch {
         // Wallet may not support notifications — polling still works.
       }

@@ -40,7 +40,7 @@ function parseRelays(raw: string | null): string[] {
 export const GET = withErrorHandling(
   async (
     request: Request,
-    { params }: { params: Promise<{ userId: string }> },
+    { params }: { params: Promise<{ userId: string }> }
   ) => {
     const auth = await authenticate(request)
 
@@ -65,9 +65,9 @@ export const GET = withErrorHandling(
       include: {
         lightningAddresses: {
           orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
-          include: { remoteWallet: true },
-        },
-      },
+          include: { remoteWallet: true }
+        }
+      }
     })
 
     if (!user) {
@@ -91,8 +91,8 @@ export const GET = withErrorHandling(
       prisma.invoice.aggregate({
         where: { userId: user.id, status: 'PAID' },
         _sum: { amountSats: true },
-        _count: true,
-      }),
+        _count: true
+      })
     ])
 
     return NextResponse.json({
@@ -104,13 +104,13 @@ export const GET = withErrorHandling(
       // array so the profile badge can show the count for any viewer.
       relays: parseRelays(user.relays),
       addresses: user.lightningAddresses.map(a =>
-        toWalletAddressDto(a, defaultWallet),
+        toWalletAddressDto(a, defaultWallet)
       ),
       transactions: {
         total: transactionCount,
         paid: paidInvoices._count,
-        paidSats: paidInvoices._sum.amountSats ?? 0,
-      },
+        paidSats: paidInvoices._sum.amountSats ?? 0
+      }
     })
-  },
+  }
 )

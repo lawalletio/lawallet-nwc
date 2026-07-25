@@ -69,6 +69,6 @@ export function parseEndpoint(
   // No scheme — fallback to https (or http for localhost variants).
   return {
     protocol: isLocalHost(cleaned) ? 'http:' : 'https:',
-    host: cleaned,
+    host: cleaned
   }
 }

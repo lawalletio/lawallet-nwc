@@ -1,25 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
-import { createUserFixture, createCardFixture, createCardDesignFixture } from '@/tests/helpers/fixtures'
+import {
+  createUserFixture,
+  createCardFixture,
+  createCardDesignFixture
+} from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 import { AuthenticationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn(),
+  authenticate: vi.fn()
 }))
 
 import { GET } from '@/app/api/users/[userId]/cards/route'
@@ -31,14 +35,12 @@ function mockAuth(pubkey: string = mockPubkey) {
   vi.mocked(authenticate).mockResolvedValue({
     pubkey,
     role: 'USER' as any,
-    method: 'nip98',
+    method: 'nip98'
   })
 }
 
 function mockAuthReject() {
-  vi.mocked(authenticate).mockRejectedValue(
-    new AuthenticationError('no auth')
-  )
+  vi.mocked(authenticate).mockRejectedValue(new AuthenticationError('no auth'))
 }
 
 beforeEach(() => {
@@ -55,7 +57,7 @@ describe('GET /api/users/[userId]/cards', () => {
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([
-      { ...card, design, user: { pubkey: mockPubkey } },
+      { ...card, design, user: { pubkey: mockPubkey } }
     ] as any)
 
     const req = createNextRequest(`/api/users/${user.id}/cards`)
@@ -86,7 +88,7 @@ describe('GET /api/users/[userId]/cards', () => {
     // The caller's pubkey resolves to their OWN account (distinct from the
     // target) via the NostrIdentity seam.
     vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
-      user: { id: 'caller-account', pubkey: mockPubkey, role: 'USER' },
+      user: { id: 'caller-account', pubkey: mockPubkey, role: 'USER' }
     } as any)
 
     const req = createNextRequest(`/api/users/${otherUser.id}/cards`)

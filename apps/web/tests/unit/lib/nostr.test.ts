@@ -5,7 +5,7 @@ import {
   hexToNsec,
   nsecToHex,
   validateNsec,
-  parseBunkerUrl,
+  parseBunkerUrl
 } from '@/lib/nostr'
 
 describe('generatePrivateKey', () => {
@@ -30,7 +30,9 @@ describe('getPublicKeyFromPrivate', () => {
 
   it('is deterministic', () => {
     const privKey = generatePrivateKey()
-    expect(getPublicKeyFromPrivate(privKey)).toBe(getPublicKeyFromPrivate(privKey))
+    expect(getPublicKeyFromPrivate(privKey)).toBe(
+      getPublicKeyFromPrivate(privKey)
+    )
   })
 
   it('different private keys produce different public keys', () => {
@@ -97,7 +99,9 @@ describe('parseBunkerUrl', () => {
 
   it('throws for missing relays', () => {
     const pubkey = 'c'.repeat(64)
-    expect(() => parseBunkerUrl(`bunker://${pubkey}`)).toThrow('Invalid bunker URL')
+    expect(() => parseBunkerUrl(`bunker://${pubkey}`)).toThrow(
+      'Invalid bunker URL'
+    )
   })
 
   it('throws for invalid URL format', () => {

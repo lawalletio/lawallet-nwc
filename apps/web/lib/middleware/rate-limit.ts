@@ -167,7 +167,10 @@ export function applyRateLimitHeaders(
   headers.set('X-RateLimit-Reset', result.reset.toString())
 
   if (!result.success) {
-    headers.set('Retry-After', Math.max(1, result.reset - Math.floor(Date.now() / 1000)).toString())
+    headers.set(
+      'Retry-After',
+      Math.max(1, result.reset - Math.floor(Date.now() / 1000)).toString()
+    )
   }
 
   return new Response(response.body, {
@@ -221,13 +224,16 @@ export async function rateLimit(
       retryAfter
     })
 
-    throw new TooManyRequestsError('Rate limit exceeded. Please try again later.', {
-      retryAfter,
-      details: {
-        limit: result.limit,
-        reset: result.reset
+    throw new TooManyRequestsError(
+      'Rate limit exceeded. Please try again later.',
+      {
+        retryAfter,
+        details: {
+          limit: result.limit,
+          reset: result.reset
+        }
       }
-    })
+    )
   }
 
   return result

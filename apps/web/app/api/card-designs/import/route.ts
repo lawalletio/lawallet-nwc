@@ -31,7 +31,10 @@ export const POST = withErrorHandling(async (request: Request) => {
   logger.info('Fetching card designs from veintiuno.lat')
   const res = await fetch('https://veintiuno.lat/api/cards.json')
   if (!res.ok) {
-    logger.error({ status: res.status }, 'Failed to fetch cards from veintiuno.lat')
+    logger.error(
+      { status: res.status },
+      'Failed to fetch cards from veintiuno.lat'
+    )
     throw new InternalServerError('Failed to fetch cards from veintiuno.lat', {
       details: { status: res.status }
     })
@@ -59,9 +62,15 @@ export const POST = withErrorHandling(async (request: Request) => {
     rawDesigns.filter((c: any) => c?.communityId === community_id).length -
     fetchedDesigns.length
   if (rejected > 0) {
-    logger.warn({ rejected }, 'Skipped catalog entries with an unusable image URL')
+    logger.warn(
+      { rejected },
+      'Skipped catalog entries with an unusable image URL'
+    )
   }
-  logger.info({ count: fetchedDesigns.length, community_id }, 'Fetched designs for community')
+  logger.info(
+    { count: fetchedDesigns.length, community_id },
+    'Fetched designs for community'
+  )
 
   // Check if designs already exist to avoid duplicates
   logger.info('Checking for existing card designs in the database')
@@ -73,10 +82,15 @@ export const POST = withErrorHandling(async (request: Request) => {
     },
     select: { id: true }
   })
-  logger.info({ count: existingDesigns.length }, 'Found existing designs in database')
+  logger.info(
+    { count: existingDesigns.length },
+    'Found existing designs in database'
+  )
 
   const existingIds = new Set(existingDesigns.map(design => design.id))
-  const newDesigns = fetchedDesigns.filter(design => !existingIds.has(design.id))
+  const newDesigns = fetchedDesigns.filter(
+    design => !existingIds.has(design.id)
+  )
   logger.info({ count: newDesigns.length }, 'Identified new designs to import')
 
   if (newDesigns.length === 0) {
@@ -105,7 +119,10 @@ export const POST = withErrorHandling(async (request: Request) => {
     )
   )
 
-  logger.info({ count: importedDesigns.length }, 'Imported card designs successfully')
+  logger.info(
+    { count: importedDesigns.length },
+    'Imported card designs successfully'
+  )
 
   eventBus.emit({ type: 'designs:updated', timestamp: Date.now() })
 

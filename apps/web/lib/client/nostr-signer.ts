@@ -1,12 +1,21 @@
 import type { NostrSigner } from '@nostrify/nostrify'
 import { NSecSigner, NBrowserSigner } from '@nostrify/nostrify'
 import { hexToBytes, bytesToHex } from 'nostr-tools/utils'
-import { generateSecretKey, getPublicKey, finalizeEvent, verifyEvent } from 'nostr-tools/pure'
-import { privateKeyToHex, validatePrivateKey, parseBunkerUrl } from '@/lib/nostr'
+import {
+  generateSecretKey,
+  getPublicKey,
+  finalizeEvent,
+  verifyEvent
+} from 'nostr-tools/pure'
+import {
+  privateKeyToHex,
+  validatePrivateKey,
+  parseBunkerUrl
+} from '@/lib/nostr'
 
 export const DEFAULT_NOSTR_CONNECT_RELAYS = [
   'wss://relay.nsec.app',
-  'wss://relay.damus.io',
+  'wss://relay.damus.io'
 ]
 
 /**
@@ -47,7 +56,7 @@ export async function createBunkerSigner(
   const signer = new Nip46Signer(clientSecretKey, {
     pubkey: remoteUserPubkey,
     relays,
-    secret: secret ?? undefined,
+    secret: secret ?? undefined
   })
 
   const timeoutMs = opts?.timeout ?? 30_000
@@ -59,9 +68,11 @@ export async function createBunkerSigner(
       signer.connect(),
       new Promise<never>((_, reject) => {
         controller.signal.addEventListener('abort', () =>
-          reject(new Error(`Bunker connection timed out after ${timeoutMs / 1000}s`))
+          reject(
+            new Error(`Bunker connection timed out after ${timeoutMs / 1000}s`)
+          )
         )
-      }),
+      })
     ])
   } finally {
     clearTimeout(timer)
@@ -95,14 +106,14 @@ export async function createNostrConnectSigner(opts: {
     clientPubkey,
     relays,
     secret,
-    name: opts.appName ?? 'LaWallet',
+    name: opts.appName ?? 'LaWallet'
   })
 
   opts.onURI?.(uri)
 
   const signer = await Nip46Signer.fromURI(clientSecretKey, uri, {
     timeout: opts.timeout ?? 60_000,
-    signal: opts.signal,
+    signal: opts.signal
   })
 
   return wrapNip46Signer(signer)
@@ -112,15 +123,19 @@ export async function createNostrConnectSigner(opts: {
 function wrapNip46Signer(signer: Nip46Signer): NostrSigner {
   return {
     getPublicKey: () => signer.getPublicKey(),
-    signEvent: (event) => signer.signEvent(event),
+    signEvent: event => signer.signEvent(event),
     nip04: {
-      encrypt: (pubkey, plaintext) => signer.sendRequest('nip04_encrypt', [pubkey, plaintext]),
-      decrypt: (pubkey, ciphertext) => signer.sendRequest('nip04_decrypt', [pubkey, ciphertext]),
+      encrypt: (pubkey, plaintext) =>
+        signer.sendRequest('nip04_encrypt', [pubkey, plaintext]),
+      decrypt: (pubkey, ciphertext) =>
+        signer.sendRequest('nip04_decrypt', [pubkey, ciphertext])
     },
     nip44: {
-      encrypt: (pubkey, plaintext) => signer.sendRequest('nip44_encrypt', [pubkey, plaintext]),
-      decrypt: (pubkey, ciphertext) => signer.sendRequest('nip44_decrypt', [pubkey, ciphertext]),
-    },
+      encrypt: (pubkey, plaintext) =>
+        signer.sendRequest('nip44_encrypt', [pubkey, plaintext]),
+      decrypt: (pubkey, ciphertext) =>
+        signer.sendRequest('nip44_decrypt', [pubkey, ciphertext])
+    }
   } satisfies NostrSigner
 }
 
@@ -154,7 +169,10 @@ interface BunkerParams {
 class Nip46Signer {
   private pool!: InstanceType<typeof import('nostr-tools').SimplePool>
   private subCloser?: { close: () => void }
-  private listeners: Record<string, { resolve: (v: string) => void; reject: (e: unknown) => void }> = {}
+  private listeners: Record<
+    string,
+    { resolve: (v: string) => void; reject: (e: unknown) => void }
+  > = {}
   private serial = 0
   private idPrefix = Math.random().toString(36).substring(7)
   private isOpen = false
@@ -184,7 +202,10 @@ class Nip46Signer {
     // Try NIP-44 first
     try {
       const nip44 = await import('nostr-tools/nip44')
-      const convKey = nip44.v2.utils.getConversationKey(this.secretKey, peerPubkey)
+      const convKey = nip44.v2.utils.getConversationKey(
+        this.secretKey,
+        peerPubkey
+      )
       const plaintext = nip44.v2.decrypt(content, convKey)
       return { plaintext, version: 'nip44' }
     } catch {
@@ -196,15 +217,23 @@ class Nip46Signer {
       const plaintext = await nip04.decrypt(this.secretKey, peerPubkey, content)
       return { plaintext, version: 'nip04' }
     } catch {
-      throw new Error('Failed to decrypt NIP-46 response with both NIP-44 and NIP-04')
+      throw new Error(
+        'Failed to decrypt NIP-46 response with both NIP-44 and NIP-04'
+      )
     }
   }
 
   /** Encrypt content using the detected encryption version */
-  private async encryptContent(plaintext: string, peerPubkey: string): Promise<string> {
+  private async encryptContent(
+    plaintext: string,
+    peerPubkey: string
+  ): Promise<string> {
     if (this.encryptionVersion === 'nip44') {
       const nip44 = await import('nostr-tools/nip44')
-      const convKey = nip44.v2.utils.getConversationKey(this.secretKey, peerPubkey)
+      const convKey = nip44.v2.utils.getConversationKey(
+        this.secretKey,
+        peerPubkey
+      )
       return nip44.v2.encrypt(plaintext, convKey)
     } else {
       const nip04 = await import('nostr-tools/nip04')
@@ -223,12 +252,15 @@ class Nip46Signer {
         kinds: [NOSTR_CONNECT_KIND],
         authors: [this.bp.pubkey],
         '#p': [clientPubkey],
-        limit: 0,
+        limit: 0
       },
       {
         onevent: async event => {
           try {
-            const { plaintext } = await this.tryDecrypt(event.content, event.pubkey)
+            const { plaintext } = await this.tryDecrypt(
+              event.content,
+              event.pubkey
+            )
             const { id, result, error } = JSON.parse(plaintext)
             const handler = this.listeners[id]
             if (handler) {
@@ -242,7 +274,7 @@ class Nip46Signer {
         },
         onclose: () => {
           this.subCloser = undefined
-        },
+        }
       }
     )
     this.isOpen = true
@@ -270,7 +302,7 @@ class Nip46Signer {
         {
           kinds: [NOSTR_CONNECT_KIND],
           '#p': [clientPubkey],
-          limit: 0,
+          limit: 0
         },
         {
           onevent: async event => {
@@ -287,18 +319,30 @@ class Nip46Signer {
                 sub.close()
 
                 // Configure the signer with the detected encryption version
-                signer.bp = { pubkey: event.pubkey, relays, secret: expectedSecret ?? undefined }
+                signer.bp = {
+                  pubkey: event.pubkey,
+                  relays,
+                  secret: expectedSecret ?? undefined
+                }
                 signer.encryptionVersion = version
                 await signer.setupSubscription()
                 resolve(signer)
               }
             } catch (e) {
-              console.warn('[nip46] failed to process potential connection event', e)
+              console.warn(
+                '[nip46] failed to process potential connection event',
+                e
+              )
             }
           },
           onclose: () => {
-            if (!settled) reject(new Error('Subscription closed before connection was established'))
-          },
+            if (!settled)
+              reject(
+                new Error(
+                  'Subscription closed before connection was established'
+                )
+              )
+          }
         }
       )
 
@@ -306,11 +350,19 @@ class Nip46Signer {
       const timeoutMs = opts.timeout ?? 60_000
       if (opts.signal) {
         opts.signal.addEventListener('abort', () => {
-          if (!settled) { settled = true; sub.close(); reject(new Error('Connection aborted')) }
+          if (!settled) {
+            settled = true
+            sub.close()
+            reject(new Error('Connection aborted'))
+          }
         })
       } else {
         setTimeout(() => {
-          if (!settled) { settled = true; sub.close(); reject(new Error('Connection timed out')) }
+          if (!settled) {
+            settled = true
+            sub.close()
+            reject(new Error('Connection timed out'))
+          }
         }, timeoutMs)
       }
     })
@@ -339,7 +391,7 @@ class Nip46Signer {
         kind: NOSTR_CONNECT_KIND,
         tags: [['p', this.bp.pubkey]],
         content: encryptedContent,
-        created_at: Math.floor(Date.now() / 1000),
+        created_at: Math.floor(Date.now() / 1000)
       },
       this.secretKey
     )

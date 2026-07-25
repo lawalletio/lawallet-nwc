@@ -15,7 +15,12 @@ export function SetupBanner() {
   const hasDomain = !!settings?.domain?.trim()
   const domainVerified = settings?.domain_verified === 'true'
 
-  if (role !== 'ADMIN' || (!settings && loading) || (hasDomain && domainVerified)) return null
+  if (
+    role !== 'ADMIN' ||
+    (!settings && loading) ||
+    (hasDomain && domainVerified)
+  )
+    return null
 
   return (
     <div
@@ -23,16 +28,16 @@ export function SetupBanner() {
       className="flex items-center justify-center gap-3 bg-amber-400 px-3 py-1 text-xs font-semibold text-black"
     >
       <AlertTriangle className="size-3.5 shrink-0" />
-      <span className="min-w-0 truncate">
-        Domain configuration is required
-      </span>
+      <span className="min-w-0 truncate">Domain configuration is required</span>
 
       <Button
         type="button"
         variant="ghost"
         size="sm"
         className="h-6 shrink-0 rounded px-2 text-xs font-semibold text-black hover:bg-black/10 hover:text-black"
-        onClick={() => router.push('/admin/settings?tab=infrastructure&domainSetup=open')}
+        onClick={() =>
+          router.push('/admin/settings?tab=infrastructure&domainSetup=open')
+        }
       >
         <Route className="mr-1.5 size-3.5" />
         Fix domain

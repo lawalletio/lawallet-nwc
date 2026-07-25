@@ -9,7 +9,7 @@ export interface SatSymbolProps {
 export function SatSymbol({
   className,
   color = 'currentColor',
-  title,
+  title
 }: SatSymbolProps) {
   return (
     <svg

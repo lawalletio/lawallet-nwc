@@ -6,35 +6,35 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
     rateLimit: { windowMs: 60000, max: 100, authMax: 1000 },
-    requestLimits: { maxJsonBodySize: 102400 },
-  })),
+    requestLimits: { maxJsonBodySize: 102400 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
   authenticate: vi
     .fn()
-    .mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'USER', method: 'jwt' }),
+    .mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'USER', method: 'jwt' })
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(),
+  getSettings: vi.fn()
 }))
 
 vi.mock('@/lib/events/event-bus', () => ({
-  eventBus: { emit: vi.fn() },
+  eventBus: { emit: vi.fn() }
 }))
 
 vi.mock('light-bolt11-decoder', () => ({
@@ -42,9 +42,9 @@ vi.mock('light-bolt11-decoder', () => ({
     sections: [
       { name: 'timestamp', value: 1_700_000_000 },
       { name: 'expiry', value: 600 },
-      { name: 'payment_hash', value: 'c'.repeat(64) },
-    ],
-  }),
+      { name: 'payment_hash', value: 'c'.repeat(64) }
+    ]
+  })
 }))
 
 import { POST } from '@/app/api/invoices/route'
@@ -57,7 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
     id: 'user-1',
-    pubkey: 'a'.repeat(64),
+    pubkey: 'a'.repeat(64)
   } as any)
 })
 
@@ -69,12 +69,12 @@ describe('POST /api/invoices', () => {
   it('returns { free: true } when no registration LN address is configured', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_price: '21',
-      registration_ln_enabled: 'true',
+      registration_ln_enabled: 'true'
     })
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
-      body: { purpose: 'registration', metadata: { username: 'alice' } },
+      body: { purpose: 'registration', metadata: { username: 'alice' } }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -87,12 +87,12 @@ describe('POST /api/invoices', () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@getalby.com',
       registration_price: '21',
-      registration_ln_enabled: 'false',
+      registration_ln_enabled: 'false'
     })
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
-      body: { purpose: 'registration', metadata: { username: 'alice' } },
+      body: { purpose: 'registration', metadata: { username: 'alice' } }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -104,12 +104,12 @@ describe('POST /api/invoices', () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@getalby.com',
       registration_price: '21',
-      registration_ln_enabled: 'true',
+      registration_ln_enabled: 'true'
     })
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
-      body: { purpose: 'registration' },
+      body: { purpose: 'registration' }
     })
     const res = await POST(req)
 
@@ -120,15 +120,15 @@ describe('POST /api/invoices', () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@getalby.com',
       registration_price: '21',
-      registration_ln_enabled: 'true',
+      registration_ln_enabled: 'true'
     })
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
-      username: 'alice',
+      username: 'alice'
     } as any)
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
-      body: { purpose: 'registration', metadata: { username: 'alice' } },
+      body: { purpose: 'registration', metadata: { username: 'alice' } }
     })
     const res = await POST(req)
 
@@ -141,12 +141,12 @@ describe('POST /api/invoices', () => {
       registration_user_enabled: 'false',
       registration_ln_address: 'admin@getalby.com',
       registration_price: '21',
-      registration_ln_enabled: 'true',
+      registration_ln_enabled: 'true'
     })
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
-      body: { purpose: 'registration', metadata: { username: 'alice' } },
+      body: { purpose: 'registration', metadata: { username: 'alice' } }
     })
     const res = await POST(req)
 
@@ -158,7 +158,7 @@ describe('POST /api/invoices', () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@getalby.com',
       registration_price: '21',
-      registration_ln_enabled: 'true',
+      registration_ln_enabled: 'true'
     })
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(prismaMock.invoice.create).mockResolvedValue({
@@ -166,7 +166,7 @@ describe('POST /api/invoices', () => {
       bolt11: 'lnbc210n1test',
       paymentHash: 'c'.repeat(64),
       amountSats: 21,
-      expiresAt: new Date('2026-04-15T00:00:00.000Z'),
+      expiresAt: new Date('2026-04-15T00:00:00.000Z')
     } as any)
 
     // Two fetches: LUD-16 metadata + callback
@@ -179,22 +179,22 @@ describe('POST /api/invoices', () => {
             tag: 'payRequest',
             callback: 'https://getalby.com/lnurlp/admin/callback',
             minSendable: 1000,
-            maxSendable: 1000000000,
-          }),
+            maxSendable: 1000000000
+          })
         } as any
       }
       return {
         ok: true,
         json: async () => ({
           pr: 'lnbc210n1test',
-          verify: 'https://getalby.com/lnurlp/admin/verify/xyz',
-        }),
+          verify: 'https://getalby.com/lnurlp/admin/verify/xyz'
+        })
       } as any
     })
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
-      body: { purpose: 'registration', metadata: { username: 'alice' } },
+      body: { purpose: 'registration', metadata: { username: 'alice' } }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -215,8 +215,8 @@ describe('POST /api/invoices', () => {
           purpose: 'REGISTRATION',
           status: 'PENDING',
           userId: 'user-1',
-          metadata: { username: 'alice' },
-        }),
+          metadata: { username: 'alice' }
+        })
       })
     )
   })
@@ -225,7 +225,7 @@ describe('POST /api/invoices', () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@bad-domain.com',
       registration_price: '21',
-      registration_ln_enabled: 'true',
+      registration_ln_enabled: 'true'
     })
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
 
@@ -233,7 +233,7 @@ describe('POST /api/invoices', () => {
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
-      body: { purpose: 'registration', metadata: { username: 'alice' } },
+      body: { purpose: 'registration', metadata: { username: 'alice' } }
     })
     const res = await POST(req)
 
@@ -245,13 +245,13 @@ describe('POST /api/invoices', () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'not-an-address',
       registration_price: '21',
-      registration_ln_enabled: 'true',
+      registration_ln_enabled: 'true'
     })
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
-      body: { purpose: 'registration', metadata: { username: 'alice' } },
+      body: { purpose: 'registration', metadata: { username: 'alice' } }
     })
     const res = await POST(req)
 
@@ -262,7 +262,7 @@ describe('POST /api/invoices', () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@provider.com',
       registration_price: '21',
-      registration_ln_enabled: 'true',
+      registration_ln_enabled: 'true'
     })
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(prismaMock.invoice.create).mockResolvedValue({
@@ -270,7 +270,7 @@ describe('POST /api/invoices', () => {
       bolt11: 'lnbc210n1test',
       paymentHash: 'c'.repeat(64),
       amountSats: 21,
-      expiresAt: new Date('2026-04-22T00:00:00Z'),
+      expiresAt: new Date('2026-04-22T00:00:00Z')
     } as any)
 
     global.fetch = vi.fn(async (input: string | URL | Request) => {
@@ -282,16 +282,16 @@ describe('POST /api/invoices', () => {
             tag: 'payRequest',
             callback: 'https://provider.com/cb',
             minSendable: 1000,
-            maxSendable: 1_000_000_000,
-          }),
+            maxSendable: 1_000_000_000
+          })
         } as any
       }
       return {
         ok: true,
         json: async () => ({
           pr: 'lnbc210n1test',
-          verify: 'https://provider.com/verify/xyz',
-        }),
+          verify: 'https://provider.com/verify/xyz'
+        })
       } as any
     })
 
@@ -299,8 +299,8 @@ describe('POST /api/invoices', () => {
       method: 'POST',
       body: {
         purpose: 'wallet-address',
-        metadata: { username: 'secondary1' },
-      },
+        metadata: { username: 'secondary1' }
+      }
     })
     const res = await POST(req)
     await assertResponse(res, 200)
@@ -309,8 +309,8 @@ describe('POST /api/invoices', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           purpose: 'WALLET_ADDRESS',
-          metadata: { username: 'secondary1' },
-        }),
+          metadata: { username: 'secondary1' }
+        })
       })
     )
   })
@@ -319,7 +319,7 @@ describe('POST /api/invoices', () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@regressed-provider.com',
       registration_price: '21',
-      registration_ln_enabled: 'true',
+      registration_ln_enabled: 'true'
     })
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
 
@@ -332,19 +332,19 @@ describe('POST /api/invoices', () => {
             tag: 'payRequest',
             callback: 'https://regressed-provider.com/cb',
             minSendable: 1000,
-            maxSendable: 1_000_000_000,
-          }),
+            maxSendable: 1_000_000_000
+          })
         } as any
       }
       return {
         ok: true,
-        json: async () => ({ pr: 'lnbc210n1test' }), // no verify
+        json: async () => ({ pr: 'lnbc210n1test' }) // no verify
       } as any
     })
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
-      body: { purpose: 'registration', metadata: { username: 'alice' } },
+      body: { purpose: 'registration', metadata: { username: 'alice' } }
     })
     const res = await POST(req)
 

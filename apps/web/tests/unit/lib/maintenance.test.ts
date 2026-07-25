@@ -4,28 +4,28 @@ import { Role } from '@/lib/auth/permissions'
 
 // Mock dependencies
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(),
+  getConfig: vi.fn()
 }))
 
 vi.mock('@/lib/admin-auth', () => ({
-  validateNip98Auth: vi.fn(),
+  validateNip98Auth: vi.fn()
 }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     user: {
-      findUnique: vi.fn(),
+      findUnique: vi.fn()
     },
     // Account resolution (lib/auth/account) checks NostrIdentity first and
     // falls back to User.pubkey — the tests mock only the User fallback.
     nostrIdentity: {
-      findUnique: vi.fn(),
-    },
-  },
+      findUnique: vi.fn()
+    }
+  }
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(),
+  getSettings: vi.fn()
 }))
 
 import { checkMaintenance } from '@/lib/middleware/maintenance'
@@ -47,7 +47,7 @@ beforeEach(() => {
 describe('checkMaintenance', () => {
   it('passes through when maintenance is disabled', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      maintenance: { enabled: false },
+      maintenance: { enabled: false }
     } as any)
 
     await expect(checkMaintenance(mockRequest())).resolves.toBeUndefined()
@@ -56,22 +56,26 @@ describe('checkMaintenance', () => {
 
   it('throws ServiceUnavailableError when maintenance is enabled and no auth', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      maintenance: { enabled: true },
+      maintenance: { enabled: true }
     } as any)
     vi.mocked(validateNip98Auth).mockRejectedValue(new Error('no auth'))
 
-    await expect(checkMaintenance(mockRequest())).rejects.toThrow(ServiceUnavailableError)
-    await expect(checkMaintenance(mockRequest())).rejects.toThrow('Service is under maintenance')
+    await expect(checkMaintenance(mockRequest())).rejects.toThrow(
+      ServiceUnavailableError
+    )
+    await expect(checkMaintenance(mockRequest())).rejects.toThrow(
+      'Service is under maintenance'
+    )
   })
 
   it('allows admin users to bypass maintenance', async () => {
     const pubkey = 'a'.repeat(64)
     vi.mocked(getConfig).mockReturnValue({
-      maintenance: { enabled: true },
+      maintenance: { enabled: true }
     } as any)
     vi.mocked(validateNip98Auth).mockResolvedValue(pubkey)
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
-      role: Role.ADMIN,
+      role: Role.ADMIN
     } as any)
 
     await expect(checkMaintenance(mockRequest())).resolves.toBeUndefined()
@@ -80,29 +84,33 @@ describe('checkMaintenance', () => {
   it('blocks non-admin authenticated users during maintenance', async () => {
     const pubkey = 'b'.repeat(64)
     vi.mocked(getConfig).mockReturnValue({
-      maintenance: { enabled: true },
+      maintenance: { enabled: true }
     } as any)
     vi.mocked(validateNip98Auth).mockResolvedValue(pubkey)
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
-      role: Role.OPERATOR,
+      role: Role.OPERATOR
     } as any)
 
-    await expect(checkMaintenance(mockRequest())).rejects.toThrow(ServiceUnavailableError)
+    await expect(checkMaintenance(mockRequest())).rejects.toThrow(
+      ServiceUnavailableError
+    )
   })
 
   it('blocks users with no DB record during maintenance', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      maintenance: { enabled: true },
+      maintenance: { enabled: true }
     } as any)
     vi.mocked(validateNip98Auth).mockResolvedValue('c'.repeat(64))
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
 
-    await expect(checkMaintenance(mockRequest())).rejects.toThrow(ServiceUnavailableError)
+    await expect(checkMaintenance(mockRequest())).rejects.toThrow(
+      ServiceUnavailableError
+    )
   })
 
   it('skips maintenance until a root admin is configured (no first-run lockout)', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      maintenance: { enabled: true },
+      maintenance: { enabled: true }
     } as any)
     // Unconfigured instance — `root` setting absent.
     vi.mocked(getSettings).mockResolvedValue({} as any)

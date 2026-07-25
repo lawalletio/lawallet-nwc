@@ -8,9 +8,9 @@ Published for **`linux/amd64`** and **`linux/arm64`**, so it runs natively on
 Intel/AMD servers and on ARM (Apple Silicon, AWS Graviton, Raspberry Pi 4/5,
 etc.) from the same tag.
 
-| Tag | Meaning |
-|-----|---------|
-| `masize/lawallet-nwc:latest` | Most recent published build |
+| Tag                             | Meaning                                               |
+| ------------------------------- | ----------------------------------------------------- |
+| `masize/lawallet-nwc:latest`    | Most recent published build                           |
 | `masize/lawallet-nwc:<version>` | Pinned release, matches `package.json` (e.g. `1.0.0`) |
 
 ## Run a published image
@@ -26,7 +26,7 @@ JWT_SECRET=$(openssl rand -hex 32) docker compose -f docker-compose.hub.yml up -
 
 Override `LAWALLET_TAG`, `PORT`, `JWT_SECRET` (≥ 32 chars), or the `POSTGRES_*`
 credentials via env / a `.env` file. Note: the repo's default
-`docker-compose.yml` *builds from source* instead — use `docker-compose.hub.yml`
+`docker-compose.yml` _builds from source_ instead — use `docker-compose.hub.yml`
 to run the prebuilt image.
 
 Or run the container directly against your own Postgres:
@@ -55,7 +55,7 @@ Hub. It's also automated in CI — see [Automated publishing](#automated-publish
    docker buildx version
    ```
 
-2. **A `docker-container` builder.** The *default* builder uses the `docker`
+2. **A `docker-container` builder.** The _default_ builder uses the `docker`
    driver, which **cannot emit a multi-platform image** — it can only build for
    the host architecture. Multi-arch requires the `docker-container` driver.
    Create one once (Docker Desktop already ships a `xbuilder` you can reuse):
@@ -168,10 +168,10 @@ Actions (native multi-arch via `docker/setup-qemu-action` +
 
 It requires two repository secrets:
 
-| Secret | Value |
-|--------|-------|
-| `DOCKERHUB_USERNAME` | Docker Hub account (`masize`) |
-| `DOCKERHUB_TOKEN` | A Docker Hub **access token** (Account → Security → New Access Token), *not* the password |
+| Secret               | Value                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| `DOCKERHUB_USERNAME` | Docker Hub account (`masize`)                                                             |
+| `DOCKERHUB_TOKEN`    | A Docker Hub **access token** (Account → Security → New Access Token), _not_ the password |
 
 Without those secrets the login step fails fast; normal PR/push CI is
 unaffected because this workflow never runs on those events.

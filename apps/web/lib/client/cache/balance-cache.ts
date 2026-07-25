@@ -41,7 +41,7 @@ export function readBalance(nwcKey: string): CachedBalance | null {
     return {
       sats: parsed.sats,
       fetchedAt: parsed.fetchedAt,
-      schemaVersion: SCHEMA_VERSION,
+      schemaVersion: SCHEMA_VERSION
     }
   } catch {
     return null
@@ -55,7 +55,7 @@ export function writeBalance(nwcKey: string, sats: number): void {
   const payload: CachedBalance = {
     sats,
     fetchedAt: Date.now(),
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: SCHEMA_VERSION
   }
   try {
     window.localStorage.setItem(storageKey(nwcKey), JSON.stringify(payload))

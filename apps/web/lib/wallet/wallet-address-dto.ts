@@ -45,7 +45,7 @@ function walletCapability(wallet: RemoteWallet | null): EffectiveNwcMode {
  */
 export function deriveEffectiveNwcMode(
   address: AddressWithWallet,
-  defaultWallet: RemoteWallet | null,
+  defaultWallet: RemoteWallet | null
 ): EffectiveNwcMode {
   switch (address.mode) {
     case 'IDLE':
@@ -60,7 +60,7 @@ export function deriveEffectiveNwcMode(
 
 export function toWalletAddressDto(
   address: AddressWithWallet,
-  defaultWallet: RemoteWallet | null,
+  defaultWallet: RemoteWallet | null
 ): WalletAddressDto {
   return {
     username: address.username,
@@ -70,6 +70,6 @@ export function toWalletAddressDto(
     isPrimary: address.isPrimary,
     nwcMode: deriveEffectiveNwcMode(address, defaultWallet),
     createdAt: address.createdAt.toISOString(),
-    updatedAt: address.updatedAt.toISOString(),
+    updatedAt: address.updatedAt.toISOString()
   }
 }

@@ -3,7 +3,7 @@ import {
   commonErrorResponses,
   inlineJsonResponse,
   protectedSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 
@@ -29,8 +29,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Listener status (disabled / unreachable / ok).',
-      listenerStatusProxyResponseSchema,
+      listenerStatusProxyResponseSchema
     ),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })

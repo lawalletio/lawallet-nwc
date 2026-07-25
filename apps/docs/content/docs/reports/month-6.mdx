@@ -1,6 +1,6 @@
 ---
-title: "Report: Month 6"
-description: "OpenSats progress report for June 29 - July 10, 2026 — NWC Payment Listener, card activation, deploy targets, and Backup & Restore."
+title: 'Report: Month 6'
+description: 'OpenSats progress report for June 29 - July 10, 2026 — NWC Payment Listener, card activation, deploy targets, and Backup & Restore.'
 ---
 
 **Project:** LaWallet NWC<br />
@@ -33,14 +33,14 @@ Highlights:
 
 ## Releases
 
-| Tag | Date | Notes |
-|-----|------|-------|
+| Tag      | Date       | Notes                                                                                                                                                                |
+| -------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `v1.1.0` | 2026-07-06 | NWC Payment Listener service goes live (pool + webhooks + dashboard); missed-event recovery; Start9 package; PWA wallet; NIP-05 relays; relay picker; profile cache. |
-| `v1.1.1` | 2026-07-06 | Listener migration-ordering fix (wait for web migrations before querying `RemoteWallet`). |
-| `v1.2.0` | 2026-07-06 | Listener dashboard UX; admins can grant ADMIN; `/status` hardening + dead-LNCurl archival; listener API docs. |
-| `v1.2.1` | 2026-07-07 | Never-drop payment webhooks; realtime listener status; read-only address view. |
-| `v1.3.0` | 2026-07-07 | Backup & Restore with export/import wizard; listener event detail modal. |
-| `v1.4.0` | 2026-07-10 | Expanded wallet settings + payment flows; primary wallet follows primary address; sat symbol component. |
+| `v1.1.1` | 2026-07-06 | Listener migration-ordering fix (wait for web migrations before querying `RemoteWallet`).                                                                            |
+| `v1.2.0` | 2026-07-06 | Listener dashboard UX; admins can grant ADMIN; `/status` hardening + dead-LNCurl archival; listener API docs.                                                        |
+| `v1.2.1` | 2026-07-07 | Never-drop payment webhooks; realtime listener status; read-only address view.                                                                                       |
+| `v1.3.0` | 2026-07-07 | Backup & Restore with export/import wizard; listener event detail modal.                                                                                             |
+| `v1.4.0` | 2026-07-10 | Expanded wallet settings + payment flows; primary wallet follows primary address; sat symbol component.                                                              |
 
 ---
 
@@ -49,7 +49,7 @@ Highlights:
 The settlement / share / compliance layer was carried forward into [Month 7](../roadmap/month-7):
 
 - **MASTER card account-share** — FOREVER QRs + the `CardClaim` / `LightningAddressShare` / `RemoteWalletShare` model + share-revoke endpoints (enum values reserved in the schema)
-- **NWC Proxy Lite** settlement layer + full **LUD-16 / LUD-21 / LUD-22 / NIP-57** closeout (webhook *transport* already ships via the listener)
+- **NWC Proxy Lite** settlement layer + full **LUD-16 / LUD-21 / LUD-22 / NIP-57** closeout (webhook _transport_ already ships via the listener)
 - **`@lawallet-nwc/react`** hooks package extraction, the **WordPress plugin**, the **Resend** email adapter, the **Nostr scheduler**, threat model + security-audit prep, and Vercel / Netlify deploy configs
 
 See the [Month 6 roadmap](../roadmap/month-6) for the full design of record.

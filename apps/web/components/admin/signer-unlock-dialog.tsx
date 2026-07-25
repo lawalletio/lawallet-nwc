@@ -8,12 +8,12 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
 import type {
   LoginMethod,
-  SignerCredentials,
+  SignerCredentials
 } from '@/components/admin/auth-context'
 
 /**
@@ -32,14 +32,14 @@ import type {
 export function SignerUnlockDialog({
   open,
   onCancel,
-  onUnlock,
+  onUnlock
 }: {
   open: boolean
   onCancel: () => void
   onUnlock: (
     signer: NostrSigner,
     method: LoginMethod,
-    credentials?: SignerCredentials,
+    credentials?: SignerCredentials
   ) => void
 }) {
   return (

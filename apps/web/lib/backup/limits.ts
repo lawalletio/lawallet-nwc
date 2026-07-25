@@ -9,5 +9,5 @@ import type { RequestLimitOptions } from '@/lib/middleware/request-limits'
 export const BACKUP_UPLOAD_LIMIT: RequestLimitOptions = {
   maxBodySize: 100 * 1024 * 1024,
   maxFileSize: 100 * 1024 * 1024,
-  maxFiles: 1,
+  maxFiles: 1
 }

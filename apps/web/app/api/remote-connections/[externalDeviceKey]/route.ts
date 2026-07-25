@@ -4,16 +4,19 @@ import { getSettings } from '@/lib/settings'
 import { resolvePublicEndpoint } from '@/lib/public-url'
 import type { LoginResponse, Skin } from '@/types/remote-connections'
 import { withErrorHandling } from '@/types/server/error-handler'
-import {
-  AuthenticationError,
-  NotFoundError,
-} from '@/types/server/errors'
+import { AuthenticationError, NotFoundError } from '@/types/server/errors'
 import { externalDeviceKeyParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 
 export const GET = withErrorHandling(
-  async (request: Request, { params }: { params: Promise<{ externalDeviceKey: string }> }) => {
-    const { externalDeviceKey } = validateParams(await params, externalDeviceKeyParam)
+  async (
+    request: Request,
+    { params }: { params: Promise<{ externalDeviceKey: string }> }
+  ) => {
+    const { externalDeviceKey } = validateParams(
+      await params,
+      externalDeviceKeyParam
+    )
 
     // Get the external_device_key from settings
     const settings = await getSettings(['external_device_key'])

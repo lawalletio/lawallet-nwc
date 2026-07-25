@@ -128,8 +128,9 @@ export default async function pay(
     route.type === 'NWC' && listener.enabled
       ? await prepareListenerPaymentFastPath(listener, route.walletId)
       : false
-  const selectedTransport: CardPaymentTransport =
-    listenerReady ? 'LISTENER' : 'DIRECT'
+  const selectedTransport: CardPaymentTransport = listenerReady
+    ? 'LISTENER'
+    : 'DIRECT'
 
   // The one-time listener capability probe can consume part of a very short
   // invoice's remaining life. Recheck the already-decoded timestamp before

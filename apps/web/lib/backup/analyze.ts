@@ -3,7 +3,7 @@ import {
   type BackupAnalyzeResponse,
   type BackupConflict,
   type BackupManifest,
-  type BackupTableName,
+  type BackupTableName
 } from '@/lib/validation/schemas'
 import { TABLE_DESCRIPTORS, resolveTables, pkKey } from '@/lib/backup/tables'
 import { ROW_SCHEMAS } from '@/lib/backup/row-schemas'
@@ -12,7 +12,7 @@ import {
   classifyRow,
   loadTableContext,
   makeConflict,
-  tableNoun,
+  tableNoun
 } from '@/lib/backup/classify'
 import { latestMigration } from '@/lib/backup/export'
 import type { ParsedBackup } from '@/lib/backup/archive'
@@ -32,7 +32,11 @@ interface TableAnalysis {
 }
 
 /** Best-effort PK string for an invalid (unparseable) row, for a stable id. */
-function bestEffortKey(pkFields: string[], raw: unknown, index: number): string {
+function bestEffortKey(
+  pkFields: string[],
+  raw: unknown,
+  index: number
+): string {
   if (raw && typeof raw === 'object') {
     const obj = raw as Row
     const parts = pkFields.map(f => (obj[f] == null ? '' : String(obj[f])))
@@ -46,9 +50,13 @@ function bestEffortKey(pkFields: string[], raw: unknown, index: number): string 
  * classifies it against the live DB (new / identical / conflicting / invalid),
  * and surfaces the conflicts the restore wizard resolves. Never writes.
  */
-export async function analyzeBackup(parsed: ParsedBackup): Promise<BackupAnalyzeResponse> {
+export async function analyzeBackup(
+  parsed: ParsedBackup
+): Promise<BackupAnalyzeResponse> {
   const { manifest } = parsed
-  const tablesInScope = resolveTables(manifest.categories).filter(t => parsed.tables[t])
+  const tablesInScope = resolveTables(manifest.categories).filter(
+    t => parsed.tables[t]
+  )
 
   // 1. Schema-validate rows; split valid from invalid.
   const validByTable: Partial<Record<BackupTableName, Row[]>> = {}
@@ -70,8 +78,8 @@ export async function analyzeBackup(parsed: ParsedBackup): Promise<BackupAnalyze
             kind: 'invalid-row',
             message: `Row ${index + 1} in ${tableNoun(table)} data is invalid and can't be restored.`,
             allowedStrategies: ['skip'],
-            suggestedStrategy: 'skip',
-          }),
+            suggestedStrategy: 'skip'
+          })
         )
       }
     })
@@ -83,17 +91,25 @@ export async function analyzeBackup(parsed: ParsedBackup): Promise<BackupAnalyze
   const backupPks: Partial<Record<BackupTableName, Set<string>>> = {}
   for (const table of tablesInScope) {
     const desc = TABLE_DESCRIPTORS[table]
-    backupPks[table] = new Set((validByTable[table] ?? []).map(r => pkKey(desc, r)))
+    backupPks[table] = new Set(
+      (validByTable[table] ?? []).map(r => pkKey(desc, r))
+    )
   }
   const dbParentPks = await buildParentAvailability(
     prisma as unknown as DbClient,
     tablesInScope,
     validByTable,
-    backupPks,
+    backupPks
   )
-  const isParentAvailable = (target: BackupTableName, value: unknown): boolean => {
+  const isParentAvailable = (
+    target: BackupTableName,
+    value: unknown
+  ): boolean => {
     const key = String(value)
-    return Boolean(backupPks[target]?.has(key)) || Boolean(dbParentPks[target]?.has(key))
+    return (
+      Boolean(backupPks[target]?.has(key)) ||
+      Boolean(dbParentPks[target]?.has(key))
+    )
   }
 
   // 3. Classify each table.
@@ -101,18 +117,27 @@ export async function analyzeBackup(parsed: ParsedBackup): Promise<BackupAnalyze
   for (const table of tablesInScope) {
     const desc = TABLE_DESCRIPTORS[table]
     const rows = validByTable[table] ?? []
-    const ctx = await loadTableContext(prisma as unknown as DbClient, desc, rows)
+    const ctx = await loadTableContext(
+      prisma as unknown as DbClient,
+      desc,
+      rows
+    )
     const invalid = invalidByTable[table] ?? []
     const counts = {
       total: (parsed.tables[table] ?? []).length,
       new: 0,
       identical: 0,
       conflicting: 0,
-      invalid: invalid.length,
+      invalid: invalid.length
     }
     const conflicts: BackupConflict[] = [...invalid]
     for (const row of rows) {
-      const { status, conflict } = classifyRow(desc, row, ctx, isParentAvailable)
+      const { status, conflict } = classifyRow(
+        desc,
+        row,
+        ctx,
+        isParentAvailable
+      )
       counts[status]++
       if (conflict) conflicts.push(conflict)
     }
@@ -125,7 +150,7 @@ export async function analyzeBackup(parsed: ParsedBackup): Promise<BackupAnalyze
     manifest,
     tables: tablesOut as BackupAnalyzeResponse['tables'],
     warnings,
-    analyzedAt: new Date().toISOString(),
+    analyzedAt: new Date().toISOString()
   }
 }
 
@@ -138,7 +163,7 @@ async function buildParentAvailability(
   db: DbClient,
   tables: BackupTableName[],
   validByTable: Partial<Record<BackupTableName, Row[]>>,
-  backupPks: Partial<Record<BackupTableName, Set<string>>>,
+  backupPks: Partial<Record<BackupTableName, Set<string>>>
 ): Promise<Partial<Record<BackupTableName, Set<string>>>> {
   const needed: Partial<Record<BackupTableName, Set<unknown>>> = {}
   for (const table of tables) {
@@ -161,7 +186,7 @@ async function buildParentAvailability(
     const values = [...(needed[target] ?? [])]
     const existing = (await db[desc.model].findMany({
       where: { [field]: { in: values } },
-      select: { [field]: true },
+      select: { [field]: true }
     })) as Row[]
     out[target] = new Set(existing.map(e => String(e[field])))
   }
@@ -175,21 +200,25 @@ async function collectWarnings(manifest: BackupManifest): Promise<string[]> {
   for (const [table, meta] of Object.entries(manifest.tables)) {
     if (meta?.truncated) {
       warnings.push(
-        `The ${tableNoun(table as BackupTableName)} data was truncated at export time — this backup is not a complete copy of that table.`,
+        `The ${tableNoun(table as BackupTableName)} data was truncated at export time — this backup is not a complete copy of that table.`
       )
     }
   }
 
   if (manifest.appVersion && manifest.appVersion !== packageJson.version) {
     warnings.push(
-      `This backup was made on app version ${manifest.appVersion}; this instance runs ${packageJson.version}.`,
+      `This backup was made on app version ${manifest.appVersion}; this instance runs ${packageJson.version}.`
     )
   }
 
   const current = await latestMigration()
-  if (manifest.prismaMigration && current && manifest.prismaMigration !== current) {
+  if (
+    manifest.prismaMigration &&
+    current &&
+    manifest.prismaMigration !== current
+  ) {
     warnings.push(
-      `Database schema differs (backup: ${manifest.prismaMigration}, here: ${current}). Restore may need review.`,
+      `Database schema differs (backup: ${manifest.prismaMigration}, here: ${current}). Restore may need review.`
     )
   }
 

@@ -14,7 +14,7 @@ export const REMOTE_WALLET_CHANGED_CHANNEL = 'remote_wallet_changed'
 /** Payload of a `remote_wallet_changed` notification. */
 export const remoteWalletChangedSchema = z.object({
   id: z.string().min(1),
-  op: z.enum(['INSERT', 'UPDATE', 'DELETE']),
+  op: z.enum(['INSERT', 'UPDATE', 'DELETE'])
 })
 
 /**
@@ -36,10 +36,12 @@ export const NWC_WEBHOOK_MAX_SKEW_MS = 5 * 60 * 1000
 export const nwcNotificationTypeSchema = z.enum([
   'payment_received',
   'payment_sent',
-  'hold_invoice_accepted',
+  'hold_invoice_accepted'
 ])
 
-const hex64 = z.string().regex(/^[0-9a-f]{64}$/i, 'Must be a 64-char hex string')
+const hex64 = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/i, 'Must be a 64-char hex string')
 
 /**
  * Normalized payment details lifted from the NIP-47 notification. Everything
@@ -48,7 +50,10 @@ const hex64 = z.string().regex(/^[0-9a-f]{64}$/i, 'Must be a 64-char hex string'
  */
 export const nwcWebhookPaymentSchema = z.object({
   paymentHash: hex64,
-  preimage: z.string().regex(/^[0-9a-f]+$/i).optional(),
+  preimage: z
+    .string()
+    .regex(/^[0-9a-f]+$/i)
+    .optional(),
   amountMsats: z.number().int().nonnegative().optional(),
   feesPaidMsats: z.number().int().nonnegative().optional(),
   /** Unix seconds, per NIP-47 `settled_at`. */
@@ -56,7 +61,7 @@ export const nwcWebhookPaymentSchema = z.object({
   invoice: z.string().optional(),
   description: z.string().optional(),
   /** Raw Nip47Transaction passthrough. */
-  transaction: z.record(z.unknown()),
+  transaction: z.record(z.unknown())
 })
 
 /**
@@ -73,17 +78,17 @@ const nwcWebhookBase = z.object({
   /** Unix ms when the listener first saw the event. */
   receivedAt: z.number().int(),
   /** True when synthesized by downtime catch-up instead of the live stream. */
-  recovered: z.boolean().optional(),
+  recovered: z.boolean().optional()
 })
 
 export const nwcWebhookPayloadSchema = z.discriminatedUnion('type', [
   nwcWebhookBase.extend({
     type: z.literal('payment_received'),
-    payment: nwcWebhookPaymentSchema,
+    payment: nwcWebhookPaymentSchema
   }),
   nwcWebhookBase.extend({
     type: z.literal('payment_sent'),
-    payment: nwcWebhookPaymentSchema,
+    payment: nwcWebhookPaymentSchema
   }),
   nwcWebhookBase.extend({
     type: z.literal('listener_error'),
@@ -91,8 +96,8 @@ export const nwcWebhookPayloadSchema = z.discriminatedUnion('type', [
     walletId: z.string().min(1).optional(),
     error: z.object({
       code: z.string().min(1),
-      message: z.string(),
-    }),
+      message: z.string()
+    })
   }),
   /**
    * The listener observed a wallet go unresponsive for a sustained window
@@ -107,8 +112,8 @@ export const nwcWebhookPayloadSchema = z.discriminatedUnion('type', [
     walletId: z.string().min(1),
     /** Seconds since the wallet last responded (event / proxied call / probe). */
     unresponsiveSeconds: z.number().int().nonnegative(),
-    relaysConnected: z.literal(true),
-  }),
+    relaysConnected: z.literal(true)
+  })
 ])
 export type NwcWebhookPayload = z.infer<typeof nwcWebhookPayloadSchema>
 
@@ -120,7 +125,7 @@ export const nwcProxyMethodSchema = z.enum([
   'pay_invoice',
   'make_invoice',
   'lookup_invoice',
-  'list_transactions',
+  'list_transactions'
 ])
 export type NwcProxyMethod = z.infer<typeof nwcProxyMethodSchema>
 
@@ -135,7 +140,7 @@ export const nwcProxyRequestSchema = z.object({
   method: nwcProxyMethodSchema,
   /** Raw NIP-47 params — msat-speaking, passed to the SDK untouched. */
   params: z.record(z.unknown()).default({}),
-  timeoutMs: z.number().int().min(1000).max(120000).optional(),
+  timeoutMs: z.number().int().min(1000).max(120000).optional()
 })
 export type NwcProxyRequest = z.infer<typeof nwcProxyRequestSchema>
 
@@ -151,7 +156,7 @@ export const nwcProxyErrorCodeSchema = z.enum([
   'wallet_not_connected',
   'wallet_error',
   'timeout',
-  'relay_error',
+  'relay_error'
 ])
 export type NwcProxyErrorCode = z.infer<typeof nwcProxyErrorCodeSchema>
 
@@ -163,9 +168,9 @@ export const nwcProxyResponseSchema = z.union([
       code: nwcProxyErrorCodeSchema,
       /** NIP-47 error code when `code === 'wallet_error'` (e.g. INSUFFICIENT_BALANCE). */
       walletErrorCode: z.string().optional(),
-      message: z.string(),
-    }),
-  }),
+      message: z.string()
+    })
+  })
 ])
 export type NwcProxyResponse = z.infer<typeof nwcProxyResponseSchema>
 
@@ -178,7 +183,7 @@ export const nwcPaymentRequestSchema = z.object({
   invoice: z.string().min(1).max(8192),
   paymentHash: hex64,
   /** How long HTTP waits; the underlying payment may continue. */
-  waitMs: z.number().int().min(100).max(8000).default(8000),
+  waitMs: z.number().int().min(100).max(8000).default(8000)
 })
 export type NwcPaymentRequest = z.infer<typeof nwcPaymentRequestSchema>
 
@@ -190,10 +195,10 @@ export const nwcPaymentErrorSchema = z.object({
     'wallet_not_found',
     'wallet_not_ready',
     'wallet_error',
-    'relay_error',
+    'relay_error'
   ]),
   message: z.string(),
-  walletErrorCode: z.string().optional(),
+  walletErrorCode: z.string().optional()
 })
 
 /** Only not_started is safe to switch to web's direct NWC transport. */
@@ -203,14 +208,14 @@ export const nwcPaymentResponseSchema = z.union([
     status: z.literal('succeeded'),
     requestId: hex64,
     preimage: hex64,
-    feesPaidMsats: z.number().int().nonnegative().default(0),
+    feesPaidMsats: z.number().int().nonnegative().default(0)
   }),
   z.object({
     ok: z.literal(false),
     status: z.enum(['pending', 'unknown', 'rejected', 'not_started']),
     requestId: hex64,
-    error: nwcPaymentErrorSchema.optional(),
-  }),
+    error: nwcPaymentErrorSchema.optional()
+  })
 ])
 export type NwcPaymentResponse = z.infer<typeof nwcPaymentResponseSchema>
 
@@ -222,7 +227,7 @@ export const listenerWalletStateSchema = z.enum([
   'ready',
   'disconnected',
   'error',
-  'closed',
+  'closed'
 ])
 
 export const listenerConnectionSchema = z.object({
@@ -237,7 +242,7 @@ export const listenerConnectionSchema = z.object({
   lastErrorAt: z.string().nullable(),
   lastError: z.string().nullable(),
   /** ISO timestamp of the last completed missed-event catch-up run. */
-  lastCatchupAt: z.string().nullish(),
+  lastCatchupAt: z.string().nullish()
 })
 export type ListenerConnection = z.infer<typeof listenerConnectionSchema>
 
@@ -266,7 +271,7 @@ export const listenerRecentEventSchema = z.object({
   /** ISO timestamp of the next scheduled retry (failed deliveries only). */
   webhookNextAttemptAt: z.string().nullable().optional(),
   /** True when the event came from downtime catch-up, not the live stream. */
-  recovered: z.boolean().optional(),
+  recovered: z.boolean().optional()
 })
 export type ListenerRecentEvent = z.infer<typeof listenerRecentEventSchema>
 
@@ -278,8 +283,8 @@ export const listenerStatusResponseSchema = z.object({
     z.object({
       url: z.string(),
       connected: z.boolean(),
-      walletCount: z.number().int().nonnegative(),
-    }),
+      walletCount: z.number().int().nonnegative()
+    })
   ),
   connections: z.array(listenerConnectionSchema),
   counters: z.object({
@@ -299,7 +304,7 @@ export const listenerStatusResponseSchema = z.object({
     catchupErrors: z.number().int().nonnegative().optional(),
     deadProbesRun: z.number().int().nonnegative().optional(),
     deadProbesTimedOut: z.number().int().nonnegative().optional(),
-    walletsDeclaredDead: z.number().int().nonnegative().optional(),
+    walletsDeclaredDead: z.number().int().nonnegative().optional()
   }),
   recentEvents: z.array(listenerRecentEventSchema).max(100),
   /**
@@ -307,9 +312,11 @@ export const listenerStatusResponseSchema = z.object({
    * DB feed query errored). The endpoint still returns 200 with everything
    * that DID compute — a single failing part never fails the whole status.
    */
-  degraded: z.array(z.string()).optional(),
+  degraded: z.array(z.string()).optional()
 })
-export type ListenerStatusResponse = z.infer<typeof listenerStatusResponseSchema>
+export type ListenerStatusResponse = z.infer<
+  typeof listenerStatusResponseSchema
+>
 
 /**
  * Shape returned by web's `GET /api/admin/listener/status` proxy. `disabled`
@@ -320,7 +327,7 @@ export type ListenerStatusResponse = z.infer<typeof listenerStatusResponseSchema
 export const listenerStatusProxyResponseSchema = z.union([
   z.object({ state: z.literal('disabled') }),
   z.object({ state: z.literal('unreachable'), error: z.string() }),
-  z.object({ state: z.literal('ok'), status: listenerStatusResponseSchema }),
+  z.object({ state: z.literal('ok'), status: listenerStatusResponseSchema })
 ])
 export type ListenerStatusProxyResponse = z.infer<
   typeof listenerStatusProxyResponseSchema
@@ -331,7 +338,7 @@ export type ListenerStatusProxyResponse = z.infer<
 export const listenerProbeRequestSchema = z.object({
   url: z.string().min(1),
   /** Omitted → the server falls back to the stored/env secret. */
-  secret: z.string().min(1).optional(),
+  secret: z.string().min(1).optional()
 })
 export type ListenerProbeRequest = z.infer<typeof listenerProbeRequestSchema>
 
@@ -345,12 +352,17 @@ export const listenerProbeResponseSchema = z.union([
     ok: z.literal(true),
     uptimeSeconds: z.number().int().nonnegative(),
     connections: z.number().int().nonnegative(),
-    relays: z.number().int().nonnegative(),
+    relays: z.number().int().nonnegative()
   }),
   z.object({
     ok: z.literal(false),
-    code: z.enum(['unreachable', 'unauthorized', 'invalid_response', 'no_secret']),
-    error: z.string(),
-  }),
+    code: z.enum([
+      'unreachable',
+      'unauthorized',
+      'invalid_response',
+      'no_secret'
+    ]),
+    error: z.string()
+  })
 ])
 export type ListenerProbeResponse = z.infer<typeof listenerProbeResponseSchema>

@@ -19,10 +19,10 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Assignment status.',
-      z.object({ pubkey: z.string().nullable().optional() }).passthrough(),
+      z.object({ pubkey: z.string().nullable().optional() }).passthrough()
     ),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -37,7 +37,10 @@ registry.registerPath({
   operationId: 'admin.assign.set',
   security: [{ [NIP98]: [] }],
   responses: {
-    200: inlineJsonResponse('Admin assigned.', z.object({ success: z.literal(true) })),
-    ...commonErrorResponses,
-  },
+    200: inlineJsonResponse(
+      'Admin assigned.',
+      z.object({ success: z.literal(true) })
+    ),
+    ...commonErrorResponses
+  }
 })

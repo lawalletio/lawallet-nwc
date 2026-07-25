@@ -63,7 +63,11 @@ function parsePort(value, label) {
   return port
 }
 
-async function findAvailableDistinctPort(startPort, reservedPorts, attempts = 50) {
+async function findAvailableDistinctPort(
+  startPort,
+  reservedPorts,
+  attempts = 50
+) {
   for (let offset = 0; offset < attempts; offset += 1) {
     const port = startPort + offset
 
@@ -90,7 +94,9 @@ function assertDistinctPorts(entries) {
     const existing = seen.get(port)
 
     if (existing) {
-      throw new Error(`${label} must not reuse port ${port}; it is already assigned to ${existing}.`)
+      throw new Error(
+        `${label} must not reuse port ${port}; it is already assigned to ${existing}.`
+      )
     }
 
     seen.set(port, label)
@@ -119,7 +125,9 @@ function parseInstallArguments(args) {
   }
 
   if (positionals.length > 1) {
-    throw new Error('Expected at most one positional argument for the install directory.')
+    throw new Error(
+      'Expected at most one positional argument for the install directory.'
+    )
   }
 
   const mode = values.mode || DEFAULT_MODE
@@ -166,7 +174,9 @@ export async function runInstallCommand(args) {
     return
   }
 
-  const repoName = path.basename(options.repo.replace(/\/+$/, '')).replace(/\.git$/, '')
+  const repoName = path
+    .basename(options.repo.replace(/\/+$/, ''))
+    .replace(/\.git$/, '')
   const baseDirInput =
     options.dir ||
     (await promptText({
@@ -215,7 +225,8 @@ export async function runInstallCommand(args) {
     ))
   const reservedPorts = new Set([appPort])
   const docsPort =
-    options.docsPort || (await findAvailableDistinctPort(DEFAULT_DOCS_PORT, reservedPorts))
+    options.docsPort ||
+    (await findAvailableDistinctPort(DEFAULT_DOCS_PORT, reservedPorts))
   reservedPorts.add(docsPort)
   const openapiPort =
     options.openapiPort ||
@@ -224,7 +235,10 @@ export async function runInstallCommand(args) {
   const postgresPort =
     installMode === 'docker'
       ? options.postgresPort ||
-        (await findAvailableDistinctPort(DEFAULT_DOCKER_POSTGRES_PORT, reservedPorts))
+        (await findAvailableDistinctPort(
+          DEFAULT_DOCKER_POSTGRES_PORT,
+          reservedPorts
+        ))
       : DEFAULT_DOCKER_POSTGRES_PORT
 
   assertDistinctPorts([

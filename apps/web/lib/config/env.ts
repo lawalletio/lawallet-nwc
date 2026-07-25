@@ -76,7 +76,10 @@ const envSchema = z.object({
     emptyEnvToUndefined,
     z
       .string()
-      .min(32, 'LISTENER_REQUEST_AUTH_SECRET must be at least 32 characters long')
+      .min(
+        32,
+        'LISTENER_REQUEST_AUTH_SECRET must be at least 32 characters long'
+      )
       .optional()
       .describe(
         'Dedicated web-to-listener bearer secret (falls back to LISTENER_AUTH_SECRET)'
@@ -158,14 +161,18 @@ const envSchema = z.object({
     .default('60')
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().positive())
-    .describe('Maximum requests per window for unauthenticated users (default: 60)'),
+    .describe(
+      'Maximum requests per window for unauthenticated users (default: 60)'
+    ),
 
   RATE_LIMIT_MAX_REQUESTS_AUTH: z
     .string()
     .default('300')
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().positive())
-    .describe('Maximum requests per window for authenticated users (default: 300)'),
+    .describe(
+      'Maximum requests per window for authenticated users (default: 300)'
+    ),
 
   UPSTASH_REDIS_URL: z
     .string()

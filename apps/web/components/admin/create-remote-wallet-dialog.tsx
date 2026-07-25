@@ -1,7 +1,14 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ArrowDownToLine, ArrowLeftRight, Check, Lock, Plus } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowDownToLine,
+  ArrowLeftRight,
+  Check,
+  Lock,
+  Plus
+} from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -10,7 +17,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogTrigger
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,20 +28,20 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import {
   useRemoteWalletMutations,
-  type RemoteWalletData,
+  type RemoteWalletData
 } from '@/lib/client/hooks/use-remote-wallets'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { ApiClientError } from '@/lib/client/api-client'
 import {
   probeNwcCapabilities,
-  type NwcCapabilities,
+  type NwcCapabilities
 } from '@/lib/client/nwc/probe-capabilities'
 
 /**
@@ -51,7 +58,12 @@ const DRIVER_OPTIONS: ReadonlyArray<{
   { value: 'NWC', label: 'NWC (Nostr Wallet Connect)', enabled: true },
   { value: 'LND', label: 'LND', enabled: false, hint: 'Coming soon' },
   { value: 'CLN', label: 'CLN', enabled: false, hint: 'Coming soon' },
-  { value: 'BTCPAY', label: 'BTCPay Server', enabled: false, hint: 'Coming soon' },
+  {
+    value: 'BTCPAY',
+    label: 'BTCPay Server',
+    enabled: false,
+    hint: 'Coming soon'
+  }
 ]
 
 const NWC_SCHEMES = ['nostr+walletconnect://', 'nostrwalletconnect://']
@@ -97,7 +109,7 @@ export function CreateRemoteWalletDialog({
   onCreated,
   open: controlledOpen,
   onOpenChange,
-  showTrigger = true,
+  showTrigger = true
 }: CreateRemoteWalletDialogProps) {
   const { data: settings } = useSettings()
   const lncurlEnabled = settings?.lncurl_enabled === 'true'
@@ -112,7 +124,7 @@ export function CreateRemoteWalletDialog({
   const {
     createWallet,
     createLncurlWallet,
-    loading: creating,
+    loading: creating
   } = useRemoteWalletMutations()
 
   const trimmedName = name.trim()
@@ -155,7 +167,7 @@ export function CreateRemoteWalletDialog({
       setProbe({ status: 'checking' })
       try {
         const capabilities = await probeNwcCapabilities(trimmedUri, {
-          signal: controller.signal,
+          signal: controller.signal
         })
         if (!controller.signal.aborted) {
           setProbe({ status: 'success', capabilities })
@@ -210,7 +222,7 @@ export function CreateRemoteWalletDialog({
       if (method === 'lncurl') {
         created = await createLncurlWallet({
           name: trimmedName || undefined,
-          isDefault,
+          isDefault
         })
         toast.success('LNCurl wallet created')
       } else {
@@ -218,7 +230,7 @@ export function CreateRemoteWalletDialog({
           name: trimmedName,
           type,
           config: { connectionString: trimmedUri, mode: submitMode },
-          isDefault,
+          isDefault
         })
         toast.success('Wallet added')
       }
@@ -273,8 +285,8 @@ export function CreateRemoteWalletDialog({
         <DialogHeader>
           <DialogTitle>Add a wallet</DialogTitle>
           <DialogDescription>
-            Connect an external Lightning wallet so your addresses and Cards
-            can route payments through it.
+            Connect an external Lightning wallet so your addresses and Cards can
+            route payments through it.
           </DialogDescription>
         </DialogHeader>
 
@@ -289,7 +301,7 @@ export function CreateRemoteWalletDialog({
                   'rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-60',
                   method === 'lncurl'
                     ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted',
+                    : 'text-muted-foreground hover:bg-muted'
                 )}
               >
                 Create LNCurl wallet
@@ -302,7 +314,7 @@ export function CreateRemoteWalletDialog({
                   'rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-60',
                   method === 'nwc'
                     ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted',
+                    : 'text-muted-foreground hover:bg-muted'
                 )}
               >
                 Paste connection string
@@ -314,12 +326,17 @@ export function CreateRemoteWalletDialog({
             <Label htmlFor="wallet-name">
               Name
               {method === 'lncurl' && (
-                <span className="font-normal text-muted-foreground"> (optional)</span>
+                <span className="font-normal text-muted-foreground">
+                  {' '}
+                  (optional)
+                </span>
               )}
             </Label>
             <Input
               id="wallet-name"
-              placeholder={method === 'lncurl' ? 'LNCurl wallet' : 'e.g. Alby Hub'}
+              placeholder={
+                method === 'lncurl' ? 'LNCurl wallet' : 'e.g. Alby Hub'
+              }
               value={name}
               onChange={e => setName(e.target.value)}
               maxLength={120}
@@ -342,12 +359,20 @@ export function CreateRemoteWalletDialog({
                   </SelectTrigger>
                   <SelectContent>
                     {DRIVER_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value} disabled={!opt.enabled}>
+                      <SelectItem
+                        key={opt.value}
+                        value={opt.value}
+                        disabled={!opt.enabled}
+                      >
                         <span className="flex items-center gap-2">
-                          {!opt.enabled && <Lock className="size-3.5 text-muted-foreground" />}
+                          {!opt.enabled && (
+                            <Lock className="size-3.5 text-muted-foreground" />
+                          )}
                           <span>{opt.label}</span>
                           {opt.hint && (
-                            <span className="text-xs text-muted-foreground">— {opt.hint}</span>
+                            <span className="text-xs text-muted-foreground">
+                              — {opt.hint}
+                            </span>
                           )}
                         </span>
                       </SelectItem>
@@ -392,9 +417,10 @@ export function CreateRemoteWalletDialog({
                       <Label>Capabilities</Label>
                       <CapabilitiesPanel probe={probe} />
                       <p className="text-xs text-muted-foreground">
-                        Detected automatically from the wallet’s NIP-47 <code>get_info</code>{' '}
-                        response. We use this to decide whether the wallet can both send
-                        and receive, or receive only.
+                        Detected automatically from the wallet’s NIP-47{' '}
+                        <code>get_info</code> response. We use this to decide
+                        whether the wallet can both send and receive, or receive
+                        only.
                       </p>
                     </div>
                   )}
@@ -407,7 +433,8 @@ export function CreateRemoteWalletDialog({
                     Use for primary address
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    If you have a primary address, it will be linked to this wallet.
+                    If you have a primary address, it will be linked to this
+                    wallet.
                   </p>
                 </div>
                 <Switch
@@ -424,22 +451,27 @@ export function CreateRemoteWalletDialog({
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                 <span>
                   LNCurl wallets cost <strong>1 sat per hour</strong> to stay
-                  alive — your <strong>first hour is free</strong>. If the balance
-                  runs out and hits{' '}
+                  alive — your <strong>first hour is free</strong>. If the
+                  balance runs out and hits{' '}
                   <strong>0 sats, the wallet is permanently destroyed</strong>.
                   Don’t store large amounts.
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Create an empty disposable wallet first, then fund it before use.
+                Create an empty disposable wallet first, then fund it before
+                use.
               </p>
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div className="flex flex-col gap-0.5">
-                  <Label htmlFor="wallet-default-lncurl" className="cursor-pointer">
+                  <Label
+                    htmlFor="wallet-default-lncurl"
+                    className="cursor-pointer"
+                  >
                     Use for primary address
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    If you have a primary address, it will be linked to this wallet.
+                    If you have a primary address, it will be linked to this
+                    wallet.
                   </p>
                 </div>
                 <Switch
@@ -480,7 +512,11 @@ export function CreateRemoteWalletDialog({
  * The caller only mounts this once `probe.status !== 'idle'`, so the idle
  * state has no branch here.
  */
-function CapabilitiesPanel({ probe }: { probe: Exclude<ProbeState, { status: 'idle' }> }) {
+function CapabilitiesPanel({
+  probe
+}: {
+  probe: Exclude<ProbeState, { status: 'idle' }>
+}) {
   if (probe.status === 'checking') {
     return (
       <div className="flex h-10 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground">

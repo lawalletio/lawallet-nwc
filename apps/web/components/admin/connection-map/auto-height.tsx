@@ -28,7 +28,7 @@ import React, { useEffect, useRef, useState } from 'react'
  */
 export function AutoHeight({
   children,
-  className,
+  className
 }: {
   children: React.ReactNode
   className?: string

@@ -75,21 +75,21 @@ const INITIAL_STATE: WalletFlowState = {
     amountSats: null,
     comment: '',
     result: null,
-    error: null,
+    error: null
   },
   receive: {
     amountSats: null,
     description: '',
     invoice: null,
     settledPreimage: null,
-    error: null,
+    error: null
   },
   withdraw: {
     params: null,
     amountSats: null,
     result: null,
-    error: null,
-  },
+    error: null
+  }
 }
 
 let state: WalletFlowState = INITIAL_STATE
@@ -122,7 +122,7 @@ export function useSendFlow(): SendFlowState {
   return useSyncExternalStore(
     subscribe,
     () => getSnapshot().send,
-    () => getServerSnapshot().send,
+    () => getServerSnapshot().send
   )
 }
 
@@ -130,7 +130,7 @@ export function useReceiveFlow(): ReceiveFlowState {
   return useSyncExternalStore(
     subscribe,
     () => getSnapshot().receive,
-    () => getServerSnapshot().receive,
+    () => getServerSnapshot().receive
   )
 }
 
@@ -138,7 +138,7 @@ export function useWithdrawFlow(): WithdrawFlowState {
   return useSyncExternalStore(
     subscribe,
     () => getSnapshot().withdraw,
-    () => getServerSnapshot().withdraw,
+    () => getServerSnapshot().withdraw
   )
 }
 
@@ -146,7 +146,7 @@ export const sendActions = {
   setRecipient(recipient: ResolvedRecipient | null) {
     state = {
       ...state,
-      send: { ...state.send, recipient, error: null },
+      send: { ...state.send, recipient, error: null }
     }
     emit()
   },
@@ -169,14 +169,14 @@ export const sendActions = {
   reset() {
     state = { ...state, send: INITIAL_STATE.send }
     emit()
-  },
+  }
 }
 
 export const receiveActions = {
   setAmount(amountSats: number | null) {
     state = {
       ...state,
-      receive: { ...state.receive, amountSats, error: null },
+      receive: { ...state.receive, amountSats, error: null }
     }
     emit()
   },
@@ -191,7 +191,7 @@ export const receiveActions = {
   markSettled(preimage: string) {
     state = {
       ...state,
-      receive: { ...state.receive, settledPreimage: preimage },
+      receive: { ...state.receive, settledPreimage: preimage }
     }
     emit()
   },
@@ -202,7 +202,7 @@ export const receiveActions = {
   reset() {
     state = { ...state, receive: INITIAL_STATE.receive }
     emit()
-  },
+  }
 }
 
 export const withdrawActions = {
@@ -214,15 +214,15 @@ export const withdrawActions = {
         params,
         // Default the amount to the max for fixed-amount vouchers; the confirm
         // screen overrides this when a range lets the user choose.
-        amountSats: params ? params.maxWithdrawableSats : null,
-      },
+        amountSats: params ? params.maxWithdrawableSats : null
+      }
     }
     emit()
   },
   setAmount(amountSats: number | null) {
     state = {
       ...state,
-      withdraw: { ...state.withdraw, amountSats, error: null },
+      withdraw: { ...state.withdraw, amountSats, error: null }
     }
     emit()
   },
@@ -237,7 +237,7 @@ export const withdrawActions = {
   reset() {
     state = { ...state, withdraw: INITIAL_STATE.withdraw }
     emit()
-  },
+  }
 }
 
 export function resetAllFlows() {

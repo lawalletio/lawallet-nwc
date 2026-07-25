@@ -8,7 +8,7 @@ import {
   ExternalLink,
   KeyRound,
   Nfc,
-  ScanLine,
+  ScanLine
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import {
@@ -17,7 +17,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
@@ -31,7 +31,7 @@ const APP_URL = 'https://zapstore.dev/apps/com.lacrypta.cardinstaller'
  */
 export function BulkCardGuideDialog({
   open,
-  onOpenChange,
+  onOpenChange
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -59,8 +59,8 @@ export function BulkCardGuideDialog({
             title="Install the Card Installer app"
           >
             <p className="text-sm text-muted-foreground">
-              Get it from Zapstore on your Android phone — scan this code or open
-              the link.
+              Get it from Zapstore on your Android phone — scan this code or
+              open the link.
             </p>
             <div className="mt-2 flex items-center gap-3">
               <div className="shrink-0 rounded-md bg-white p-2">
@@ -85,8 +85,8 @@ export function BulkCardGuideDialog({
           >
             <p className="text-sm text-muted-foreground">
               In <strong>Settings → Device Tokens</strong>, pick a user and the
-              card scopes, then <strong>Generate Token</strong> — it&apos;s shown
-              as a QR code.
+              card scopes, then <strong>Generate Token</strong> — it&apos;s
+              shown as a QR code.
             </p>
             <Button asChild variant="outline" size="sm" className="mt-2">
               <Link
@@ -137,7 +137,7 @@ function Step({
   n,
   icon,
   title,
-  children,
+  children
 }: {
   n: number
   icon: React.ReactNode

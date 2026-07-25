@@ -7,7 +7,7 @@ import {
   AuthorizationError,
   ConflictError,
   NotFoundError,
-  ValidationError,
+  ValidationError
 } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
@@ -17,12 +17,16 @@ import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { claimInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
 import { dispatchHookAndForget } from '@/plugins/index'
-import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
+import {
+  ActivityEvent,
+  invoiceLogMetadata,
+  logActivity
+} from '@/lib/activity-log'
 import { resolveDefaultAddressMode } from '@/lib/wallet/default-address-mode'
 import {
   findInitialPrimaryWalletCandidate,
   getPrimaryRemoteWalletForUser,
-  syncPrimaryRemoteWalletFlag,
+  syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 import type { InvoiceMetadata } from '@/lib/invoice-utils'
 
@@ -74,7 +78,7 @@ export const POST = withErrorHandling(
         try {
           await prisma.invoice.update({
             where: { id },
-            data: { status: 'EXPIRED' },
+            data: { status: 'EXPIRED' }
           })
         } catch {
           // Best-effort sweep — never block the expiry response on it.
@@ -85,7 +89,7 @@ export const POST = withErrorHandling(
           level: 'WARN',
           message: `Invoice expired before claim (${invoice.amountSats} sats)`,
           userId: user.id,
-          metadata: invoiceLogMetadata({ ...invoice, status: 'EXPIRED' }),
+          metadata: invoiceLogMetadata({ ...invoice, status: 'EXPIRED' })
         })
       }
       throw new ValidationError('Invoice has expired')
@@ -104,7 +108,9 @@ export const POST = withErrorHandling(
     // an operator toggles paid mode off after the invoice was issued, the
     // user already paid and is entitled to their address.
     if (!verifyPreimage(body.preimage, invoice.paymentHash)) {
-      throw new ValidationError('Invalid preimage — does not match payment hash')
+      throw new ValidationError(
+        'Invalid preimage — does not match payment hash'
+      )
     }
 
     // Mark invoice as paid
@@ -113,8 +119,8 @@ export const POST = withErrorHandling(
       data: {
         status: 'PAID',
         preimage: body.preimage,
-        paidAt: new Date(),
-      },
+        paidAt: new Date()
+      }
     })
 
     // Execute purpose-specific action
@@ -130,7 +136,7 @@ export const POST = withErrorHandling(
       // Re-check availability — the username may have been taken
       // between invoice mint and claim.
       const existing = await prisma.lightningAddress.findUnique({
-        where: { username },
+        where: { username }
       })
       if (existing) {
         throw new ConflictError('Username was taken while payment was pending')
@@ -138,7 +144,10 @@ export const POST = withErrorHandling(
 
       if (invoice.purpose === 'REGISTRATION') {
         await prisma.$transaction(async tx => {
-          const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(user.id, tx)
+          const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(
+            user.id,
+            tx
+          )
           const candidate =
             currentPrimaryWallet ??
             (await findInitialPrimaryWalletCandidate(user.id, tx))
@@ -147,11 +156,11 @@ export const POST = withErrorHandling(
           // partial-unique index on (userId) WHERE isPrimary=true
           // doesn't conflict, then insert the new primary row.
           const existingPrimary = await tx.lightningAddress.findFirst({
-            where: { userId: user.id, isPrimary: true },
+            where: { userId: user.id, isPrimary: true }
           })
           if (existingPrimary) {
             await tx.lightningAddress.delete({
-              where: { username: existingPrimary.username },
+              where: { username: existingPrimary.username }
             })
           }
           await tx.lightningAddress.create({
@@ -160,8 +169,8 @@ export const POST = withErrorHandling(
               userId: user.id,
               isPrimary: true,
               mode: candidate ? 'CUSTOM_NWC' : 'IDLE',
-              remoteWalletId: candidate?.id ?? null,
-            },
+              remoteWalletId: candidate?.id ?? null
+            }
           })
           await syncPrimaryRemoteWalletFlag(user.id, tx)
         })
@@ -172,8 +181,8 @@ export const POST = withErrorHandling(
             username,
             userId: user.id,
             isPrimary: false,
-            mode: await resolveDefaultAddressMode(user.id),
-          },
+            mode: await resolveDefaultAddressMode(user.id)
+          }
         })
       }
 
@@ -181,7 +190,7 @@ export const POST = withErrorHandling(
       result = {
         success: true,
         lightningAddress: `${username}@${domain}`,
-        username,
+        username
       }
     }
 
@@ -206,8 +215,8 @@ export const POST = withErrorHandling(
         ...invoice,
         status: 'PAID',
         preimage: body.preimage,
-        paidAt: new Date(),
-      }),
+        paidAt: new Date()
+      })
     })
 
     // Plugin lifecycle hook — fire-and-forget; a plugin failure never
@@ -217,7 +226,7 @@ export const POST = withErrorHandling(
       paymentHash: invoice.paymentHash,
       amountSats: invoice.amountSats,
       purpose: invoice.purpose,
-      userId: user.id,
+      userId: user.id
     })
 
     if (createsAddress && typeof result.username === 'string') {
@@ -229,8 +238,8 @@ export const POST = withErrorHandling(
         metadata: {
           username: result.username,
           via: 'invoice_claim',
-          invoiceId: invoice.id,
-        },
+          invoiceId: invoice.id
+        }
       })
     }
 

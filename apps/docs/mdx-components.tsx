@@ -1,10 +1,10 @@
-import defaultMdxComponents from 'fumadocs-ui/mdx';
-import type { MDXComponents } from 'mdx/types';
+import defaultMdxComponents from 'fumadocs-ui/mdx'
+import type { MDXComponents } from 'mdx/types'
 import {
   SandpackExample,
   SandpackLive,
-  SandpackCodeOnly,
-} from '@/components/sandpack-wrapper';
+  SandpackCodeOnly
+} from '@/components/sandpack-wrapper'
 
 export function getMDXComponents(components?: MDXComponents): MDXComponents {
   return {
@@ -12,6 +12,6 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     SandpackExample,
     SandpackLive,
     SandpackCodeOnly,
-    ...components,
-  };
+    ...components
+  }
 }

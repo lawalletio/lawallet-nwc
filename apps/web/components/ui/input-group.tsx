@@ -58,7 +58,9 @@ const InputGroupText = React.forwardRef<HTMLDivElement, InputGroupTextProps>(
       ref={ref}
       className={cn(
         'flex items-center self-stretch px-3 text-sm text-muted-foreground bg-muted',
-        position === 'prefix' ? 'border-r border-border' : 'border-l border-border',
+        position === 'prefix'
+          ? 'border-r border-border'
+          : 'border-l border-border',
         className
       )}
       {...props}

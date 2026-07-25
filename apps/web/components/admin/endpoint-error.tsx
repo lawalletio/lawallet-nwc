@@ -39,7 +39,7 @@ export function EndpointError({
   error,
   label = 'Service unavailable',
   onRetry,
-  className = '',
+  className = ''
 }: EndpointErrorProps) {
   if (!error) return null
 

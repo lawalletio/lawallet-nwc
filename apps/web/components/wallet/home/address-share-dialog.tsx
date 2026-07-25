@@ -5,7 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
+  DialogDescription
 } from '@/components/ui/dialog'
 import { QrDisplay } from '@/components/wallet/shared/qr-display'
 
@@ -26,7 +26,7 @@ export function AddressShareDialog({
   open,
   onOpenChange,
   lightningAddress,
-  avatarSrc,
+  avatarSrc
 }: AddressShareDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

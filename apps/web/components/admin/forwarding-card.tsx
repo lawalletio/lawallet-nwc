@@ -39,7 +39,7 @@ export function ForwardingCard({
   username,
   mode,
   redirect,
-  onUpdated,
+  onUpdated
 }: ForwardingCardProps) {
   const { updateAddress } = useAddressMutations()
   const [input, setInput] = useState('')
@@ -58,13 +58,15 @@ export function ForwardingCard({
         redirect: trimmed,
         // Explicitly clear any previously-linked wallet so the address has
         // a single clear state — pure alias forward.
-        remoteWalletId: null,
+        remoteWalletId: null
       })
       toast.success('Forwarding set')
       setInput('')
       await onUpdated?.()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to set forwarding')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to set forwarding'
+      )
     } finally {
       setSaving(false)
     }
@@ -92,10 +94,7 @@ export function ForwardingCard({
         <div className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-4 py-3">
           <div className="flex items-center gap-2 min-w-0">
             <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
-            <span
-              className="truncate font-mono text-sm"
-              title={redirect ?? ''}
-            >
+            <span className="truncate font-mono text-sm" title={redirect ?? ''}>
               {redirect || 'Not set'}
             </span>
           </div>

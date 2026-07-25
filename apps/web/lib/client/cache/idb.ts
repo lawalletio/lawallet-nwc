@@ -23,7 +23,9 @@ function isAvailable(): boolean {
 
 export function openDb(): Promise<IDBDatabase> {
   if (!isAvailable()) {
-    return Promise.reject(new Error('IndexedDB is not available in this environment'))
+    return Promise.reject(
+      new Error('IndexedDB is not available in this environment')
+    )
   }
   if (dbPromise) return dbPromise
 
@@ -33,17 +35,22 @@ export function openDb(): Promise<IDBDatabase> {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE_NWC_TX)) {
         const store = db.createObjectStore(STORE_NWC_TX, {
-          keyPath: 'compositeKey',
+          keyPath: 'compositeKey'
         })
         store.createIndex(INDEX_BY_NWC_AND_TIME, ['nwcKey', 'createdAt'], {
-          unique: false,
+          unique: false
         })
       }
     }
     req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error ?? new Error('Failed to open IndexedDB'))
+    req.onerror = () =>
+      reject(req.error ?? new Error('Failed to open IndexedDB'))
     req.onblocked = () =>
-      reject(new Error('IndexedDB open blocked by another tab — close other LaWallet tabs'))
+      reject(
+        new Error(
+          'IndexedDB open blocked by another tab — close other LaWallet tabs'
+        )
+      )
   })
 
   return dbPromise
@@ -54,7 +61,7 @@ export async function idbReadIndexDesc<T>(
   store: string,
   index: string,
   range: IDBKeyRange,
-  limit: number,
+  limit: number
 ): Promise<T[]> {
   const db = await openDb()
   return new Promise<T[]>((resolve, reject) => {
@@ -86,14 +93,15 @@ export async function idbBulkPut<T>(store: string, values: T[]): Promise<void> {
     }
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error ?? new Error('IndexedDB write failed'))
-    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'))
+    tx.onabort = () =>
+      reject(tx.error ?? new Error('IndexedDB transaction aborted'))
   })
 }
 
 export async function idbDeleteByIndexRange(
   store: string,
   index: string,
-  range: IDBKeyRange,
+  range: IDBKeyRange
 ): Promise<void> {
   const db = await openDb()
   await new Promise<void>((resolve, reject) => {
@@ -106,9 +114,11 @@ export async function idbDeleteByIndexRange(
       cursor.delete()
       cursor.continue()
     }
-    req.onerror = () => reject(req.error ?? new Error('IndexedDB delete failed'))
+    req.onerror = () =>
+      reject(req.error ?? new Error('IndexedDB delete failed'))
     tx.oncomplete = () => resolve()
-    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'))
+    tx.onabort = () =>
+      reject(tx.error ?? new Error('IndexedDB transaction aborted'))
   })
 }
 

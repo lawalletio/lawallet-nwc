@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { NSecSigner } from '@nostrify/nostrify'
 import type { NostrSigner } from '@nostrify/nostrify'
-import { generateSecretKey, getPublicKey, finalizeEvent, verifyEvent } from 'nostr-tools/pure'
+import {
+  generateSecretKey,
+  getPublicKey,
+  finalizeEvent,
+  verifyEvent
+} from 'nostr-tools/pure'
 import { toBlossomSigner } from '@/lib/client/blossom-signer'
 
 // Blossom-specific auth event kind (BUD-01). Matches the value embedded in
@@ -18,7 +23,7 @@ const AUTH_EVENT_KIND = 24242
 function makeNip07Stub(secretKey: Uint8Array): NostrSigner {
   return {
     getPublicKey: async () => getPublicKey(secretKey),
-    signEvent: async event => finalizeEvent(event, secretKey),
+    signEvent: async event => finalizeEvent(event, secretKey)
   }
 }
 
@@ -33,7 +38,7 @@ function makeNip07Stub(secretKey: Uint8Array): NostrSigner {
 function makeBunkerStub(secretKey: Uint8Array): NostrSigner {
   return {
     getPublicKey: async () => getPublicKey(secretKey),
-    signEvent: async event => finalizeEvent(event, secretKey),
+    signEvent: async event => finalizeEvent(event, secretKey)
   }
 }
 
@@ -52,8 +57,8 @@ describe('toBlossomSigner', () => {
       tags: [
         ['t', 'upload'],
         ['x', '0'.repeat(64)],
-        ['expiration', String(created_at + 3600)],
-      ],
+        ['expiration', String(created_at + 3600)]
+      ]
     }
   }
 
@@ -110,7 +115,11 @@ describe('toBlossomSigner', () => {
     const nip07 = toBlossomSigner(makeNip07Stub(sk))
     const bunker = toBlossomSigner(makeBunkerStub(sk))
 
-    const [a, b, c] = await Promise.all([nsec(drafts[0]), nip07(drafts[1]), bunker(drafts[2])])
+    const [a, b, c] = await Promise.all([
+      nsec(drafts[0]),
+      nip07(drafts[1]),
+      bunker(drafts[2])
+    ])
 
     expect(a.id).toBe(b.id)
     expect(b.id).toBe(c.id)
@@ -125,7 +134,7 @@ describe('toBlossomSigner', () => {
     const broken: NostrSigner = {
       getPublicKey: async () => pk,
       // @ts-expect-error intentionally returning the wrong shape
-      signEvent: async event => ({ ...event }),
+      signEvent: async event => ({ ...event })
     }
     const signer = toBlossomSigner(broken)
     await expect(signer(makeDraft())).rejects.toThrow(/unsigned or malformed/i)
@@ -135,7 +144,7 @@ describe('toBlossomSigner', () => {
     const broken: NostrSigner = {
       getPublicKey: async () => pk,
       // @ts-expect-error intentionally wrong return
-      signEvent: async () => null,
+      signEvent: async () => null
     }
     const signer = toBlossomSigner(broken)
     await expect(signer(makeDraft())).rejects.toThrow(/unsigned or malformed/i)
@@ -146,7 +155,7 @@ describe('toBlossomSigner', () => {
       getPublicKey: async () => pk,
       signEvent: async () => {
         throw new Error('user denied signing')
-      },
+      }
     }
     const signer = toBlossomSigner(rejecting)
     await expect(signer(makeDraft())).rejects.toThrow(/user denied/i)

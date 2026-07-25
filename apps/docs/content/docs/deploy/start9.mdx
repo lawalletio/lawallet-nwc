@@ -1,6 +1,6 @@
 ---
-title: "Start9 Deployment"
-description: "Run LaWallet NWC on your Start9 server (StartOS) as a self-contained app."
+title: 'Start9 Deployment'
+description: 'Run LaWallet NWC on your Start9 server (StartOS) as a self-contained app.'
 ---
 
 [StartOS](https://start9.com) is the sovereign-server OS behind Start9. LaWallet
@@ -11,12 +11,12 @@ up. The package lives in its own repo,
 and wraps the same published image as every other target,
 [`masize/lawallet-nwc`](https://hub.docker.com/r/masize/lawallet-nwc).
 
-| Property | Value |
-|----------|-------|
-| Package id | `lawallet-nwc` |
-| Images | `masize/lawallet-nwc` (web) + `postgres:15-alpine` |
-| Architectures | `x86_64`, `aarch64` |
-| Web UI | port `2288` (LAN, `.local`, Tor, or a custom domain) |
+| Property      | Value                                                |
+| ------------- | ---------------------------------------------------- |
+| Package id    | `lawallet-nwc`                                       |
+| Images        | `masize/lawallet-nwc` (web) + `postgres:15-alpine`   |
+| Architectures | `x86_64`, `aarch64`                                  |
+| Web UI        | port `2288` (LAN, `.local`, Tor, or a custom domain) |
 
 ## Install the current release
 
@@ -90,12 +90,12 @@ The package generates and persists a `JWT_SECRET` and the PostgreSQL password on
 first install (stored on the service's `main` volume), and sets the runtime
 environment automatically:
 
-| Variable | Value |
-|----------|-------|
-| `DATABASE_URL` | bundled localhost Postgres |
-| `JWT_SECRET` | generated on install |
-| `NODE_ENV` | `production` |
-| `PORT` / `HOSTNAME` | `2288` / `0.0.0.0` |
+| Variable            | Value                      |
+| ------------------- | -------------------------- |
+| `DATABASE_URL`      | bundled localhost Postgres |
+| `JWT_SECRET`        | generated on install       |
+| `NODE_ENV`          | `production`               |
+| `PORT` / `HOSTNAME` | `2288` / `0.0.0.0`         |
 
 For the full env-var reference (used when self-hosting outside StartOS), see
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example).

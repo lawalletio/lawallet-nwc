@@ -3,7 +3,7 @@ import {
   classifyRow,
   makeConflict,
   tableNoun,
-  type TableContext,
+  type TableContext
 } from '@/lib/backup/classify'
 import { TABLE_DESCRIPTORS, pkKey, fieldsKey } from '@/lib/backup/tables'
 import type { BackupTableName } from '@/lib/validation/schemas'
@@ -15,7 +15,7 @@ function emptyCtx(): TableContext {
   return {
     existingByPk: new Map(),
     secondaryExisting: new Map(),
-    partialExisting: new Map(),
+    partialExisting: new Map()
   }
 }
 
@@ -37,7 +37,7 @@ describe('backup classify', () => {
         kind: 'pk',
         message: 'clash',
         allowedStrategies: ['skip'],
-        suggestedStrategy: 'skip',
+        suggestedStrategy: 'skip'
       })
       expect(conflict.id).toBe('users:u1')
       expect(conflict.table).toBe('users')
@@ -60,14 +60,14 @@ describe('backup classify', () => {
         name: 'domain',
         value: 'example.com',
         createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
       }
       const ctx = emptyCtx()
       // Existing stored with Date objects — rowsEqual normalizes Date vs ISO.
       ctx.existingByPk.set(pkKey(desc, row), {
         ...row,
         createdAt: new Date(row.createdAt),
-        updatedAt: new Date(row.updatedAt),
+        updatedAt: new Date(row.updatedAt)
       })
       const result = classifyRow(desc, row, ctx, parentAvailable)
       expect(result.status).toBe('identical')
@@ -77,7 +77,10 @@ describe('backup classify', () => {
       const desc = TABLE_DESCRIPTORS.settings
       const row = { name: 'domain', value: 'new.example.com' }
       const ctx = emptyCtx()
-      ctx.existingByPk.set(pkKey(desc, row), { name: 'domain', value: 'old.example.com' })
+      ctx.existingByPk.set(pkKey(desc, row), {
+        name: 'domain',
+        value: 'old.example.com'
+      })
       const result = classifyRow(desc, row, ctx, parentAvailable)
       expect(result.status).toBe('conflicting')
       expect(result.conflict?.kind).toBe('pk')
@@ -94,7 +97,7 @@ describe('backup classify', () => {
         remoteWalletId: null,
         isPrimary: false,
         createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
       }
       const ctx = emptyCtx()
       ctx.existingByPk.set(pkKey(desc, row), { ...row, userId: 'user-B' })
@@ -113,7 +116,10 @@ describe('backup classify', () => {
       const su = desc.secondaryUniques[0] // { fields: ['pubkey'], label: 'Nostr identity' }
       const ctx = emptyCtx()
       const inner = new Map<string, Row>()
-      inner.set(fieldsKey(su.fields, row), { id: 'user-existing', pubkey: 'shared-pubkey' })
+      inner.set(fieldsKey(su.fields, row), {
+        id: 'user-existing',
+        pubkey: 'shared-pubkey'
+      })
       ctx.secondaryExisting.set(su.label, inner)
       const result = classifyRow(desc, row, ctx, parentAvailable)
       expect(result.status).toBe('conflicting')
@@ -133,7 +139,7 @@ describe('backup classify', () => {
         userId: null,
         remoteWalletId: null,
         username: null,
-        kind: 'SIMPLE',
+        kind: 'SIMPLE'
       }
       // designId is a required FK to cardDesigns; parentMissing → not available.
       const result = classifyRow(desc, row, emptyCtx(), parentMissing)
@@ -152,7 +158,7 @@ describe('backup classify', () => {
         userId: null,
         remoteWalletId: null,
         username: null,
-        kind: 'SIMPLE',
+        kind: 'SIMPLE'
       }
       const result = classifyRow(desc, row, emptyCtx(), parentAvailable)
       expect(result.status).toBe('new')
@@ -168,12 +174,15 @@ describe('backup classify', () => {
         remoteWalletId: null,
         isPrimary: true,
         createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
       }
       const pu = desc.partialUniques[0] // { label: 'primary address', scope: ['userId'], flag: 'isPrimary' }
       const ctx = emptyCtx()
       const inner = new Map<string, Row>()
-      inner.set(fieldsKey(pu.scope, row), { username: 'primary-existing', userId: 'user-A' })
+      inner.set(fieldsKey(pu.scope, row), {
+        username: 'primary-existing',
+        userId: 'user-A'
+      })
       ctx.partialExisting.set(pu.label, inner)
       const result = classifyRow(desc, row, ctx, parentAvailable)
       expect(result.status).toBe('conflicting')

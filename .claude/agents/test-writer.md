@@ -12,6 +12,7 @@ components `tests/unit/components/`. Run a single file with
 `pnpm --filter @lawallet-nwc/web exec vitest run <path>`.
 
 Reuse, never reinvent:
+
 - `tests/helpers/auth-helpers.ts` (NIP-98/JWT auth fixtures),
   `tests/helpers/api-helpers.ts`, `tests/helpers/fixtures.ts` (Faker),
   `tests/helpers/prisma-mock.ts`, `tests/helpers/route-helpers.ts`
@@ -20,6 +21,7 @@ Reuse, never reinvent:
 - Fixed-ID mock data in `apps/web/mocks/*.ts` for deterministic assertions
 
 Critical gotchas:
+
 - `vi.mock('@/lib/config')` BEFORE importing modules that import
   `@/lib/logger` (logger reads config at module load)
 - `resetPrismaMock()` in beforeEach — `vi.clearAllMocks()` does NOT clear

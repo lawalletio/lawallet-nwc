@@ -45,7 +45,7 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
 
 - `index.ts` — startup order, notification handler, timers, shutdown
 - `env.ts` — Zod env (memoized); loads `.env.local` best-effort
-- `logger.ts` — pino root + `patchConsole` (SDK logs via console.*)
+- `logger.ts` — pino root + `patchConsole` (SDK logs via console.\*)
 - `metrics.ts` — in-memory /status counters
 - `db.ts` — pg pool, wallet queries, dedicated LISTEN client w/ reconnect
 - `store.ts` — `listener.processed_events` bootstrap, dedup, delivery state
@@ -69,10 +69,10 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
   installs start both containers together before the schema exists.
 - `pnpm dev:setup` at the repo root writes `apps/listener/.env.local`; then
   `pnpm dev:listener` (tsx watch). Tests: `pnpm --filter
-  @lawallet-nwc/listener test` (vitest, node env, everything mocked — no
+@lawallet-nwc/listener test` (vitest, node env, everything mocked — no
   relay or DB needed).
 - Build is **tsup**, not tsc: `@lawallet-nwc/shared` ships raw TS and Node
   won't type-strip under node_modules, so the shared package is bundled in
   (`noExternal`). `tsc --noEmit` stays the typecheck.
-- Local `prettier.config.js` (ESM) mirrors the root config — the CJS root
-  file can't be loaded by the prettier CLI from here.
+- `pnpm lint` here is `prettier --check`, resolving the repo-root
+  `prettier.config.js`. There is no local copy to keep in sync.

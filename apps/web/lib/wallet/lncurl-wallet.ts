@@ -5,7 +5,7 @@ import type {
   LightningAddressMode,
   Prisma,
   RemoteWallet,
-  RemoteWalletStatus,
+  RemoteWalletStatus
 } from '@/lib/generated/prisma'
 import { syncPrimaryRemoteWalletFlag } from '@/lib/wallet/primary-wallet'
 
@@ -63,7 +63,7 @@ export function lncurlHealTarget(
     /** The wallet linked through the user's primary address (DEFAULT_NWC). */
     defaultWallet: LncurlHealWalletRef | null
   },
-  settings: LncurlAutoHealSettings,
+  settings: LncurlAutoHealSettings
 ): { previousWalletId: string | null } | null {
   if (settings.lncurl_enabled !== 'true') return null
   const autoCreate = settings.lncurl_auto_create === 'true'
@@ -134,7 +134,7 @@ function uniqueName(requested: string, taken: Set<string>): string {
  *      primary Lightning Address binding.
  */
 export async function createLncurlRemoteWallet(
-  input: CreateLncurlRemoteWalletInput,
+  input: CreateLncurlRemoteWalletInput
 ): Promise<RemoteWallet> {
   const { userId, previousWalletId, revokePrevious, serverUrl } = input
 
@@ -146,7 +146,7 @@ export async function createLncurlRemoteWallet(
     // Resolve a collision-free name within the user's namespace.
     const existing = await tx.remoteWallet.findMany({
       where: { userId },
-      select: { name: true },
+      select: { name: true }
     })
     const taken = new Set(existing.map(w => w.name))
     const name = uniqueName(input.name ?? DEFAULT_WALLET_NAME, taken)
@@ -158,7 +158,7 @@ export async function createLncurlRemoteWallet(
       // Always record the exact server that minted this wallet — the operator's
       // default can change later, so the wallet must remember its own origin
       // (used by the detail-page "LNCurl" badge link).
-      lncurlServerUrl: serverUrl?.trim() || DEFAULT_LNCURL_SERVER,
+      lncurlServerUrl: serverUrl?.trim() || DEFAULT_LNCURL_SERVER
     }
 
     const created = await tx.remoteWallet.create({
@@ -168,19 +168,19 @@ export async function createLncurlRemoteWallet(
         type: 'NWC',
         config,
         status: 'ACTIVE',
-        isDefault: false,
-      },
+        isDefault: false
+      }
     })
 
     if (previousWalletId) {
       // Re-point everything that routed through the dead wallet.
       await tx.lightningAddress.updateMany({
         where: { userId, remoteWalletId: previousWalletId },
-        data: { remoteWalletId: created.id },
+        data: { remoteWalletId: created.id }
       })
       await tx.card.updateMany({
         where: { userId, remoteWalletId: previousWalletId },
-        data: { remoteWalletId: created.id },
+        data: { remoteWalletId: created.id }
       })
 
       if (revokePrevious) {
@@ -189,7 +189,7 @@ export async function createLncurlRemoteWallet(
         // REVOKED, so the user can still see its death stats.
         await tx.remoteWallet.updateMany({
           where: { id: previousWalletId, userId },
-          data: { status: 'DEAD', diedAt: new Date(), isDefault: false },
+          data: { status: 'DEAD', diedAt: new Date(), isDefault: false }
         })
       }
     }
@@ -198,7 +198,7 @@ export async function createLncurlRemoteWallet(
 
     logger.info(
       { userId, walletId: created.id, previousWalletId, revokePrevious },
-      'LNCurl wallet provisioned',
+      'LNCurl wallet provisioned'
     )
 
     return tx.remoteWallet.findUniqueOrThrow({ where: { id: created.id } })

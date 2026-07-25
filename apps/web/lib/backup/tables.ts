@@ -19,7 +19,7 @@ export const BACKUP_TABLE_ORDER: BackupTableName[] = [
   'settings',
   'nostrProfileCache',
   'nostrProfileImageCache',
-  'pluginRecords',
+  'pluginRecords'
 ]
 
 /** Maps a user-facing category to the tables it covers. */
@@ -32,17 +32,21 @@ export const CATEGORY_TABLES: Record<BackupCategory, BackupTableName[]> = {
     'lightningAddresses',
     'cards',
     'cardActivationTokens',
-    'albySubAccounts',
+    'albySubAccounts'
   ],
   settings: ['settings'],
   plugins: ['pluginRecords'],
   activityLogs: ['activityLogs'],
   invoices: ['invoices'],
-  nostrCache: ['nostrProfileCache', 'nostrProfileImageCache'],
+  nostrCache: ['nostrProfileCache', 'nostrProfileImageCache']
 }
 
 /** Categories pre-selected in the export wizard. */
-export const DEFAULT_EXPORT_CATEGORIES: BackupCategory[] = ['core', 'settings', 'plugins']
+export const DEFAULT_EXPORT_CATEGORIES: BackupCategory[] = [
+  'core',
+  'settings',
+  'plugins'
+]
 
 export interface SecondaryUnique {
   /** Columns that together form the UNIQUE constraint. */
@@ -115,7 +119,7 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     fks: [],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: [],
+    jsonNullableFields: []
   },
   cardDesigns: {
     name: 'cardDesigns',
@@ -125,7 +129,7 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     fks: [{ field: 'userId', target: 'users', required: false }],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: [],
+    jsonNullableFields: []
   },
   ntag424s: {
     name: 'ntag424s',
@@ -135,7 +139,7 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     fks: [{ field: 'userId', target: 'users', required: false }],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: [],
+    jsonNullableFields: []
   },
   remoteWallets: {
     name: 'remoteWallets',
@@ -144,10 +148,12 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     secondaryUniques: [{ fields: ['userId', 'name'], label: 'wallet name' }],
     fks: [{ field: 'userId', target: 'users', required: true }],
     softRefs: [],
-    partialUniques: [{ label: 'default wallet', scope: ['userId'], flag: 'isDefault' }],
+    partialUniques: [
+      { label: 'default wallet', scope: ['userId'], flag: 'isDefault' }
+    ],
     jsonNullableFields: [],
     renameField: 'name',
-    renameChangesPk: false,
+    renameChangesPk: false
   },
   lightningAddresses: {
     name: 'lightningAddresses',
@@ -156,13 +162,15 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     secondaryUniques: [],
     fks: [
       { field: 'userId', target: 'users', required: true },
-      { field: 'remoteWalletId', target: 'remoteWallets', required: false },
+      { field: 'remoteWalletId', target: 'remoteWallets', required: false }
     ],
     softRefs: [],
-    partialUniques: [{ label: 'primary address', scope: ['userId'], flag: 'isPrimary' }],
+    partialUniques: [
+      { label: 'primary address', scope: ['userId'], flag: 'isPrimary' }
+    ],
     jsonNullableFields: [],
     renameField: 'username',
-    renameChangesPk: true,
+    renameChangesPk: true
   },
   cards: {
     name: 'cards',
@@ -170,17 +178,17 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     pk: ['id'],
     secondaryUniques: [
       { fields: ['ntag424Cid'], label: 'card chip (NTAG cid)' },
-      { fields: ['writeToken'], label: 'write token' },
+      { fields: ['writeToken'], label: 'write token' }
     ],
     fks: [
       { field: 'designId', target: 'cardDesigns', required: true },
       { field: 'ntag424Cid', target: 'ntag424s', required: false },
       { field: 'userId', target: 'users', required: false },
-      { field: 'remoteWalletId', target: 'remoteWallets', required: false },
+      { field: 'remoteWalletId', target: 'remoteWallets', required: false }
     ],
     softRefs: [{ field: 'username', target: 'lightningAddresses' }],
     partialUniques: [],
-    jsonNullableFields: [],
+    jsonNullableFields: []
   },
   cardActivationTokens: {
     name: 'cardActivationTokens',
@@ -193,31 +201,35 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
       {
         label: 'pending activation token',
         scope: ['cardId', 'qrKind'],
-        where: { field: 'status', equals: 'PENDING' },
-      },
+        where: { field: 'status', equals: 'PENDING' }
+      }
     ],
-    jsonNullableFields: [],
+    jsonNullableFields: []
   },
   albySubAccounts: {
     name: 'albySubAccounts',
     model: 'albySubAccount',
     pk: ['appId'],
     numericPk: true,
-    secondaryUniques: [{ fields: ['userId'], label: 'Alby account (one per user)' }],
+    secondaryUniques: [
+      { fields: ['userId'], label: 'Alby account (one per user)' }
+    ],
     fks: [{ field: 'userId', target: 'users', required: true }],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: [],
+    jsonNullableFields: []
   },
   invoices: {
     name: 'invoices',
     model: 'invoice',
     pk: ['id'],
-    secondaryUniques: [{ fields: ['paymentHash'], label: 'invoice (payment hash)' }],
+    secondaryUniques: [
+      { fields: ['paymentHash'], label: 'invoice (payment hash)' }
+    ],
     fks: [{ field: 'userId', target: 'users', required: false }],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: ['metadata'],
+    jsonNullableFields: ['metadata']
   },
   activityLogs: {
     name: 'activityLogs',
@@ -227,7 +239,7 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     fks: [{ field: 'userId', target: 'users', required: false }],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: ['metadata'],
+    jsonNullableFields: ['metadata']
   },
   settings: {
     name: 'settings',
@@ -237,7 +249,7 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     fks: [],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: [],
+    jsonNullableFields: []
   },
   nostrProfileCache: {
     name: 'nostrProfileCache',
@@ -247,7 +259,7 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     fks: [],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: ['rawMetadata'],
+    jsonNullableFields: ['rawMetadata']
   },
   nostrProfileImageCache: {
     name: 'nostrProfileImageCache',
@@ -257,18 +269,20 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
     fks: [{ field: 'npub', target: 'nostrProfileCache', required: true }],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: [],
+    jsonNullableFields: []
   },
   pluginRecords: {
     name: 'pluginRecords',
     model: 'pluginRecord',
     pk: ['id'],
-    secondaryUniques: [{ fields: ['pluginId', 'kind', 'key'], label: 'plugin record' }],
+    secondaryUniques: [
+      { fields: ['pluginId', 'kind', 'key'], label: 'plugin record' }
+    ],
     fks: [],
     softRefs: [],
     partialUniques: [],
-    jsonNullableFields: [],
-  },
+    jsonNullableFields: []
+  }
 }
 
 /** Union of the tables covered by `categories`, in canonical order, deduped. */
@@ -283,11 +297,17 @@ export function resolveTables(categories: BackupCategory[]): BackupTableName[] {
 const KEY_SEP = ''
 
 /** Stable string key for a row from its primary-key field(s). */
-export function pkKey(desc: TableDescriptor, row: Record<string, unknown>): string {
+export function pkKey(
+  desc: TableDescriptor,
+  row: Record<string, unknown>
+): string {
   return desc.pk.map(field => String(row[field])).join(KEY_SEP)
 }
 
 /** Stable key for an arbitrary set of column values (secondary uniques, scopes). */
-export function fieldsKey(fields: string[], row: Record<string, unknown>): string {
+export function fieldsKey(
+  fields: string[],
+  row: Record<string, unknown>
+): string {
   return fields.map(field => String(row[field])).join(KEY_SEP)
 }

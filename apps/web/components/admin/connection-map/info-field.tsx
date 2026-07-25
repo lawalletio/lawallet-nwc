@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 export function InfoField({
   label,
   value,
-  mono,
+  mono
 }: {
   label: string
   value: React.ReactNode

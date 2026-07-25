@@ -1,6 +1,9 @@
 'use client'
 
-import { useApi, useMutation as useApiMutation } from '@/lib/client/hooks/use-api'
+import {
+  useApi,
+  useMutation as useApiMutation
+} from '@/lib/client/hooks/use-api'
 import type { Role } from '@/lib/auth/permissions'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
 
@@ -40,7 +43,7 @@ export function useUsers() {
 /** GET /api/users/[userId] — full detail for a single user. */
 export function useUser(userId: string | null) {
   return useApi<AdminUserDetail>(
-    userId ? `/api/users/${encodeURIComponent(userId)}` : null,
+    userId ? `/api/users/${encodeURIComponent(userId)}` : null
   )
 }
 
@@ -58,8 +61,10 @@ export function useUserMutations() {
       mutate('put', `/api/users/${encodeURIComponent(userId)}/role`, { role }),
     /** Owner-only: replace the user's preferred Nostr relays. */
     updateUserRelays: (userId: string, relays: string[]) =>
-      mutate('put', `/api/users/${encodeURIComponent(userId)}/relays`, { relays }),
+      mutate('put', `/api/users/${encodeURIComponent(userId)}/relays`, {
+        relays
+      }),
     loading,
-    error,
+    error
   }
 }

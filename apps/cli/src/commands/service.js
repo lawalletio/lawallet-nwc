@@ -71,7 +71,9 @@ export async function runServiceCommand(args) {
     const dockerEnvironment = await detectDockerEnvironment()
 
     if (!dockerEnvironment) {
-      throw new Error('Docker mode is configured for this install, but Docker is not available.')
+      throw new Error(
+        'Docker mode is configured for this install, but Docker is not available.'
+      )
     }
 
     switch (options.action) {

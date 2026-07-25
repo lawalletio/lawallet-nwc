@@ -4,7 +4,7 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import {
   parseNip65Relays,
   parseStoredRelays,
-  resolveUserRelays,
+  resolveUserRelays
 } from '@/lib/nostr/relay-list'
 
 const PUBKEY = 'a'.repeat(64)
@@ -22,8 +22,8 @@ describe('parseNip65Relays', () => {
         ['r', 'wss://relay.damus.io', 'read'],
         ['r', 'wss://LaCrypta.ar/'], // dupe (case + trailing slash)
         ['r', 'https://not-a-relay.example'], // wrong protocol
-        ['p', 'wss://ignored.example'], // wrong tag
-      ]),
+        ['p', 'wss://ignored.example'] // wrong tag
+      ])
     ).toEqual(['wss://lacrypta.ar', 'wss://relay.damus.io'])
   })
 })
@@ -46,9 +46,9 @@ describe('resolveUserRelays', () => {
         id: 'u1',
         pubkey: PUBKEY,
         relays: JSON.stringify(['wss://nos.lol']),
-        relaysUpdatedAt: FRESH,
+        relaysUpdatedAt: FRESH
       },
-      { db: prismaMock, now: NOW, fetcher },
+      { db: prismaMock, now: NOW, fetcher }
     )
     expect(out).toEqual(['wss://nos.lol'])
     expect(fetcher).not.toHaveBeenCalled()
@@ -57,13 +57,20 @@ describe('resolveUserRelays', () => {
 
   it('fetches the NIP-65 list when stale/empty and persists it into relays', async () => {
     fetcher.mockResolvedValue([
-      { pubkey: PUBKEY, created_at: 100, tags: [['r', 'wss://lacrypta.ar'], ['r', 'wss://nos.lol']] },
+      {
+        pubkey: PUBKEY,
+        created_at: 100,
+        tags: [
+          ['r', 'wss://lacrypta.ar'],
+          ['r', 'wss://nos.lol']
+        ]
+      }
     ])
     vi.mocked(prismaMock.user.update).mockResolvedValue({} as any)
 
     const out = await resolveUserRelays(
       { id: 'u1', pubkey: PUBKEY, relays: null, relaysUpdatedAt: null },
-      { db: prismaMock, now: NOW, fetcher },
+      { db: prismaMock, now: NOW, fetcher }
     )
 
     expect(out).toEqual(['wss://lacrypta.ar', 'wss://nos.lol'])
@@ -72,9 +79,9 @@ describe('resolveUserRelays', () => {
         where: { id: 'u1' },
         data: {
           relays: JSON.stringify(['wss://lacrypta.ar', 'wss://nos.lol']),
-          relaysUpdatedAt: NOW,
-        },
-      }),
+          relaysUpdatedAt: NOW
+        }
+      })
     )
   })
 
@@ -87,27 +94,27 @@ describe('resolveUserRelays', () => {
         id: 'u1',
         pubkey: PUBKEY,
         relays: JSON.stringify(['wss://manual.example']),
-        relaysUpdatedAt: STALE,
+        relaysUpdatedAt: STALE
       },
-      { db: prismaMock, now: NOW, fetcher },
+      { db: prismaMock, now: NOW, fetcher }
     )
 
     expect(out).toEqual(['wss://manual.example'])
     expect(prismaMock.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { relaysUpdatedAt: NOW } }),
+      expect.objectContaining({ data: { relaysUpdatedAt: NOW } })
     )
   })
 
   it('picks the newest kind:10002 event when several are returned', async () => {
     fetcher.mockResolvedValue([
       { pubkey: PUBKEY, created_at: 50, tags: [['r', 'wss://old.example']] },
-      { pubkey: PUBKEY, created_at: 200, tags: [['r', 'wss://new.example']] },
+      { pubkey: PUBKEY, created_at: 200, tags: [['r', 'wss://new.example']] }
     ])
     vi.mocked(prismaMock.user.update).mockResolvedValue({} as any)
 
     const out = await resolveUserRelays(
       { id: 'u1', pubkey: PUBKEY, relays: null, relaysUpdatedAt: null },
-      { db: prismaMock, now: NOW, fetcher },
+      { db: prismaMock, now: NOW, fetcher }
     )
     expect(out).toEqual(['wss://new.example'])
   })
@@ -118,7 +125,7 @@ describe('resolveUserRelays', () => {
     })
     const out = await resolveUserRelays(
       { id: 'u1', pubkey: PUBKEY, relays: null, relaysUpdatedAt: null },
-      { db: prismaMock, now: NOW, fetcher: failing },
+      { db: prismaMock, now: NOW, fetcher: failing }
     )
     expect(out).toEqual([])
   })

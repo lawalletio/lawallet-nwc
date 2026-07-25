@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticateWithRole } from '@/lib/auth/unified-auth'
 import { Role } from '@/lib/auth/permissions'
-import { checkFileLimits, checkRequestLimits } from '@/lib/middleware/request-limits'
+import {
+  checkFileLimits,
+  checkRequestLimits
+} from '@/lib/middleware/request-limits'
 import { ValidationError } from '@/types/server/errors'
 import { parseBackupFile } from '@/lib/backup/archive'
 import { analyzeBackup } from '@/lib/backup/analyze'
@@ -29,7 +32,10 @@ export const POST = withErrorHandling(async (request: Request) => {
     throw new ValidationError('A backup file is required.')
   }
   const passwordRaw = formData.get('password')
-  const password = typeof passwordRaw === 'string' && passwordRaw !== '' ? passwordRaw : undefined
+  const password =
+    typeof passwordRaw === 'string' && passwordRaw !== ''
+      ? passwordRaw
+      : undefined
 
   const parsed = await parseBackupFile(file, password)
   const plan = await analyzeBackup(parsed)

@@ -25,12 +25,12 @@ connections, and no incoming payment notifications are received.
 
 ## Do I need to deploy anything?
 
-| Your deployment      | Listener setup                                                                                                                                                                           |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Docker Compose**   | Optional — enable the `listener` profile and provide a generated secret. Plain `docker compose up` remains web-only.                                                                       |
-| **Umbrel / Start9**  | Nothing — bundled with the package since v1.1.0.                                                                                                                                         |
-| **Vercel / Netlify** | Yes — serverless platforms can't run a long-lived websocket process. Host the listener elsewhere (below), then connect it in **Settings → NWC Services**.                                |
-| **Local dev**        | `pnpm dev:listener` (env is provisioned by `pnpm dev:setup`).                                                                                                                            |
+| Your deployment      | Listener setup                                                                                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Docker Compose**   | Optional — enable the `listener` profile and provide a generated secret. Plain `docker compose up` remains web-only.                                      |
+| **Umbrel / Start9**  | Nothing — bundled with the package since v1.1.0.                                                                                                          |
+| **Vercel / Netlify** | Yes — serverless platforms can't run a long-lived websocket process. Host the listener elsewhere (below), then connect it in **Settings → NWC Services**. |
+| **Local dev**        | `pnpm dev:listener` (env is provisioned by `pnpm dev:setup`).                                                                                             |
 
 ## Environment variables
 

@@ -71,16 +71,16 @@ The required packages are already installed:
 
 The JWT token contains:
 
-| Claim | Description | Example |
-|-------|-------------|---------|
-| `sub` / `userId` | User's Nostr pubkey (hex) | `"ab12...ef"` |
-| `pubkey` | Same as sub, explicit claim | `"ab12...ef"` |
-| `role` | User's RBAC role | `"ADMIN"` |
-| `permissions` | Role's permission set | `["manage_users", "manage_cards", ...]` |
-| `iss` | Token issuer | `"lawallet-nwc"` |
-| `aud` | Token audience | `"lawallet-users"` |
-| `exp` | Expiration timestamp | `1706832000` |
-| `iat` | Issued-at timestamp | `1706828400` |
+| Claim            | Description                 | Example                                 |
+| ---------------- | --------------------------- | --------------------------------------- |
+| `sub` / `userId` | User's Nostr pubkey (hex)   | `"ab12...ef"`                           |
+| `pubkey`         | Same as sub, explicit claim | `"ab12...ef"`                           |
+| `role`           | User's RBAC role            | `"ADMIN"`                               |
+| `permissions`    | Role's permission set       | `["manage_users", "manage_cards", ...]` |
+| `iss`            | Token issuer                | `"lawallet-nwc"`                        |
+| `aud`            | Token audience              | `"lawallet-users"`                      |
+| `exp`            | Expiration timestamp        | `1706832000`                            |
+| `iat`            | Issued-at timestamp         | `1706828400`                            |
 
 ## Server-Side Usage
 
@@ -89,7 +89,11 @@ The JWT token contains:
 The unified auth middleware automatically detects the authorization scheme:
 
 ```typescript
-import { authenticate, authenticateWithRole, authenticateWithPermission } from '@/lib/auth/unified-auth'
+import {
+  authenticate,
+  authenticateWithRole,
+  authenticateWithPermission
+} from '@/lib/auth/unified-auth'
 import { Role } from '@/lib/auth/permissions'
 
 // Basic authentication (accepts Nostr or Bearer)
@@ -314,26 +318,26 @@ Authorization: Bearer <jwt-token>
 
 These routes accept both `Nostr` and `Bearer` authorization:
 
-| Route | Method | Auth Level |
-|-------|--------|------------|
-| `/api/users/me` | GET | Any authenticated user |
-| `/api/users/[id]/cards` | GET | Own user only |
-| `/api/users/[id]/nwc` | PUT | Own user only |
-| `/api/users/[id]/lightning-address` | PUT | Own user only |
-| `/api/cards/otc/[otc]/activate` | POST | Any authenticated user |
-| `/api/cards` | POST | ADMIN role required |
+| Route                               | Method | Auth Level             |
+| ----------------------------------- | ------ | ---------------------- |
+| `/api/users/me`                     | GET    | Any authenticated user |
+| `/api/users/[id]/cards`             | GET    | Own user only          |
+| `/api/users/[id]/nwc`               | PUT    | Own user only          |
+| `/api/users/[id]/lightning-address` | PUT    | Own user only          |
+| `/api/cards/otc/[otc]/activate`     | POST   | Any authenticated user |
+| `/api/cards`                        | POST   | ADMIN role required    |
 
 ### Routes Using NIP-98 Only (Admin)
 
 These routes require NIP-98 authentication directly (via `admin-auth.ts`):
 
-| Route | Method | Auth Level |
-|-------|--------|------------|
-| `/api/admin/assign` | POST | Root pubkey only |
-| `/api/users/[id]/role` | PUT | ADMIN role |
-| `/api/settings` | PUT | ADMIN role |
-| `/api/card-designs` | POST/PUT/DELETE | ADMIN role |
-| `/api/lightning-addresses` | POST/DELETE | ADMIN role |
+| Route                      | Method          | Auth Level       |
+| -------------------------- | --------------- | ---------------- |
+| `/api/admin/assign`        | POST            | Root pubkey only |
+| `/api/users/[id]/role`     | PUT             | ADMIN role       |
+| `/api/settings`            | PUT             | ADMIN role       |
+| `/api/card-designs`        | POST/PUT/DELETE | ADMIN role       |
+| `/api/lightning-addresses` | POST/DELETE     | ADMIN role       |
 
 ## RBAC Model
 
@@ -347,13 +351,13 @@ Each role inherits all permissions from roles below it.
 
 ### Permission Matrix
 
-| Permission | USER | VIEWER | OPERATOR | ADMIN |
-|------------|------|--------|----------|-------|
-| `view_own_data` | x | x | x | x |
-| `view_all_data` | | x | x | x |
-| `manage_cards` | | | x | x |
-| `manage_users` | | | | x |
-| `manage_settings` | | | | x |
+| Permission        | USER | VIEWER | OPERATOR | ADMIN |
+| ----------------- | ---- | ------ | -------- | ----- |
+| `view_own_data`   | x    | x      | x        | x     |
+| `view_all_data`   |      | x      | x        | x     |
+| `manage_cards`    |      |        | x        | x     |
+| `manage_users`    |      |        |          | x     |
+| `manage_settings` |      |        |          | x     |
 
 ### Role Resolution
 
@@ -375,15 +379,15 @@ Each role inherits all permissions from roles below it.
 
 The system provides detailed error messages:
 
-| Error | Status | Cause |
-|-------|--------|-------|
-| `Authorization header is required` | 401 | Missing auth header |
-| `Authorization header must use "Nostr" or "Bearer" scheme` | 401 | Unrecognized auth scheme |
-| `Invalid NIP-98 authentication` | 401 | Bad Nostr event signature, expired, etc. |
-| `Invalid or expired JWT` | 401 | Malformed or expired token |
-| `JWT authentication is not configured` | 401 | JWT_SECRET not set |
-| `Not authorized to access this resource` | 403 | Insufficient role |
-| `Not authorized to perform this action` | 403 | Missing permission |
+| Error                                                      | Status | Cause                                    |
+| ---------------------------------------------------------- | ------ | ---------------------------------------- |
+| `Authorization header is required`                         | 401    | Missing auth header                      |
+| `Authorization header must use "Nostr" or "Bearer" scheme` | 401    | Unrecognized auth scheme                 |
+| `Invalid NIP-98 authentication`                            | 401    | Bad Nostr event signature, expired, etc. |
+| `Invalid or expired JWT`                                   | 401    | Malformed or expired token               |
+| `JWT authentication is not configured`                     | 401    | JWT_SECRET not set                       |
+| `Not authorized to access this resource`                   | 403    | Insufficient role                        |
+| `Not authorized to perform this action`                    | 403    | Missing permission                       |
 
 ## Examples
 

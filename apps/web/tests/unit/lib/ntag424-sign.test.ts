@@ -54,7 +54,9 @@ describe('signNtag424Tap ↔ consumeNtag424FromPC', () => {
     const ntag = fakeNtag({ ctr: 5 })
     const { p, c } = await signNtag424Tap(ntag, 5)
     const res = await consumeNtag424FromPC(ntag, p, c)
-    expect(res).toEqual({ error: Ntag424Error.MALFORMED_P__COUNTER_VALUE_TOO_OLD })
+    expect(res).toEqual({
+      error: Ntag424Error.MALFORMED_P__COUNTER_VALUE_TOO_OLD
+    })
   })
 
   it('only requires cid/k1/k2 to sign', async () => {

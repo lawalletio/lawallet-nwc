@@ -22,7 +22,8 @@ export function BackupTab() {
         <div>
           <h2 className="text-lg font-semibold">Backup &amp; Restore</h2>
           <p className="text-sm text-muted-foreground">
-            Export a complete, relationship-aware snapshot of this instance, or restore one into it.
+            Export a complete, relationship-aware snapshot of this instance, or
+            restore one into it.
           </p>
         </div>
       </div>
@@ -45,7 +46,9 @@ export function BackupTab() {
       </div>
 
       {wizard === 'export' && <BackupWizard onClose={() => setWizard(null)} />}
-      {wizard === 'restore' && <RestoreWizard onClose={() => setWizard(null)} />}
+      {wizard === 'restore' && (
+        <RestoreWizard onClose={() => setWizard(null)} />
+      )}
     </div>
   )
 }
@@ -55,7 +58,7 @@ function ActionCard({
   title,
   description,
   actionLabel,
-  onClick,
+  onClick
 }: {
   icon: ReactNode
   title: string

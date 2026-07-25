@@ -4,7 +4,10 @@ import { type ReactNode, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
-import { WizardStepper, type StepperStep } from '@/components/admin/backup/wizard-stepper'
+import {
+  WizardStepper,
+  type StepperStep
+} from '@/components/admin/backup/wizard-stepper'
 
 /**
  * Full-screen overlay chrome shared by both wizards: brand + close button, the
@@ -16,7 +19,7 @@ export function WizardShell({
   currentIndex,
   onClose,
   closeDisabled = false,
-  children,
+  children
 }: {
   steps: StepperStep[]
   currentIndex: number

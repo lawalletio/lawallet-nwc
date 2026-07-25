@@ -4,7 +4,7 @@ import {
   createCardDesignSchema,
   imageUrlSchema,
   storedImageUrlSchema,
-  updateCardDesignSchema,
+  updateCardDesignSchema
 } from '@/lib/validation/schemas'
 import { ROW_SCHEMAS } from '@/lib/backup/row-schemas'
 
@@ -29,14 +29,14 @@ const REJECTED_SCHEMES = [
   'blob:https://example.com/9f8e7d6c',
   'mailto:someone@example.com',
   'ftp://example.com/card.png',
-  'ws://example.com/card.png',
+  'ws://example.com/card.png'
 ]
 
 describe('imageUrlSchema (API input)', () => {
   it.each([
     'https://blossom.example.com/abc123.png',
     'http://localhost:3000/card.png',
-    'https://cdn.example.com/a/b/c.webp?v=2#frag',
+    'https://cdn.example.com/a/b/c.webp?v=2#frag'
   ])('accepts http(s) URL %s', url => {
     expect(imageUrlSchema.parse(url)).toBe(url)
   })
@@ -47,7 +47,7 @@ describe('imageUrlSchema (API input)', () => {
 
   it('trims surrounding whitespace on accepted values', () => {
     expect(imageUrlSchema.parse('  https://example.com/a.png  ')).toBe(
-      'https://example.com/a.png',
+      'https://example.com/a.png'
     )
   })
 
@@ -57,7 +57,9 @@ describe('imageUrlSchema (API input)', () => {
   })
 
   it('rejects a protocol-relative URL', () => {
-    expect(imageUrlSchema.safeParse('//evil.example.com/x.png').success).toBe(false)
+    expect(imageUrlSchema.safeParse('//evil.example.com/x.png').success).toBe(
+      false
+    )
   })
 
   it('rejects an http URL with no hostname', () => {
@@ -82,18 +84,18 @@ describe('createCardDesignSchema', () => {
     expect(
       createCardDesignSchema.parse({
         description: 'Blue card',
-        imageUrl: 'https://blossom.example.com/abc.png',
-      }),
+        imageUrl: 'https://blossom.example.com/abc.png'
+      })
     ).toEqual({
       description: 'Blue card',
-      imageUrl: 'https://blossom.example.com/abc.png',
+      imageUrl: 'https://blossom.example.com/abc.png'
     })
   })
 
   it.each(REJECTED_SCHEMES)('rejects imageUrl %s', url => {
     const res = createCardDesignSchema.safeParse({
       description: 'Blue card',
-      imageUrl: url,
+      imageUrl: url
     })
     expect(res.success).toBe(false)
   })
@@ -102,12 +104,14 @@ describe('createCardDesignSchema', () => {
 describe('updateCardDesignSchema', () => {
   it('accepts an https image URL', () => {
     expect(
-      updateCardDesignSchema.parse({ imageUrl: 'https://example.com/a.png' }),
+      updateCardDesignSchema.parse({ imageUrl: 'https://example.com/a.png' })
     ).toEqual({ imageUrl: 'https://example.com/a.png' })
   })
 
   it.each(REJECTED_SCHEMES)('rejects imageUrl %s', url => {
-    expect(updateCardDesignSchema.safeParse({ imageUrl: url }).success).toBe(false)
+    expect(updateCardDesignSchema.safeParse({ imageUrl: url }).success).toBe(
+      false
+    )
   })
 
   it('still rejects an empty payload', () => {
@@ -125,14 +129,14 @@ describe('storedImageUrlSchema (backup restore)', () => {
     // from a seeded instance legitimately contains them.
     '/card-primal.png',
     '/card-alby.png',
-    '/images/designs/metal.webp',
+    '/images/designs/metal.webp'
   ])('accepts seeded root-relative path %s', url => {
     expect(storedImageUrlSchema.parse(url)).toBe(url)
   })
 
   it('accepts http(s) URLs', () => {
     expect(storedImageUrlSchema.parse('https://example.com/a.png')).toBe(
-      'https://example.com/a.png',
+      'https://example.com/a.png'
     )
   })
 
@@ -141,15 +145,15 @@ describe('storedImageUrlSchema (backup restore)', () => {
   })
 
   it('rejects a protocol-relative path', () => {
-    expect(storedImageUrlSchema.safeParse('//evil.example.com/x.png').success).toBe(
-      false,
-    )
+    expect(
+      storedImageUrlSchema.safeParse('//evil.example.com/x.png').success
+    ).toBe(false)
   })
 
   it(`rejects a value longer than ${MEDIA_URL_MAX_LENGTH} characters`, () => {
     expect(
       storedImageUrlSchema.safeParse(`/${'a'.repeat(MEDIA_URL_MAX_LENGTH)}.png`)
-        .success,
+        .success
     ).toBe(false)
   })
 })
@@ -160,13 +164,13 @@ describe('backup cardDesigns row schema', () => {
     description: 'Primal card',
     createdAt: '2024-01-10T08:00:00.000Z',
     archivedAt: null,
-    userId: null,
+    userId: null
   }
 
   it('accepts a seeded row with a root-relative imageUrl', () => {
     const res = ROW_SCHEMAS.cardDesigns.safeParse({
       ...row,
-      imageUrl: '/card-primal.png',
+      imageUrl: '/card-primal.png'
     })
     expect(res.success).toBe(true)
   })

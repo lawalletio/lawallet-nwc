@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools/pure'
+import {
+  generateSecretKey,
+  getPublicKey,
+  finalizeEvent
+} from 'nostr-tools/pure'
 import { createNextRequest } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 
@@ -11,18 +15,18 @@ vi.mock('@/lib/config', () => ({
     rateLimit: { enabled: false },
     requestLimits: { maxJsonSize: 102400, maxBodySize: 1048576 },
     isDevelopment: false,
-    isTest: true,
-  })),
+    isTest: true
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   withRequestLogging: (fn: any) => fn,
-  getCurrentReqId: vi.fn(() => undefined),
+  getCurrentReqId: vi.fn(() => undefined)
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/rate-limit', () => ({
@@ -30,8 +34,8 @@ vi.mock('@/lib/middleware/rate-limit', () => ({
   RateLimitPresets: {
     public: {},
     auth: { maxRequests: 10, maxRequestsAuth: 30 },
-    sensitive: { maxRequests: 5, maxRequestsAuth: 20 },
-  },
+    sensitive: { maxRequests: 5, maxRequestsAuth: 20 }
+  }
 }))
 
 vi.mock('@/lib/activity-log', () => ({
@@ -39,39 +43,39 @@ vi.mock('@/lib/activity-log', () => ({
     {},
     { get: (_t, key) => `user.${String(key).toLowerCase()}` }
   ),
-  logActivity: Object.assign(vi.fn(), { fireAndForget: vi.fn() }),
+  logActivity: Object.assign(vi.fn(), { fireAndForget: vi.fn() })
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn(),
+  authenticate: vi.fn()
 }))
 
 vi.mock('@/lib/auth/account', () => ({
-  resolveAccountByPubkey: vi.fn(),
+  resolveAccountByPubkey: vi.fn()
 }))
 
 vi.mock('@/lib/account/merge', () => ({
-  linkPubkeyToAccount: vi.fn(),
+  linkPubkeyToAccount: vi.fn()
 }))
 
 vi.mock('@/lib/user', () => ({
-  createNewUser: vi.fn(),
+  createNewUser: vi.fn()
 }))
 
 vi.mock('@simplewebauthn/server', () => ({
   generateRegistrationOptions: vi.fn(async () => ({
     challenge: 'test-challenge',
-    rp: { id: 'localhost', name: 'LaWallet' },
+    rp: { id: 'localhost', name: 'LaWallet' }
   })),
-  verifyRegistrationResponse: vi.fn(),
+  verifyRegistrationResponse: vi.fn()
 }))
 
 // resolveRpContext reads settings; keep it off the DB.
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(async () => ({ community_name: 'LaWallet' })),
+  getSettings: vi.fn(async () => ({ community_name: 'LaWallet' }))
 }))
 vi.mock('@/lib/public-url', () => ({
-  resolveApiUrl: vi.fn(async () => 'http://localhost:3000'),
+  resolveApiUrl: vi.fn(async () => 'http://localhost:3000')
 }))
 
 import { POST as optionsRoute } from '@/app/api/auth/passkey/registration/options/route'
@@ -96,7 +100,7 @@ function proofFor(nonce: string, signWith = sk) {
           kind: 22242,
           created_at: Math.floor(Date.now() / 1000),
           tags: [['challenge', nonce]],
-          content: '',
+          content: ''
         },
         signWith
       )
@@ -109,7 +113,7 @@ const WEBAUTHN_CREDENTIAL = {
   rawId: 'cred-1',
   type: 'public-key',
   response: { clientDataJSON: 'x', attestationObject: 'x' },
-  clientExtensionResults: {},
+  clientExtensionResults: {}
 }
 
 function seedChallengeRow() {
@@ -119,7 +123,7 @@ function seedChallengeRow() {
     userId: null,
     rpId: 'localhost',
     origin: 'http://localhost:3000',
-    expiresAt: new Date(Date.now() + 60_000),
+    expiresAt: new Date(Date.now() + 60_000)
   } as any)
 }
 
@@ -131,12 +135,12 @@ function seedVerification() {
         id: 'cred-1',
         publicKey: new Uint8Array([1, 2, 3]),
         counter: 0,
-        transports: ['internal'],
+        transports: ['internal']
       },
       credentialDeviceType: 'multiDevice',
       credentialBackedUp: true,
-      aaguid: 'aaguid-1',
-    },
+      aaguid: 'aaguid-1'
+    }
   } as any)
 }
 
@@ -146,7 +150,7 @@ function verifyBody(overrides?: Record<string, unknown>) {
     credential: WEBAUTHN_CREDENTIAL,
     pubkey: PUBKEY,
     proof: proofFor(CHALLENGE),
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -158,14 +162,14 @@ beforeEach(() => {
   vi.mocked(prismaMock.webAuthnChallenge.create).mockResolvedValue({} as any)
   // storeWebAuthnChallenge chains .catch on this fire-and-forget GC call.
   vi.mocked(prismaMock.webAuthnChallenge.deleteMany).mockResolvedValue({
-    count: 0,
+    count: 0
   } as any)
   vi.mocked(prismaMock.passkeyCredential.create).mockImplementation((async (
     args: any
   ) => ({
     ...args.data,
     createdAt: new Date(),
-    lastUsedAt: null,
+    lastUsedAt: null
   })) as any)
   vi.mocked(createNewUser).mockResolvedValue({ id: 'new-user' } as any)
 })
@@ -175,14 +179,14 @@ describe('POST /api/auth/passkey/registration/options', () => {
     const response = await optionsRoute(
       createNextRequest('/api/auth/passkey/registration/options', {
         method: 'POST',
-        body: {},
+        body: {}
       })
     )
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(body.options.challenge).toBe('test-challenge')
     expect(prismaMock.webAuthnChallenge.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ flow: 'REGISTER', userId: null }),
+      data: expect.objectContaining({ flow: 'REGISTER', userId: null })
     })
   })
 })
@@ -194,7 +198,7 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
     const response = await verifyRoute(
       createNextRequest('/api/auth/passkey/registration/verify', {
         method: 'POST',
-        body: verifyBody(),
+        body: verifyBody()
       })
     )
     expect(response.status).toBe(200)
@@ -210,8 +214,8 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
       data: expect.objectContaining({
         id: 'cred-1',
         userId: 'new-user',
-        pubkey: PUBKEY,
-      }),
+        pubkey: PUBKEY
+      })
     })
   })
 
@@ -220,19 +224,19 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
       id: 'existing-user',
       primaryPubkey: PUBKEY,
       authPubkey: PUBKEY,
-      role: 'USER',
+      role: 'USER'
     } as any)
 
     const response = await verifyRoute(
       createNextRequest('/api/auth/passkey/registration/verify', {
         method: 'POST',
-        body: verifyBody(),
+        body: verifyBody()
       })
     )
     expect(response.status).toBe(200)
     expect(vi.mocked(createNewUser)).not.toHaveBeenCalled()
     expect(prismaMock.passkeyCredential.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ userId: 'existing-user' }),
+      data: expect.objectContaining({ userId: 'existing-user' })
     })
   })
 
@@ -241,7 +245,7 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
     const response = await verifyRoute(
       createNextRequest('/api/auth/passkey/registration/verify', {
         method: 'POST',
-        body: verifyBody({ proof: proofFor('another-nonce') }),
+        body: verifyBody({ proof: proofFor('another-nonce') })
       })
     )
     expect(response.status).toBe(401)
@@ -254,7 +258,7 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
     const response = await verifyRoute(
       createNextRequest('/api/auth/passkey/registration/verify', {
         method: 'POST',
-        body: verifyBody({ proof: proofFor(CHALLENGE, otherSk) }),
+        body: verifyBody({ proof: proofFor(CHALLENGE, otherSk) })
       })
     )
     expect(response.status).toBe(401)
@@ -267,7 +271,7 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
     const response = await verifyRoute(
       createNextRequest('/api/auth/passkey/registration/verify', {
         method: 'POST',
-        body: verifyBody(),
+        body: verifyBody()
       })
     )
     expect(response.status).toBe(401)
@@ -276,12 +280,12 @@ describe('POST /api/auth/passkey/registration/verify — signup', () => {
   it('409s on a duplicate credential id', async () => {
     vi.mocked(resolveAccountByPubkey).mockResolvedValue(null)
     vi.mocked(prismaMock.passkeyCredential.create).mockRejectedValue({
-      code: 'P2002',
+      code: 'P2002'
     })
     const response = await verifyRoute(
       createNextRequest('/api/auth/passkey/registration/verify', {
         method: 'POST',
-        body: verifyBody(),
+        body: verifyBody()
       })
     )
     expect(response.status).toBe(409)
@@ -293,14 +297,14 @@ describe('POST /api/auth/passkey/registration/verify — add to account', () => 
     id: 'caller-account',
     primaryPubkey: 'c'.repeat(64),
     authPubkey: 'c'.repeat(64),
-    role: 'USER',
+    role: 'USER'
   }
 
   function authedRequest(body: unknown) {
     return createNextRequest('/api/auth/passkey/registration/verify', {
       method: 'POST',
       headers: { authorization: 'Bearer test-token' },
-      body,
+      body
     })
   }
 
@@ -308,7 +312,7 @@ describe('POST /api/auth/passkey/registration/verify — add to account', () => 
     vi.mocked(authenticate).mockResolvedValue({
       pubkey: CALLER.primaryPubkey,
       role: Role.USER,
-      method: 'jwt',
+      method: 'jwt'
     } as any)
   })
 
@@ -326,7 +330,7 @@ describe('POST /api/auth/passkey/registration/verify — add to account', () => 
     )
     expect(vi.mocked(createNewUser)).not.toHaveBeenCalled()
     expect(prismaMock.passkeyCredential.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ userId: CALLER.id, pubkey: PUBKEY }),
+      data: expect.objectContaining({ userId: CALLER.id, pubkey: PUBKEY })
     })
   })
 
