@@ -84,7 +84,11 @@ overrides:
   brace-expansion@>=2.0.0 <2.1.2: 2.1.2
   brace-expansion@>=3.0.0 <5.0.7: 5.0.8
   ajv@<7: 6.14.0
-  postcss: 8.5.15
+  # GHSA-r28c-9q8g-f849 (high, 2026-07-25): path traversal via sourceMappingURL
+  # auto-loading leaks arbitrary .map files. Patched in >=8.5.18. Range-scoped
+  # so it retires once every parent asks for a patched line; both apps already
+  # request ^8.5.15, which accepts the bump on its own.
+  postcss@<8.5.18: 8.5.23
   # GHSA-f88m-g3jw-g9cj (high): sharp <0.35.0 inherits four libvips CVEs
   # (CVE-2026-33327/33328/35590/35591) in the GIF, TIFF and VIPS decoders.
   # next@16.2.11 caret-pins `sharp: ^0.34.5` as an optionalDependency, which
