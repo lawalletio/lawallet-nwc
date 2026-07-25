@@ -16,9 +16,17 @@ allowBuilds:
   utf-8-validate: true
   vue-demi: true
 
-# Dependency version pins. pnpm 10 no longer reads the `pnpm.overrides` field
-# from package.json — overrides live here now. Most are security/transitive
-# pins; keep in sync with the audit allowlist.
+# Dependency version pins. Overrides live here rather than in package.json's
+# `pnpm.overrides` — this file is the one pnpm always reads, and it wins when
+# both are present. Most entries are security pins for transitive deps.
+#
+# Prefer the range-scoped form (`pkg@<x: y`) over a bare pin: it only applies
+# while a parent still asks for the vulnerable range, so the override retires
+# itself once the ecosystem catches up, instead of silently freezing the
+# package at one version forever.
+#
+# `pnpm audit` (and `pnpm audit --prod`, what CI gates on) is the checker —
+# re-run it after touching this block.
 overrides:
   lodash: 4.18.1
   picomatch: 4.0.4
@@ -28,10 +36,24 @@ overrides:
   bn.js: 4.12.3
   minimatch@<4: 3.1.4
   minimatch@>=9.0.0 <9.0.7: 9.0.7
-  brace-expansion@<2: 1.1.13
-  brace-expansion@>=2.0.0 <2.0.3: 2.0.3
+  # GHSA-3jxr-9vmj-r5cp (high, 2026-07-20): DoS via exponential-time expansion.
+  # Patched on three maintenance lines — 1.1.16, 2.1.2 and 5.0.7 — so each
+  # major that appears in the tree needs its own pin.
+  brace-expansion@<1.1.16: 1.1.16
+  brace-expansion@>=2.0.0 <2.1.2: 2.1.2
+  brace-expansion@>=3.0.0 <5.0.7: 5.0.8
   ajv@<7: 6.14.0
   postcss: 8.5.15
+  # GHSA-f88m-g3jw-g9cj (high): sharp <0.35.0 inherits four libvips CVEs
+  # (CVE-2026-33327/33328/35590/35591) in the GIF, TIFF and VIPS decoders.
+  # next@16.2.11 caret-pins `sharp: ^0.34.5` as an optionalDependency, which
+  # cannot reach the 0.35.0 patch line. next@16.3.0 already declares ^0.35.3
+  # on canary/preview, so this override stands aside on its own once 16.3 lands.
+  sharp@<0.35.0: 0.35.3
+  # GHSA-4x5r-pxfx-6jf8 (low): arbitrary file read via sourceMappingURL.
+  # Reached through next > styled-jsx, which pins @babel/core loosely enough
+  # that a patched 7.x satisfies it. Build-time only.
+  '@babel/core@<7.29.6': 7.29.7
   esbuild: 0.28.1
   vite: 6.4.3
   ws: 8.21.0
