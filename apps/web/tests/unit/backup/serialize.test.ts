@@ -7,7 +7,7 @@ import {
   rowsEqual,
   utf8Encode,
   utf8Decode,
-  BACKUP_README,
+  BACKUP_README
 } from '@/lib/backup/serialize'
 
 describe('backup serialize', () => {
@@ -16,7 +16,7 @@ describe('backup serialize', () => {
       const rows = [
         { id: 'a', n: 1, flag: true },
         { id: 'b', n: 2, flag: false },
-        { id: 'c', nested: { x: [1, 2, 3] } },
+        { id: 'c', nested: { x: [1, 2, 3] } }
       ]
       const text = toNdjson(rows)
       expect(text.split('\n')).toHaveLength(3)
@@ -54,7 +54,9 @@ describe('backup serialize', () => {
   describe('rowsEqual', () => {
     it('is true for a Date vs its ISO string', () => {
       const iso = '2026-01-01T00:00:00.000Z'
-      expect(rowsEqual({ createdAt: new Date(iso) }, { createdAt: iso })).toBe(true)
+      expect(rowsEqual({ createdAt: new Date(iso) }, { createdAt: iso })).toBe(
+        true
+      )
     })
 
     it('is true regardless of key order', () => {

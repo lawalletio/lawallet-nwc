@@ -22,7 +22,7 @@ const EVENT_PERMISSION_MAP: Record<SSEEventType, Permission | null> = {
   'invoices:updated': null, // any authenticated user (own invoices)
   'users:updated': Permission.USERS_READ,
   'activity:new': Permission.ACTIVITY_READ,
-  'listener:updated': Permission.SETTINGS_READ, // infra telemetry, same gate as Settings
+  'listener:updated': Permission.SETTINGS_READ // infra telemetry, same gate as Settings
 }
 
 // ─── Event Bus ────────────────────────────────────────────────────────────
@@ -64,7 +64,10 @@ class EventBus {
 
     for (const [id, client] of this.clients) {
       // Check permission — null means any authenticated user
-      if (requiredPermission && !client.permissions.includes(requiredPermission)) {
+      if (
+        requiredPermission &&
+        !client.permissions.includes(requiredPermission)
+      ) {
         continue
       }
 

@@ -37,7 +37,9 @@ export async function promptConfirm({
 
   const rl = createPromptInterface()
   const suffix = defaultValue ? ' [Y/n]' : ' [y/N]'
-  const answer = (await rl.question(`${message}${suffix}: `)).trim().toLowerCase()
+  const answer = (await rl.question(`${message}${suffix}: `))
+    .trim()
+    .toLowerCase()
 
   rl.close()
 

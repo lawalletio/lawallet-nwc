@@ -17,7 +17,9 @@ export type RequiredRole = 'PUBLIC' | 'USER' | 'VIEWER' | 'OPERATOR' | 'ADMIN'
  *       ...
  *     })
  */
-export function withRole(role: RequiredRole): { 'x-required-role': RequiredRole } {
+export function withRole(role: RequiredRole): {
+  'x-required-role': RequiredRole
+} {
   return { 'x-required-role': role }
 }
 
@@ -28,7 +30,7 @@ type SecurityRequirement = Record<string, string[]>
 // Apply both JWT and NIP-98 schemes; the route handler accepts either.
 export const protectedSecurity: SecurityRequirement[] = [
   { [BEARER_JWT]: [] },
-  { [NIP98]: [] },
+  { [NIP98]: [] }
 ]
 
 // Empty array = explicitly public. Required for routes that override the
@@ -37,21 +39,24 @@ export const publicSecurity: SecurityRequirement[] = []
 
 export const jsonContent = (schemaRef: string) => ({
   'application/json': {
-    schema: { $ref: `#/components/schemas/${schemaRef}` as const },
-  },
+    schema: { $ref: `#/components/schemas/${schemaRef}` as const }
+  }
 })
 
 export const jsonResponse = (description: string, schemaRef: string) => ({
   description,
-  content: jsonContent(schemaRef),
+  content: jsonContent(schemaRef)
 })
 
 // Generic ad-hoc JSON body when there is no registered component schema.
 // Lets routes whose response shape we haven't modeled in detail still appear
 // in the spec without lying about their structure.
-export const inlineJsonResponse = (description: string, schema: z.ZodTypeAny) => ({
+export const inlineJsonResponse = (
+  description: string,
+  schema: z.ZodTypeAny
+) => ({
   description,
-  content: { 'application/json': { schema } },
+  content: { 'application/json': { schema } }
 })
 
 export const noContent = (description = 'No content.') => ({ description })
@@ -60,10 +65,10 @@ export const commonErrorResponses = {
   400: responses.validation,
   401: responses.unauthenticated,
   403: responses.forbidden,
-  500: responses.internalError,
+  500: responses.internalError
 }
 
 export const publicErrorResponses = {
   400: responses.validation,
-  500: responses.internalError,
+  500: responses.internalError
 }

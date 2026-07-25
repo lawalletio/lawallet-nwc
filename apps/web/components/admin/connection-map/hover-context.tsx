@@ -32,7 +32,7 @@ export interface HoverContextValue {
 
 const HoverContext = createContext<HoverContextValue>({
   highlight: null,
-  activeEdgeId: null,
+  activeEdgeId: null
 })
 
 export const HoverProvider = HoverContext.Provider

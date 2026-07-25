@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogTrigger,
+  DialogTrigger
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,13 +22,13 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { DesignImage } from '@/components/admin/design-image'
 import {
   NfcScanDialog,
-  isWebNfcSupported,
+  isWebNfcSupported
 } from '@/components/admin/nfc-scan-dialog'
 import { useDesigns } from '@/lib/client/hooks/use-designs'
 import { useCardMutations } from '@/lib/client/hooks/use-cards'
@@ -78,7 +78,7 @@ export function CreateCardDialog({ onSuccess }: CreateCardDialogProps) {
     try {
       const created = await createCard({
         id: canonical,
-        ...(designId ? { designId } : {}),
+        ...(designId ? { designId } : {})
       })
       trackEvent(AnalyticsEvent.CARD_CREATED, { has_design: !!designId })
       toast.success('Card created successfully')
@@ -93,14 +93,16 @@ export function CreateCardDialog({ onSuccess }: CreateCardDialogProps) {
         router.push(`/admin/cards/${created.id}`)
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create card')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to create card'
+      )
     }
   }
 
   function handleNfcClick() {
     if (!isWebNfcSupported()) {
       toast.error(
-        'Web NFC isn’t available in this browser. Use Chrome on Android or enter the UID manually.',
+        'Web NFC isn’t available in this browser. Use Chrome on Android or enter the UID manually.'
       )
       return
     }
@@ -110,7 +112,7 @@ export function CreateCardDialog({ onSuccess }: CreateCardDialogProps) {
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
+      onOpenChange={next => {
         setOpen(next)
         if (next) trackEvent(AnalyticsEvent.CARD_CREATE_STARTED)
       }}
@@ -138,7 +140,7 @@ export function CreateCardDialog({ onSuccess }: CreateCardDialogProps) {
                   id="card-id"
                   placeholder="04:AB:CD:EF:12:34:56"
                   value={cardId}
-                  onChange={(e) => setCardId(e.target.value)}
+                  onChange={e => setCardId(e.target.value)}
                   onBlur={() => {
                     // Snap to canonical form on blur so the user sees the
                     // normalised UID rather than whatever formatting they
@@ -153,7 +155,7 @@ export function CreateCardDialog({ onSuccess }: CreateCardDialogProps) {
                   aria-invalid={cardIdInvalid || undefined}
                   className={cn(
                     cardIdInvalid &&
-                      'border-destructive focus-visible:ring-destructive',
+                      'border-destructive focus-visible:ring-destructive'
                   )}
                 />
                 <Button
@@ -182,12 +184,16 @@ export function CreateCardDialog({ onSuccess }: CreateCardDialogProps) {
 
             <div className="space-y-2">
               <Label htmlFor="design-select">Design (optional)</Label>
-              <Select value={designId} onValueChange={setDesignId} disabled={loading}>
+              <Select
+                value={designId}
+                onValueChange={setDesignId}
+                disabled={loading}
+              >
                 <SelectTrigger id="design-select">
                   <SelectValue placeholder="Select a design" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeDesigns.map((design) => (
+                  {activeDesigns.map(design => (
                     <SelectItem key={design.id} value={design.id}>
                       {design.description || design.id}
                     </SelectItem>

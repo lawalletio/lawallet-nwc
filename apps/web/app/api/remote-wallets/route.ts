@@ -6,11 +6,11 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
   NotFoundError,
-  ValidationError,
+  ValidationError
 } from '@/types/server/errors'
 import {
   createRemoteWalletSchema,
-  remoteWalletListQuerySchema,
+  remoteWalletListQuerySchema
 } from '@/lib/validation/schemas'
 import { validateBody, validateQuery } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -19,7 +19,7 @@ import { eventBus } from '@/lib/events/event-bus'
 import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
 import {
   bindPrimaryAddressToWallet,
-  syncPrimaryRemoteWalletFlag,
+  syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
@@ -47,7 +47,10 @@ interface RemoteWalletDto {
 }
 
 function toDto(w: RemoteWallet): RemoteWalletDto {
-  const cfg = w.config as { provider?: unknown; lncurlServerUrl?: unknown } | null
+  const cfg = w.config as {
+    provider?: unknown
+    lncurlServerUrl?: unknown
+  } | null
   const isLncurl = cfg?.provider === 'lncurl'
   return {
     id: w.id,
@@ -60,7 +63,9 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
     diedAt: w.diedAt ? w.diedAt.toISOString() : null,
     provider: isLncurl ? 'lncurl' : null,
     lncurlServerUrl:
-      isLncurl && typeof cfg?.lncurlServerUrl === 'string' ? cfg.lncurlServerUrl : null,
+      isLncurl && typeof cfg?.lncurlServerUrl === 'string'
+        ? cfg.lncurlServerUrl
+        : null
   }
 }
 
@@ -90,8 +95,12 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const query = validateQuery(request.url, remoteWalletListQuerySchema)
 
-  const where: { userId: string; status?: RemoteWalletStatus; type?: RemoteWallet['type'] } = {
-    userId,
+  const where: {
+    userId: string
+    status?: RemoteWalletStatus
+    type?: RemoteWallet['type']
+  } = {
+    userId
   }
   if (query.status) {
     where.status = query.status
@@ -106,7 +115,7 @@ export const GET = withErrorHandling(async (request: Request) => {
 
   const rows = await prisma.remoteWallet.findMany({
     where,
-    orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+    orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
   })
 
   const filtered = query.status
@@ -142,35 +151,37 @@ export const POST = withErrorHandling(async (request: Request) => {
   const parsedConfig = driver.configSchema.safeParse(body.config)
   if (!parsedConfig.success) {
     throw new ValidationError('Invalid wallet config', {
-      issues: parsedConfig.error.issues,
+      issues: parsedConfig.error.issues
     })
   }
 
   try {
-    const { created, boundPrimaryAddress } = await prisma.$transaction(async tx => {
-      const created = await tx.remoteWallet.create({
-        data: {
-          userId,
-          name: body.name,
-          type: body.type,
-          // Persist the *parsed* config (defaults applied) so reads are
-          // stable. Cast to Prisma input type — Zod schemas always return
-          // JSON-serialisable shapes for our drivers.
-          config: parsedConfig.data as object,
-          isDefault: false,
-        },
-      })
+    const { created, boundPrimaryAddress } = await prisma.$transaction(
+      async tx => {
+        const created = await tx.remoteWallet.create({
+          data: {
+            userId,
+            name: body.name,
+            type: body.type,
+            // Persist the *parsed* config (defaults applied) so reads are
+            // stable. Cast to Prisma input type — Zod schemas always return
+            // JSON-serialisable shapes for our drivers.
+            config: parsedConfig.data as object,
+            isDefault: false
+          }
+        })
 
-      const boundPrimaryAddress = body.isDefault
-        ? await bindPrimaryAddressToWallet(userId, created.id, tx)
-        : null
+        const boundPrimaryAddress = body.isDefault
+          ? await bindPrimaryAddressToWallet(userId, created.id, tx)
+          : null
 
-      if (!boundPrimaryAddress) {
-        await syncPrimaryRemoteWalletFlag(userId, tx)
+        if (!boundPrimaryAddress) {
+          await syncPrimaryRemoteWalletFlag(userId, tx)
+        }
+
+        return { created, boundPrimaryAddress }
       }
-
-      return { created, boundPrimaryAddress }
-    })
+    )
 
     // The listener dashboard tracks NWC connections live — nudge it to
     // refetch (the listener itself reconciles via the Postgres trigger).
@@ -182,7 +193,7 @@ export const POST = withErrorHandling(async (request: Request) => {
 
     return NextResponse.json(
       toDto({ ...created, isDefault: Boolean(boundPrimaryAddress) }),
-      { status: 201 },
+      { status: 201 }
     )
   } catch (err) {
     // Prisma maps the `(userId, name)` unique index to P2002. Surface as a

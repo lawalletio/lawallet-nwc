@@ -20,7 +20,7 @@ import {
   Copy,
   LogOut,
   ChevronRight,
-  ExternalLink,
+  ExternalLink
 } from 'lucide-react'
 import {
   Sidebar,
@@ -37,7 +37,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarSeparator,
-  useSidebar,
+  useSidebar
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -46,12 +46,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
+  CollapsibleTrigger
 } from '@/components/ui/collapsible'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Permission, Role } from '@/lib/auth/permissions'
@@ -76,13 +76,13 @@ const platformItems: NavItem[] = [
   {
     title: 'Home',
     href: '/admin',
-    icon: Home,
+    icon: Home
   },
   {
     title: 'Users',
     href: '/admin/users',
     icon: Users,
-    permission: Permission.ADDRESSES_READ,
+    permission: Permission.ADDRESSES_READ
   },
   // Cards is shown to every authenticated user — no `permission` set. The
   // page adapts: admins (CARDS_READ) get the instance-wide list, while a plain
@@ -91,7 +91,7 @@ const platformItems: NavItem[] = [
   {
     title: 'Cards',
     href: '/admin/cards',
-    icon: CreditCard,
+    icon: CreditCard
   },
   // Addresses is shown to every authenticated user — no `permission` set.
   // The page itself is per-user (driven by the caller's pubkey via
@@ -99,7 +99,7 @@ const platformItems: NavItem[] = [
   {
     title: 'Addresses',
     href: '/admin/addresses',
-    icon: AtSign,
+    icon: AtSign
   },
   // Remote Wallets is the connection abstraction Cards + Addresses bind
   // through. Same per-user scoping as Addresses — every authenticated user
@@ -107,7 +107,7 @@ const platformItems: NavItem[] = [
   {
     title: 'Remote Wallets',
     href: '/admin/remote-wallets',
-    icon: Wallet,
+    icon: Wallet
   },
   // Connection Map — visual graph of address/card → wallet bindings.
   // Fully per-user now: every column (addresses, cards, wallets) shows only
@@ -115,8 +115,8 @@ const platformItems: NavItem[] = [
   {
     title: 'Connections',
     href: '/admin/connections',
-    icon: Network,
-  },
+    icon: Network
+  }
 ]
 
 const systemItems: NavItem[] = [
@@ -126,20 +126,20 @@ const systemItems: NavItem[] = [
   {
     title: 'Account',
     href: '/admin/account',
-    icon: UserCog,
+    icon: UserCog
   },
   {
     title: 'Activity',
     href: '/admin/activity',
     icon: Activity,
-    permission: Permission.SETTINGS_READ,
+    permission: Permission.SETTINGS_READ
   },
   {
     title: 'NWC Listener',
     href: '/admin/listener',
     icon: RadioTower,
-    permission: Permission.SETTINGS_READ,
-  },
+    permission: Permission.SETTINGS_READ
+  }
 ]
 
 const settingsSubItems = [
@@ -148,7 +148,7 @@ const settingsSubItems = [
   { title: 'Wallet', tab: 'wallet' },
   { title: 'NWC Services', tab: 'nwc-services' },
   { title: 'Device Tokens', tab: 'device-tokens' },
-  { title: 'Backup & Restore', tab: 'backup' },
+  { title: 'Backup & Restore', tab: 'backup' }
 ]
 
 /** Default tab the settings page lands on when no `?tab=` is present. */
@@ -197,7 +197,7 @@ function SettingsNav({ disabled = false }: { disabled?: boolean }) {
       if (hiddenBottom > 0) {
         content.scrollTo({
           top: content.scrollTop + hiddenBottom + 12,
-          behavior: 'smooth',
+          behavior: 'smooth'
         })
       }
     })
@@ -229,7 +229,7 @@ function SettingsNav({ disabled = false }: { disabled?: boolean }) {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub ref={submenuRef}>
-            {settingsSubItems.map((sub) => (
+            {settingsSubItems.map(sub => (
               <SidebarMenuSubItem key={sub.tab}>
                 {disabled ? (
                   <SidebarMenuSubButton
@@ -267,7 +267,9 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
   const { profile } = useNostrProfile(pubkey)
   const { data: settings } = useSettings(!disabled)
   const { isMobile, setOpenMobile } = useSidebar()
-  const [versionCheck, setVersionCheck] = React.useState<VersionCheck | null>(null)
+  const [versionCheck, setVersionCheck] = React.useState<VersionCheck | null>(
+    null
+  )
   const [footerCardIndex, setFooterCardIndex] = React.useState(0)
 
   React.useEffect(() => {
@@ -300,7 +302,9 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
   }
 
   function filterByPermission(items: NavItem[]): NavItem[] {
-    return items.filter((item) => !item.permission || isAuthorized(item.permission))
+    return items.filter(
+      item => !item.permission || isAuthorized(item.permission)
+    )
   }
 
   function copyPubkey() {
@@ -319,7 +323,7 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
 
   const visiblePlatform = filterByPermission([
     ...platformItems,
-    ...pluginNavItems('platform', enabledPluginIds),
+    ...pluginNavItems('platform', enabledPluginIds)
   ])
   // The NWC Listener page only makes sense when the listener integration is
   // on — `listener_enabled` is the EFFECTIVE state computed server-side
@@ -329,26 +333,31 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
   const listenerEnabled = settings?.listener_enabled === 'true'
   const visibleSystem = filterByPermission([
     ...systemItems,
-    ...pluginNavItems('system', enabledPluginIds),
-  ]).filter((item) => item.href !== '/admin/listener' || listenerEnabled)
+    ...pluginNavItems('system', enabledPluginIds)
+  ]).filter(item => item.href !== '/admin/listener' || listenerEnabled)
   // Settings is ADMIN-only. VIEWER has SETTINGS_READ for API reads (public
   // settings hydrate branding for all authed users) but must not see the
   // settings UI in the nav.
   const showSettings = role === Role.ADMIN
   const hasDomain = !!settings?.domain?.trim()
   const domainVerified = settings?.domain_verified === 'true'
-  const needsDomainSetup = role === Role.ADMIN && (!hasDomain || !domainVerified)
+  const needsDomainSetup =
+    role === Role.ADMIN && (!hasDomain || !domainVerified)
   const updateAvailable = role === Role.ADMIN && !!versionCheck?.updateAvailable
 
-  const loginMethodLabel = loginMethod === 'extension'
-    ? 'Extension'
-    : loginMethod === 'nsec'
-    ? 'Private key'
-    : loginMethod === 'bunker'
-    ? 'Bunker'
-    : ''
+  const loginMethodLabel =
+    loginMethod === 'extension'
+      ? 'Extension'
+      : loginMethod === 'nsec'
+        ? 'Private key'
+        : loginMethod === 'bunker'
+          ? 'Bunker'
+          : ''
 
-  const displayName = profile?.displayName || profile?.name || (pubkey ? truncateNpub(pubkey) : 'Unknown')
+  const displayName =
+    profile?.displayName ||
+    profile?.name ||
+    (pubkey ? truncateNpub(pubkey) : 'Unknown')
   const avatarFallback = npubInitials(pubkey)
   const footerCards = [
     ...(needsDomainSetup
@@ -363,8 +372,8 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
               router.push('/admin/settings?tab=infrastructure')
               closeMobile()
             },
-            external: true,
-          },
+            external: true
+          }
         ]
       : []),
     ...(updateAvailable
@@ -376,15 +385,16 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
             actionLabel: 'View release',
             action: () => {
               window.open(
-                versionCheck?.releaseUrl || 'https://github.com/lawalletio/lawallet-nwc/releases',
+                versionCheck?.releaseUrl ||
+                  'https://github.com/lawalletio/lawallet-nwc/releases',
                 '_blank',
-                'noopener,noreferrer',
+                'noopener,noreferrer'
               )
             },
-            external: true,
-          },
+            external: true
+          }
         ]
-      : []),
+      : [])
   ]
   const activeFooterCard = footerCards.length
     ? footerCards[footerCardIndex % footerCards.length]
@@ -392,7 +402,9 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
 
   function showPreviousFooterCard() {
     if (footerCards.length <= 1) return
-    setFooterCardIndex(prev => (prev - 1 + footerCards.length) % footerCards.length)
+    setFooterCardIndex(
+      prev => (prev - 1 + footerCards.length) % footerCards.length
+    )
   }
 
   function showNextFooterCard() {
@@ -420,10 +432,13 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
             <SidebarGroupLabel>Platform</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {visiblePlatform.map((item) => (
+                {visiblePlatform.map(item => (
                   <SidebarMenuItem key={item.href}>
                     {disabled ? (
-                      <SidebarMenuButton disabled isActive={isActive(item.href)}>
+                      <SidebarMenuButton
+                        disabled
+                        isActive={isActive(item.href)}
+                      >
                         <item.icon className="size-4" />
                         <span>{item.title}</span>
                       </SidebarMenuButton>
@@ -449,15 +464,21 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
               <SidebarGroupLabel>System</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {visibleSystem.map((item) => (
+                  {visibleSystem.map(item => (
                     <SidebarMenuItem key={item.href}>
                       {disabled ? (
-                        <SidebarMenuButton disabled isActive={isActive(item.href)}>
+                        <SidebarMenuButton
+                          disabled
+                          isActive={isActive(item.href)}
+                        >
                           <item.icon className="size-4" />
                           <span>{item.title}</span>
                         </SidebarMenuButton>
                       ) : (
-                        <SidebarMenuButton asChild isActive={isActive(item.href)}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive(item.href)}
+                        >
                           <Link href={item.href} onClick={closeMobile}>
                             <item.icon className="size-4" />
                             <span>{item.title}</span>
@@ -472,12 +493,18 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
                   {role === Role.ADMIN && (
                     <SidebarMenuItem>
                       {disabled ? (
-                        <SidebarMenuButton disabled isActive={isActive('/admin/emulator')}>
+                        <SidebarMenuButton
+                          disabled
+                          isActive={isActive('/admin/emulator')}
+                        >
                           <Nfc className="size-4" />
                           <span>Card Emulator</span>
                         </SidebarMenuButton>
                       ) : (
-                        <SidebarMenuButton asChild isActive={isActive('/admin/emulator')}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive('/admin/emulator')}
+                        >
                           <Link href="/admin/emulator" onClick={closeMobile}>
                             <Nfc className="size-4" />
                             <span>Card Emulator</span>
@@ -507,7 +534,9 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
             <Link
               href={`/admin/users/${pubkey}`}
               className={`flex flex-1 min-w-0 items-center gap-2 rounded-md -m-1 p-1 transition-colors ${
-                disabled ? 'pointer-events-none opacity-60' : 'hover:bg-sidebar-accent'
+                disabled
+                  ? 'pointer-events-none opacity-60'
+                  : 'hover:bg-sidebar-accent'
               }`}
               aria-disabled={disabled}
               tabIndex={disabled ? -1 : undefined}
@@ -515,30 +544,42 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
               onClick={() => setOpenMobile(false)}
             >
               <Avatar className="size-8 shrink-0">
-                {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
-                <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                {profile?.picture && (
+                  <AvatarImage src={profile.picture} alt={displayName} />
+                )}
+                <AvatarFallback className="text-xs">
+                  {avatarFallback}
+                </AvatarFallback>
               </Avatar>
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-medium truncate">
                   {displayName}
                 </span>
                 {loginMethodLabel && (
-                  <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {loginMethodLabel}
+                  </span>
                 )}
               </div>
             </Link>
           ) : (
             <div className="flex items-center gap-2 min-w-0">
               <Avatar className="size-8 shrink-0">
-                {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
-                <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                {profile?.picture && (
+                  <AvatarImage src={profile.picture} alt={displayName} />
+                )}
+                <AvatarFallback className="text-xs">
+                  {avatarFallback}
+                </AvatarFallback>
               </Avatar>
               <div className="flex flex-col min-w-0">
                 <span className="text-sm font-medium truncate">
                   {displayName}
                 </span>
                 {loginMethodLabel && (
-                  <span className="text-xs text-muted-foreground">{loginMethodLabel}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {loginMethodLabel}
+                  </span>
                 )}
               </div>
             </div>
@@ -627,7 +668,9 @@ export function AdminSidebar({ disabled = false }: { disabled?: boolean }) {
                 }}
               >
                 {activeFooterCard.actionLabel}
-                {activeFooterCard.external && <ExternalLink className="ml-1 size-3" />}
+                {activeFooterCard.external && (
+                  <ExternalLink className="ml-1 size-3" />
+                )}
               </Button>
             </CardContent>
           </Card>

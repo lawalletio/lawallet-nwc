@@ -11,18 +11,18 @@ vi.mock('@/lib/config', () => ({
     rateLimit: { enabled: false },
     requestLimits: { maxJsonSize: 102400, maxBodySize: 1048576 },
     isDevelopment: false,
-    isTest: true,
-  })),
+    isTest: true
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   withRequestLogging: (fn: any) => fn,
-  getCurrentReqId: vi.fn(() => undefined),
+  getCurrentReqId: vi.fn(() => undefined)
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/rate-limit', () => ({
@@ -30,20 +30,20 @@ vi.mock('@/lib/middleware/rate-limit', () => ({
   RateLimitPresets: {
     public: {},
     auth: { maxRequests: 10, maxRequestsAuth: 30 },
-    sensitive: { maxRequests: 5, maxRequestsAuth: 20 },
-  },
+    sensitive: { maxRequests: 5, maxRequestsAuth: 20 }
+  }
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn(),
+  authenticate: vi.fn()
 }))
 
 vi.mock('@/lib/activity-log', () => ({
   ActivityEvent: {
     PASSKEY_RENAMED: 'user.passkey_renamed',
-    PASSKEY_DELETED: 'user.passkey_deleted',
+    PASSKEY_DELETED: 'user.passkey_deleted'
   },
-  logActivity: { fireAndForget: vi.fn() },
+  logActivity: { fireAndForget: vi.fn() }
 }))
 
 import { GET } from '@/app/api/auth/passkey/credentials/route'
@@ -59,7 +59,7 @@ const mockUser = () =>
   vi.mocked(authenticate).mockResolvedValue({
     pubkey: PUBKEY,
     role: Role.USER,
-    method: 'jwt',
+    method: 'jwt'
   })
 
 // PasskeyCredential row factory — base64url ids (contain '-' and '_'),
@@ -78,7 +78,7 @@ function makeCredential(overrides: Record<string, unknown> = {}) {
     rpId: 'localhost',
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     lastUsedAt: null,
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -86,14 +86,14 @@ const makeManagedKey = (overrides: Record<string, unknown> = {}) => ({
   userId: 'user-1',
   ciphertext: Buffer.from('encrypted'),
   exportedAt: null,
-  ...overrides,
+  ...overrides
 })
 
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
-    id: 'user-1',
+    id: 'user-1'
   } as any)
 })
 
@@ -102,9 +102,15 @@ describe('GET /api/auth/passkey/credentials', () => {
     mockUser()
     const rows = [
       makeCredential(),
-      makeCredential({ id: 'cred-second_-id', label: null, lastUsedAt: new Date('2026-02-01T00:00:00.000Z') }),
+      makeCredential({
+        id: 'cred-second_-id',
+        label: null,
+        lastUsedAt: new Date('2026-02-01T00:00:00.000Z')
+      })
     ]
-    vi.mocked(prismaMock.passkeyCredential.findMany).mockResolvedValue(rows as any)
+    vi.mocked(prismaMock.passkeyCredential.findMany).mockResolvedValue(
+      rows as any
+    )
     vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(
       makeManagedKey() as any
     )
@@ -126,19 +132,21 @@ describe('GET /api/auth/passkey/credentials', () => {
       id: 'cred-AbC_123-xyz',
       label: 'MacBook Touch ID',
       createdAt: '2026-01-01T00:00:00.000Z',
-      lastUsedAt: null,
+      lastUsedAt: null
     })
     expect(body.credentials[1].lastUsedAt).toBe('2026-02-01T00:00:00.000Z')
     // Only the user's own credentials, oldest first.
     expect(prismaMock.passkeyCredential.findMany).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'asc' }
     })
   })
 
   it('reports hasManagedKey false for linked accounts', async () => {
     mockUser()
-    vi.mocked(prismaMock.passkeyCredential.findMany).mockResolvedValue([] as any)
+    vi.mocked(prismaMock.passkeyCredential.findMany).mockResolvedValue(
+      [] as any
+    )
     vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(null)
 
     const res = await GET(createNextRequest('/api/auth/passkey/credentials'))
@@ -147,17 +155,19 @@ describe('GET /api/auth/passkey/credentials', () => {
     expect(body).toEqual({
       credentials: [],
       hasManagedKey: false,
-      managedKeyExported: false,
+      managedKeyExported: false
     })
   })
 
   it('reports managedKeyExported true once the key has been exported', async () => {
     mockUser()
     vi.mocked(prismaMock.passkeyCredential.findMany).mockResolvedValue([
-      makeCredential(),
+      makeCredential()
     ] as any)
     vi.mocked(prismaMock.managedNostrKey.findUnique).mockResolvedValue(
-      makeManagedKey({ exportedAt: new Date('2026-03-01T00:00:00.000Z') }) as any
+      makeManagedKey({
+        exportedAt: new Date('2026-03-01T00:00:00.000Z')
+      }) as any
     )
 
     const res = await GET(createNextRequest('/api/auth/passkey/credentials'))
@@ -188,13 +198,13 @@ describe('GET /api/auth/passkey/credentials', () => {
 function patchReq(id: string, body: unknown) {
   return createNextRequest(`/api/auth/passkey/credentials/${id}`, {
     method: 'PATCH',
-    body: body as Record<string, unknown>,
+    body: body as Record<string, unknown>
   })
 }
 
 function deleteReq(id: string) {
   return createNextRequest(`/api/auth/passkey/credentials/${id}`, {
-    method: 'DELETE',
+    method: 'DELETE'
   })
 }
 
@@ -207,7 +217,7 @@ describe('PATCH /api/auth/passkey/credentials/[id]', () => {
     )
     vi.mocked(prismaMock.passkeyCredential.update).mockResolvedValue({
       ...credential,
-      label: 'Work laptop',
+      label: 'Work laptop'
     } as any)
 
     const res = await PATCH(
@@ -221,13 +231,13 @@ describe('PATCH /api/auth/passkey/credentials/[id]', () => {
     expect(body.credential).not.toHaveProperty('counter')
     expect(prismaMock.passkeyCredential.update).toHaveBeenCalledWith({
       where: { id: credential.id },
-      data: { label: 'Work laptop' },
+      data: { label: 'Work laptop' }
     })
     expect(logActivity.fireAndForget).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'user.passkey_renamed',
         userId: 'user-1',
-        metadata: { credentialId: credential.id },
+        metadata: { credentialId: credential.id }
       })
     )
   })
@@ -313,12 +323,12 @@ describe('DELETE /api/auth/passkey/credentials/[id]', () => {
 
     expect(body).toEqual({ message: 'Passkey deleted', id: credential.id })
     expect(prismaMock.passkeyCredential.delete).toHaveBeenCalledWith({
-      where: { id: credential.id },
+      where: { id: credential.id }
     })
     expect(logActivity.fireAndForget).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'user.passkey_deleted',
-        metadata: { credentialId: credential.id },
+        metadata: { credentialId: credential.id }
       })
     )
   })
@@ -352,7 +362,7 @@ describe('DELETE /api/auth/passkey/credentials/[id]', () => {
       expect.anything(),
       expect.objectContaining({
         maxRequests: 5,
-        identifier: `passkey-delete:${PUBKEY}`,
+        identifier: `passkey-delete:${PUBKEY}`
       })
     )
   })

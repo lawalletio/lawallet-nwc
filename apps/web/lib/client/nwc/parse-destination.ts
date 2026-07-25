@@ -94,7 +94,7 @@ export function parseDestination(rawInput: string): ParsedDestination {
   }
 
   throw new DestinationParseError(
-    'Unsupported recipient. Use a Lightning address, bolt11 invoice, or LNURL.',
+    'Unsupported recipient. Use a Lightning address, bolt11 invoice, or LNURL.'
   )
 }
 
@@ -121,7 +121,10 @@ function parseBolt11(bolt11: string): InvoiceDestination {
       description = typeof section.value === 'string' ? section.value : null
     } else if (section.name === 'payment_hash') {
       paymentHash = typeof section.value === 'string' ? section.value : null
-    } else if (section.name === 'timestamp' && typeof section.value === 'number') {
+    } else if (
+      section.name === 'timestamp' &&
+      typeof section.value === 'number'
+    ) {
       const expiryRaw = decoded.expiry
       const expirySecs = typeof expiryRaw === 'number' ? expiryRaw : 3600
       expiresAt = (section.value + expirySecs) * 1000
@@ -134,7 +137,7 @@ function parseBolt11(bolt11: string): InvoiceDestination {
     amountSats,
     description,
     paymentHash,
-    expiresAt,
+    expiresAt
   }
 }
 
@@ -151,7 +154,7 @@ function parseLnurl(lnurl: string): LnurlDestination {
       lnurlpUrl: url,
       address: null,
       username: null,
-      host: null,
+      host: null
     }
   } catch {
     throw new DestinationParseError('Invalid LNURL')
@@ -168,6 +171,6 @@ function parseLnAddress(address: string): LnAddressDestination {
     address,
     username,
     host,
-    lnurlpUrl,
+    lnurlpUrl
   }
 }

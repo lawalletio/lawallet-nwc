@@ -1,4 +1,9 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto'
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scryptSync
+} from 'node:crypto'
 
 /**
  * Optional password protection for a backup archive. The zip bytes are wrapped
@@ -18,7 +23,12 @@ const TAG_LEN = 16
 const KEY_LEN = 32
 // scrypt cost. 2^15 keeps a one-shot admin operation well under a second while
 // staying meaningfully expensive to brute-force. maxmem is raised to fit N.
-const SCRYPT_PARAMS = { N: 1 << 15, r: 8, p: 1, maxmem: 128 * 1024 * 1024 } as const
+const SCRYPT_PARAMS = {
+  N: 1 << 15,
+  r: 8,
+  p: 1,
+  maxmem: 128 * 1024 * 1024
+} as const
 
 /** True when `bytes` starts with the backup encryption magic header. */
 export function isEncryptedArchive(bytes: Uint8Array): boolean {

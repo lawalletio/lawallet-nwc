@@ -12,7 +12,11 @@ import { Spinner } from '@/components/ui/spinner'
  * confirmations live under `(app)/welcome` instead of here so they don't
  * race this redirect.
  */
-export default function WalletAuthLayout({ children }: { children: React.ReactNode }) {
+export default function WalletAuthLayout({
+  children
+}: {
+  children: React.ReactNode
+}) {
   const { status } = useAuth()
   const router = useRouter()
 

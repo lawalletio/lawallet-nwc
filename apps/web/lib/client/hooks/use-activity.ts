@@ -4,7 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/components/admin/auth-context'
 import { useSSEVersion } from '@/lib/client/hooks/use-sse'
 
-export type ActivityCategory = 'USER' | 'ADDRESS' | 'NWC' | 'INVOICE' | 'CARD' | 'SERVER'
+export type ActivityCategory =
+  | 'USER'
+  | 'ADDRESS'
+  | 'NWC'
+  | 'INVOICE'
+  | 'CARD'
+  | 'SERVER'
 export type ActivityLevel = 'INFO' | 'WARN' | 'ERROR'
 
 export interface ActivityLog {
@@ -45,7 +51,11 @@ interface ApiPage {
   nextCursor: string | null
 }
 
-function buildQuery(filters: ActivityFilters, cursor: string | null, limit: number): string {
+function buildQuery(
+  filters: ActivityFilters,
+  cursor: string | null,
+  limit: number
+): string {
   const params = new URLSearchParams()
   if (filters.category) params.set('category', filters.category)
   if (filters.level) params.set('level', filters.level)
@@ -99,7 +109,9 @@ export function useActivity(filters: ActivityFilters = {}): UseActivityResult {
       setHasMore(!!page.nextCursor)
     } catch (err) {
       if (id !== fetchIdRef.current) return
-      setError(err instanceof Error ? err : new Error('Failed to load activity'))
+      setError(
+        err instanceof Error ? err : new Error('Failed to load activity')
+      )
     } finally {
       if (id === fetchIdRef.current) setLoading(false)
     }

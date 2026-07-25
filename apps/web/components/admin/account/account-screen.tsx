@@ -90,11 +90,17 @@ export function AccountScreen() {
   } = useAccount()
 
   const [mergeOpen, setMergeOpen] = useState(false)
-  const [mergeInitialTab, setMergeInitialTab] = useState<'nostr' | 'passkey'>('nostr')
+  const [mergeInitialTab, setMergeInitialTab] = useState<'nostr' | 'passkey'>(
+    'nostr'
+  )
   const [mergeHint, setMergeHint] = useState<string | undefined>(undefined)
-  const [renameTarget, setRenameTarget] = useState<NostrIdentitySummary | null>(null)
+  const [renameTarget, setRenameTarget] = useState<NostrIdentitySummary | null>(
+    null
+  )
   const [renameValue, setRenameValue] = useState('')
-  const [unlinkTarget, setUnlinkTarget] = useState<NostrIdentitySummary | null>(null)
+  const [unlinkTarget, setUnlinkTarget] = useState<NostrIdentitySummary | null>(
+    null
+  )
 
   function openMergeDialog(tab: 'nostr' | 'passkey', hint?: string) {
     setMergeInitialTab(tab)
@@ -166,7 +172,12 @@ export function AccountScreen() {
             <AlertTitle>Couldn&apos;t load your account</AlertTitle>
             <AlertDescription className="flex flex-col items-start gap-3">
               <span>{error.message}</span>
-              <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void refetch()}
+              >
                 <RefreshCw className="size-3.5" />
                 Retry
               </Button>
@@ -381,8 +392,8 @@ function IdentityRow({
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[220px]">
                   This identity&apos;s Nostr secret key (nsec) is stored on this
-                  server and unlocked by your passkey. Export it any time to take
-                  self-custody.
+                  server and unlocked by your passkey. Export it any time to
+                  take self-custody.
                 </TooltipContent>
               </Tooltip>
             )}

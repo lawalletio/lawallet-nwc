@@ -52,7 +52,9 @@ function parseServers(raw: string | undefined): string[] {
   try {
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed)) {
-      return parsed.filter((s): s is string => typeof s === 'string' && s.trim() !== '')
+      return parsed.filter(
+        (s): s is string => typeof s === 'string' && s.trim() !== ''
+      )
     }
   } catch {
     // ignore
@@ -70,7 +72,7 @@ function putViaXhr(
   blob: Blob,
   authHeader: string,
   onProgress: (loaded: number, total: number) => void,
-  signal?: AbortSignal,
+  signal?: AbortSignal
 ): Promise<BlobDescriptor> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
@@ -88,7 +90,7 @@ function putViaXhr(
       signal.addEventListener('abort', abort)
     }
 
-    xhr.upload.onprogress = (e) => {
+    xhr.upload.onprogress = e => {
       if (e.lengthComputable) onProgress(e.loaded, e.total)
     }
     xhr.onload = () => {
@@ -98,10 +100,15 @@ function putViaXhr(
           const body = JSON.parse(xhr.responseText) as BlobDescriptor
           resolve(body)
         } catch (err) {
-          reject(new Error(`Invalid JSON from ${url}: ${(err as Error).message}`))
+          reject(
+            new Error(`Invalid JSON from ${url}: ${(err as Error).message}`)
+          )
         }
       } else {
-        const reason = xhr.getResponseHeader('X-Reason') || xhr.responseText || xhr.statusText
+        const reason =
+          xhr.getResponseHeader('X-Reason') ||
+          xhr.responseText ||
+          xhr.statusText
         reject(new Error(`${url} → ${xhr.status} ${reason}`))
       }
     }
@@ -136,12 +143,15 @@ export function useBlossomUpload() {
   const [state, setState] = useState<UploadState>({
     progress: 0,
     uploading: false,
-    error: null,
+    error: null
   })
 
   const abortRef = useRef<AbortController | null>(null)
 
-  const servers = useMemo(() => parseServers(settings?.blossom_servers), [settings?.blossom_servers])
+  const servers = useMemo(
+    () => parseServers(settings?.blossom_servers),
+    [settings?.blossom_servers]
+  )
 
   // Abort any in-flight upload when the component unmounts.
   useEffect(() => () => abortRef.current?.abort(), [])
@@ -154,7 +164,9 @@ export function useBlossomUpload() {
       // on demand so the user can supply a fresh one and continue.
       const activeSigner = signer ?? (await requestSigner())
       if (servers.length === 0) {
-        throw new Error('No Blossom servers configured. Add one in Infrastructure settings.')
+        throw new Error(
+          'No Blossom servers configured. Add one in Infrastructure settings.'
+        )
       }
 
       // Cancel any prior upload still running.
@@ -174,7 +186,7 @@ export function useBlossomUpload() {
 
         // Create a single BUD-02 auth event; reuse across all target servers.
         const authEvent = await createUploadAuth(signFn, file, {
-          message: `Upload ${file.name}`,
+          message: `Upload ${file.name}`
         })
         const authHeader = encodeAuthHeader(authEvent)
 
@@ -193,21 +205,29 @@ export function useBlossomUpload() {
                 loaded[i] = l
                 totals[i] = t || file.size
                 const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0)
-                const pct = Math.min(100, Math.round((100 * sum(loaded)) / Math.max(1, sum(totals))))
-                setState((s) => (s.uploading ? { ...s, progress: pct } : s))
+                const pct = Math.min(
+                  100,
+                  Math.round((100 * sum(loaded)) / Math.max(1, sum(totals)))
+                )
+                setState(s => (s.uploading ? { ...s, progress: pct } : s))
               },
-              controller.signal,
+              controller.signal
             )
-          }),
+          })
         )
 
         const successes = results.filter(
-          (r): r is PromiseFulfilledResult<BlobDescriptor> => r.status === 'fulfilled',
+          (r): r is PromiseFulfilledResult<BlobDescriptor> =>
+            r.status === 'fulfilled'
         )
-        const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        const failures = results.filter(
+          (r): r is PromiseRejectedResult => r.status === 'rejected'
+        )
 
         if (successes.length === 0) {
-          const msg = failures.map((f) => (f.reason as Error)?.message || String(f.reason)).join('; ')
+          const msg = failures
+            .map(f => (f.reason as Error)?.message || String(f.reason))
+            .join('; ')
           throw new Error(`All Blossom servers failed: ${msg}`)
         }
 
@@ -219,7 +239,7 @@ export function useBlossomUpload() {
             'of',
             servers.length,
             'servers:',
-            failures.map((f) => (f.reason as Error)?.message),
+            failures.map(f => (f.reason as Error)?.message)
           )
         }
 
@@ -235,7 +255,7 @@ export function useBlossomUpload() {
         throw error
       }
     },
-    [signer, requestSigner, servers],
+    [signer, requestSigner, servers]
   )
 
   const reset = useCallback(() => {
@@ -251,6 +271,6 @@ export function useBlossomUpload() {
     error: state.error,
     reset,
     /** True when the Settings have at least one Blossom server configured. */
-    hasServers: servers.length > 0,
+    hasServers: servers.length > 0
   }
 }

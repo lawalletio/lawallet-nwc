@@ -24,16 +24,16 @@ export const GET = withErrorHandling(async (request: Request) => {
       lightningAddresses: {
         where: { isPrimary: true },
         take: 1,
-        select: { username: true },
+        select: { username: true }
       },
       _count: {
         // Count only usable wallets so a fully-revoked user reads as "no NWC".
         select: {
           lightningAddresses: true,
-          remoteWallets: { where: { status: { not: 'REVOKED' } } },
-        },
-      },
-    },
+          remoteWallets: { where: { status: { not: 'REVOKED' } } }
+        }
+      }
+    }
   })
 
   const transformed = users.map(user => ({
@@ -43,7 +43,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     createdAt: user.createdAt.toISOString(),
     primaryAddress: user.lightningAddresses[0]?.username ?? null,
     addressCount: user._count.lightningAddresses,
-    hasNwc: user._count.remoteWallets > 0,
+    hasNwc: user._count.remoteWallets > 0
   }))
 
   return NextResponse.json(transformed)

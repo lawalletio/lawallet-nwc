@@ -22,7 +22,7 @@ export function PrimaryActionButton({
   label,
   icon: Icon,
   className,
-  disabled,
+  disabled
 }: PrimaryActionButtonProps) {
   const content = (
     <>
@@ -38,7 +38,7 @@ export function PrimaryActionButton({
         disabled
         className={cn(
           'flex flex-1 items-center justify-center gap-2 rounded-full bg-card px-4 py-4 text-muted-foreground opacity-50',
-          className,
+          className
         )}
       >
         {content}
@@ -51,7 +51,7 @@ export function PrimaryActionButton({
       href={href}
       className={cn(
         'flex flex-1 items-center justify-center gap-2 rounded-full bg-card px-4 py-4 text-foreground transition-colors hover:bg-accent active:scale-[0.98]',
-        className,
+        className
       )}
     >
       {content}

@@ -14,7 +14,7 @@ export const revalidate = 0
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': '*',
+  'Access-Control-Allow-Headers': '*'
 } as const
 
 /**
@@ -31,7 +31,9 @@ function resolveOperatorRelays(raw: string | undefined): string[] {
         const relays = parsed
           .filter((relay): relay is string => typeof relay === 'string')
           .map(relay => relay.trim())
-          .filter(relay => relay.startsWith('wss://') || relay.startsWith('ws://'))
+          .filter(
+            relay => relay.startsWith('wss://') || relay.startsWith('ws://')
+          )
         if (relays.length > 0) return Array.from(new Set(relays))
       }
     } catch {
@@ -41,7 +43,8 @@ function resolveOperatorRelays(raw: string | undefined): string[] {
   return DEFAULT_NOSTR_RELAYS
 }
 
-export const OPTIONS = () => new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+export const OPTIONS = () =>
+  new NextResponse(null, { status: 204, headers: CORS_HEADERS })
 
 const EMPTY = { names: {}, relays: {} }
 
@@ -49,7 +52,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // NIP-05 uses `?name=<localpart>`; accept `?username=` too since that's how
   // this platform labels the field elsewhere.
   const params = request.nextUrl.searchParams
-  const name = (params.get('name') ?? params.get('username'))?.trim().toLowerCase()
+  const name = (params.get('name') ?? params.get('username'))
+    ?.trim()
+    .toLowerCase()
 
   // A lookup is always for a specific name. Without one — or for the reserved
   // `_` root — return empty maps rather than enumerating every registered
@@ -62,9 +67,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     where: { username: name },
     include: {
       user: {
-        select: { id: true, pubkey: true, relays: true, relaysUpdatedAt: true },
-      },
-    },
+        select: { id: true, pubkey: true, relays: true, relaysUpdatedAt: true }
+      }
+    }
   })
 
   // Unknown name → empty maps (a plain 200, so clients read it as "no such
@@ -81,7 +86,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   // configured relays when the user has none.
   const [userRelays, settings] = await Promise.all([
     resolveUserRelays(address.user),
-    getSettings(['relays']),
+    getSettings(['relays'])
   ])
   const relays =
     userRelays.length > 0 ? userRelays : resolveOperatorRelays(settings.relays)
@@ -89,8 +94,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   return NextResponse.json(
     {
       names: { [address.username]: pubkey },
-      relays: { [pubkey]: relays },
+      relays: { [pubkey]: relays }
     },
-    { headers: CORS_HEADERS },
+    { headers: CORS_HEADERS }
   )
 })

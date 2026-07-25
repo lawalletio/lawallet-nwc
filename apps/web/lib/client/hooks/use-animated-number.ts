@@ -34,7 +34,7 @@ import { useEffect, useRef, useState } from 'react'
  */
 export function useAnimatedNumber(
   target: number | null,
-  durationMs: number = 600,
+  durationMs: number = 600
 ): number {
   // `displayed` is the value being rendered ONLY while an animation is
   // running. When idle (no animation), it's null and the hook returns

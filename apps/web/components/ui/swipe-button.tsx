@@ -205,9 +205,7 @@ const SwipeButton = React.forwardRef<HTMLDivElement, SwipeButtonProps>(
           <span
             className={cn(
               'text-sm font-semibold transition-opacity duration-200',
-              state === 'swiping'
-                ? 'text-foreground'
-                : 'text-muted-foreground'
+              state === 'swiping' ? 'text-foreground' : 'text-muted-foreground'
             )}
             style={{
               opacity: state === 'swiping' ? 1 - progress * 0.5 : 1

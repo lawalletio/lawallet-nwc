@@ -5,7 +5,7 @@ import {
   BACKUP_TABLE_ORDER,
   TABLE_DESCRIPTORS,
   pkKey,
-  fieldsKey,
+  fieldsKey
 } from '@/lib/backup/tables'
 import { ROW_SCHEMAS, toPrismaData } from '@/lib/backup/row-schemas'
 import { Prisma } from '@/lib/generated/prisma'
@@ -22,12 +22,15 @@ describe('backup tables', () => {
         'lightningAddresses',
         'cards',
         'cardActivationTokens',
-        'albySubAccounts',
+        'albySubAccounts'
       ])
       // Order matches the canonical order filtered to the wanted set.
-      const orderIndex = (t: (typeof resolved)[number]) => BACKUP_TABLE_ORDER.indexOf(t)
+      const orderIndex = (t: (typeof resolved)[number]) =>
+        BACKUP_TABLE_ORDER.indexOf(t)
       for (let i = 1; i < resolved.length; i++) {
-        expect(orderIndex(resolved[i])).toBeGreaterThan(orderIndex(resolved[i - 1]))
+        expect(orderIndex(resolved[i])).toBeGreaterThan(
+          orderIndex(resolved[i - 1])
+        )
       }
     })
 
@@ -89,8 +92,12 @@ describe('backup tables', () => {
 
     it('fieldsKey is order-sensitive and stable', () => {
       const row = { userId: 'u1', name: 'primary' }
-      expect(fieldsKey(['userId', 'name'], row)).toBe(fieldsKey(['userId', 'name'], row))
-      expect(fieldsKey(['userId', 'name'], row)).not.toBe(fieldsKey(['name', 'userId'], row))
+      expect(fieldsKey(['userId', 'name'], row)).toBe(
+        fieldsKey(['userId', 'name'], row)
+      )
+      expect(fieldsKey(['userId', 'name'], row)).not.toBe(
+        fieldsKey(['name', 'userId'], row)
+      )
     })
   })
 })
@@ -103,7 +110,7 @@ describe('backup row-schemas', () => {
     albyEnabled: false,
     role: 'ADMIN',
     relays: null,
-    relaysUpdatedAt: null,
+    relaysUpdatedAt: null
   }
 
   it('parses a valid users row and coerces createdAt string → Date', () => {
@@ -111,7 +118,9 @@ describe('backup row-schemas', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.createdAt).toBeInstanceOf(Date)
-      expect((result.data.createdAt as Date).toISOString()).toBe(validUser.createdAt)
+      expect((result.data.createdAt as Date).toISOString()).toBe(
+        validUser.createdAt
+      )
     }
   })
 
@@ -122,7 +131,9 @@ describe('backup row-schemas', () => {
   })
 
   it('fails a users row with an out-of-range role enum', () => {
-    expect(ROW_SCHEMAS.users.safeParse({ ...validUser, role: 'SUPERADMIN' }).success).toBe(false)
+    expect(
+      ROW_SCHEMAS.users.safeParse({ ...validUser, role: 'SUPERADMIN' }).success
+    ).toBe(false)
   })
 
   describe('toPrismaData', () => {
@@ -138,7 +149,7 @@ describe('backup row-schemas', () => {
       userId: null,
       expiresAt: new Date(),
       paidAt: null,
-      createdAt: new Date(),
+      createdAt: new Date()
     }
 
     it('replaces a null nullable-Json field with Prisma.DbNull', () => {

@@ -10,7 +10,8 @@ import { generateNtag424Values } from '@/lib/ntag424'
  */
 
 const SECRET = 'bench-secret-at-least-32-characters-long!'
-const PUBKEY = 'npub1xyz123abc456def789ghi012jkl345mno678pqr901stu234vwx567yz890'
+const PUBKEY =
+  'npub1xyz123abc456def789ghi012jkl345mno678pqr901stu234vwx567yz890'
 
 const claims = {
   userId: PUBKEY,

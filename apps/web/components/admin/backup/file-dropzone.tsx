@@ -14,14 +14,18 @@ function humanSize(bytes: number): string {
 
 function isBackupFile(file: File): boolean {
   const name = file.name.toLowerCase()
-  return name.endsWith('.zip') || name.endsWith('.enc') || file.type === 'application/zip'
+  return (
+    name.endsWith('.zip') ||
+    name.endsWith('.enc') ||
+    file.type === 'application/zip'
+  )
 }
 
 /** Drag-and-drop / picker restricted to `.zip` / `.zip.enc` archives. */
 export function FileDropzone({
   file,
   onFile,
-  disabled = false,
+  disabled = false
 }: {
   file: File | null
   onFile: (file: File | null) => void
@@ -45,7 +49,9 @@ export function FileDropzone({
         <FileArchive className="size-8 shrink-0 text-primary" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{file.name}</p>
-          <p className="text-xs text-muted-foreground">{humanSize(file.size)}</p>
+          <p className="text-xs text-muted-foreground">
+            {humanSize(file.size)}
+          </p>
         </div>
         <Button
           variant="ghost"
@@ -75,16 +81,30 @@ export function FileDropzone({
       }}
       className={cn(
         'flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-6 py-12 text-center transition-colors',
-        dragging ? 'border-primary bg-primary/10' : 'border-muted-foreground/25',
-        disabled && 'pointer-events-none opacity-60',
+        dragging
+          ? 'border-primary bg-primary/10'
+          : 'border-muted-foreground/25',
+        disabled && 'pointer-events-none opacity-60'
       )}
     >
-      <UploadCloud className={cn('size-10', dragging ? 'text-primary' : 'text-muted-foreground')} />
+      <UploadCloud
+        className={cn(
+          'size-10',
+          dragging ? 'text-primary' : 'text-muted-foreground'
+        )}
+      />
       <div>
         <p className="text-sm font-medium">Drag & drop your backup here</p>
-        <p className="text-xs text-muted-foreground">.zip or .zip.enc, up to 100 MB</p>
+        <p className="text-xs text-muted-foreground">
+          .zip or .zip.enc, up to 100 MB
+        </p>
       </div>
-      <Button variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={disabled}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => inputRef.current?.click()}
+        disabled={disabled}
+      >
         Choose file
       </Button>
       <input

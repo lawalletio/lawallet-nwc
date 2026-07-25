@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   PRF_SALT_HEX,
   prfSaltBytes,
-  derivePrfNsecHex,
+  derivePrfNsecHex
 } from '@/lib/client/passkey-prf'
 import { getPublicKeyFromPrivate } from '@/lib/nostr'
 

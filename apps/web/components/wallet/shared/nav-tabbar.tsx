@@ -14,7 +14,7 @@ interface SideItem {
 
 const SIDE_ITEMS: readonly SideItem[] = [
   { href: '/wallet', label: 'Home', icon: Home, exact: true },
-  { href: '/wallet/settings', label: 'Settings', icon: Settings },
+  { href: '/wallet/settings', label: 'Settings', icon: Settings }
 ]
 
 /**
@@ -54,13 +54,7 @@ export function NavTabbar() {
   )
 }
 
-function SideButton({
-  item,
-  pathname,
-}: {
-  item: SideItem
-  pathname: string
-}) {
+function SideButton({ item, pathname }: { item: SideItem; pathname: string }) {
   const Icon = item.icon
   const active = item.exact
     ? pathname === item.href
@@ -75,7 +69,7 @@ function SideButton({
         'flex size-[54px] items-center justify-center rounded-full transition-colors',
         active
           ? 'text-foreground'
-          : 'text-muted-foreground hover:text-foreground',
+          : 'text-muted-foreground hover:text-foreground'
       )}
     >
       <Icon className={cn('size-7', active && 'stroke-[2.5]')} />

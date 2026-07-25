@@ -34,12 +34,12 @@ domain you control.
 
 The Compose file builds four public-facing/internal services plus Postgres:
 
-| Service | Purpose | Public domain needed? |
-| --- | --- | --- |
-| `web` | LaWallet UI, REST API, LUD-16 endpoints | Yes |
-| `listener` | Long-lived NWC relay bridge | No — internal only |
-| `postgres` | Application and listener data | No — internal only |
-| `docs` / `openapi` | Documentation and OpenAPI surfaces | Optional |
+| Service            | Purpose                                 | Public domain needed? |
+| ------------------ | --------------------------------------- | --------------------- |
+| `web`              | LaWallet UI, REST API, LUD-16 endpoints | Yes                   |
+| `listener`         | Long-lived NWC relay bridge             | No — internal only    |
+| `postgres`         | Application and listener data           | No — internal only    |
+| `docs` / `openapi` | Documentation and OpenAPI surfaces      | Optional              |
 
 ## Configure environment variables
 

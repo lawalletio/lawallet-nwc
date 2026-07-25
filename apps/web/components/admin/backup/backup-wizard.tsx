@@ -10,13 +10,20 @@ import { Switch } from '@/components/ui/switch'
 import { WizardShell } from '@/components/admin/backup/wizard-shell'
 import { ProgressScreen } from '@/components/admin/backup/progress-screen'
 import { CategorySelector } from '@/components/admin/backup/category-selector'
-import { BACKUP_CATEGORIES, type BackupCategory } from '@/lib/client/backup-types'
-import { type ExportedBackup, downloadBlob, useBackup } from '@/lib/client/hooks/use-backup'
+import {
+  BACKUP_CATEGORIES,
+  type BackupCategory
+} from '@/lib/client/backup-types'
+import {
+  type ExportedBackup,
+  downloadBlob,
+  useBackup
+} from '@/lib/client/hooks/use-backup'
 
 const STEPS = [
   { key: 'select', label: 'Select data' },
   { key: 'generating', label: 'Generating' },
-  { key: 'done', label: 'Done' },
+  { key: 'done', label: 'Done' }
 ]
 
 type Step = 'select' | 'generating' | 'done'
@@ -28,7 +35,7 @@ export function BackupWizard({ onClose }: { onClose: () => void }) {
   const { exportBackup } = useBackup()
   const [step, setStep] = useState<Step>('select')
   const [selected, setSelected] = useState<Set<BackupCategory>>(
-    () => new Set(BACKUP_CATEGORIES.filter(c => c.defaultOn).map(c => c.key)),
+    () => new Set(BACKUP_CATEGORIES.filter(c => c.defaultOn).map(c => c.key))
   )
   const [encrypt, setEncrypt] = useState(false)
   const [password, setPassword] = useState('')
@@ -46,13 +53,18 @@ export function BackupWizard({ onClose }: { onClose: () => void }) {
     })
   }
 
-  const passwordValid = !encrypt || (password.length >= MIN_PASSWORD && password === confirmPassword)
+  const passwordValid =
+    !encrypt ||
+    (password.length >= MIN_PASSWORD && password === confirmPassword)
   const canGenerate = selected.size > 0 && passwordValid
 
   async function handleGenerate() {
     setStep('generating')
     try {
-      const result = await exportBackup([...selected], encrypt ? password : undefined)
+      const result = await exportBackup(
+        [...selected],
+        encrypt ? password : undefined
+      )
       setExported(result)
       downloadBlob(result.blob, result.filename)
       setStep('done')
@@ -77,15 +89,16 @@ export function BackupWizard({ onClose }: { onClose: () => void }) {
           <div className="space-y-1">
             <h1 className="text-xl font-semibold">Create a backup</h1>
             <p className="text-sm text-muted-foreground">
-              Choose what to include. Everything is exported with its relationships intact.
+              Choose what to include. Everything is exported with its
+              relationships intact.
             </p>
           </div>
 
           <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-300">
             <ShieldAlert className="mt-0.5 size-4 shrink-0" />
             <p>
-              This archive contains sensitive secrets (wallet connections, card keys, tokens).
-              Store it securely — or encrypt it below.
+              This archive contains sensitive secrets (wallet connections, card
+              keys, tokens). Store it securely — or encrypt it below.
             </p>
           </div>
 
@@ -97,7 +110,11 @@ export function BackupWizard({ onClose }: { onClose: () => void }) {
                 <Lock className="size-4" />
                 Encrypt with a password
               </Label>
-              <Switch id="encrypt" checked={encrypt} onCheckedChange={setEncrypt} />
+              <Switch
+                id="encrypt"
+                checked={encrypt}
+                onCheckedChange={setEncrypt}
+              />
             </div>
             {encrypt && (
               <div className="grid gap-3 animate-in fade-in slide-in-from-top-2 duration-200 sm:grid-cols-2">
@@ -131,7 +148,9 @@ export function BackupWizard({ onClose }: { onClose: () => void }) {
                   </p>
                 )}
                 {confirmPassword.length > 0 && password !== confirmPassword && (
-                  <p className="text-xs text-destructive sm:col-span-2">Passwords don’t match.</p>
+                  <p className="text-xs text-destructive sm:col-span-2">
+                    Passwords don’t match.
+                  </p>
                 )}
               </div>
             )}
@@ -158,7 +177,7 @@ export function BackupWizard({ onClose }: { onClose: () => void }) {
             'Collecting cards & designs…',
             'Packing settings…',
             'Compressing archive…',
-            encrypt ? 'Encrypting…' : 'Finalizing…',
+            encrypt ? 'Encrypting…' : 'Finalizing…'
           ]}
         />
       )}
@@ -177,7 +196,10 @@ export function BackupWizard({ onClose }: { onClose: () => void }) {
             <p className="text-xs text-muted-foreground">{exported.filename}</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => downloadBlob(exported.blob, exported.filename)}>
+            <Button
+              variant="outline"
+              onClick={() => downloadBlob(exported.blob, exported.filename)}
+            >
               <Download className="mr-2 size-4" />
               Download again
             </Button>

@@ -3,7 +3,7 @@
 import { useApi } from '@/lib/client/hooks/use-api'
 import type {
   EffectiveNwcMode,
-  LightningAddressMode,
+  LightningAddressMode
 } from '@/lib/client/hooks/use-wallet-addresses'
 
 export interface AddressData {

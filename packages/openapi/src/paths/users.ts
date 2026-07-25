@@ -3,7 +3,7 @@ import {
   commonErrorResponses,
   inlineJsonResponse,
   protectedSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 import { responses } from '../responses'
@@ -16,7 +16,7 @@ const userSchema = z
     id: z.string(),
     pubkey: z.string(),
     role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']),
-    createdAt: z.string().datetime(),
+    createdAt: z.string().datetime()
   })
   .passthrough()
   .openapi({ description: 'User record.' })
@@ -31,8 +31,8 @@ registry.registerPath({
   security: protectedSecurity,
   responses: {
     200: inlineJsonResponse('Users.', z.object({ data: z.array(userSchema) })),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -45,8 +45,8 @@ registry.registerPath({
   security: protectedSecurity,
   responses: {
     200: inlineJsonResponse('Current user.', userSchema),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -61,8 +61,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('User.', userSchema),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -77,11 +77,11 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'User cards.',
-      z.object({ data: z.array(z.object({}).passthrough()) }),
+      z.object({ data: z.array(z.object({}).passthrough()) })
     ),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -95,14 +95,14 @@ registry.registerPath({
   request: {
     params: schemas.UserIdParam,
     body: {
-      content: { 'application/json': { schema: schemas.UserRoleUpdateRequest } },
-    },
+      content: { 'application/json': { schema: schemas.UserRoleUpdateRequest } }
+    }
   },
   responses: {
     200: inlineJsonResponse('Role updated.', userSchema),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -121,20 +121,20 @@ registry.registerPath({
           schema: z.object({
             relays: z
               .array(z.string().openapi({ example: 'wss://lacrypta.ar' }))
-              .max(20),
-          }),
-        },
-      },
-    },
+              .max(20)
+          })
+        }
+      }
+    }
   },
   responses: {
     200: inlineJsonResponse(
       'Relays updated.',
-      z.object({ userId: z.string(), relays: z.array(z.string()) }),
+      z.object({ userId: z.string(), relays: z.array(z.string()) })
     ),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -148,16 +148,18 @@ registry.registerPath({
   request: {
     params: schemas.UserIdParam,
     body: {
-      content: { 'application/json': { schema: schemas.LightningAddressUpdateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.LightningAddressUpdateRequest }
+      }
+    }
   },
   responses: {
     200: inlineJsonResponse(
       'Address assigned.',
-      z.object({ username: z.string() }),
+      z.object({ username: z.string() })
     ),
     ...commonErrorResponses,
     404: responses.notFound,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })

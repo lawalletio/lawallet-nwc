@@ -1,11 +1,18 @@
 'use client'
 
-import React, { createContext, useContext, useCallback, useRef, useState, useEffect } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useCallback,
+  useRef,
+  useState,
+  useEffect
+} from 'react'
 import { useAuth } from '@/components/admin/auth-context'
 import {
   NOSTR_PROFILE_CACHE_TTL_MS as CACHE_TTL_MS,
   normalizeNostrPubkey,
-  type NostrProfile,
+  type NostrProfile
 } from '@/lib/nostr/profile'
 
 export { DEFAULT_NOSTR_RELAYS, parseKind0Content } from '@/lib/nostr/profile'
@@ -23,12 +30,18 @@ interface FetchOptions {
 
 interface NostrProfileContextValue {
   getProfile: (pubkey: string) => NostrProfile | null
-  fetchProfile: (pubkey: string, options?: FetchOptions) => Promise<NostrProfile | null>
+  fetchProfile: (
+    pubkey: string,
+    options?: FetchOptions
+  ) => Promise<NostrProfile | null>
   /**
    * Resolve many pubkeys in a single server round-trip. Pubkeys already fresh
    * in the local cache (or in flight) are skipped unless `force` is true.
    */
-  fetchProfiles: (pubkeys: string[], options?: FetchOptions) => Promise<Record<string, NostrProfile>>
+  fetchProfiles: (
+    pubkeys: string[],
+    options?: FetchOptions
+  ) => Promise<Record<string, NostrProfile>>
   /**
    * Seed a freshly-signed kind-0 straight into the cache. Used after the
    * user publishes their own profile so the UI reflects the change
@@ -45,7 +58,7 @@ const NostrProfileContext = createContext<NostrProfileContextValue | null>(null)
 
 export function useNostrProfile(
   pubkey: string | null,
-  options: FetchOptions = {},
+  options: FetchOptions = {}
 ): {
   profile: NostrProfile | null
   loading: boolean
@@ -58,7 +71,9 @@ export function useNostrProfile(
 } {
   const ctx = useContext(NostrProfileContext)
   if (!ctx) {
-    throw new Error('useNostrProfile must be used within a NostrProfileProvider')
+    throw new Error(
+      'useNostrProfile must be used within a NostrProfileProvider'
+    )
   }
 
   const cachedProfile = pubkey ? ctx.getProfile(pubkey) : null
@@ -78,7 +93,9 @@ export function useNostrProfile(
           setLoading(false)
         }
       })
-      return () => { cancelled = true }
+      return () => {
+        cancelled = true
+      }
     }
 
     const currentCached = ctx.getProfile(pubkey)
@@ -88,7 +105,8 @@ export function useNostrProfile(
       })
     }
 
-    ctx.fetchProfile(pubkey, { force })
+    ctx
+      .fetchProfile(pubkey, { force })
       .then(result => {
         if (!cancelled && result) {
           setProfile(result)
@@ -98,7 +116,9 @@ export function useNostrProfile(
         if (!cancelled) setLoading(false)
       })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [pubkey, ctx, force])
 
   const updateProfile = useCallback(
@@ -107,7 +127,7 @@ export function useNostrProfile(
       ctx.updateProfile(pubkey, next)
       setProfile(next)
     },
-    [ctx, pubkey],
+    [ctx, pubkey]
   )
 
   return { profile: cachedProfile ?? profile, loading, updateProfile }
@@ -124,10 +144,14 @@ export function useNostrProfiles(pubkeys: string[]): {
 } {
   const ctx = useContext(NostrProfileContext)
   if (!ctx) {
-    throw new Error('useNostrProfiles must be used within a NostrProfileProvider')
+    throw new Error(
+      'useNostrProfiles must be used within a NostrProfileProvider'
+    )
   }
 
-  const key = Array.from(new Set(pubkeys.filter(Boolean))).sort().join(',')
+  const key = Array.from(new Set(pubkeys.filter(Boolean)))
+    .sort()
+    .join(',')
 
   const seed = useCallback((): Record<string, NostrProfile | null> => {
     const map: Record<string, NostrProfile | null> = {}
@@ -139,7 +163,8 @@ export function useNostrProfiles(pubkeys: string[]): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx, key])
 
-  const [profiles, setProfiles] = useState<Record<string, NostrProfile | null>>(seed)
+  const [profiles, setProfiles] =
+    useState<Record<string, NostrProfile | null>>(seed)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -183,10 +208,16 @@ export function useNostrProfiles(pubkeys: string[]): {
   return { profiles, loading }
 }
 
-export function NostrProfileProvider({ children }: { children: React.ReactNode }) {
+export function NostrProfileProvider({
+  children
+}: {
+  children: React.ReactNode
+}) {
   const { apiClient, status } = useAuth()
   const cacheRef = useRef<ProfileCache>(loadCache())
-  const inflightRef = useRef<Map<string, Promise<NostrProfile | null>>>(new Map())
+  const inflightRef = useRef<Map<string, Promise<NostrProfile | null>>>(
+    new Map()
+  )
 
   const getProfile = useCallback((pubkey: string): NostrProfile | null => {
     const normalized = normalizeNostrPubkey(pubkey)
@@ -199,14 +230,20 @@ export function NostrProfileProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const fetchProfilesFromApi = useCallback(
-    async (pubkeys: string[], force: boolean): Promise<Record<string, NostrProfile>> => {
+    async (
+      pubkeys: string[],
+      force: boolean
+    ): Promise<Record<string, NostrProfile>> => {
       if (status !== 'authenticated' || pubkeys.length === 0) return {}
       let response: NostrProfilesResponse
       try {
-        response = await apiClient.post<NostrProfilesResponse>('/api/nostr/profiles', {
-          pubkeys,
-          force,
-        })
+        response = await apiClient.post<NostrProfilesResponse>(
+          '/api/nostr/profiles',
+          {
+            pubkeys,
+            force
+          }
+        )
       } catch (err) {
         console.warn('Failed to refresh Nostr profiles from server cache', err)
         return {}
@@ -216,13 +253,18 @@ export function NostrProfileProvider({ children }: { children: React.ReactNode }
         cacheRef.current[profile.pubkey] = profile
       }
       if (profiles.length > 0) saveCache(cacheRef.current)
-      return Object.fromEntries(profiles.map(profile => [profile.pubkey, profile]))
+      return Object.fromEntries(
+        profiles.map(profile => [profile.pubkey, profile])
+      )
     },
-    [apiClient, status],
+    [apiClient, status]
   )
 
   const fetchProfile = useCallback(
-    async (pubkey: string, options: FetchOptions = {}): Promise<NostrProfile | null> => {
+    async (
+      pubkey: string,
+      options: FetchOptions = {}
+    ): Promise<NostrProfile | null> => {
       const normalized = normalizeNostrPubkey(pubkey)
       if (!normalized) return null
 
@@ -235,7 +277,10 @@ export function NostrProfileProvider({ children }: { children: React.ReactNode }
       const existing = inflightRef.current.get(inflightKey)
       if (existing) return existing
 
-      const promise = fetchProfilesFromApi([normalized.pubkey], options.force ?? false)
+      const promise = fetchProfilesFromApi(
+        [normalized.pubkey],
+        options.force ?? false
+      )
         .then(map => map[normalized.pubkey] ?? null)
         .finally(() => {
           inflightRef.current.delete(inflightKey)
@@ -244,21 +289,21 @@ export function NostrProfileProvider({ children }: { children: React.ReactNode }
       inflightRef.current.set(inflightKey, promise)
       return promise
     },
-    [fetchProfilesFromApi, getProfile],
+    [fetchProfilesFromApi, getProfile]
   )
 
   const fetchProfiles = useCallback(
     async (
       pubkeys: string[],
-      options: FetchOptions = {},
+      options: FetchOptions = {}
     ): Promise<Record<string, NostrProfile>> => {
       const unique = Array.from(
         new Map(
           pubkeys
             .map(pk => normalizeNostrPubkey(pk))
             .filter((pk): pk is NonNullable<typeof pk> => Boolean(pk))
-            .map(pk => [pk.pubkey, pk]),
-        ).values(),
+            .map(pk => [pk.pubkey, pk])
+        ).values()
       )
 
       const missing = unique.filter(pk => {
@@ -272,14 +317,14 @@ export function NostrProfileProvider({ children }: { children: React.ReactNode }
 
       const batch = fetchProfilesFromApi(
         missing.map(pk => pk.pubkey),
-        options.force ?? false,
+        options.force ?? false
       )
 
       for (const pk of missing) {
         const inflightKey = `${pk.pubkey}:${options.force ? 'force' : 'normal'}`
         inflightRef.current.set(
           inflightKey,
-          batch.then(map => map[pk.pubkey] ?? null),
+          batch.then(map => map[pk.pubkey] ?? null)
         )
       }
 
@@ -287,11 +332,13 @@ export function NostrProfileProvider({ children }: { children: React.ReactNode }
         return await batch
       } finally {
         for (const pk of missing) {
-          inflightRef.current.delete(`${pk.pubkey}:${options.force ? 'force' : 'normal'}`)
+          inflightRef.current.delete(
+            `${pk.pubkey}:${options.force ? 'force' : 'normal'}`
+          )
         }
       }
     },
-    [fetchProfilesFromApi, getProfile],
+    [fetchProfilesFromApi, getProfile]
   )
 
   const updateProfile = useCallback(
@@ -306,14 +353,14 @@ export function NostrProfileProvider({ children }: { children: React.ReactNode }
         })
       }
     },
-    [fetchProfilesFromApi, status],
+    [fetchProfilesFromApi, status]
   )
 
   const value: NostrProfileContextValue = {
     getProfile,
     fetchProfile,
     fetchProfiles,
-    updateProfile,
+    updateProfile
   }
 
   return (
@@ -339,7 +386,7 @@ function loadCache(): ProfileCache {
       normalizedCache[normalized.pubkey] = {
         ...profile,
         pubkey: normalized.pubkey,
-        npub: profile.npub ?? normalized.npub,
+        npub: profile.npub ?? normalized.npub
       }
     }
 

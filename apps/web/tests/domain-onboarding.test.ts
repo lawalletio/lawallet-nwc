@@ -6,15 +6,18 @@ import {
   LNURL_VERIFY_USERNAME,
   normalizeDomainProbeInput,
   probeDomainRouting,
-  type RootSample,
+  type RootSample
 } from '@/lib/domain-onboarding'
 
-function sample(body: string, headers: Record<string, string> = {}): RootSample {
+function sample(
+  body: string,
+  headers: Record<string, string> = {}
+): RootSample {
   return {
     url: 'https://example.com',
     status: 200,
     headers,
-    body,
+    body
   }
 }
 
@@ -27,37 +30,48 @@ describe('domain onboarding helpers', () => {
     expect(
       normalizeDomainProbeInput({
         domain: ' HTTPS://Example.COM/path ',
-        endpoint: 'APP.Example.com/',
-      }),
+        endpoint: 'APP.Example.com/'
+      })
     ).toEqual({
       domain: 'example.com',
-      endpoint: 'https://app.example.com',
+      endpoint: 'https://app.example.com'
     })
   })
 
   it('defaults endpoint to the root domain', () => {
     expect(normalizeDomainProbeInput({ domain: 'example.com' })).toEqual({
       domain: 'example.com',
-      endpoint: 'https://example.com',
+      endpoint: 'https://example.com'
     })
   })
 
   it('detects WordPress', () => {
-    const platform = detectPlatform(sample('<link href="/wp-content/theme.css">'))
+    const platform = detectPlatform(
+      sample('<link href="/wp-content/theme.css">')
+    )
     expect(platform.kind).toBe('wordpress')
     expect(platform.confidence).toBe('high')
   })
 
   it('detects Next.js and Vercel', () => {
-    expect(detectPlatform(sample('<script id="__NEXT_DATA__"></script>')).kind).toBe('nextjs')
-    expect(detectPlatform(sample('', { 'x-vercel-id': 'gru1::abc' })).kind).toBe('vercel')
+    expect(
+      detectPlatform(sample('<script id="__NEXT_DATA__"></script>')).kind
+    ).toBe('nextjs')
+    expect(
+      detectPlatform(sample('', { 'x-vercel-id': 'gru1::abc' })).kind
+    ).toBe('vercel')
   })
 
   it('returns tailored rewrite instructions', () => {
     const wordpress = buildInstructionProfile(
-      { kind: 'wordpress', label: 'WordPress', confidence: 'high', evidence: [] },
+      {
+        kind: 'wordpress',
+        label: 'WordPress',
+        confidence: 'high',
+        evidence: []
+      },
       'example.com',
-      'https://lawallet.example.com',
+      'https://lawallet.example.com'
     )
     expect(wordpress.snippet).toContain('RewriteRule')
     expect(wordpress.tip).toContain('lawallet.example.com')
@@ -65,13 +79,16 @@ describe('domain onboarding helpers', () => {
     const nextjs = buildInstructionProfile(
       { kind: 'nextjs', label: 'Next.js', confidence: 'high', evidence: [] },
       'example.com',
-      'https://lawallet.example.com',
+      'https://lawallet.example.com'
     )
     expect(nextjs.snippet).toContain('async rewrites')
   })
 
   it('returns selectable instruction options', () => {
-    const options = buildInstructionOptions('example.com', 'https://gateway.example.com')
+    const options = buildInstructionOptions(
+      'example.com',
+      'https://gateway.example.com'
+    )
     const labels = options.map(option => option.label)
 
     expect(labels).toEqual(
@@ -84,25 +101,27 @@ describe('domain onboarding helpers', () => {
         'Vercel',
         'Netlify',
         'Cloudflare Worker',
-        'Caddy',
-      ]),
+        'Caddy'
+      ])
     )
-    expect(options.find(option => option.kind === 'nextjs')?.snippet).toContain('async rewrites')
+    expect(options.find(option => option.kind === 'nextjs')?.snippet).toContain(
+      'async rewrites'
+    )
   })
 
   it('uses the API gateway as rewrite target when root domain is not LaWallet', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
       const href = String(url)
       if (href === 'https://example.com') {
         return new Response('<link href="/wp-content/theme.css">', {
           status: 200,
-          headers: { 'content-type': 'text/html' },
+          headers: { 'content-type': 'text/html' }
         })
       }
       if (href.includes('/.well-known/lnurlp/')) {
         return Response.json({
           tag: 'payRequest',
-          callback: 'https://gateway.example.com/api/lnurl/callback',
+          callback: 'https://gateway.example.com/api/lnurl/callback'
         })
       }
       if (href.includes('/.well-known/lawallet.json')) {
@@ -119,32 +138,36 @@ describe('domain onboarding helpers', () => {
       domain: 'example.com',
       endpoint: 'https://example.com',
       apiGatewayEndpoint: 'https://gateway.example.com',
-      lnurlUsername: 'satoshi',
+      lnurlUsername: 'satoshi'
     })
 
     expect(result.endpoint).toBe('https://gateway.example.com')
     expect(result.status).toBe('ready')
-    expect(result.instructions.snippet).toContain('https://gateway.example.com/.well-known/')
+    expect(result.instructions.snippet).toContain(
+      'https://gateway.example.com/.well-known/'
+    )
   })
 
   it('probes LNURL routing without requiring a real lightning address', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
       const href = String(url)
       if (href === 'https://example.com') {
         return new Response('<link href="/wp-content/theme.css">', {
           status: 200,
-          headers: { 'content-type': 'text/html' },
+          headers: { 'content-type': 'text/html' }
         })
       }
       if (href.includes('/.well-known/lnurlp/')) {
         const parsed = new URL(href)
         const probe = parsed.searchParams.get('probe')
-        expect(parsed.pathname).toBe(`/.well-known/lnurlp/${LNURL_VERIFY_USERNAME}`)
+        expect(parsed.pathname).toBe(
+          `/.well-known/lnurlp/${LNURL_VERIFY_USERNAME}`
+        )
         expect(probe).toBeTruthy()
 
         return Response.json({
           tag: 'payRequest',
-          callback: `https://gateway.example.com/api/lud16/${LNURL_VERIFY_USERNAME}/cb?probe=${probe}`,
+          callback: `https://gateway.example.com/api/lud16/${LNURL_VERIFY_USERNAME}/cb?probe=${probe}`
         })
       }
       if (href.includes('/.well-known/lawallet.json')) {
@@ -160,29 +183,29 @@ describe('domain onboarding helpers', () => {
     const result = await probeDomainRouting({
       domain: 'example.com',
       endpoint: 'https://example.com',
-      apiGatewayEndpoint: 'https://gateway.example.com',
+      apiGatewayEndpoint: 'https://gateway.example.com'
     })
 
     expect(result.checks.lnurl.state).toBe('pass')
     expect(result.checks.lnurl.url).toContain(
-      `/.well-known/lnurlp/${LNURL_VERIFY_USERNAME}`,
+      `/.well-known/lnurlp/${LNURL_VERIFY_USERNAME}`
     )
   })
 
   it('verifies the domain when LNURL and NIP-05 resolve, even if lawallet.json does not', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
       const href = String(url)
       if (href === 'https://example.com') {
         return new Response('<link href="/wp-content/theme.css">', {
           status: 200,
-          headers: { 'content-type': 'text/html' },
+          headers: { 'content-type': 'text/html' }
         })
       }
       if (href.includes('/.well-known/lnurlp/')) {
         const probe = new URL(href).searchParams.get('probe')
         return Response.json({
           tag: 'payRequest',
-          callback: `https://gateway.example.com/api/lud16/${LNURL_VERIFY_USERNAME}/cb?probe=${probe}`,
+          callback: `https://gateway.example.com/api/lud16/${LNURL_VERIFY_USERNAME}/cb?probe=${probe}`
         })
       }
       if (href.includes('/.well-known/nostr.json')) {
@@ -198,7 +221,7 @@ describe('domain onboarding helpers', () => {
     const result = await probeDomainRouting({
       domain: 'example.com',
       endpoint: 'https://example.com',
-      apiGatewayEndpoint: 'https://gateway.example.com',
+      apiGatewayEndpoint: 'https://gateway.example.com'
     })
 
     expect(result.checks.lnurl.state).toBe('pass')
@@ -208,13 +231,16 @@ describe('domain onboarding helpers', () => {
   })
 
   it('does not trust LaWallet-looking root pages without the instance probe', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async url => {
       const href = String(url)
       if (href === 'https://lacrypta.dev') {
-        return new Response('<script src="/_next/static/app.js"></script><p>LaWallet</p>', {
-          status: 200,
-          headers: { 'content-type': 'text/html' },
-        })
+        return new Response(
+          '<script src="/_next/static/app.js"></script><p>LaWallet</p>',
+          {
+            status: 200,
+            headers: { 'content-type': 'text/html' }
+          }
+        )
       }
       if (href.includes('/.well-known/lawallet.json')) {
         return Response.json({ service: 'other', probe: 'wrong' })
@@ -229,7 +255,7 @@ describe('domain onboarding helpers', () => {
       domain: 'lacrypta.dev',
       endpoint: 'https://lacrypta.dev',
       apiGatewayEndpoint: 'https://lawallet.lacrypta.dev',
-      lnurlUsername: 'satoshi',
+      lnurlUsername: 'satoshi'
     })
 
     expect(result.platform.kind).toBe('lawallet')

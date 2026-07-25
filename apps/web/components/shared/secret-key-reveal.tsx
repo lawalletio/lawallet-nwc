@@ -30,7 +30,7 @@ export function SecretKeyReveal({
   disabled,
   confirmed,
   onConfirmedChange,
-  confirmLabel = "I've saved my private key. I understand that if I lose it, I'll lose access to my account.",
+  confirmLabel = "I've saved my private key. I understand that if I lose it, I'll lose access to my account."
 }: SecretKeyRevealProps) {
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -53,7 +53,7 @@ export function SecretKeyReveal({
           <span
             className={cn(
               'flex-1 break-all text-xs font-mono text-foreground',
-              !revealed && 'blur-sm select-none',
+              !revealed && 'blur-sm select-none'
             )}
           >
             {nsec}
@@ -64,7 +64,11 @@ export function SecretKeyReveal({
             aria-label={revealed ? 'Hide private key' : 'Reveal private key'}
             className="shrink-0 text-muted-foreground hover:text-foreground"
           >
-            {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {revealed ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
           </button>
         </div>
       </div>

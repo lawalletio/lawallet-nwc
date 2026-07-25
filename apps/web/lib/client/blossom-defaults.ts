@@ -3,5 +3,5 @@ export const DEFAULT_BLOSSOM_SERVERS = [
   'https://cdn.satellite.earth',
   'https://cdn.nostrcheck.me',
   'https://blossom.nostr.build',
-  'https://blossom.band',
+  'https://blossom.band'
 ]

@@ -15,19 +15,23 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table'
 import { useUsers, type AdminUser } from '@/lib/client/hooks/use-users'
 import { ImpersonateUserButton } from '@/components/admin/impersonate-user-button'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
-import { truncateNpub, formatRelativeTime, npubInitials } from '@/lib/client/format'
+import {
+  truncateNpub,
+  formatRelativeTime,
+  npubInitials
+} from '@/lib/client/format'
 import { Role } from '@/lib/auth/permissions'
 
 const ROLE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
   ADMIN: 'default',
   OPERATOR: 'secondary',
   VIEWER: 'secondary',
-  USER: 'outline',
+  USER: 'outline'
 }
 
 export default function UsersPage() {
@@ -53,7 +57,7 @@ export default function UsersPage() {
     total: users?.length ?? 0,
     admins: users?.filter(u => u.role === Role.ADMIN).length ?? 0,
     withNwc: users?.filter(u => u.hasNwc).length ?? 0,
-    withAddress: users?.filter(u => u.addressCount > 0).length ?? 0,
+    withAddress: users?.filter(u => u.addressCount > 0).length ?? 0
   }
 
   function handleSearch(value: string) {
@@ -118,9 +122,7 @@ export default function UsersPage() {
                   {/* Joined column is low-priority metadata; drop it on
                       narrow screens so the higher-signal columns (avatar,
                       address, role) can keep their own widths. */}
-                  <TableHead className="hidden sm:table-cell">
-                    Joined
-                  </TableHead>
+                  <TableHead className="hidden sm:table-cell">Joined</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -178,10 +180,7 @@ function UserRow({ user, onClick }: { user: AdminUser; onClick: () => void }) {
   const fallback = npubInitials(user.pubkey)
 
   return (
-    <TableRow
-      onClick={onClick}
-      className="cursor-pointer hover:bg-muted/50"
-    >
+    <TableRow onClick={onClick} className="cursor-pointer hover:bg-muted/50">
       <TableCell>
         <div className="flex items-center gap-3">
           <Avatar className="size-8 shrink-0">

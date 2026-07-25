@@ -6,29 +6,29 @@ import { createUserFixture } from '@/tests/helpers/fixtures'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/admin-auth', () => ({
-  validateNip98Auth: vi.fn(),
+  validateNip98Auth: vi.fn()
 }))
 
 vi.mock('@/lib/user', () => ({
-  createNewUser: vi.fn(),
+  createNewUser: vi.fn()
 }))
 
 import { GET, POST } from '@/app/api/admin/assign/route'
@@ -59,7 +59,7 @@ describe('POST /api/admin/assign', () => {
       message: 'Root role assigned successfully',
       pubkey: mockPubkey,
       userId: user.id,
-      isFirstRoot: true,
+      isFirstRoot: true
     })
   })
 
@@ -67,7 +67,7 @@ describe('POST /api/admin/assign', () => {
     vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
     vi.mocked(prismaMock.settings.findUnique).mockResolvedValue({
       name: 'root',
-      value: mockPubkey,
+      value: mockPubkey
     } as any)
 
     const user = createUserFixture({ pubkey: mockPubkey })
@@ -79,7 +79,7 @@ describe('POST /api/admin/assign', () => {
 
     expect(body).toMatchObject({
       message: 'User is already the root',
-      pubkey: mockPubkey,
+      pubkey: mockPubkey
     })
   })
 
@@ -88,7 +88,7 @@ describe('POST /api/admin/assign', () => {
     vi.mocked(validateNip98Auth).mockResolvedValue(otherPubkey)
     vi.mocked(prismaMock.settings.findUnique).mockResolvedValue({
       name: 'root',
-      value: mockPubkey,
+      value: mockPubkey
     } as any)
 
     const req = createNextRequest('/api/admin/assign', { method: 'POST' })
@@ -129,7 +129,7 @@ describe('GET /api/admin/assign', () => {
     vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
     vi.mocked(prismaMock.settings.findUnique).mockResolvedValue({
       name: 'root',
-      value: mockPubkey,
+      value: mockPubkey
     } as any)
 
     const req = createNextRequest('/api/admin/assign')
@@ -140,7 +140,7 @@ describe('GET /api/admin/assign', () => {
       isRoot: true,
       pubkey: mockPubkey,
       hasRoot: true,
-      canAssignRoot: true,
+      canAssignRoot: true
     })
   })
 
@@ -156,7 +156,7 @@ describe('GET /api/admin/assign', () => {
       isRoot: null,
       pubkey: mockPubkey,
       hasRoot: false,
-      canAssignRoot: true,
+      canAssignRoot: true
     })
   })
 
@@ -165,7 +165,7 @@ describe('GET /api/admin/assign', () => {
     vi.mocked(validateNip98Auth).mockResolvedValue(otherPubkey)
     vi.mocked(prismaMock.settings.findUnique).mockResolvedValue({
       name: 'root',
-      value: mockPubkey,
+      value: mockPubkey
     } as any)
 
     const req = createNextRequest('/api/admin/assign')
@@ -176,7 +176,7 @@ describe('GET /api/admin/assign', () => {
       isRoot: false,
       pubkey: otherPubkey,
       hasRoot: true,
-      canAssignRoot: false,
+      canAssignRoot: false
     })
   })
 })

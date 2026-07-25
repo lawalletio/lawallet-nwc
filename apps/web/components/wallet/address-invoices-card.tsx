@@ -7,13 +7,13 @@ import {
   RefreshCw,
   WifiOff,
   CheckCircle2,
-  XCircle,
+  XCircle
 } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import {
   useAddressInvoices,
   type AddressInvoice,
-  type AddressInvoiceStatus,
+  type AddressInvoiceStatus
 } from '@/lib/client/hooks/use-wallet-addresses'
 import { formatRelativeTime } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
@@ -97,20 +97,20 @@ const STATUS_META: Record<
     icon: CheckCircle2,
     iconClass: 'text-green-500',
     bgClass: 'bg-green-500/10',
-    amountClass: 'text-green-500',
+    amountClass: 'text-green-500'
   },
   PENDING: {
     icon: ArrowDownLeft,
     iconClass: 'text-muted-foreground',
     bgClass: 'bg-muted',
-    amountClass: 'text-foreground',
+    amountClass: 'text-foreground'
   },
   EXPIRED: {
     icon: XCircle,
     iconClass: 'text-muted-foreground',
     bgClass: 'bg-muted/60',
-    amountClass: 'text-muted-foreground line-through',
-  },
+    amountClass: 'text-muted-foreground line-through'
+  }
 }
 
 function InvoiceRow({ invoice }: { invoice: AddressInvoice }) {
@@ -132,7 +132,7 @@ function InvoiceRow({ invoice }: { invoice: AddressInvoice }) {
       <div
         className={cn(
           'flex size-9 shrink-0 items-center justify-center rounded-full',
-          meta.bgClass,
+          meta.bgClass
         )}
       >
         <Icon className={cn('size-4', meta.iconClass)} />
@@ -142,14 +142,16 @@ function InvoiceRow({ invoice }: { invoice: AddressInvoice }) {
         <p className="text-xs text-muted-foreground">
           {formatRelativeTime(new Date(whenIso))}
           {invoice.status !== 'PAID' && (
-            <span className="ml-2 italic">· {invoice.status.toLowerCase()}</span>
+            <span className="ml-2 italic">
+              · {invoice.status.toLowerCase()}
+            </span>
           )}
         </p>
       </div>
       <span
         className={cn(
           'shrink-0 text-sm font-semibold tabular-nums',
-          meta.amountClass,
+          meta.amountClass
         )}
       >
         {invoice.status === 'PAID' ? '+' : ''}

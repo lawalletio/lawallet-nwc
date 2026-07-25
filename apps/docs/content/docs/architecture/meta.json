@@ -1,1 +1,10 @@
-{ "title": "Architecture", "pages": ["index", "lawallet-web", "nwc-listener", "nwc-proxy", "roles-and-permissions"] }
+{
+  "title": "Architecture",
+  "pages": [
+    "index",
+    "lawallet-web",
+    "nwc-listener",
+    "nwc-proxy",
+    "roles-and-permissions"
+  ]
+}

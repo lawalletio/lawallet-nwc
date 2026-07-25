@@ -20,13 +20,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const cleaned = username.toLowerCase().trim()
 
-  if (!/^[a-z0-9]+$/.test(cleaned) || cleaned.length < 1 || cleaned.length > 16) {
-    throw new ValidationError('Username must be 1-16 lowercase alphanumeric characters')
+  if (
+    !/^[a-z0-9]+$/.test(cleaned) ||
+    cleaned.length < 1 ||
+    cleaned.length > 16
+  ) {
+    throw new ValidationError(
+      'Username must be 1-16 lowercase alphanumeric characters'
+    )
   }
 
   const existing = await prisma.lightningAddress.findFirst({
     where: { username: cleaned },
-    select: { username: true },
+    select: { username: true }
   })
 
   return NextResponse.json({ available: !existing, username: cleaned })

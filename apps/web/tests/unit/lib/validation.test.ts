@@ -12,7 +12,7 @@ import {
   settingsBodySchema,
   externalDeviceKeyParam,
   createRemoteCardSchema,
-  jwtRequestSchema,
+  jwtRequestSchema
 } from '@/lib/validation/schemas'
 
 describe('Validation Schemas', () => {
@@ -32,7 +32,9 @@ describe('Validation Schemas', () => {
 
   describe('userIdParam', () => {
     it('accepts valid userId', () => {
-      expect(userIdParam.parse({ userId: 'user_123' })).toEqual({ userId: 'user_123' })
+      expect(userIdParam.parse({ userId: 'user_123' })).toEqual({
+        userId: 'user_123'
+      })
     })
 
     it('rejects empty userId', () => {
@@ -82,7 +84,9 @@ describe('Validation Schemas', () => {
 
   describe('lud16UsernameParam', () => {
     it('accepts valid username', () => {
-      expect(lud16UsernameParam.parse({ username: 'alice' })).toEqual({ username: 'alice' })
+      expect(lud16UsernameParam.parse({ username: 'alice' })).toEqual({
+        username: 'alice'
+      })
     })
 
     it('rejects empty username', () => {
@@ -92,7 +96,9 @@ describe('Validation Schemas', () => {
 
   describe('lud16CallbackQuerySchema', () => {
     it('accepts valid amount', () => {
-      expect(lud16CallbackQuerySchema.parse({ amount: '1000' })).toEqual({ amount: '1000' })
+      expect(lud16CallbackQuerySchema.parse({ amount: '1000' })).toEqual({
+        amount: '1000'
+      })
     })
 
     it('rejects missing amount', () => {
@@ -102,17 +108,23 @@ describe('Validation Schemas', () => {
 
   describe('updateLightningAddressSchema', () => {
     it('accepts valid username', () => {
-      expect(updateLightningAddressSchema.parse({ username: 'alice123' })).toEqual({
-        username: 'alice123',
+      expect(
+        updateLightningAddressSchema.parse({ username: 'alice123' })
+      ).toEqual({
+        username: 'alice123'
       })
     })
 
     it('rejects uppercase', () => {
-      expect(() => updateLightningAddressSchema.parse({ username: 'Alice' })).toThrow()
+      expect(() =>
+        updateLightningAddressSchema.parse({ username: 'Alice' })
+      ).toThrow()
     })
 
     it('rejects special characters', () => {
-      expect(() => updateLightningAddressSchema.parse({ username: 'alice!' })).toThrow()
+      expect(() =>
+        updateLightningAddressSchema.parse({ username: 'alice!' })
+      ).toThrow()
     })
 
     it('rejects too long (>16)', () => {
@@ -123,7 +135,9 @@ describe('Validation Schemas', () => {
 
     it('accepts max length (16)', () => {
       const username = 'a'.repeat(16)
-      expect(updateLightningAddressSchema.parse({ username })).toEqual({ username })
+      expect(updateLightningAddressSchema.parse({ username })).toEqual({
+        username
+      })
     })
   })
 
@@ -150,23 +164,29 @@ describe('Validation Schemas', () => {
     })
 
     it('rejects key > 32 chars', () => {
-      expect(() => settingsBodySchema.parse({ ['a'.repeat(33)]: 'value' })).toThrow()
+      expect(() =>
+        settingsBodySchema.parse({ ['a'.repeat(33)]: 'value' })
+      ).toThrow()
     })
 
     it('rejects uppercase key', () => {
-      expect(() => settingsBodySchema.parse({ 'MyKey': 'value' })).toThrow()
+      expect(() => settingsBodySchema.parse({ MyKey: 'value' })).toThrow()
     })
   })
 
   describe('externalDeviceKeyParam', () => {
     it('accepts valid key', () => {
-      expect(externalDeviceKeyParam.parse({ externalDeviceKey: 'key123' })).toEqual({
-        externalDeviceKey: 'key123',
+      expect(
+        externalDeviceKeyParam.parse({ externalDeviceKey: 'key123' })
+      ).toEqual({
+        externalDeviceKey: 'key123'
       })
     })
 
     it('rejects empty key', () => {
-      expect(() => externalDeviceKeyParam.parse({ externalDeviceKey: '' })).toThrow()
+      expect(() =>
+        externalDeviceKeyParam.parse({ externalDeviceKey: '' })
+      ).toThrow()
     })
   })
 
@@ -191,15 +211,18 @@ describe('Validation Schemas', () => {
     it('accepts custom expiresIn', () => {
       const data = { expiresIn: '24h' }
       expect(jwtRequestSchema.parse(data)).toEqual({
-        expiresIn: '24h',
+        expiresIn: '24h'
       })
     })
 
     it('strips unknown fields', () => {
-      const data = { expiresIn: '2h', userId: 'user_1', additionalClaims: { role: 'admin' } }
+      const data = {
+        expiresIn: '2h',
+        userId: 'user_1',
+        additionalClaims: { role: 'admin' }
+      }
       const result = jwtRequestSchema.parse(data)
       expect(result).toEqual({ expiresIn: '2h' })
     })
   })
-
 })

@@ -6,19 +6,16 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
   NotFoundError,
-  ValidationError,
+  ValidationError
 } from '@/types/server/errors'
-import {
-  idParam,
-  updateRemoteWalletSchema,
-} from '@/lib/validation/schemas'
+import { idParam, updateRemoteWalletSchema } from '@/lib/validation/schemas'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { eventBus } from '@/lib/events/event-bus'
 import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
 import {
   bindPrimaryAddressToWallet,
-  clearPrimaryWalletLinkToWallet,
+  clearPrimaryWalletLinkToWallet
 } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
@@ -41,7 +38,10 @@ interface RemoteWalletDto {
 }
 
 function toDto(w: RemoteWallet): RemoteWalletDto {
-  const cfg = w.config as { provider?: unknown; lncurlServerUrl?: unknown } | null
+  const cfg = w.config as {
+    provider?: unknown
+    lncurlServerUrl?: unknown
+  } | null
   const isLncurl = cfg?.provider === 'lncurl'
   return {
     id: w.id,
@@ -54,7 +54,9 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
     diedAt: w.diedAt ? w.diedAt.toISOString() : null,
     provider: isLncurl ? 'lncurl' : null,
     lncurlServerUrl:
-      isLncurl && typeof cfg?.lncurlServerUrl === 'string' ? cfg.lncurlServerUrl : null,
+      isLncurl && typeof cfg?.lncurlServerUrl === 'string'
+        ? cfg.lncurlServerUrl
+        : null
   }
 }
 
@@ -69,8 +71,13 @@ async function resolveUserId(pubkey: string): Promise<string> {
  * wallet exists but belongs to someone else, so we don't leak the existence
  * of other users' wallet IDs to a casual probe.
  */
-async function loadOwnedWallet(walletId: string, userId: string): Promise<RemoteWallet> {
-  const wallet = await prisma.remoteWallet.findUnique({ where: { id: walletId } })
+async function loadOwnedWallet(
+  walletId: string,
+  userId: string
+): Promise<RemoteWallet> {
+  const wallet = await prisma.remoteWallet.findUnique({
+    where: { id: walletId }
+  })
   if (!wallet || wallet.userId !== userId) {
     throw new NotFoundError('Wallet not found')
   }
@@ -91,7 +98,7 @@ export const GET = withErrorHandling(
     const wallet = await loadOwnedWallet(id, userId)
 
     return NextResponse.json(toDto(wallet))
-  },
+  }
 )
 
 /**
@@ -121,7 +128,7 @@ export const PATCH = withErrorHandling(
     const wallet = await loadOwnedWallet(id, userId)
     if (body.isDefault === false) {
       throw new ValidationError(
-        'RemoteWallet.isDefault is derived from the primary lightning address',
+        'RemoteWallet.isDefault is derived from the primary lightning address'
       )
     }
     if (
@@ -131,7 +138,9 @@ export const PATCH = withErrorHandling(
         body.status === 'REVOKED' ||
         body.status === 'DEAD')
     ) {
-      throw new ValidationError('Cannot use an archived wallet for the primary address')
+      throw new ValidationError(
+        'Cannot use an archived wallet for the primary address'
+      )
     }
 
     try {
@@ -139,7 +148,7 @@ export const PATCH = withErrorHandling(
         if (body.isDefault === true) {
           const primaryAddress = await tx.lightningAddress.findFirst({
             where: { userId, isPrimary: true },
-            select: { username: true },
+            select: { username: true }
           })
           if (!primaryAddress) {
             throw new ValidationError('Set a primary lightning address first')
@@ -150,8 +159,8 @@ export const PATCH = withErrorHandling(
           where: { id },
           data: {
             name: body.name,
-            status: body.status,
-          },
+            status: body.status
+          }
         })
 
         if (body.isDefault === true) {
@@ -170,7 +179,11 @@ export const PATCH = withErrorHandling(
       // Status/name flips change what the listener dashboard shows — nudge
       // it to refetch (the listener reconciles via the Postgres trigger).
       eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
-      if (body.isDefault === true || body.status === 'REVOKED' || body.status === 'DEAD') {
+      if (
+        body.isDefault === true ||
+        body.status === 'REVOKED' ||
+        body.status === 'DEAD'
+      ) {
         eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
         eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
       }
@@ -187,7 +200,7 @@ export const PATCH = withErrorHandling(
       }
       throw err
     }
-  },
+  }
 )
 
 /**
@@ -217,19 +230,19 @@ export const DELETE = withErrorHandling(
     if (permanent) {
       if (wallet.status === 'ACTIVE') {
         throw new ValidationError(
-          'Disable or delete the wallet before removing it permanently',
+          'Disable or delete the wallet before removing it permanently'
         )
       }
       const unresolvedPayment = await prisma.cardPaymentAttempt.findFirst({
         where: {
           walletId: id,
-          status: { in: ['PENDING', 'UNKNOWN'] },
+          status: { in: ['PENDING', 'UNKNOWN'] }
         },
-        select: { id: true },
+        select: { id: true }
       })
       if (unresolvedPayment) {
         throw new ConflictError(
-          'This wallet has an unresolved card payment and cannot be removed yet',
+          'This wallet has an unresolved card payment and cannot be removed yet'
         )
       }
       await prisma.$transaction(async tx => {
@@ -245,7 +258,7 @@ export const DELETE = withErrorHandling(
     await prisma.$transaction(async tx => {
       await tx.remoteWallet.update({
         where: { id },
-        data: { status: 'REVOKED', isDefault: false },
+        data: { status: 'REVOKED', isDefault: false }
       })
       await clearPrimaryWalletLinkToWallet(userId, id, tx)
     })
@@ -254,5 +267,5 @@ export const DELETE = withErrorHandling(
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
     eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
     return new NextResponse(null, { status: 204 })
-  },
+  }
 )

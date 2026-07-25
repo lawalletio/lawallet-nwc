@@ -4,7 +4,7 @@ import {
   NOSTR_PROFILE_CACHE_TTL_MS,
   normalizeNostrPubkey,
   parseKind0ContentWithRaw,
-  type NostrProfile,
+  type NostrProfile
 } from '@/lib/nostr/profile'
 import { precacheProfileImages } from '@/lib/nostr/profile-image-cache'
 import { Prisma } from '@/lib/generated/prisma'
@@ -31,7 +31,7 @@ type NostrProfileCacheRow = Awaited<
 
 export async function resolveProfiles(
   inputs: string[],
-  options: ResolveProfilesOptions = {},
+  options: ResolveProfilesOptions = {}
 ): Promise<NostrProfile[]> {
   const db = options.db ?? prisma
   const now = options.now ?? new Date()
@@ -47,22 +47,22 @@ export async function resolveProfiles(
   const [users, identities] = await Promise.all([
     db.user.findMany({
       where: { pubkey: { in: candidatePubkeys } },
-      select: { pubkey: true },
+      select: { pubkey: true }
     }),
     db.nostrIdentity.findMany({
       where: { pubkey: { in: candidatePubkeys } },
-      select: { pubkey: true },
-    }),
+      select: { pubkey: true }
+    })
   ])
   const registeredPubkeys = new Set([
     ...users.map(u => u.pubkey),
-    ...identities.map(i => i.pubkey),
+    ...identities.map(i => i.pubkey)
   ])
   const registered = normalized.filter(n => registeredPubkeys.has(n.pubkey))
   if (registered.length === 0) return []
 
   const cachedRows = await db.nostrProfileCache.findMany({
-    where: { pubkey: { in: registered.map(n => n.pubkey) } },
+    where: { pubkey: { in: registered.map(n => n.pubkey) } }
   })
   const cachedByPubkey = new Map(cachedRows.map(row => [row.pubkey, row]))
 
@@ -85,15 +85,25 @@ export async function resolveProfiles(
         pubkeysToFetch.map(async pubkey => {
           const event = latest.get(pubkey)
           if (!event) {
-            await markFetchFailure(db, pubkey, attemptAt, 'Profile not found on relays')
+            await markFetchFailure(
+              db,
+              pubkey,
+              attemptAt,
+              'Profile not found on relays'
+            )
             return
           }
 
           const parsed = parseKind0ContentWithRaw(pubkey, event.content, {
-            fetchedAt: attemptAt.getTime(),
+            fetchedAt: attemptAt.getTime()
           })
           if (!parsed) {
-            await markFetchFailure(db, pubkey, attemptAt, 'Invalid kind-0 metadata')
+            await markFetchFailure(
+              db,
+              pubkey,
+              attemptAt,
+              'Invalid kind-0 metadata'
+            )
             return
           }
 
@@ -116,7 +126,7 @@ export async function resolveProfiles(
               rawMetadata,
               fetchedAt: attemptAt,
               lastFetchAttemptAt: attemptAt,
-              lastFetchError: null,
+              lastFetchError: null
             },
             update: {
               pubkey: profile.pubkey,
@@ -132,8 +142,8 @@ export async function resolveProfiles(
               rawMetadata,
               fetchedAt: attemptAt,
               lastFetchAttemptAt: attemptAt,
-              lastFetchError: null,
-            },
+              lastFetchError: null
+            }
           })
 
           refreshed.set(profile.pubkey, profile)
@@ -141,13 +151,13 @@ export async function resolveProfiles(
           void precache(profile).catch(() => {
             // Image cache is intentionally best-effort; metadata remains valid.
           })
-        }),
+        })
       )
     } catch (err) {
       await Promise.all(
         pubkeysToFetch.map(pubkey =>
-          markFetchFailure(db, pubkey, attemptAt, errorMessage(err)),
-        ),
+          markFetchFailure(db, pubkey, attemptAt, errorMessage(err))
+        )
       )
     }
   }
@@ -170,7 +180,7 @@ export async function resolveProfiles(
 
 export function profileFromCacheRow(
   row: NostrProfileCacheRow,
-  now: Date = new Date(),
+  now: Date = new Date()
 ): NostrProfile | null {
   if (!row.fetchedAt) return null
   return {
@@ -185,7 +195,7 @@ export function profileFromCacheRow(
     lud16: row.lud16 ?? undefined,
     website: row.website ?? undefined,
     fetchedAt: row.fetchedAt.getTime(),
-    stale: !isFresh(row, now),
+    stale: !isFresh(row, now)
   }
 }
 
@@ -203,11 +213,11 @@ function uniqueNormalized(inputs: string[]) {
 
 function isFresh(
   row: NostrProfileCacheRow | null | undefined,
-  now: Date,
+  now: Date
 ): boolean {
   return Boolean(
     row?.fetchedAt &&
-      now.getTime() - row.fetchedAt.getTime() < NOSTR_PROFILE_CACHE_TTL_MS,
+    now.getTime() - row.fetchedAt.getTime() < NOSTR_PROFILE_CACHE_TTL_MS
   )
 }
 
@@ -220,7 +230,7 @@ function newestEventByPubkey(events: RelayProfileEvent[]) {
     if (!prev || event.created_at > prev.created_at) {
       latest.set(normalized.pubkey, {
         ...event,
-        pubkey: normalized.pubkey,
+        pubkey: normalized.pubkey
       })
     }
   }
@@ -231,7 +241,7 @@ async function markFetchFailure(
   db: typeof prisma,
   pubkey: string,
   attemptAt: Date,
-  message: string,
+  message: string
 ) {
   const normalized = normalizeNostrPubkey(pubkey)
   if (!normalized) return
@@ -241,29 +251,31 @@ async function markFetchFailure(
       npub: normalized.npub,
       pubkey: normalized.pubkey,
       lastFetchAttemptAt: attemptAt,
-      lastFetchError: message,
+      lastFetchError: message
     },
     update: {
       lastFetchAttemptAt: attemptAt,
-      lastFetchError: message,
-    },
+      lastFetchError: message
+    }
   })
 }
 
-async function fetchProfilesFromRelays(pubkeys: string[]): Promise<RelayProfileEvent[]> {
+async function fetchProfilesFromRelays(
+  pubkeys: string[]
+): Promise<RelayProfileEvent[]> {
   const { SimplePool } = await import('nostr-tools/pool')
   const pool = new SimplePool()
   try {
     const events = await pool.querySync(DEFAULT_NOSTR_RELAYS, {
       kinds: [0],
-      authors: pubkeys,
+      authors: pubkeys
     })
     return events
       .filter(event => event?.content)
       .map(event => ({
         pubkey: event.pubkey,
         content: event.content,
-        created_at: event.created_at,
+        created_at: event.created_at
       }))
   } finally {
     try {

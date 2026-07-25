@@ -382,8 +382,7 @@ async function probeListenerCapability(
       })
       if (response.status === 404) {
         paymentCapabilityUrl = null
-        paymentUnsupportedUntil =
-          Date.now() + UNSUPPORTED_CAPABILITY_CACHE_MS
+        paymentUnsupportedUntil = Date.now() + UNSUPPORTED_CAPABILITY_CACHE_MS
         closePaymentCircuit()
         return false
       }
@@ -395,8 +394,7 @@ async function probeListenerCapability(
         !body.capabilities.includes('nwc_payments_v1')
       ) {
         paymentCapabilityUrl = null
-        paymentUnsupportedUntil =
-          Date.now() + UNSUPPORTED_CAPABILITY_CACHE_MS
+        paymentUnsupportedUntil = Date.now() + UNSUPPORTED_CAPABILITY_CACHE_MS
         closePaymentCircuit()
         return false
       }

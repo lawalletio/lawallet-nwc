@@ -58,7 +58,7 @@ export function ConnectionDetailDialog({
   addresses,
   cards,
   wallets,
-  domain,
+  domain
 }: Props) {
   const close = () => onSelect(null)
   const openWallet = (id: string) => onSelect({ kind: 'wallet', id })
@@ -74,7 +74,9 @@ export function ConnectionDetailDialog({
         >
           {selected?.kind === 'la' &&
             (() => {
-              const addr = addresses?.find(a => a.username === selected.username)
+              const addr = addresses?.find(
+                a => a.username === selected.username
+              )
               return addr ? (
                 <AddressDetailBody
                   address={addr}

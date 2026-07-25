@@ -1,6 +1,6 @@
 ---
-title: "JWT Authentication"
-description: "JWT flow in LaWallet NWC: NIP-98 session exchange, server-side helpers, and scoped QR device tokens for the card apps."
+title: 'JWT Authentication'
+description: 'JWT flow in LaWallet NWC: NIP-98 session exchange, server-side helpers, and scoped QR device tokens for the card apps.'
 ---
 
 This document explains the JWT flow that currently exists in `lawallet-nwc`.
@@ -81,12 +81,12 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   const auth = await authenticateJwt(request, {
-    requiredClaims: ['role'],
+    requiredClaims: ['role']
   })
 
   return NextResponse.json({
     userId: auth.payload.userId,
-    role: auth.payload.role,
+    role: auth.payload.role
   })
 }
 ```
@@ -122,7 +122,7 @@ export const GET = withAuth(async (_request, auth) => {
   return NextResponse.json({
     pubkey: auth.pubkey,
     role: auth.role,
-    method: auth.method,
+    method: auth.method
   })
 })
 ```
@@ -133,7 +133,7 @@ export const GET = withAuth(async (_request, auth) => {
 import {
   getUserIdFromRequest,
   getClaimFromRequest,
-  hasClaim,
+  hasClaim
 } from '@/lib/jwt-auth'
 
 async function handler(request: AuthenticatedRequest) {
@@ -212,30 +212,30 @@ few more.
 
 **Registered claims (every token):**
 
-| Claim | Value |
-|-------|-------|
-| `iss` | `lawallet-nwc` |
-| `aud` | `lawallet-users` |
-| `iat` | Issued-at, Unix seconds |
+| Claim | Value                                    |
+| ----- | ---------------------------------------- |
+| `iss` | `lawallet-nwc`                           |
+| `aud` | `lawallet-users`                         |
+| `iat` | Issued-at, Unix seconds                  |
 | `exp` | Expiry, Unix seconds (`iat + expiresIn`) |
 
 **Identity & authorization (session JWT and device tokens):**
 
-| Claim | Type | Meaning |
-|-------|------|---------|
-| `userId` | string | Actor's hex Nostr pubkey (doubles as the subject) |
-| `pubkey` | string | Actor's hex Nostr pubkey |
-| `role` | `ADMIN \| OPERATOR \| VIEWER \| USER` | Resolved role |
-| `permissions` | string[] | Permissions for the role (device tokens mirror `scopes` here) |
+| Claim         | Type                                  | Meaning                                                       |
+| ------------- | ------------------------------------- | ------------------------------------------------------------- |
+| `userId`      | string                                | Actor's hex Nostr pubkey (doubles as the subject)             |
+| `pubkey`      | string                                | Actor's hex Nostr pubkey                                      |
+| `role`        | `ADMIN \| OPERATOR \| VIEWER \| USER` | Resolved role                                                 |
+| `permissions` | string[]                              | Permissions for the role (device tokens mirror `scopes` here) |
 
 **Device-token-only claims** (`POST /api/auth/qr-jwt/generate`):
 
-| Claim | Type | Meaning |
-|-------|------|---------|
-| `kind` | `'device'` | Marks the token as a delegated device token |
-| `sub` | string | Target user's DB id (for auditing) |
-| `scopes` | string[] | Delegated permission subset — **authoritative** for permission-gated routes (see [Scopes](#scopes-and-how-they-are-enforced)) |
-| `apiUrl` | string | Platform base URL the token is bound to, e.g. `https://app.example.com` — enforced on every request (see [Instance scoping](#instance-scoping-apiurl)) |
+| Claim    | Type       | Meaning                                                                                                                                                |
+| -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `kind`   | `'device'` | Marks the token as a delegated device token                                                                                                            |
+| `sub`    | string     | Target user's DB id (for auditing)                                                                                                                     |
+| `scopes` | string[]   | Delegated permission subset — **authoritative** for permission-gated routes (see [Scopes](#scopes-and-how-they-are-enforced))                          |
+| `apiUrl` | string     | Platform base URL the token is bound to, e.g. `https://app.example.com` — enforced on every request (see [Instance scoping](#instance-scoping-apiurl)) |
 
 Session JWTs (from `POST /api/jwt`) and NIP-98 requests carry **no** `kind`, `sub`, `scopes`, or
 `apiUrl`.
@@ -287,7 +287,7 @@ expirations, and to cut a device off early let the token lapse and mint a fresh 
 **Settings → Device Tokens** (also a sub-item under Settings in the admin sidebar):
 
 1. Pick the **user** the device will act as.
-2. Tick the **permissions** to grant — a subset of your own RBAC. The *Card provisioning* preset
+2. Tick the **permissions** to grant — a subset of your own RBAC. The _Card provisioning_ preset
    selects the card / design / NTAG / address scopes the card apps need.
 3. Choose an **expiration** (`1h` · `8h` · `24h` · `7d` · custom).
 4. **Generate** → the JWT is rendered as a QR with a copy-to-clipboard fallback.
@@ -351,22 +351,22 @@ Authorization: Bearer <jwt>
 You can only grant permissions your own role holds — see the full role → permission matrix in
 [Roles & Permissions](/docs/architecture/roles-and-permissions).
 
-| Permission | Allows |
-|------------|--------|
-| `cards:read` | Read cards |
-| `cards:write` | Create, update, and pair cards |
-| `card_designs:read` | Read card designs |
-| `card_designs:write` | Create and update card designs |
-| `ntags:read` | Read NTAG424 keys |
-| `ntags:write` | Write NTAG424 keys |
-| `addresses:read` | Read Lightning addresses |
-| `addresses:write` | Create and update Lightning addresses |
-| `settings:read` | Read instance settings |
-| `settings:write` | Update instance settings |
-| `users:read` | Read users |
-| `users:write` | Create and update users |
-| `users:manage_roles` | Change a user's role |
-| `activity:read` | Read the activity log |
+| Permission           | Allows                                |
+| -------------------- | ------------------------------------- |
+| `cards:read`         | Read cards                            |
+| `cards:write`        | Create, update, and pair cards        |
+| `card_designs:read`  | Read card designs                     |
+| `card_designs:write` | Create and update card designs        |
+| `ntags:read`         | Read NTAG424 keys                     |
+| `ntags:write`        | Write NTAG424 keys                    |
+| `addresses:read`     | Read Lightning addresses              |
+| `addresses:write`    | Create and update Lightning addresses |
+| `settings:read`      | Read instance settings                |
+| `settings:write`     | Update instance settings              |
+| `users:read`         | Read users                            |
+| `users:write`        | Create and update users               |
+| `users:manage_roles` | Change a user's role                  |
+| `activity:read`      | Read the activity log                 |
 
 The **Card provisioning** preset in the admin UI selects `cards:read`, `cards:write`,
 `card_designs:read`, `card_designs:write`, `ntags:read`, `ntags:write`, and `addresses:read`.
@@ -411,15 +411,15 @@ Only device tokens carry `apiUrl`; session JWTs (no `kind: 'device'` claim) and 
 this check entirely.
 
 <Callout type="warn">
-Changing the instance's `endpoint` setting (or, when it's unset, the host the instance is served on)
-invalidates **every** previously issued device token, since their `apiUrl` no longer matches —
-re-mint afterwards.
+  Changing the instance's `endpoint` setting (or, when it's unset, the host the
+  instance is served on) invalidates **every** previously issued device token,
+  since their `apiUrl` no longer matches — re-mint afterwards.
 </Callout>
 
 <Callout type="warn">
-Device tokens cannot be revoked before `exp`. Grant only the scopes the device needs, prefer the
-shortest workable expiration, and regenerate to change access — previously issued tokens stay valid
-until they expire.
+  Device tokens cannot be revoked before `exp`. Grant only the scopes the device
+  needs, prefer the shortest workable expiration, and regenerate to change
+  access — previously issued tokens stay valid until they expire.
 </Callout>
 
 ## Frontend Note

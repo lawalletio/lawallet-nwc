@@ -4,7 +4,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger,
+  PopoverTrigger
 } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { type NwcStatus } from '@/lib/client/use-nwc-balance'
@@ -39,7 +39,7 @@ export function RelayErrorBadge({
   error,
   hasCachedValue,
   onRetry,
-  className,
+  className
 }: RelayErrorBadgeProps) {
   const inError = status === 'disconnected' || error !== null
   if (!inError) return null
@@ -57,11 +57,14 @@ export function RelayErrorBadge({
             hasCachedValue
               ? 'h-4 w-4 justify-center bg-destructive text-destructive-foreground hover:bg-destructive/90'
               : 'h-7 px-2 text-xs font-medium border border-destructive/40 bg-destructive/15 text-destructive hover:bg-destructive/25',
-            className,
+            className
           )}
         >
           {hasCachedValue ? (
-            <span className="size-2 rounded-full bg-destructive-foreground" aria-hidden />
+            <span
+              className="size-2 rounded-full bg-destructive-foreground"
+              aria-hidden
+            />
           ) : (
             <>
               <AlertCircle className="size-3.5" />

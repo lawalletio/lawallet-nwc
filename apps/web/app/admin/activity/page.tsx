@@ -10,7 +10,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from '@/components/ui/select'
 import {
   Table,
@@ -18,7 +18,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,13 +27,13 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import {
   useActivity,
   type ActivityCategory,
   type ActivityLevel,
-  type ActivityLogView,
+  type ActivityLogView
 } from '@/lib/client/hooks/use-activity'
 
 const CATEGORY_COLORS: Record<ActivityCategory, string> = {
@@ -42,7 +42,7 @@ const CATEGORY_COLORS: Record<ActivityCategory, string> = {
   NWC: '#eab308',
   INVOICE: '#eab308',
   CARD: '#ef4444',
-  SERVER: '#ef4444',
+  SERVER: '#ef4444'
 }
 
 const CATEGORY_TEXT_CLASSES: Record<ActivityCategory, string> = {
@@ -51,13 +51,13 @@ const CATEGORY_TEXT_CLASSES: Record<ActivityCategory, string> = {
   NWC: 'text-yellow-500',
   INVOICE: 'text-yellow-500',
   CARD: 'text-red-500',
-  SERVER: 'text-red-500',
+  SERVER: 'text-red-500'
 }
 
 const LEVEL_CLASSES: Record<ActivityLevel, string> = {
   INFO: 'text-muted-foreground',
   WARN: 'text-yellow-500',
-  ERROR: 'text-red-500',
+  ERROR: 'text-red-500'
 }
 
 const ALL = 'all' as const
@@ -68,8 +68,12 @@ function formatTimestamp(ts: string) {
 }
 
 export default function ActivityPage() {
-  const [categoryFilter, setCategoryFilter] = useState<ActivityCategory | typeof ALL>(ALL)
-  const [levelFilter, setLevelFilter] = useState<ActivityLevel | typeof ALL>(ALL)
+  const [categoryFilter, setCategoryFilter] = useState<
+    ActivityCategory | typeof ALL
+  >(ALL)
+  const [levelFilter, setLevelFilter] = useState<ActivityLevel | typeof ALL>(
+    ALL
+  )
   const [searchInput, setSearchInput] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selected, setSelected] = useState<ActivityLogView | null>(null)
@@ -84,7 +88,7 @@ export default function ActivityPage() {
     () => ({
       category: categoryFilter === ALL ? undefined : categoryFilter,
       level: levelFilter === ALL ? undefined : levelFilter,
-      q: debouncedSearch || undefined,
+      q: debouncedSearch || undefined
     }),
     [categoryFilter, levelFilter, debouncedSearch]
   )
@@ -109,13 +113,15 @@ export default function ActivityPage() {
             <Input
               placeholder="Search logs..."
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
+              onChange={e => setSearchInput(e.target.value)}
               className="pl-9"
             />
           </div>
           <Select
             value={categoryFilter}
-            onValueChange={(v) => setCategoryFilter(v as ActivityCategory | typeof ALL)}
+            onValueChange={v =>
+              setCategoryFilter(v as ActivityCategory | typeof ALL)
+            }
           >
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="All category" />
@@ -132,7 +138,7 @@ export default function ActivityPage() {
           </Select>
           <Select
             value={levelFilter}
-            onValueChange={(v) => setLevelFilter(v as ActivityLevel | typeof ALL)}
+            onValueChange={v => setLevelFilter(v as ActivityLevel | typeof ALL)}
           >
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="All status" />
@@ -164,12 +170,15 @@ export default function ActivityPage() {
           <TableBody>
             {logs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground py-12">
+                <TableCell
+                  colSpan={4}
+                  className="text-center text-muted-foreground py-12"
+                >
                   {loading ? 'Loading...' : 'No activity logs available'}
                 </TableCell>
               </TableRow>
             ) : (
-              logs.map((log) => (
+              logs.map(log => (
                 <TableRow
                   key={log.id}
                   className="border-l-[3px] cursor-pointer hover:bg-muted/40"
@@ -180,12 +189,17 @@ export default function ActivityPage() {
                     {formatTimestamp(log.timestamp)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={CATEGORY_TEXT_CLASSES[log.category]}>
+                    <Badge
+                      variant="outline"
+                      className={CATEGORY_TEXT_CLASSES[log.category]}
+                    >
                       {log.category}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <span className={LEVEL_CLASSES[log.level]}>{log.level}</span>
+                    <span className={LEVEL_CLASSES[log.level]}>
+                      {log.level}
+                    </span>
                   </TableCell>
                   <TableCell className="max-w-md truncate">
                     {log.message}
@@ -203,14 +217,18 @@ export default function ActivityPage() {
             disabled={!hasMore || loading}
             onClick={() => loadMore()}
           >
-            {loading ? 'Loading...' : hasMore ? 'Load older' : 'No more entries'}
+            {loading
+              ? 'Loading...'
+              : hasMore
+                ? 'Load older'
+                : 'No more entries'}
           </Button>
         </div>
       </div>
 
       <ActivityDetailsDialog
         log={selected}
-        onOpenChange={(open) => !open && setSelected(null)}
+        onOpenChange={open => !open && setSelected(null)}
       />
     </div>
   )
@@ -218,7 +236,7 @@ export default function ActivityPage() {
 
 function ActivityDetailsDialog({
   log,
-  onOpenChange,
+  onOpenChange
 }: {
   log: ActivityLogView | null
   onOpenChange: (open: boolean) => void
@@ -230,7 +248,10 @@ function ActivityDetailsDialog({
           <>
             <DialogHeader className="shrink-0">
               <DialogTitle className="flex flex-wrap items-center gap-2 pr-6">
-                <Badge variant="outline" className={CATEGORY_TEXT_CLASSES[log.category]}>
+                <Badge
+                  variant="outline"
+                  className={CATEGORY_TEXT_CLASSES[log.category]}
+                >
                   {log.category}
                 </Badge>
                 <span className={LEVEL_CLASSES[log.level]}>{log.level}</span>
@@ -248,14 +269,19 @@ function ActivityDetailsDialog({
                 <dt className="text-muted-foreground">Time</dt>
                 <dd>{new Date(log.timestamp).toLocaleString()}</dd>
 
-                {log.category === 'INVOICE' && typeof (log.metadata as { amountSats?: unknown })?.amountSats === 'number' && (
-                  <>
-                    <dt className="text-muted-foreground">Amount</dt>
-                    <dd>
-                      {(log.metadata as { amountSats: number }).amountSats.toLocaleString()} sats
-                    </dd>
-                  </>
-                )}
+                {log.category === 'INVOICE' &&
+                  typeof (log.metadata as { amountSats?: unknown })
+                    ?.amountSats === 'number' && (
+                    <>
+                      <dt className="text-muted-foreground">Amount</dt>
+                      <dd>
+                        {(
+                          log.metadata as { amountSats: number }
+                        ).amountSats.toLocaleString()}{' '}
+                        sats
+                      </dd>
+                    </>
+                  )}
 
                 <dt className="text-muted-foreground">Log ID</dt>
                 <dd className="font-mono text-xs break-all">{log.id}</dd>
@@ -263,7 +289,10 @@ function ActivityDetailsDialog({
                 {log.reqId && (
                   <>
                     <dt className="text-muted-foreground">Request ID</dt>
-                    <dd className="font-mono text-xs break-all" title="Matches reqId in Pino logs">
+                    <dd
+                      className="font-mono text-xs break-all"
+                      title="Matches reqId in Pino logs"
+                    >
                       {log.reqId}
                     </dd>
                   </>

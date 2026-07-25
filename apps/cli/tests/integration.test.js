@@ -425,7 +425,9 @@ test(
   'CLI install exercises the Docker flow and service lifecycle',
   { timeout: 30_000 },
   async t => {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'lawallet-cli-docker-'))
+    const tempRoot = await mkdtemp(
+      path.join(os.tmpdir(), 'lawallet-cli-docker-')
+    )
     t.after(async () => {
       await rm(tempRoot, { recursive: true, force: true })
     })
@@ -468,8 +470,14 @@ test(
     )
 
     assert.match(install.stdout, /Mode: docker/)
-    assert.match(install.stdout, new RegExp(`web: http://127\\.0\\.0\\.1:${appPort}`))
-    assert.match(install.stdout, new RegExp(`docs: http://127\\.0\\.0\\.1:${docsPort}`))
+    assert.match(
+      install.stdout,
+      new RegExp(`web: http://127\\.0\\.0\\.1:${appPort}`)
+    )
+    assert.match(
+      install.stdout,
+      new RegExp(`docs: http://127\\.0\\.0\\.1:${docsPort}`)
+    )
     assert.match(
       install.stdout,
       new RegExp(`openapi: http://127\\.0\\.0\\.1:${openapiPort}`)
@@ -480,7 +488,10 @@ test(
       path.join(installedRepo, '.lawallet', 'install-state.json')
     )
     const rootEnv = await readFile(path.join(installedRepo, '.env'), 'utf8')
-    const webEnv = await readFile(path.join(installedRepo, 'apps/web/.env'), 'utf8')
+    const webEnv = await readFile(
+      path.join(installedRepo, 'apps/web/.env'),
+      'utf8'
+    )
 
     assert.equal(state.mode, 'docker')
     assert.equal(state.app.port, appPort)
@@ -495,7 +506,13 @@ test(
 
     const serviceStatus = await runProcess(
       process.execPath,
-      [cliEntry, 'service', 'status', '--cwd', path.join(installedRepo, 'apps/web')],
+      [
+        cliEntry,
+        'service',
+        'status',
+        '--cwd',
+        path.join(installedRepo, 'apps/web')
+      ],
       {
         env
       }
@@ -514,7 +531,9 @@ test(
     )
     assert.match(stop.stdout, /Mode: docker/)
     assert.equal(
-      await pathExists(path.join(installedRepo, '.lawallet', 'fake-docker.pid')),
+      await pathExists(
+        path.join(installedRepo, '.lawallet', 'fake-docker.pid')
+      ),
       false
     )
 
@@ -541,7 +560,9 @@ test(
   'CLI install exercises the native Postgres flow and service lifecycle',
   { timeout: 30_000 },
   async t => {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'lawallet-cli-native-'))
+    const tempRoot = await mkdtemp(
+      path.join(os.tmpdir(), 'lawallet-cli-native-')
+    )
     t.after(async () => {
       await rm(tempRoot, { recursive: true, force: true })
     })
@@ -588,9 +609,20 @@ test(
       path.join(installedRepo, '.lawallet', 'install-state.json')
     )
     const webPidFile = path.join(installedRepo, '.lawallet', 'lawallet-web.pid')
-    const docsPidFile = path.join(installedRepo, '.lawallet', 'lawallet-docs.pid')
-    const openapiPidFile = path.join(installedRepo, '.lawallet', 'lawallet-openapi.pid')
-    const webEnv = await readFile(path.join(installedRepo, 'apps/web/.env'), 'utf8')
+    const docsPidFile = path.join(
+      installedRepo,
+      '.lawallet',
+      'lawallet-docs.pid'
+    )
+    const openapiPidFile = path.join(
+      installedRepo,
+      '.lawallet',
+      'lawallet-openapi.pid'
+    )
+    const webEnv = await readFile(
+      path.join(installedRepo, 'apps/web/.env'),
+      'utf8'
+    )
 
     assert.equal(state.mode, 'native')
     assert.equal(state.app.port, appPort)
@@ -603,7 +635,13 @@ test(
 
     const status = await runProcess(
       process.execPath,
-      [cliEntry, 'service', 'status', '--cwd', path.join(installedRepo, 'apps/web')],
+      [
+        cliEntry,
+        'service',
+        'status',
+        '--cwd',
+        path.join(installedRepo, 'apps/web')
+      ],
       {
         env
       }
@@ -648,7 +686,9 @@ test(
   'standalone install.sh installs the CLI and defaults install location to the current directory',
   { timeout: 30_000 },
   async t => {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'lawallet-cli-bootstrap-'))
+    const tempRoot = await mkdtemp(
+      path.join(os.tmpdir(), 'lawallet-cli-bootstrap-')
+    )
     t.after(async () => {
       await rm(tempRoot, { recursive: true, force: true })
     })
@@ -694,7 +734,12 @@ test(
     )
 
     const installedRepo = path.join(tempRoot, 'lawallet-nwc')
-    const installedCliPath = path.join(fakeTools.homeDir, '.lawallet', 'bin', 'lawallet')
+    const installedCliPath = path.join(
+      fakeTools.homeDir,
+      '.lawallet',
+      'bin',
+      'lawallet'
+    )
     const state = await readJson(
       path.join(installedRepo, '.lawallet', 'install-state.json')
     )

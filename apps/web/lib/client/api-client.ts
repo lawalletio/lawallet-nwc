@@ -15,7 +15,12 @@ export class ApiClientError extends Error {
   public readonly code?: string
   public readonly details?: unknown
 
-  constructor(status: number, message: string, code?: string, details?: unknown) {
+  constructor(
+    status: number,
+    message: string,
+    code?: string,
+    details?: unknown
+  ) {
     super(message)
     this.name = 'ApiClientError'
     this.status = status
@@ -50,7 +55,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     const headers: Record<string, string> = {
       ...Object.fromEntries(
         Object.entries(init?.headers ?? {}).filter(([, v]) => v != null)
-      ),
+      )
     }
 
     if (token) {
@@ -63,7 +68,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 
     const response = await fetch(path, {
       ...init,
-      headers,
+      headers
     })
 
     if (!response.ok) {
@@ -89,7 +94,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         response.status,
         apiError?.message || defaultMessage,
         apiError?.code,
-        apiError?.details,
+        apiError?.details
       )
     }
 
@@ -101,28 +106,26 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   }
 
   return {
-    get: <T>(path: string) =>
-      request<T>(path, { method: 'GET' }),
+    get: <T>(path: string) => request<T>(path, { method: 'GET' }),
 
     post: <T>(path: string, body?: unknown) =>
       request<T>(path, {
         method: 'POST',
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: body !== undefined ? JSON.stringify(body) : undefined
       }),
 
     put: <T>(path: string, body?: unknown) =>
       request<T>(path, {
         method: 'PUT',
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: body !== undefined ? JSON.stringify(body) : undefined
       }),
 
     patch: <T>(path: string, body?: unknown) =>
       request<T>(path, {
         method: 'PATCH',
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: body !== undefined ? JSON.stringify(body) : undefined
       }),
 
-    del: <T>(path: string) =>
-      request<T>(path, { method: 'DELETE' }),
+    del: <T>(path: string) => request<T>(path, { method: 'DELETE' })
   }
 }

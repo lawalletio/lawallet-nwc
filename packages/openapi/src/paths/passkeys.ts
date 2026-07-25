@@ -43,7 +43,9 @@ registry.registerPath({
     body: {
       required: false,
       content: {
-        'application/json': { schema: schemas.PasskeyRegistrationOptionsRequest }
+        'application/json': {
+          schema: schemas.PasskeyRegistrationOptionsRequest
+        }
       }
     }
   },
@@ -134,7 +136,10 @@ registry.registerPath({
   operationId: 'passkey.credentials.list',
   security: protectedSecurity,
   responses: {
-    200: jsonResponse('The caller’s passkeys.', 'PasskeyCredentialListResponse'),
+    200: jsonResponse(
+      'The caller’s passkeys.',
+      'PasskeyCredentialListResponse'
+    ),
     ...commonErrorResponses,
     404: errorResponse('No `User` row exists for the authenticated pubkey.')
   }

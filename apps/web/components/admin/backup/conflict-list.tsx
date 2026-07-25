@@ -5,7 +5,7 @@ import {
   Accordion,
   AccordionContent,
   AccordionItem,
-  AccordionTrigger,
+  AccordionTrigger
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,14 +14,14 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from '@/components/ui/select'
 import { ConflictRow } from '@/components/admin/backup/conflict-row'
 import {
   type BackupConflict,
   type BackupResolutionStrategy,
   type BackupTableName,
-  tableLabel,
+  tableLabel
 } from '@/lib/client/backup-types'
 
 /** Global default applied to conflicts that allow it. */
@@ -37,7 +37,7 @@ export function ConflictList({
   onResolutionChange,
   defaultStrategy,
   onDefaultStrategyChange,
-  onApplyDefaultToAll,
+  onApplyDefaultToAll
 }: {
   conflicts: BackupConflict[]
   resolutions: Record<string, BackupResolutionStrategy>
@@ -68,10 +68,14 @@ export function ConflictList({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">When conflicts occur, default to</span>
+          <span className="text-sm text-muted-foreground">
+            When conflicts occur, default to
+          </span>
           <Select
             value={defaultStrategy}
-            onValueChange={value => onDefaultStrategyChange(value as DefaultStrategy)}
+            onValueChange={value =>
+              onDefaultStrategyChange(value as DefaultStrategy)
+            }
           >
             <SelectTrigger className="h-8 w-36">
               <SelectValue />
@@ -87,13 +91,24 @@ export function ConflictList({
         </Button>
       </div>
 
-      <Accordion type="multiple" defaultValue={[groups[0]?.[0] ?? '']} className="space-y-2">
+      <Accordion
+        type="multiple"
+        defaultValue={[groups[0]?.[0] ?? '']}
+        className="space-y-2"
+      >
         {groups.map(([table, tableConflicts]) => (
-          <AccordionItem key={table} value={table} className="rounded-lg border px-3">
+          <AccordionItem
+            key={table}
+            value={table}
+            className="rounded-lg border px-3"
+          >
             <AccordionTrigger className="hover:no-underline">
               <span className="flex items-center gap-2">
                 {tableLabel(table)}
-                <Badge variant="secondary" className="bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                <Badge
+                  variant="secondary"
+                  className="bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                >
                   {tableConflicts.length}
                 </Badge>
               </span>
@@ -104,7 +119,9 @@ export function ConflictList({
                   key={conflict.id}
                   conflict={conflict}
                   value={resolutions[conflict.id] ?? conflict.suggestedStrategy}
-                  onChange={strategy => onResolutionChange(conflict.id, strategy)}
+                  onChange={strategy =>
+                    onResolutionChange(conflict.id, strategy)
+                  }
                 />
               ))}
             </AccordionContent>

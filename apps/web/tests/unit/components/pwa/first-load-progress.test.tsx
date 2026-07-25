@@ -23,7 +23,9 @@ function Reporter({ steps }: { steps: ProgressStep[] }) {
 
 // The bar is the fixed top element; its child div carries the width style.
 function barWidth(): number {
-  const inner = document.querySelector('[aria-hidden] > div') as HTMLElement | null
+  const inner = document.querySelector(
+    '[aria-hidden] > div'
+  ) as HTMLElement | null
   const w = inner?.style.width ?? '0%'
   return parseInt(w, 10) || 0
 }

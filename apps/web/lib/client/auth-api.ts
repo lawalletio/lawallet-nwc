@@ -41,20 +41,28 @@ export async function exchangeNip98ForJwt(
   const url = `${window.location.origin}/api/jwt`
   const body = JSON.stringify({ expiresIn })
 
-  const authHeader = await createNip98Token(url, { method: 'POST', body }, signer)
+  const authHeader = await createNip98Token(
+    url,
+    { method: 'POST', body },
+    signer
+  )
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       Authorization: authHeader,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json'
     },
-    body,
+    body
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: { message: 'Authentication failed' } }))
-    throw new Error(error.error?.message || `Authentication failed (${response.status})`)
+    const error = await response
+      .json()
+      .catch(() => ({ error: { message: 'Authentication failed' } }))
+    throw new Error(
+      error.error?.message || `Authentication failed (${response.status})`
+    )
   }
 
   return response.json()
@@ -66,7 +74,7 @@ export async function exchangeNip98ForJwt(
  */
 export async function validateJwt(
   token: string,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number } = {}
 ): Promise<JwtValidation> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_AUTH_TIMEOUT_MS
   const controller = new AbortController()
@@ -79,8 +87,8 @@ export async function validateJwt(
       cache: 'no-store',
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${token}`,
-      },
+        Authorization: `Bearer ${token}`
+      }
     })
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
@@ -102,19 +110,23 @@ export async function validateJwt(
  * Check if a root admin has been assigned.
  * Requires NIP-98 auth (not JWT).
  */
-export async function checkRootStatus(signer: NostrSigner): Promise<RootStatus> {
+export async function checkRootStatus(
+  signer: NostrSigner
+): Promise<RootStatus> {
   const url = `${window.location.origin}/api/admin/assign`
   const authHeader = await createNip98Token(url, { method: 'GET' }, signer)
 
   const response = await fetch(url, {
     method: 'GET',
     headers: {
-      Authorization: authHeader,
-    },
+      Authorization: authHeader
+    }
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: { message: 'Failed to check root status' } }))
+    const error = await response
+      .json()
+      .catch(() => ({ error: { message: 'Failed to check root status' } }))
     throw new Error(error.error?.message || 'Failed to check root status')
   }
 
@@ -125,19 +137,23 @@ export async function checkRootStatus(signer: NostrSigner): Promise<RootStatus> 
  * Claim the root admin role. Only works if no root has been assigned yet.
  * Requires NIP-98 auth (not JWT).
  */
-export async function claimRootRole(signer: NostrSigner): Promise<ClaimRootResponse> {
+export async function claimRootRole(
+  signer: NostrSigner
+): Promise<ClaimRootResponse> {
   const url = `${window.location.origin}/api/admin/assign`
   const authHeader = await createNip98Token(url, { method: 'POST' }, signer)
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: authHeader,
-    },
+      Authorization: authHeader
+    }
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: { message: 'Failed to claim root role' } }))
+    const error = await response
+      .json()
+      .catch(() => ({ error: { message: 'Failed to claim root role' } }))
     throw new Error(error.error?.message || 'Failed to claim root role')
   }
 

@@ -7,7 +7,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Copy,
+  Copy
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +17,7 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { formatRelativeTime } from '@/lib/client/format'
@@ -34,7 +34,7 @@ const PAGE_SIZE = 10
 export function WalletTransactionsList({
   transactions,
   loading,
-  error,
+  error
 }: {
   transactions: NwcTransaction[]
   loading: boolean
@@ -69,7 +69,10 @@ export function WalletTransactionsList({
 
   const pageCount = Math.ceil(transactions.length / PAGE_SIZE)
   const current = Math.min(page, pageCount - 1)
-  const rows = transactions.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE)
+  const rows = transactions.slice(
+    current * PAGE_SIZE,
+    current * PAGE_SIZE + PAGE_SIZE
+  )
 
   return (
     <div className="flex flex-col">
@@ -89,7 +92,7 @@ export function WalletTransactionsList({
                     'flex size-8 shrink-0 items-center justify-center rounded-full',
                     incoming
                       ? 'bg-emerald-500/10 text-emerald-500'
-                      : 'bg-amber-500/10 text-amber-500',
+                      : 'bg-amber-500/10 text-amber-500'
                   )}
                 >
                   {incoming ? (
@@ -110,12 +113,14 @@ export function WalletTransactionsList({
                 <span
                   className={cn(
                     'shrink-0 text-sm font-medium tabular-nums',
-                    incoming ? 'text-emerald-500' : 'text-foreground',
+                    incoming ? 'text-emerald-500' : 'text-foreground'
                   )}
                 >
                   {incoming ? '+' : '−'}
                   {tx.amountSats.toLocaleString()}
-                  <span className="ml-1 text-xs font-normal text-muted-foreground">sats</span>
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    sats
+                  </span>
                 </span>
               </button>
             </li>
@@ -153,7 +158,10 @@ export function WalletTransactionsList({
         </div>
       )}
 
-      <Dialog open={selected != null} onOpenChange={open => !open && setSelected(null)}>
+      <Dialog
+        open={selected != null}
+        onOpenChange={open => !open && setSelected(null)}
+      >
         <DialogContent className="sm:max-w-md">
           {selected && <TransactionDetail tx={selected} />}
         </DialogContent>
@@ -173,7 +181,7 @@ function TransactionDetail({ tx }: { tx: NwcTransaction }) {
               'flex size-7 shrink-0 items-center justify-center rounded-full',
               incoming
                 ? 'bg-emerald-500/10 text-emerald-500'
-                : 'bg-amber-500/10 text-amber-500',
+                : 'bg-amber-500/10 text-amber-500'
             )}
           >
             {incoming ? (
@@ -191,7 +199,7 @@ function TransactionDetail({ tx }: { tx: NwcTransaction }) {
           <span
             className={cn(
               'text-3xl font-semibold tabular-nums',
-              incoming ? 'text-emerald-500' : 'text-foreground',
+              incoming ? 'text-emerald-500' : 'text-foreground'
             )}
           >
             {incoming ? '+' : '−'}
@@ -209,15 +217,22 @@ function TransactionDetail({ tx }: { tx: NwcTransaction }) {
               </Badge>
             }
           />
-          <DetailRow label="Date" value={formatFull(tx.settledAt ?? tx.createdAt)} />
-          {tx.description && <DetailRow label="Description" value={tx.description} />}
+          <DetailRow
+            label="Date"
+            value={formatFull(tx.settledAt ?? tx.createdAt)}
+          />
+          {tx.description && (
+            <DetailRow label="Description" value={tx.description} />
+          )}
           {!incoming && tx.feesPaidSats > 0 && (
             <DetailRow
               label="Fee paid"
               value={`${tx.feesPaidSats.toLocaleString()} sats`}
             />
           )}
-          {tx.paymentHash && <CopyRow label="Payment hash" value={tx.paymentHash} />}
+          {tx.paymentHash && (
+            <CopyRow label="Payment hash" value={tx.paymentHash} />
+          )}
           {tx.preimage && <CopyRow label="Preimage" value={tx.preimage} />}
         </dl>
       </div>
@@ -225,7 +240,13 @@ function TransactionDetail({ tx }: { tx: NwcTransaction }) {
   )
 }
 
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+function DetailRow({
+  label,
+  value
+}: {
+  label: string
+  value: React.ReactNode
+}) {
   return (
     <div className="flex items-center justify-between gap-4 py-2.5">
       <dt className="shrink-0 text-muted-foreground">{label}</dt>
@@ -273,5 +294,8 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 function formatFull(ms: number): string {
   const d = new Date(ms)
   if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  return d.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  })
 }

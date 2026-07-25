@@ -20,7 +20,9 @@ async function request<T>(
     cache: 'no-store',
     headers: {
       Authorization: `Bearer ${token}`,
-      ...(init?.body !== undefined ? { 'Content-Type': 'application/json' } : {})
+      ...(init?.body !== undefined
+        ? { 'Content-Type': 'application/json' }
+        : {})
     },
     ...(init?.body !== undefined ? { body: JSON.stringify(init.body) } : {})
   })
@@ -61,7 +63,14 @@ export async function proveNostrKey(
   return request<AccountLinkVerifyResponse>(
     '/api/account/identities/link/verify',
     token,
-    { body: { method: 'nostr', challenge: begin.challenge, event, ...(label ? { label } : {}) } }
+    {
+      body: {
+        method: 'nostr',
+        challenge: begin.challenge,
+        event,
+        ...(label ? { label } : {})
+      }
+    }
   )
 }
 
@@ -84,9 +93,13 @@ export function fetchMergePreview(
   token: string,
   mergeTicket: string
 ): Promise<AccountMergePreviewResponse> {
-  return request<AccountMergePreviewResponse>('/api/account/merge/preview', token, {
-    body: { mergeTicket }
-  })
+  return request<AccountMergePreviewResponse>(
+    '/api/account/merge/preview',
+    token,
+    {
+      body: { mergeTicket }
+    }
+  )
 }
 
 /**

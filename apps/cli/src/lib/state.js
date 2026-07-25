@@ -26,11 +26,7 @@ function buildServiceRecord(port, buildHealthUrl) {
   }
 }
 
-function buildServiceMap({
-  webPort,
-  docsPort,
-  openapiPort
-}) {
+function buildServiceMap({ webPort, docsPort, openapiPort }) {
   return {
     web: buildServiceRecord(webPort, buildAppHealthUrl),
     docs: buildServiceRecord(docsPort, buildDocsHealthUrl),
@@ -39,7 +35,8 @@ function buildServiceMap({
 }
 
 function normalizeInstallState(repoRoot, rawState) {
-  const webPort = rawState?.services?.web?.port ?? rawState?.app?.port ?? DEFAULT_WEB_PORT
+  const webPort =
+    rawState?.services?.web?.port ?? rawState?.app?.port ?? DEFAULT_WEB_PORT
   const docsPort = rawState?.services?.docs?.port ?? DEFAULT_DOCS_PORT
   const openapiPort = rawState?.services?.openapi?.port ?? DEFAULT_OPENAPI_PORT
   const services = buildServiceMap({
@@ -140,7 +137,9 @@ export async function writeRootEnvFile(repoRoot, state) {
     `JWT_SECRET=${state.jwtSecret}`,
     // Older install states predate the key vault; omit rather than write an
     // empty value so passkey signup reports "not configured" cleanly.
-    ...(state.keyVaultSecret ? [`KEY_VAULT_SECRET=${state.keyVaultSecret}`] : [])
+    ...(state.keyVaultSecret
+      ? [`KEY_VAULT_SECRET=${state.keyVaultSecret}`]
+      : [])
   ].join('\n')
 
   await writeFile(path.join(repoRoot, '.env'), `${contents}\n`, 'utf8')
@@ -158,5 +157,9 @@ export async function writeNativeEnvFile(repoRoot, state) {
     `PORT="${state.app.port}"`
   ].join('\n')
 
-  await writeFile(path.join(getWebDir(repoRoot), '.env'), `${contents}\n`, 'utf8')
+  await writeFile(
+    path.join(getWebDir(repoRoot), '.env'),
+    `${contents}\n`,
+    'utf8'
+  )
 }

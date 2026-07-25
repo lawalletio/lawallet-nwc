@@ -11,8 +11,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test:
-        ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,8 +43,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test:
-        ['CMD-SHELL', 'curl -f http://localhost:$$PORT/api/health']
+      test: ['CMD-SHELL', 'curl -f http://localhost:$$PORT/api/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -72,8 +70,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test:
-        ['CMD-SHELL', 'curl -f http://localhost:$$LISTENER_PORT/health']
+      test: ['CMD-SHELL', 'curl -f http://localhost:$$LISTENER_PORT/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -94,8 +91,7 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
     restart: unless-stopped
     healthcheck:
-      test:
-        ['CMD-SHELL', 'curl -f http://localhost:$$DOCS_PORT/api/health']
+      test: ['CMD-SHELL', 'curl -f http://localhost:$$DOCS_PORT/api/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -114,8 +110,7 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
     restart: unless-stopped
     healthcheck:
-      test:
-        ['CMD-SHELL', 'curl -f http://localhost:$$OPENAPI_PORT/health']
+      test: ['CMD-SHELL', 'curl -f http://localhost:$$OPENAPI_PORT/health']
       interval: 30s
       timeout: 10s
       retries: 3

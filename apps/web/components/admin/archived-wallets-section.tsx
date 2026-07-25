@@ -11,7 +11,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table'
 import {
   AlertDialog,
@@ -21,12 +21,12 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { Spinner } from '@/components/ui/spinner'
 import {
   useRemoteWalletMutations,
-  type RemoteWalletData,
+  type RemoteWalletData
 } from '@/lib/client/hooks/use-remote-wallets'
 import { ApiClientError } from '@/lib/client/api-client'
 
@@ -41,7 +41,7 @@ import { ApiClientError } from '@/lib/client/api-client'
  */
 export function ArchivedWalletsSection({
   wallets,
-  onChanged,
+  onChanged
 }: {
   wallets: RemoteWalletData[]
   onChanged: () => void
@@ -105,7 +105,7 @@ export function ArchivedWalletsSection({
 
 function RemovePermanently({
   wallet,
-  onChanged,
+  onChanged
 }: {
   wallet: RemoteWalletData
   onChanged: () => void
@@ -140,12 +140,18 @@ function RemovePermanently({
         disabled={loading}
         onClick={() => setOpen(true)}
       >
-        {loading ? <Spinner className="size-4" /> : <Trash2 className="size-4" />}
+        {loading ? (
+          <Spinner className="size-4" />
+        ) : (
+          <Trash2 className="size-4" />
+        )}
       </Button>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove “{wallet.name}” permanently?</AlertDialogTitle>
+            <AlertDialogTitle>
+              Remove “{wallet.name}” permanently?
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This deletes the archived wallet and its history for good. This
               can’t be undone.
@@ -179,7 +185,7 @@ function formatDateTime(iso: string): string {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
-    minute: '2-digit',
+    minute: '2-digit'
   })
 }
 

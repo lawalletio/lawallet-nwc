@@ -28,7 +28,7 @@ export function ShowcaseSection() {
           className="pointer-events-none absolute left-1/2 top-1/2 h-[460px] w-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
           style={{
             background:
-              'radial-gradient(circle, color-mix(in srgb, var(--theme-400) 18%, transparent), transparent 70%)',
+              'radial-gradient(circle, color-mix(in srgb, var(--theme-400) 18%, transparent), transparent 70%)'
           }}
         />
 
@@ -37,7 +37,7 @@ export function ShowcaseSection() {
           className="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-white/[0.08] bg-[rgba(10,10,15,0.85)] shadow-2xl"
           style={{
             boxShadow:
-              '0 40px 80px -40px color-mix(in srgb, var(--theme-400) 30%, transparent), 0 24px 48px -24px rgba(0,0,0,0.8)',
+              '0 40px 80px -40px color-mix(in srgb, var(--theme-400) 30%, transparent), 0 24px 48px -24px rgba(0,0,0,0.8)'
           }}
         >
           {/* Browser chrome */}
@@ -63,7 +63,7 @@ export function ShowcaseSection() {
           className="relative w-[244px] shrink-0 overflow-hidden rounded-[2.25rem] border-[5px] border-[#15151c] bg-[#0a0a0f] shadow-2xl lg:-ml-20 lg:-mt-16"
           style={{
             boxShadow:
-              '0 30px 60px -24px color-mix(in srgb, var(--theme-400) 28%, transparent), 0 20px 40px -20px rgba(0,0,0,0.85)',
+              '0 30px 60px -24px color-mix(in srgb, var(--theme-400) 28%, transparent), 0 20px 40px -20px rgba(0,0,0,0.85)'
           }}
         >
           {/* Status notch */}

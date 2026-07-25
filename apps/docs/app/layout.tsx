@@ -1,26 +1,26 @@
-import { RootProvider } from 'fumadocs-ui/provider/next';
-import { SandPackCSS } from '@/components/sandpack-styles';
-import { GoogleAnalytics } from '@/components/analytics/google-analytics';
-import './global.css';
-import { Inter } from 'next/font/google';
-import type { ReactNode } from 'react';
-import type { Metadata } from 'next';
+import { RootProvider } from 'fumadocs-ui/provider/next'
+import { SandPackCSS } from '@/components/sandpack-styles'
+import { GoogleAnalytics } from '@/components/analytics/google-analytics'
+import './global.css'
+import { Inter } from 'next/font/google'
+import type { ReactNode } from 'react'
+import type { Metadata } from 'next'
 
 const inter = Inter({
-  subsets: ['latin'],
-});
+  subsets: ['latin']
+})
 
 export const metadata: Metadata = {
   title: {
     default: 'LaWallet NWC Docs',
-    template: '%s | LaWallet NWC',
+    template: '%s | LaWallet NWC'
   },
   description:
-    'Open-source Lightning Address platform with Nostr Wallet Connect. Interactive documentation with live examples.',
-};
+    'Open-source Lightning Address platform with Nostr Wallet Connect. Interactive documentation with live examples.'
+}
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const gtagId = process.env.NEXT_PUBLIC_GTAG_ID?.trim() || null;
+  const gtagId = process.env.NEXT_PUBLIC_GTAG_ID?.trim() || null
 
   return (
     <html lang="en" className={inter.className} suppressHydrationWarning>
@@ -32,12 +32,12 @@ export default function Layout({ children }: { children: ReactNode }) {
         <GoogleAnalytics gtagId={gtagId} />
         <RootProvider
           theme={{
-            defaultTheme: 'dark',
+            defaultTheme: 'dark'
           }}
         >
           {children}
         </RootProvider>
       </body>
     </html>
-  );
+  )
 }

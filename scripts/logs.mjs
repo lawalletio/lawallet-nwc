@@ -22,7 +22,14 @@ const args = Object.fromEntries(
     })
 )
 
-const LEVELS = { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60 }
+const LEVELS = {
+  trace: 10,
+  debug: 20,
+  info: 30,
+  warn: 40,
+  error: 50,
+  fatal: 60
+}
 const minLevel = args.level
   ? (LEVELS[args.level] ?? parseInt(args.level, 10))
   : 0
@@ -45,8 +52,13 @@ rl.on('line', line => {
   if (minLevel && (entry.level ?? 0) < minLevel) return
   if (minMs && (entry.durationMs ?? 0) < minMs) return
 
-  const time = (entry.time ?? '').toString().replace(/^.*T/, '').replace(/Z$/, '')
-  const level = Object.entries(LEVELS).find(([, v]) => v === entry.level)?.[0] ?? entry.level
+  const time = (entry.time ?? '')
+    .toString()
+    .replace(/^.*T/, '')
+    .replace(/Z$/, '')
+  const level =
+    Object.entries(LEVELS).find(([, v]) => v === entry.level)?.[0] ??
+    entry.level
   const parts = [
     time,
     String(level).toUpperCase().padEnd(5),

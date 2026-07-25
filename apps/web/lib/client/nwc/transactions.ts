@@ -42,7 +42,7 @@ function normalize(raw: RawTransaction): NwcTransaction {
     paymentHash: raw.payment_hash,
     preimage: raw.preimage ?? null,
     settledAt: raw.settled_at ? raw.settled_at * 1000 : null,
-    createdAt: raw.created_at * 1000,
+    createdAt: raw.created_at * 1000
   }
 }
 
@@ -53,14 +53,14 @@ function normalize(raw: RawTransaction): NwcTransaction {
  */
 export async function listTransactions(
   nwcString: string,
-  opts: ListTransactionsOpts = {},
+  opts: ListTransactionsOpts = {}
 ): Promise<NwcTransaction[]> {
   const client = await getNwcClient(nwcString)
   const res = (await client.listTransactions({
     limit: opts.limit ?? 20,
     until: opts.until,
     from: opts.from,
-    type: opts.type,
+    type: opts.type
   })) as { transactions?: RawTransaction[] }
   const list = res.transactions ?? []
   return list.map(normalize)

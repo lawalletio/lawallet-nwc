@@ -3,7 +3,7 @@ import {
   BACKUP_SCHEMA_VERSION,
   backupManifestSchema,
   type BackupManifest,
-  type BackupTableName,
+  type BackupTableName
 } from '@/lib/validation/schemas'
 import { ApiError, ValidationError } from '@/types/server/errors'
 import { decryptArchive, isEncryptedArchive } from '@/lib/backup/crypto'
@@ -28,13 +28,19 @@ function passwordError(code: string, message: string): ApiError {
  * the database: checks the manifest shape, the schema version, and every
  * table's checksum + row count. Throws typed errors the routes surface as-is.
  */
-export async function parseBackupFile(file: File, password?: string): Promise<ParsedBackup> {
+export async function parseBackupFile(
+  file: File,
+  password?: string
+): Promise<ParsedBackup> {
   const raw = new Uint8Array(await file.arrayBuffer())
 
   let zipBytes: Uint8Array = raw
   if (isEncryptedArchive(raw)) {
     if (!password) {
-      throw passwordError(BACKUP_PASSWORD_REQUIRED, 'This backup is password-protected.')
+      throw passwordError(
+        BACKUP_PASSWORD_REQUIRED,
+        'This backup is password-protected.'
+      )
     }
     try {
       zipBytes = decryptArchive(raw, password)
@@ -64,32 +70,37 @@ export async function parseBackupFile(file: File, password?: string): Promise<Pa
 
   const parsedManifest = backupManifestSchema.safeParse(manifestJson)
   if (!parsedManifest.success) {
-    throw new ValidationError('Backup manifest is invalid.', parsedManifest.error.errors)
+    throw new ValidationError(
+      'Backup manifest is invalid.',
+      parsedManifest.error.errors
+    )
   }
   const manifest = parsedManifest.data
 
   if (manifest.schemaVersion > BACKUP_SCHEMA_VERSION) {
     throw new ValidationError(
-      `This backup was created by a newer version (format v${manifest.schemaVersion}). Update before restoring.`,
+      `This backup was created by a newer version (format v${manifest.schemaVersion}). Update before restoring.`
     )
   }
 
   const tables: Partial<Record<BackupTableName, unknown[]>> = {}
   for (const [table, meta] of Object.entries(manifest.tables) as [
     BackupTableName,
-    { count: number; sha256: string },
+    { count: number; sha256: string }
   ][]) {
     const bytes = entries[`tables/${table}.ndjson`]
     if (!bytes) {
       throw new ValidationError(`Backup is missing data for "${table}".`)
     }
     if (sha256(bytes) !== meta.sha256) {
-      throw new ValidationError(`Integrity check failed for "${table}" — the archive is corrupt.`)
+      throw new ValidationError(
+        `Integrity check failed for "${table}" — the archive is corrupt.`
+      )
     }
     const rows = fromNdjson(utf8Decode(bytes))
     if (rows.length !== meta.count) {
       throw new ValidationError(
-        `Row count mismatch for "${table}" (expected ${meta.count}, found ${rows.length}).`,
+        `Row count mismatch for "${table}" (expected ${meta.count}, found ${rows.length}).`
       )
     }
     tables[table] = rows

@@ -69,10 +69,14 @@ export async function detectDockerEnvironment() {
 }
 
 async function runCompose(state, dockerEnvironment, args, options = {}) {
-  return runCommand(dockerEnvironment.command, [...dockerEnvironment.args, ...args], {
-    cwd: state.repoRoot,
-    ...options
-  })
+  return runCommand(
+    dockerEnvironment.command,
+    [...dockerEnvironment.args, ...args],
+    {
+      cwd: state.repoRoot,
+      ...options
+    }
+  )
 }
 
 function parseComposeStatus(raw) {

@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
-import { resolveE2eDatabaseUrl, E2E_JWT_SECRET, E2E_PORT, E2E_BASE_URL } from './e2e/env'
+import {
+  resolveE2eDatabaseUrl,
+  E2E_JWT_SECRET,
+  E2E_PORT,
+  E2E_BASE_URL
+} from './e2e/env'
 
 const allBrowsers = !!process.env.PW_ALL_BROWSERS
 

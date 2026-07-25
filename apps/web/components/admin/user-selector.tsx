@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger,
+  PopoverTrigger
 } from '@/components/ui/popover'
 import {
   Command,
@@ -17,7 +17,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
-  CommandList,
+  CommandList
 } from '@/components/ui/command'
 import { useUsers, type AdminUser } from '@/lib/client/hooks/use-users'
 import { useNostrProfiles } from '@/lib/client/nostr-profile'
@@ -28,7 +28,7 @@ const ROLE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
   ADMIN: 'default',
   OPERATOR: 'secondary',
   VIEWER: 'secondary',
-  USER: 'outline',
+  USER: 'outline'
 }
 
 /**
@@ -68,12 +68,12 @@ export function UserSelector({
   onValueChange,
   disabled,
   placeholder = 'Select a user',
-  users: usersProp,
+  users: usersProp
 }: UserSelectorProps) {
   const { data: fetchedUsers, loading: usersLoading } = useUsers()
   const users = useMemo(
     () => usersProp ?? fetchedUsers ?? [],
-    [usersProp, fetchedUsers],
+    [usersProp, fetchedUsers]
   )
   const { profiles } = useNostrProfiles(users.map(u => u.pubkey))
   const [open, setOpen] = useState(false)
@@ -89,10 +89,10 @@ export function UserSelector({
           name: profile?.displayName || profile?.name || null,
           role: u.role,
           avatarUrl: profile?.picture ?? null,
-          address: u.primaryAddress,
+          address: u.primaryAddress
         }
       }),
-    [users, profiles],
+    [users, profiles]
   )
 
   const selected = options.find(o => o.id === value) ?? null
@@ -110,7 +110,7 @@ export function UserSelector({
             disabled={isDisabled}
             className={cn(
               'h-auto min-h-10 w-full justify-start font-normal',
-              selected ? 'pr-14' : 'pr-9',
+              selected ? 'pr-14' : 'pr-9'
             )}
           >
             {selected ? (
@@ -144,7 +144,7 @@ export function UserSelector({
                       option.npub,
                       option.address,
                       option.role,
-                      option.id,
+                      option.id
                     ]
                       .filter(Boolean)
                       .join(' ')}
@@ -158,7 +158,7 @@ export function UserSelector({
                     <Check
                       className={cn(
                         'ml-auto size-4 shrink-0',
-                        option.id === value ? 'opacity-100' : 'opacity-0',
+                        option.id === value ? 'opacity-100' : 'opacity-0'
                       )}
                     />
                   </CommandItem>

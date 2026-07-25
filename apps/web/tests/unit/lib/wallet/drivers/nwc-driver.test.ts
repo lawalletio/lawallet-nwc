@@ -31,7 +31,7 @@ vi.mock('@getalby/sdk', () => {
  */
 const bridge = vi.hoisted(() => ({
   enabled: false,
-  request: vi.fn(),
+  request: vi.fn()
 }))
 
 vi.mock('@/lib/wallet/drivers/listener-transport', () => {
@@ -42,7 +42,7 @@ vi.mock('@/lib/wallet/drivers/listener-transport', () => {
     // Drop the resolved-config first arg so existing assertions keep seeing
     // just the request input.
     listenerNwcRequest: (_bridge: unknown, ...args: unknown[]) =>
-      bridge.request(...args),
+      bridge.request(...args)
   }
 })
 
@@ -52,7 +52,7 @@ import { nwcDriver } from '@/lib/wallet/drivers/nwc-driver'
 import {
   closeAllServerNwcClients,
   closeServerNwcClient,
-  getServerNwcClient,
+  getServerNwcClient
 } from '@/lib/wallet/drivers/nwc-client-cache'
 
 const VALID_URI = `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Fr.example&secret=${'b'.repeat(64)}`
@@ -94,7 +94,9 @@ describe('nwcDriver', () => {
         'nostr+walletconnect://',
         'nostrwalletconnect://'
       )
-      expect(nwcDriver.configSchema.safeParse({ connectionString: alt }).success).toBe(true)
+      expect(
+        nwcDriver.configSchema.safeParse({ connectionString: alt }).success
+      ).toBe(true)
     })
 
     it.each([
@@ -102,18 +104,28 @@ describe('nwcDriver', () => {
       `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Fr.example`,
       `nostr+walletconnect://not-a-pubkey?relay=wss%3A%2F%2Fr.example&secret=${'b'.repeat(64)}`,
       `nostr+walletconnect://${'a'.repeat(64)}?relay=https%3A%2F%2Fr.example&secret=${'b'.repeat(64)}`
-    ])('rejects incomplete or malformed NWC credentials: %s', connectionString => {
-      expect(nwcDriver.configSchema.safeParse({ connectionString }).success).toBe(false)
-    })
+    ])(
+      'rejects incomplete or malformed NWC credentials: %s',
+      connectionString => {
+        expect(
+          nwcDriver.configSchema.safeParse({ connectionString }).success
+        ).toBe(false)
+      }
+    )
 
     it('rejects non-NWC URIs', () => {
-      const r = nwcDriver.configSchema.safeParse({ connectionString: 'https://example.com' })
+      const r = nwcDriver.configSchema.safeParse({
+        connectionString: 'https://example.com'
+      })
       expect(r.success).toBe(false)
     })
 
     it('rejects a valid-shaped credential URL with the wrong scheme', () => {
       const r = nwcDriver.configSchema.safeParse({
-        connectionString: VALID_URI.replace('nostr+walletconnect://', 'https://'),
+        connectionString: VALID_URI.replace(
+          'nostr+walletconnect://',
+          'https://'
+        )
       })
       expect(r.success).toBe(false)
     })
@@ -126,7 +138,7 @@ describe('nwcDriver', () => {
     it('rejects extra keys (strict)', () => {
       const r = nwcDriver.configSchema.safeParse({
         connectionString: VALID_URI,
-        extra: 'nope',
+        extra: 'nope'
       })
       expect(r.success).toBe(false)
     })
@@ -139,7 +151,7 @@ describe('nwcDriver', () => {
     it('accepts mode=SEND_RECEIVE', () => {
       const r = nwcDriver.configSchema.parse({
         connectionString: VALID_URI,
-        mode: 'SEND_RECEIVE',
+        mode: 'SEND_RECEIVE'
       })
       expect(r.mode).toBe('SEND_RECEIVE')
     })
@@ -147,7 +159,7 @@ describe('nwcDriver', () => {
     it('rejects an unknown mode', () => {
       const r = nwcDriver.configSchema.safeParse({
         connectionString: VALID_URI,
-        mode: 'WRITE_ONLY',
+        mode: 'WRITE_ONLY'
       })
       expect(r.success).toBe(false)
     })
@@ -160,20 +172,22 @@ describe('nwcDriver', () => {
       const r = nwcDriver.configSchema.safeParse({
         connectionString: VALID_URI,
         provider: 'lncurl',
-        lncurlServerUrl: 'https://lncurl.lol',
+        lncurlServerUrl: 'https://lncurl.lol'
       })
       expect(r.success).toBe(true)
     })
 
     it('still parses a config WITHOUT the LNCurl fields (back-compat)', () => {
-      const r = nwcDriver.configSchema.safeParse({ connectionString: VALID_URI })
+      const r = nwcDriver.configSchema.safeParse({
+        connectionString: VALID_URI
+      })
       expect(r.success).toBe(true)
     })
 
     it('rejects a non-URL lncurlServerUrl', () => {
       const r = nwcDriver.configSchema.safeParse({
         connectionString: VALID_URI,
-        lncurlServerUrl: 'not a url',
+        lncurlServerUrl: 'not a url'
       })
       expect(r.success).toBe(false)
     })
@@ -181,7 +195,7 @@ describe('nwcDriver', () => {
     it('rejects a provider other than "lncurl"', () => {
       const r = nwcDriver.configSchema.safeParse({
         connectionString: VALID_URI,
-        provider: 'someoneelse',
+        provider: 'someoneelse'
       })
       expect(r.success).toBe(false)
     })
@@ -190,7 +204,7 @@ describe('nwcDriver', () => {
       const r = nwcDriver.configSchema.safeParse({
         connectionString: VALID_URI,
         provider: 'lncurl',
-        bogus: 'nope',
+        bogus: 'nope'
       })
       expect(r.success).toBe(false)
     })
@@ -223,9 +237,9 @@ describe('nwcDriver', () => {
 
     it('wraps SDK errors in DriverRemoteError so callers get a uniform type', async () => {
       getBalanceMock.mockRejectedValueOnce(new Error('relay timeout'))
-      await expect(
-        nwcDriver.getBalance(CONFIG),
-      ).rejects.toBeInstanceOf(DriverRemoteError)
+      await expect(nwcDriver.getBalance(CONFIG)).rejects.toBeInstanceOf(
+        DriverRemoteError
+      )
     })
 
     it('preserves the original SDK error as `cause`', async () => {
@@ -244,45 +258,42 @@ describe('nwcDriver', () => {
     const BOLT11 = 'lnbc100u1pjxyzwzpp5...'
 
     it('returns preimage + fees, converting msat fees to sats', async () => {
-      payInvoiceMock.mockResolvedValueOnce({ preimage: 'cafebabe', fees_paid: 1_500 })
-      const res = await nwcDriver.payInvoice(
-        CONFIG,
-        { bolt11: BOLT11 },
-      )
+      payInvoiceMock.mockResolvedValueOnce({
+        preimage: 'cafebabe',
+        fees_paid: 1_500
+      })
+      const res = await nwcDriver.payInvoice(CONFIG, { bolt11: BOLT11 })
       expect(res).toEqual({ preimage: 'cafebabe', feesPaidSats: 1 })
     })
 
     it('treats a missing fees_paid as zero', async () => {
       payInvoiceMock.mockResolvedValueOnce({ preimage: 'aa' })
-      const res = await nwcDriver.payInvoice(
-        CONFIG,
-        { bolt11: BOLT11 },
-      )
+      const res = await nwcDriver.payInvoice(CONFIG, { bolt11: BOLT11 })
       expect(res.feesPaidSats).toBe(0)
     })
 
     it('omits amount when the invoice already encodes one', async () => {
       payInvoiceMock.mockResolvedValueOnce({ preimage: 'aa', fees_paid: 0 })
-      await nwcDriver.payInvoice(
-        CONFIG,
-        { bolt11: BOLT11 },
-      )
-      expect(payInvoiceMock).toHaveBeenCalledWith({ invoice: BOLT11, amount: undefined })
+      await nwcDriver.payInvoice(CONFIG, { bolt11: BOLT11 })
+      expect(payInvoiceMock).toHaveBeenCalledWith({
+        invoice: BOLT11,
+        amount: undefined
+      })
     })
 
     it('passes amount in msats for zero-amount invoices', async () => {
       payInvoiceMock.mockResolvedValueOnce({ preimage: 'aa', fees_paid: 0 })
-      await nwcDriver.payInvoice(
-        CONFIG,
-        { bolt11: BOLT11, amountSats: 42 },
-      )
-      expect(payInvoiceMock).toHaveBeenCalledWith({ invoice: BOLT11, amount: 42_000 })
+      await nwcDriver.payInvoice(CONFIG, { bolt11: BOLT11, amountSats: 42 })
+      expect(payInvoiceMock).toHaveBeenCalledWith({
+        invoice: BOLT11,
+        amount: 42_000
+      })
     })
 
     it('wraps SDK errors in DriverRemoteError', async () => {
       payInvoiceMock.mockRejectedValueOnce(new Error('insufficient_balance'))
       await expect(
-        nwcDriver.payInvoice(CONFIG, { bolt11: BOLT11 }),
+        nwcDriver.payInvoice(CONFIG, { bolt11: BOLT11 })
       ).rejects.toBeInstanceOf(DriverRemoteError)
     })
   })
@@ -293,31 +304,43 @@ describe('nwcDriver', () => {
       payment_hash: 'abc123',
       amount: 50_000, // msats
       description: 'coffee',
-      expires_at: 1_700_000_000, // unix seconds
+      expires_at: 1_700_000_000 // unix seconds
     }
 
     it('mints an invoice, normalising msats → sats and expiry s → ms', async () => {
       makeInvoiceMock.mockResolvedValueOnce(MADE)
-      const res = await nwcDriver.makeInvoice(CONFIG, { amountSats: 50, description: 'coffee' })
+      const res = await nwcDriver.makeInvoice(CONFIG, {
+        amountSats: 50,
+        description: 'coffee'
+      })
       expect(res).toEqual({
         bolt11: 'lnbc500n1pjmadeup',
         paymentHash: 'abc123',
         amountSats: 50,
         description: 'coffee',
-        expiresAt: 1_700_000_000_000,
+        expiresAt: 1_700_000_000_000
       })
     })
 
     it('sends the amount to the SDK in msats', async () => {
       makeInvoiceMock.mockResolvedValueOnce(MADE)
-      await nwcDriver.makeInvoice(CONFIG, { amountSats: 50, description: 'coffee' })
-      expect(makeInvoiceMock).toHaveBeenCalledWith({ amount: 50_000, description: 'coffee' })
+      await nwcDriver.makeInvoice(CONFIG, {
+        amountSats: 50,
+        description: 'coffee'
+      })
+      expect(makeInvoiceMock).toHaveBeenCalledWith({
+        amount: 50_000,
+        description: 'coffee'
+      })
     })
 
     it('defaults description to empty string when omitted', async () => {
       makeInvoiceMock.mockResolvedValueOnce({ ...MADE, description: '' })
       await nwcDriver.makeInvoice(CONFIG, { amountSats: 50 })
-      expect(makeInvoiceMock).toHaveBeenCalledWith({ amount: 50_000, description: '' })
+      expect(makeInvoiceMock).toHaveBeenCalledWith({
+        amount: 50_000,
+        description: ''
+      })
     })
 
     it('returns null expiresAt when the wallet omits expires_at', async () => {
@@ -329,7 +352,7 @@ describe('nwcDriver', () => {
 
     it('rejects a non-positive amount without hitting the SDK', async () => {
       await expect(
-        nwcDriver.makeInvoice(CONFIG, { amountSats: 0 }),
+        nwcDriver.makeInvoice(CONFIG, { amountSats: 0 })
       ).rejects.toBeInstanceOf(DriverRemoteError)
       expect(makeInvoiceMock).not.toHaveBeenCalled()
     })
@@ -337,7 +360,7 @@ describe('nwcDriver', () => {
     it('wraps SDK errors (e.g. unsupported make_invoice) in DriverRemoteError', async () => {
       makeInvoiceMock.mockRejectedValueOnce(new Error('method not supported'))
       await expect(
-        nwcDriver.makeInvoice(CONFIG, { amountSats: 50 }),
+        nwcDriver.makeInvoice(CONFIG, { amountSats: 50 })
       ).rejects.toBeInstanceOf(DriverRemoteError)
     })
   })
@@ -361,18 +384,20 @@ describe('nwcDriver', () => {
     it('routes getBalance and makeInvoice through the bridge too', async () => {
       bridge.enabled = true
       bridge.request.mockResolvedValueOnce({ balance: 12_345_000 })
-      expect(await nwcDriver.getBalance(CONFIG)).toEqual({ balanceSats: 12_345 })
+      expect(await nwcDriver.getBalance(CONFIG)).toEqual({
+        balanceSats: 12_345
+      })
 
       bridge.request.mockResolvedValueOnce({
         invoice: 'lnbc500n1pjmadeup',
         payment_hash: 'abc123',
         amount: 50_000,
         description: 'coffee',
-        expires_at: 1_700_000_000,
+        expires_at: 1_700_000_000
       })
       const made = await nwcDriver.makeInvoice(CONFIG, {
         amountSats: 50,
-        description: 'coffee',
+        description: 'coffee'
       })
       expect(made.bolt11).toBe('lnbc500n1pjmadeup')
       expect(made.expiresAt).toBe(1_700_000_000_000)
@@ -381,13 +406,19 @@ describe('nwcDriver', () => {
 
     it('does not consult an unavailable legacy bridge for unidentified payments', async () => {
       bridge.enabled = true
-      payInvoiceMock.mockResolvedValueOnce({ preimage: 'cafebabe', fees_paid: 1_500 })
+      payInvoiceMock.mockResolvedValueOnce({
+        preimage: 'cafebabe',
+        fees_paid: 1_500
+      })
 
       const res = await nwcDriver.payInvoice(CONFIG, { bolt11: 'lnbc1' })
 
       expect(res).toEqual({ preimage: 'cafebabe', feesPaidSats: 1 })
       expect(bridge.request).not.toHaveBeenCalled()
-      expect(payInvoiceMock).toHaveBeenCalledWith({ invoice: 'lnbc1', amount: undefined })
+      expect(payInvoiceMock).toHaveBeenCalledWith({
+        invoice: 'lnbc1',
+        amount: undefined
+      })
       expect(nwcCtor).toHaveBeenCalledTimes(1)
     })
 
@@ -402,7 +433,7 @@ describe('nwcDriver', () => {
     it('single-flights concurrent construction for the same URI', async () => {
       const [first, second] = await Promise.all([
         getServerNwcClient(VALID_URI),
-        getServerNwcClient(VALID_URI),
+        getServerNwcClient(VALID_URI)
       ])
       expect(first).toBe(second)
       expect(nwcCtor).toHaveBeenCalledTimes(1)
@@ -418,7 +449,10 @@ describe('nwcDriver', () => {
     it('builds a fresh client for a different URI', async () => {
       getBalanceMock.mockResolvedValue({ balance: 0 })
       await nwcDriver.getBalance(CONFIG)
-      await nwcDriver.getBalance({ ...CONFIG, connectionString: VALID_URI + "&other=1" })
+      await nwcDriver.getBalance({
+        ...CONFIG,
+        connectionString: VALID_URI + '&other=1'
+      })
       expect(nwcCtor).toHaveBeenCalledTimes(2)
     })
 
@@ -436,7 +470,9 @@ describe('nwcDriver', () => {
     })
 
     it('closeServerNwcClient is a no-op for an uncached URI', () => {
-      expect(() => closeServerNwcClient('nostr+walletconnect://never-opened')).not.toThrow()
+      expect(() =>
+        closeServerNwcClient('nostr+walletconnect://never-opened')
+      ).not.toThrow()
       expect(closeMock).not.toHaveBeenCalled()
     })
 

@@ -18,7 +18,8 @@ import { withErrorHandling } from '@/types/server/error-handler'
 export const dynamic = 'force-dynamic'
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
-  const queryServerUrl = request.nextUrl.searchParams.get('serverUrl')?.trim() || null
+  const queryServerUrl =
+    request.nextUrl.searchParams.get('serverUrl')?.trim() || null
   const serverUrl =
     process.env.OPENAPI_SERVER_URL ||
     (queryServerUrl && isSafeUrl(queryServerUrl) ? queryServerUrl : null) ||

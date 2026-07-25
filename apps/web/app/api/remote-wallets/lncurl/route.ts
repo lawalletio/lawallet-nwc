@@ -8,7 +8,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   NotFoundError,
   ServiceUnavailableError,
-  ValidationError,
+  ValidationError
 } from '@/types/server/errors'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { validateBody } from '@/lib/validation/middleware'
@@ -42,7 +42,10 @@ interface RemoteWalletDto {
 }
 
 function toDto(w: RemoteWallet): RemoteWalletDto {
-  const cfg = w.config as { provider?: unknown; lncurlServerUrl?: unknown } | null
+  const cfg = w.config as {
+    provider?: unknown
+    lncurlServerUrl?: unknown
+  } | null
   const isLncurl = cfg?.provider === 'lncurl'
   return {
     id: w.id,
@@ -55,7 +58,9 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
     diedAt: w.diedAt ? w.diedAt.toISOString() : null,
     provider: isLncurl ? 'lncurl' : null,
     lncurlServerUrl:
-      isLncurl && typeof cfg?.lncurlServerUrl === 'string' ? cfg.lncurlServerUrl : null,
+      isLncurl && typeof cfg?.lncurlServerUrl === 'string'
+        ? cfg.lncurlServerUrl
+        : null
   }
 }
 
@@ -82,21 +87,24 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const { lncurl_enabled, lncurl_server_url } = await getSettings([
     'lncurl_enabled',
-    'lncurl_server_url',
+    'lncurl_server_url'
   ])
 
   if (lncurl_enabled !== 'true') {
     throw new ValidationError('LNCurl is not enabled')
   }
 
-  const { name, isDefault } = await validateBody(request, createLncurlWalletSchema)
+  const { name, isDefault } = await validateBody(
+    request,
+    createLncurlWalletSchema
+  )
 
   try {
     const created = await createLncurlRemoteWallet({
       userId,
       name: name || undefined,
       revokePrevious: false,
-      serverUrl: lncurl_server_url || undefined,
+      serverUrl: lncurl_server_url || undefined
     })
 
     const boundPrimaryAddress = isDefault
@@ -109,7 +117,7 @@ export const POST = withErrorHandling(async (request: Request) => {
 
     return NextResponse.json(
       toDto({ ...created, isDefault: Boolean(boundPrimaryAddress) }),
-      { status: 201 },
+      { status: 201 }
     )
   } catch (err) {
     logger.error({ userId, err: String(err) }, 'LNCurl provisioning failed')

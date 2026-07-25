@@ -47,7 +47,10 @@ async function requireOwnIdentity(
  * afterwards so the JWT presents the new primary.
  */
 export const PATCH = withErrorHandling(
-  async (request: Request, context: { params: Promise<{ pubkey: string }> }) => {
+  async (
+    request: Request,
+    context: { params: Promise<{ pubkey: string }> }
+  ) => {
     await checkRequestLimits(request, 'json')
     const { auth, account, identity } = await requireOwnIdentity(
       request,
@@ -88,7 +91,10 @@ export const PATCH = withErrorHandling(
  * protected in the engine.
  */
 export const DELETE = withErrorHandling(
-  async (request: Request, context: { params: Promise<{ pubkey: string }> }) => {
+  async (
+    request: Request,
+    context: { params: Promise<{ pubkey: string }> }
+  ) => {
     const { auth, account, identity } = await requireOwnIdentity(
       request,
       await context.params
@@ -99,6 +105,9 @@ export const DELETE = withErrorHandling(
     })
 
     await unlinkIdentity(account.id, identity.pubkey)
-    return NextResponse.json({ message: 'Identity unlinked', pubkey: identity.pubkey })
+    return NextResponse.json({
+      message: 'Identity unlinked',
+      pubkey: identity.pubkey
+    })
   }
 )

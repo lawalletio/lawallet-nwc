@@ -20,7 +20,7 @@ export function BalanceHeader({
   error,
   loading,
   onRefresh,
-  lightningAddress,
+  lightningAddress
 }: BalanceHeaderProps) {
   return (
     <div className="flex flex-col items-center gap-3 py-10 text-center">
@@ -83,7 +83,7 @@ function StatusDot({ status }: { status: NwcStatus }) {
           ? 'bg-green-500'
           : status === 'disconnected'
             ? 'bg-red-500'
-            : 'bg-amber-500 animate-pulse',
+            : 'bg-amber-500 animate-pulse'
       )}
     />
   )

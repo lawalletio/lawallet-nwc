@@ -2,12 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { createNextRequest, getResponseJson } from '@/tests/helpers/api-helpers'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ env: 'test', maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ env: 'test', maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: unknown) => fn,
+  withRequestLogging: (fn: unknown) => fn
 }))
 
 vi.mock('@/lib/activity-log', () => {
@@ -16,7 +16,7 @@ vi.mock('@/lib/activity-log', () => {
 })
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 describe('GET /api/openapi.json', () => {

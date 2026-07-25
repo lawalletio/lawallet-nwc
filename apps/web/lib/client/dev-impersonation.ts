@@ -32,7 +32,7 @@ export async function startImpersonation(pubkey: string): Promise<void> {
   const res = await fetch('/api/dev/impersonate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pubkey }),
+    body: JSON.stringify({ pubkey })
   })
   if (!res.ok) throw new Error(`impersonate failed (${res.status})`)
   const { token } = (await res.json()) as { token: string }
@@ -44,8 +44,8 @@ export async function startImpersonation(pubkey: string): Promise<void> {
       JSON.stringify({
         jwt: localStorage.getItem(JWT_KEY),
         method: localStorage.getItem(METHOD_KEY),
-        secret: localStorage.getItem(SECRET_KEY),
-      }),
+        secret: localStorage.getItem(SECRET_KEY)
+      })
     )
   }
 
@@ -60,7 +60,11 @@ export function stopImpersonation(): void {
   const raw = localStorage.getItem(RETURN_KEY)
   if (!raw) return
 
-  let prev: { jwt?: string | null; method?: string | null; secret?: string | null } = {}
+  let prev: {
+    jwt?: string | null
+    method?: string | null
+    secret?: string | null
+  } = {}
   try {
     prev = JSON.parse(raw)
   } catch {

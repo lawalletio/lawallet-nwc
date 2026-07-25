@@ -112,8 +112,7 @@ const card: CardPaymentActionCard = {
     type: 'NWC',
     status: 'ACTIVE',
     config: {
-      connectionString:
-        `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`,
+      connectionString: `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`,
       mode: 'SEND_RECEIVE'
     }
   },
@@ -179,8 +178,7 @@ describe('card payment callback action', () => {
     mocks.driverForWallet.mockReturnValue({
       driver: { payInvoice: mocks.driverPay },
       config: {
-        connectionString:
-          `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`,
+        connectionString: `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`,
         mode: 'SEND_RECEIVE'
       }
     })
@@ -378,8 +376,7 @@ describe('card payment callback action', () => {
     mocks.findWallet.mockResolvedValue({
       type: 'NWC',
       config: {
-        connectionString:
-          `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`,
+        connectionString: `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`,
         mode: 'SEND_RECEIVE'
       }
     })
@@ -478,8 +475,7 @@ describe('card payment callback action', () => {
     mocks.driverForWallet.mockReturnValueOnce({
       driver: { payInvoice: mocks.driverPay },
       config: {
-        connectionString:
-          `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`,
+        connectionString: `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`,
         mode: 'RECEIVE'
       }
     })

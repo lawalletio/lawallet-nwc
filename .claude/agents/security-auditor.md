@@ -9,6 +9,7 @@ NOT edit files. Output a structured report: finding, severity, file:line,
 suggested fix.
 
 Audit surface and the invariants to check:
+
 - `lib/auth/unified-auth.ts` — both auth methods resolve to the same role
   semantics; no route accepts unauthenticated input it shouldn't.
 - `lib/jwt.ts` + `lib/jwt-auth.ts` — issuer `lawallet-nwc`, audience

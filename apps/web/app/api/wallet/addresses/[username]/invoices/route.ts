@@ -48,16 +48,22 @@ export interface AddressInvoiceDto {
  * to matter in practice — the list is capped at 20.
  */
 export const GET = withErrorHandling(
-  async (request: Request, { params }: { params: Promise<{ username: string }> }) => {
+  async (
+    request: Request,
+    { params }: { params: Promise<{ username: string }> }
+  ) => {
     const { pubkey } = await authenticate(request)
-    const { username } = validateParams(await params, walletAddressUsernameParam)
+    const { username } = validateParams(
+      await params,
+      walletAddressUsernameParam
+    )
 
     const user = await resolveAccountByPubkey(pubkey)
     if (!user) throw new AuthenticationError('User not found')
 
     const address = await prisma.lightningAddress.findUnique({
       where: { username },
-      select: { userId: true },
+      select: { userId: true }
     })
     if (!address || address.userId !== user.id) {
       throw new NotFoundError('Address not found')
@@ -67,7 +73,7 @@ export const GET = withErrorHandling(
       where: {
         userId: user.id,
         purpose: 'LUD16_PAYMENT',
-        metadata: { path: ['username'], equals: username },
+        metadata: { path: ['username'], equals: username }
       },
       orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
       take: DEFAULT_LIMIT,
@@ -80,8 +86,8 @@ export const GET = withErrorHandling(
         paymentHash: true,
         createdAt: true,
         paidAt: true,
-        expiresAt: true,
-      },
+        expiresAt: true
+      }
     })
 
     const response: AddressInvoiceDto[] = invoices.map(inv => {
@@ -95,10 +101,10 @@ export const GET = withErrorHandling(
         paymentHash: inv.paymentHash,
         createdAt: inv.createdAt.toISOString(),
         paidAt: inv.paidAt?.toISOString() ?? null,
-        expiresAt: inv.expiresAt.toISOString(),
+        expiresAt: inv.expiresAt.toISOString()
       }
     })
 
     return NextResponse.json({ invoices: response })
-  },
+  }
 )

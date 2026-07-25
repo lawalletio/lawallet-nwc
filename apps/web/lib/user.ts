@@ -31,20 +31,20 @@ export async function createNewUser(
      * the row here on verify.
      */
     userId?: string
-  },
+  }
 ) {
   const {
     alby_api_url,
     alby_bearer_token,
     alby_auto_generate,
     lncurl_auto_create,
-    lncurl_server_url,
+    lncurl_server_url
   } = await getSettings([
     'alby_api_url',
     'alby_bearer_token',
     'alby_auto_generate',
     'lncurl_auto_create',
-    'lncurl_server_url',
+    'lncurl_server_url'
   ])
   const userId = opts?.userId ?? randomUUID()
 
@@ -85,13 +85,13 @@ export async function createNewUser(
               type: 'NWC',
               config: {
                 connectionString: subAccount.pairingUri,
-                mode: 'SEND_RECEIVE',
+                mode: 'SEND_RECEIVE'
               },
               status: 'ACTIVE',
-              isDefault: false,
-            },
+              isDefault: false
+            }
           }
-        : undefined,
+        : undefined
     },
     include: {
       // Pull only the primary address (at most one). Include its bound
@@ -100,11 +100,11 @@ export async function createNewUser(
       lightningAddresses: {
         where: { isPrimary: true },
         take: 1,
-        include: { remoteWallet: true },
+        include: { remoteWallet: true }
       },
       albySubAccount: true,
       // Compatibility/display primary RemoteWallet, if already synchronized.
-      remoteWallets: { where: { isDefault: true }, take: 1 },
+      remoteWallets: { where: { isDefault: true }, take: 1 }
     }
   })
 
@@ -116,7 +116,7 @@ export async function createNewUser(
     try {
       const lncurlWallet = await createLncurlRemoteWallet({
         userId: user.id,
-        serverUrl: lncurl_server_url || undefined,
+        serverUrl: lncurl_server_url || undefined
       })
       user.remoteWallets = lncurlWallet.isDefault ? [lncurlWallet] : []
     } catch (err) {
@@ -124,7 +124,7 @@ export async function createNewUser(
       // (the user just starts wallet-less and can connect one later).
       logger.error(
         { userId: user.id, err: String(err) },
-        'LNCurl auto-create failed during signup',
+        'LNCurl auto-create failed during signup'
       )
     }
   }
@@ -134,7 +134,7 @@ export async function createNewUser(
     event: ActivityEvent.USER_SIGNUP,
     message: `New user signed up (${pubkey.slice(0, 8)}…)`,
     userId: user.id,
-    metadata: { pubkey, albyEnabled: user.albyEnabled },
+    metadata: { pubkey, albyEnabled: user.albyEnabled }
   })
 
   return user

@@ -48,7 +48,7 @@ export function StatCard({
   secondary,
   loading,
   className,
-  href,
+  href
 }: StatCardProps) {
   const card = (
     <Card
@@ -56,7 +56,7 @@ export function StatCard({
         '',
         href &&
           'transition-colors cursor-pointer hover:bg-accent/40 focus-within:ring-2 focus-within:ring-ring',
-        className,
+        className
       )}
     >
       <CardContent className="p-3 sm:p-6">

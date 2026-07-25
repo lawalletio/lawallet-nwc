@@ -5,7 +5,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   NotFoundError,
   InternalServerError,
-  ValidationError,
+  ValidationError
 } from '@/types/server/errors'
 import { getRolePermissions } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
@@ -47,13 +47,16 @@ export const POST = withErrorHandling(async (request: Request) => {
       userId: pubkey,
       pubkey,
       role,
-      permissions: getRolePermissions(role),
+      permissions: getRolePermissions(role)
     },
     config.jwt.secret,
     { expiresIn: '12h', issuer: 'lawallet-nwc', audience: 'lawallet-users' }
   )
 
-  logger.warn({ pubkey, role }, '[dev] Impersonation JWT minted via /api/dev/impersonate')
+  logger.warn(
+    { pubkey, role },
+    '[dev] Impersonation JWT minted via /api/dev/impersonate'
+  )
 
   return NextResponse.json({ token, type: 'Bearer', pubkey, role })
 })

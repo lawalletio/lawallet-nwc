@@ -14,7 +14,11 @@ const HOUR_MS = 3_600_000
  * changes, then tick a 1-second clock down to it — so the seconds visibly move
  * even though the underlying balance only refreshes on a poll.
  */
-export function LncurlCountdown({ balanceSats }: { balanceSats: number | null }) {
+export function LncurlCountdown({
+  balanceSats
+}: {
+  balanceSats: number | null
+}) {
   // Destruction timestamp — pinned when the balance changes (not every tick,
   // or it would never count down).
   const [target, setTarget] = useState<number | null>(null)
@@ -62,7 +66,7 @@ export function LncurlCountdown({ balanceSats }: { balanceSats: number | null })
         { label: 'days', value: days },
         { label: 'hrs', value: hours },
         { label: 'min', value: minutes },
-        { label: 'sec', value: seconds },
+        { label: 'sec', value: seconds }
       ]}
     />
   )
@@ -71,7 +75,7 @@ export function LncurlCountdown({ balanceSats }: { balanceSats: number | null })
 function CountdownShell({
   parts,
   dying,
-  urgent = false,
+  urgent = false
 }: {
   parts: { label: string; value: number }[] | null
   dying: boolean
@@ -85,16 +89,22 @@ function CountdownShell({
           ? 'border-destructive/40 bg-destructive/5'
           : urgent
             ? 'border-destructive/40 bg-destructive/5'
-            : 'border-amber-500/30 bg-amber-500/5',
+            : 'border-amber-500/30 bg-amber-500/5'
       )}
     >
       <div
         className={cn(
           'flex items-center gap-1.5 text-xs font-medium',
-          dying || urgent ? 'text-destructive' : 'text-amber-600 dark:text-amber-400',
+          dying || urgent
+            ? 'text-destructive'
+            : 'text-amber-600 dark:text-amber-400'
         )}
       >
-        {dying ? <Skull className="size-3.5" /> : <Hourglass className="size-3.5" />}
+        {dying ? (
+          <Skull className="size-3.5" />
+        ) : (
+          <Hourglass className="size-3.5" />
+        )}
         {dying ? 'Out of sats — destroyed' : 'Self-destructs in'}
       </div>
       {parts && (
@@ -115,8 +125,8 @@ function CountdownShell({
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">
-        Costs 1 sat/hour. Top up or move funds out before it hits 0 — it can&apos;t
-        be recovered once destroyed.
+        Costs 1 sat/hour. Top up or move funds out before it hits 0 — it
+        can&apos;t be recovered once destroyed.
       </p>
     </div>
   )

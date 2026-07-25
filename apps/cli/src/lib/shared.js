@@ -17,10 +17,12 @@ export const PID_FILENAME = 'lawallet-web.pid'
 export const LOG_FILENAME = 'lawallet-web.log'
 
 export function slugify(value) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '') || 'lawallet'
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'lawallet'
+  )
 }
 
 export function deriveRepoDirectoryName(repoSource) {

@@ -13,10 +13,14 @@ import {
   Route,
   Search,
   Sparkles,
-  WandSparkles,
+  WandSparkles
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { DomainProbeResult, InstructionProfile, ProbeCheck } from '@/lib/domain-onboarding'
+import type {
+  DomainProbeResult,
+  InstructionProfile,
+  ProbeCheck
+} from '@/lib/domain-onboarding'
 import { useAuth } from '@/components/admin/auth-context'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { Button } from '@/components/ui/button'
@@ -26,7 +30,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
@@ -66,7 +70,8 @@ interface ActiveProbe {
 }
 
 const ACTIVE_PROBE_STORAGE_KEY = 'lawallet-domain-wizard-active-probe'
-const ACTIVE_PROBE_RESULT_STORAGE_KEY = 'lawallet-domain-wizard-active-probe-result'
+const ACTIVE_PROBE_RESULT_STORAGE_KEY =
+  'lawallet-domain-wizard-active-probe-result'
 const ACTIVE_PROBE_TTL_MS = 2 * 60 * 1000
 
 function normalizeEndpoint(endpoint: string): string {
@@ -91,7 +96,7 @@ function readActiveProbe(): ActiveProbe | null {
     return {
       domain: parsed.domain,
       endpoint: parsed.endpoint,
-      startedAt: parsed.startedAt,
+      startedAt: parsed.startedAt
     }
   } catch {
     window.sessionStorage.removeItem(ACTIVE_PROBE_STORAGE_KEY)
@@ -99,10 +104,16 @@ function readActiveProbe(): ActiveProbe | null {
   }
 }
 
-function writeActiveProbe(domain: string, endpoint: string): ActiveProbe | null {
+function writeActiveProbe(
+  domain: string,
+  endpoint: string
+): ActiveProbe | null {
   if (typeof window === 'undefined') return null
   const activeProbe = { domain, endpoint, startedAt: Date.now() }
-  window.sessionStorage.setItem(ACTIVE_PROBE_STORAGE_KEY, JSON.stringify(activeProbe))
+  window.sessionStorage.setItem(
+    ACTIVE_PROBE_STORAGE_KEY,
+    JSON.stringify(activeProbe)
+  )
   return activeProbe
 }
 
@@ -113,19 +124,28 @@ function clearActiveProbe() {
   }
 }
 
-function probeMatchesActive(result: DomainProbeResult, activeProbe: ActiveProbe): boolean {
+function probeMatchesActive(
+  result: DomainProbeResult,
+  activeProbe: ActiveProbe
+): boolean {
   return (
     result.domain === activeProbe.domain &&
-    normalizeEndpoint(result.endpoint) === normalizeEndpoint(activeProbe.endpoint)
+    normalizeEndpoint(result.endpoint) ===
+      normalizeEndpoint(activeProbe.endpoint)
   )
 }
 
-function readActiveProbeResult(activeProbe: ActiveProbe): DomainProbeResult | null {
+function readActiveProbeResult(
+  activeProbe: ActiveProbe
+): DomainProbeResult | null {
   if (typeof window === 'undefined') return null
   try {
     const raw = window.sessionStorage.getItem(ACTIVE_PROBE_RESULT_STORAGE_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as { savedAt?: number; result?: DomainProbeResult }
+    const parsed = JSON.parse(raw) as {
+      savedAt?: number
+      result?: DomainProbeResult
+    }
     if (
       typeof parsed.savedAt !== 'number' ||
       !parsed.result ||
@@ -146,14 +166,16 @@ function writeActiveProbeResult(result: DomainProbeResult) {
   if (typeof window !== 'undefined') {
     window.sessionStorage.setItem(
       ACTIVE_PROBE_RESULT_STORAGE_KEY,
-      JSON.stringify({ savedAt: Date.now(), result }),
+      JSON.stringify({ savedAt: Date.now(), result })
     )
   }
 }
 
 function StatusIcon({ check }: { check: ProbeCheck }) {
-  if (check.state === 'pass') return <CheckCircle2 className="size-4 text-emerald-500" />
-  if (check.state === 'skip') return <AlertTriangle className="size-4 text-amber-500" />
+  if (check.state === 'pass')
+    return <CheckCircle2 className="size-4 text-emerald-500" />
+  if (check.state === 'skip')
+    return <AlertTriangle className="size-4 text-amber-500" />
   return <AlertTriangle className="size-4 text-destructive" />
 }
 
@@ -163,7 +185,13 @@ function checkingDetailFor(label: string) {
   return 'Checking discovery.'
 }
 
-function DiscoveryStatusList({ checks, loading = false }: { checks: ProbeCheck[]; loading?: boolean }) {
+function DiscoveryStatusList({
+  checks,
+  loading = false
+}: {
+  checks: ProbeCheck[]
+  loading?: boolean
+}) {
   return (
     <div className="divide-y rounded-md border bg-background">
       {checks.map(check => (
@@ -171,7 +199,7 @@ function DiscoveryStatusList({ checks, loading = false }: { checks: ProbeCheck[]
           <span
             className={cn(
               'grid size-6 shrink-0 place-items-center rounded-full',
-              loading ? 'bg-primary/10 text-primary' : 'bg-muted',
+              loading ? 'bg-primary/10 text-primary' : 'bg-muted'
             )}
           >
             {loading ? <Spinner size={16} /> : <StatusIcon check={check} />}
@@ -192,12 +220,12 @@ function DiscoveryCheckingList() {
   const checks = [
     {
       label: 'LNURL',
-      detail: 'Checking Lightning Address discovery.',
+      detail: 'Checking Lightning Address discovery.'
     },
     {
       label: 'NIP-05',
-      detail: 'Checking Nostr identity discovery.',
-    },
+      detail: 'Checking Nostr identity discovery.'
+    }
   ]
 
   return (
@@ -209,7 +237,9 @@ function DiscoveryCheckingList() {
           </span>
           <div className="min-w-0 space-y-0.5">
             <p className="text-sm font-medium">{check.label}</p>
-            <p className="text-xs leading-5 text-muted-foreground">{check.detail}</p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              {check.detail}
+            </p>
           </div>
         </div>
       ))}
@@ -226,7 +256,11 @@ function WordPressIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-function PlatformBadge({ platform }: { platform: DomainProbeResult['platform'] }) {
+function PlatformBadge({
+  platform
+}: {
+  platform: DomainProbeResult['platform']
+}) {
   if (platform.kind === 'wordpress') {
     return (
       <Badge
@@ -263,7 +297,11 @@ function WordPressPluginCallout({ endpoint }: { endpoint: string }) {
           </div>
         </div>
         <Button asChild size="lg" className="h-12 shrink-0 px-5 text-sm">
-          <a href={WORDPRESS_PLUGIN_URL} target="_blank" rel="noopener noreferrer">
+          <a
+            href={WORDPRESS_PLUGIN_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <WordPressIcon className="size-4" />
             Download plugin
             <ExternalLink className="size-4" />
@@ -298,20 +336,86 @@ function WordPressPluginCallout({ endpoint }: { endpoint: string }) {
 }
 
 const CONFETTI_PIECES = [
-  { left: '8%', delay: '0ms', color: '#22c55e', size: 7, travel: -68, rotate: -24 },
-  { left: '18%', delay: '70ms', color: '#38bdf8', size: 5, travel: -88, rotate: 31 },
-  { left: '29%', delay: '35ms', color: '#f59e0b', size: 8, travel: -76, rotate: 42 },
-  { left: '39%', delay: '115ms', color: '#ef4444', size: 5, travel: -94, rotate: -38 },
-  { left: '50%', delay: '15ms', color: '#84cc16', size: 7, travel: -84, rotate: 28 },
-  { left: '61%', delay: '95ms', color: '#06b6d4', size: 6, travel: -72, rotate: -30 },
-  { left: '72%', delay: '45ms', color: '#f97316', size: 8, travel: -90, rotate: 36 },
-  { left: '84%', delay: '125ms', color: '#10b981', size: 5, travel: -78, rotate: -27 },
-  { left: '93%', delay: '60ms', color: '#eab308', size: 7, travel: -86, rotate: 24 },
+  {
+    left: '8%',
+    delay: '0ms',
+    color: '#22c55e',
+    size: 7,
+    travel: -68,
+    rotate: -24
+  },
+  {
+    left: '18%',
+    delay: '70ms',
+    color: '#38bdf8',
+    size: 5,
+    travel: -88,
+    rotate: 31
+  },
+  {
+    left: '29%',
+    delay: '35ms',
+    color: '#f59e0b',
+    size: 8,
+    travel: -76,
+    rotate: 42
+  },
+  {
+    left: '39%',
+    delay: '115ms',
+    color: '#ef4444',
+    size: 5,
+    travel: -94,
+    rotate: -38
+  },
+  {
+    left: '50%',
+    delay: '15ms',
+    color: '#84cc16',
+    size: 7,
+    travel: -84,
+    rotate: 28
+  },
+  {
+    left: '61%',
+    delay: '95ms',
+    color: '#06b6d4',
+    size: 6,
+    travel: -72,
+    rotate: -30
+  },
+  {
+    left: '72%',
+    delay: '45ms',
+    color: '#f97316',
+    size: 8,
+    travel: -90,
+    rotate: 36
+  },
+  {
+    left: '84%',
+    delay: '125ms',
+    color: '#10b981',
+    size: 5,
+    travel: -78,
+    rotate: -27
+  },
+  {
+    left: '93%',
+    delay: '60ms',
+    color: '#eab308',
+    size: 7,
+    travel: -86,
+    rotate: 24
+  }
 ]
 
 function SuccessConfetti() {
   return (
-    <div className="pointer-events-none absolute inset-x-3 top-4 h-32 overflow-hidden" aria-hidden="true">
+    <div
+      className="pointer-events-none absolute inset-x-3 top-4 h-32 overflow-hidden"
+      aria-hidden="true"
+    >
       <style>
         {`
           @keyframes domain-confetti-pop {
@@ -333,11 +437,12 @@ function SuccessConfetti() {
             width: piece.size,
             height: piece.size + 4,
             backgroundColor: piece.color,
-            animation: 'domain-confetti-pop 980ms cubic-bezier(0.16, 1, 0.3, 1) both',
+            animation:
+              'domain-confetti-pop 980ms cubic-bezier(0.16, 1, 0.3, 1) both',
             animationDelay: piece.delay,
             ['--confetti-x' as string]: `${(index % 2 === 0 ? 1 : -1) * (18 + index * 3)}px`,
             ['--confetti-y' as string]: `${piece.travel}px`,
-            ['--confetti-rotate' as string]: `${piece.rotate * 6}deg`,
+            ['--confetti-rotate' as string]: `${piece.rotate * 6}deg`
           }}
         />
       ))}
@@ -360,7 +465,7 @@ function SuccessCheckmark() {
 function ConnectedMetric({
   label,
   value,
-  icon: Icon,
+  icon: Icon
 }: {
   label: string
   value: string
@@ -372,7 +477,9 @@ function ConnectedMetric({
         <Icon className="size-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
         <p className="truncate text-sm font-semibold">{value}</p>
       </div>
     </div>
@@ -397,7 +504,7 @@ function DomainConnectedScreen({
   result,
   domain,
   endpoint,
-  probing,
+  probing
 }: {
   result: DomainProbeResult
   domain: string
@@ -415,15 +522,26 @@ function DomainConnectedScreen({
           <Badge className="border-emerald-400/40 bg-emerald-500 text-white hover:bg-emerald-500">
             Domain verified
           </Badge>
-          <h3 className="text-xl font-semibold tracking-normal">Domain successfully connected</h3>
+          <h3 className="text-xl font-semibold tracking-normal">
+            Domain successfully connected
+          </h3>
           <p className="text-sm leading-6 text-muted-foreground">
-            LNURL and NIP-05 discovery are now routed through this LaWallet instance.
+            LNURL and NIP-05 discovery are now routed through this LaWallet
+            instance.
           </p>
         </div>
 
         <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-          <ConnectedMetric label="Domain" value={domain || result.domain} icon={Globe2} />
-          <ConnectedMetric label="Instance" value={endpoint || result.endpoint} icon={LockKeyhole} />
+          <ConnectedMetric
+            label="Domain"
+            value={domain || result.domain}
+            icon={Globe2}
+          />
+          <ConnectedMetric
+            label="Instance"
+            value={endpoint || result.endpoint}
+            icon={LockKeyhole}
+          />
         </div>
 
         <div className="grid min-w-0 gap-2 sm:grid-cols-2">
@@ -431,12 +549,14 @@ function DomainConnectedScreen({
           <ConnectedCheckPill check={result.checks.nip05} />
         </div>
 
-        {result.platform.kind === 'wordpress' && <WordPressPluginCallout endpoint={endpoint} />}
+        {result.platform.kind === 'wordpress' && (
+          <WordPressPluginCallout endpoint={endpoint} />
+        )}
 
         <div
           className={cn(
             'flex justify-center transition-opacity duration-150',
-            probing ? 'opacity-100' : 'invisible opacity-0',
+            probing ? 'opacity-100' : 'invisible opacity-0'
           )}
         >
           <Badge variant="outline" className="gap-1.5 bg-background/80">
@@ -454,7 +574,7 @@ function InstructionChooser({
   selected,
   search,
   onSearchChange,
-  onSelect,
+  onSelect
 }: {
   options: InstructionProfile[]
   selected?: InstructionProfile
@@ -464,7 +584,8 @@ function InstructionChooser({
 }) {
   const filtered = options.filter(option => {
     const query = search.trim().toLowerCase()
-    const haystack = `${option.label ?? ''} ${option.title} ${option.summary}`.toLowerCase()
+    const haystack =
+      `${option.label ?? ''} ${option.title} ${option.summary}`.toLowerCase()
     return haystack.includes(query)
   })
 
@@ -489,14 +610,16 @@ function InstructionChooser({
               'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors',
               selected?.kind === option.kind
                 ? 'border-primary bg-primary text-primary-foreground'
-                : 'bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground',
+                : 'bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground'
             )}
           >
             {option.label ?? option.title}
           </button>
         ))}
         {filtered.length === 0 && (
-          <p className="px-1 py-2 text-xs text-muted-foreground">No matching infrastructure.</p>
+          <p className="px-1 py-2 text-xs text-muted-foreground">
+            No matching infrastructure.
+          </p>
         )}
       </div>
     </div>
@@ -505,11 +628,7 @@ function InstructionChooser({
 
 function NetworkIllustration({ active }: { active: boolean }) {
   return (
-    <svg
-      viewBox="0 0 220 120"
-      className="h-28 w-full"
-      aria-hidden="true"
-    >
+    <svg viewBox="0 0 220 120" className="h-28 w-full" aria-hidden="true">
       <defs>
         <linearGradient id="domain-wizard-line" x1="0" x2="1">
           <stop offset="0%" stopColor="currentColor" stopOpacity="0.2" />
@@ -524,15 +643,35 @@ function NetworkIllustration({ active }: { active: boolean }) {
         strokeLinecap="round"
         className={cn(active && 'animate-pulse')}
       />
-      <circle cx="44" cy="60" r="23" className="fill-background stroke-border" strokeWidth="2" />
-      <circle cx="176" cy="60" r="23" className="fill-background stroke-border" strokeWidth="2" />
+      <circle
+        cx="44"
+        cy="60"
+        r="23"
+        className="fill-background stroke-border"
+        strokeWidth="2"
+      />
+      <circle
+        cx="176"
+        cy="60"
+        r="23"
+        className="fill-background stroke-border"
+        strokeWidth="2"
+      />
       <circle cx="44" cy="60" r="7" className="fill-primary" />
-      <path d="M166 60 h20 M176 50 v20" className="stroke-primary" strokeWidth="4" strokeLinecap="round" />
+      <path
+        d="M166 60 h20 M176 50 v20"
+        className="stroke-primary"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
       <circle
         cx={active ? '112' : '100'}
         cy="60"
         r="8"
-        className={cn('fill-emerald-500 transition-all duration-700', active && 'opacity-80')}
+        className={cn(
+          'fill-emerald-500 transition-all duration-700',
+          active && 'opacity-80'
+        )}
       />
     </svg>
   )
@@ -548,7 +687,7 @@ export function DomainOnboardingWizard({
   latestProbeError,
   latestProbeChecking = false,
   onConfigured,
-  updateSettings,
+  updateSettings
 }: DomainOnboardingWizardProps) {
   const { apiClient } = useAuth()
   const [step, setStep] = useState<WizardStep>('input')
@@ -559,7 +698,9 @@ export function DomainOnboardingWizard({
   const [result, setResult] = useState<DomainProbeResult | null>(null)
   const [probeError, setProbeError] = useState<string | null>(null)
   const [instructionSearch, setInstructionSearch] = useState('')
-  const [selectedInstructionKind, setSelectedInstructionKind] = useState<string | null>(null)
+  const [selectedInstructionKind, setSelectedInstructionKind] = useState<
+    string | null
+  >(null)
   const openInitializedRef = useRef(false)
   const activeProbeRef = useRef<ActiveProbe | null>(null)
   const resumedProbeKeyRef = useRef<string | null>(null)
@@ -570,7 +711,7 @@ export function DomainOnboardingWizard({
   const invalidDomain = cleanDomain !== '' && !DOMAIN_PATTERN.test(cleanDomain)
   const lawalletHost = useMemo(
     () => (cleanDomain ? `lawallet.${cleanDomain}` : 'lawallet.example.com'),
-    [cleanDomain],
+    [cleanDomain]
   )
 
   useEffect(() => {
@@ -582,7 +723,9 @@ export function DomainOnboardingWizard({
     openInitializedRef.current = true
 
     const activeProbe = readActiveProbe()
-    const activeProbeResult = activeProbe ? readActiveProbeResult(activeProbe) : null
+    const activeProbeResult = activeProbe
+      ? readActiveProbeResult(activeProbe)
+      : null
     activeProbeRef.current = activeProbe
     setDomain(activeProbe?.domain ?? initialDomain)
     setEndpoint(activeProbe?.endpoint ?? initialEndpoint)
@@ -613,7 +756,8 @@ export function DomainOnboardingWizard({
 
     const latestProbeMatches =
       latestProbeResult?.domain === activeProbe.domain &&
-      normalizeEndpoint(latestProbeResult.endpoint) === normalizeEndpoint(activeProbe.endpoint)
+      normalizeEndpoint(latestProbeResult.endpoint) ===
+        normalizeEndpoint(activeProbe.endpoint)
 
     if (latestProbeMatches) {
       writeActiveProbeResult(latestProbeResult)
@@ -641,46 +785,63 @@ export function DomainOnboardingWizard({
     probeError,
     result,
     saving,
-    step,
+    step
   ])
 
-  const runProbe = useCallback(async (
-    nextDomain = cleanDomain,
-    nextEndpoint = probeEndpointValue,
-    options: ProbeRunOptions = {},
-  ) => {
-    const preserveVisibleResult =
-      options.preserveVisibleResult === true && step === 'result' && Boolean(result || probeError)
+  const runProbe = useCallback(
+    async (
+      nextDomain = cleanDomain,
+      nextEndpoint = probeEndpointValue,
+      options: ProbeRunOptions = {}
+    ) => {
+      const preserveVisibleResult =
+        options.preserveVisibleResult === true &&
+        step === 'result' &&
+        Boolean(result || probeError)
 
-    setProbing(true)
-    if (!preserveVisibleResult) {
-      setStep('checking')
-      setResult(null)
-      setProbeError(null)
-    }
-    try {
-      const probe = await apiClient.post<DomainProbeResult>('/api/settings/domain-probe', {
-        domain: nextDomain,
-        endpoint: nextEndpoint,
-        apiGatewayEndpoint: currentOrigin,
-      })
-      writeActiveProbeResult(probe)
-      setResult(probe)
-      setProbeError(null)
-      setInstructionSearch('')
-      setSelectedInstructionKind(null)
-      setStep('result')
-      invalidateApiPath('/api/settings')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Domain check failed'
-      setProbeError(message)
-      if (!preserveVisibleResult) setResult(null)
-      toast.error(message)
-      setStep('result')
-    } finally {
-      setProbing(false)
-    }
-  }, [apiClient, cleanDomain, currentOrigin, probeEndpointValue, probeError, result, step])
+      setProbing(true)
+      if (!preserveVisibleResult) {
+        setStep('checking')
+        setResult(null)
+        setProbeError(null)
+      }
+      try {
+        const probe = await apiClient.post<DomainProbeResult>(
+          '/api/settings/domain-probe',
+          {
+            domain: nextDomain,
+            endpoint: nextEndpoint,
+            apiGatewayEndpoint: currentOrigin
+          }
+        )
+        writeActiveProbeResult(probe)
+        setResult(probe)
+        setProbeError(null)
+        setInstructionSearch('')
+        setSelectedInstructionKind(null)
+        setStep('result')
+        invalidateApiPath('/api/settings')
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Domain check failed'
+        setProbeError(message)
+        if (!preserveVisibleResult) setResult(null)
+        toast.error(message)
+        setStep('result')
+      } finally {
+        setProbing(false)
+      }
+    },
+    [
+      apiClient,
+      cleanDomain,
+      currentOrigin,
+      probeEndpointValue,
+      probeError,
+      result,
+      step
+    ]
+  )
 
   useEffect(() => {
     if (!open || saving || probing || step !== 'checking') return
@@ -710,9 +871,12 @@ export function DomainOnboardingWizard({
     try {
       await updateSettings({
         domain: cleanDomain,
-        ...(endpointValue ? { endpoint: endpointValue } : {}),
+        ...(endpointValue ? { endpoint: endpointValue } : {})
       })
-      onConfigured({ domain: cleanDomain, endpoint: endpointValue || initialEndpoint })
+      onConfigured({
+        domain: cleanDomain,
+        endpoint: endpointValue || initialEndpoint
+      })
       toast.success('Domain saved')
       setSaving(false)
       await runProbe(cleanDomain, probeEndpointValue)
@@ -722,7 +886,9 @@ export function DomainOnboardingWizard({
       setStep('input')
       setResult(null)
       setProbeError(null)
-      toast.error(error instanceof Error ? error.message : 'Could not save domain')
+      toast.error(
+        error instanceof Error ? error.message : 'Could not save domain'
+      )
     } finally {
       setSaving(false)
     }
@@ -755,20 +921,24 @@ export function DomainOnboardingWizard({
   const requiresInstructionChoice = Boolean(
     result &&
     result.status !== 'ready' &&
-    (
-      result.instructions.kind === 'unknown' ||
+    (result.instructions.kind === 'unknown' ||
       result.platform.kind === 'unknown' ||
       result.platform.confidence === 'low' ||
-      (result.platform.kind === 'lawallet' && result.checks.instance.state !== 'pass')
-    ),
+      (result.platform.kind === 'lawallet' &&
+        result.checks.instance.state !== 'pass'))
   )
   const selectedInstruction =
-    result?.instructionOptions.find(option => option.kind === selectedInstructionKind) ??
-    (requiresInstructionChoice ? undefined : result?.instructions)
+    result?.instructionOptions.find(
+      option => option.kind === selectedInstructionKind
+    ) ?? (requiresInstructionChoice ? undefined : result?.instructions)
   const wordpressDetected = result?.platform.kind === 'wordpress'
   const showManualInstructions = Boolean(result && !wordpressDetected)
 
-  function renderStepPanel(panelStep: WizardStep, children: React.ReactNode, className?: string) {
+  function renderStepPanel(
+    panelStep: WizardStep,
+    children: React.ReactNode,
+    className?: string
+  ) {
     const active = step === panelStep
 
     return (
@@ -776,8 +946,10 @@ export function DomainOnboardingWizard({
         aria-hidden={!active}
         className={cn(
           'col-start-1 row-start-1 min-w-0 transition-opacity duration-200 ease-out motion-reduce:transition-none',
-          active ? 'visible opacity-100' : 'pointer-events-none invisible opacity-0',
-          className,
+          active
+            ? 'visible opacity-100'
+            : 'pointer-events-none invisible opacity-0',
+          className
         )}
       >
         {children}
@@ -805,17 +977,19 @@ export function DomainOnboardingWizard({
         </DialogHeader>
 
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          {(['input', 'checking', 'result'] as WizardStep[]).map((item, index) => (
-            <div
-              key={item}
-              className={cn(
-                'h-1.5 flex-1 rounded-full transition-colors',
-                index <= ['input', 'checking', 'result'].indexOf(step)
-                  ? 'bg-primary'
-                  : 'bg-muted',
-              )}
-            />
-          ))}
+          {(['input', 'checking', 'result'] as WizardStep[]).map(
+            (item, index) => (
+              <div
+                key={item}
+                className={cn(
+                  'h-1.5 flex-1 rounded-full transition-colors',
+                  index <= ['input', 'checking', 'result'].indexOf(step)
+                    ? 'bg-primary'
+                    : 'bg-muted'
+                )}
+              />
+            )
+          )}
         </div>
 
         <div className="grid min-w-0 min-h-[340px] overflow-hidden">
@@ -827,7 +1001,12 @@ export function DomainOnboardingWizard({
               <div className="grid min-w-0 gap-4">
                 <div className="space-y-1">
                   <Label htmlFor="domain-setup-domain">Domain</Label>
-                  <InputGroup className={cn('min-w-0', invalidDomain && 'border-destructive')}>
+                  <InputGroup
+                    className={cn(
+                      'min-w-0',
+                      invalidDomain && 'border-destructive'
+                    )}
+                  >
                     <InputGroupText>https://</InputGroupText>
                     <Input
                       id="domain-setup-domain"
@@ -841,7 +1020,9 @@ export function DomainOnboardingWizard({
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="domain-setup-endpoint">LaWallet endpoint</Label>
+                  <Label htmlFor="domain-setup-endpoint">
+                    LaWallet endpoint
+                  </Label>
                   <Input
                     id="domain-setup-endpoint"
                     className="min-w-0"
@@ -858,14 +1039,17 @@ export function DomainOnboardingWizard({
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Flexible hosting</p>
                     <p className="text-xs text-muted-foreground">
-                      Host LaWallet at <span className="font-mono text-foreground">{lawalletHost}</span> and keep
-                      your main landing page on the root domain.
+                      Host LaWallet at{' '}
+                      <span className="font-mono text-foreground">
+                        {lawalletHost}
+                      </span>{' '}
+                      and keep your main landing page on the root domain.
                     </p>
                   </div>
                 </div>
               </div>
             </>,
-            'space-y-5 p-1',
+            'space-y-5 p-1'
           )}
 
           {renderStepPanel(
@@ -881,7 +1065,7 @@ export function DomainOnboardingWizard({
               </div>
               <DiscoveryCheckingList />
             </>,
-            'flex min-w-0 min-h-[340px] flex-col justify-center gap-4',
+            'flex min-w-0 min-h-[340px] flex-col justify-center gap-4'
           )}
 
           {renderStepPanel(
@@ -902,7 +1086,7 @@ export function DomainOnboardingWizard({
                       variant="outline"
                       className={cn(
                         'gap-1.5 transition-opacity duration-150',
-                        probing ? 'opacity-100' : 'invisible opacity-0',
+                        probing ? 'opacity-100' : 'invisible opacity-0'
                       )}
                     >
                       <Spinner size={12} />
@@ -916,15 +1100,17 @@ export function DomainOnboardingWizard({
                         ? 'Check could not finish'
                         : wordpressDetected
                           ? 'Install the WordPress plugin'
-                        : rewriteNeeded
-                          ? 'Route .well-known here'
-                          : 'Saved. Check routing next.'}
+                          : rewriteNeeded
+                            ? 'Route .well-known here'
+                            : 'Saved. Check routing next.'}
                     </h3>
                     {!wordpressDetected && (
                       <p className="text-sm text-muted-foreground">
                         {requiresInstructionChoice && !selectedInstruction
                           ? 'Choose your backend to see the right rewrite instructions.'
-                          : probeError ?? result?.instructions.summary ?? 'The domain was saved, but the check could not finish.'}
+                          : (probeError ??
+                            result?.instructions.summary ??
+                            'The domain was saved, but the check could not finish.')}
                       </p>
                     )}
                   </div>
@@ -932,7 +1118,9 @@ export function DomainOnboardingWizard({
                   {result && (
                     <>
                       {result.platform.kind === 'wordpress' && (
-                        <WordPressPluginCallout endpoint={result.endpoint || probeEndpointValue} />
+                        <WordPressPluginCallout
+                          endpoint={result.endpoint || probeEndpointValue}
+                        />
                       )}
 
                       <DiscoveryStatusList
@@ -946,7 +1134,11 @@ export function DomainOnboardingWizard({
                           selected={selectedInstruction}
                           search={instructionSearch}
                           onSearchChange={setInstructionSearch}
-                          onSelect={option => setSelectedInstructionKind(option.kind ?? option.title)}
+                          onSelect={option =>
+                            setSelectedInstructionKind(
+                              option.kind ?? option.title
+                            )
+                          }
                         />
                       )}
 
@@ -954,10 +1146,18 @@ export function DomainOnboardingWizard({
                         <div className="rounded-md border bg-background">
                           <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
                             <div className="min-w-0">
-                              <p className="text-sm font-medium">{selectedInstruction.title}</p>
-                              <p className="text-xs leading-5 text-muted-foreground">{selectedInstruction.tip}</p>
+                              <p className="text-sm font-medium">
+                                {selectedInstruction.title}
+                              </p>
+                              <p className="text-xs leading-5 text-muted-foreground">
+                                {selectedInstruction.tip}
+                              </p>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={copySnippet}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={copySnippet}
+                            >
                               <Clipboard className="size-4" />
                             </Button>
                           </div>
@@ -975,28 +1175,50 @@ export function DomainOnboardingWizard({
                 </>
               )}
             </>,
-            'min-w-0 space-y-4',
+            'min-w-0 space-y-4'
           )}
         </div>
 
         <DialogFooter className="min-h-10 gap-2 sm:gap-2">
           {step === 'input' ? (
-            <Button onClick={handleStart} disabled={saving || !cleanDomain || invalidDomain}>
-              {saving ? <Spinner size={16} className="mr-2" /> : <Sparkles className="mr-2 size-4" />}
+            <Button
+              onClick={handleStart}
+              disabled={saving || !cleanDomain || invalidDomain}
+            >
+              {saving ? (
+                <Spinner size={16} className="mr-2" />
+              ) : (
+                <Sparkles className="mr-2 size-4" />
+              )}
               Verify
             </Button>
           ) : (
             <>
               <Button
                 variant="outline"
-                onClick={() => runProbe(undefined, undefined, { preserveVisibleResult: true })}
+                onClick={() =>
+                  runProbe(undefined, undefined, {
+                    preserveVisibleResult: true
+                  })
+                }
                 disabled={saving || probing || !cleanDomain}
               >
-                {probing ? <Spinner size={16} className="mr-2" /> : <RefreshCw className="mr-2 size-4" />}
+                {probing ? (
+                  <Spinner size={16} className="mr-2" />
+                ) : (
+                  <RefreshCw className="mr-2 size-4" />
+                )}
                 Re-check
               </Button>
-              <Button onClick={() => resetAndClose(false)} disabled={saving || probing}>
-                {ready ? <Check className="mr-2 size-4" /> : <Globe2 className="mr-2 size-4" />}
+              <Button
+                onClick={() => resetAndClose(false)}
+                disabled={saving || probing}
+              >
+                {ready ? (
+                  <Check className="mr-2 size-4" />
+                ) : (
+                  <Globe2 className="mr-2 size-4" />
+                )}
                 Done
               </Button>
             </>

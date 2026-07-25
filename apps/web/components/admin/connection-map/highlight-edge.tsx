@@ -5,7 +5,7 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
-  type EdgeProps,
+  type EdgeProps
 } from '@xyflow/react'
 import { useHover } from './hover-context'
 
@@ -41,7 +41,7 @@ export function HighlightEdge({
   sourcePosition,
   targetPosition,
   style,
-  markerEnd,
+  markerEnd
 }: EdgeProps) {
   const { highlight, activeEdgeId } = useHover()
   const active = !highlight || highlight.edges.has(id)
@@ -53,7 +53,7 @@ export function HighlightEdge({
     sourcePosition,
     targetX,
     targetY,
-    targetPosition,
+    targetPosition
   })
 
   const d = (data ?? {}) as HighlightEdgeData
@@ -69,8 +69,11 @@ export function HighlightEdge({
           // Slightly thicker when an active highlight is in play, so the
           // currently-relevant binding pops without the resting state
           // changing thickness.
-          strokeWidth: active && highlight ? 2.5 : ((style?.strokeWidth as number | undefined) ?? 1.5),
-          transition: 'opacity 120ms ease, stroke-width 120ms ease',
+          strokeWidth:
+            active && highlight
+              ? 2.5
+              : ((style?.strokeWidth as number | undefined) ?? 1.5),
+          transition: 'opacity 120ms ease, stroke-width 120ms ease'
         }}
         markerEnd={markerEnd}
       />
@@ -84,7 +87,9 @@ export function HighlightEdge({
             // steals the hover from the edge beneath it (which would
             // flicker the tooltip on/off).
             className="nodrag nopan pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-md border border-border bg-popover px-2 py-1 text-center shadow-md animate-in fade-in-0 zoom-in-95 duration-100"
-            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`
+            }}
           >
             <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-foreground">
               {d.tooltipTitle}

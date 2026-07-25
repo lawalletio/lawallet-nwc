@@ -1,4 +1,8 @@
-import type { ActivityCategory, ActivityLevel, ActivityLog } from '@/lib/generated/prisma'
+import type {
+  ActivityCategory,
+  ActivityLevel,
+  ActivityLog
+} from '@/lib/generated/prisma'
 import { prisma } from '@/lib/prisma'
 import { getCurrentReqId, logger } from '@/lib/logger'
 import { eventBus } from '@/lib/events/event-bus'
@@ -86,10 +90,11 @@ export const ActivityEvent = {
   SERVER_MAINTENANCE_TOGGLED: 'server.maintenance_toggled',
   SERVER_SETTINGS_UPDATED: 'server.settings_updated',
   SERVER_BACKUP_EXPORTED: 'server.backup_exported',
-  SERVER_BACKUP_IMPORTED: 'server.backup_imported',
+  SERVER_BACKUP_IMPORTED: 'server.backup_imported'
 } as const
 
-export type ActivityEventCode = (typeof ActivityEvent)[keyof typeof ActivityEvent]
+export type ActivityEventCode =
+  (typeof ActivityEvent)[keyof typeof ActivityEvent]
 
 /**
  * Snapshot of an Invoice row suitable for attaching to an INVOICE activity log
@@ -126,7 +131,7 @@ export function invoiceLogMetadata(invoice: {
     userId: invoice.userId,
     expiresAt: toIso(invoice.expiresAt),
     paidAt: toIso(invoice.paidAt),
-    createdAt: toIso(invoice.createdAt),
+    createdAt: toIso(invoice.createdAt)
   }
 }
 
@@ -172,8 +177,8 @@ async function logActivityImpl(input: LogActivityInput): Promise<ActivityLog> {
       message: input.message,
       reqId,
       userId: input.userId ?? null,
-      metadata: (input.metadata ?? undefined) as never,
-    },
+      metadata: (input.metadata ?? undefined) as never
+    }
   })
 
   // Mirror into Pino so log aggregators see the same event line, tagged so
@@ -183,7 +188,7 @@ async function logActivityImpl(input: LogActivityInput): Promise<ActivityLog> {
     category: input.category,
     event: input.event,
     level,
-    userId: input.userId ?? undefined,
+    userId: input.userId ?? undefined
   })
   const method = levelToPinoMethod(level)
   pino[method]({ metadata: input.metadata ?? undefined }, input.message)
@@ -193,7 +198,7 @@ async function logActivityImpl(input: LogActivityInput): Promise<ActivityLog> {
     eventBus.emit({
       type: 'activity:new',
       timestamp: row.createdAt.getTime(),
-      log: row,
+      log: row
     })
   } catch {
     // Best-effort; a broken SSE client must not fail the write.
@@ -206,7 +211,9 @@ async function logActivityImpl(input: LogActivityInput): Promise<ActivityLog> {
  * Persists an `ActivityLog` row, mirrors the line into Pino, and broadcasts an
  * `activity:new` SSE event. Awaitable when the caller needs the row id.
  */
-export async function logActivity(input: LogActivityInput): Promise<ActivityLog> {
+export async function logActivity(
+  input: LogActivityInput
+): Promise<ActivityLog> {
   return logActivityImpl(input)
 }
 

@@ -2,51 +2,51 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(),
+  getConfig: vi.fn()
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/rate-limit', () => ({
   rateLimit: vi.fn(),
-  RateLimitPresets: { auth: {}, cardScan: {}, sensitive: {}, default: {} },
+  RateLimitPresets: { auth: {}, cardScan: {}, sensitive: {}, default: {} }
 }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     user: {
-      findUnique: vi.fn(),
+      findUnique: vi.fn()
     },
     // Account resolution (lib/auth/account) checks NostrIdentity first and
     // falls back to User.pubkey — the tests mock only the User fallback.
     nostrIdentity: {
-      findUnique: vi.fn(),
-    },
-  },
+      findUnique: vi.fn()
+    }
+  }
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(),
+  getSettings: vi.fn()
 }))
 
 vi.mock('@/lib/nip98', () => ({
-  validateNip98: vi.fn(),
+  validateNip98: vi.fn()
 }))
 
 vi.mock('@/lib/jwt', () => ({
   createJwtToken: vi.fn(),
-  validateJwtFromRequest: vi.fn(),
+  validateJwtFromRequest: vi.fn()
 }))
 
 import { GET, POST } from '@/app/api/jwt/route'
@@ -66,17 +66,22 @@ describe('POST /api/jwt', () => {
   it('creates JWT token with NIP-98 authentication', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'test-secret' },
-      maintenance: { enabled: false },
+      maintenance: { enabled: false }
     } as any)
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: PUBKEY, event: {} as any })
-    vi.mocked(prisma.user.findUnique).mockResolvedValue({ role: 'ADMIN' } as any)
+    vi.mocked(validateNip98).mockResolvedValue({
+      pubkey: PUBKEY,
+      event: {} as any
+    })
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      role: 'ADMIN'
+    } as any)
     vi.mocked(getSettings).mockResolvedValue({})
     vi.mocked(createJwtToken).mockReturnValue('mock-jwt-token')
 
     const req = createNextRequest('/api/jwt', {
       method: 'POST',
       headers: { authorization: 'Nostr dGVzdA==' },
-      body: { expiresIn: '1h' },
+      body: { expiresIn: '1h' }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -84,7 +89,7 @@ describe('POST /api/jwt', () => {
     expect(body).toEqual({
       token: 'mock-jwt-token',
       expiresIn: '1h',
-      type: 'Bearer',
+      type: 'Bearer'
     })
 
     // Verify JWT was created with pubkey, role, and permissions
@@ -93,7 +98,7 @@ describe('POST /api/jwt', () => {
         userId: PUBKEY,
         pubkey: PUBKEY,
         role: 'ADMIN',
-        permissions: expect.any(Array),
+        permissions: expect.any(Array)
       }),
       'test-secret',
       expect.objectContaining({ issuer: 'lawallet-nwc' })
@@ -103,13 +108,13 @@ describe('POST /api/jwt', () => {
   it('rejects request without NIP-98 auth', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'test-secret' },
-      maintenance: { enabled: false },
+      maintenance: { enabled: false }
     } as any)
     vi.mocked(validateNip98).mockRejectedValue(new Error('missing auth'))
 
     const req = createNextRequest('/api/jwt', {
       method: 'POST',
-      body: { expiresIn: '1h' },
+      body: { expiresIn: '1h' }
     })
     const res = await POST(req)
 
@@ -119,15 +124,18 @@ describe('POST /api/jwt', () => {
   it('returns error when JWT not configured', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: false, secret: undefined },
-      maintenance: { enabled: false },
+      maintenance: { enabled: false }
     } as any)
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: PUBKEY, event: {} as any })
+    vi.mocked(validateNip98).mockResolvedValue({
+      pubkey: PUBKEY,
+      event: {} as any
+    })
     vi.mocked(prisma.user.findUnique).mockResolvedValue({ role: 'USER' } as any)
     vi.mocked(getSettings).mockResolvedValue({})
 
     const req = createNextRequest('/api/jwt', {
       method: 'POST',
-      headers: { authorization: 'Nostr dGVzdA==' },
+      headers: { authorization: 'Nostr dGVzdA==' }
     })
     const res = await POST(req)
 
@@ -137,16 +145,19 @@ describe('POST /api/jwt', () => {
   it('defaults to USER role when not found in DB', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'test-secret' },
-      maintenance: { enabled: false },
+      maintenance: { enabled: false }
     } as any)
-    vi.mocked(validateNip98).mockResolvedValue({ pubkey: PUBKEY, event: {} as any })
+    vi.mocked(validateNip98).mockResolvedValue({
+      pubkey: PUBKEY,
+      event: {} as any
+    })
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
     vi.mocked(getSettings).mockResolvedValue({ root: 'different_pubkey' })
     vi.mocked(createJwtToken).mockReturnValue('mock-jwt-token')
 
     const req = createNextRequest('/api/jwt', {
       method: 'POST',
-      headers: { authorization: 'Nostr dGVzdA==' },
+      headers: { authorization: 'Nostr dGVzdA==' }
     })
     const res = await POST(req)
     await assertResponse(res, 200)
@@ -154,7 +165,7 @@ describe('POST /api/jwt', () => {
     expect(createJwtToken).toHaveBeenCalledWith(
       expect.objectContaining({
         role: 'USER',
-        permissions: [],
+        permissions: []
       }),
       'test-secret',
       expect.anything()
@@ -166,7 +177,7 @@ describe('GET /api/jwt', () => {
   it('validates JWT token successfully', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'test-secret' },
-      maintenance: { enabled: false },
+      maintenance: { enabled: false }
     } as any)
     vi.mocked(validateJwtFromRequest).mockResolvedValue({
       payload: {
@@ -175,13 +186,13 @@ describe('GET /api/jwt', () => {
         role: 'ADMIN',
         permissions: ['settings:read', 'settings:write'],
         iat: 1000000,
-        exp: 1003600,
+        exp: 1003600
       },
-      header: { alg: 'HS256' },
+      header: { alg: 'HS256' }
     } as any)
 
     const req = createNextRequest('/api/jwt', {
-      headers: { authorization: 'Bearer test-token' },
+      headers: { authorization: 'Bearer test-token' }
     })
     const res = await GET(req)
     const body: any = await assertResponse(res, 200)
@@ -202,11 +213,11 @@ describe('GET /api/jwt', () => {
   it('returns error when JWT not configured', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: false, secret: undefined },
-      maintenance: { enabled: false },
+      maintenance: { enabled: false }
     } as any)
 
     const req = createNextRequest('/api/jwt', {
-      headers: { authorization: 'Bearer test-token' },
+      headers: { authorization: 'Bearer test-token' }
     })
     const res = await GET(req)
 

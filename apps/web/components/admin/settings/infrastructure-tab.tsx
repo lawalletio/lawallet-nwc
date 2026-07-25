@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CheckCircle2, Plus, Minus, Trash2, WandSparkles, Route } from 'lucide-react'
+import {
+  CheckCircle2,
+  Plus,
+  Minus,
+  Trash2,
+  WandSparkles,
+  Route
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,7 +26,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import {
@@ -30,7 +37,7 @@ import {
   SettingInputGroup,
   SaveStatusIcon,
   INVALID_CLASSES,
-  SETTING_DEBOUNCE_MS,
+  SETTING_DEBOUNCE_MS
 } from '@/components/admin/settings/auto-save-controls'
 import { useAuth } from '@/components/admin/auth-context'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
@@ -46,7 +53,10 @@ const IS_DEV = process.env.NODE_ENV !== 'production'
 // non-empty `defaults` list is provided, surface those defaults so the user sees a
 // sensible starting point. An explicit `"[]"` is preserved as a single empty input —
 // that's the opt-out signal.
-function parseStringArray(raw: string | undefined, defaults: string[] = ['']): string[] {
+function parseStringArray(
+  raw: string | undefined,
+  defaults: string[] = ['']
+): string[] {
   if (raw === undefined) return defaults.length > 0 ? defaults : ['']
   try {
     const parsed = JSON.parse(raw)
@@ -70,7 +80,10 @@ function isValidDomain(value: string): boolean {
   return DOMAIN_PATTERN.test(value.trim())
 }
 
-function isValidUrlWithProtocol(value: string, allowed: readonly string[]): boolean {
+function isValidUrlWithProtocol(
+  value: string,
+  allowed: readonly string[]
+): boolean {
   try {
     const url = new URL(value.trim())
     return allowed.includes(url.protocol) && url.hostname.length > 0
@@ -93,11 +106,13 @@ function isValidEndpoint(value: string): boolean {
 }
 
 function cleanHost(value?: string): string {
-  return value
-    ?.trim()
-    .replace(/^https?:\/\//i, '')
-    .replace(/\/.*$/, '')
-    .toLowerCase() ?? ''
+  return (
+    value
+      ?.trim()
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/.*$/, '')
+      .toLowerCase() ?? ''
+  )
 }
 
 const HTTP_PROTOCOLS = ['http:', 'https:'] as const
@@ -105,7 +120,8 @@ const WS_PROTOCOLS = ['ws:', 'wss:'] as const
 
 // Accept Google Tag IDs across the GA / GTM / Ads / Campaign Manager families.
 // Empty string is also valid — that's the disable signal.
-const GTAG_ID_PATTERN = /^(G-[A-Z0-9]{6,}|GT-[A-Z0-9]{6,}|AW-\d+|DC-\d+|UA-\d+-\d+)$/
+const GTAG_ID_PATTERN =
+  /^(G-[A-Z0-9]{6,}|GT-[A-Z0-9]{6,}|AW-\d+|DC-\d+|UA-\d+-\d+)$/
 
 function isValidGtagId(value: string): boolean {
   const trimmed = value.trim()
@@ -132,8 +148,11 @@ export function InfrastructureTab() {
   const { status: blossomStatus, run: runBlossomSave } = useSaveStatus()
   const [wiping, setWiping] = useState(false)
   const [domainWizardOpen, setDomainWizardOpen] = useState(false)
-  const [domainConnectionEditorOpen, setDomainConnectionEditorOpen] = useState(false)
-  const [domainProbe, setDomainProbe] = useState<DomainProbeState>({ status: 'idle' })
+  const [domainConnectionEditorOpen, setDomainConnectionEditorOpen] =
+    useState(false)
+  const [domainProbe, setDomainProbe] = useState<DomainProbeState>({
+    status: 'idle'
+  })
   const lastAutoProbeKey = useRef<string | null>(null)
 
   async function handleWipe() {
@@ -177,7 +196,9 @@ export function InfrastructureTab() {
     const nextParams = new URLSearchParams(searchParams.toString())
     nextParams.delete('domainSetup')
     const nextQuery = nextParams.toString()
-    router.replace(`/admin/settings${nextQuery ? `?${nextQuery}` : ''}`, { scroll: false })
+    router.replace(`/admin/settings${nextQuery ? `?${nextQuery}` : ''}`, {
+      scroll: false
+    })
   }, [router, searchParams])
 
   // Restore all local form state from the currently stored settings. Called on
@@ -187,7 +208,9 @@ export function InfrastructureTab() {
     setDomain(settings.domain ?? '')
     setSubdomain(settings.subdomain ?? settings.endpoint ?? '')
     setRelays(parseStringArray(settings.relays))
-    setBlossomServers(parseStringArray(settings.blossom_servers, DEFAULT_BLOSSOM_SERVERS))
+    setBlossomServers(
+      parseStringArray(settings.blossom_servers, DEFAULT_BLOSSOM_SERVERS)
+    )
     setSmtpHost(settings.smtp_host ?? '')
     setSmtpPort(settings.smtp_port ?? '')
     setSmtpUsername(settings.smtp_username ?? '')
@@ -211,25 +234,47 @@ export function InfrastructureTab() {
   // row shows a red border) until corrected.
   const persistRelays = useCallback(
     (next: string[]) => {
-      if (next.some(r => r.trim() !== '' && !isValidUrlWithProtocol(r, WS_PROTOCOLS))) return
+      if (
+        next.some(
+          r => r.trim() !== '' && !isValidUrlWithProtocol(r, WS_PROTOCOLS)
+        )
+      )
+        return
       void runRelaysSave(() =>
-        saveSetting({ relays: JSON.stringify(next.map(r => r.trim()).filter(Boolean)) })
+        saveSetting({
+          relays: JSON.stringify(next.map(r => r.trim()).filter(Boolean))
+        })
       )
     },
     [runRelaysSave, saveSetting]
   )
-  const queueRelaysSave = useDebouncedCallback(persistRelays, SETTING_DEBOUNCE_MS)
+  const queueRelaysSave = useDebouncedCallback(
+    persistRelays,
+    SETTING_DEBOUNCE_MS
+  )
 
   const persistBlossom = useCallback(
     (next: string[]) => {
-      if (next.some(s => s.trim() !== '' && !isValidUrlWithProtocol(s, HTTP_PROTOCOLS))) return
+      if (
+        next.some(
+          s => s.trim() !== '' && !isValidUrlWithProtocol(s, HTTP_PROTOCOLS)
+        )
+      )
+        return
       void runBlossomSave(() =>
-        saveSetting({ blossom_servers: JSON.stringify(next.map(s => s.trim()).filter(Boolean)) })
+        saveSetting({
+          blossom_servers: JSON.stringify(
+            next.map(s => s.trim()).filter(Boolean)
+          )
+        })
       )
     },
     [runBlossomSave, saveSetting]
   )
-  const queueBlossomSave = useDebouncedCallback(persistBlossom, SETTING_DEBOUNCE_MS)
+  const queueBlossomSave = useDebouncedCallback(
+    persistBlossom,
+    SETTING_DEBOUNCE_MS
+  )
 
   // Per-field validity — empty inputs are treated as valid (they're simply
   // not included in the save payload). Only non-empty, malformed values flag.
@@ -252,7 +297,8 @@ export function InfrastructureTab() {
   const domainVerified = settings?.domain_verified === 'true'
   const instanceHostedOnDomain =
     hasConfiguredDomain &&
-    (cleanHost(currentOrigin) === savedDomain || cleanHost(savedEndpoint) === savedDomain)
+    (cleanHost(currentOrigin) === savedDomain ||
+      cleanHost(savedEndpoint) === savedDomain)
   const initialSettingsLoading = settingsLoading && !settings
   const settingsReady = Boolean(settings)
 
@@ -285,7 +331,7 @@ export function InfrastructureTab() {
       lastAutoProbeKey.current = null
       setDomainProbe({
         status: 'problem',
-        error: 'Saved domain is malformed.',
+        error: 'Saved domain is malformed.'
       })
       return
     }
@@ -309,7 +355,8 @@ export function InfrastructureTab() {
       timedOut = true
       setDomainProbe({
         status: 'problem',
-        error: 'Domain check is taking longer than expected. Open setup to check again.',
+        error:
+          'Domain check is taking longer than expected. Open setup to check again.'
       })
     }, DOMAIN_AUTO_PROBE_TIMEOUT_MS)
 
@@ -317,7 +364,7 @@ export function InfrastructureTab() {
       .post<DomainProbeResult>('/api/settings/domain-probe', {
         domain: savedDomain,
         endpoint: savedEndpoint,
-        apiGatewayEndpoint: currentOrigin,
+        apiGatewayEndpoint: currentOrigin
       })
       .then(result => {
         settled = true
@@ -336,7 +383,7 @@ export function InfrastructureTab() {
         if (cancelled) return
         setDomainProbe({
           status: 'problem',
-          error: error instanceof Error ? error.message : 'Domain check failed.',
+          error: error instanceof Error ? error.message : 'Domain check failed.'
         })
       })
 
@@ -356,13 +403,13 @@ export function InfrastructureTab() {
     hasConfiguredDomain,
     savedDomain,
     savedEndpoint,
-    settingsReady,
+    settingsReady
   ])
 
   // Adding an empty row doesn't change the persisted set (empties are filtered
   // out), so it doesn't trigger a save. Editing and removing rows do.
   function addRelay() {
-    setRelays((prev) => [...prev, ''])
+    setRelays(prev => [...prev, ''])
   }
 
   function removeRelay(index: number) {
@@ -378,7 +425,7 @@ export function InfrastructureTab() {
   }
 
   function addBlossom() {
-    setBlossomServers((prev) => [...prev, ''])
+    setBlossomServers(prev => [...prev, ''])
   }
 
   function removeBlossom(index: number) {
@@ -408,38 +455,46 @@ export function InfrastructureTab() {
   const visibleEndpointMatchesSaved =
     subdomain.trim().replace(/\/+$/, '').toLowerCase() === savedEndpoint
   const domainRoutingEdited =
-    hasConfiguredDomain && (!visibleDomainMatchesSaved || !visibleEndpointMatchesSaved)
+    hasConfiguredDomain &&
+    (!visibleDomainMatchesSaved || !visibleEndpointMatchesSaved)
   const showDomainSuccess =
     hasConfiguredDomain &&
     !domainConnectionEditorOpen &&
     visibleDomainMatchesSaved &&
     visibleEndpointMatchesSaved &&
     (domainVerified || domainProbe.status === 'ready' || instanceHostedOnDomain)
-  const showDomainConnectionFields = !showDomainSuccess || domainConnectionEditorOpen
+  const showDomainConnectionFields =
+    !showDomainSuccess || domainConnectionEditorOpen
   const showFullWidthDomainSummary = showDomainSuccess
   const showDomainAction =
     (domainConnectionEditorOpen || !showDomainSuccess) &&
-    (domainConnectionEditorOpen || domainRoutingEdited || domainProbe.status !== 'ready') &&
     (domainConnectionEditorOpen ||
-      !(domainProbe.status === 'verified' && domainVerified && !domainRoutingEdited))
+      domainRoutingEdited ||
+      domainProbe.status !== 'ready') &&
+    (domainConnectionEditorOpen ||
+      !(
+        domainProbe.status === 'verified' &&
+        domainVerified &&
+        !domainRoutingEdited
+      ))
   const domainActionTitle =
     domainConnectionEditorOpen || domainRoutingEdited
       ? 'Domain needs verification'
       : domainProbe.status === 'missing'
-      ? 'Domain is not configured'
-      : 'Domain routing needs attention'
+        ? 'Domain is not configured'
+        : 'Domain routing needs attention'
   const domainActionDescription =
     domainConnectionEditorOpen || domainRoutingEdited
       ? 'Save and check this domain before marking discovery as ready.'
       : domainProbe.status === 'missing'
-      ? 'Start a guided check for LNURL and NIP-05 routing.'
-      : 'Fix LNURL and NIP-05 discovery for this domain.'
+        ? 'Start a guided check for LNURL and NIP-05 routing.'
+        : 'Fix LNURL and NIP-05 discovery for this domain.'
   const latestDomainProbeResult =
     domainProbe.status === 'ready' || domainProbe.status === 'problem'
-      ? domainProbe.result ?? null
+      ? (domainProbe.result ?? null)
       : null
   const latestDomainProbeError =
-    domainProbe.status === 'problem' ? domainProbe.error ?? null : null
+    domainProbe.status === 'problem' ? (domainProbe.error ?? null) : null
 
   return (
     <div className="flex flex-col gap-8 px-4 pt-10 pb-8 w-full max-w-[1024px] mx-auto">
@@ -463,10 +518,12 @@ export function InfrastructureTab() {
       <div
         className={cn(
           'grid grid-cols-1 gap-8',
-          !showFullWidthDomainSummary && 'md:grid-cols-[280px_1fr]',
+          !showFullWidthDomainSummary && 'md:grid-cols-[280px_1fr]'
         )}
       >
-        {!showFullWidthDomainSummary && <div className="hidden md:block" aria-hidden="true" />}
+        {!showFullWidthDomainSummary && (
+          <div className="hidden md:block" aria-hidden="true" />
+        )}
         <div className="flex flex-col gap-4">
           {showDomainSuccess && (
             <div className="relative min-w-0 overflow-hidden rounded-md border border-emerald-500/30 bg-emerald-500/[0.06] p-4">
@@ -476,19 +533,24 @@ export function InfrastructureTab() {
                   <span
                     className="relative grid size-20 shrink-0 place-items-center rounded-full sm:size-16"
                     style={{
-                      backgroundColor: 'color-mix(in srgb, var(--theme-300) 14%, transparent)',
+                      backgroundColor:
+                        'color-mix(in srgb, var(--theme-300) 14%, transparent)',
                       boxShadow:
                         'inset 0 0 0 1px color-mix(in srgb, var(--theme-300) 24%, transparent)',
-                      color: 'var(--theme-400)',
+                      color: 'var(--theme-400)'
                     }}
                   >
                     <span
                       className="absolute inset-3 rounded-full"
                       style={{
-                        backgroundColor: 'color-mix(in srgb, var(--theme-400) 8%, transparent)',
+                        backgroundColor:
+                          'color-mix(in srgb, var(--theme-400) 8%, transparent)'
                       }}
                     />
-                    <CheckCircle2 className="relative size-11 sm:size-9" strokeWidth={2.5} />
+                    <CheckCircle2
+                      className="relative size-11 sm:size-9"
+                      strokeWidth={2.5}
+                    />
                   </span>
                   {!domainConnectionEditorOpen && (
                     <Button
@@ -540,7 +602,9 @@ export function InfrastructureTab() {
                 </span>
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{domainActionTitle}</p>
-                  <p className="text-xs text-muted-foreground">{domainActionDescription}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {domainActionDescription}
+                  </p>
                 </div>
               </div>
               <Button
@@ -604,7 +668,8 @@ export function InfrastructureTab() {
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Public URL where this instance is running. Defaults to https:// if no protocol is provided.
+                    Public URL where this instance is running. Defaults to
+                    https:// if no protocol is provided.
                   </p>
                 )}
               </div>
@@ -612,7 +677,9 @@ export function InfrastructureTab() {
               <div className="rounded-md bg-muted/40 px-3 py-2">
                 <p className="text-xs text-muted-foreground">
                   Lightning addresses will resolve as{' '}
-                  <span className="font-mono text-foreground">username@{previewDomain}</span>
+                  <span className="font-mono text-foreground">
+                    username@{previewDomain}
+                  </span>
                 </p>
               </div>
             </>
@@ -636,18 +703,27 @@ export function InfrastructureTab() {
                 className={cn('flex-1', relayInvalid[index] && INVALID_CLASSES)}
                 placeholder="wss://relay.example.com"
                 value={relay}
-                onChange={(e) => updateRelay(index, e.target.value)}
+                onChange={e => updateRelay(index, e.target.value)}
                 aria-invalid={relayInvalid[index] || undefined}
               />
               {relays.length > 1 && (
-                <Button variant="outline" size="icon" onClick={() => removeRelay(index)}>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => removeRelay(index)}
+                >
                   <Minus className="size-4" />
                 </Button>
               )}
             </div>
           ))}
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="w-fit" onClick={addRelay}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={addRelay}
+            >
               <Plus className="size-4 mr-1" />
               Add Relay
             </Button>
@@ -669,21 +745,33 @@ export function InfrastructureTab() {
           {blossomServers.map((server, index) => (
             <div key={index} className="flex items-center gap-2">
               <Input
-                className={cn('flex-1', blossomInvalid[index] && INVALID_CLASSES)}
+                className={cn(
+                  'flex-1',
+                  blossomInvalid[index] && INVALID_CLASSES
+                )}
                 placeholder="https://blossom.example.com"
                 value={server}
-                onChange={(e) => updateBlossom(index, e.target.value)}
+                onChange={e => updateBlossom(index, e.target.value)}
                 aria-invalid={blossomInvalid[index] || undefined}
               />
               {blossomServers.length > 1 && (
-                <Button variant="outline" size="icon" onClick={() => removeBlossom(index)}>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => removeBlossom(index)}
+                >
                   <Minus className="size-4" />
                 </Button>
               )}
             </div>
           ))}
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="w-fit" onClick={addBlossom}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={addBlossom}
+            >
               <Plus className="size-4 mr-1" />
               Add Server
             </Button>
@@ -773,12 +861,14 @@ export function InfrastructureTab() {
             />
             {gtagIdInvalid ? (
               <p className="text-xs text-destructive">
-                Enter a valid Google Tag ID (e.g. G-XXXXXXXXXX, GT-XXXXXXX, AW-XXXXXXXX).
+                Enter a valid Google Tag ID (e.g. G-XXXXXXXXXX, GT-XXXXXXX,
+                AW-XXXXXXXX).
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
                 Loads gtag.js across the site, dashboard, and wallet. Users stay
-                anonymous: no Nostr keys, lightning addresses, or amounts are sent.
+                anonymous: no Nostr keys, lightning addresses, or amounts are
+                sent.
               </p>
             )}
           </div>
@@ -791,18 +881,21 @@ export function InfrastructureTab() {
 
           <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
             <div>
-              <h3 className="text-sm font-semibold text-destructive">Danger Zone</h3>
+              <h3 className="text-sm font-semibold text-destructive">
+                Danger Zone
+              </h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Development only. These actions are destructive and cannot be undone.
+                Development only. These actions are destructive and cannot be
+                undone.
               </p>
             </div>
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="space-y-0.5">
                 <p className="text-sm font-medium">Wipe and restart</p>
                 <p className="text-xs text-muted-foreground">
-                  Deletes all users, settings, cards, addresses, and activity logs,
-                  then signs you out so you can re-run the onboarding wizard from a
-                  clean state.
+                  Deletes all users, settings, cards, addresses, and activity
+                  logs, then signs you out so you can re-run the onboarding
+                  wizard from a clean state.
                 </p>
               </div>
               <AlertDialog>
@@ -830,15 +923,18 @@ export function InfrastructureTab() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Wipe entire database?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This permanently deletes all users, settings, cards, addresses,
-                      and activity logs — then signs you out and reloads to the setup
-                      wizard. Available in development only.
+                      This permanently deletes all users, settings, cards,
+                      addresses, and activity logs — then signs you out and
+                      reloads to the setup wizard. Available in development
+                      only.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel disabled={wiping}>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel disabled={wiping}>
+                      Cancel
+                    </AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={(e) => {
+                      onClick={e => {
                         e.preventDefault()
                         handleWipe()
                       }}

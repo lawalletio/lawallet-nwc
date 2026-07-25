@@ -36,15 +36,18 @@ interface IdentityCirclesProps {
 const SIZE_CLASSES: Record<Required<IdentityCirclesProps>['size'], string> = {
   sm: 'size-12 sm:size-14',
   md: 'size-16 sm:size-20',
-  lg: 'size-20 sm:size-24',
+  lg: 'size-20 sm:size-24'
 }
 
 // The @ circle reads as a connector between the two identity discs, so
 // it's visually de-emphasized — about 60% of the outer circles' diameter.
-const CONNECTOR_SIZE_CLASSES: Record<Required<IdentityCirclesProps>['size'], string> = {
+const CONNECTOR_SIZE_CLASSES: Record<
+  Required<IdentityCirclesProps>['size'],
+  string
+> = {
   sm: 'size-8 sm:size-9',
   md: 'size-10 sm:size-12',
-  lg: 'size-12 sm:size-14',
+  lg: 'size-12 sm:size-14'
 }
 
 /**
@@ -60,16 +63,16 @@ const CONNECTOR_SIZE_CLASSES: Record<Required<IdentityCirclesProps>['size'], str
  */
 export function IdentityCircles({
   className,
-  size = 'md',
+  size = 'md'
 }: IdentityCirclesProps) {
   const { pubkey } = useAuth()
   const { profile } = useNostrProfile(pubkey)
   const { isotypo } = useBrandLogotypes()
   // Which circle is navigating, so we can veil it with a spinner until the
   // next page renders (which unmounts this component and clears the state).
-  const [navigatingTo, setNavigatingTo] = useState<'profile' | 'community' | null>(
-    null,
-  )
+  const [navigatingTo, setNavigatingTo] = useState<
+    'profile' | 'community' | null
+  >(null)
 
   const displayName =
     profile?.displayName || profile?.name || (pubkey ? pubkey.slice(0, 8) : '')
@@ -91,16 +94,23 @@ export function IdentityCircles({
         sizeClass,
         'ring-2 ring-border',
         pubkey &&
-          'transition-transform hover:scale-105 hover:ring-ring focus-visible:outline-none focus-visible:ring-ring',
+          'transition-transform hover:scale-105 hover:ring-ring focus-visible:outline-none focus-visible:ring-ring'
       )}
     >
-      {profile?.picture && <AvatarImage src={profile.picture} alt={displayName} />}
+      {profile?.picture && (
+        <AvatarImage src={profile.picture} alt={displayName} />
+      )}
       <AvatarFallback>{avatarFallback}</AvatarFallback>
     </Avatar>
   )
 
   return (
-    <div className={cn('flex items-center justify-center gap-4 sm:gap-5', className)}>
+    <div
+      className={cn(
+        'flex items-center justify-center gap-4 sm:gap-5',
+        className
+      )}
+    >
       {pubkey ? (
         <Link
           href={`/admin/users/${pubkey}`}
@@ -108,7 +118,7 @@ export function IdentityCircles({
           onClick={() => setNavigatingTo('profile')}
           className={cn(
             'relative rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-            PRESS_CLASSES,
+            PRESS_CLASSES
           )}
         >
           {avatar}
@@ -121,7 +131,7 @@ export function IdentityCircles({
       <div
         className={cn(
           connectorSizeClass,
-          'flex shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ring-2 ring-border',
+          'flex shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ring-2 ring-border'
         )}
         aria-hidden
       >
@@ -136,7 +146,7 @@ export function IdentityCircles({
           sizeClass,
           'relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-card ring-2 ring-border',
           'hover:scale-105 hover:ring-ring focus-visible:outline-none focus-visible:ring-ring',
-          PRESS_CLASSES,
+          PRESS_CLASSES
         )}
       >
         <Image

@@ -66,23 +66,26 @@ Three Sandpack components are available in any MDX file:
 
 ```mdx
 {/* Full editor + preview */}
+
 <SandpackLive
   template="react-ts"
   files={{
-    "/App.tsx": `export default function App() {
+    '/App.tsx': `export default function App() {
   return <h1>Hello</h1>;
-}`,
+}`
   }}
 />
 
 {/* Simple embed */}
+
 <SandpackExample template="react-ts" />
 
 {/* Code-only with console */}
+
 <SandpackCodeOnly
   template="vanilla-ts"
   files={{
-    "/index.ts": `console.log("Hello");`,
+    '/index.ts': `console.log("Hello");`
   }}
 />
 ```

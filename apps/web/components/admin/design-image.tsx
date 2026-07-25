@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils'
 export function DesignImage({
   src,
   alt,
-  className,
+  className
 }: {
   src: string | null
   alt: string
@@ -38,7 +38,7 @@ export function DesignImage({
       <div
         className={cn(
           'aspect-video rounded-md bg-muted flex items-center justify-center',
-          className,
+          className
         )}
       >
         <span className="text-sm text-muted-foreground">No image</span>
@@ -50,7 +50,7 @@ export function DesignImage({
     <div
       className={cn(
         'relative aspect-video overflow-hidden rounded-md bg-muted',
-        className,
+        className
       )}
     >
       {!loaded && !errored && (
@@ -71,7 +71,7 @@ export function DesignImage({
           onError={() => setErrored(true)}
           className={cn(
             'size-full object-cover transition-opacity duration-200',
-            loaded ? 'opacity-100' : 'opacity-0',
+            loaded ? 'opacity-100' : 'opacity-0'
           )}
         />
       )}

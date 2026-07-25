@@ -5,7 +5,7 @@ import {
   protectedSecurity,
   publicErrorResponses,
   publicSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 
@@ -15,7 +15,7 @@ const addressSchema = z
   .object({
     username: z.string(),
     pubkey: z.string().nullable().optional(),
-    domain: z.string().optional(),
+    domain: z.string().optional()
   })
   .passthrough()
   .openapi({ description: 'Lightning address record.' })
@@ -29,9 +29,12 @@ registry.registerPath({
   operationId: 'lightningAddresses.list',
   security: protectedSecurity,
   responses: {
-    200: inlineJsonResponse('Addresses.', z.object({ data: z.array(addressSchema) })),
-    ...commonErrorResponses,
-  },
+    200: inlineJsonResponse(
+      'Addresses.',
+      z.object({ data: z.array(addressSchema) })
+    ),
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -48,16 +51,16 @@ registry.registerPath({
         .string()
         .min(1)
         .max(16)
-        .openapi({ description: 'Username candidate to check.' }),
-    }),
+        .openapi({ description: 'Username candidate to check.' })
+    })
   },
   responses: {
     200: inlineJsonResponse(
       'Availability result.',
-      z.object({ available: z.boolean() }),
+      z.object({ available: z.boolean() })
     ),
-    ...publicErrorResponses,
-  },
+    ...publicErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -73,11 +76,11 @@ registry.registerPath({
       'Counts.',
       z.object({
         total: z.number().int().nonnegative(),
-        active: z.number().int().nonnegative(),
-      }),
+        active: z.number().int().nonnegative()
+      })
     ),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -91,8 +94,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Relay list.',
-      z.object({ relays: z.array(z.string().url()) }),
+      z.object({ relays: z.array(z.string().url()) })
     ),
-    ...publicErrorResponses,
-  },
+    ...publicErrorResponses
+  }
 })

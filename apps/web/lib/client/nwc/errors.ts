@@ -25,7 +25,11 @@ export function describeNwcError(err: unknown): string {
   }
 
   // Request reached a relay but the wallet never answered in time.
-  if (msg.includes('failed to request') || msg.includes('timeout') || msg.includes('timed out')) {
+  if (
+    msg.includes('failed to request') ||
+    msg.includes('timeout') ||
+    msg.includes('timed out')
+  ) {
     return "Your wallet didn't respond in time. Please try again."
   }
 

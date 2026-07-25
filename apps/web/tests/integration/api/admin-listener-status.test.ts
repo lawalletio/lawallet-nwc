@@ -4,11 +4,11 @@ import { AuthenticationError } from '@/types/server/errors'
 
 const configState = vi.hoisted(() => ({
   url: 'http://listener.test:4100' as string | undefined,
-  secret: 'listener-shared-secret-0123456789abcdef!' as string | undefined,
+  secret: 'listener-shared-secret-0123456789abcdef!' as string | undefined
 }))
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/listener-config', () => ({
@@ -19,21 +19,21 @@ vi.mock('@/lib/listener-config', () => ({
     requestTimeoutMs: 10000,
     urlSource: configState.url ? 'settings' : 'none',
     secretSource: configState.secret ? 'settings' : 'none',
-    enabledSource: 'settings',
-  })),
+    enabledSource: 'settings'
+  }))
 }))
 
 const noopLogger = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn(),
   warn: vi.fn(),
-  debug: vi.fn(),
+  debug: vi.fn()
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: noopLogger,
   createLogger: vi.fn(() => noopLogger),
-  withRequestLogging: (fn: unknown) => fn,
+  withRequestLogging: (fn: unknown) => fn
 }))
 
 vi.mock('@/lib/prisma', () => ({ prisma: {} }))
@@ -41,7 +41,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticateWithPermission: vi.fn(),
+  authenticateWithPermission: vi.fn()
 }))
 
 import { GET } from '@/app/api/admin/listener/status/route'
@@ -61,8 +61,8 @@ const validStatus = {
       relayUrls: ['wss://relay.test'],
       lastEventAt: new Date().toISOString(),
       lastErrorAt: null,
-      lastError: null,
-    },
+      lastError: null
+    }
   ],
   counters: {
     eventsReceived: 5,
@@ -70,9 +70,9 @@ const validStatus = {
     webhooksDelivered: 4,
     webhooksFailed: 0,
     nwcRequests: 2,
-    nwcRequestErrors: 0,
+    nwcRequestErrors: 0
   },
-  recentEvents: [],
+  recentEvents: []
 }
 
 beforeEach(() => {
@@ -109,7 +109,10 @@ describe('GET /api/admin/listener/status', () => {
   it('returns unreachable when the listener fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')))
     const res = await GET(createNextRequest('/api/admin/listener/status'))
-    const body = (await assertResponse(res, 200)) as { state: string; error: string }
+    const body = (await assertResponse(res, 200)) as {
+      state: string
+      error: string
+    }
     expect(body.state).toBe('unreachable')
     expect(body.error).toContain('ECONNREFUSED')
   })
@@ -120,7 +123,10 @@ describe('GET /api/admin/listener/status', () => {
       vi.fn().mockResolvedValue(new Response('unauthorized', { status: 401 }))
     )
     const res = await GET(createNextRequest('/api/admin/listener/status'))
-    const body = (await assertResponse(res, 200)) as { state: string; error: string }
+    const body = (await assertResponse(res, 200)) as {
+      state: string
+      error: string
+    }
     expect(body.state).toBe('unreachable')
     expect(body.error).toContain('401')
   })

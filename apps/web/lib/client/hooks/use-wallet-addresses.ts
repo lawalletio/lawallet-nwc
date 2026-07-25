@@ -1,8 +1,16 @@
 'use client'
 
-import { invalidateApiPath, useApi, useMutation } from '@/lib/client/hooks/use-api'
+import {
+  invalidateApiPath,
+  useApi,
+  useMutation
+} from '@/lib/client/hooks/use-api'
 
-export type LightningAddressMode = 'IDLE' | 'ALIAS' | 'CUSTOM_NWC' | 'DEFAULT_NWC'
+export type LightningAddressMode =
+  | 'IDLE'
+  | 'ALIAS'
+  | 'CUSTOM_NWC'
+  | 'DEFAULT_NWC'
 export type EffectiveNwcMode = 'NONE' | 'RECEIVE' | 'SEND_RECEIVE'
 
 export interface WalletAddress {
@@ -95,7 +103,7 @@ export function useMyAddresses() {
 /** GET /api/wallet/addresses/[username] — single address + connection list. */
 export function useMyAddress(username: string | null) {
   return useApi<WalletAddressDetail>(
-    username ? `/api/wallet/addresses/${encodeURIComponent(username)}` : null,
+    username ? `/api/wallet/addresses/${encodeURIComponent(username)}` : null
   )
 }
 
@@ -108,7 +116,7 @@ export function useAddressInvoices(username: string | null) {
   return useApi<{ invoices: AddressInvoice[] }>(
     username
       ? `/api/wallet/addresses/${encodeURIComponent(username)}/invoices`
-      : null,
+      : null
   )
 }
 
@@ -122,14 +130,20 @@ export function useAddressMutations() {
   const create = useMutation<CreateWalletAddressInput, WalletAddress>()
   const update = useMutation<UpdateWalletAddressInput, WalletAddress>()
   const probe = useMutation<{ address: string }, AliasProbeResponse>()
-  const setPrimary = useMutation<undefined, { success: boolean; username: string }>()
-  const remove = useMutation<undefined, { success: boolean; username: string }>()
+  const setPrimary = useMutation<
+    undefined,
+    { success: boolean; username: string }
+  >()
+  const remove = useMutation<
+    undefined,
+    { success: boolean; username: string }
+  >()
 
   function invalidateAddressState(detailUsername?: string) {
     invalidateApiPath('/api/wallet/addresses')
     if (detailUsername) {
       invalidateApiPath(
-        `/api/wallet/addresses/${encodeURIComponent(detailUsername)}`,
+        `/api/wallet/addresses/${encodeURIComponent(detailUsername)}`
       )
     }
     invalidateApiPath('/api/remote-wallets')
@@ -138,15 +152,22 @@ export function useAddressMutations() {
 
   return {
     createAddress: async (input: CreateWalletAddressInput) => {
-      const created = await create.mutate('post', '/api/wallet/addresses', input)
+      const created = await create.mutate(
+        'post',
+        '/api/wallet/addresses',
+        input
+      )
       invalidateAddressState(created.username)
       return created
     },
-    updateAddress: async (username: string, input: UpdateWalletAddressInput) => {
+    updateAddress: async (
+      username: string,
+      input: UpdateWalletAddressInput
+    ) => {
       const updated = await update.mutate(
         'put',
         `/api/wallet/addresses/${encodeURIComponent(username)}`,
-        input,
+        input
       )
       invalidateAddressState(username)
       return updated
@@ -157,7 +178,7 @@ export function useAddressMutations() {
       const result = await setPrimary.mutate(
         'post',
         `/api/wallet/addresses/${encodeURIComponent(username)}/primary`,
-        undefined,
+        undefined
       )
       invalidateAddressState(username)
       return result
@@ -166,7 +187,7 @@ export function useAddressMutations() {
       const result = await remove.mutate(
         'del',
         `/api/wallet/addresses/${encodeURIComponent(username)}`,
-        undefined,
+        undefined
       )
       invalidateAddressState(username)
       return result
@@ -176,6 +197,11 @@ export function useAddressMutations() {
     probingAlias: probe.loading,
     settingPrimary: setPrimary.loading,
     deleting: remove.loading,
-    error: create.error ?? update.error ?? probe.error ?? setPrimary.error ?? remove.error,
+    error:
+      create.error ??
+      update.error ??
+      probe.error ??
+      setPrimary.error ??
+      remove.error
   }
 }

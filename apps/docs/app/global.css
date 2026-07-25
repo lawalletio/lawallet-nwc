@@ -5,18 +5,20 @@
 /* ─── LaWallet Brand Overrides ─────────────────────────────── */
 
 :root {
-  --lw-gold: #F5A623;
-  --lw-gold-light: #FFD580;
-  --lw-teal: #26A69A;
-  --lw-teal-light: #4DB6AC;
-  --lw-coral: #E53935;
-  --lw-dark: #0A0A0F;
+  --lw-gold: #f5a623;
+  --lw-gold-light: #ffd580;
+  --lw-teal: #26a69a;
+  --lw-teal-light: #4db6ac;
+  --lw-coral: #e53935;
+  --lw-dark: #0a0a0f;
   --lw-dark-card: #111118;
   --lw-dark-border: #1e1e2a;
 }
 
 /* Force dark mode as default — matches lawallet-nwc dark-first design */
-:root, .dark, [data-theme="dark"] {
+:root,
+.dark,
+[data-theme='dark'] {
   --fd-background: var(--lw-dark);
   --fd-foreground: 240 5% 92%;
   --fd-muted: 240 4% 12%;
@@ -41,7 +43,8 @@
 }
 
 /* Light mode overrides */
-.light, [data-theme="light"] {
+.light,
+[data-theme='light'] {
   --fd-primary: 36 91% 45%;
   --fd-primary-foreground: 0 0% 100%;
   --fd-accent-foreground: 36 91% 40%;
@@ -74,21 +77,21 @@
 /* ─── Brand Gradient Utilities ────────────────────────────── */
 
 .text-gradient-gold {
-  background: linear-gradient(135deg, #F5A623, #FFD580, #F5A623);
+  background: linear-gradient(135deg, #f5a623, #ffd580, #f5a623);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .text-gradient-teal {
-  background: linear-gradient(135deg, #26A69A, #4DB6AC, #80CBC4);
+  background: linear-gradient(135deg, #26a69a, #4db6ac, #80cbc4);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .text-gradient-brand {
-  background: linear-gradient(135deg, #F5A623, #26A69A);
+  background: linear-gradient(135deg, #f5a623, #26a69a);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -105,7 +108,7 @@
   position: absolute;
   inset: -1px;
   border-radius: inherit;
-  background: linear-gradient(135deg, #F5A623 30%, #26A69A 30%, #E53935 10%);
+  background: linear-gradient(135deg, #f5a623 30%, #26a69a 30%, #e53935 10%);
   opacity: 0;
   transition: opacity 0.4s ease;
   z-index: -1;
@@ -127,10 +130,19 @@
 /* ─── Animations ──────────────────────────────────────────── */
 
 @keyframes float {
-  0%, 100% { transform: translateY(0) translateX(0); }
-  25% { transform: translateY(-20px) translateX(10px); }
-  50% { transform: translateY(10px) translateX(-15px); }
-  75% { transform: translateY(-10px) translateX(20px); }
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+  }
+  25% {
+    transform: translateY(-20px) translateX(10px);
+  }
+  50% {
+    transform: translateY(10px) translateX(-15px);
+  }
+  75% {
+    transform: translateY(-10px) translateX(20px);
+  }
 }
 
 /* ─── Selection Color ─────────────────────────────────────── */

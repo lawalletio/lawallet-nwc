@@ -11,7 +11,11 @@ import { parseDurationSeconds } from '@/lib/auth/device-token'
 export type ActivationQrKind = 'ONE_TIME' | 'FOREVER'
 
 /** A token's lifecycle status as stored on the row. */
-export type ActivationTokenStatus = 'PENDING' | 'CLAIMED' | 'REVOKED' | 'EXPIRED'
+export type ActivationTokenStatus =
+  | 'PENDING'
+  | 'CLAIMED'
+  | 'REVOKED'
+  | 'EXPIRED'
 
 /** Builds the wallet-side activation URL a wallet scans for `tokenId`. */
 export function buildActivationUrl(baseUrl: string, tokenId: string): string {
@@ -25,7 +29,7 @@ export function buildActivationUrl(baseUrl: string, tokenId: string): string {
  */
 export function resolveExpiresAt(
   expiresIn: string | undefined,
-  now: number = Date.now(),
+  now: number = Date.now()
 ): Date | null {
   if (!expiresIn) return null
   return new Date(now + parseDurationSeconds(expiresIn) * 1000)
@@ -38,7 +42,7 @@ export function resolveExpiresAt(
  */
 export function effectiveTokenStatus(
   token: { status: ActivationTokenStatus; expiresAt: Date | null },
-  now: number = Date.now(),
+  now: number = Date.now()
 ): ActivationTokenStatus {
   if (
     token.status === 'PENDING' &&
@@ -71,11 +75,17 @@ interface MintActivationTokenParams {
  */
 export async function mintActivationToken(
   tx: Prisma.TransactionClient,
-  { cardId, qrKind, baseUrl, issuedByUserId, expiresAt }: MintActivationTokenParams,
+  {
+    cardId,
+    qrKind,
+    baseUrl,
+    issuedByUserId,
+    expiresAt
+  }: MintActivationTokenParams
 ) {
   await tx.cardActivationToken.updateMany({
     where: { cardId, qrKind, status: 'PENDING' },
-    data: { status: 'REVOKED' },
+    data: { status: 'REVOKED' }
   })
 
   const id = randomBytes(16).toString('hex')
@@ -87,8 +97,8 @@ export async function mintActivationToken(
       status: 'PENDING',
       qrPayload: buildActivationUrl(baseUrl, id),
       issuedByUserId: issuedByUserId ?? null,
-      expiresAt: expiresAt ?? null,
-    },
+      expiresAt: expiresAt ?? null
+    }
   })
 }
 
@@ -105,16 +115,16 @@ export async function mintActivationToken(
 export async function unpairCard(
   tx: Prisma.TransactionClient,
   cardId: string,
-  ntag424Cid?: string | null,
+  ntag424Cid?: string | null
 ) {
   await tx.card.update({
     where: { id: cardId },
-    data: { userId: null, username: null, remoteWalletId: null },
+    data: { userId: null, username: null, remoteWalletId: null }
   })
   if (ntag424Cid) {
     await tx.ntag424.update({
       where: { cid: ntag424Cid },
-      data: { userId: null },
+      data: { userId: null }
     })
   }
 }
@@ -132,7 +142,7 @@ export async function blockCard(
   tx: Prisma.TransactionClient,
   cardId: string,
   ntag424Cid: string | null | undefined,
-  currentBlockedAt: Date | null,
+  currentBlockedAt: Date | null
 ) {
   await tx.card.update({
     where: { id: cardId },
@@ -140,13 +150,13 @@ export async function blockCard(
       userId: null,
       username: null,
       remoteWalletId: null,
-      blockedAt: currentBlockedAt ?? new Date(),
-    },
+      blockedAt: currentBlockedAt ?? new Date()
+    }
   })
   if (ntag424Cid) {
     await tx.ntag424.update({
       where: { cid: ntag424Cid },
-      data: { userId: null },
+      data: { userId: null }
     })
   }
 }

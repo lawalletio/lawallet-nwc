@@ -26,6 +26,10 @@ export const viewport: Viewport = {
  * Keeping this file minimal means Next's route-group conventions pick the
  * right shell per branch.
  */
-export default function WalletLayout({ children }: { children: React.ReactNode }) {
+export default function WalletLayout({
+  children
+}: {
+  children: React.ReactNode
+}) {
   return <>{children}</>
 }

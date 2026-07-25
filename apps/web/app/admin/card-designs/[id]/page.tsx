@@ -15,7 +15,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table'
 import { TableSkeleton } from '@/components/admin/skeletons/table-skeleton'
 import { useAuth } from '@/components/admin/auth-context'
@@ -27,11 +27,11 @@ import {
   truncateNpub,
   truncateHex,
   formatRelativeTime,
-  npubInitials,
+  npubInitials
 } from '@/lib/client/format'
 
 export default function CardDesignDetailPage({
-  params,
+  params
 }: {
   params: Promise<{ id: string }>
 }) {
@@ -42,15 +42,15 @@ export default function CardDesignDetailPage({
   const canReadDesigns = isAuthorized(Permission.CARD_DESIGNS_READ)
 
   const { data: designs, loading: designsLoading } = useDesigns({
-    enabled: canReadDesigns,
+    enabled: canReadDesigns
   })
   const { data: cards, loading: cardsLoading } = useCards(undefined, {
-    enabled: canReadCards,
+    enabled: canReadCards
   })
 
   const design = useMemo(
     () => designs?.find(d => d.id === id) ?? null,
-    [designs, id],
+    [designs, id]
   )
 
   // Every card instance minted from this design. The admin `/api/cards` feed
@@ -59,7 +59,7 @@ export default function CardDesignDetailPage({
   // this list live.
   const instances = useMemo(
     () => (cards ?? []).filter(c => c.designId === id),
-    [cards, id],
+    [cards, id]
   )
 
   const pairedCount = instances.filter(c => c.lightningAddress).length
@@ -253,7 +253,7 @@ export default function CardDesignDetailPage({
  * each row's kind-0 fetch so one resolving profile doesn't re-render the table.
  */
 function InstanceUser({
-  lightningAddress,
+  lightningAddress
 }: {
   lightningAddress: { username: string | null; pubkey: string } | null
 }) {
@@ -265,7 +265,7 @@ function InstanceUser({
 
 function InstanceUserAvatar({
   username,
-  pubkey,
+  pubkey
 }: {
   username: string | null
   pubkey: string
@@ -291,7 +291,7 @@ function InstanceUserAvatar({
 function Meta({
   label,
   value,
-  mono,
+  mono
 }: {
   label: string
   value?: string
@@ -314,7 +314,7 @@ function Meta({
 function MiniStat({
   label,
   value,
-  loading,
+  loading
 }: {
   label: string
   value: number

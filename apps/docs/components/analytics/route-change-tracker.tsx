@@ -21,7 +21,7 @@ const SENSITIVE_QUERY_KEYS = new Set([
   'token',
   'secret',
   'pubkey',
-  'npub',
+  'npub'
 ])
 
 function sanitizePagePath(
@@ -52,7 +52,7 @@ export function RouteChangeTracker({ gtagId }: RouteChangeTrackerProps) {
     const pagePath = sanitizePagePath(pathname, searchParams)
     window.gtag('event', 'page_view', {
       page_path: pagePath,
-      send_to: gtagId,
+      send_to: gtagId
     })
   }, [pathname, searchParams, gtagId])
 

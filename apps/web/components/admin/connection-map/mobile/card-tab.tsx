@@ -18,7 +18,7 @@ interface Props {
 
 function chipFor(
   card: CardData,
-  wallets: RemoteWalletData[],
+  wallets: RemoteWalletData[]
 ): { label: string; tone: BindingTone } {
   if (card.remoteWalletId) {
     const w = wallets.find(w => w.id === card.remoteWalletId)
@@ -60,7 +60,7 @@ export function CardTab({ cards, wallets, onOpenDetail }: Props) {
           sublabel: w.isDefault ? 'Primary wallet' : w.type,
           active: picker.remoteWalletId === w.id,
           tone: 'wallet' as const,
-          onSelect: () => rebind(picker, w.id),
+          onSelect: () => rebind(picker, w.id)
         })),
         {
           key: '__default__',
@@ -68,8 +68,8 @@ export function CardTab({ cards, wallets, onOpenDetail }: Props) {
           sublabel: 'Spend through your primary address wallet',
           active: picker.remoteWalletId === null,
           tone: 'default' as const,
-          onSelect: () => rebind(picker, null),
-        },
+          onSelect: () => rebind(picker, null)
+        }
       ]
     : []
 
@@ -87,7 +87,9 @@ export function CardTab({ cards, wallets, onOpenDetail }: Props) {
         {cards.map(card => {
           const chip = chipFor(card, wallets)
           const title =
-            card.title ?? card.lightningAddress?.username ?? truncateHex(card.id)
+            card.title ??
+            card.lightningAddress?.username ??
+            truncateHex(card.id)
           return (
             <li key={card.id}>
               <button

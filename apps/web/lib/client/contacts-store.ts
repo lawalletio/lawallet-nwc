@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 import {
   DEFAULT_NOSTR_RELAYS,
   normalizeNostrPubkey,
-  parseKind0Content,
+  parseKind0Content
 } from '@/lib/nostr/profile'
 
 const STORAGE_KEY = 'lawallet-contacts'
@@ -79,7 +79,8 @@ function contactIdentityKeys(contact: Contact): string[] {
 
   if (pubkey) keys.unshift(`pubkey:${pubkey}`)
   if (npub) keys.unshift(`npub:${npub}`)
-  if (displayName && avatarUrl) keys.unshift(`profile:${displayName}:${avatarUrl}`)
+  if (displayName && avatarUrl)
+    keys.unshift(`profile:${displayName}:${avatarUrl}`)
 
   return keys
 }
@@ -122,7 +123,7 @@ function displayNameFor(address: string): string {
 
 function needsProfileRefresh(contact: Contact): boolean {
   const hasNip05DisplayName = Boolean(
-    contact.displayName?.trim() && (contact.pubkey || contact.npub),
+    contact.displayName?.trim() && (contact.pubkey || contact.npub)
   )
   return (
     !hasNip05DisplayName ||
@@ -136,11 +137,7 @@ function needsProfileRefresh(contact: Contact): boolean {
  * first. Empty during SSR — the data is localStorage-only on purpose.
  */
 export function useContacts(): Contact[] {
-  return useSyncExternalStore(
-    subscribe,
-    read,
-    () => [],
-  )
+  return useSyncExternalStore(subscribe, read, () => [])
 }
 
 /** Mutation surface for the contacts store — all writes notify subscribers. */
@@ -149,7 +146,7 @@ export const contactsActions = {
     const contact: Contact = {
       id: genId(),
       createdAt: Date.now(),
-      ...input,
+      ...input
     }
     write([contact, ...read()])
     return contact
@@ -170,10 +167,7 @@ export const contactsActions = {
     const contacts = read()
     const existing = contacts.find(c => c.lightningAddress === lightningAddress)
     const now = Date.now()
-    const displayName = firstUseful(
-      input.displayName,
-      existing?.displayName,
-    )
+    const displayName = firstUseful(input.displayName, existing?.displayName)
     const contact: Contact = {
       id: existing?.id ?? genId(),
       createdAt: input.touch === false && existing ? existing.createdAt : now,
@@ -188,17 +182,17 @@ export const contactsActions = {
       npub: input.npub ?? existing?.npub ?? null,
       avatarUrl: input.avatarUrl ?? existing?.avatarUrl ?? null,
       profileFetchedAt:
-        input.profileFetchedAt ?? existing?.profileFetchedAt ?? null,
+        input.profileFetchedAt ?? existing?.profileFetchedAt ?? null
     }
 
     const next =
       input.touch === false && existing
         ? contacts.map(c =>
-            c.lightningAddress === lightningAddress ? contact : c,
+            c.lightningAddress === lightningAddress ? contact : c
           )
         : [
             contact,
-            ...contacts.filter(c => c.lightningAddress !== lightningAddress),
+            ...contacts.filter(c => c.lightningAddress !== lightningAddress)
           ].slice(0, MAX_RECENT_CONTACTS)
     write(next)
     return contact
@@ -216,16 +210,13 @@ export const contactsActions = {
     const displayName = firstUseful(profile.displayName, profile.name)
     return contactsActions.upsertRecent({
       lightningAddress: normalizedAddress,
-      name:
-        displayName ??
-        current?.name ??
-        displayNameFor(normalizedAddress),
+      name: displayName ?? current?.name ?? displayNameFor(normalizedAddress),
       displayName: displayName ?? current?.displayName ?? null,
       pubkey: profile.pubkey ?? current?.pubkey ?? null,
       npub: profile.npub ?? current?.npub ?? null,
       avatarUrl: profile.avatarUrl ?? current?.avatarUrl ?? null,
       profileFetchedAt: Date.now(),
-      touch: false,
+      touch: false
     })
   },
   update(id: string, patch: Partial<Omit<Contact, 'id' | 'createdAt'>>) {
@@ -236,7 +227,7 @@ export const contactsActions = {
   },
   clear() {
     write([])
-  },
+  }
 }
 
 interface Nip05Response {
@@ -259,7 +250,7 @@ interface ResolvedNip05Profile {
 }
 
 async function resolveNip05Profile(
-  lightningAddress: string,
+  lightningAddress: string
 ): Promise<ResolvedNip05Profile | null> {
   const [name, host] = lightningAddress.split('@')
   if (!name || !host) return null
@@ -268,7 +259,9 @@ async function resolveNip05Profile(
   let nip05: Nip05Response
 
   try {
-    const response = await fetch(url, { headers: { accept: 'application/json' } })
+    const response = await fetch(url, {
+      headers: { accept: 'application/json' }
+    })
     if (!response.ok) return null
     nip05 = (await response.json()) as Nip05Response
   } catch {
@@ -281,7 +274,7 @@ async function resolveNip05Profile(
 
   const profile = await fetchKind0Profile(
     normalizedPubkey.pubkey,
-    nip05.relays?.[normalizedPubkey.pubkey],
+    nip05.relays?.[normalizedPubkey.pubkey]
   )
   if (!profile) return null
 
@@ -290,7 +283,7 @@ async function resolveNip05Profile(
     name: profile.name ?? null,
     pubkey: normalizedPubkey.pubkey,
     npub: normalizedPubkey.npub,
-    avatarUrl: profile.picture ?? null,
+    avatarUrl: profile.picture ?? null
   }
 }
 
@@ -302,14 +295,14 @@ function firstUseful(
 
 function findNip05Pubkey(
   names: Nip05Response['names'],
-  name: string,
+  name: string
 ): string | null {
   if (!names) return null
   const direct = names[name]
   if (typeof direct === 'string') return direct
   const lower = name.toLowerCase()
   const entry = Object.entries(names).find(
-    ([key]) => key.toLowerCase() === lower,
+    ([key]) => key.toLowerCase() === lower
   )
   return typeof entry?.[1] === 'string' ? entry[1] : null
 }
@@ -322,7 +315,7 @@ async function fetchKind0Profile(pubkey: string, nip05Relays?: string[]) {
     try {
       const events = await pool.querySync(relays, {
         kinds: [0],
-        authors: [pubkey],
+        authors: [pubkey]
       })
       const newest = newestEvent(events)
       return newest ? parseKind0Content(pubkey, newest.content) : null

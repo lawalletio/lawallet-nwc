@@ -20,7 +20,7 @@ const PII_PATTERNS: RegExp[] = [
   /^lnbc[0-9]/i,
   /^lnurl[0-9a-z]+$/i,
   /^[0-9a-f]{64}$/i, // bare 64-hex (Nostr pubkey / event id)
-  /@[a-z0-9.-]+\.[a-z]{2,}$/i, // anything that looks like an email / ln address
+  /@[a-z0-9.-]+\.[a-z]{2,}$/i // anything that looks like an email / ln address
 ]
 
 function looksLikePII(value: unknown): boolean {
@@ -36,9 +36,7 @@ function sanitize(params: EventParams | undefined): EventParams | undefined {
     if (looksLikePII(value)) {
       if (process.env.NODE_ENV !== 'production') {
         // eslint-disable-next-line no-console
-        console.warn(
-          `[analytics] dropped PII-shaped value for param "${key}"`
-        )
+        console.warn(`[analytics] dropped PII-shaped value for param "${key}"`)
       }
       continue
     }
@@ -74,7 +72,7 @@ const SENSITIVE_QUERY_KEYS = new Set([
   'token',
   'secret',
   'pubkey',
-  'npub',
+  'npub'
 ])
 
 /**

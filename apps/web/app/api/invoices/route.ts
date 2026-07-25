@@ -10,7 +10,11 @@ import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createInvoiceSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
-import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
+import {
+  ActivityEvent,
+  invoiceLogMetadata,
+  logActivity
+} from '@/lib/activity-log'
 import { extractPaymentHash } from '@/lib/invoice-utils'
 import { resolveInvoice } from '@/lib/lnurl-probe'
 
@@ -43,7 +47,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
     // Check username availability
     const existing = await prisma.lightningAddress.findUnique({
-      where: { username },
+      where: { username }
     })
     if (existing) {
       throw new ValidationError('Username is already taken')
@@ -54,7 +58,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const settings = await getSettings([
     'registration_ln_address',
     'registration_price',
-    'registration_ln_enabled',
+    'registration_ln_enabled'
   ])
 
   const lnAddress = settings.registration_ln_address
@@ -95,7 +99,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   // string once here rather than scattering the conversion around.
   const purposeToEnum = {
     registration: 'REGISTRATION',
-    'wallet-address': 'WALLET_ADDRESS',
+    'wallet-address': 'WALLET_ADDRESS'
   } as const
   const invoice = await prisma.invoice.create({
     data: {
@@ -107,8 +111,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       metadata: body.metadata ?? undefined,
       status: 'PENDING',
       userId: user.id,
-      expiresAt,
-    },
+      expiresAt
+    }
   })
 
   eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
@@ -118,7 +122,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     event: ActivityEvent.INVOICE_GENERATED,
     message: `Invoice generated (${invoice.amountSats} sats, ${invoice.purpose})`,
     userId: user.id,
-    metadata: invoiceLogMetadata(invoice),
+    metadata: invoiceLogMetadata(invoice)
   })
 
   return NextResponse.json({
@@ -127,6 +131,6 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     paymentHash: invoice.paymentHash,
     amountSats: invoice.amountSats,
     verify,
-    expiresAt: invoice.expiresAt.toISOString(),
+    expiresAt: invoice.expiresAt.toISOString()
   })
 })

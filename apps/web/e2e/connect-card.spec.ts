@@ -3,7 +3,7 @@ import { test, expect } from './fixtures/auth'
 import {
   mintSessionToken,
   SEEDED_ADMIN_PUBKEY,
-  SEEDED_USER_PUBKEY,
+  SEEDED_USER_PUBKEY
 } from './fixtures/auth'
 import { Role } from '../lib/auth/permissions'
 
@@ -32,15 +32,15 @@ function freshCardUid(): string {
 }
 
 const adminAuth = () => ({
-  Authorization: `Bearer ${mintSessionToken(SEEDED_ADMIN_PUBKEY, Role.ADMIN)}`,
+  Authorization: `Bearer ${mintSessionToken(SEEDED_ADMIN_PUBKEY, Role.ADMIN)}`
 })
 const userAuth = () => ({
-  Authorization: `Bearer ${mintSessionToken(SEEDED_USER_PUBKEY, Role.USER)}`,
+  Authorization: `Bearer ${mintSessionToken(SEEDED_USER_PUBKEY, Role.USER)}`
 })
 
 test.describe('Connect Card — activation lifecycle', () => {
   test('initialize → QR → preview → claim → pair → re-claim blocked → rescue', async ({
-    request,
+    request
   }) => {
     const admin = adminAuth()
     const user = userAuth()
@@ -52,7 +52,7 @@ test.describe('Connect Card — activation lifecycle', () => {
     await test.step('initialize an unowned card against a seeded design', async () => {
       const res = await request.post('/api/cards', {
         headers: admin,
-        data: { id: uid, designId: SEED_DESIGN_ID, kind: 'SIMPLE' },
+        data: { id: uid, designId: SEED_DESIGN_ID, kind: 'SIMPLE' }
       })
       expect(res.status()).toBe(200)
       const card = await res.json()
@@ -67,7 +67,7 @@ test.describe('Connect Card — activation lifecycle', () => {
     await test.step('mint a ONE_TIME activation QR for the card', async () => {
       const res = await request.post(`/api/cards/${cardId}/activation-tokens`, {
         headers: admin,
-        data: { qrKind: 'ONE_TIME' },
+        data: { qrKind: 'ONE_TIME' }
       })
       expect(res.status()).toBe(201)
       const body = await res.json()
@@ -93,10 +93,13 @@ test.describe('Connect Card — activation lifecycle', () => {
     })
 
     await test.step('claimer activates: ownership transfers + wallet binds', async () => {
-      const res = await request.post(`/api/activation-tokens/${tokenId}/claim`, {
-        headers: user,
-        data: { remoteWalletId: null },
-      })
+      const res = await request.post(
+        `/api/activation-tokens/${tokenId}/claim`,
+        {
+          headers: user,
+          data: { remoteWalletId: null }
+        }
+      )
       expect(res.status()).toBe(200)
       const body = await res.json()
       expect(body.qrKind).toBe('ONE_TIME')
@@ -115,24 +118,29 @@ test.describe('Connect Card — activation lifecycle', () => {
     })
 
     await test.step('a second scan of the burned QR is rejected', async () => {
-      const res = await request.post(`/api/activation-tokens/${tokenId}/claim`, {
-        headers: user,
-        data: { remoteWalletId: null },
-      })
+      const res = await request.post(
+        `/api/activation-tokens/${tokenId}/claim`,
+        {
+          headers: user,
+          data: { remoteWalletId: null }
+        }
+      )
       expect(res.status()).toBe(409)
     })
 
     await test.step('rescue re-issues a fresh QR and unpairs the card', async () => {
       const res = await request.post(`/api/cards/${cardId}/rescue`, {
         headers: admin,
-        data: {},
+        data: {}
       })
       expect(res.status()).toBe(201)
       const body = await res.json()
       expect(body.qrKind).toBe('ONE_TIME')
       expect(body.tokenId).not.toBe(tokenId)
 
-      const cardRes = await request.get(`/api/cards/${cardId}`, { headers: admin })
+      const cardRes = await request.get(`/api/cards/${cardId}`, {
+        headers: admin
+      })
       const card = await cardRes.json()
       // Rescued card returns to a fresh, unassigned state.
       expect(card.pubkey ?? null).toBeNull()
@@ -145,32 +153,35 @@ test.describe('Connect Card — activation lifecycle', () => {
   })
 
   test('FOREVER QR is rejected for a SIMPLE card (MASTER share deferred)', async ({
-    request,
+    request
   }) => {
     const admin = adminAuth()
     const create = await request.post('/api/cards', {
       headers: admin,
-      data: { id: freshCardUid(), designId: SEED_DESIGN_ID, kind: 'SIMPLE' },
+      data: { id: freshCardUid(), designId: SEED_DESIGN_ID, kind: 'SIMPLE' }
     })
     const card = await create.json()
 
     const res = await request.post(`/api/cards/${card.id}/activation-tokens`, {
       headers: admin,
-      data: { qrKind: 'FOREVER' },
+      data: { qrKind: 'FOREVER' }
     })
     expect(res.status()).toBe(400)
   })
 
-  test('activate page renders the scanned card preview', async ({ page, request }) => {
+  test('activate page renders the scanned card preview', async ({
+    page,
+    request
+  }) => {
     const admin = adminAuth()
     const create = await request.post('/api/cards', {
       headers: admin,
-      data: { id: freshCardUid(), designId: SEED_DESIGN_ID, kind: 'SIMPLE' },
+      data: { id: freshCardUid(), designId: SEED_DESIGN_ID, kind: 'SIMPLE' }
     })
     const card = await create.json()
     const mint = await request.post(`/api/cards/${card.id}/activation-tokens`, {
       headers: admin,
-      data: { qrKind: 'ONE_TIME' },
+      data: { qrKind: 'ONE_TIME' }
     })
     const { tokenId } = await mint.json()
 

@@ -1,7 +1,7 @@
 import type {
   LightningAddressMode,
   RemoteWalletStatus,
-  RemoteWalletType,
+  RemoteWalletType
 } from '@/lib/generated/prisma'
 
 // ── RemoteWallet routing ─────────────────────────────────────────────────────
@@ -32,7 +32,12 @@ export interface RemoteWalletRef {
 export type WalletRoute =
   | { kind: 'idle' }
   | { kind: 'alias'; redirect: string }
-  | { kind: 'wallet'; walletId: string | null; type: RemoteWalletType; config: unknown }
+  | {
+      kind: 'wallet'
+      walletId: string | null
+      type: RemoteWalletType
+      config: unknown
+    }
   | { kind: 'unconfigured' }
 
 export interface ResolveWalletRouteInput {
@@ -46,7 +51,12 @@ export interface ResolveWalletRouteInput {
 
 function walletRoute(wallet: RemoteWalletRef): WalletRoute {
   return wallet.status === 'ACTIVE'
-    ? { kind: 'wallet', walletId: wallet.id ?? null, type: wallet.type, config: wallet.config }
+    ? {
+        kind: 'wallet',
+        walletId: wallet.id ?? null,
+        type: wallet.type,
+        config: wallet.config
+      }
     : { kind: 'unconfigured' }
 }
 
@@ -65,7 +75,9 @@ function walletRoute(wallet: RemoteWalletRef): WalletRoute {
  * The GET (metadata) and GET /cb (callback) LUD-16 routes both call this so
  * they stay in lockstep.
  */
-export function resolveWalletRoute(input: ResolveWalletRouteInput): WalletRoute {
+export function resolveWalletRoute(
+  input: ResolveWalletRouteInput
+): WalletRoute {
   switch (input.mode) {
     case 'IDLE':
       return { kind: 'idle' }
@@ -74,7 +86,9 @@ export function resolveWalletRoute(input: ResolveWalletRouteInput): WalletRoute 
         ? { kind: 'alias', redirect: input.redirect.trim() }
         : { kind: 'unconfigured' }
     case 'CUSTOM_NWC':
-      return input.remoteWallet ? walletRoute(input.remoteWallet) : { kind: 'unconfigured' }
+      return input.remoteWallet
+        ? walletRoute(input.remoteWallet)
+        : { kind: 'unconfigured' }
     case 'DEFAULT_NWC':
       return input.defaultRemoteWallet
         ? walletRoute(input.defaultRemoteWallet)
@@ -84,7 +98,12 @@ export function resolveWalletRoute(input: ResolveWalletRouteInput): WalletRoute 
 
 /** Driver-addressable routing decision for a Card spend. */
 export type CardWalletRoute =
-  | { kind: 'wallet'; walletId: string | null; type: RemoteWalletType; config: unknown }
+  | {
+      kind: 'wallet'
+      walletId: string | null
+      type: RemoteWalletType
+      config: unknown
+    }
   | { kind: 'unconfigured' }
 
 export interface ResolveCardWalletInput {
@@ -108,7 +127,9 @@ export interface ResolveCardWalletInput {
  * Symmetric with `resolveWalletRoute`'s CUSTOM/DEFAULT handling so card and
  * address routing share the same safety rules.
  */
-export function resolveCardWallet(input: ResolveCardWalletInput): CardWalletRoute {
+export function resolveCardWallet(
+  input: ResolveCardWalletInput
+): CardWalletRoute {
   if (input.remoteWallet) {
     return walletRoute(input.remoteWallet) as CardWalletRoute
   }
@@ -117,7 +138,7 @@ export function resolveCardWallet(input: ResolveCardWalletInput): CardWalletRout
       kind: 'wallet',
       walletId: input.defaultRemoteWallet.id ?? null,
       type: input.defaultRemoteWallet.type,
-      config: input.defaultRemoteWallet.config,
+      config: input.defaultRemoteWallet.config
     }
   }
   return { kind: 'unconfigured' }
@@ -129,12 +150,15 @@ export function resolveCardWallet(input: ResolveCardWalletInput): CardWalletRout
  * 404 in that case rather than making a dubious outbound request.
  */
 export function parseLightningAddress(
-  raw: string,
+  raw: string
 ): { user: string; host: string } | null {
   const at = raw.indexOf('@')
   if (at <= 0 || at === raw.length - 1) return null
   const user = raw.slice(0, at).trim().toLowerCase()
-  const host = raw.slice(at + 1).trim().toLowerCase()
+  const host = raw
+    .slice(at + 1)
+    .trim()
+    .toLowerCase()
   // Basic guardrails: host must look like a hostname, user must only contain
   // the characters LUD-16 permits (§ "LNURL-pay address encoding").
   if (!/^[a-z0-9._%+-]+$/.test(user)) return null

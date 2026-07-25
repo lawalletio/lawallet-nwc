@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   readBalance,
   writeBalance,
-  clearBalance,
+  clearBalance
 } from '@/lib/client/cache/balance-cache'
 
 const KEY = 'cafef00d12345678'
@@ -29,7 +29,7 @@ describe('balance-cache', () => {
   it('returns null on schema-version mismatch', () => {
     window.localStorage.setItem(
       `lawallet-balance:${KEY}`,
-      JSON.stringify({ sats: 1, fetchedAt: 0, schemaVersion: 999 }),
+      JSON.stringify({ sats: 1, fetchedAt: 0, schemaVersion: 999 })
     )
     expect(readBalance(KEY)).toBeNull()
   })
@@ -37,7 +37,7 @@ describe('balance-cache', () => {
   it('returns null when sats is non-finite', () => {
     window.localStorage.setItem(
       `lawallet-balance:${KEY}`,
-      JSON.stringify({ sats: 'abc', fetchedAt: 0, schemaVersion: 1 }),
+      JSON.stringify({ sats: 'abc', fetchedAt: 0, schemaVersion: 1 })
     )
     expect(readBalance(KEY)).toBeNull()
   })

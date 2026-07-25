@@ -2,14 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
   DriverConfigError,
-  UnsupportedDriverError,
+  UnsupportedDriverError
 } from '@/lib/wallet/drivers/errors'
 import {
   driverForWallet,
   getDriver,
   listDriverTypes,
   registerDriver,
-  unregisterDriver,
+  unregisterDriver
 } from '@/lib/wallet/drivers/registry'
 import type { RemoteWalletDriver } from '@/lib/wallet/drivers/types'
 
@@ -34,9 +34,9 @@ function makeStubDriver(): RemoteWalletDriver<{ token: string }> {
         paymentHash: 'h',
         amountSats: 1,
         description: '',
-        expiresAt: null,
+        expiresAt: null
       }
-    },
+    }
   }
 }
 
@@ -84,7 +84,7 @@ describe('driver registry', () => {
       registerDriver(makeStubDriver())
       const { driver, config } = driverForWallet({
         type: 'NWC',
-        config: { token: 'abc' },
+        config: { token: 'abc' }
       })
       expect(driver.type).toBe('NWC')
       expect(config).toEqual({ token: 'abc' })
@@ -93,7 +93,7 @@ describe('driver registry', () => {
     it('throws DriverConfigError when config fails the driver schema', () => {
       registerDriver(makeStubDriver())
       expect(() =>
-        driverForWallet({ type: 'NWC', config: { token: '' } }),
+        driverForWallet({ type: 'NWC', config: { token: '' } })
       ).toThrow(DriverConfigError)
     })
 
@@ -109,9 +109,9 @@ describe('driver registry', () => {
     })
 
     it('throws UnsupportedDriverError when the wallet type has no driver', () => {
-      expect(() =>
-        driverForWallet({ type: 'BTCPAY', config: {} }),
-      ).toThrow(UnsupportedDriverError)
+      expect(() => driverForWallet({ type: 'BTCPAY', config: {} })).toThrow(
+        UnsupportedDriverError
+      )
     })
   })
 })

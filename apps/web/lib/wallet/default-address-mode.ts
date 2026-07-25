@@ -13,7 +13,7 @@ import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
  * that isn't there.
  */
 export async function resolveDefaultAddressMode(
-  userId: string,
+  userId: string
 ): Promise<'DEFAULT_NWC' | 'IDLE'> {
   const primaryWallet = await getPrimaryRemoteWalletForUser(userId)
   return primaryWallet?.status === 'ACTIVE' ? 'DEFAULT_NWC' : 'IDLE'

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   parseDestination,
-  DestinationParseError,
+  DestinationParseError
 } from '@/lib/client/nwc/parse-destination'
 
 // Silence debug logs from the bolt11 decoder on failures we trigger deliberately.
@@ -16,13 +16,13 @@ vi.mock('light-bolt11-decoder', async importOriginal => {
             { name: 'amount', value: '1500000' },
             { name: 'description', value: 'test invoice' },
             { name: 'payment_hash', value: 'abc123' },
-            { name: 'timestamp', value: 1_700_000_000 },
+            { name: 'timestamp', value: 1_700_000_000 }
           ],
-          expiry: 3600,
+          expiry: 3600
         } as never
       }
       return actual.decode(input)
-    },
+    }
   }
 })
 
@@ -35,7 +35,7 @@ describe('parseDestination', () => {
     expect(result.username).toBe('satoshi')
     expect(result.host).toBe('example.com')
     expect(result.lnurlpUrl).toBe(
-      'https://example.com/.well-known/lnurlp/satoshi',
+      'https://example.com/.well-known/lnurlp/satoshi'
     )
   })
 
@@ -62,7 +62,7 @@ describe('parseDestination', () => {
 
   it('rejects random garbage', () => {
     expect(() => parseDestination('not-a-destination')).toThrow(
-      DestinationParseError,
+      DestinationParseError
     )
   })
 

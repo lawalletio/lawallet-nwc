@@ -4,42 +4,56 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createLightningAddressFixture } from '@/tests/helpers/fixtures'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/admin-auth', () => ({
-  validateAdminAuth: vi.fn(),
+  validateAdminAuth: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn().mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'ADMIN', method: 'jwt' }),
-  authenticateWithRole: vi.fn().mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'ADMIN', method: 'jwt' }),
-  authenticateWithPermission: vi.fn().mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'ADMIN', method: 'jwt' }),
+  authenticate: vi
+    .fn()
+    .mockResolvedValue({
+      pubkey: 'a'.repeat(64),
+      role: 'ADMIN',
+      method: 'jwt'
+    }),
+  authenticateWithRole: vi
+    .fn()
+    .mockResolvedValue({
+      pubkey: 'a'.repeat(64),
+      role: 'ADMIN',
+      method: 'jwt'
+    }),
+  authenticateWithPermission: vi
+    .fn()
+    .mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'ADMIN', method: 'jwt' })
 }))
 
 vi.mock('@/mocks/lightning-address', () => ({
   mockLightningAddressData: [
     {
       username: 'alice',
-      nwc: 'nostr+walletconnect://test?relay=wss%3A%2F%2Frelay.test.com&secret=abc',
+      nwc: 'nostr+walletconnect://test?relay=wss%3A%2F%2Frelay.test.com&secret=abc'
     },
     {
       username: 'bob',
-      nwc: 'nostr+walletconnect://test?relay=wss%3A%2F%2Frelay.other.com&secret=def',
+      nwc: 'nostr+walletconnect://test?relay=wss%3A%2F%2Frelay.other.com&secret=def'
     },
     {
-      username: 'charlie',
-    },
-  ],
+      username: 'charlie'
+    }
+  ]
 }))
 
 import { GET as ListGet } from '@/app/api/lightning-addresses/route'
@@ -70,12 +84,15 @@ describe('GET /api/lightning-addresses', () => {
           remoteWallets: [
             {
               type: 'NWC',
-              config: { connectionString: 'nostr+walletconnect://test', mode: 'SEND_RECEIVE' },
-              status: 'ACTIVE',
-            },
-          ],
-        },
-      },
+              config: {
+                connectionString: 'nostr+walletconnect://test',
+                mode: 'SEND_RECEIVE'
+              },
+              status: 'ACTIVE'
+            }
+          ]
+        }
+      }
     ] as any)
 
     const req = createNextRequest('/api/lightning-addresses')
@@ -97,7 +114,9 @@ describe('GET /api/lightning-addresses', () => {
   })
 
   it('rejects unauthorized user', async () => {
-    vi.mocked(authenticateWithPermission).mockRejectedValueOnce(new Error('unauthorized'))
+    vi.mocked(authenticateWithPermission).mockRejectedValueOnce(
+      new Error('unauthorized')
+    )
 
     const req = createNextRequest('/api/lightning-addresses')
     const res = await ListGet(req)
@@ -110,8 +129,8 @@ describe('GET /api/lightning-addresses/counts', () => {
   it('returns counts for authorized user', async () => {
     vi.mocked(prismaMock.lightningAddress.count)
       .mockResolvedValueOnce(10) // total
-      .mockResolvedValueOnce(7)  // withNWC
-      .mockResolvedValueOnce(3)  // withoutNWC
+      .mockResolvedValueOnce(7) // withNWC
+      .mockResolvedValueOnce(3) // withoutNWC
 
     const req = createNextRequest('/api/lightning-addresses/counts')
     const res = await CountsGet(req)
@@ -131,7 +150,9 @@ describe('GET /api/lightning-addresses/counts', () => {
   })
 
   it('rejects unauthorized user', async () => {
-    vi.mocked(authenticateWithPermission).mockRejectedValueOnce(new Error('unauthorized'))
+    vi.mocked(authenticateWithPermission).mockRejectedValueOnce(
+      new Error('unauthorized')
+    )
 
     const req = createNextRequest('/api/lightning-addresses/counts')
     const res = await CountsGet(req)

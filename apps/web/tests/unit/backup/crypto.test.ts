@@ -3,14 +3,17 @@ import { zipSync } from 'fflate'
 import {
   encryptArchive,
   decryptArchive,
-  isEncryptedArchive,
+  isEncryptedArchive
 } from '@/lib/backup/crypto'
 
 const PASSWORD = 'correct horse battery staple'
 
 describe('backup crypto', () => {
   it('round-trips encrypt → decrypt back to the original bytes', () => {
-    const plain = Buffer.from('the quick brown fox jumps over the lazy dog', 'utf8')
+    const plain = Buffer.from(
+      'the quick brown fox jumps over the lazy dog',
+      'utf8'
+    )
     const envelope = encryptArchive(plain, PASSWORD)
     const decrypted = decryptArchive(envelope, PASSWORD)
     expect(Buffer.compare(decrypted, plain)).toBe(0)

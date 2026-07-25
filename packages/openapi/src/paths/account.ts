@@ -5,7 +5,7 @@ import {
   inlineJsonResponse,
   jsonResponse,
   protectedSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 import { errorResponse, responses } from '../responses'
@@ -15,8 +15,8 @@ const TAG = 'Account'
 
 const pubkeyParams = z.object({
   pubkey: hexPubkeySchema.openapi({
-    description: 'The linked identity’s Nostr pubkey (64-char lowercase hex).',
-  }),
+    description: 'The linked identity’s Nostr pubkey (64-char lowercase hex).'
+  })
 })
 
 // ── Summary ────────────────────────────────────────────────────────────────
@@ -35,10 +35,13 @@ registry.registerPath({
   operationId: 'account.get',
   security: protectedSecurity,
   responses: {
-    200: jsonResponse('The caller’s account summary.', 'AccountSummaryResponse'),
+    200: jsonResponse(
+      'The caller’s account summary.',
+      'AccountSummaryResponse'
+    ),
     ...commonErrorResponses,
-    404: errorResponse('No account exists for the authenticated pubkey.'),
-  },
+    404: errorResponse('No account exists for the authenticated pubkey.')
+  }
 })
 
 // ── Identity linking (proof of another key) ────────────────────────────────
@@ -62,19 +65,19 @@ registry.registerPath({
   request: {
     body: {
       content: {
-        'application/json': { schema: schemas.AccountLinkBeginRequest },
-      },
-    },
+        'application/json': { schema: schemas.AccountLinkBeginRequest }
+      }
+    }
   },
   responses: {
     200: jsonResponse(
       'Proof bootstrap. `challenge` + `nonce` for the nostr method; both absent for passkey.',
-      'AccountLinkBeginResponse',
+      'AccountLinkBeginResponse'
     ),
     ...commonErrorResponses,
     404: errorResponse('No account exists for the authenticated pubkey.'),
-    429: responses.rateLimited,
-  },
+    429: responses.rateLimited
+  }
 })
 
 registry.registerPath({
@@ -99,24 +102,24 @@ registry.registerPath({
   request: {
     body: {
       content: {
-        'application/json': { schema: schemas.AccountLinkVerifyRequest },
-      },
-    },
+        'application/json': { schema: schemas.AccountLinkVerifyRequest }
+      }
+    }
   },
   responses: {
     200: jsonResponse(
       'Proof accepted — identity linked, or a merge ticket staged.',
-      'AccountLinkVerifyResponse',
+      'AccountLinkVerifyResponse'
     ),
     ...commonErrorResponses,
     401: errorResponse(
       'Missing/invalid authentication, or the proof failed: expired or burned ' +
-        'challenge, an event that does not answer it, or a bad signature.',
+        'challenge, an event that does not answer it, or a bad signature.'
     ),
     404: errorResponse('No account exists for the authenticated pubkey.'),
     409: errorResponse('This key is already linked to the caller’s account.'),
-    429: responses.rateLimited,
-  },
+    429: responses.rateLimited
+  }
 })
 
 // ── Merge ──────────────────────────────────────────────────────────────────
@@ -138,20 +141,22 @@ registry.registerPath({
   request: {
     body: {
       content: {
-        'application/json': { schema: schemas.AccountMergePreviewRequest },
-      },
-    },
+        'application/json': { schema: schemas.AccountMergePreviewRequest }
+      }
+    }
   },
   responses: {
     200: jsonResponse('Merge dry-run summary.', 'AccountMergePreviewResponse'),
     ...commonErrorResponses,
     401: errorResponse(
       'Missing/invalid authentication, or the merge ticket is invalid, ' +
-        'expired, or bound to a different account.',
+        'expired, or bound to a different account.'
     ),
-    404: errorResponse('No account exists for the authenticated pubkey, or one side of the merge no longer exists.'),
-    429: responses.rateLimited,
-  },
+    404: errorResponse(
+      'No account exists for the authenticated pubkey, or one side of the merge no longer exists.'
+    ),
+    429: responses.rateLimited
+  }
 })
 
 registry.registerPath({
@@ -175,24 +180,26 @@ registry.registerPath({
   request: {
     body: {
       content: {
-        'application/json': { schema: schemas.AccountMergeRequest },
-      },
-    },
+        'application/json': { schema: schemas.AccountMergeRequest }
+      }
+    }
   },
   responses: {
     200: jsonResponse('Merge committed.', 'AccountMergeResponse'),
     ...commonErrorResponses,
     401: errorResponse(
       'Missing/invalid authentication, or the merge ticket is invalid, ' +
-        'expired, or bound to a different account.',
+        'expired, or bound to a different account.'
     ),
-    404: errorResponse('No account exists for the authenticated pubkey, or one side of the merge no longer exists.'),
+    404: errorResponse(
+      'No account exists for the authenticated pubkey, or one side of the merge no longer exists.'
+    ),
     409: errorResponse(
       'The absorbed account custodies a never-exported Nostr key — export it ' +
-        'before merging.',
+        'before merging.'
     ),
-    429: responses.rateLimited,
-  },
+    429: responses.rateLimited
+  }
 })
 
 // ── Identity management ────────────────────────────────────────────────────
@@ -216,16 +223,16 @@ registry.registerPath({
     params: pubkeyParams,
     body: {
       content: {
-        'application/json': { schema: schemas.UpdateIdentityRequest },
-      },
-    },
+        'application/json': { schema: schemas.UpdateIdentityRequest }
+      }
+    }
   },
   responses: {
     200: jsonResponse('The updated identity.', 'NostrIdentitySummary'),
     ...commonErrorResponses,
     404: errorResponse('Identity not found (or not owned by the caller).'),
-    429: responses.rateLimited,
-  },
+    429: responses.rateLimited
+  }
 })
 
 registry.registerPath({
@@ -246,14 +253,14 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Identity unlinked.',
-      z.object({ message: z.string(), pubkey: z.string() }),
+      z.object({ message: z.string(), pubkey: z.string() })
     ),
     ...commonErrorResponses,
     404: errorResponse('Identity not found (or not owned by the caller).'),
     409: errorResponse(
       'The identity is the account’s primary (promote another identity ' +
-        'first) or its last remaining identity.',
+        'first) or its last remaining identity.'
     ),
-    429: responses.rateLimited,
-  },
+    429: responses.rateLimited
+  }
 })

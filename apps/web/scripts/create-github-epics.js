@@ -31,7 +31,9 @@ const GITHUB_API_URL = 'https://api.github.com'
 if (!GITHUB_TOKEN) {
   console.error('Error: GITHUB_TOKEN environment variable is required')
   console.error('Get a token from: https://github.com/settings/tokens')
-  console.error('Required scopes: repo (and write:org for organization projects)')
+  console.error(
+    'Required scopes: repo (and write:org for organization projects)'
+  )
   process.exit(1)
 }
 
@@ -44,7 +46,8 @@ const EPIC_GROUPS = {
     labels: ['epic', 'bug', 'priority: high']
   },
   'Error Handling & Infrastructure': {
-    description: 'Comprehensive error handling, validation, and middleware infrastructure',
+    description:
+      'Comprehensive error handling, validation, and middleware infrastructure',
     issueIndices: [1, 2, 64, 65, 69, 70], // Error handling (1,2), validation (64,65,69,70)
     labels: ['epic', 'enhancement', 'backend', 'refactoring']
   },
@@ -78,8 +81,9 @@ const EPIC_GROUPS = {
     issueIndices: [18, 19, 20], // GitHub Actions (18), Vercel (19), coverage reporting (20)
     labels: ['epic', 'enhancement', 'ci/cd']
   },
-  'Documentation': {
-    description: 'API documentation, architecture docs, and contributing guides',
+  Documentation: {
+    description:
+      'API documentation, architecture docs, and contributing guides',
     issueIndices: [21, 22, 23, 24, 25, 26], // API docs (21), architecture (22), testing (23), contributing (24), JSDoc (25), OpenAPI (26)
     labels: ['epic', 'documentation']
   }
@@ -87,11 +91,14 @@ const EPIC_GROUPS = {
 
 async function makeRequest(url, options = {}) {
   // Projects API requires different Accept header
-  const isProjectsApi = url.includes('/projects') && !url.includes('/columns') && !url.includes('/cards')
-  const acceptHeader = isProjectsApi 
-    ? 'application/vnd.github.inertia-preview+json' 
+  const isProjectsApi =
+    url.includes('/projects') &&
+    !url.includes('/columns') &&
+    !url.includes('/cards')
+  const acceptHeader = isProjectsApi
+    ? 'application/vnd.github.inertia-preview+json'
     : 'application/vnd.github.v3+json'
-  
+
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -115,14 +122,18 @@ async function makeRequest(url, options = {}) {
 
     if (response.status === 403) {
       errorMessage += '\n   → This usually means:'
-      errorMessage += '\n     1. Your token lacks required scopes (check: https://github.com/settings/tokens)'
-      errorMessage += '\n     2. The repository is private and your token doesn\'t have access'
+      errorMessage +=
+        '\n     1. Your token lacks required scopes (check: https://github.com/settings/tokens)'
+      errorMessage +=
+        "\n     2. The repository is private and your token doesn't have access"
       errorMessage += '\n     3. The token has expired or is invalid'
       if (GITHUB_PROJECT_NUMBER) {
-        errorMessage += '\n     4. For projects: token needs "write:org" scope for org projects or "repo" for user projects'
+        errorMessage +=
+          '\n     4. For projects: token needs "write:org" scope for org projects or "repo" for user projects'
       }
     } else if (response.status === 401) {
-      errorMessage += '\n   → Your token is invalid or expired. Get a new one at: https://github.com/settings/tokens'
+      errorMessage +=
+        '\n   → Your token is invalid or expired. Get a new one at: https://github.com/settings/tokens'
     }
 
     throw new Error(errorMessage)
@@ -153,7 +164,7 @@ async function updateIssue(repo, issueNumber, updates) {
 
 async function getAllProjects(repo) {
   const projects = []
-  
+
   // Get repository projects
   try {
     const url = `${GITHUB_API_URL}/repos/${repo}/projects`
@@ -192,11 +203,13 @@ async function getAllProjects(repo) {
 async function getProjectId(repo, projectNumber) {
   const projects = await getAllProjects(repo)
   const project = projects.find(p => p.number === parseInt(projectNumber))
-  
+
   if (!project) {
-    throw new Error(`Project #${projectNumber} not found in repository or organization`)
+    throw new Error(
+      `Project #${projectNumber} not found in repository or organization`
+    )
   }
-  
+
   return project.id
 }
 
@@ -206,8 +219,8 @@ function promptUser(question) {
     output: process.stdout
   })
 
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
+  return new Promise(resolve => {
+    rl.question(question, answer => {
       rl.close()
       resolve(answer)
     })
@@ -216,7 +229,7 @@ function promptUser(question) {
 
 async function createProject(repo, projectName = 'Lawallet NWC Epics') {
   const [owner] = repo.split('/')
-  
+
   // Try to create organization project first (more common)
   try {
     console.log(`Creating organization project: ${projectName}...`)
@@ -229,13 +242,15 @@ async function createProject(repo, projectName = 'Lawallet NWC Epics') {
         private: false
       })
     })
-    console.log(`  ✓ Created organization project: #${project.number} - ${project.name}`)
+    console.log(
+      `  ✓ Created organization project: #${project.number} - ${project.name}`
+    )
     return project.number
   } catch (error) {
     // If org project creation fails, try repository project
     console.warn(`Could not create organization project: ${error.message}`)
     console.log(`Trying to create repository project instead...`)
-    
+
     try {
       const repoUrl = `${GITHUB_API_URL}/repos/${repo}/projects`
       const project = await makeRequest(repoUrl, {
@@ -246,7 +261,9 @@ async function createProject(repo, projectName = 'Lawallet NWC Epics') {
           private: false
         })
       })
-      console.log(`  ✓ Created repository project: #${project.number} - ${project.name}`)
+      console.log(
+        `  ✓ Created repository project: #${project.number} - ${project.name}`
+      )
       return project.number
     } catch (repoError) {
       throw new Error(`Failed to create project: ${repoError.message}`)
@@ -260,8 +277,10 @@ async function selectProject(repo) {
 
   if (projects.length === 0) {
     console.log('No projects found.')
-    const answer = await promptUser('Would you like to create a new project? (y/n): ')
-    
+    const answer = await promptUser(
+      'Would you like to create a new project? (y/n): '
+    )
+
     if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
       try {
         const projectNumber = await createProject(repo)
@@ -269,7 +288,9 @@ async function selectProject(repo) {
         return projectNumber
       } catch (error) {
         console.error(`\n✗ Failed to create project: ${error.message}`)
-        console.error('You can create one manually at: https://github.com/orgs/lawalletio/projects/new')
+        console.error(
+          'You can create one manually at: https://github.com/orgs/lawalletio/projects/new'
+        )
         return null
       }
     } else {
@@ -281,14 +302,18 @@ async function selectProject(repo) {
   console.log('\nAvailable projects:')
   projects.forEach((project, index) => {
     const state = project.state === 'open' ? '✓' : '✗'
-    console.log(`  ${index + 1}. ${state} #${project.number} - ${project.displayName} (${project.state})`)
+    console.log(
+      `  ${index + 1}. ${state} #${project.number} - ${project.displayName} (${project.state})`
+    )
   })
   console.log(`  ${projects.length + 1}. Create new project`)
   console.log(`  ${projects.length + 2}. Skip (don't add to project)`)
   console.log('')
 
   while (true) {
-    const answer = await promptUser(`Select a project (1-${projects.length + 2}): `)
+    const answer = await promptUser(
+      `Select a project (1-${projects.length + 2}): `
+    )
     const selection = parseInt(answer)
 
     if (selection === projects.length + 2) {
@@ -298,7 +323,10 @@ async function selectProject(repo) {
 
     if (selection === projects.length + 1) {
       // Create new project
-      const projectName = await promptUser('Enter project name (or press Enter for default): ') || 'Lawallet NWC Epics'
+      const projectName =
+        (await promptUser(
+          'Enter project name (or press Enter for default): '
+        )) || 'Lawallet NWC Epics'
       try {
         const projectNumber = await createProject(repo, projectName)
         console.log(`\nUsing newly created project #${projectNumber}\n`)
@@ -312,11 +340,15 @@ async function selectProject(repo) {
 
     if (selection >= 1 && selection <= projects.length) {
       const selectedProject = projects[selection - 1]
-      console.log(`Selected: #${selectedProject.number} - ${selectedProject.name}\n`)
+      console.log(
+        `Selected: #${selectedProject.number} - ${selectedProject.name}\n`
+      )
       return selectedProject.number
     }
 
-    console.log(`Invalid selection. Please enter a number between 1 and ${projects.length + 2}.`)
+    console.log(
+      `Invalid selection. Please enter a number between 1 and ${projects.length + 2}.`
+    )
   }
 }
 
@@ -328,7 +360,7 @@ async function addIssueToProject(projectId, issueId) {
     // Get project columns first
     const columnsUrl = `${GITHUB_API_URL}/projects/${projectId}/columns`
     const columns = await makeRequest(columnsUrl, { method: 'GET' })
-    
+
     if (columns.length === 0) {
       throw new Error('Project has no columns')
     }
@@ -356,12 +388,12 @@ async function getExistingIssues(repo) {
   while (true) {
     const url = `${GITHUB_API_URL}/repos/${repo}/issues?state=all&per_page=${perPage}&page=${page}`
     const pageIssues = await makeRequest(url, { method: 'GET' })
-    
+
     if (pageIssues.length === 0) break
-    
+
     issues.push(...pageIssues.filter(issue => !issue.pull_request))
     page++
-    
+
     if (pageIssues.length < perPage) break
   }
 
@@ -381,7 +413,7 @@ async function main() {
 
   console.log('Creating GitHub project epics...\n')
   console.log(`Repository: ${repository}`)
-  
+
   // Get project number - either from env var or prompt user
   let projectNumber = GITHUB_PROJECT_NUMBER
   if (!projectNumber) {
@@ -411,7 +443,7 @@ async function main() {
   for (const [epicTitle, epicConfig] of Object.entries(EPIC_GROUPS)) {
     try {
       console.log(`Creating epic: ${epicTitle}`)
-      
+
       const epicBody = `## Epic: ${epicTitle}\n\n${epicConfig.description}\n\n## Related Issues\n\nThis epic includes the following issues:\n${epicConfig.issueIndices.map(idx => `- ${plannedIssues[idx]?.title || `Issue #${idx}`}`).join('\n')}\n\n## Labels\n\n${epicConfig.labels.join(', ')}`
 
       const epicIssue = await createIssue(repository, {
@@ -427,12 +459,16 @@ async function main() {
         childIssueIndices: epicConfig.issueIndices
       })
 
-      console.log(`  ✓ Created epic: #${epicIssue.number} - ${epicIssue.html_url}\n`)
+      console.log(
+        `  ✓ Created epic: #${epicIssue.number} - ${epicIssue.html_url}\n`
+      )
 
       // Small delay to respect rate limits
       await new Promise(resolve => setTimeout(resolve, 200))
     } catch (error) {
-      console.error(`  ✗ Failed to create epic "${epicTitle}": ${error.message}\n`)
+      console.error(
+        `  ✗ Failed to create epic "${epicTitle}": ${error.message}\n`
+      )
       results.failed.push({
         epic: epicTitle,
         error: error.message
@@ -442,7 +478,7 @@ async function main() {
 
   // Update child issues to reference their epic
   console.log('\nLinking issues to epics...\n')
-  
+
   for (const epic of results.epics) {
     for (const issueIndex of epic.childIssueIndices) {
       if (issueIndex >= plannedIssues.length) {
@@ -452,9 +488,11 @@ async function main() {
 
       const plannedIssue = plannedIssues[issueIndex]
       const issueNumber = issueMap.get(plannedIssue.title)
-      
+
       if (!issueNumber) {
-        console.warn(`  ⚠️  Issue "${plannedIssue.title}" not found in repository (may not be created yet)`)
+        console.warn(
+          `  ⚠️  Issue "${plannedIssue.title}" not found in repository (may not be created yet)`
+        )
         results.linked.push({
           issue: plannedIssue.title,
           epic: epic.title,
@@ -465,18 +503,20 @@ async function main() {
       }
 
       const epicReference = `\n\n---\n\n**Epic:** #${epic.issueNumber} - ${epic.title}`
-      
+
       try {
         // Update issue body to include epic reference
         const currentIssue = existingIssues.find(i => i.number === issueNumber)
         const updatedBody = currentIssue.body + epicReference
-        
+
         await updateIssue(repository, issueNumber, {
           body: updatedBody
         })
-        
-        console.log(`  ✓ Linked issue #${issueNumber} "${plannedIssue.title}" to epic #${epic.issueNumber}`)
-        
+
+        console.log(
+          `  ✓ Linked issue #${issueNumber} "${plannedIssue.title}" to epic #${epic.issueNumber}`
+        )
+
         results.linked.push({
           issue: plannedIssue.title,
           issueNumber: issueNumber,
@@ -488,7 +528,9 @@ async function main() {
         // Small delay to respect rate limits
         await new Promise(resolve => setTimeout(resolve, 200))
       } catch (error) {
-        console.error(`  ✗ Failed to link issue "${plannedIssue.title}": ${error.message}`)
+        console.error(
+          `  ✗ Failed to link issue "${plannedIssue.title}": ${error.message}`
+        )
         results.failed.push({
           issue: plannedIssue.title,
           epic: epic.title,
@@ -501,7 +543,7 @@ async function main() {
   // Add to GitHub Project if project number is provided
   if (projectNumber) {
     console.log(`\nAdding issues to GitHub Project #${projectNumber}...\n`)
-    
+
     try {
       const projectId = await getProjectId(repository, projectNumber)
       console.log(`  ✓ Found project ID: ${projectId}`)
@@ -509,7 +551,7 @@ async function main() {
       // Get project columns
       const columnsUrl = `${GITHUB_API_URL}/projects/${projectId}/columns`
       const columns = await makeRequest(columnsUrl, { method: 'GET' })
-      
+
       if (columns.length === 0) {
         throw new Error('Project has no columns')
       }
@@ -520,41 +562,57 @@ async function main() {
       // Add epic issues to project
       for (const epic of results.epics) {
         try {
-          const epicIssue = existingIssues.find(i => i.number === epic.issueNumber) || 
-                          await makeRequest(`${GITHUB_API_URL}/repos/${repository}/issues/${epic.issueNumber}`, { method: 'GET' })
-          
-          await makeRequest(`${GITHUB_API_URL}/projects/columns/${columnId}/cards`, {
-            method: 'POST',
-            body: JSON.stringify({
-              content_id: epicIssue.id,
-              content_type: 'Issue'
-            })
-          })
+          const epicIssue =
+            existingIssues.find(i => i.number === epic.issueNumber) ||
+            (await makeRequest(
+              `${GITHUB_API_URL}/repos/${repository}/issues/${epic.issueNumber}`,
+              { method: 'GET' }
+            ))
+
+          await makeRequest(
+            `${GITHUB_API_URL}/projects/columns/${columnId}/cards`,
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                content_id: epicIssue.id,
+                content_type: 'Issue'
+              })
+            }
+          )
           console.log(`  ✓ Added epic #${epic.issueNumber} to project`)
           await new Promise(resolve => setTimeout(resolve, 200))
         } catch (error) {
-          console.warn(`  ⚠️  Could not add epic #${epic.issueNumber} to project: ${error.message}`)
+          console.warn(
+            `  ⚠️  Could not add epic #${epic.issueNumber} to project: ${error.message}`
+          )
         }
       }
 
       // Add linked issues to project
       for (const linked of results.linked.filter(l => l.status === 'linked')) {
         try {
-          const linkedIssue = existingIssues.find(i => i.number === linked.issueNumber)
+          const linkedIssue = existingIssues.find(
+            i => i.number === linked.issueNumber
+          )
           if (linkedIssue) {
-            await makeRequest(`${GITHUB_API_URL}/projects/columns/${columnId}/cards`, {
-              method: 'POST',
-              body: JSON.stringify({
-                content_id: linkedIssue.id,
-                content_type: 'Issue'
-              })
-            })
+            await makeRequest(
+              `${GITHUB_API_URL}/projects/columns/${columnId}/cards`,
+              {
+                method: 'POST',
+                body: JSON.stringify({
+                  content_id: linkedIssue.id,
+                  content_type: 'Issue'
+                })
+              }
+            )
             console.log(`  ✓ Added issue #${linked.issueNumber} to project`)
             await new Promise(resolve => setTimeout(resolve, 200))
           }
         } catch (error) {
           // Issue might already be in project, ignore
-          console.warn(`  ⚠️  Could not add issue #${linked.issueNumber} to project: ${error.message}`)
+          console.warn(
+            `  ⚠️  Could not add issue #${linked.issueNumber} to project: ${error.message}`
+          )
         }
       }
     } catch (error) {
@@ -579,7 +637,7 @@ async function main() {
   if (results.linked.length > 0) {
     const linked = results.linked.filter(l => l.status === 'linked')
     const notFound = results.linked.filter(l => l.status === 'not_found')
-    
+
     if (linked.length > 0) {
       console.log('\nLinked issues:')
       const grouped = {}
@@ -608,7 +666,9 @@ async function main() {
           console.log(`    ⚠️  ${issue}`)
         })
       })
-      console.log('\n  Run create-github-issues.js first to create these issues.')
+      console.log(
+        '\n  Run create-github-issues.js first to create these issues.'
+      )
     }
   }
 

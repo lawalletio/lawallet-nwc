@@ -8,7 +8,10 @@ interface DataTablePaginationProps {
   onPageChange: (page: number) => void
 }
 
-function getPageNumbers(page: number, totalPages: number): (number | 'ellipsis')[] {
+function getPageNumbers(
+  page: number,
+  totalPages: number
+): (number | 'ellipsis')[] {
   if (totalPages <= 5) {
     return Array.from({ length: totalPages }, (_, i) => i + 1)
   }
@@ -18,13 +21,24 @@ function getPageNumbers(page: number, totalPages: number): (number | 'ellipsis')
   }
 
   if (page >= totalPages - 2) {
-    return [1, 'ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+    return [
+      1,
+      'ellipsis',
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages
+    ]
   }
 
   return [1, 'ellipsis', page - 1, page, page + 1, 'ellipsis', totalPages]
 }
 
-export function DataTablePagination({ page, totalPages, onPageChange }: DataTablePaginationProps) {
+export function DataTablePagination({
+  page,
+  totalPages,
+  onPageChange
+}: DataTablePaginationProps) {
   if (totalPages <= 1) return null
 
   const pages = getPageNumbers(page, totalPages)
@@ -41,7 +55,10 @@ export function DataTablePagination({ page, totalPages, onPageChange }: DataTabl
       </Button>
       {pages.map((p, i) =>
         p === 'ellipsis' ? (
-          <span key={`ellipsis-${i}`} className="px-2 text-sm text-muted-foreground">
+          <span
+            key={`ellipsis-${i}`}
+            className="px-2 text-sm text-muted-foreground"
+          >
             ...
           </span>
         ) : (

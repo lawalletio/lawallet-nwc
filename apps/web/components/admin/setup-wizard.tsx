@@ -64,7 +64,10 @@ interface CommunityData {
 // Strip protocol + an optional list of leading host paths so the value
 // fits the `prefix + handle` shape the BrandingTab social fields expect
 // (e.g. "https://twitter.com/foo" -> "foo" given prefix "twitter.com/").
-function stripUrlPrefix(url: string | null | undefined, ...prefixes: string[]): string {
+function stripUrlPrefix(
+  url: string | null | undefined,
+  ...prefixes: string[]
+): string {
   if (!url) return ''
   let s = url.trim().replace(/^https?:\/\//i, '')
   for (const p of prefixes) {
@@ -80,14 +83,15 @@ function buildCommunitySettings(c: CommunityData): Record<string, string> {
   const out: Record<string, string> = {
     is_community: 'true',
     community_id: c.id,
-    community_name: c.title,
+    community_name: c.title
   }
   if (c.avatarImage) {
     out.logotype_url = c.avatarImage
     out.isotypo_url = c.avatarImage
   }
   if (c.backgroundImage) out.hero_image_url = c.backgroundImage
-  if (c.linkTwitter) out.social_twitter = stripUrlPrefix(c.linkTwitter, 'twitter.com/', 'x.com/')
+  if (c.linkTwitter)
+    out.social_twitter = stripUrlPrefix(c.linkTwitter, 'twitter.com/', 'x.com/')
   if (c.link) out.social_website = stripUrlPrefix(c.link)
   if (c.linkEmail) out.social_email = c.linkEmail.trim()
   if (c.npub) out.social_nostr = c.npub.trim()
@@ -95,7 +99,16 @@ function buildCommunitySettings(c: CommunityData): Record<string, string> {
 }
 
 export function SetupWizard() {
-  const { status, signer, pubkey, role, login, loginMethod, logout, apiClient } = useAuth()
+  const {
+    status,
+    signer,
+    pubkey,
+    role,
+    login,
+    loginMethod,
+    logout,
+    apiClient
+  } = useAuth()
   const { profile, loading: profileLoading } = useNostrProfile(pubkey)
   const [step, setStep] = useState<WizardStep>('idle')
   const [domain, setDomain] = useState('')
@@ -153,7 +166,9 @@ export function SetupWizard() {
       trackEvent(AnalyticsEvent.SETUP_STEP_COMPLETED, { step: 'confirm_root' })
       setStep('loading')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to claim root role')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to claim root role'
+      )
     } finally {
       setClaimingRoot(false)
     }
@@ -177,7 +192,7 @@ export function SetupWizard() {
     let fadeTimer: ReturnType<typeof setTimeout> | null = null
 
     async function preload() {
-      await new Promise<void>((resolve) => {
+      await new Promise<void>(resolve => {
         const img = new window.Image()
         img.src = '/images/onboarding-hero.jpg'
         img.onload = () => resolve()
@@ -186,7 +201,7 @@ export function SetupWizard() {
       if (done) return
       setLoadingProgress(70)
 
-      await new Promise<void>((resolve) => {
+      await new Promise<void>(resolve => {
         const img = new window.Image()
         img.src = '/logos/lawallet.svg'
         img.onload = () => resolve()
@@ -195,7 +210,7 @@ export function SetupWizard() {
       if (done) return
       setLoadingProgress(100)
 
-      await new Promise((r) => setTimeout(r, 200))
+      await new Promise(r => setTimeout(r, 200))
       if (done) return
 
       setFadeOut(true)
@@ -226,7 +241,7 @@ export function SetupWizard() {
       if (res.ok) {
         const communities: CommunityData[] = await res.json()
         const match = communities.find(
-          (c) => c.domain === cleanDomain || c.domain === `www.${cleanDomain}`
+          c => c.domain === cleanDomain || c.domain === `www.${cleanDomain}`
         )
         if (match) {
           setCommunity(match)
@@ -265,7 +280,7 @@ export function SetupWizard() {
       await apiClient.post('/api/settings', {
         domain: cleanDomain,
         endpoint: cleanEndpoint,
-        ...(community ? buildCommunitySettings(community) : {}),
+        ...(community ? buildCommunitySettings(community) : {})
       })
 
       // Auto-import card designs when a community matched. The endpoint
@@ -281,12 +296,14 @@ export function SetupWizard() {
       }
 
       trackEvent(AnalyticsEvent.SETUP_COMPLETED, {
-        community: community ? 'matched' : 'none',
+        community: community ? 'matched' : 'none'
       })
       toast.success('Setup complete! You are now the root administrator.')
       setStep('hidden')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to complete setup')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to complete setup'
+      )
       setStep('confirm')
     }
   }
@@ -326,11 +343,16 @@ export function SetupWizard() {
           <Card className="overflow-hidden">
             <CardContent className="flex flex-col items-center gap-5 p-8 text-center">
               <div className="relative">
-                <Avatar className="size-20 transition-opacity duration-500" style={{ opacity: profileLoading ? 0.5 : 1 }}>
+                <Avatar
+                  className="size-20 transition-opacity duration-500"
+                  style={{ opacity: profileLoading ? 0.5 : 1 }}
+                >
                   {profile?.picture && (
                     <AvatarImage src={profile.picture} alt={displayName} />
                   )}
-                  <AvatarFallback className="text-xl">{avatarFallback}</AvatarFallback>
+                  <AvatarFallback className="text-xl">
+                    {avatarFallback}
+                  </AvatarFallback>
                 </Avatar>
                 {profileLoading && (
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -345,13 +367,15 @@ export function SetupWizard() {
                 </p>
                 <p className="text-xl font-semibold">{displayName}</p>
                 {profile?.nip05 && (
-                  <p className="text-xs text-muted-foreground">{profile.nip05}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {profile.nip05}
+                  </p>
                 )}
               </div>
 
               <p className="text-sm text-muted-foreground leading-relaxed">
-                You&apos;re about to become the root administrator of this LaWallet
-                instance. Continue if this is the right account.
+                You&apos;re about to become the root administrator of this
+                LaWallet instance. Continue if this is the right account.
               </p>
             </CardContent>
           </Card>
@@ -405,7 +429,7 @@ export function SetupWizard() {
             className="h-full rounded-full transition-all duration-100 ease-out"
             style={{
               width: `${loadingProgress}%`,
-              background: 'linear-gradient(90deg, #3d8a68, #55b68c)',
+              background: 'linear-gradient(90deg, #3d8a68, #55b68c)'
             }}
           />
         </div>
@@ -428,15 +452,15 @@ export function SetupWizard() {
           priority
         />
         <Spinner size={24} />
-        <p className="mt-4 text-sm text-muted-foreground">Looking up community…</p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          Looking up community…
+        </p>
       </div>
     )
   }
 
   const fullDomain =
-    parseEndpoint(endpointUrl)?.host ||
-    domain ||
-    'your community'
+    parseEndpoint(endpointUrl)?.host || domain || 'your community'
 
   const heroImage = community?.backgroundImage || '/images/onboarding-hero.jpg'
   const avatarImage = community?.avatarImage || '/images/onboarding-hero.jpg'
@@ -455,102 +479,135 @@ export function SetupWizard() {
         />
       </div>
 
-      {step === 'domain' && (() => {
-        const domainInvalid = domain.trim() !== '' && !isValidDomain(domain)
-        return (
-        <div className="w-full max-w-[480px] space-y-4">
-          <Card className="overflow-hidden">
-            <div className="h-[200px] relative overflow-hidden rounded-t-lg">
-              <Image src="/images/onboarding-hero.jpg" alt="" fill className="object-cover" />
-            </div>
-            <CardContent className="p-6 space-y-4">
-              <div>
-                <h2 className="text-lg font-semibold">Domain</h2>
-                <p className="text-sm text-muted-foreground">Configure your domain.</p>
-              </div>
-
-              <div className="space-y-1">
-                <InputGroup className={cn(domainInvalid && INVALID_CLASSES)}>
-                  <InputGroupText>username@</InputGroupText>
-                  <Input
-                    placeholder="domain.com"
-                    value={domain}
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    inputMode="url"
-                    aria-invalid={domainInvalid || undefined}
-                    onChange={(e) => {
-                      // Force lowercase on input so the value the user
-                      // sees matches what we save (DNS is
-                      // case-insensitive, but Settings stores literal
-                      // strings — keep it consistent).
-                      setDomain(e.target.value.toLowerCase())
-                    }}
-                  />
-                </InputGroup>
-                {domainInvalid && (
-                  <p className="text-xs text-destructive">
-                    Enter a valid domain (e.g. example.com) — no protocol or path.
-                  </p>
-                )}
-              </div>
-
-              <button
-                onClick={() => {
-                  const next = !showAdvance
-                  setShowAdvance(next)
-                  if (next && !endpointUrl && typeof window !== 'undefined') {
-                    setEndpointUrl(window.location.origin)
-                  }
-                }}
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mx-auto"
-              >
-                Advance
-                {showAdvance ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-              </button>
-
-              {showAdvance && (
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Endpoint URL</label>
-                  <Input
-                    type="url"
-                    placeholder="https://admin.domain.com"
-                    value={endpointUrl}
-                    onChange={(e) => setEndpointUrl(e.target.value)}
+      {step === 'domain' &&
+        (() => {
+          const domainInvalid = domain.trim() !== '' && !isValidDomain(domain)
+          return (
+            <div className="w-full max-w-[480px] space-y-4">
+              <Card className="overflow-hidden">
+                <div className="h-[200px] relative overflow-hidden rounded-t-lg">
+                  <Image
+                    src="/images/onboarding-hero.jpg"
+                    alt=""
+                    fill
+                    className="object-cover"
                   />
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <CardContent className="p-6 space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Domain</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Configure your domain.
+                    </p>
+                  </div>
 
-          <Button
-            className="w-full"
-            disabled={!domain.trim() || domainInvalid}
-            onClick={handleNext}
-          >
-            Next
-          </Button>
-        </div>
-        )
-      })()}
+                  <div className="space-y-1">
+                    <InputGroup
+                      className={cn(domainInvalid && INVALID_CLASSES)}
+                    >
+                      <InputGroupText>username@</InputGroupText>
+                      <Input
+                        placeholder="domain.com"
+                        value={domain}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        inputMode="url"
+                        aria-invalid={domainInvalid || undefined}
+                        onChange={e => {
+                          // Force lowercase on input so the value the user
+                          // sees matches what we save (DNS is
+                          // case-insensitive, but Settings stores literal
+                          // strings — keep it consistent).
+                          setDomain(e.target.value.toLowerCase())
+                        }}
+                      />
+                    </InputGroup>
+                    {domainInvalid && (
+                      <p className="text-xs text-destructive">
+                        Enter a valid domain (e.g. example.com) — no protocol or
+                        path.
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      const next = !showAdvance
+                      setShowAdvance(next)
+                      if (
+                        next &&
+                        !endpointUrl &&
+                        typeof window !== 'undefined'
+                      ) {
+                        setEndpointUrl(window.location.origin)
+                      }
+                    }}
+                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mx-auto"
+                  >
+                    Advance
+                    {showAdvance ? (
+                      <ChevronUp className="size-4" />
+                    ) : (
+                      <ChevronDown className="size-4" />
+                    )}
+                  </button>
+
+                  {showAdvance && (
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">
+                        Endpoint URL
+                      </label>
+                      <Input
+                        type="url"
+                        placeholder="https://admin.domain.com"
+                        value={endpointUrl}
+                        onChange={e => setEndpointUrl(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Button
+                className="w-full"
+                disabled={!domain.trim() || domainInvalid}
+                onClick={handleNext}
+              >
+                Next
+              </Button>
+            </div>
+          )
+        })()}
 
       {(step === 'confirm' || step === 'claiming') && (
         <div className="w-full max-w-[480px] space-y-4">
           <Card className="overflow-hidden">
             <div className="h-[200px] relative overflow-hidden rounded-t-lg">
-              <img src={heroImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <img
+                src={heroImage}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+              />
             </div>
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
                 <div className="size-12 shrink-0 rounded-md relative overflow-hidden">
-                  <img src={avatarImage} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                  <img
+                    src={avatarImage}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                  />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Is this your community?</p>
+                  <p className="text-sm text-muted-foreground">
+                    Is this your community?
+                  </p>
                   <p className="text-base font-semibold">{communityName}</p>
                   {community?.city && community?.country && (
-                    <p className="text-xs text-muted-foreground">{community.city}, {community.country}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {community.city}, {community.country}
+                    </p>
                   )}
                 </div>
               </div>

@@ -4,7 +4,7 @@ import { nip19 } from 'nostr-tools'
 import {
   normalizeNostrPubkey,
   parseKind0Content,
-  parseKind0ContentWithRaw,
+  parseKind0ContentWithRaw
 } from '@/lib/nostr/profile'
 
 const PUBKEY = 'a'.repeat(64)
@@ -15,7 +15,7 @@ describe('normalizeNostrPubkey', () => {
 
     expect(result).toEqual({
       pubkey: PUBKEY,
-      npub: nip19.npubEncode(PUBKEY),
+      npub: nip19.npubEncode(PUBKEY)
     })
   })
 
@@ -42,9 +42,9 @@ describe('parseKind0Content', () => {
         display_name: 'Alice A.',
         lud16: 'alice@example.com',
         picture: 'https://cdn.example.com/avatar.jpg',
-        banner: 'https://cdn.example.com/cover.jpg',
+        banner: 'https://cdn.example.com/cover.jpg'
       }),
-      { fetchedAt: 123 },
+      { fetchedAt: 123 }
     )
 
     expect(profile).toMatchObject({
@@ -55,7 +55,7 @@ describe('parseKind0Content', () => {
       lud16: 'alice@example.com',
       picture: 'https://cdn.example.com/avatar.jpg',
       banner: 'https://cdn.example.com/cover.jpg',
-      fetchedAt: 123,
+      fetchedAt: 123
     })
   })
 
@@ -65,14 +65,14 @@ describe('parseKind0Content', () => {
       JSON.stringify({
         username: 'bob',
         displayName: 'Bob B.',
-        website: 'https://example.com',
-      }),
+        website: 'https://example.com'
+      })
     )
 
     expect(parsed?.profile).toMatchObject({
       name: 'bob',
       displayName: 'Bob B.',
-      website: 'https://example.com',
+      website: 'https://example.com'
     })
     expect(parsed?.rawMetadata).toMatchObject({ displayName: 'Bob B.' })
   })

@@ -7,11 +7,11 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 const SECRET = 'listener-shared-secret-0123456789abcdef!'
 
 const configState = vi.hoisted(() => ({
-  secret: 'listener-shared-secret-0123456789abcdef!' as string | undefined,
+  secret: 'listener-shared-secret-0123456789abcdef!' as string | undefined
 }))
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/listener-config', () => ({
@@ -22,19 +22,19 @@ vi.mock('@/lib/listener-config', () => ({
     requestTimeoutMs: 10000,
     urlSource: 'none',
     secretSource: configState.secret ? 'settings' : 'none',
-    enabledSource: configState.secret ? 'settings' : 'none',
-  })),
+    enabledSource: configState.secret ? 'settings' : 'none'
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: unknown) => fn,
+  withRequestLogging: (fn: unknown) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
 
 vi.mock('@/lib/events/event-bus', () => ({
-  eventBus: { emit: vi.fn() },
+  eventBus: { emit: vi.fn() }
 }))
 
 const fireAndForgetMock = vi.fn()
@@ -45,10 +45,12 @@ vi.mock('@/lib/activity-log', () => ({
     NWC_LISTENER_ERROR: 'nwc.listener_error',
     NWC_WALLET_DEAD: 'nwc.wallet_dead',
     INVOICE_PAID: 'invoice.paid',
-    CARD_PAYMENT: 'card.payment',
+    CARD_PAYMENT: 'card.payment'
   },
   invoiceLogMetadata: vi.fn(() => ({})),
-  logActivity: { fireAndForget: (...args: unknown[]) => fireAndForgetMock(...args) },
+  logActivity: {
+    fireAndForget: (...args: unknown[]) => fireAndForgetMock(...args)
+  }
 }))
 
 import { POST } from '@/app/api/webhooks/nwc/route'
@@ -71,8 +73,8 @@ const paymentReceived = {
     amountMsats: 21_000,
     feesPaidMsats: 0,
     settledAt: Math.floor(Date.now() / 1000),
-    transaction: { amount: 21_000 },
-  },
+    transaction: { amount: 21_000 }
+  }
 }
 
 const pendingInvoice = {
@@ -88,7 +90,7 @@ const pendingInvoice = {
   userId: 'user-1',
   expiresAt: new Date(Date.now() + 3600_000),
   paidAt: null,
-  createdAt: new Date(),
+  createdAt: new Date()
 }
 
 /**
@@ -99,22 +101,27 @@ const pendingInvoice = {
  */
 function signedRequest(
   payload: unknown,
-  overrides: { signature?: string; timestamp?: string; omitSignature?: boolean } = {}
+  overrides: {
+    signature?: string
+    timestamp?: string
+    omitSignature?: boolean
+  } = {}
 ): NextRequest {
   const body = typeof payload === 'string' ? payload : JSON.stringify(payload)
   const timestamp = overrides.timestamp ?? String(Date.now())
   const signature =
     overrides.signature ??
-    'sha256=' + createHmac('sha256', SECRET).update(`${timestamp}.${body}`).digest('hex')
+    'sha256=' +
+      createHmac('sha256', SECRET).update(`${timestamp}.${body}`).digest('hex')
   const headers: Record<string, string> = {
     'content-type': 'application/json',
-    'x-lawallet-timestamp': timestamp,
+    'x-lawallet-timestamp': timestamp
   }
   if (!overrides.omitSignature) headers['x-lawallet-signature'] = signature
   return new NextRequest('http://localhost:3000/api/webhooks/nwc', {
     method: 'POST',
     headers,
-    body,
+    body
   })
 }
 
@@ -133,7 +140,9 @@ describe('POST /api/webhooks/nwc', () => {
   })
 
   it('rejects a missing signature header with 401', async () => {
-    const res = await POST(signedRequest(paymentReceived, { omitSignature: true }))
+    const res = await POST(
+      signedRequest(paymentReceived, { omitSignature: true })
+    )
     expect(res.status).toBe(401)
     expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled()
   })
@@ -151,8 +160,12 @@ describe('POST /api/webhooks/nwc', () => {
     const otherBody = JSON.stringify({ ...paymentReceived, walletId: 'evil' })
     const signature =
       'sha256=' +
-      createHmac('sha256', SECRET).update(`${timestamp}.${otherBody}`).digest('hex')
-    const res = await POST(signedRequest(paymentReceived, { signature, timestamp }))
+      createHmac('sha256', SECRET)
+        .update(`${timestamp}.${otherBody}`)
+        .digest('hex')
+    const res = await POST(
+      signedRequest(paymentReceived, { signature, timestamp })
+    )
     expect(res.status).toBe(401)
   })
 
@@ -163,12 +176,16 @@ describe('POST /api/webhooks/nwc', () => {
   })
 
   it('rejects a schema-invalid payload with 400', async () => {
-    const res = await POST(signedRequest({ type: 'payment_received', nope: true }))
+    const res = await POST(
+      signedRequest({ type: 'payment_received', nope: true })
+    )
     expect(res.status).toBe(400)
   })
 
   it('marks a PENDING invoice PAID on payment_received and emits SSE', async () => {
-    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(pendingInvoice as never)
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      pendingInvoice as never
+    )
     vi.mocked(prismaMock.invoice.update).mockResolvedValue({} as never)
 
     const res = await POST(signedRequest(paymentReceived))
@@ -180,8 +197,8 @@ describe('POST /api/webhooks/nwc', () => {
         where: { paymentHash: HASH },
         data: expect.objectContaining({
           status: 'PAID',
-          preimage: 'b'.repeat(64),
-        }),
+          preimage: 'b'.repeat(64)
+        })
       })
     )
     const emitted = vi.mocked(eventBus.emit).mock.calls.map(([e]) => e.type)
@@ -194,7 +211,9 @@ describe('POST /api/webhooks/nwc', () => {
       ([entry]) => (entry as { event: string }).event === 'invoice.paid'
     )
     expect(invoicePaidCall).toBeTruthy()
-    expect((invoicePaidCall![0] as { metadata: Record<string, unknown> }).metadata).toEqual(
+    expect(
+      (invoicePaidCall![0] as { metadata: Record<string, unknown> }).metadata
+    ).toEqual(
       expect.objectContaining({ remoteWalletId: 'wallet-1', recovered: false })
     )
   })
@@ -202,14 +221,18 @@ describe('POST /api/webhooks/nwc', () => {
   it('flags recovered events in the activity metadata', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(null)
 
-    const res = await POST(signedRequest({ ...paymentReceived, recovered: true }))
+    const res = await POST(
+      signedRequest({ ...paymentReceived, recovered: true })
+    )
     await assertResponse(res, 200)
 
     const nwcCall = fireAndForgetMock.mock.calls.find(
       ([entry]) => (entry as { event: string }).event === 'nwc.payment_received'
     )
     expect(nwcCall).toBeTruthy()
-    expect((nwcCall![0] as { metadata: Record<string, unknown> }).metadata).toEqual(
+    expect(
+      (nwcCall![0] as { metadata: Record<string, unknown> }).metadata
+    ).toEqual(
       expect.objectContaining({ remoteWalletId: 'wallet-1', recovered: true })
     )
   })
@@ -218,7 +241,7 @@ describe('POST /api/webhooks/nwc', () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...pendingInvoice,
       status: 'PAID',
-      preimage: 'c'.repeat(64),
+      preimage: 'c'.repeat(64)
     } as never)
 
     const res = await POST(signedRequest(paymentReceived))
@@ -264,10 +287,10 @@ describe('POST /api/webhooks/nwc', () => {
         errorCode: 'PAYMENT_OUTCOME_UNKNOWN',
         createdAt: new Date(),
         updatedAt: new Date(),
-        resolvedAt: null,
+        resolvedAt: null
       } as never)
       vi.mocked(prismaMock.cardPaymentAttempt.updateMany).mockResolvedValue({
-        count: 1,
+        count: 1
       } as never)
 
       const res = await POST(
@@ -277,8 +300,8 @@ describe('POST /api/webhooks/nwc', () => {
           payment: {
             ...paymentReceived.payment,
             paymentHash: SENT_HASH,
-            preimage: SENT_PREIMAGE,
-          },
+            preimage: SENT_PREIMAGE
+          }
         })
       )
       await assertResponse(res, 200)
@@ -288,14 +311,14 @@ describe('POST /api/webhooks/nwc', () => {
           where: {
             id: 'attempt-1',
             status: { in: ['PENDING', 'UNKNOWN'] },
-            transport,
+            transport
           },
           data: expect.objectContaining({
             status: 'SUCCEEDED',
             transport,
             preimage: SENT_PREIMAGE,
-            resolvedAt: expect.any(Date),
-          }),
+            resolvedAt: expect.any(Date)
+          })
         })
       )
       expect(eventBus.emit).toHaveBeenCalledWith(
@@ -310,7 +333,7 @@ describe('POST /api/webhooks/nwc', () => {
         type: 'listener_error',
         eventKey: 'err-1',
         receivedAt: Date.now(),
-        error: { code: 'connection_failed', message: 'relay unreachable' },
+        error: { code: 'connection_failed', message: 'relay unreachable' }
       })
     )
     await assertResponse(res, 200)
@@ -326,7 +349,7 @@ describe('POST /api/webhooks/nwc', () => {
     walletId: 'wallet-1',
     receivedAt: Date.now(),
     unresponsiveSeconds: 4 * 3600,
-    relaysConnected: true,
+    relaysConnected: true
   }
 
   it('archives an ACTIVE LNCurl wallet as DEAD on wallet_dead', async () => {
@@ -335,10 +358,10 @@ describe('POST /api/webhooks/nwc', () => {
       userId: 'user-1',
       status: 'ACTIVE',
       config: { provider: 'lncurl' },
-      name: 'LNCurl wallet',
+      name: 'LNCurl wallet'
     } as never)
     vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
-      count: 1,
+      count: 1
     } as never)
 
     const res = await POST(signedRequest(walletDead))
@@ -346,14 +369,14 @@ describe('POST /api/webhooks/nwc', () => {
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'wallet-1', status: 'ACTIVE' },
-        data: expect.objectContaining({ status: 'DEAD', isDefault: false }),
+        data: expect.objectContaining({ status: 'DEAD', isDefault: false })
       })
     )
     expect(fireAndForgetMock).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'nwc.wallet_dead',
         level: 'WARN',
-        userId: 'user-1',
+        userId: 'user-1'
       })
     )
   })
@@ -364,7 +387,7 @@ describe('POST /api/webhooks/nwc', () => {
       userId: 'user-1',
       status: 'ACTIVE',
       config: { provider: 'nwc' },
-      name: 'My Alby',
+      name: 'My Alby'
     } as never)
 
     const res = await POST(signedRequest(walletDead))
@@ -378,7 +401,7 @@ describe('POST /api/webhooks/nwc', () => {
       userId: 'user-1',
       status: 'DEAD',
       config: { provider: 'lncurl' },
-      name: 'LNCurl wallet',
+      name: 'LNCurl wallet'
     } as never)
 
     const res = await POST(signedRequest(walletDead))

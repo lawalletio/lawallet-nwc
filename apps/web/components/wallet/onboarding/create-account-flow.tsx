@@ -29,7 +29,7 @@ export function CreateAccountFlow() {
     const secretKey = generateSecretKey()
     return {
       nsec: nip19.nsecEncode(secretKey),
-      hex: bytesToHex(secretKey),
+      hex: bytesToHex(secretKey)
     }
   }, [])
 
@@ -46,7 +46,8 @@ export function CreateAccountFlow() {
       await login(signer, 'nsec', { secret: nsec })
       router.replace('/wallet/welcome')
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create account'
+      const message =
+        err instanceof Error ? err.message : 'Failed to create account'
       setError(message)
       toast.error(message)
     } finally {

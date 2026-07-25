@@ -9,9 +9,13 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table'
-import { type BackupImportResult, type BackupTableName, tableLabel } from '@/lib/client/backup-types'
+import {
+  type BackupImportResult,
+  type BackupTableName,
+  tableLabel
+} from '@/lib/client/backup-types'
 import { cn } from '@/lib/utils'
 
 function useCountUp(target: number, duration = 700): number {
@@ -37,7 +41,15 @@ function useCountUp(target: number, duration = 700): number {
   return value
 }
 
-function StatNumber({ value, label, tone }: { value: number; label: string; tone?: string }) {
+function StatNumber({
+  value,
+  label,
+  tone
+}: {
+  value: number
+  label: string
+  tone?: string
+}) {
   const shown = useCountUp(value)
   return (
     <div className="rounded-lg border p-3 text-center">
@@ -50,14 +62,14 @@ function StatNumber({ value, label, tone }: { value: number; label: string; tone
 /** Animated end-of-restore report: totals, per-table breakdown, and errors. */
 export function ResultSummary({
   result,
-  onDone,
+  onDone
 }: {
   result: BackupImportResult
   onDone: () => void
 }) {
   const entries = Object.entries(result.tables) as [
     BackupTableName,
-    NonNullable<BackupImportResult['tables'][BackupTableName]>,
+    NonNullable<BackupImportResult['tables'][BackupTableName]>
   ][]
 
   const totals = entries.reduce(
@@ -70,11 +82,25 @@ export function ResultSummary({
       acc.failed += t.failed
       return acc
     },
-    { imported: 0, overwritten: 0, renamed: 0, deleted: 0, skipped: 0, failed: 0 },
+    {
+      imported: 0,
+      overwritten: 0,
+      renamed: 0,
+      deleted: 0,
+      skipped: 0,
+      failed: 0
+    }
   )
 
   const active = entries.filter(
-    ([, t]) => t.imported + t.overwritten + t.renamed + t.deleted + t.skipped + t.failed > 0,
+    ([, t]) =>
+      t.imported +
+        t.overwritten +
+        t.renamed +
+        t.deleted +
+        t.skipped +
+        t.failed >
+      0
   )
 
   return (
@@ -86,18 +112,28 @@ export function ResultSummary({
           <CheckCircle2 className="size-14 text-emerald-500 animate-in zoom-in-50 duration-500 motion-reduce:animate-none" />
         )}
         <h2 className="text-xl font-semibold">
-          {result.hadErrors ? 'Restore finished with issues' : 'Restore complete'}
+          {result.hadErrors
+            ? 'Restore finished with issues'
+            : 'Restore complete'}
         </h2>
         <p className="text-sm text-muted-foreground">
-          {result.mode === 'replace' ? 'Data was replaced from the backup.' : 'The backup was merged into your data.'}
+          {result.mode === 'replace'
+            ? 'Data was replaced from the backup.'
+            : 'The backup was merged into your data.'}
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <StatNumber value={totals.imported} label="Imported" tone="text-emerald-600 dark:text-emerald-400" />
+        <StatNumber
+          value={totals.imported}
+          label="Imported"
+          tone="text-emerald-600 dark:text-emerald-400"
+        />
         <StatNumber value={totals.overwritten} label="Overwritten" />
         <StatNumber value={totals.renamed} label="Renamed" />
-        {result.mode === 'replace' && <StatNumber value={totals.deleted} label="Deleted" />}
+        {result.mode === 'replace' && (
+          <StatNumber value={totals.deleted} label="Deleted" />
+        )}
         <StatNumber value={totals.skipped} label="Skipped" />
         <StatNumber
           value={totals.failed}
@@ -115,7 +151,9 @@ export function ResultSummary({
                 <TableHead className="text-right">Imported</TableHead>
                 <TableHead className="text-right">Overwritten</TableHead>
                 <TableHead className="text-right">Renamed</TableHead>
-                {result.mode === 'replace' && <TableHead className="text-right">Deleted</TableHead>}
+                {result.mode === 'replace' && (
+                  <TableHead className="text-right">Deleted</TableHead>
+                )}
                 <TableHead className="text-right">Skipped</TableHead>
                 <TableHead className="text-right">Failed</TableHead>
               </TableRow>
@@ -123,16 +161,31 @@ export function ResultSummary({
             <TableBody>
               {active.map(([table, t]) => (
                 <TableRow key={table}>
-                  <TableCell className="font-medium">{tableLabel(table)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{t.imported}</TableCell>
-                  <TableCell className="text-right tabular-nums">{t.overwritten}</TableCell>
-                  <TableCell className="text-right tabular-nums">{t.renamed}</TableCell>
+                  <TableCell className="font-medium">
+                    {tableLabel(table)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {t.imported}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {t.overwritten}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {t.renamed}
+                  </TableCell>
                   {result.mode === 'replace' && (
-                    <TableCell className="text-right tabular-nums">{t.deleted}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {t.deleted}
+                    </TableCell>
                   )}
-                  <TableCell className="text-right tabular-nums">{t.skipped}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {t.skipped}
+                  </TableCell>
                   <TableCell
-                    className={cn('text-right tabular-nums', t.failed > 0 && 'text-destructive')}
+                    className={cn(
+                      'text-right tabular-nums',
+                      t.failed > 0 && 'text-destructive'
+                    )}
                   >
                     {t.failed}
                   </TableCell>

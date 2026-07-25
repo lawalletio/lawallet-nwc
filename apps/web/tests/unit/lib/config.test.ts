@@ -230,7 +230,8 @@ describe('getConfig', () => {
     setNodeEnv('development')
     const { getConfig } = await import('@/lib/config')
     expect(getConfig(false).database.url).toBe('file:./dev.db')
-    expect(() => getConfig(true)).toThrow('Environment variable validation failed')
+    expect(() => getConfig(true)).toThrow(
+      'Environment variable validation failed'
+    )
   })
-
 })

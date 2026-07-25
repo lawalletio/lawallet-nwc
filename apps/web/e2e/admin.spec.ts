@@ -6,12 +6,8 @@ test.describe('admin dashboard (authenticated)', () => {
   }) => {
     await adminPage.goto('/admin')
     // Sidebar platform nav — stable entries from admin-sidebar.tsx.
-    await expect(
-      adminPage.getByRole('link', { name: 'Users' })
-    ).toBeVisible()
-    await expect(
-      adminPage.getByRole('link', { name: 'Cards' })
-    ).toBeVisible()
+    await expect(adminPage.getByRole('link', { name: 'Users' })).toBeVisible()
+    await expect(adminPage.getByRole('link', { name: 'Cards' })).toBeVisible()
   })
 
   test('users page lists seeded users', async ({ adminPage }) => {
@@ -24,9 +20,8 @@ test.describe('admin dashboard (authenticated)', () => {
   test('API rejects the admin token with a tampered signature', async ({
     request
   }) => {
-    const { mintSessionToken, SEEDED_ADMIN_PUBKEY } = await import(
-      './fixtures/auth'
-    )
+    const { mintSessionToken, SEEDED_ADMIN_PUBKEY } =
+      await import('./fixtures/auth')
     const { Role } = await import('../lib/auth/permissions')
     const token = mintSessionToken(SEEDED_ADMIN_PUBKEY, Role.ADMIN)
     const tampered = token.slice(0, -2) + 'xx'
@@ -37,9 +32,8 @@ test.describe('admin dashboard (authenticated)', () => {
   })
 
   test('API accepts the minted admin token', async ({ request }) => {
-    const { mintSessionToken, SEEDED_ADMIN_PUBKEY } = await import(
-      './fixtures/auth'
-    )
+    const { mintSessionToken, SEEDED_ADMIN_PUBKEY } =
+      await import('./fixtures/auth')
     const { Role } = await import('../lib/auth/permissions')
     const token = mintSessionToken(SEEDED_ADMIN_PUBKEY, Role.ADMIN)
     const res = await request.get('/api/users', {

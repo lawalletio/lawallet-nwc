@@ -175,9 +175,8 @@ export const payActionQuerySchema = z.object({
     .max(8192, 'Payment request is too large')
 })
 
-export const cardScanCallbackQuerySchema = scanCardQuerySchema.merge(
-  payActionQuerySchema
-)
+export const cardScanCallbackQuerySchema =
+  scanCardQuerySchema.merge(payActionQuerySchema)
 
 export const cardScanActionSchema = z.enum(['pay', 'new-otc'])
 export type CardScanAction = z.infer<typeof cardScanActionSchema>
@@ -836,7 +835,6 @@ export type PasskeyCredentialListResponse = z.infer<
   typeof passkeyCredentialListResponseSchema
 >
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Account (multi-pubkey identities, linking & merge)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -865,7 +863,9 @@ export const accountSummaryResponseSchema = z.object({
   hasManagedKey: z.boolean(),
   managedKeyExported: z.boolean()
 })
-export type AccountSummaryResponse = z.infer<typeof accountSummaryResponseSchema>
+export type AccountSummaryResponse = z.infer<
+  typeof accountSummaryResponseSchema
+>
 
 export const accountLinkBeginRequestSchema = z.object({
   method: z.literal('nostr')
@@ -881,7 +881,9 @@ export const accountLinkBeginResponseSchema = z.object({
   nonce: z.string().optional(),
   expiresIn: z.number()
 })
-export type AccountLinkBeginResponse = z.infer<typeof accountLinkBeginResponseSchema>
+export type AccountLinkBeginResponse = z.infer<
+  typeof accountLinkBeginResponseSchema
+>
 
 /**
  * Link/merge proof is Nostr-only: proving control of another account's
@@ -894,7 +896,9 @@ export const accountLinkVerifyRequestSchema = z.object({
   event: signedNostrEventSchema,
   label: z.string().trim().min(1).max(64).optional()
 })
-export type AccountLinkVerifyRequest = z.infer<typeof accountLinkVerifyRequestSchema>
+export type AccountLinkVerifyRequest = z.infer<
+  typeof accountLinkVerifyRequestSchema
+>
 
 export const accountMergeCollisionSchema = z.object({
   kind: z.enum([
@@ -956,7 +960,9 @@ export const accountLinkVerifyResponseSchema = z.object({
   mergeTicket: z.string().optional(),
   otherAccount: accountResourceSummarySchema.optional()
 })
-export type AccountLinkVerifyResponse = z.infer<typeof accountLinkVerifyResponseSchema>
+export type AccountLinkVerifyResponse = z.infer<
+  typeof accountLinkVerifyResponseSchema
+>
 
 export const accountMergePreviewRequestSchema = z.object({
   mergeTicket: z.string().min(16)

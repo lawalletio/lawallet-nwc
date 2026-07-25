@@ -12,7 +12,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -68,7 +68,7 @@ export function EditProfileDialog({
   onOpenChange,
   profile,
   pubkey,
-  onPublished,
+  onPublished
 }: EditProfileDialogProps) {
   const { signer, requestSigner } = useAuth()
   const { upload, progress: uploadProgress, hasServers } = useBlossomUpload()
@@ -122,16 +122,24 @@ export function EditProfileDialog({
     setBanner(profile?.banner || '')
   }, [open, profile])
 
-  const fallback = (profile?.name || profile?.displayName || pubkey.slice(0, 2) || 'U')
+  const fallback = (
+    profile?.name ||
+    profile?.displayName ||
+    pubkey.slice(0, 2) ||
+    'U'
+  )
     .slice(0, 2)
     .toUpperCase()
 
   function openPicker(kind: CropKind) {
     if (!hasServers) {
-      toast.error('No Blossom servers configured. Add one in Infrastructure settings.')
+      toast.error(
+        'No Blossom servers configured. Add one in Infrastructure settings.'
+      )
       return
     }
-    const input = kind === 'banner' ? coverInputRef.current : avatarInputRef.current
+    const input =
+      kind === 'banner' ? coverInputRef.current : avatarInputRef.current
     input?.click()
   }
 
@@ -233,13 +241,14 @@ export function EditProfileDialog({
         name: displayName.trim() || profile?.name,
         about: about.trim(),
         picture: picture.trim() || undefined,
-        banner: banner.trim() || undefined,
+        banner: banner.trim() || undefined
       })
       onPublished(next)
       toast.success('Profile published')
       onOpenChange(false)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not publish profile'
+      const msg =
+        err instanceof Error ? err.message : 'Could not publish profile'
       toast.error(msg)
     } finally {
       setSaving(false)
@@ -268,7 +277,7 @@ export function EditProfileDialog({
                   ? {
                       backgroundImage: `url("${banner}")`,
                       backgroundSize: 'cover',
-                      backgroundPosition: 'center',
+                      backgroundPosition: 'center'
                     }
                   : undefined
               }
@@ -293,7 +302,10 @@ export function EditProfileDialog({
                         ? `Finalizing… ${phaseProgress}%`
                         : `Ready ${phaseProgress}%`}
                   </span>
-                  <Progress value={phaseProgress} className="h-1.5 w-2/3 bg-white/20" />
+                  <Progress
+                    value={phaseProgress}
+                    className="h-1.5 w-2/3 bg-white/20"
+                  />
                 </span>
               )}
             </button>
@@ -319,7 +331,9 @@ export function EditProfileDialog({
               >
                 <Avatar className="size-full">
                   {picture && <AvatarImage src={picture} alt={displayName} />}
-                  <AvatarFallback className="text-lg">{fallback}</AvatarFallback>
+                  <AvatarFallback className="text-lg">
+                    {fallback}
+                  </AvatarFallback>
                 </Avatar>
                 <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all duration-200 group-hover:bg-black/50 group-hover:opacity-100 group-focus-visible:bg-black/50 group-focus-visible:opacity-100">
                   <Camera className="size-5 text-white" />
@@ -403,7 +417,10 @@ export function EditProfileDialog({
             >
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || uploadingKind !== null}>
+            <Button
+              onClick={handleSave}
+              disabled={saving || uploadingKind !== null}
+            >
               {saving ? 'Publishing…' : 'Save'}
             </Button>
           </DialogFooter>
@@ -419,9 +436,15 @@ export function EditProfileDialog({
           }
         }}
         image={sourceImage}
-        aspect={cropKind === 'avatar' ? AVATAR_OUTPUT.aspect : BANNER_OUTPUT.aspect}
-        outputWidth={cropKind === 'avatar' ? AVATAR_OUTPUT.width : BANNER_OUTPUT.width}
-        outputHeight={cropKind === 'avatar' ? AVATAR_OUTPUT.height : BANNER_OUTPUT.height}
+        aspect={
+          cropKind === 'avatar' ? AVATAR_OUTPUT.aspect : BANNER_OUTPUT.aspect
+        }
+        outputWidth={
+          cropKind === 'avatar' ? AVATAR_OUTPUT.width : BANNER_OUTPUT.width
+        }
+        outputHeight={
+          cropKind === 'avatar' ? AVATAR_OUTPUT.height : BANNER_OUTPUT.height
+        }
         kind={cropKind ?? 'banner'}
         title={cropKind === 'avatar' ? 'Crop avatar' : 'Crop cover'}
         description={

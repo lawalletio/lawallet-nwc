@@ -1,4 +1,7 @@
-import { OpenAPIRegistry, extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi'
+import {
+  OpenAPIRegistry,
+  extendZodWithOpenApi
+} from '@asteasolutions/zod-to-openapi'
 import { z } from 'zod'
 
 // extendZodWithOpenApi mutates the global Zod prototype to add `.openapi()`.

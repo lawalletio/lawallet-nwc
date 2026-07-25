@@ -1,6 +1,6 @@
 ---
-title: "Month 7: Subscription Manager + Nostr Chat"
-description: "Monetization phase: paid tiers, perks (vanity LN address, email-to-Nostr, sat allowance), and Nostr DMs."
+title: 'Month 7: Subscription Manager + Nostr Chat'
+description: 'Monetization phase: paid tiers, perks (vanity LN address, email-to-Nostr, sat allowance), and Nostr DMs.'
 ---
 
 import { Loader2 } from 'lucide-react'
@@ -10,7 +10,12 @@ import { Loader2 } from 'lucide-react'
 **Depends on:** Month 6 (NWC Payment Listener + Card Activation + Deploy Targets)
 
 <Callout type="info" title="The active window">
-  Month 7 first clears the work carried over from [Month 6](./month-6) — MASTER card account-share (FOREVER QRs), NWC Proxy Lite + full LUD-16 / LUD-21 / LUD-22 / NIP-57 closeout, `@lawallet-nwc/react` extraction, the WordPress plugin, the Resend adapter, the Nostr scheduler, and Vercel / Netlify deploy configs — then starts its own scope below. The Subscription Manager and email bridge build directly on the carried-over NWC Proxy Lite and Resend adapter.
+  Month 7 first clears the work carried over from [Month 6](./month-6) — MASTER
+  card account-share (FOREVER QRs), NWC Proxy Lite + full LUD-16 / LUD-21 /
+  LUD-22 / NIP-57 closeout, `@lawallet-nwc/react` extraction, the WordPress
+  plugin, the Resend adapter, the Nostr scheduler, and Vercel / Netlify deploy
+  configs — then starts its own scope below. The Subscription Manager and email
+  bridge build directly on the carried-over NWC Proxy Lite and Resend adapter.
 </Callout>
 
 ## Summary
@@ -111,17 +116,17 @@ A subscription perk that bridges incoming email into Nostr DMs.
 
 ## Acceptance Criteria
 
-| Deliverable | Criteria | Priority |
-|-------------|----------|----------|
-| Subscription plan CRUD (admin) | Operator creates a plan with price, interval, perk flags | P0 |
-| Subscription purchase | Pay invoice → `Subscription.status = ACTIVE`; perk gates flip | P0 |
-| Vanity LN address perk | Premium-tier user can claim a 3–7 char address | P0 |
-| Sat-allowance ledger | `TokenAllocation` credited monthly; visible in user wallet | P0 |
-| Email-to-Nostr bridge | Email to `alice+inbox@domain` arrives as NIP-44 DM | P0 |
-| Chat DM (NIP-17 / NIP-44) | User-user DM round-trips through user's preferred relays | P0 |
-| NIP-04 fallback | Legacy clients can still receive DMs | P1 |
-| Operator → user broadcast | Admin sends DM to a segment via instance nsec | P0 |
-| Daily expiry cron | Expired subscriptions flip to `EXPIRED`; perks revoke | P0 |
-| Renewal flow | Re-pay before expiry extends `expiresAt` | P0 |
-| Group chat threads (NIP-29) | Deferred to M9 / post-roadmap | — |
-| Paid relay perk | Deferred to post-roadmap | — |
+| Deliverable                    | Criteria                                                      | Priority |
+| ------------------------------ | ------------------------------------------------------------- | -------- |
+| Subscription plan CRUD (admin) | Operator creates a plan with price, interval, perk flags      | P0       |
+| Subscription purchase          | Pay invoice → `Subscription.status = ACTIVE`; perk gates flip | P0       |
+| Vanity LN address perk         | Premium-tier user can claim a 3–7 char address                | P0       |
+| Sat-allowance ledger           | `TokenAllocation` credited monthly; visible in user wallet    | P0       |
+| Email-to-Nostr bridge          | Email to `alice+inbox@domain` arrives as NIP-44 DM            | P0       |
+| Chat DM (NIP-17 / NIP-44)      | User-user DM round-trips through user's preferred relays      | P0       |
+| NIP-04 fallback                | Legacy clients can still receive DMs                          | P1       |
+| Operator → user broadcast      | Admin sends DM to a segment via instance nsec                 | P0       |
+| Daily expiry cron              | Expired subscriptions flip to `EXPIRED`; perks revoke         | P0       |
+| Renewal flow                   | Re-pay before expiry extends `expiresAt`                      | P0       |
+| Group chat threads (NIP-29)    | Deferred to M9 / post-roadmap                                 | —        |
+| Paid relay perk                | Deferred to post-roadmap                                      | —        |

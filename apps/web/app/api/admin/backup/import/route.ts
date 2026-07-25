@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticateWithRole } from '@/lib/auth/unified-auth'
 import { Role } from '@/lib/auth/permissions'
-import { checkFileLimits, checkRequestLimits } from '@/lib/middleware/request-limits'
+import {
+  checkFileLimits,
+  checkRequestLimits
+} from '@/lib/middleware/request-limits'
 import { ValidationError } from '@/types/server/errors'
 import { backupImportRequestSchema } from '@/lib/validation/schemas'
 import { parseBackupFile } from '@/lib/backup/archive'
@@ -31,7 +34,10 @@ export const POST = withErrorHandling(async (request: Request) => {
     throw new ValidationError('A backup file is required.')
   }
   const passwordRaw = formData.get('password')
-  const password = typeof passwordRaw === 'string' && passwordRaw !== '' ? passwordRaw : undefined
+  const password =
+    typeof passwordRaw === 'string' && passwordRaw !== ''
+      ? passwordRaw
+      : undefined
 
   let resolutionJson: unknown = {}
   const resolutionRaw = formData.get('resolution')
@@ -44,7 +50,10 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
   const parsedResolution = backupImportRequestSchema.safeParse(resolutionJson)
   if (!parsedResolution.success) {
-    throw new ValidationError('Invalid restore options.', parsedResolution.error.errors)
+    throw new ValidationError(
+      'Invalid restore options.',
+      parsedResolution.error.errors
+    )
   }
   const resolution = parsedResolution.data
 
@@ -61,8 +70,8 @@ export const POST = withErrorHandling(async (request: Request) => {
       mode: resolution.mode,
       hadErrors: result.hadErrors,
       summary: result.tables,
-      errorCount: result.errors.length,
-    },
+      errorCount: result.errors.length
+    }
   })
 
   emitRestoreEvents(result)

@@ -34,9 +34,9 @@ Prisma queries slower than `SLOW_QUERY_THRESHOLD_MS` (default 100ms) log at
 
 ## Common auth failures
 
-| Symptom | Cause |
-|---------|-------|
+| Symptom                      | Cause                                                                                                            |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | 401 "Invalid or expired JWT" | Issuer (`lawallet-nwc`) / audience (`lawallet-users`) / secret mismatch — each worktree has its own `JWT_SECRET` |
-| 401 on NIP-98 | `created_at` skew, URL mismatch, or method casing |
-| 403 `AUTHORIZATION_ERROR` | Role lacks the required permission |
-| 503 from `/api/health` | Server can't reach the database — check `pnpm dev:env` output |
+| 401 on NIP-98                | `created_at` skew, URL mismatch, or method casing                                                                |
+| 403 `AUTHORIZATION_ERROR`    | Role lacks the required permission                                                                               |
+| 503 from `/api/health`       | Server can't reach the database — check `pnpm dev:env` output                                                    |

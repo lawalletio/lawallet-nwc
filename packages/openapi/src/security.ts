@@ -15,7 +15,7 @@ registry.registerComponent('securitySchemes', BEARER_JWT, {
   type: 'http',
   scheme: 'bearer',
   bearerFormat: 'JWT',
-  description: 'Session JWT obtained from POST /api/jwt.',
+  description: 'Session JWT obtained from POST /api/jwt.'
 })
 
 registry.registerComponent('securitySchemes', NIP98, {
@@ -23,7 +23,7 @@ registry.registerComponent('securitySchemes', NIP98, {
   in: 'header',
   name: 'Authorization',
   description:
-    'NIP-98 signed event, base64-encoded, prefixed with `Nostr ` (e.g. `Authorization: Nostr <base64>`).',
+    'NIP-98 signed event, base64-encoded, prefixed with `Nostr ` (e.g. `Authorization: Nostr <base64>`).'
 })
 
 // /api/events accepts the JWT through a query string parameter because
@@ -33,5 +33,5 @@ registry.registerComponent('securitySchemes', EVENTS_TOKEN, {
   type: 'apiKey',
   in: 'query',
   name: 'token',
-  description: 'JWT passed as a query string parameter for SSE clients.',
+  description: 'JWT passed as a query string parameter for SSE clients.'
 })

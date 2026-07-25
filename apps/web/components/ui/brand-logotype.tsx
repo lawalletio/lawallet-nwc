@@ -33,16 +33,13 @@ export function BrandLogotype({
   width,
   height,
   alt = 'LaWallet',
-  className,
+  className
 }: BrandLogotypeProps) {
   const { logotype, loading } = useBrandLogotypes()
 
   if (loading) {
     return (
-      <Skeleton
-        style={{ width, height }}
-        aria-label="Loading brand logo"
-      />
+      <Skeleton style={{ width, height }} aria-label="Loading brand logo" />
     )
   }
 

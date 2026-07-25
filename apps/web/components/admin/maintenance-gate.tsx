@@ -57,9 +57,9 @@ export function MaintenanceGate({ children }: { children: React.ReactNode }) {
           <AlertTitle>General maintenance</AlertTitle>
           <AlertDescription>
             The platform is temporarily unavailable while we perform
-            maintenance. All wallet, address, and API functions are
-            disabled until an administrator brings the service back up.
-            Please check back shortly.
+            maintenance. All wallet, address, and API functions are disabled
+            until an administrator brings the service back up. Please check back
+            shortly.
           </AlertDescription>
         </Alert>
         <Button variant="outline" size="sm" onClick={logout}>

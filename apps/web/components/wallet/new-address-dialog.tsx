@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -86,18 +86,14 @@ export function SuccessHeroCard({ address }: { address: string }) {
     : [address, '']
 
   return (
-    <div
-      className="relative w-full overflow-hidden rounded-lg border border-border bg-card animate-in fade-in-0 zoom-in-95 duration-500 ease-out"
-    >
+    <div className="relative w-full overflow-hidden rounded-lg border border-border bg-card animate-in fade-in-0 zoom-in-95 duration-500 ease-out">
       {/* Maintain a consistent aspect so the composition renders
           predictably regardless of the dialog's content width. */}
       <div className="relative aspect-[16/9] w-full">
         {/* Blurred radial glow — centered at the top. Pulses softly to
             give the card a live "on-air" feel, and fades in slightly
             delayed so the sequence reads as card → glow → bolt → pill. */}
-        <div
-          className="pointer-events-none absolute left-1/2 top-0 h-[60%] w-[70%] -translate-x-1/2 -translate-y-1/4 opacity-40 animate-in fade-in-0 duration-700 delay-150 fill-mode-backwards motion-safe:[animation-iteration-count:1]"
-        >
+        <div className="pointer-events-none absolute left-1/2 top-0 h-[60%] w-[70%] -translate-x-1/2 -translate-y-1/4 opacity-40 animate-in fade-in-0 duration-700 delay-150 fill-mode-backwards motion-safe:[animation-iteration-count:1]">
           <div className="size-full motion-safe:animate-[pulse_3s_ease-in-out_infinite]">
             <Image
               src="/register/success-ellipse.svg"
@@ -112,9 +108,7 @@ export function SuccessHeroCard({ address }: { address: string }) {
 
         {/* Lightning silhouette decoration — centered behind the pill.
             Drops in with a slight scale-up on arrival. */}
-        <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center animate-in fade-in-0 zoom-in-90 duration-700 delay-200 fill-mode-backwards"
-        >
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center animate-in fade-in-0 zoom-in-90 duration-700 delay-200 fill-mode-backwards">
           <div className="relative size-full">
             <Image
               src="/register/success-frame.svg"
@@ -130,11 +124,11 @@ export function SuccessHeroCard({ address }: { address: string }) {
         {/* Address pill — fully centered. Slides up from below with a
             subtle scale + fade so it lands last, like a confirmation. */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <div
-            className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-4 py-2 text-lg font-medium leading-7 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] animate-in fade-in-0 slide-in-from-bottom-3 zoom-in-95 duration-500 delay-300 fill-mode-backwards ease-out"
-          >
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-4 py-2 text-lg font-medium leading-7 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] animate-in fade-in-0 slide-in-from-bottom-3 zoom-in-95 duration-500 delay-300 fill-mode-backwards ease-out">
             <span className="text-muted-foreground">{name}</span>
-            {domainPart && <span className="text-foreground">{domainPart}</span>}
+            {domainPart && (
+              <span className="text-foreground">{domainPart}</span>
+            )}
           </div>
         </div>
       </div>
@@ -157,7 +151,7 @@ export function NewAddressDialog({
   initialUsername = '',
   onSuccessAction,
   successAutoAdvanceMs,
-  onSuccessAutoAdvance,
+  onSuccessAutoAdvance
 }: NewAddressDialogProps) {
   const router = useRouter()
   const { data: settings } = useSettings()
@@ -176,7 +170,9 @@ export function NewAddressDialog({
 
   // Payment step state
   const [invoice, setInvoice] = useState<InvoiceData | null>(null)
-  const [paymentStatus, setPaymentStatus] = useState<'waiting' | 'detected' | 'expired'>('waiting')
+  const [paymentStatus, setPaymentStatus] = useState<
+    'waiting' | 'detected' | 'expired'
+  >('waiting')
   const [copied, setCopied] = useState(false)
   const [hasWebLn, setHasWebLn] = useState(false)
   const [payingWithWallet, setPayingWithWallet] = useState(false)
@@ -209,7 +205,10 @@ export function NewAddressDialog({
   }, [onSuccessAutoAdvance])
   useEffect(() => {
     if (step !== 'success' || !successAutoAdvanceMs) return
-    const timer = setTimeout(() => autoAdvanceRef.current?.(), successAutoAdvanceMs)
+    const timer = setTimeout(
+      () => autoAdvanceRef.current?.(),
+      successAutoAdvanceMs
+    )
     return () => clearTimeout(timer)
   }, [step, successAutoAdvanceMs])
 
@@ -242,7 +241,7 @@ export function NewAddressDialog({
     const handle = setTimeout(async () => {
       try {
         const res = await fetch(
-          `/api/lightning-addresses/check?username=${encodeURIComponent(username)}`,
+          `/api/lightning-addresses/check?username=${encodeURIComponent(username)}`
         )
         const body = (await res.json()) as { available?: boolean }
         if (!cancelled) setAvailable(Boolean(body.available))
@@ -314,7 +313,8 @@ export function NewAddressDialog({
           finishSuccess(claimResult.lightningAddress ?? `${username}@${domain}`)
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to claim address'
+        const msg =
+          err instanceof Error ? err.message : 'Failed to claim address'
         // The invoice was already claimed (e.g. a prior claim succeeded but its
         // response was lost to a dropped connection). The address exists and is
         // ours — treat as success rather than surfacing a scary error.
@@ -334,7 +334,7 @@ export function NewAddressDialog({
         claimingRef.current = false
       }
     },
-    [apiClient, domain, onCreated, username],
+    [apiClient, domain, onCreated, username]
   )
 
   const startLud21Polling = useCallback(
@@ -352,7 +352,7 @@ export function NewAddressDialog({
 
       pollVerifyUrl(invoiceData.verify, {
         signal: controller.signal,
-        timeout: Math.max(msUntilExpiry, 0),
+        timeout: Math.max(msUntilExpiry, 0)
       })
         .then(result => {
           if (result.settled && result.preimage) {
@@ -367,20 +367,22 @@ export function NewAddressDialog({
           }
         })
     },
-    [claimWithPreimage],
+    [claimWithPreimage]
   )
 
   async function mintInvoiceAndShowQr() {
     try {
       const result = await apiClient.post<InvoiceData | { free: true }>(
         '/api/invoices',
-        { purpose: 'wallet-address', metadata: { username } },
+        { purpose: 'wallet-address', metadata: { username } }
       )
       if ('free' in result && result.free) {
         // Operator hasn't finished configuring paid mode — surface this
         // explicitly rather than silently looping on the free endpoint
         // which would also be unavailable.
-        toast.error('Paid registration is configured but incomplete. Contact the operator.')
+        toast.error(
+          'Paid registration is configured but incomplete. Contact the operator.'
+        )
         return
       }
       const invoiceData = result as InvoiceData
@@ -389,7 +391,7 @@ export function NewAddressDialog({
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(
           PENDING_INVOICE_KEY,
-          JSON.stringify({ ...invoiceData, username }),
+          JSON.stringify({ ...invoiceData, username })
         )
       }
       claimingRef.current = false
@@ -398,7 +400,9 @@ export function NewAddressDialog({
       setStep('payment')
       startLud21Polling(invoiceData)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to generate invoice')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to generate invoice'
+      )
     }
   }
 
@@ -444,7 +448,8 @@ export function NewAddressDialog({
         await mintInvoiceAndShowQr()
         return
       }
-      const msg = err instanceof Error ? err.message : 'Failed to create address'
+      const msg =
+        err instanceof Error ? err.message : 'Failed to create address'
       toast.error(msg)
     } finally {
       setSubmitting(false)
@@ -510,11 +515,13 @@ export function NewAddressDialog({
       if (result.settled && result.preimage) {
         await claimWithPreimage(invoice.id, result.preimage)
       } else {
-        toast('No payment detected yet. If you just paid, give it a few seconds.')
+        toast(
+          'No payment detected yet. If you just paid, give it a few seconds.'
+        )
       }
     } catch {
       toast.error(
-        'Couldn’t reach the payment verifier — check your connection and try again.',
+        'Couldn’t reach the payment verifier — check your connection and try again.'
       )
     } finally {
       setManualChecking(false)
@@ -588,17 +595,25 @@ export function NewAddressDialog({
                   maxLength={16}
                   className="flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
-                <span className="px-3 text-sm text-muted-foreground">@{domain}</span>
+                <span className="px-3 text-sm text-muted-foreground">
+                  @{domain}
+                </span>
               </div>
               <p className="min-h-4 text-xs">
                 {formatError ? (
                   <span className="text-destructive">{formatError}</span>
                 ) : checking ? (
-                  <span className="text-muted-foreground">Checking availability…</span>
+                  <span className="text-muted-foreground">
+                    Checking availability…
+                  </span>
                 ) : available === false ? (
-                  <span className="text-destructive">That username is taken.</span>
+                  <span className="text-destructive">
+                    That username is taken.
+                  </span>
                 ) : available === true ? (
-                  <span className="text-green-600 dark:text-green-500">Available</span>
+                  <span className="text-green-600 dark:text-green-500">
+                    Available
+                  </span>
                 ) : (
                   <span className="text-muted-foreground">
                     Lowercase letters and numbers, max 16 characters.
@@ -674,7 +689,9 @@ export function NewAddressDialog({
                       variant="theme"
                       className="w-full"
                       onClick={handleWebLnPay}
-                      disabled={payingWithWallet || paymentStatus === 'detected'}
+                      disabled={
+                        payingWithWallet || paymentStatus === 'detected'
+                      }
                     >
                       {payingWithWallet ? (
                         <Spinner size={16} className="mr-2" />

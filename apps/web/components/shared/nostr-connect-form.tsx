@@ -1,7 +1,15 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Eye, EyeOff, Puzzle, QrCode, Copy, Link, RefreshCw } from 'lucide-react'
+import {
+  Eye,
+  EyeOff,
+  Puzzle,
+  QrCode,
+  Copy,
+  Link,
+  RefreshCw
+} from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -13,7 +21,7 @@ import { cn } from '@/lib/utils'
 import {
   useAuth,
   type LoginMethod,
-  type SignerCredentials,
+  type SignerCredentials
 } from '@/components/admin/auth-context'
 import type { NostrSigner } from '@nostrify/nostrify'
 import {
@@ -21,7 +29,7 @@ import {
   createBrowserSigner,
   createBunkerSigner,
   createNostrConnectSigner,
-  hasBrowserExtension,
+  hasBrowserExtension
 } from '@/lib/client/nostr-signer'
 
 /**
@@ -33,7 +41,7 @@ import {
 export type NostrSignerHandler = (
   signer: NostrSigner,
   method: LoginMethod,
-  credentials?: SignerCredentials,
+  credentials?: SignerCredentials
 ) => Promise<void>
 
 interface NostrConnectFormProps {
@@ -67,7 +75,7 @@ export function NostrConnectForm({
   submitLabel = 'Login',
   loadingLabel = 'Signing in...',
   handleSigner,
-  showExtension = true,
+  showExtension = true
 }: NostrConnectFormProps) {
   const [extensionAvailable] = useState(() => hasBrowserExtension())
   const defaultHandler = useDefaultLoginHandler()
@@ -136,7 +144,7 @@ function NsecForm({
   onSuccess,
   submitLabel,
   loadingLabel,
-  onSigner,
+  onSigner
 }: {
   onSuccess?: () => void
   submitLabel: string
@@ -174,7 +182,7 @@ function NsecForm({
             type={showKey ? 'text' : 'password'}
             placeholder="nsec or hex private key..."
             value={nsec}
-            onChange={(e) => {
+            onChange={e => {
               setNsec(e.target.value)
               setError(null)
             }}
@@ -190,13 +198,22 @@ function NsecForm({
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             tabIndex={-1}
           >
-            {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {showKey ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
           </button>
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
 
-      <Button type="submit" variant="secondary" disabled={!nsec.trim() || loading} className="w-full h-[44px]">
+      <Button
+        type="submit"
+        variant="secondary"
+        disabled={!nsec.trim() || loading}
+        className="w-full h-[44px]"
+      >
         {loading ? (
           <>
             <Spinner size={16} className="mr-2" />
@@ -236,7 +253,7 @@ function BunkerForm({
   onSuccess,
   submitLabel,
   loadingLabel,
-  onSigner,
+  onSigner
 }: {
   onSuccess?: () => void
   submitLabel: string
@@ -294,13 +311,15 @@ function BunkerForm({
 
 function BunkerQRMode({
   onSuccess,
-  onSigner,
+  onSigner
 }: {
   onSuccess?: () => void
   onSigner: NostrSignerHandler
 }) {
   const [uri, setUri] = useState<string | null>(null)
-  const [status, setStatus] = useState<'generating' | 'waiting' | 'connecting' | 'error'>('generating')
+  const [status, setStatus] = useState<
+    'generating' | 'waiting' | 'connecting' | 'error'
+  >('generating')
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -319,10 +338,10 @@ function BunkerQRMode({
       const signer = await createNostrConnectSigner({
         timeout: 60_000,
         signal: controller.signal,
-        onURI: (generatedUri) => {
+        onURI: generatedUri => {
           setUri(generatedUri)
           setStatus('waiting')
-        },
+        }
       })
 
       if (controller.signal.aborted) return
@@ -333,16 +352,21 @@ function BunkerQRMode({
     } catch (err) {
       if (controller.signal.aborted) return
       const message = err instanceof Error ? err.message : 'Failed to connect'
-      setError(message.includes('timed out') || message.includes('abort')
-        ? 'Connection timed out. Make sure your signer app scanned the QR code.'
-        : message)
+      setError(
+        message.includes('timed out') || message.includes('abort')
+          ? 'Connection timed out. Make sure your signer app scanned the QR code.'
+          : message
+      )
       setStatus('error')
     }
   }, [onSigner, onSuccess])
 
   useEffect(() => {
     const id = requestAnimationFrame(() => startConnection())
-    return () => { cancelAnimationFrame(id); abortRef.current?.abort() }
+    return () => {
+      cancelAnimationFrame(id)
+      abortRef.current?.abort()
+    }
   }, [startConnection])
 
   async function handleCopy() {
@@ -356,7 +380,9 @@ function BunkerQRMode({
     return (
       <div className="flex flex-col items-center gap-3 py-6">
         <Spinner size={24} />
-        <p className="text-sm text-muted-foreground">Generating connection...</p>
+        <p className="text-sm text-muted-foreground">
+          Generating connection...
+        </p>
       </div>
     )
   }
@@ -365,7 +391,9 @@ function BunkerQRMode({
     return (
       <div className="flex flex-col items-center gap-3 py-6">
         <Spinner size={24} />
-        <p className="text-sm text-muted-foreground">Signer connected, logging in...</p>
+        <p className="text-sm text-muted-foreground">
+          Signer connected, logging in...
+        </p>
       </div>
     )
   }
@@ -388,7 +416,12 @@ function BunkerQRMode({
         <QRCodeSVG value={uri!} size={200} />
       </div>
 
-      <Button variant="ghost" size="sm" onClick={handleCopy} className="text-xs">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleCopy}
+        className="text-xs"
+      >
         <Copy className="mr-1.5 size-3.5" />
         {copied ? 'Copied!' : 'Copy URI'}
       </Button>
@@ -400,7 +433,12 @@ function BunkerQRMode({
 
       <p className="text-xs text-muted-foreground text-center">
         Scan with your signer app (
-        <a href="https://nsec.app" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+        <a
+          href="https://nsec.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-foreground"
+        >
           nsec.app
         </a>
         , Amber, etc.)
@@ -415,7 +453,7 @@ function BunkerPasteMode({
   onSuccess,
   submitLabel,
   loadingLabel,
-  onSigner,
+  onSigner
 }: {
   onSuccess?: () => void
   submitLabel: string
@@ -443,7 +481,8 @@ function BunkerPasteMode({
       await onSigner(signer, 'bunker', { secret: bunkerUrl.trim() })
       onSuccess?.()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to connect to bunker'
+      const message =
+        err instanceof Error ? err.message : 'Failed to connect to bunker'
       setError(message)
       toast.error(message)
     } finally {
@@ -459,7 +498,7 @@ function BunkerPasteMode({
             type={showUrl ? 'text' : 'password'}
             placeholder="bunker://..."
             value={bunkerUrl}
-            onChange={(e) => {
+            onChange={e => {
               setBunkerUrl(e.target.value)
               setError(null)
             }}
@@ -476,13 +515,22 @@ function BunkerPasteMode({
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             tabIndex={-1}
           >
-            {showUrl ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {showUrl ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
           </button>
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
 
-      <Button type="submit" variant="secondary" disabled={!bunkerUrl.trim() || loading} className="w-full h-[44px]">
+      <Button
+        type="submit"
+        variant="secondary"
+        disabled={!bunkerUrl.trim() || loading}
+        className="w-full h-[44px]"
+      >
         {loading ? (
           <>
             <Spinner size={16} className="mr-2" />
@@ -500,7 +548,7 @@ function BunkerPasteMode({
 
 function ExtensionButton({
   onSuccess,
-  onSigner,
+  onSigner
 }: {
   onSuccess?: () => void
   onSigner: NostrSignerHandler
@@ -514,7 +562,11 @@ function ExtensionButton({
       await onSigner(signer, 'extension')
       onSuccess?.()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to connect with extension')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to connect with extension'
+      )
     } finally {
       setLoading(false)
     }

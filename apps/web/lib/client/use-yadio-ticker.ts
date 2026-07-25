@@ -34,7 +34,7 @@ export function useYadioRates(): TickerState {
       btcUsd: cached?.rates?.USD ?? null,
       fetchedAt: cached?.fetchedAt ?? null,
       loading: cached === null,
-      error: null,
+      error: null
     }
   })
 
@@ -45,7 +45,7 @@ export function useYadioRates(): TickerState {
     async function fetchRates() {
       try {
         const res = await fetch(ENDPOINT, {
-          headers: { accept: 'application/json' },
+          headers: { accept: 'application/json' }
         })
         if (!res.ok) throw new Error(`Yadio responded ${res.status}`)
         // Shape: `{ BTC: { USD: 76262, EUR: 70000, … }, base, timestamp }`.
@@ -61,7 +61,7 @@ export function useYadioRates(): TickerState {
           btcUsd: rates.USD,
           fetchedAt,
           loading: false,
-          error: null,
+          error: null
         })
         writeCache({ rates, fetchedAt })
       } catch (err) {
@@ -69,7 +69,7 @@ export function useYadioRates(): TickerState {
         setState(prev => ({
           ...prev,
           loading: false,
-          error: err instanceof Error ? err : new Error('Ticker error'),
+          error: err instanceof Error ? err : new Error('Ticker error')
         }))
       } finally {
         if (!cancelled) {
@@ -98,7 +98,7 @@ export function useYadioRates(): TickerState {
 export function convertSats(
   sats: number,
   code: string,
-  rates: BtcRates | null,
+  rates: BtcRates | null
 ): number | null {
   if (code === 'SAT') return sats
   if (code === 'BTC') return sats / 100_000_000
@@ -134,7 +134,7 @@ function readCache(): { rates: BtcRates; fetchedAt: number } | null {
     ) {
       return {
         rates: parsed.rates as BtcRates,
-        fetchedAt: parsed.fetchedAt,
+        fetchedAt: parsed.fetchedAt
       }
     }
     return null

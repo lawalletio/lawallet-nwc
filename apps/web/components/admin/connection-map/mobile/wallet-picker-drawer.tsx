@@ -6,7 +6,7 @@ import {
   Drawer,
   DrawerContent,
   DrawerHeader,
-  DrawerTitle,
+  DrawerTitle
 } from '@/components/ui/drawer'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
@@ -38,7 +38,7 @@ export function WalletPickerDrawer({
   onOpenChange,
   title,
   rows,
-  busy,
+  busy
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -61,13 +61,13 @@ export function WalletPickerDrawer({
               disabled={busy}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors disabled:opacity-50',
-                row.active ? 'bg-accent' : 'hover:bg-muted/60',
+                row.active ? 'bg-accent' : 'hover:bg-muted/60'
               )}
             >
               <span
                 className={cn(
                   'flex size-8 shrink-0 items-center justify-center rounded-full',
-                  row.tone === 'danger' ? 'bg-destructive/10' : 'bg-muted',
+                  row.tone === 'danger' ? 'bg-destructive/10' : 'bg-muted'
                 )}
               >
                 {row.tone === 'default' ? (
@@ -79,14 +79,18 @@ export function WalletPickerDrawer({
                 )}
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-medium">{row.label}</span>
+                <span className="truncate text-sm font-medium">
+                  {row.label}
+                </span>
                 {row.sublabel && (
                   <span className="truncate text-xs text-muted-foreground">
                     {row.sublabel}
                   </span>
                 )}
               </span>
-              {row.active && <Check className="size-4 shrink-0 text-foreground" />}
+              {row.active && (
+                <Check className="size-4 shrink-0 text-foreground" />
+              )}
             </button>
           ))}
 

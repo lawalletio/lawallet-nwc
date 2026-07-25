@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(),
+  getConfig: vi.fn()
 }))
 
 import {
@@ -9,7 +9,7 @@ import {
   encryptNsec,
   isVaultConfigured,
   rotateEnvelope,
-  VaultDecryptError,
+  VaultDecryptError
 } from '@/lib/auth/key-vault'
 import { getConfig } from '@/lib/config'
 
@@ -20,7 +20,7 @@ const PRIVKEY = 'a'.repeat(32) + '0123456789abcdef0123456789abcdef'
 
 function mockVault(secret: string | undefined, previousSecrets: string[] = []) {
   vi.mocked(getConfig).mockReturnValue({
-    keyVault: { secret, previousSecrets, enabled: !!secret },
+    keyVault: { secret, previousSecrets, enabled: !!secret }
   } as any)
 }
 

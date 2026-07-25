@@ -92,7 +92,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover'
 import { Progress } from '@/components/ui/progress'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -226,7 +230,11 @@ import { Spinner } from '@/components/ui/spinner'
 import { Kbd } from '@/components/ui/kbd'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { CheckboxCard } from '@/components/ui/checkbox-card'
-import { LinkCard, LinkCardTitle, LinkCardDescription } from '@/components/ui/link-card'
+import {
+  LinkCard,
+  LinkCardTitle,
+  LinkCardDescription
+} from '@/components/ui/link-card'
 import { NativeSelect } from '@/components/ui/native-select'
 import {
   InputGroup,
@@ -290,24 +298,65 @@ const navSections = [
   {
     group: 'Standard shadcn',
     items: [
-      'accordion', 'alert', 'alert-dialog', 'aspect-ratio', 'avatar',
-      'badge', 'breadcrumb', 'button', 'calendar', 'card',
-      'carousel', 'checkbox', 'collapsible', 'command',
-      'context-menu', 'dialog', 'drawer', 'dropdown-menu',
-      'hover-card', 'input', 'input-otp', 'label', 'menubar',
-      'navigation-menu', 'pagination', 'popover', 'progress',
-      'radio-group', 'resizable', 'scroll-area', 'select',
-      'separator', 'sheet', 'skeleton', 'slider', 'sonner',
-      'switch', 'table', 'tabs', 'textarea', 'toggle',
-      'toggle-group', 'tooltip'
+      'accordion',
+      'alert',
+      'alert-dialog',
+      'aspect-ratio',
+      'avatar',
+      'badge',
+      'breadcrumb',
+      'button',
+      'calendar',
+      'card',
+      'carousel',
+      'checkbox',
+      'collapsible',
+      'command',
+      'context-menu',
+      'dialog',
+      'drawer',
+      'dropdown-menu',
+      'hover-card',
+      'input',
+      'input-otp',
+      'label',
+      'menubar',
+      'navigation-menu',
+      'pagination',
+      'popover',
+      'progress',
+      'radio-group',
+      'resizable',
+      'scroll-area',
+      'select',
+      'separator',
+      'sheet',
+      'skeleton',
+      'slider',
+      'sonner',
+      'switch',
+      'table',
+      'tabs',
+      'textarea',
+      'toggle',
+      'toggle-group',
+      'tooltip'
     ]
   },
   {
     group: 'Custom Components',
     items: [
-      'spinner', 'kbd', 'button-group', 'checkbox-card',
-      'link-card', 'native-select', 'input-group', 'field',
-      'topbar', 'topbar-mobile', 'swipe-button'
+      'spinner',
+      'kbd',
+      'button-group',
+      'checkbox-card',
+      'link-card',
+      'native-select',
+      'input-group',
+      'field',
+      'topbar',
+      'topbar-mobile',
+      'swipe-button'
     ]
   }
 ]
@@ -323,7 +372,7 @@ export default function ComponentPreviewPage() {
 
   React.useEffect(() => {
     const timer = setInterval(() => {
-      setProgress((p) => (p >= 100 ? 0 : p + 5))
+      setProgress(p => (p >= 100 ? 0 : p + 5))
     }, 500)
     return () => clearInterval(timer)
   }, [])
@@ -334,13 +383,13 @@ export default function ComponentPreviewPage() {
         {/* Sidebar */}
         <aside className="w-64 shrink-0 border-r border-border bg-card p-4 sticky top-0 h-screen overflow-y-auto hidden lg:block">
           <h1 className="text-lg font-semibold mb-4">Components</h1>
-          {navSections.map((section) => (
+          {navSections.map(section => (
             <div key={section.group} className="mb-4">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-2">
                 {section.group}
               </p>
               <nav className="space-y-0.5">
-                {section.items.map((item) => (
+                {section.items.map(item => (
                   <a
                     key={item}
                     href={`#${item}`}
@@ -348,7 +397,7 @@ export default function ComponentPreviewPage() {
                   >
                     {item
                       .split('-')
-                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(' ')}
                   </a>
                 ))}
@@ -465,7 +514,10 @@ export default function ComponentPreviewPage() {
           <Section id="avatar" title="Avatar">
             <Demo label="Variants">
               <Avatar>
-                <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+                <AvatarImage
+                  src="https://github.com/shadcn.png"
+                  alt="@shadcn"
+                />
                 <AvatarFallback>CN</AvatarFallback>
               </Avatar>
               <Avatar>
@@ -565,7 +617,9 @@ export default function ComponentPreviewPage() {
                     <CarouselItem key={index}>
                       <Card>
                         <CardContent className="flex aspect-square items-center justify-center p-6">
-                          <span className="text-4xl font-semibold">{index + 1}</span>
+                          <span className="text-4xl font-semibold">
+                            {index + 1}
+                          </span>
                         </CardContent>
                       </Card>
                     </CarouselItem>
@@ -582,7 +636,9 @@ export default function ComponentPreviewPage() {
                     <CarouselItem key={index} className="pl-2 basis-1/3">
                       <Card>
                         <CardContent className="flex aspect-square items-center justify-center p-4">
-                          <span className="text-2xl font-semibold">{index + 1}</span>
+                          <span className="text-2xl font-semibold">
+                            {index + 1}
+                          </span>
                         </CardContent>
                       </Card>
                     </CarouselItem>
@@ -614,7 +670,9 @@ export default function ComponentPreviewPage() {
           <Section id="collapsible" title="Collapsible">
             <Collapsible className="w-[350px] space-y-2">
               <div className="flex items-center justify-between space-x-4 px-4">
-                <h4 className="text-sm font-semibold">3 starred repositories</h4>
+                <h4 className="text-sm font-semibold">
+                  3 starred repositories
+                </h4>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm">
                     <ChevronsUpDown className="h-4 w-4" />
@@ -754,7 +812,9 @@ export default function ComponentPreviewPage() {
               <DrawerContent>
                 <DrawerHeader>
                   <DrawerTitle>Move Goal</DrawerTitle>
-                  <DrawerDescription>Set your daily activity goal.</DrawerDescription>
+                  <DrawerDescription>
+                    Set your daily activity goal.
+                  </DrawerDescription>
                 </DrawerHeader>
                 <div className="p-4">
                   <Slider defaultValue={[350]} max={500} step={10} />
@@ -788,7 +848,9 @@ export default function ComponentPreviewPage() {
                       </p>
                       <div className="flex items-center pt-2">
                         <CalendarIcon className="mr-2 h-4 w-4 opacity-70" />
-                        <span className="text-xs text-muted-foreground">Joined Dec 2021</span>
+                        <span className="text-xs text-muted-foreground">
+                          Joined Dec 2021
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -801,7 +863,11 @@ export default function ComponentPreviewPage() {
             <Demo label="Types">
               <Input placeholder="Default input" className="max-w-sm" />
               <Input type="email" placeholder="Email" className="max-w-sm" />
-              <Input type="password" placeholder="Password" className="max-w-sm" />
+              <Input
+                type="password"
+                placeholder="Password"
+                className="max-w-sm"
+              />
               <Input disabled placeholder="Disabled" className="max-w-sm" />
             </Demo>
           </Section>
@@ -866,17 +932,27 @@ export default function ComponentPreviewPage() {
               <MenubarMenu>
                 <MenubarTrigger>File</MenubarTrigger>
                 <MenubarContent>
-                  <MenubarItem>New Tab <MenubarShortcut>⌘T</MenubarShortcut></MenubarItem>
-                  <MenubarItem>New Window <MenubarShortcut>⌘N</MenubarShortcut></MenubarItem>
+                  <MenubarItem>
+                    New Tab <MenubarShortcut>⌘T</MenubarShortcut>
+                  </MenubarItem>
+                  <MenubarItem>
+                    New Window <MenubarShortcut>⌘N</MenubarShortcut>
+                  </MenubarItem>
                   <MenubarSeparator />
-                  <MenubarItem>Print <MenubarShortcut>⌘P</MenubarShortcut></MenubarItem>
+                  <MenubarItem>
+                    Print <MenubarShortcut>⌘P</MenubarShortcut>
+                  </MenubarItem>
                 </MenubarContent>
               </MenubarMenu>
               <MenubarMenu>
                 <MenubarTrigger>Edit</MenubarTrigger>
                 <MenubarContent>
-                  <MenubarItem>Undo <MenubarShortcut>⌘Z</MenubarShortcut></MenubarItem>
-                  <MenubarItem>Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut></MenubarItem>
+                  <MenubarItem>
+                    Undo <MenubarShortcut>⌘Z</MenubarShortcut>
+                  </MenubarItem>
+                  <MenubarItem>
+                    Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut>
+                  </MenubarItem>
                   <MenubarSeparator />
                   <MenubarItem>Cut</MenubarItem>
                   <MenubarItem>Copy</MenubarItem>
@@ -902,13 +978,19 @@ export default function ComponentPreviewPage() {
                   <NavigationMenuTrigger>Getting Started</NavigationMenuTrigger>
                   <NavigationMenuContent>
                     <div className="grid gap-3 p-6 w-[400px]">
-                      <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                      <NavigationMenuLink
+                        className={navigationMenuTriggerStyle()}
+                      >
                         Introduction
                       </NavigationMenuLink>
-                      <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                      <NavigationMenuLink
+                        className={navigationMenuTriggerStyle()}
+                      >
                         Installation
                       </NavigationMenuLink>
-                      <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                      <NavigationMenuLink
+                        className={navigationMenuTriggerStyle()}
+                      >
                         Typography
                       </NavigationMenuLink>
                     </div>
@@ -918,13 +1000,19 @@ export default function ComponentPreviewPage() {
                   <NavigationMenuTrigger>Components</NavigationMenuTrigger>
                   <NavigationMenuContent>
                     <div className="grid gap-3 p-6 w-[400px]">
-                      <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                      <NavigationMenuLink
+                        className={navigationMenuTriggerStyle()}
+                      >
                         Alert Dialog
                       </NavigationMenuLink>
-                      <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                      <NavigationMenuLink
+                        className={navigationMenuTriggerStyle()}
+                      >
                         Hover Card
                       </NavigationMenuLink>
-                      <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                      <NavigationMenuLink
+                        className={navigationMenuTriggerStyle()}
+                      >
                         Progress
                       </NavigationMenuLink>
                     </div>
@@ -944,7 +1032,9 @@ export default function ComponentPreviewPage() {
                   <PaginationLink href="#">1</PaginationLink>
                 </PaginationItem>
                 <PaginationItem>
-                  <PaginationLink href="#" isActive>2</PaginationLink>
+                  <PaginationLink href="#" isActive>
+                    2
+                  </PaginationLink>
                 </PaginationItem>
                 <PaginationItem>
                   <PaginationLink href="#">3</PaginationLink>
@@ -1009,7 +1099,10 @@ export default function ComponentPreviewPage() {
 
           <Section id="resizable" title="Resizable">
             <Demo label="Horizontal">
-              <ResizablePanelGroup orientation="horizontal" className="max-w-md rounded-lg border">
+              <ResizablePanelGroup
+                orientation="horizontal"
+                className="max-w-md rounded-lg border"
+              >
                 <ResizablePanel defaultSize={50}>
                   <div className="flex h-[200px] items-center justify-center p-6">
                     <span className="font-semibold">Panel A</span>
@@ -1024,7 +1117,10 @@ export default function ComponentPreviewPage() {
               </ResizablePanelGroup>
             </Demo>
             <Demo label="Vertical">
-              <ResizablePanelGroup orientation="vertical" className="min-h-[200px] max-w-md rounded-lg border">
+              <ResizablePanelGroup
+                orientation="vertical"
+                className="min-h-[200px] max-w-md rounded-lg border"
+              >
                 <ResizablePanel defaultSize={30}>
                   <div className="flex h-full items-center justify-center p-6">
                     <span className="font-semibold">Header</span>
@@ -1113,9 +1209,15 @@ export default function ComponentPreviewPage() {
                     <SheetDescription>Browse the application.</SheetDescription>
                   </SheetHeader>
                   <nav className="grid gap-2 py-4">
-                    <Button variant="ghost" className="justify-start"><Home className="mr-2 h-4 w-4" /> Home</Button>
-                    <Button variant="ghost" className="justify-start"><Settings className="mr-2 h-4 w-4" /> Settings</Button>
-                    <Button variant="ghost" className="justify-start"><User className="mr-2 h-4 w-4" /> Profile</Button>
+                    <Button variant="ghost" className="justify-start">
+                      <Home className="mr-2 h-4 w-4" /> Home
+                    </Button>
+                    <Button variant="ghost" className="justify-start">
+                      <Settings className="mr-2 h-4 w-4" /> Settings
+                    </Button>
+                    <Button variant="ghost" className="justify-start">
+                      <User className="mr-2 h-4 w-4" /> Profile
+                    </Button>
                   </nav>
                 </SheetContent>
               </Sheet>
@@ -1135,16 +1237,23 @@ export default function ComponentPreviewPage() {
           </Section>
 
           <Section id="slider" title="Slider">
-            <Slider defaultValue={[50]} max={100} step={1} className="w-full max-w-md" />
+            <Slider
+              defaultValue={[50]}
+              max={100}
+              step={1}
+              className="w-full max-w-md"
+            />
           </Section>
 
           <Section id="sonner" title="Sonner (Toast)">
             <Demo label="Variants">
               <Button
                 variant="outline"
-                onClick={() => toast('Event has been created', {
-                  description: 'Sunday, December 03, 2023 at 9:00 AM'
-                })}
+                onClick={() =>
+                  toast('Event has been created', {
+                    description: 'Sunday, December 03, 2023 at 9:00 AM'
+                  })
+                }
               >
                 Show Toast
               </Button>
@@ -1168,9 +1277,11 @@ export default function ComponentPreviewPage() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => toast('Action required', {
-                  action: { label: 'Undo', onClick: () => {} }
-                })}
+                onClick={() =>
+                  toast('Action required', {
+                    action: { label: 'Undo', onClick: () => {} }
+                  })
+                }
               >
                 With Action
               </Button>
@@ -1251,7 +1362,10 @@ export default function ComponentPreviewPage() {
           </Section>
 
           <Section id="textarea" title="Textarea">
-            <Textarea placeholder="Type your message here." className="max-w-md" />
+            <Textarea
+              placeholder="Type your message here."
+              className="max-w-md"
+            />
           </Section>
 
           <Section id="toggle" title="Toggle">
@@ -1471,7 +1585,10 @@ export default function ComponentPreviewPage() {
               </NativeSelect>
             </Demo>
             <Demo label="With Groups">
-              <NativeSelect placeholder="Select department" className="w-[200px]">
+              <NativeSelect
+                placeholder="Select department"
+                className="w-[200px]"
+              >
                 <optgroup label="Engineering">
                   <option>Frontend</option>
                   <option>Backend</option>
@@ -1484,13 +1601,21 @@ export default function ComponentPreviewPage() {
               </NativeSelect>
             </Demo>
             <Demo label="Error">
-              <NativeSelect error placeholder="Select role" className="w-[200px]">
+              <NativeSelect
+                error
+                placeholder="Select role"
+                className="w-[200px]"
+              >
                 <option value="admin">Admin</option>
                 <option value="user">User</option>
               </NativeSelect>
             </Demo>
             <Demo label="Disabled">
-              <NativeSelect disabled placeholder="Select priority" className="w-[200px]">
+              <NativeSelect
+                disabled
+                placeholder="Select priority"
+                className="w-[200px]"
+              >
                 <option>High</option>
                 <option>Medium</option>
                 <option>Low</option>
@@ -1563,13 +1688,18 @@ export default function ComponentPreviewPage() {
               <Field className="max-w-sm w-full">
                 <FieldLabel>Username</FieldLabel>
                 <Input placeholder="Enter username" />
-                <FieldDescription>This is your public display name.</FieldDescription>
+                <FieldDescription>
+                  This is your public display name.
+                </FieldDescription>
               </Field>
             </Demo>
             <Demo label="With Error">
               <Field className="max-w-sm w-full">
                 <FieldLabel>Email</FieldLabel>
-                <Input placeholder="you@example.com" className="border-destructive" />
+                <Input
+                  placeholder="you@example.com"
+                  className="border-destructive"
+                />
                 <FieldError>Please enter a valid email address.</FieldError>
               </Field>
             </Demo>
@@ -1676,7 +1806,10 @@ export default function ComponentPreviewPage() {
           <Section id="topbar-mobile" title="Topbar Mobile">
             <Demo label="Page">
               <div className="w-[375px] border border-border rounded-lg overflow-hidden">
-                <TopbarMobile type="page" avatar="https://github.com/shadcn.png" />
+                <TopbarMobile
+                  type="page"
+                  avatar="https://github.com/shadcn.png"
+                />
               </div>
             </Demo>
             <Demo label="Subpage">
@@ -1695,7 +1828,7 @@ export default function ComponentPreviewPage() {
               <div className="w-[343px]">
                 <SwipeButton
                   onConfirm={async () => {
-                    await new Promise((r) => setTimeout(r, 2000))
+                    await new Promise(r => setTimeout(r, 2000))
                   }}
                 />
               </div>
@@ -1707,7 +1840,7 @@ export default function ComponentPreviewPage() {
                   activeLabel="Release to Pay"
                   loadingLabel="Processing..."
                   onConfirm={async () => {
-                    await new Promise((r) => setTimeout(r, 1500))
+                    await new Promise(r => setTimeout(r, 1500))
                   }}
                 />
               </div>

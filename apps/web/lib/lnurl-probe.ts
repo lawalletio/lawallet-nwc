@@ -111,9 +111,7 @@ export async function fetchLud16Metadata(
   }
 
   if (!res.ok) {
-    throw new ValidationError(
-      `Lightning address returned HTTP ${res.status}`
-    )
+    throw new ValidationError(`Lightning address returned HTTP ${res.status}`)
   }
 
   const metadata = (await res.json()) as Lud16Metadata
@@ -184,9 +182,15 @@ export async function resolveInvoice(
     )
   }
 
-  const data = await callLud16Callback(metadata.callback, amountMsats, description)
+  const data = await callLud16Callback(
+    metadata.callback,
+    amountMsats,
+    description
+  )
   if (!data.pr) {
-    throw new ValidationError('No payment request returned from Lightning Address')
+    throw new ValidationError(
+      'No payment request returned from Lightning Address'
+    )
   }
   return { bolt11: data.pr, verify: data.verify }
 }
@@ -289,7 +293,7 @@ export async function probeLightningAddressCapabilities(
   const [lud16Result, lud21Result, nip57Result] = await Promise.all([
     lud16,
     lud21,
-    nip57,
+    nip57
   ])
 
   return {
@@ -298,7 +302,7 @@ export async function probeLightningAddressCapabilities(
     checks: {
       lud16: lud16Result,
       lud21: lud21Result,
-      nip57: nip57Result,
-    },
+      nip57: nip57Result
+    }
   }
 }

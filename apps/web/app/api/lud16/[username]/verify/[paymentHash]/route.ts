@@ -6,7 +6,11 @@ import { NotFoundError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import type { LUD21VerifySuccess, LUD21VerifyError } from '@/types/lnurl'
 import { eventBus } from '@/lib/events/event-bus'
-import { ActivityEvent, invoiceLogMetadata, logActivity } from '@/lib/activity-log'
+import {
+  ActivityEvent,
+  invoiceLogMetadata,
+  logActivity
+} from '@/lib/activity-log'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 
@@ -27,7 +31,7 @@ export const GET = withErrorHandling(
   async (
     _req: NextRequest,
     {
-      params,
+      params
     }: {
       params: Promise<{ username: string; paymentHash: string }>
     }
@@ -39,7 +43,7 @@ export const GET = withErrorHandling(
     if (!/^[a-f0-9]{64}$/.test(paymentHash)) {
       const error: LUD21VerifyError = {
         status: 'ERROR',
-        reason: 'Invalid payment hash',
+        reason: 'Invalid payment hash'
       }
       return NextResponse.json(error, { status: 400 })
     }
@@ -56,13 +60,15 @@ export const GET = withErrorHandling(
             lightningAddresses: {
               where: { username },
               include: {
-                remoteWallet: { select: { type: true, config: true, status: true } },
+                remoteWallet: {
+                  select: { type: true, config: true, status: true }
+                }
               },
-              take: 1,
-            },
-          },
-        },
-      },
+              take: 1
+            }
+          }
+        }
+      }
     })
 
     if (!invoice || !invoice.user) {
@@ -80,7 +86,7 @@ export const GET = withErrorHandling(
         status: 'OK',
         settled: true,
         preimage: invoice.preimage,
-        pr: invoice.bolt11,
+        pr: invoice.bolt11
       }
       return NextResponse.json(response)
     }
@@ -91,7 +97,7 @@ export const GET = withErrorHandling(
         status: 'OK',
         settled: false,
         preimage: null,
-        pr: invoice.bolt11,
+        pr: invoice.bolt11
       }
       return NextResponse.json(response)
     }
@@ -101,24 +107,26 @@ export const GET = withErrorHandling(
     // account primary address.
     const address = invoice.user.lightningAddresses[0]
     const primaryWallet = await getPrimaryRemoteWalletForUser(invoice.user.id)
-    const route = address && 'mode' in address
-      ? resolveWalletRoute({
-          mode: address.mode,
-          redirect: address.redirect ?? null,
-          remoteWallet: address.remoteWallet ?? null,
-          defaultRemoteWallet: primaryWallet,
-        })
-      : { kind: 'unconfigured' as const }
+    const route =
+      address && 'mode' in address
+        ? resolveWalletRoute({
+            mode: address.mode,
+            redirect: address.redirect ?? null,
+            remoteWallet: address.remoteWallet ?? null,
+            defaultRemoteWallet: primaryWallet
+          })
+        : { kind: 'unconfigured' as const }
     const walletConn =
       route.kind === 'wallet'
-        ? ((route.config as { connectionString?: string } | null)?.connectionString ?? null)
+        ? ((route.config as { connectionString?: string } | null)
+            ?.connectionString ?? null)
         : null
     if (!walletConn) {
       const response: LUD21VerifySuccess = {
         status: 'OK',
         settled: false,
         preimage: null,
-        pr: invoice.bolt11,
+        pr: invoice.bolt11
       }
       return NextResponse.json(response)
     }
@@ -138,8 +146,8 @@ export const GET = withErrorHandling(
           data: {
             status: 'PAID',
             preimage,
-            paidAt: new Date(tx.settled_at ? tx.settled_at * 1000 : Date.now()),
-          },
+            paidAt: new Date(tx.settled_at ? tx.settled_at * 1000 : Date.now())
+          }
         })
         // Broadcast the PENDING → PAID flip so the owner's address invoice
         // feed flips without requiring a manual refresh. Only emit on the
@@ -156,10 +164,12 @@ export const GET = withErrorHandling(
               ...invoice,
               status: 'PAID',
               preimage,
-              paidAt: new Date(tx.settled_at ? tx.settled_at * 1000 : Date.now()),
+              paidAt: new Date(
+                tx.settled_at ? tx.settled_at * 1000 : Date.now()
+              )
             }),
-            source: 'lud21_verify',
-          },
+            source: 'lud21_verify'
+          }
         })
       }
 
@@ -167,12 +177,15 @@ export const GET = withErrorHandling(
         status: 'OK',
         settled,
         preimage,
-        pr: invoice.bolt11,
+        pr: invoice.bolt11
       }
       return NextResponse.json(response)
     } catch (error) {
       logger.warn(
-        { paymentHash, error: error instanceof Error ? error.message : String(error) },
+        {
+          paymentHash,
+          error: error instanceof Error ? error.message : String(error)
+        },
         'NWC lookup_invoice failed'
       )
       const msg = error instanceof Error ? error.message : String(error)
@@ -187,14 +200,14 @@ export const GET = withErrorHandling(
           ? 'NWC relay timed out during invoice lookup'
           : 'NWC lookup_invoice failed',
         userId: invoice.user.id,
-        metadata: { paymentHash, error: msg },
+        metadata: { paymentHash, error: msg }
       })
       // On NWC failure, return unsettled (client can retry later)
       const response: LUD21VerifySuccess = {
         status: 'OK',
         settled: false,
         preimage: null,
-        pr: invoice.bolt11,
+        pr: invoice.bolt11
       }
       return NextResponse.json(response)
     } finally {

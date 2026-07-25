@@ -1,10 +1,7 @@
 'use client'
 
 import { getNwcClient } from './nwc-client'
-import {
-  parseDestination,
-  type ParsedDestination,
-} from './parse-destination'
+import { parseDestination, type ParsedDestination } from './parse-destination'
 import { requestLnurlInvoice } from '@/lib/client/lnurl-invoice'
 
 export interface PayResult {
@@ -38,16 +35,16 @@ const NWC_FEE_QUOTE_UNAVAILABLE =
 export async function payInvoice(
   nwcString: string,
   bolt11: string,
-  amountSats?: number,
+  amountSats?: number
 ): Promise<PayResult> {
   const client = await getNwcClient(nwcString)
   const res = await client.payInvoice({
     invoice: bolt11,
-    amount: amountSats !== undefined ? amountSats * 1000 : undefined,
+    amount: amountSats !== undefined ? amountSats * 1000 : undefined
   })
   return {
     preimage: res.preimage,
-    feesPaidSats: Math.floor((res.fees_paid ?? 0) / 1000),
+    feesPaidSats: Math.floor((res.fees_paid ?? 0) / 1000)
   }
 }
 
@@ -59,9 +56,13 @@ export async function payLnurl(
   nwcString: string,
   destination: { lnurlpUrl: string; address?: string | null },
   amountSats: number,
-  comment?: string,
+  comment?: string
 ): Promise<PayResult> {
-  const pr = await requestLnurlInvoice(destination.lnurlpUrl, amountSats, comment)
+  const pr = await requestLnurlInvoice(
+    destination.lnurlpUrl,
+    amountSats,
+    comment
+  )
   return payInvoice(nwcString, pr)
 }
 
@@ -73,10 +74,13 @@ export async function payLnurl(
 export async function quotePayment(
   destination: ParsedDestination,
   amountSats: number | null,
-  comment?: string,
+  comment?: string
 ): Promise<PaymentQuote> {
   if (destination.kind === 'invoice') {
-    if (destination.amountSats === null && (amountSats === null || amountSats <= 0)) {
+    if (
+      destination.amountSats === null &&
+      (amountSats === null || amountSats <= 0)
+    ) {
       throw new Error('Enter an amount for this zero-amount invoice')
     }
     const amount = destination.amountSats ?? amountSats ?? 0
@@ -87,20 +91,23 @@ export async function quotePayment(
       expiresAt: destination.expiresAt,
       feeSats: null,
       feeQuoteStatus: 'unavailable',
-      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE,
+      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE
     }
   }
 
   if (destination.kind === 'lnurl-pay') {
-    if (amountSats === null || amountSats <= 0) throw new Error('Enter an amount')
+    if (amountSats === null || amountSats <= 0)
+      throw new Error('Enter an amount')
     const paymentRequest = await requestLnurlInvoice(
       destination.lnurlpUrl,
       amountSats,
-      comment,
+      comment
     )
     const invoice = parseDestination(paymentRequest)
     const invoiceAmount =
-      invoice.kind === 'invoice' ? invoice.amountSats ?? amountSats : amountSats
+      invoice.kind === 'invoice'
+        ? (invoice.amountSats ?? amountSats)
+        : amountSats
     const expiresAt = invoice.kind === 'invoice' ? invoice.expiresAt : null
 
     return {
@@ -109,7 +116,7 @@ export async function quotePayment(
       expiresAt,
       feeSats: null,
       feeQuoteStatus: 'unavailable',
-      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE,
+      feeQuoteMessage: NWC_FEE_QUOTE_UNAVAILABLE
     }
   }
 
@@ -118,7 +125,7 @@ export async function quotePayment(
 
 export async function payQuotedInvoice(
   nwcString: string,
-  quote: PaymentQuote,
+  quote: PaymentQuote
 ): Promise<PayResult> {
   return payInvoice(nwcString, quote.paymentRequest, quote.payAmountSats)
 }
@@ -130,23 +137,34 @@ export async function pay(
   nwcString: string,
   destination: ParsedDestination,
   amountSats: number | null,
-  comment?: string,
+  comment?: string
 ): Promise<PayResult> {
   if (destination.kind === 'invoice') {
-    if (destination.amountSats === null && (amountSats === null || amountSats <= 0)) {
+    if (
+      destination.amountSats === null &&
+      (amountSats === null || amountSats <= 0)
+    ) {
       throw new Error('Enter an amount for this zero-amount invoice')
     }
     const amt = destination.amountSats ?? amountSats ?? 0
-    return payInvoice(nwcString, destination.bolt11, destination.amountSats ? undefined : amt)
+    return payInvoice(
+      nwcString,
+      destination.bolt11,
+      destination.amountSats ? undefined : amt
+    )
   }
 
   if (destination.kind === 'lnurl-pay') {
-    if (amountSats === null || amountSats <= 0) throw new Error('Enter an amount')
+    if (amountSats === null || amountSats <= 0)
+      throw new Error('Enter an amount')
     return payLnurl(
       nwcString,
-      { lnurlpUrl: destination.lnurlpUrl, address: 'address' in destination ? destination.address : null },
+      {
+        lnurlpUrl: destination.lnurlpUrl,
+        address: 'address' in destination ? destination.address : null
+      },
       amountSats,
-      comment,
+      comment
     )
   }
 

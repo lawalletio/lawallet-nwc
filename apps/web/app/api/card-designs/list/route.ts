@@ -16,7 +16,7 @@ export const GET = withErrorHandling(async (request: Request) => {
       imageUrl: true,
       description: true,
       createdAt: true,
-      archivedAt: true,
+      archivedAt: true
     },
     orderBy: {
       createdAt: 'desc'

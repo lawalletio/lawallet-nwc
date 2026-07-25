@@ -12,7 +12,10 @@ interface LandingNavbarProps {
   onLoginClick: () => void
 }
 
-export function LandingNavbar({ setupNeeded, onLoginClick }: LandingNavbarProps) {
+export function LandingNavbar({
+  setupNeeded,
+  onLoginClick
+}: LandingNavbarProps) {
   const router = useRouter()
   const { status, pubkey } = useAuth()
   const { profile } = useNostrProfile(pubkey)
@@ -30,7 +33,12 @@ export function LandingNavbar({ setupNeeded, onLoginClick }: LandingNavbarProps)
     <nav className="sticky top-0 z-40 w-full border-b border-border/40 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-2">
-          <BrandLogotype width={110} height={26} className="h-6 w-auto" priority />
+          <BrandLogotype
+            width={110}
+            height={26}
+            className="h-6 w-auto"
+            priority
+          />
         </div>
 
         <div className="flex items-center gap-3">
@@ -41,9 +49,14 @@ export function LandingNavbar({ setupNeeded, onLoginClick }: LandingNavbarProps)
               <div className="hidden sm:flex items-center gap-2 pr-1">
                 <Avatar className="size-8">
                   {profile?.picture && (
-                    <AvatarImage src={profile.picture} alt={displayName ?? 'User'} />
+                    <AvatarImage
+                      src={profile.picture}
+                      alt={displayName ?? 'User'}
+                    />
                   )}
-                  <AvatarFallback className="text-xs">{avatarFallback}</AvatarFallback>
+                  <AvatarFallback className="text-xs">
+                    {avatarFallback}
+                  </AvatarFallback>
                 </Avatar>
                 {displayName && (
                   <span className="text-sm font-medium text-foreground max-w-[160px] truncate">
@@ -60,11 +73,7 @@ export function LandingNavbar({ setupNeeded, onLoginClick }: LandingNavbarProps)
               </Button>
             </>
           ) : (
-            <Button
-              variant="theme"
-              size="sm"
-              onClick={onLoginClick}
-            >
+            <Button variant="theme" size="sm" onClick={onLoginClick}>
               {setupNeeded ? 'Setup now' : 'Login'}
             </Button>
           )}

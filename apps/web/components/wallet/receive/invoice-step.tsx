@@ -6,10 +6,7 @@ import { useApi } from '@/lib/client/hooks/use-api'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useNwcBalance } from '@/lib/client/use-nwc-balance'
 import { QrDisplay } from '@/components/wallet/shared/qr-display'
-import {
-  useReceiveFlow,
-  receiveActions,
-} from '@/lib/client/wallet-flow-store'
+import { useReceiveFlow, receiveActions } from '@/lib/client/wallet-flow-store'
 
 interface UserMeResponse {
   effectiveNwcString: string | null
@@ -35,7 +32,7 @@ export function ReceiveInvoiceStep() {
         receiveActions.markSettled(tx.paymentHash)
         router.replace('/wallet/receive/summary')
       }
-    },
+    }
   })
 
   useEffect(() => {

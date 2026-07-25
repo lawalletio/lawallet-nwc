@@ -47,7 +47,7 @@ import {
   updateWalletCardSchema,
   updateWalletAddressSchema,
   userIdParam,
-  walletAddressUsernameParam,
+  walletAddressUsernameParam
 } from '@lawallet-nwc/shared'
 import { z } from 'zod'
 import { registry } from './registry'
@@ -70,28 +70,31 @@ export const schemas = {
         'Create-card payload. `id` is the card UID (4- or 7-byte hex, colons ' +
         'optional); it is normalized to uppercase hex and used as the unique ' +
         'NTAG424 key, so re-using a UID returns 409 Conflict. `designId` must ' +
-        'reference an existing design; `kind` defaults to `SIMPLE`.',
-    }),
+        'reference an existing design; `kind` defaults to `SIMPLE`.'
+    })
   ),
   CardListQuery: registry.register('CardListQuery', cardListQuerySchema),
   ScanCardQuery: registry.register('ScanCardQuery', scanCardQuerySchema),
   PayActionQuery: registry.register('PayActionQuery', payActionQuerySchema),
   CardScanCallbackQuery: registry.register(
     'CardScanCallbackQuery',
-    cardScanCallbackQuerySchema,
+    cardScanCallbackQuerySchema
   ),
   OtcParam: registry.register('OtcParam', otcParam),
   ActivationTokenCreateRequest: registry.register(
     'ActivationTokenCreateRequest',
-    createActivationTokenSchema,
+    createActivationTokenSchema
   ),
   ActivationTokenClaimRequest: registry.register(
     'ActivationTokenClaimRequest',
-    claimActivationTokenSchema,
+    claimActivationTokenSchema
   ),
 
   // ── Card Designs ───────────────────────────────────────────────────────
-  CardDesignCreateRequest: registry.register('CardDesignCreateRequest', createCardDesignSchema),
+  CardDesignCreateRequest: registry.register(
+    'CardDesignCreateRequest',
+    createCardDesignSchema
+  ),
   CardDesignUpdateRequest: registry.register(
     'CardDesignUpdateRequest',
     // The .refine() on updateCardDesignSchema rejects no-op payloads. The
@@ -99,46 +102,58 @@ export const schemas = {
     // and document the constraint in the description.
     updateCardDesignSchema.openapi({
       description:
-        'Partial update for a card design. At least one field must be present, otherwise the route returns 400.',
-    }),
+        'Partial update for a card design. At least one field must be present, otherwise the route returns 400.'
+    })
   ),
 
   // ── Lightning Addresses ───────────────────────────────────────────────
-  Lud16UsernameParam: registry.register('Lud16UsernameParam', lud16UsernameParam),
-  Lud16CallbackQuery: registry.register('Lud16CallbackQuery', lud16CallbackQuerySchema),
+  Lud16UsernameParam: registry.register(
+    'Lud16UsernameParam',
+    lud16UsernameParam
+  ),
+  Lud16CallbackQuery: registry.register(
+    'Lud16CallbackQuery',
+    lud16CallbackQuerySchema
+  ),
   LightningAddressUpdateRequest: registry.register(
     'LightningAddressUpdateRequest',
-    updateLightningAddressSchema,
+    updateLightningAddressSchema
   ),
 
   // ── Wallet ────────────────────────────────────────────────────────────
   WalletAddressUsernameParam: registry.register(
     'WalletAddressUsernameParam',
-    walletAddressUsernameParam,
+    walletAddressUsernameParam
   ),
-  LightningAddressMode: registry.register('LightningAddressMode', lightningAddressModeSchema),
+  LightningAddressMode: registry.register(
+    'LightningAddressMode',
+    lightningAddressModeSchema
+  ),
   WalletAddressCreateRequest: registry.register(
     'WalletAddressCreateRequest',
-    createWalletAddressSchema,
+    createWalletAddressSchema
   ),
   WalletAddressUpdateRequest: registry.register(
     'WalletAddressUpdateRequest',
-    updateWalletAddressSchema,
+    updateWalletAddressSchema
   ),
   WalletAliasProbeRequest: registry.register(
     'WalletAliasProbeRequest',
-    probeAliasAddressSchema,
+    probeAliasAddressSchema
   ),
   WalletCardUpdateRequest: registry.register(
     'WalletCardUpdateRequest',
     updateWalletCardSchema.openapi({
       description:
-        'Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, or set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet.',
-    }),
+        'Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, or set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet.'
+    })
   ),
 
   // ── Users ─────────────────────────────────────────────────────────────
-  UserRoleUpdateRequest: registry.register('UserRoleUpdateRequest', updateRoleSchema),
+  UserRoleUpdateRequest: registry.register(
+    'UserRoleUpdateRequest',
+    updateRoleSchema
+  ),
 
   // ── Settings ──────────────────────────────────────────────────────────
   SettingsBody: registry.register(
@@ -147,25 +162,31 @@ export const schemas = {
     // sometimes loses the key constraint, so we add an explicit description.
     settingsBodySchema.openapi({
       description:
-        'Setting key/value pairs. Keys: lowercase letters, digits, hyphens, underscores; max 32 chars. Values: strings.',
-    }),
+        'Setting key/value pairs. Keys: lowercase letters, digits, hyphens, underscores; max 32 chars. Values: strings.'
+    })
   ),
 
   // ── Remote Connections ────────────────────────────────────────────────
-  ExternalDeviceKeyParam: registry.register('ExternalDeviceKeyParam', externalDeviceKeyParam),
-  RemoteCardCreateRequest: registry.register('RemoteCardCreateRequest', createRemoteCardSchema),
+  ExternalDeviceKeyParam: registry.register(
+    'ExternalDeviceKeyParam',
+    externalDeviceKeyParam
+  ),
+  RemoteCardCreateRequest: registry.register(
+    'RemoteCardCreateRequest',
+    createRemoteCardSchema
+  ),
 
   // ── Remote Wallets ────────────────────────────────────────────────────
   RemoteWalletCreateRequest: registry.register(
     'RemoteWalletCreateRequest',
-    createRemoteWalletSchema,
+    createRemoteWalletSchema
   ),
   RemoteWalletLncurlCreateRequest: registry.register(
     'RemoteWalletLncurlCreateRequest',
     createLncurlWalletSchema.openapi({
       description:
-        'Provision a disposable LNCurl wallet. The server mints the NWC connection string; the new wallet becomes the default and inherits the previous wallet’s bindings.',
-    }),
+        'Provision a disposable LNCurl wallet. The server mints the NWC connection string; the new wallet becomes the default and inherits the previous wallet’s bindings.'
+    })
   ),
   RemoteWalletUpdateRequest: registry.register(
     'RemoteWalletUpdateRequest',
@@ -173,18 +194,30 @@ export const schemas = {
     // can't be expressed in JSON Schema, so we document it instead.
     updateRemoteWalletSchema.openapi({
       description:
-        'Partial update for a remote wallet. At least one field must be present, otherwise the route returns 400.',
-    }),
+        'Partial update for a remote wallet. At least one field must be present, otherwise the route returns 400.'
+    })
   ),
-  RemoteWalletListQuery: registry.register('RemoteWalletListQuery', remoteWalletListQuerySchema),
+  RemoteWalletListQuery: registry.register(
+    'RemoteWalletListQuery',
+    remoteWalletListQuerySchema
+  ),
 
   // ── Invoices ──────────────────────────────────────────────────────────
-  InvoiceCreateRequest: registry.register('InvoiceCreateRequest', createInvoiceSchema),
-  InvoiceClaimRequest: registry.register('InvoiceClaimRequest', claimInvoiceSchema),
+  InvoiceCreateRequest: registry.register(
+    'InvoiceCreateRequest',
+    createInvoiceSchema
+  ),
+  InvoiceClaimRequest: registry.register(
+    'InvoiceClaimRequest',
+    claimInvoiceSchema
+  ),
 
   // ── JWT ───────────────────────────────────────────────────────────────
   JwtRequest: registry.register('JwtRequest', jwtRequestSchema),
-  QrJwtGenerateRequest: registry.register('QrJwtGenerateRequest', qrJwtGenerateSchema),
+  QrJwtGenerateRequest: registry.register(
+    'QrJwtGenerateRequest',
+    qrJwtGenerateSchema
+  ),
 
   // ── Passkeys ──────────────────────────────────────────────────────────
   PasskeyRegistrationOptionsRequest: registry.register(
@@ -192,8 +225,8 @@ export const schemas = {
     passkeyRegistrationOptionsRequestSchema.openapi({
       description:
         'Optional label for the passkey being created. The body may be omitted ' +
-        'entirely — the label is only applied at verify time.',
-    }),
+        'entirely — the label is only applied at verify time.'
+    })
   ),
   PasskeyRegistrationVerifyRequest: registry.register(
     'PasskeyRegistrationVerifyRequest',
@@ -205,16 +238,16 @@ export const schemas = {
         '`startRegistration()`, the PRF-derived Nostr `pubkey` this credential ' +
         'IS, and `proof` — a NIP-42 (kind 22242) event signed by the derived ' +
         'key with the WebAuthn challenge in a `challenge` tag, proving the ' +
-        'client actually controls the pubkey it claims.',
-    }),
+        'client actually controls the pubkey it claims.'
+    })
   ),
   PasskeyCredentialUpdateRequest: registry.register(
     'PasskeyCredentialUpdateRequest',
     updatePasskeyCredentialSchema.openapi({
       description:
         'Rename payload. Only the label is mutable — key material, counter, and ' +
-        'device metadata are fixed at registration.',
-    }),
+        'device metadata are fixed at registration.'
+    })
   ),
 
   // ── Account ───────────────────────────────────────────────────────────
@@ -226,8 +259,8 @@ export const schemas = {
         'the other key is proven with a NIP-42-style signed event. Passkey-held ' +
         'accounts use the same proof: the client derives the passkey’s key via ' +
         'the WebAuthn PRF extension and signs the event client-side, so there ' +
-        'is no server-side passkey arm.',
-    }),
+        'is no server-side passkey arm.'
+    })
   ),
   AccountLinkVerifyRequest: registry.register(
     'AccountLinkVerifyRequest',
@@ -237,16 +270,16 @@ export const schemas = {
         'plus a kind-22242 event signed by the key being linked (nonce echoed ' +
         'in a `challenge` tag). For a passkey-held key the client derives the ' +
         'signing key via the WebAuthn PRF extension and produces this same ' +
-        'proof client-side.',
-    }),
+        'proof client-side.'
+    })
   ),
   AccountMergePreviewRequest: registry.register(
     'AccountMergePreviewRequest',
     accountMergePreviewRequestSchema.openapi({
       description:
         'The short-lived merge ticket returned by link/verify. Possession of ' +
-        'the ticket IS the proof that the caller controls both accounts.',
-    }),
+        'the ticket IS the proof that the caller controls both accounts.'
+    })
   ),
   AccountMergeRequest: registry.register(
     'AccountMergeRequest',
@@ -254,8 +287,8 @@ export const schemas = {
       description:
         'Merge commit payload: the merge ticket from link/verify plus ' +
         '`mainPubkey`, which selects which of the combined identities becomes ' +
-        'the surviving account’s primary.',
-    }),
+        'the surviving account’s primary.'
+    })
   ),
   UpdateIdentityRequest: registry.register(
     'UpdateIdentityRequest',
@@ -265,9 +298,9 @@ export const schemas = {
       description:
         'Identity update. Provide at least one field, otherwise the route ' +
         'returns 400: `label` renames (null clears it), `isPrimary: true` ' +
-        'promotes the identity to primary.',
-    }),
-  ),
+        'promotes the identity to primary.'
+    })
+  )
 }
 
 // ── Inline response component schemas ─────────────────────────────────────
@@ -278,8 +311,8 @@ export const schemas = {
 export const SuccessEnvelope = registry.register(
   'SuccessEnvelope',
   z.object({ success: z.literal(true) }).openapi({
-    description: 'Generic success envelope used by no-content-style endpoints.',
-  }),
+    description: 'Generic success envelope used by no-content-style endpoints.'
+  })
 )
 
 export const JwtResponse = registry.register(
@@ -289,18 +322,19 @@ export const JwtResponse = registry.register(
       token: z.string(),
       expiresAt: z.string().datetime().optional(),
       pubkey: z.string().optional(),
-      role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']).optional(),
+      role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']).optional()
     })
     .openapi({
-      description: 'JWT issued in exchange for a NIP-98 request, plus context for the client.',
-    }),
+      description:
+        'JWT issued in exchange for a NIP-98 request, plus context for the client.'
+    })
 )
 
 export const CountResponse = registry.register(
   'CountResponse',
   z.object({ count: z.number().int().nonnegative() }).openapi({
-    description: 'Generic single-count response shape.',
-  }),
+    description: 'Generic single-count response shape.'
+  })
 )
 
 export const Lud16PayRequest = registry.register(
@@ -314,9 +348,11 @@ export const Lud16PayRequest = registry.register(
       tag: z.literal('payRequest'),
       commentAllowed: z.number().int().optional(),
       allowsNostr: z.boolean().optional(),
-      nostrPubkey: z.string().optional(),
+      nostrPubkey: z.string().optional()
     })
-    .openapi({ description: 'LUD-16 pay request as defined by the LUD-06 spec.' }),
+    .openapi({
+      description: 'LUD-16 pay request as defined by the LUD-06 spec.'
+    })
 )
 
 export const Lud16Callback = registry.register(
@@ -326,9 +362,11 @@ export const Lud16Callback = registry.register(
       pr: z.string(),
       routes: z.array(z.unknown()).optional(),
       verify: z.string().url().optional(),
-      successAction: z.unknown().optional(),
+      successAction: z.unknown().optional()
     })
-    .openapi({ description: 'LUD-16 callback response containing the BOLT11 invoice.' }),
+    .openapi({
+      description: 'LUD-16 callback response containing the BOLT11 invoice.'
+    })
 )
 
 export const PasskeyOptionsResponse = registry.register(
@@ -338,15 +376,15 @@ export const PasskeyOptionsResponse = registry.register(
       options: z.record(z.unknown()).openapi({
         description:
           'WebAuthn PublicKeyCredential options JSON — pass to ' +
-          '@simplewebauthn/browser (`startRegistration` / `startAuthentication`) unchanged.',
-      }),
+          '@simplewebauthn/browser (`startRegistration` / `startAuthentication`) unchanged.'
+      })
     })
     .openapi({
       description:
         'Envelope for WebAuthn ceremony options. The `options` object follows the ' +
         'WebAuthn spec and is not modeled field-by-field here. Its challenge is ' +
-        'stored server-side, is single-use, and expires after the ceremony timeout.',
-    }),
+        'stored server-side, is single-use, and expires after the ceremony timeout.'
+    })
 )
 
 export const PasskeyCredentialSummary = registry.register(
@@ -355,8 +393,8 @@ export const PasskeyCredentialSummary = registry.register(
     description:
       'Non-sensitive passkey credential summary — never exposes the stored public ' +
       'key or signature counter. `pubkey` is the Nostr identity this passkey ' +
-      'derives via the WebAuthn PRF extension; null for pre-PRF rows.',
-  }),
+      'derives via the WebAuthn PRF extension; null for pre-PRF rows.'
+  })
 )
 
 export const PasskeyCredentialListResponse = registry.register(
@@ -366,8 +404,8 @@ export const PasskeyCredentialListResponse = registry.register(
       'The caller’s passkeys plus the pre-PRF custody state: `hasManagedKey` is ' +
       'true while the server still custodies this account’s Nostr key, and ' +
       '`managedKeyExported` is true once that key has been exported (always ' +
-      'false without a managed key).',
-  }),
+      'false without a managed key).'
+  })
 )
 
 // ── Account ───────────────────────────────────────────────────────────────
@@ -378,8 +416,8 @@ export const NostrIdentitySummary = registry.register(
     description:
       'One Nostr identity linked to an account. Exactly one identity per ' +
       'account is primary — it mirrors `User.pubkey` and is the account’s ' +
-      'public identity.',
-  }),
+      'public identity.'
+  })
 )
 
 export const AccountSummaryResponse = registry.register(
@@ -387,8 +425,8 @@ export const AccountSummaryResponse = registry.register(
   accountSummaryResponseSchema.openapi({
     description:
       'The caller’s own account: every linked Nostr identity (one primary), ' +
-      'every passkey credential, and the managed-key custody state.',
-  }),
+      'every passkey credential, and the managed-key custody state.'
+  })
 )
 
 export const AccountLinkBeginResponse = registry.register(
@@ -397,8 +435,8 @@ export const AccountLinkBeginResponse = registry.register(
     description:
       'Link-proof bootstrap: `challenge` (opaque token to echo back at verify) ' +
       'plus `nonce` (to embed in the signed kind-22242 event). `expiresIn` is ' +
-      'seconds.',
-  }),
+      'seconds.'
+  })
 )
 
 export const AccountLinkVerifyResponse = registry.register(
@@ -408,8 +446,8 @@ export const AccountLinkVerifyResponse = registry.register(
       'Outcome of a link proof. `linked: true` + `identity` when the pubkey was ' +
       'unowned and is now attached as a secondary identity. `linked: false` + ' +
       '`mergeTicket` + `otherAccount` when the key belongs to another account — ' +
-      'nothing was written; the ticket gates the merge preview/commit flow.',
-  }),
+      'nothing was written; the ticket gates the merge preview/commit flow.'
+  })
 )
 
 export const AccountMergePreviewResponse = registry.register(
@@ -418,8 +456,8 @@ export const AccountMergePreviewResponse = registry.register(
     description:
       'Read-only merge dry run: both accounts’ resource summaries, the ' +
       'collisions the merge would reconcile, and `blocked` — true while the ' +
-      'absorbed account custodies a never-exported key.',
-  }),
+      'absorbed account custodies a never-exported key.'
+  })
 )
 
 export const AccountMergeResponse = registry.register(
@@ -427,8 +465,8 @@ export const AccountMergeResponse = registry.register(
   accountMergeResponseSchema.openapi({
     description:
       'Merge result: the surviving account id, the chosen primary pubkey, and ' +
-      'counts of the resources re-parented from the absorbed account.',
-  }),
+      'counts of the resources re-parented from the absorbed account.'
+  })
 )
 
 export const Lud21Verify = registry.register(
@@ -439,7 +477,7 @@ export const Lud21Verify = registry.register(
       settled: z.boolean().optional(),
       preimage: z.string().nullable().optional(),
       pr: z.string().optional(),
-      reason: z.string().optional(),
+      reason: z.string().optional()
     })
-    .openapi({ description: 'LUD-21 payment verification response.' }),
+    .openapi({ description: 'LUD-21 payment verification response.' })
 )

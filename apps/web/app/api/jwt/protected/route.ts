@@ -17,10 +17,7 @@ async function protectedHandler(request: AuthenticatedRequest) {
 
   // Get additional claims if they exist
   const userRole = getClaimFromRequest<string>(request, 'role')
-  const userPermissions = getClaimFromRequest<string[]>(
-    request,
-    'permissions'
-  )
+  const userPermissions = getClaimFromRequest<string[]>(request, 'permissions')
 
   // Check if user has specific claims
   const isAdmin = hasClaim(request, 'role', 'admin')
@@ -52,4 +49,3 @@ export const POST = withErrorHandling(
     requiredClaims: ['role', 'permissions'] // Require both 'role' and 'permissions' claims
   })
 )
-

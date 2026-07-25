@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import {
   NostrProfileProvider,
   useNostrProfile,
-  useNostrProfiles,
+  useNostrProfiles
 } from '@/lib/client/nostr-profile'
 import { normalizeNostrPubkey } from '@/lib/nostr/profile'
 
@@ -13,9 +13,9 @@ vi.mock('@/components/admin/auth-context', () => ({
   useAuth: () => ({
     status: 'authenticated',
     apiClient: {
-      post: apiPostMock,
-    },
-  }),
+      post: apiPostMock
+    }
+  })
 }))
 
 const PK_A = 'a'.repeat(64)
@@ -30,7 +30,7 @@ function apiProfile(pubkey: string, name: string) {
     pubkey: normalized.pubkey,
     npub: normalized.npub,
     name,
-    fetchedAt: Date.now(),
+    fetchedAt: Date.now()
   }
 }
 
@@ -40,14 +40,20 @@ function Probe({ pubkeys }: { pubkeys: string[] }) {
     <div data-testid="out" data-loading={loading}>
       {JSON.stringify(
         Object.fromEntries(
-          Object.entries(profiles).map(([pk, p]) => [pk, p?.name ?? null]),
-        ),
+          Object.entries(profiles).map(([pk, p]) => [pk, p?.name ?? null])
+        )
       )}
     </div>
   )
 }
 
-function SingleProbe({ pubkey, force = false }: { pubkey: string; force?: boolean }) {
+function SingleProbe({
+  pubkey,
+  force = false
+}: {
+  pubkey: string
+  force?: boolean
+}) {
   const { profile, loading } = useNostrProfile(pubkey, { force })
   return (
     <div data-testid="single" data-loading={loading}>
@@ -60,7 +66,7 @@ function renderProbe(pubkeys: string[]) {
   return render(
     <NostrProfileProvider>
       <Probe pubkeys={pubkeys} />
-    </NostrProfileProvider>,
+    </NostrProfileProvider>
   )
 }
 
@@ -72,7 +78,7 @@ beforeEach(() => {
 describe('useNostrProfiles', () => {
   it('resolves many pubkeys in one batched API request', async () => {
     apiPostMock.mockResolvedValue({
-      profiles: [apiProfile(PK_A, 'alice'), apiProfile(PK_B, 'bob')],
+      profiles: [apiProfile(PK_A, 'alice'), apiProfile(PK_B, 'bob')]
     })
 
     renderProbe([PK_A, PK_B])
@@ -85,7 +91,7 @@ describe('useNostrProfiles', () => {
     expect(apiPostMock).toHaveBeenCalledTimes(1)
     expect(apiPostMock).toHaveBeenCalledWith('/api/nostr/profiles', {
       pubkeys: expect.arrayContaining([PK_A, PK_B]),
-      force: false,
+      force: false
     })
   })
 
@@ -117,16 +123,16 @@ describe('useNostrProfiles', () => {
           pubkey: PK_A,
           npub: NPUB_A,
           name: 'cached',
-          fetchedAt: Date.now(),
-        },
-      }),
+          fetchedAt: Date.now()
+        }
+      })
     )
     apiPostMock.mockResolvedValue({ profiles: [apiProfile(PK_A, 'fresh')] })
 
     render(
       <NostrProfileProvider>
         <SingleProbe pubkey={PK_A} force />
-      </NostrProfileProvider>,
+      </NostrProfileProvider>
     )
 
     expect(screen.getByTestId('single').textContent).toBe('cached')
@@ -135,21 +141,23 @@ describe('useNostrProfiles', () => {
     })
     expect(apiPostMock).toHaveBeenCalledWith('/api/nostr/profiles', {
       pubkeys: [PK_A],
-      force: true,
+      force: true
     })
   })
 
   it('throws when used outside the provider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => render(<Probe pubkeys={[PK_A]} />)).toThrow(
-      /must be used within a NostrProfileProvider/,
+      /must be used within a NostrProfileProvider/
     )
     spy.mockRestore()
   })
 
   it('normalizes npub responses back under the hex cache key', async () => {
     apiPostMock.mockResolvedValue({
-      profiles: [{ pubkey: PK_B, npub: NPUB_B, name: 'bob', fetchedAt: Date.now() }],
+      profiles: [
+        { pubkey: PK_B, npub: NPUB_B, name: 'bob', fetchedAt: Date.now() }
+      ]
     })
 
     renderProbe([NPUB_B])
@@ -170,14 +178,16 @@ describe('useNostrProfiles', () => {
       expect(apiPostMock).toHaveBeenCalledTimes(1)
     })
     await waitFor(() => {
-      expect(screen.getByTestId('out').getAttribute('data-loading')).toBe('false')
+      expect(screen.getByTestId('out').getAttribute('data-loading')).toBe(
+        'false'
+      )
     })
 
     const out = JSON.parse(screen.getByTestId('out').textContent || '{}')
     expect(out[PK_A]).toBeNull()
     expect(warn).toHaveBeenCalledWith(
       'Failed to refresh Nostr profiles from server cache',
-      expect.any(Error),
+      expect.any(Error)
     )
     warn.mockRestore()
   })

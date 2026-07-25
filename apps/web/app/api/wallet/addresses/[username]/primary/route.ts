@@ -9,7 +9,7 @@ import { walletAddressUsernameParam } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
 import {
   getPrimaryRemoteWalletIdForUser,
-  syncPrimaryRemoteWalletFlag,
+  syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
@@ -28,20 +28,31 @@ export const revalidate = 0
  * Postgres. Clearing first then promoting respects that constraint.
  */
 export const POST = withErrorHandling(
-  async (request: Request, { params }: { params: Promise<{ username: string }> }) => {
+  async (
+    request: Request,
+    { params }: { params: Promise<{ username: string }> }
+  ) => {
     const { pubkey } = await authenticate(request)
-    const { username } = validateParams(await params, walletAddressUsernameParam)
+    const { username } = validateParams(
+      await params,
+      walletAddressUsernameParam
+    )
 
     const user = await resolveAccountByPubkey(pubkey)
     if (!user) throw new AuthenticationError('User not found')
 
-    const target = await prisma.lightningAddress.findUnique({ where: { username } })
+    const target = await prisma.lightningAddress.findUnique({
+      where: { username }
+    })
     if (!target || target.userId !== user.id) {
       throw new NotFoundError('Address not found')
     }
 
     await prisma.$transaction(async tx => {
-      const fallbackWalletId = await getPrimaryRemoteWalletIdForUser(user.id, tx)
+      const fallbackWalletId = await getPrimaryRemoteWalletIdForUser(
+        user.id,
+        tx
+      )
       const nextData =
         target.mode === 'DEFAULT_NWC'
           ? fallbackWalletId
@@ -49,23 +60,23 @@ export const POST = withErrorHandling(
                 isPrimary: true,
                 mode: 'CUSTOM_NWC' as const,
                 redirect: null,
-                remoteWalletId: fallbackWalletId,
+                remoteWalletId: fallbackWalletId
               }
             : {
                 isPrimary: true,
                 mode: 'IDLE' as const,
                 redirect: null,
-                remoteWalletId: null,
+                remoteWalletId: null
               }
           : { isPrimary: true }
 
       await tx.lightningAddress.updateMany({
         where: { userId: user.id, isPrimary: true },
-        data: { isPrimary: false },
+        data: { isPrimary: false }
       })
       await tx.lightningAddress.update({
         where: { username },
-        data: nextData,
+        data: nextData
       })
       await syncPrimaryRemoteWalletFlag(user.id, tx)
     })
@@ -73,5 +84,5 @@ export const POST = withErrorHandling(
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
     eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
     return NextResponse.json({ success: true, username })
-  },
+  }
 )

@@ -5,32 +5,32 @@ import {
   createCardFixture,
   createCardDesignFixture,
   createNtag424Fixture,
-  createRemoteWalletFixture,
+  createRemoteWalletFixture
 } from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticateWithPermission: vi.fn(),
+  authenticateWithPermission: vi.fn()
 }))
 
 import { GET, PATCH, DELETE } from '@/app/api/cards/[id]/route'
@@ -41,7 +41,7 @@ const mockAdmin = () =>
   vi.mocked(authenticateWithPermission).mockResolvedValue({
     pubkey: 'admin',
     role: Role.ADMIN,
-    method: 'jwt',
+    method: 'jwt'
   })
 
 beforeEach(() => {
@@ -54,7 +54,12 @@ describe('GET /api/cards/[id]', () => {
     mockAdmin()
     const design = createCardDesignFixture()
     const ntag424 = createNtag424Fixture()
-    const card = { ...createCardFixture(), design, ntag424, user: { pubkey: 'a'.repeat(64) } }
+    const card = {
+      ...createCardFixture(),
+      design,
+      ntag424,
+      user: { pubkey: 'a'.repeat(64) }
+    }
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
 
     const req = createNextRequest(`/api/cards/${card.id}`)
@@ -81,7 +86,9 @@ describe('GET /api/cards/[id]', () => {
   })
 
   it('rejects non-admin', async () => {
-    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
+    vi.mocked(authenticateWithPermission).mockRejectedValue(
+      new Error('unauthorized')
+    )
 
     const req = createNextRequest('/api/cards/some-id')
     const res = await GET(req, createParamsPromise({ id: 'some-id' }))
@@ -104,7 +111,7 @@ describe('DELETE /api/cards/[id]', () => {
     expect(body).toMatchObject({
       message: 'Card and associated NTAG424 deleted successfully',
       cardId: card.id,
-      ntag424Cid: 'ntag-cid-123',
+      ntag424Cid: 'ntag-cid-123'
     })
   })
 
@@ -112,7 +119,9 @@ describe('DELETE /api/cards/[id]', () => {
     mockAdmin()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(null)
 
-    const req = createNextRequest('/api/cards/nonexistent', { method: 'DELETE' })
+    const req = createNextRequest('/api/cards/nonexistent', {
+      method: 'DELETE'
+    })
     const res = await DELETE(req, createParamsPromise({ id: 'nonexistent' }))
 
     expect(res.status).toBe(404)
@@ -150,7 +159,9 @@ describe('DELETE /api/cards/[id]', () => {
   })
 
   it('rejects non-admin', async () => {
-    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
+    vi.mocked(authenticateWithPermission).mockRejectedValue(
+      new Error('unauthorized')
+    )
 
     const req = createNextRequest('/api/cards/some-id', { method: 'DELETE' })
     const res = await DELETE(req, createParamsPromise({ id: 'some-id' }))
@@ -165,7 +176,7 @@ describe('DELETE /api/cards/[id]', () => {
 function patchReq(id: string, body: unknown) {
   return createNextRequest(`/api/cards/${id}`, {
     method: 'PATCH',
-    body: body as Record<string, unknown>,
+    body: body as Record<string, unknown>
   })
 }
 
@@ -174,25 +185,27 @@ describe('PATCH /api/cards/[id]', () => {
     mockAdmin()
     const card = createCardFixture({
       userId: 'user-1',
-      remoteWalletId: null,
+      remoteWalletId: null
     })
     const wallet = createRemoteWalletFixture({
       userId: 'user-1',
-      status: 'ACTIVE',
+      status: 'ACTIVE'
     })
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as any)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as any
+    )
     vi.mocked(prismaMock.card.update).mockResolvedValue({
       ...card,
       remoteWalletId: wallet.id,
       design: createCardDesignFixture(),
       ntag424: createNtag424Fixture(),
-      user: { pubkey: 'a'.repeat(64) },
+      user: { pubkey: 'a'.repeat(64) }
     } as any)
 
     const res = await PATCH(
       patchReq(card.id, { remoteWalletId: wallet.id }),
-      createParamsPromise({ id: card.id }),
+      createParamsPromise({ id: card.id })
     )
     const body: any = await assertResponse(res, 200)
 
@@ -202,8 +215,8 @@ describe('PATCH /api/cards/[id]', () => {
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: card.id },
-        data: { remoteWalletId: wallet.id },
-      }),
+        data: { remoteWalletId: wallet.id }
+      })
     )
   })
 
@@ -211,7 +224,7 @@ describe('PATCH /api/cards/[id]', () => {
     mockAdmin()
     const card = createCardFixture({
       userId: 'user-1',
-      remoteWalletId: 'wallet-old',
+      remoteWalletId: 'wallet-old'
     })
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
     vi.mocked(prismaMock.card.update).mockResolvedValue({
@@ -219,20 +232,20 @@ describe('PATCH /api/cards/[id]', () => {
       remoteWalletId: null,
       design: createCardDesignFixture(),
       ntag424: createNtag424Fixture(),
-      user: { pubkey: 'a'.repeat(64) },
+      user: { pubkey: 'a'.repeat(64) }
     } as any)
 
     const res = await PATCH(
       patchReq(card.id, { remoteWalletId: null }),
-      createParamsPromise({ id: card.id }),
+      createParamsPromise({ id: card.id })
     )
     const body: any = await assertResponse(res, 200)
 
     expect(body.remoteWalletId).toBeNull()
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { remoteWalletId: null },
-      }),
+        data: { remoteWalletId: null }
+      })
     )
     // No wallet lookup when unbinding — saves a round-trip.
     expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
@@ -244,7 +257,7 @@ describe('PATCH /api/cards/[id]', () => {
 
     const res = await PATCH(
       patchReq('nope', { remoteWalletId: 'whatever' }),
-      createParamsPromise({ id: 'nope' }),
+      createParamsPromise({ id: 'nope' })
     )
 
     expect(res.status).toBe(404)
@@ -255,14 +268,16 @@ describe('PATCH /api/cards/[id]', () => {
     const card = createCardFixture({ userId: 'user-1', remoteWalletId: null })
     const wallet = createRemoteWalletFixture({
       userId: 'user-1',
-      status: 'REVOKED',
+      status: 'REVOKED'
     })
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as any)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as any
+    )
 
     const res = await PATCH(
       patchReq(card.id, { remoteWalletId: wallet.id }),
-      createParamsPromise({ id: card.id }),
+      createParamsPromise({ id: card.id })
     )
 
     expect(res.status).toBe(400)
@@ -274,14 +289,16 @@ describe('PATCH /api/cards/[id]', () => {
     const card = createCardFixture({ userId: 'user-1', remoteWalletId: null })
     const wallet = createRemoteWalletFixture({
       userId: 'user-2', // different owner
-      status: 'ACTIVE',
+      status: 'ACTIVE'
     })
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
-    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(wallet as any)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as any
+    )
 
     const res = await PATCH(
       patchReq(card.id, { remoteWalletId: wallet.id }),
-      createParamsPromise({ id: card.id }),
+      createParamsPromise({ id: card.id })
     )
 
     expect(res.status).toBe(400)
@@ -289,11 +306,13 @@ describe('PATCH /api/cards/[id]', () => {
   })
 
   it('rejects unauthenticated callers', async () => {
-    vi.mocked(authenticateWithPermission).mockRejectedValue(new Error('unauthorized'))
+    vi.mocked(authenticateWithPermission).mockRejectedValue(
+      new Error('unauthorized')
+    )
 
     const res = await PATCH(
       patchReq('any-id', { remoteWalletId: null }),
-      createParamsPromise({ id: 'any-id' }),
+      createParamsPromise({ id: 'any-id' })
     )
 
     expect(res.status).toBeGreaterThanOrEqual(400)

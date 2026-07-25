@@ -96,14 +96,18 @@ async function ensureDatabaseExists() {
   const { PrismaClient } = require(
     path.join(webRoot, 'lib', 'generated', 'prisma', 'index.js')
   )
-  const prisma = new PrismaClient({ datasources: { db: { url: adminUrl.toString() } } })
+  const prisma = new PrismaClient({
+    datasources: { db: { url: adminUrl.toString() } }
+  })
 
   try {
     const existing = await prisma.$queryRawUnsafe(
       `SELECT 1 FROM pg_database WHERE datname = '${databaseName.replace(/'/g, "''")}'`
     )
     if (existing.length === 0) {
-      await prisma.$executeRawUnsafe(`CREATE DATABASE ${quotePgIdentifier(databaseName)}`)
+      await prisma.$executeRawUnsafe(
+        `CREATE DATABASE ${quotePgIdentifier(databaseName)}`
+      )
     }
   } finally {
     await prisma.$disconnect()

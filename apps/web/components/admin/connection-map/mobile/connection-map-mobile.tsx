@@ -9,7 +9,7 @@ import { useMyCards } from '@/lib/client/hooks/use-cards'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import {
   ConnectionDetailDialog,
-  type ConnectionSelection,
+  type ConnectionSelection
 } from '../connection-detail-dialog'
 import { AddressTab } from './address-tab'
 import { CardTab } from './card-tab'
@@ -41,11 +41,16 @@ export function ConnectionMapMobile() {
   const addressList = addresses ?? []
   const walletList = useMemo(
     () => withDerivedPrimaryWalletFlags(wallets, addresses),
-    [wallets, addresses],
+    [wallets, addresses]
   )
   const cardList = cards ?? []
 
-  if (loading && !walletList.length && !addressList.length && !cardList.length) {
+  if (
+    loading &&
+    !walletList.length &&
+    !addressList.length &&
+    !cardList.length
+  ) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner size={24} className="text-muted-foreground" />

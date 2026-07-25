@@ -5,39 +5,42 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { AuthenticationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn(),
+  authenticate: vi.fn()
 }))
 
 vi.mock('@/lib/events/event-bus', () => ({
-  eventBus: { emit: vi.fn() },
+  eventBus: { emit: vi.fn() }
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(async () => ({})),
+  getSettings: vi.fn(async () => ({}))
 }))
 
-import { GET as ListGet, POST as ListPost } from '@/app/api/wallet/addresses/route'
+import {
+  GET as ListGet,
+  POST as ListPost
+} from '@/app/api/wallet/addresses/route'
 import {
   GET as DetailGet,
   PUT as DetailPut,
-  DELETE as DetailDelete,
+  DELETE as DetailDelete
 } from '@/app/api/wallet/addresses/[username]/route'
 import { POST as PrimaryPost } from '@/app/api/wallet/addresses/[username]/primary/route'
 import { GET as InvoicesGet } from '@/app/api/wallet/addresses/[username]/invoices/route'
@@ -52,7 +55,7 @@ function mockAuth(pubkey = mockPubkey) {
   vi.mocked(authenticate).mockResolvedValue({
     pubkey,
     role: 'USER' as any,
-    method: 'jwt',
+    method: 'jwt'
   })
 }
 
@@ -71,7 +74,7 @@ function makeAddress(overrides: Partial<any> = {}) {
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
     remoteWallet: null,
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -80,7 +83,9 @@ function makeAddress(overrides: Partial<any> = {}) {
  * (where the NWC driver + DTO read it); `status` defaults ACTIVE so the
  * derived capability is non-NONE.
  */
-function makeWallet(overrides: { mode?: string; status?: string } & Record<string, unknown> = {}) {
+function makeWallet(
+  overrides: { mode?: string; status?: string } & Record<string, unknown> = {}
+) {
   const { mode = 'RECEIVE', status = 'ACTIVE', ...rest } = overrides
   return {
     id: 'wallet-1',
@@ -92,7 +97,7 @@ function makeWallet(overrides: { mode?: string; status?: string } & Record<strin
     isDefault: true,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
-    ...rest,
+    ...rest
   }
 }
 
@@ -122,7 +127,7 @@ describe('GET /api/wallet/addresses', () => {
           isPrimary: true,
           mode: 'CUSTOM_NWC',
           remoteWalletId: 'conn-primary',
-          remoteWallet: primaryConn,
+          remoteWallet: primaryConn
         }),
         // DEFAULT_NWC -> inherits the primary address wallet's mode.
         makeAddress({ username: 'bob', isPrimary: false, mode: 'DEFAULT_NWC' }),
@@ -131,20 +136,37 @@ describe('GET /api/wallet/addresses', () => {
           username: 'carol',
           isPrimary: false,
           mode: 'ALIAS',
-          redirect: 'someone@elsewhere.com',
+          redirect: 'someone@elsewhere.com'
         }),
         // IDLE -> NONE
-        makeAddress({ username: 'dave', isPrimary: false, mode: 'IDLE' }),
-      ],
+        makeAddress({ username: 'dave', isPrimary: false, mode: 'IDLE' })
+      ]
     } as any)
 
     const res = await ListGet(createNextRequest('/api/wallet/addresses'))
     const body: any = await assertResponse(res, 200)
     expect(body).toHaveLength(4)
-    expect(body[0]).toMatchObject({ username: 'alice', isPrimary: true, nwcMode: 'SEND_RECEIVE' })
-    expect(body[1]).toMatchObject({ username: 'bob', mode: 'DEFAULT_NWC', nwcMode: 'SEND_RECEIVE' })
-    expect(body[2]).toMatchObject({ username: 'carol', mode: 'ALIAS', redirect: 'someone@elsewhere.com', nwcMode: 'NONE' })
-    expect(body[3]).toMatchObject({ username: 'dave', mode: 'IDLE', nwcMode: 'NONE' })
+    expect(body[0]).toMatchObject({
+      username: 'alice',
+      isPrimary: true,
+      nwcMode: 'SEND_RECEIVE'
+    })
+    expect(body[1]).toMatchObject({
+      username: 'bob',
+      mode: 'DEFAULT_NWC',
+      nwcMode: 'SEND_RECEIVE'
+    })
+    expect(body[2]).toMatchObject({
+      username: 'carol',
+      mode: 'ALIAS',
+      redirect: 'someone@elsewhere.com',
+      nwcMode: 'NONE'
+    })
+    expect(body[3]).toMatchObject({
+      username: 'dave',
+      mode: 'IDLE',
+      nwcMode: 'NONE'
+    })
   })
 
   it('falls back to NONE when DEFAULT_NWC user has no primary connection', async () => {
@@ -153,8 +175,8 @@ describe('GET /api/wallet/addresses', () => {
       id: 'user-1',
       lightningAddresses: [
         makeAddress({ username: 'alice', isPrimary: true, mode: 'IDLE' }),
-        makeAddress({ username: 'bob', isPrimary: false, mode: 'DEFAULT_NWC' }),
-      ],
+        makeAddress({ username: 'bob', isPrimary: false, mode: 'DEFAULT_NWC' })
+      ]
     } as any)
 
     const res = await ListGet(createNextRequest('/api/wallet/addresses'))
@@ -168,12 +190,14 @@ describe('GET /api/wallet/addresses', () => {
 describe('POST /api/wallet/addresses', () => {
   it('rejects an invalid username format', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'WITH-CAPS' },
+        body: { username: 'WITH-CAPS' }
       })
     )
     expect(res.status).toBe(400)
@@ -181,12 +205,14 @@ describe('POST /api/wallet/addresses', () => {
 
   it('rejects usernames longer than 16 chars', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'a'.repeat(17) },
+        body: { username: 'a'.repeat(17) }
       })
     )
     expect(res.status).toBe(400)
@@ -194,15 +220,17 @@ describe('POST /api/wallet/addresses', () => {
 
   it('returns 409 when username is taken', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
-      username: 'alice',
+      username: 'alice'
     } as any)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'alice' },
+        body: { username: 'alice' }
       })
     )
     expect(res.status).toBe(409)
@@ -210,26 +238,28 @@ describe('POST /api/wallet/addresses', () => {
 
   it('auto-sets the first address as primary', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     // No existing addresses for this user → the new one becomes primary.
     vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
     vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
-      makeAddress({ username: 'bob', isPrimary: true }) as any,
+      makeAddress({ username: 'bob', isPrimary: true }) as any
     )
     vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'bob' },
+        body: { username: 'bob' }
       })
     )
     const body: any = await assertResponse(res, 201)
     expect(body.username).toBe('bob')
     expect(body.isPrimary).toBe(true)
     expect(prismaMock.lightningAddress.count).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { userId: 'user-1' } }),
+      expect.objectContaining({ where: { userId: 'user-1' } })
     )
     expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -237,15 +267,17 @@ describe('POST /api/wallet/addresses', () => {
         data: expect.objectContaining({
           username: 'bob',
           isPrimary: true,
-          mode: 'IDLE',
-        }),
-      }),
+          mode: 'IDLE'
+        })
+      })
     )
   })
 
   it('binds the first address to an ACTIVE wallet as the primary wallet', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
     vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
@@ -254,46 +286,48 @@ describe('POST /api/wallet/addresses', () => {
         isPrimary: true,
         mode: 'CUSTOM_NWC',
         remoteWalletId: 'conn-default',
-        remoteWallet: makeWallet({ id: 'conn-default', status: 'ACTIVE' }),
-      }) as any,
+        remoteWallet: makeWallet({ id: 'conn-default', status: 'ACTIVE' })
+      }) as any
     )
     // An ACTIVE wallet exists → the first/primary address owns the binding.
     vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(
-      makeWallet({ id: 'conn-default', status: 'ACTIVE' }) as any,
+      makeWallet({ id: 'conn-default', status: 'ACTIVE' }) as any
     )
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'bob' },
-      }),
+        body: { username: 'bob' }
+      })
     )
     await assertResponse(res, 201)
     expect(prismaMock.lightningAddress.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           mode: 'CUSTOM_NWC',
-          remoteWalletId: 'conn-default',
-        }),
-      }),
+          remoteWalletId: 'conn-default'
+        })
+      })
     )
   })
 
   it('creates a secondary address as non-primary when the user already has one', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     // User already owns an address → the new one must not steal primary.
     vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(1)
     vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
-      makeAddress({ username: 'bob', isPrimary: false }) as any,
+      makeAddress({ username: 'bob', isPrimary: false }) as any
     )
     vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'bob' },
+        body: { username: 'bob' }
       })
     )
     const body: any = await assertResponse(res, 201)
@@ -305,23 +339,25 @@ describe('POST /api/wallet/addresses', () => {
           userId: 'user-1',
           // No active default wallet mocked → defaults to IDLE.
           mode: 'IDLE',
-          isPrimary: false,
-        }),
-      }),
+          isPrimary: false
+        })
+      })
     )
   })
 
   it('rejects USER creation when user address registration is disabled', async () => {
     vi.mocked(getSettings).mockResolvedValueOnce({
-      registration_user_enabled: 'false',
+      registration_user_enabled: 'false'
     })
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'bob' },
+        body: { username: 'bob' }
       })
     )
 
@@ -331,24 +367,26 @@ describe('POST /api/wallet/addresses', () => {
 
   it('lets ADMIN create when user address registration is disabled', async () => {
     vi.mocked(getSettings).mockResolvedValueOnce({
-      registration_user_enabled: 'false',
+      registration_user_enabled: 'false'
     })
     vi.mocked(authenticate).mockResolvedValue({
       pubkey: mockPubkey,
       role: 'ADMIN' as any,
-      method: 'jwt',
+      method: 'jwt'
     })
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
-      makeAddress({ username: 'bob', isPrimary: false }) as any,
+      makeAddress({ username: 'bob', isPrimary: false }) as any
     )
     vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'bob' },
+        body: { username: 'bob' }
       })
     )
 
@@ -360,16 +398,18 @@ describe('POST /api/wallet/addresses', () => {
     vi.mocked(getSettings).mockResolvedValueOnce({
       registration_ln_enabled: 'true',
       registration_ln_address: 'admin@provider.com',
-      registration_admin_bypass: 'true',
+      registration_admin_bypass: 'true'
     })
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'bob' },
+        body: { username: 'bob' }
       })
     )
 
@@ -381,24 +421,26 @@ describe('POST /api/wallet/addresses', () => {
     vi.mocked(getSettings).mockResolvedValueOnce({
       registration_ln_enabled: 'true',
       registration_ln_address: 'admin@provider.com',
-      registration_admin_bypass: 'true',
+      registration_admin_bypass: 'true'
     })
     vi.mocked(authenticate).mockResolvedValue({
       pubkey: mockPubkey,
       role: 'ADMIN' as any,
-      method: 'jwt',
+      method: 'jwt'
     })
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
     vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
-      makeAddress({ username: 'bob', isPrimary: false }) as any,
+      makeAddress({ username: 'bob', isPrimary: false }) as any
     )
     vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
 
     const res = await ListPost(
       createNextRequest('/api/wallet/addresses', {
         method: 'POST',
-        body: { username: 'bob' },
+        body: { username: 'bob' }
       })
     )
 
@@ -412,42 +454,53 @@ describe('POST /api/wallet/addresses', () => {
 describe('GET /api/wallet/addresses/[username]', () => {
   it('returns the address plus the user\u2019s selectable wallets', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(makeAddress() as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress() as any
+    )
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
       makeAddress({
         mode: 'CUSTOM_NWC',
         remoteWalletId: 'wallet-1',
-        remoteWallet: makeWallet({ id: 'wallet-1', name: 'Primary' }),
-      }) as any,
+        remoteWallet: makeWallet({ id: 'wallet-1', name: 'Primary' })
+      }) as any
     )
     vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
       makeWallet({ id: 'wallet-1', name: 'Primary', isDefault: true }),
-      makeWallet({ id: 'wallet-2', name: 'Secondary', isDefault: false }),
+      makeWallet({ id: 'wallet-2', name: 'Secondary', isDefault: false })
     ] as any)
 
     const res = await DetailGet(
       createNextRequest('/api/wallet/addresses/alice'),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     const body: any = await assertResponse(res, 200)
     expect(body.address.username).toBe('alice')
     expect(body.wallets).toHaveLength(2)
     // DTO exposes id/name/type/status/isDefault \u2014 never the secret config.
-    expect(body.wallets[0]).toMatchObject({ id: 'wallet-1', name: 'Primary', type: 'NWC', isDefault: true })
+    expect(body.wallets[0]).toMatchObject({
+      id: 'wallet-1',
+      name: 'Primary',
+      type: 'NWC',
+      isDefault: true
+    })
     expect(body.wallets[0]).not.toHaveProperty('config')
   })
 
   it('returns 404 when the address belongs to a different user', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
-      makeAddress({ userId: 'someone-else' }) as any,
+      makeAddress({ userId: 'someone-else' }) as any
     )
 
     const res = await DetailGet(
       createNextRequest('/api/wallet/addresses/alice'),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(404)
   })
@@ -457,23 +510,25 @@ describe('GET /api/wallet/addresses/[username]', () => {
     vi.mocked(authenticate).mockResolvedValue({
       pubkey: otherPubkey,
       role: 'ADMIN' as any,
-      method: 'jwt',
+      method: 'jwt'
     })
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'admin-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'admin-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
       makeAddress({
         userId: 'user-1',
         mode: 'DEFAULT_NWC',
-        user: { pubkey: mockPubkey },
-      }) as any,
+        user: { pubkey: mockPubkey }
+      }) as any
     )
     vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
-      makeWallet({ id: 'wallet-1', name: 'Primary', isDefault: true }),
+      makeWallet({ id: 'wallet-1', name: 'Primary', isDefault: true })
     ] as any)
 
     const res = await DetailGet(
       createNextRequest('/api/wallet/addresses/alice'),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     const body: any = await assertResponse(res, 200)
     expect(body.isOwner).toBe(false)
@@ -488,14 +543,16 @@ describe('GET /api/wallet/addresses/[username]', () => {
   it('still 404s a non-privileged user viewing another user’s address', async () => {
     // Plain USER (no ADDRESSES_READ) must not gain read access to others.
     mockAuth(otherPubkey)
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-2' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-2'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
-      makeAddress({ userId: 'user-1', user: { pubkey: mockPubkey } }) as any,
+      makeAddress({ userId: 'user-1', user: { pubkey: mockPubkey } }) as any
     )
 
     const res = await DetailGet(
       createNextRequest('/api/wallet/addresses/alice'),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(404)
   })
@@ -506,11 +563,15 @@ describe('GET /api/wallet/addresses/[username]', () => {
 describe('PUT /api/wallet/addresses/[username]', () => {
   beforeEach(() => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(makeAddress() as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress() as any
+    )
     ;(prismaMock.lightningAddress.update as any).mockImplementation(
       async ({ data }: any) =>
-        makeAddress({ ...data, username: 'alice', userId: 'user-1' }),
+        makeAddress({ ...data, username: 'alice', userId: 'user-1' })
     )
     vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
   })
@@ -519,9 +580,9 @@ describe('PUT /api/wallet/addresses/[username]', () => {
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'ALIAS', redirect: 'someone@example.com' },
+        body: { mode: 'ALIAS', redirect: 'someone@example.com' }
       }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     const body: any = await assertResponse(res, 200)
     expect(body.mode).toBe('ALIAS')
@@ -532,9 +593,9 @@ describe('PUT /api/wallet/addresses/[username]', () => {
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'ALIAS' },
+        body: { mode: 'ALIAS' }
       }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(400)
   })
@@ -543,9 +604,9 @@ describe('PUT /api/wallet/addresses/[username]', () => {
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'ALIAS', redirect: 'not-a-lightning-address' },
+        body: { mode: 'ALIAS', redirect: 'not-a-lightning-address' }
       }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(400)
   })
@@ -554,37 +615,37 @@ describe('PUT /api/wallet/addresses/[username]', () => {
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'CUSTOM_NWC' },
+        body: { mode: 'CUSTOM_NWC' }
       }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(400)
   })
 
   it('rejects CUSTOM_NWC referencing another user\u2019s connection', async () => {
     vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
-      makeWallet({ userId: 'someone-else' }) as any,
+      makeWallet({ userId: 'someone-else' }) as any
     )
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'CUSTOM_NWC', remoteWalletId: 'conn-1' },
+        body: { mode: 'CUSTOM_NWC', remoteWalletId: 'conn-1' }
       }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(400)
   })
 
   it('accepts CUSTOM_NWC with a valid owned connection', async () => {
     vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
-      makeWallet({ id: 'conn-1', userId: 'user-1' }) as any,
+      makeWallet({ id: 'conn-1', userId: 'user-1' }) as any
     )
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'CUSTOM_NWC', remoteWalletId: 'conn-1' },
+        body: { mode: 'CUSTOM_NWC', remoteWalletId: 'conn-1' }
       }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     const body: any = await assertResponse(res, 200)
     expect(body.mode).toBe('CUSTOM_NWC')
@@ -595,27 +656,31 @@ describe('PUT /api/wallet/addresses/[username]', () => {
     await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'IDLE', redirect: 'ignored@x.com', remoteWalletId: 'conn-1' },
+        body: {
+          mode: 'IDLE',
+          redirect: 'ignored@x.com',
+          remoteWalletId: 'conn-1'
+        }
       }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { mode: 'IDLE', redirect: null, remoteWalletId: null },
-      }),
+        data: { mode: 'IDLE', redirect: null, remoteWalletId: null }
+      })
     )
   })
 
   it('returns 404 when address is not owned by caller', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
-      makeAddress({ userId: 'someone-else' }) as any,
+      makeAddress({ userId: 'someone-else' }) as any
     )
     const res = await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
-        body: { mode: 'IDLE' },
+        body: { mode: 'IDLE' }
       }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(404)
   })
@@ -626,46 +691,50 @@ describe('PUT /api/wallet/addresses/[username]', () => {
 describe('DELETE /api/wallet/addresses/[username]', () => {
   it('deletes a non-primary address without promoting a survivor', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
       makeAddress({
         username: 'bob',
         isPrimary: false,
         mode: 'CUSTOM_NWC',
-        remoteWalletId: 'wallet-1',
-      }) as any,
+        remoteWalletId: 'wallet-1'
+      }) as any
     )
 
     const res = await DetailDelete(
       createNextRequest('/api/wallet/addresses/bob', { method: 'DELETE' }),
-      createParamsPromise({ username: 'bob' }),
+      createParamsPromise({ username: 'bob' })
     )
     const body: any = await assertResponse(res, 200)
     expect(body).toEqual({ success: true, username: 'bob' })
     expect(prismaMock.lightningAddress.delete).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { username: 'bob' } }),
+      expect.objectContaining({ where: { username: 'bob' } })
     )
     // No primary was removed → no survivor lookup or promotion.
     expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
     expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
     expect(eventBus.emit).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'addresses:updated' }),
+      expect.objectContaining({ type: 'addresses:updated' })
     )
   })
 
   it('promotes the oldest survivor when deleting the primary', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
-      makeAddress({ username: 'alice', isPrimary: true }) as any,
+      makeAddress({ username: 'alice', isPrimary: true }) as any
     )
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
-      makeAddress({ username: 'bob', isPrimary: false }) as any,
+      makeAddress({ username: 'bob', isPrimary: false }) as any
     )
 
     const res = await DetailDelete(
       createNextRequest('/api/wallet/addresses/alice', { method: 'DELETE' }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     await assertResponse(res, 200)
 
@@ -673,11 +742,11 @@ describe('DELETE /api/wallet/addresses/[username]', () => {
     expect(prismaMock.lightningAddress.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: 'user-1', username: { not: 'alice' } },
-        orderBy: { createdAt: 'asc' },
-      }),
+        orderBy: { createdAt: 'asc' }
+      })
     )
     expect(prismaMock.lightningAddress.delete).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { username: 'alice' } }),
+      expect.objectContaining({ where: { username: 'alice' } })
     )
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -686,42 +755,46 @@ describe('DELETE /api/wallet/addresses/[username]', () => {
           isPrimary: true,
           mode: 'IDLE',
           redirect: null,
-          remoteWalletId: null,
-        },
-      }),
+          remoteWalletId: null
+        }
+      })
     )
   })
 
   it('deletes the primary without promotion when no survivors remain', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
-      makeAddress({ username: 'alice', isPrimary: true }) as any,
+      makeAddress({ username: 'alice', isPrimary: true }) as any
     )
     // No other address owned by the user.
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
 
     const res = await DetailDelete(
       createNextRequest('/api/wallet/addresses/alice', { method: 'DELETE' }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     await assertResponse(res, 200)
     expect(prismaMock.lightningAddress.delete).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { username: 'alice' } }),
+      expect.objectContaining({ where: { username: 'alice' } })
     )
     expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
   })
 
   it('returns 404 when the address is not owned by caller', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
-      makeAddress({ userId: 'someone-else' }) as any,
+      makeAddress({ userId: 'someone-else' }) as any
     )
 
     const res = await DetailDelete(
       createNextRequest('/api/wallet/addresses/alice', { method: 'DELETE' }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(404)
     expect(prismaMock.lightningAddress.delete).not.toHaveBeenCalled()
@@ -731,7 +804,7 @@ describe('DELETE /api/wallet/addresses/[username]', () => {
     mockAuthReject()
     const res = await DetailDelete(
       createNextRequest('/api/wallet/addresses/alice', { method: 'DELETE' }),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(401)
   })
@@ -742,19 +815,23 @@ describe('DELETE /api/wallet/addresses/[username]', () => {
 describe('POST /api/wallet/addresses/[username]/primary', () => {
   it('clears existing primary then promotes the target atomically', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
       makeAddress({
         username: 'bob',
         isPrimary: false,
         mode: 'CUSTOM_NWC',
-        remoteWalletId: 'wallet-1',
-      }) as any,
+        remoteWalletId: 'wallet-1'
+      }) as any
     )
 
     const res = await PrimaryPost(
-      createNextRequest('/api/wallet/addresses/bob/primary', { method: 'POST' }),
-      createParamsPromise({ username: 'bob' }),
+      createNextRequest('/api/wallet/addresses/bob/primary', {
+        method: 'POST'
+      }),
+      createParamsPromise({ username: 'bob' })
     )
     const body: any = await assertResponse(res, 200)
     expect(body).toEqual({ success: true, username: 'bob' })
@@ -764,37 +841,47 @@ describe('POST /api/wallet/addresses/[username]/primary', () => {
     expect(prismaMock.lightningAddress.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: 'user-1', isPrimary: true },
-        data: { isPrimary: false },
-      }),
+        data: { isPrimary: false }
+      })
     )
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { username: 'bob' },
-        data: { isPrimary: true },
-      }),
+        data: { isPrimary: true }
+      })
     )
   })
 
   it('normalizes a promoted DEFAULT_NWC address to CUSTOM_NWC with the current primary wallet', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
-      makeAddress({ username: 'bob', isPrimary: false, mode: 'DEFAULT_NWC' }) as any,
+      makeAddress({
+        username: 'bob',
+        isPrimary: false,
+        mode: 'DEFAULT_NWC'
+      }) as any
     )
     vi.mocked(prismaMock.lightningAddress.findFirst)
       .mockResolvedValueOnce({
         mode: 'CUSTOM_NWC',
-        remoteWalletId: 'wallet-primary',
+        remoteWalletId: 'wallet-primary'
       } as never)
       .mockResolvedValueOnce({
         mode: 'CUSTOM_NWC',
-        remoteWalletId: 'wallet-primary',
+        remoteWalletId: 'wallet-primary'
       } as never)
-    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({ count: 1 } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
 
     const res = await PrimaryPost(
-      createNextRequest('/api/wallet/addresses/bob/primary', { method: 'POST' }),
-      createParamsPromise({ username: 'bob' }),
+      createNextRequest('/api/wallet/addresses/bob/primary', {
+        method: 'POST'
+      }),
+      createParamsPromise({ username: 'bob' })
     )
     await assertResponse(res, 200)
 
@@ -805,26 +892,34 @@ describe('POST /api/wallet/addresses/[username]/primary', () => {
           isPrimary: true,
           mode: 'CUSTOM_NWC',
           redirect: null,
-          remoteWalletId: 'wallet-primary',
-        },
-      }),
+          remoteWalletId: 'wallet-primary'
+        }
+      })
     )
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
-      where: { userId: 'user-1', isDefault: true, id: { not: 'wallet-primary' } },
-      data: { isDefault: false },
+      where: {
+        userId: 'user-1',
+        isDefault: true,
+        id: { not: 'wallet-primary' }
+      },
+      data: { isDefault: false }
     })
   })
 
   it('returns 404 when address is not owned by caller', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
-      makeAddress({ userId: otherPubkey }) as any,
+      makeAddress({ userId: otherPubkey }) as any
     )
 
     const res = await PrimaryPost(
-      createNextRequest('/api/wallet/addresses/alice/primary', { method: 'POST' }),
-      createParamsPromise({ username: 'alice' }),
+      createNextRequest('/api/wallet/addresses/alice/primary', {
+        method: 'POST'
+      }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(404)
   })
@@ -832,8 +927,10 @@ describe('POST /api/wallet/addresses/[username]/primary', () => {
   it('rejects unauthenticated requests', async () => {
     mockAuthReject()
     const res = await PrimaryPost(
-      createNextRequest('/api/wallet/addresses/alice/primary', { method: 'POST' }),
-      createParamsPromise({ username: 'alice' }),
+      createNextRequest('/api/wallet/addresses/alice/primary', {
+        method: 'POST'
+      }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(401)
   })
@@ -853,24 +950,33 @@ describe('GET /api/wallet/addresses/[username]/invoices', () => {
       createdAt: new Date('2026-02-01T00:00:00Z'),
       paidAt: null,
       expiresAt: new Date('2026-02-01T01:00:00Z'),
-      ...overrides,
+      ...overrides
     }
   }
 
   it('returns the caller-owned address invoices, newest first', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
-      userId: 'user-1',
+      userId: 'user-1'
     } as any)
     vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([
-      makeInvoice({ id: 'inv-paid', status: 'PAID', paidAt: new Date('2026-02-05') }),
-      makeInvoice({ id: 'inv-pending', metadata: { username: 'alice', comment: 'thanks' } }),
+      makeInvoice({
+        id: 'inv-paid',
+        status: 'PAID',
+        paidAt: new Date('2026-02-05')
+      }),
+      makeInvoice({
+        id: 'inv-pending',
+        metadata: { username: 'alice', comment: 'thanks' }
+      })
     ] as any)
 
     const res = await InvoicesGet(
       createNextRequest('/api/wallet/addresses/alice/invoices'),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     const body: any = await assertResponse(res, 200)
 
@@ -885,25 +991,27 @@ describe('GET /api/wallet/addresses/[username]/invoices', () => {
         where: {
           userId: 'user-1',
           purpose: 'LUD16_PAYMENT',
-          metadata: { path: ['username'], equals: 'alice' },
+          metadata: { path: ['username'], equals: 'alice' }
         },
         orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
-        take: 20,
-      }),
+        take: 20
+      })
     )
   })
 
   it('returns an empty list when the address has no invoices yet', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
-      userId: 'user-1',
+      userId: 'user-1'
     } as any)
     vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([])
 
     const res = await InvoicesGet(
       createNextRequest('/api/wallet/addresses/alice/invoices'),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     const body: any = await assertResponse(res, 200)
     expect(body).toEqual({ invoices: [] })
@@ -911,16 +1019,18 @@ describe('GET /api/wallet/addresses/[username]/invoices', () => {
 
   it('404s when the address is owned by another user', async () => {
     mockAuth()
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       // Address belongs to a different user — same opaque 404 as the
       // detail route so we don't leak address existence.
-      userId: 'user-2',
+      userId: 'user-2'
     } as any)
 
     const res = await InvoicesGet(
       createNextRequest('/api/wallet/addresses/alice/invoices'),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(404)
     expect(prismaMock.invoice.findMany).not.toHaveBeenCalled()
@@ -930,7 +1040,7 @@ describe('GET /api/wallet/addresses/[username]/invoices', () => {
     mockAuthReject()
     const res = await InvoicesGet(
       createNextRequest('/api/wallet/addresses/alice/invoices'),
-      createParamsPromise({ username: 'alice' }),
+      createParamsPromise({ username: 'alice' })
     )
     expect(res.status).toBe(401)
   })

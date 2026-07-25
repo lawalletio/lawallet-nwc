@@ -3,10 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Database, RefreshCw } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
-import {
-  SidebarProvider,
-  SidebarInset,
-} from '@/components/ui/sidebar'
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/components/admin/auth-context'
@@ -23,7 +20,9 @@ interface DatabaseStatus {
 
 const HEALTH_POLL_INTERVAL_MS = 25_000
 
-function useDatabaseStatus(enabled: boolean): DatabaseStatus & { refetch: () => Promise<void> } {
+function useDatabaseStatus(
+  enabled: boolean
+): DatabaseStatus & { refetch: () => Promise<void> } {
   const [checking, setChecking] = useState(enabled)
   const [error, setError] = useState<Error | null>(null)
 
@@ -39,12 +38,19 @@ function useDatabaseStatus(enabled: boolean): DatabaseStatus & { refetch: () => 
       const response = await fetch('/api/health', { cache: 'no-store' })
       const body = await response.json().catch(() => null)
       if (!response.ok || body?.database === 'down') {
-        const detail = typeof body?.detail === 'string' ? `: ${body.detail}` : ''
-        throw new Error(`${body?.message || 'Database server is not accessible'}${detail}`)
+        const detail =
+          typeof body?.detail === 'string' ? `: ${body.detail}` : ''
+        throw new Error(
+          `${body?.message || 'Database server is not accessible'}${detail}`
+        )
       }
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Database server is not accessible'))
+      setError(
+        err instanceof Error
+          ? err
+          : new Error('Database server is not accessible')
+      )
     } finally {
       setChecking(false)
     }
@@ -53,7 +59,10 @@ function useDatabaseStatus(enabled: boolean): DatabaseStatus & { refetch: () => 
   useEffect(() => {
     void check()
     if (!enabled) return
-    const interval = window.setInterval(() => void check(), HEALTH_POLL_INTERVAL_MS)
+    const interval = window.setInterval(
+      () => void check(),
+      HEALTH_POLL_INTERVAL_MS
+    )
     return () => window.clearInterval(interval)
   }, [check, enabled])
 
@@ -63,7 +72,7 @@ function useDatabaseStatus(enabled: boolean): DatabaseStatus & { refetch: () => 
 function DatabaseUnavailable({
   error,
   checking,
-  onRetry,
+  onRetry
 }: {
   error: Error
   checking: boolean
@@ -93,8 +102,15 @@ function DatabaseUnavailable({
           </div>
         </div>
         <div className="mt-5 flex justify-end">
-          <Button variant="outline" size="sm" onClick={onRetry} disabled={checking}>
-            <RefreshCw className={`mr-2 size-4 ${checking ? 'animate-spin' : ''}`} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRetry}
+            disabled={checking}
+          >
+            <RefreshCw
+              className={`mr-2 size-4 ${checking ? 'animate-spin' : ''}`}
+            />
             Retry
           </Button>
         </div>

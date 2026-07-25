@@ -1,6 +1,6 @@
 ---
-title: "Architecture"
-description: "Current implementation in the repo, plus the target multi-service architecture described in the roadmap."
+title: 'Architecture'
+description: 'Current implementation in the repo, plus the target multi-service architecture described in the roadmap.'
 ---
 
 ## Overview
@@ -13,17 +13,17 @@ The roadmap describes a larger multi-service topology with a payment listener an
 
 ## Current Topology
 
-| Container | Service | Ports | Storage |
-|-----------|---------|-------|---------|
-| `lawallet-web` | Next.js application in this repo | 3000 | PostgreSQL via Prisma |
-| External | Alby Hub (optional) | — | Managed externally |
+| Container      | Service                          | Ports | Storage               |
+| -------------- | -------------------------------- | ----- | --------------------- |
+| `lawallet-web` | Next.js application in this repo | 3000  | PostgreSQL via Prisma |
+| External       | Alby Hub (optional)              | —     | Managed externally    |
 
 ## Roadmap Topology
 
-| Service | Status | Notes |
-|---------|--------|-------|
-| `lawallet-web` | Current | Main application and API surface in this repo |
-| `lawallet-listener` | Planned | Roadmap service for payment event ingestion and webhook delivery |
+| Service                   | Status  | Notes                                                                |
+| ------------------------- | ------- | -------------------------------------------------------------------- |
+| `lawallet-web`            | Current | Main application and API surface in this repo                        |
+| `lawallet-listener`       | Planned | Roadmap service for payment event ingestion and webhook delivery     |
 | Courtesy NWC via `lncurl` | Planned | External courtesy-wallet provisioning flow described in roadmap docs |
 
 ---
@@ -99,11 +99,11 @@ Roadmap documents still cover a broader future flow with courtesy wallets, redir
 
 ### Address Resolution Priority
 
-| Priority | Method | Description |
-|----------|--------|-------------|
-| Current | NWC Connection | Required today for successful LUD-16 resolution |
-| Planned | Courtesy NWC | Temporary wallet via [lncurl](https://github.com/rolznz/lncurl) |
-| Planned | Alias / Redirect | Redirects to external lightning address |
+| Priority | Method           | Description                                                     |
+| -------- | ---------------- | --------------------------------------------------------------- |
+| Current  | NWC Connection   | Required today for successful LUD-16 resolution                 |
+| Planned  | Courtesy NWC     | Temporary wallet via [lncurl](https://github.com/rolznz/lncurl) |
+| Planned  | Alias / Redirect | Redirects to external lightning address                         |
 
 ---
 
@@ -111,12 +111,12 @@ Roadmap documents still cover a broader future flow with courtesy wallets, redir
 
 Beyond the core services, LaWallet ships companion apps and integrations. The mobile apps are published on [Zapstore](https://zapstore.dev):
 
-| App | Platform | Links |
-|-----|----------|-------|
-| **LaWallet POS** | Android · Zapstore | [repo](https://github.com/lawalletio/flutter-pos) · [Zapstore](https://zapstore.dev/apps/ar.lawallet.lawallet_pos) |
-| **Card Activation** (`card-manager`) | Android · Zapstore | [repo](https://github.com/lawalletio/card-manager) · [Zapstore](https://zapstore.dev/apps/io.lawallet.cardactivation) |
-| **Card Installer** (`card-installer`) | Android · Zapstore | [repo](https://github.com/lawalletio/card-installer) · [Zapstore](https://zapstore.dev/apps/com.lacrypta.cardinstaller) |
-| **WordPress plugin** | WordPress / WooCommerce | [wordpress.lawallet.io](https://wordpress.lawallet.io) · [integration guide](../integrations/wordpress) |
+| App                                   | Platform                | Links                                                                                                                   |
+| ------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **LaWallet POS**                      | Android · Zapstore      | [repo](https://github.com/lawalletio/flutter-pos) · [Zapstore](https://zapstore.dev/apps/ar.lawallet.lawallet_pos)      |
+| **Card Activation** (`card-manager`)  | Android · Zapstore      | [repo](https://github.com/lawalletio/card-manager) · [Zapstore](https://zapstore.dev/apps/io.lawallet.cardactivation)   |
+| **Card Installer** (`card-installer`) | Android · Zapstore      | [repo](https://github.com/lawalletio/card-installer) · [Zapstore](https://zapstore.dev/apps/com.lacrypta.cardinstaller) |
+| **WordPress plugin**                  | WordPress / WooCommerce | [wordpress.lawallet.io](https://wordpress.lawallet.io) · [integration guide](../integrations/wordpress)                 |
 
 - **LaWallet POS** — a point-of-sale app for merchants to charge to a lightning address.
 - **Card Activation** — prints an activation QR so a holder can claim a card to their account.
@@ -127,10 +127,10 @@ Beyond the core services, LaWallet ships companion apps and integrations. The mo
 
 ## Deployment Options
 
-| Platform | Containers | Notes |
-|----------|------------|-------|
-| Vercel | web only | Best fit for the current repo state |
-| Netlify | web only | Similar constraints to Vercel |
-| Umbrel | planned web + listener | Depends on roadmap services |
-| Start9 | planned web + listener | Depends on roadmap services |
+| Platform       | Containers                          | Notes                                            |
+| -------------- | ----------------------------------- | ------------------------------------------------ |
+| Vercel         | web only                            | Best fit for the current repo state              |
+| Netlify        | web only                            | Similar constraints to Vercel                    |
+| Umbrel         | planned web + listener              | Depends on roadmap services                      |
+| Start9         | planned web + listener              | Depends on roadmap services                      |
 | Docker Compose | current web, planned extra services | Current repo includes web app deployment support |

@@ -107,7 +107,10 @@ export function SecurityScreen() {
               value={role ? role.toLowerCase() : 'Unknown'}
               valueClassName="capitalize"
             />
-            <InfoRow label="Login method" value={loginMethodLabel(loginMethod)} />
+            <InfoRow
+              label="Login method"
+              value={loginMethodLabel(loginMethod)}
+            />
           </RowGroup>
         </Section>
 

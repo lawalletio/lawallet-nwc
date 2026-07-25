@@ -3,20 +3,20 @@ import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { AuthorizationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 const noopLogger = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn(),
   warn: vi.fn(),
-  debug: vi.fn(),
+  debug: vi.fn()
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: noopLogger,
   createLogger: vi.fn(() => noopLogger),
-  withRequestLogging: (fn: unknown) => fn,
+  withRequestLogging: (fn: unknown) => fn
 }))
 
 vi.mock('@/lib/prisma', () => ({ prisma: {} }))
@@ -24,11 +24,11 @@ vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
 
 vi.mock('@/lib/settings-auth', () => ({
-  authenticateSettingsWriteRequest: vi.fn(),
+  authenticateSettingsWriteRequest: vi.fn()
 }))
 
 const listenerState = vi.hoisted(() => ({
-  secret: null as string | null,
+  secret: null as string | null
 }))
 
 vi.mock('@/lib/listener-config', () => ({
@@ -39,8 +39,8 @@ vi.mock('@/lib/listener-config', () => ({
     requestTimeoutMs: 10000,
     urlSource: 'none',
     secretSource: listenerState.secret ? 'env' : 'none',
-    enabledSource: 'none',
-  }),
+    enabledSource: 'none'
+  })
 }))
 
 import { POST } from '@/app/api/settings/listener-probe/route'
@@ -59,9 +59,9 @@ const validStatus = {
     webhooksDelivered: 1,
     webhooksFailed: 0,
     nwcRequests: 0,
-    nwcRequestErrors: 0,
+    nwcRequestErrors: 0
   },
-  recentEvents: [],
+  recentEvents: []
 }
 
 const probeRequest = (body: unknown) =>
@@ -99,11 +99,18 @@ describe('POST /api/settings/listener-probe', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const body = (await assertResponse(
-      await POST(probeRequest({ url: 'http://listener.test:4100', secret: SECRET })),
+      await POST(
+        probeRequest({ url: 'http://listener.test:4100', secret: SECRET })
+      ),
       200
     )) as { ok: boolean; uptimeSeconds: number; relays: number }
 
-    expect(body).toEqual({ ok: true, uptimeSeconds: 300, connections: 0, relays: 1 })
+    expect(body).toEqual({
+      ok: true,
+      uptimeSeconds: 300,
+      connections: 0,
+      relays: 1
+    })
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toBe('http://listener.test:4100/status')
     expect((init.headers as Record<string, string>).authorization).toBe(
@@ -117,7 +124,9 @@ describe('POST /api/settings/listener-probe', () => {
       vi.fn().mockResolvedValue(new Response('unauthorized', { status: 401 }))
     )
     const body = (await assertResponse(
-      await POST(probeRequest({ url: 'http://listener.test:4100', secret: SECRET })),
+      await POST(
+        probeRequest({ url: 'http://listener.test:4100', secret: SECRET })
+      ),
       200
     )) as { ok: boolean; code: string }
     expect(body.ok).toBe(false)
@@ -127,7 +136,9 @@ describe('POST /api/settings/listener-probe', () => {
   it('reports unreachable on network failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')))
     const body = (await assertResponse(
-      await POST(probeRequest({ url: 'http://listener.test:4100', secret: SECRET })),
+      await POST(
+        probeRequest({ url: 'http://listener.test:4100', secret: SECRET })
+      ),
       200
     )) as { ok: boolean; code: string }
     expect(body.code).toBe('unreachable')
@@ -139,7 +150,9 @@ describe('POST /api/settings/listener-probe', () => {
       vi.fn().mockResolvedValue(Response.json({ hello: 'world' }))
     )
     const body = (await assertResponse(
-      await POST(probeRequest({ url: 'http://listener.test:4100', secret: SECRET })),
+      await POST(
+        probeRequest({ url: 'http://listener.test:4100', secret: SECRET })
+      ),
       200
     )) as { ok: boolean; code: string }
     expect(body.code).toBe('invalid_response')

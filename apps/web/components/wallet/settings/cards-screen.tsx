@@ -218,7 +218,11 @@ function CardRow({
 }) {
   const blocked = card.blocked
   const dimmed = blocked || !enabled
-  const status: CardStatus = blocked ? 'Blocked' : enabled ? 'Active' : 'Disabled'
+  const status: CardStatus = blocked
+    ? 'Blocked'
+    : enabled
+      ? 'Active'
+      : 'Disabled'
 
   return (
     <article className="relative isolate aspect-[1.55] min-h-44 overflow-hidden rounded-2xl bg-card shadow-sm ring-1 ring-border/40">
@@ -305,13 +309,7 @@ function StatusBadge({ status }: { status: CardStatus }) {
   )
 }
 
-function CardArtwork({
-  card,
-  dimmed
-}: {
-  card: CardData
-  dimmed: boolean
-}) {
+function CardArtwork({ card, dimmed }: { card: CardData; dimmed: boolean }) {
   const image = card.design?.image
 
   return (

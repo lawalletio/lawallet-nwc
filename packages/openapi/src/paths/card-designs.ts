@@ -3,7 +3,7 @@ import {
   commonErrorResponses,
   inlineJsonResponse,
   protectedSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 import { responses } from '../responses'
@@ -23,7 +23,7 @@ const cardDesignSchema = z
      * never a boolean — `archived: boolean` exists only on the *update request*
      * body, which the handler translates to `archivedAt = now()` / `null`.
      */
-    archivedAt: z.string().datetime().nullable(),
+    archivedAt: z.string().datetime().nullable()
   })
   .openapi({ description: 'Card design template.' })
 
@@ -45,16 +45,18 @@ registry.registerPath({
   security: protectedSecurity,
   request: {
     body: {
-      content: { 'application/json': { schema: schemas.CardDesignCreateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.CardDesignCreateRequest }
+      }
+    }
   },
   responses: {
     // The handler returns a plain `NextResponse.json(design)` — 200, not 201.
     // No 409 either: `CardDesign.id` is `@default(uuid())` and the create call
     // never supplies one, so there is no unique-collision path.
     200: inlineJsonResponse('Card design created.', cardDesignSchema),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -69,8 +71,8 @@ registry.registerPath({
     // Bare array — the handler returns the Prisma rows directly, not an
     // envelope.
     200: inlineJsonResponse('Card designs.', z.array(cardDesignSchema)),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -82,9 +84,12 @@ registry.registerPath({
   operationId: 'cardDesigns.count',
   security: protectedSecurity,
   responses: {
-    200: inlineJsonResponse('Count.', z.object({ count: z.number().int().nonnegative() })),
-    ...commonErrorResponses,
-  },
+    200: inlineJsonResponse(
+      'Count.',
+      z.object({ count: z.number().int().nonnegative() })
+    ),
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -102,8 +107,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('Card design.', cardDesignSummarySchema),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -117,14 +122,16 @@ registry.registerPath({
   request: {
     params: schemas.IdParam,
     body: {
-      content: { 'application/json': { schema: schemas.CardDesignUpdateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.CardDesignUpdateRequest }
+      }
+    }
   },
   responses: {
     200: inlineJsonResponse('Card design updated.', cardDesignSchema),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -156,12 +163,12 @@ registry.registerPath({
               id: z.string(),
               imageUrl: z.string().url(),
               description: z.string(),
-              createdAt: z.string().datetime(),
-            }),
+              createdAt: z.string().datetime()
+            })
           )
-          .optional(),
-      }),
+          .optional()
+      })
     ),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })

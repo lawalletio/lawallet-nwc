@@ -47,7 +47,14 @@ export function Nip07Connect({ serverUrl, connection, onChange }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        position: 'relative'
+      }}
+    >
       {connection ? (
         <>
           <span
@@ -56,17 +63,20 @@ export function Nip07Connect({ serverUrl, connection, onChange }: Props) {
               alignItems: 'center',
               gap: 6,
               padding: '4px 10px',
-              border: '1px solid color-mix(in srgb, var(--scalar-color-green) 35%, transparent)',
-              background: 'color-mix(in srgb, var(--scalar-color-green) 14%, transparent)',
+              border:
+                '1px solid color-mix(in srgb, var(--scalar-color-green) 35%, transparent)',
+              background:
+                'color-mix(in srgb, var(--scalar-color-green) 14%, transparent)',
               color: 'var(--scalar-color-green)',
               borderRadius: 6,
               fontSize: 12,
-              fontFamily: 'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
+              fontFamily:
+                'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
               fontWeight: 600,
               maxWidth: 220,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              whiteSpace: 'nowrap'
             }}
             title={`Connected as ${connection.pubkey}`}
           >
@@ -77,7 +87,7 @@ export function Nip07Connect({ serverUrl, connection, onChange }: Props) {
                 width: 7,
                 height: 7,
                 borderRadius: '50%',
-                background: 'var(--scalar-color-green)',
+                background: 'var(--scalar-color-green)'
               }}
             />
             {connection.pubkey.slice(0, 8)}…{connection.pubkey.slice(-4)}
@@ -112,12 +122,14 @@ export function Nip07Connect({ serverUrl, connection, onChange }: Props) {
             left: 0,
             marginTop: 4,
             padding: '4px 8px',
-            background: 'color-mix(in srgb, var(--scalar-color-red, #ef4444) 14%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--scalar-color-red, #ef4444) 35%, transparent)',
+            background:
+              'color-mix(in srgb, var(--scalar-color-red, #ef4444) 14%, transparent)',
+            border:
+              '1px solid color-mix(in srgb, var(--scalar-color-red, #ef4444) 35%, transparent)',
             color: 'var(--scalar-color-red, #ef4444)',
             borderRadius: 6,
             fontSize: 11,
-            whiteSpace: 'nowrap',
+            whiteSpace: 'nowrap'
           }}
         >
           {error}
@@ -127,14 +139,21 @@ export function Nip07Connect({ serverUrl, connection, onChange }: Props) {
   )
 }
 
-async function mintJwt(serverUrl: string, signer: NostrSigner): Promise<string> {
+async function mintJwt(
+  serverUrl: string,
+  signer: NostrSigner
+): Promise<string> {
   const url = `${serverUrl.replace(/\/$/, '')}/api/jwt`
   const body = JSON.stringify({ expiresIn: '24h' })
-  const authHeader = await createNip98Token(url, { method: 'POST', body }, signer)
+  const authHeader = await createNip98Token(
+    url,
+    { method: 'POST', body },
+    signer
+  )
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-    body,
+    body
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -148,14 +167,16 @@ async function mintJwt(serverUrl: string, signer: NostrSigner): Promise<string> 
 function primaryBtn(): React.CSSProperties {
   return {
     padding: '4px 10px',
-    border: '1px solid color-mix(in srgb, var(--scalar-color-accent) 60%, transparent)',
+    border:
+      '1px solid color-mix(in srgb, var(--scalar-color-accent) 60%, transparent)',
     borderRadius: 6,
-    background: 'color-mix(in srgb, var(--scalar-color-accent) 14%, transparent)',
+    background:
+      'color-mix(in srgb, var(--scalar-color-accent) 14%, transparent)',
     color: 'var(--scalar-color-accent)',
     cursor: 'pointer',
     fontSize: 12,
     fontWeight: 600,
-    whiteSpace: 'nowrap',
+    whiteSpace: 'nowrap'
   }
 }
 
@@ -168,6 +189,6 @@ function ghostBtn(): React.CSSProperties {
     color: 'var(--scalar-color-2)',
     cursor: 'pointer',
     fontSize: 12,
-    fontWeight: 500,
+    fontWeight: 500
   }
 }

@@ -1,7 +1,8 @@
 import Image from 'next/image'
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared'
 
-const apiDocsUrl = process.env.NEXT_PUBLIC_API_DOCS_URL ?? 'https://beta.lawallet.io/api-docs'
+const apiDocsUrl =
+  process.env.NEXT_PUBLIC_API_DOCS_URL ?? 'https://beta.lawallet.io/api-docs'
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -16,29 +17,31 @@ export function baseOptions(): BaseLayoutProps {
             className="dark:invert-0"
             priority
           />
-          <span className="text-fd-muted-foreground text-base font-medium tracking-tight">docs</span>
+          <span className="text-fd-muted-foreground text-base font-medium tracking-tight">
+            docs
+          </span>
         </div>
-      ),
+      )
     },
     links: [
       {
         text: 'Getting started',
-        url: '/docs',
+        url: '/docs'
       },
       {
         text: 'Deploy',
-        url: '/docs/deploy',
+        url: '/docs/deploy'
       },
       {
         text: 'Develop',
-        url: '/docs/guides',
+        url: '/docs/guides'
       },
       {
         text: 'API Playground',
         url: apiDocsUrl,
-        external: apiDocsUrl.startsWith('http'),
-      },
+        external: apiDocsUrl.startsWith('http')
+      }
     ],
-    githubUrl: 'https://github.com/lawalletio/lawallet-nwc',
+    githubUrl: 'https://github.com/lawalletio/lawallet-nwc'
   }
 }

@@ -31,7 +31,9 @@ function SettingsContent() {
     if (status === 'authenticated' && role !== Role.ADMIN) {
       // Fixed id so StrictMode's double-mount in dev (and any re-render
       // before the redirect finishes) doesn't stack duplicate toasts.
-      toast.error('Only administrators can access settings.', { id: 'settings-admin-only' })
+      toast.error('Only administrators can access settings.', {
+        id: 'settings-admin-only'
+      })
       router.replace('/admin')
     }
   }, [status, role, router])
@@ -58,12 +60,36 @@ function SettingsContent() {
         title="Settings"
         subtitle="Manage your community configuration."
         tabs={[
-          { label: 'Infrastructure', active: activeTab === 'infrastructure', onClick: () => navigate('/admin/settings?tab=infrastructure') },
-          { label: 'Branding', active: activeTab === 'branding', onClick: () => navigate('/admin/settings?tab=branding') },
-          { label: 'Wallet', active: activeTab === 'wallet', onClick: () => navigate('/admin/settings?tab=wallet') },
-          { label: 'NWC Services', active: activeTab === 'nwc-services', onClick: () => navigate('/admin/settings?tab=nwc-services') },
-          { label: 'Device Tokens', active: activeTab === 'device-tokens', onClick: () => navigate('/admin/settings?tab=device-tokens') },
-          { label: 'Backup & Restore', active: activeTab === 'backup', onClick: () => navigate('/admin/settings?tab=backup') },
+          {
+            label: 'Infrastructure',
+            active: activeTab === 'infrastructure',
+            onClick: () => navigate('/admin/settings?tab=infrastructure')
+          },
+          {
+            label: 'Branding',
+            active: activeTab === 'branding',
+            onClick: () => navigate('/admin/settings?tab=branding')
+          },
+          {
+            label: 'Wallet',
+            active: activeTab === 'wallet',
+            onClick: () => navigate('/admin/settings?tab=wallet')
+          },
+          {
+            label: 'NWC Services',
+            active: activeTab === 'nwc-services',
+            onClick: () => navigate('/admin/settings?tab=nwc-services')
+          },
+          {
+            label: 'Device Tokens',
+            active: activeTab === 'device-tokens',
+            onClick: () => navigate('/admin/settings?tab=device-tokens')
+          },
+          {
+            label: 'Backup & Restore',
+            active: activeTab === 'backup',
+            onClick: () => navigate('/admin/settings?tab=backup')
+          }
         ]}
       />
 

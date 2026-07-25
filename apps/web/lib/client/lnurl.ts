@@ -86,7 +86,9 @@ export function pollVerifyUrl(
  * payment hasn't landed yet). Rejects only on a network / HTTP failure so the
  * caller can distinguish "not paid yet" from "couldn't reach the verifier".
  */
-export async function checkVerifyOnce(verifyUrl: string): Promise<VerifyResult> {
+export async function checkVerifyOnce(
+  verifyUrl: string
+): Promise<VerifyResult> {
   const res = await fetch(verifyUrl)
   if (!res.ok) {
     throw new Error(`Verify request failed (${res.status})`)

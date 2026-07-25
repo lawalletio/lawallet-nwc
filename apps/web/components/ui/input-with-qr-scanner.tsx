@@ -20,8 +20,10 @@ import { cn } from '@/lib/utils'
  * All remaining props flow to the underlying `<Input>` so callers keep the
  * familiar id / placeholder / aria-* / disabled surface area.
  */
-export interface InputWithQrScannerProps
-  extends Omit<React.ComponentPropsWithoutRef<typeof Input>, 'value' | 'onChange'> {
+export interface InputWithQrScannerProps extends Omit<
+  React.ComponentPropsWithoutRef<typeof Input>,
+  'value' | 'onChange'
+> {
   value: string
   onChange: (value: string) => void
   /**
@@ -53,7 +55,7 @@ export const InputWithQrScanner = React.forwardRef<
     disabled,
     ...inputProps
   },
-  ref,
+  ref
 ) {
   return (
     <div className={cn('flex items-center gap-2', containerClassName)}>

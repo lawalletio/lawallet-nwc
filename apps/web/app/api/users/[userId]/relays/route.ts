@@ -34,7 +34,10 @@ async function resolveTargetUserId(userId: string): Promise<string | null> {
  * array clears the preference back to the operator default.
  */
 export const PUT = withErrorHandling(
-  async (request: Request, { params }: { params: Promise<{ userId: string }> }) => {
+  async (
+    request: Request,
+    { params }: { params: Promise<{ userId: string }> }
+  ) => {
     await checkRequestLimits(request, 'json')
     const auth = await authenticate(request)
     const { userId } = await params
@@ -43,7 +46,7 @@ export const PUT = withErrorHandling(
     const user = targetId
       ? await prisma.user.findUnique({
           where: { id: targetId },
-          select: { id: true, pubkey: true },
+          select: { id: true, pubkey: true }
         })
       : null
     if (!user) throw new NotFoundError('User not found')
@@ -63,8 +66,8 @@ export const PUT = withErrorHandling(
         relays: relays.length > 0 ? JSON.stringify(relays) : null,
         // Stamp so nostr.json serves this manual choice fresh (no NIP-65
         // re-query) until the cache TTL elapses.
-        relaysUpdatedAt: new Date(),
-      },
+        relaysUpdatedAt: new Date()
+      }
     })
 
     eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
@@ -73,9 +76,9 @@ export const PUT = withErrorHandling(
       event: ActivityEvent.USER_RELAYS_UPDATED,
       message: `Nostr relays updated (${relays.length})`,
       userId: user.id,
-      metadata: { count: relays.length },
+      metadata: { count: relays.length }
     })
 
     return NextResponse.json({ userId: user.id, relays })
-  },
+  }
 )

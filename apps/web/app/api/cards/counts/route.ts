@@ -20,7 +20,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     prisma.card.count({ where: { lastUsedAt: { not: null } } }),
     prisma.card.count({ where: { lastUsedAt: { equals: null } } }),
     // "Blocked" === reset keys exported (decommissioned, pending delete).
-    prisma.card.count({ where: { blockedAt: { not: null } } }),
+    prisma.card.count({ where: { blockedAt: { not: null } } })
   ])
 
   return NextResponse.json({ total, paired, unpaired, used, unused, blocked })

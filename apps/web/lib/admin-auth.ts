@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { validateNip98 } from '@/lib/nip98'
 import { AuthenticationError, AuthorizationError } from '@/types/server/errors'
-import { Role, Permission, hasRole, hasPermission } from '@/lib/auth/permissions'
+import {
+  Role,
+  Permission,
+  hasRole,
+  hasPermission
+} from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
 
 /**

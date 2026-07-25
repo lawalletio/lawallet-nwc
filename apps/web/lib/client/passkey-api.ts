@@ -150,11 +150,7 @@ async function runRegistrationCeremony(
 ): Promise<PasskeyIdentity & { credential: PasskeyCredentialSummary }> {
   const { options } = await postJson<{
     options: { challenge: string } & Record<string, unknown>
-  }>(
-    '/api/auth/passkey/registration/options',
-    label ? { label } : {},
-    token
-  )
+  }>('/api/auth/passkey/registration/options', label ? { label } : {}, token)
 
   // Ask for the PRF extension at creation so `prf.enabled` tells us up front
   // whether this authenticator can derive keys at all.

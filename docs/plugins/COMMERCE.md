@@ -32,32 +32,32 @@ A merchant directory integrated with LaWallet that:
 
 ```typescript
 interface Merchant {
-  id: string;                    // Unique identifier
-  name: string;                  // Business name
-  description: string;           // Business description
-  category: MerchantCategory;    // restaurant, bar, retail, services, etc.
+  id: string // Unique identifier
+  name: string // Business name
+  description: string // Business description
+  category: MerchantCategory // restaurant, bar, retail, services, etc.
   location: {
-    address: string;
-    city: string;
-    country: string;
-    coordinates: [number, number];
-  };
+    address: string
+    city: string
+    country: string
+    coordinates: [number, number]
+  }
   contact: {
-    phone?: string;
-    email?: string;
-    website?: string;
-    nostr?: string;              // Nostr pubkey
-  };
+    phone?: string
+    email?: string
+    website?: string
+    nostr?: string // Nostr pubkey
+  }
   paymentMethods: {
-    lightning: boolean;
-    onchain: boolean;
-    lawalletPOS: boolean;        // Uses LaWallet POS
-  };
-  discountRules: DiscountRule[];
-  operatingHours: OperatingHours[];
-  images: string[];
-  verified: boolean;             // Verified by community
-  rating?: number;               // Community rating
+    lightning: boolean
+    onchain: boolean
+    lawalletPOS: boolean // Uses LaWallet POS
+  }
+  discountRules: DiscountRule[]
+  operatingHours: OperatingHours[]
+  images: string[]
+  verified: boolean // Verified by community
+  rating?: number // Community rating
 }
 ```
 
@@ -65,31 +65,31 @@ interface Merchant {
 
 ```typescript
 interface DiscountRule {
-  id: string;
-  merchantId: string;
-  badgeTemplateId: string;       // Required badge
-  badgeIssuerId?: string;        // Specific issuer or '*' for any
-  discountType: 'percentage' | 'fixed' | 'cashback';
-  discountValue: number;         // Percentage or sats
-  maxDiscount?: number;          // Cap in sats
-  minPurchase?: number;          // Minimum purchase in sats
-  validFrom?: number;            // Start date
-  validUntil?: number;           // End date
-  usageLimit?: number;           // Per user
-  description: string;           // "10% off for Gold members"
-  active: boolean;
+  id: string
+  merchantId: string
+  badgeTemplateId: string // Required badge
+  badgeIssuerId?: string // Specific issuer or '*' for any
+  discountType: 'percentage' | 'fixed' | 'cashback'
+  discountValue: number // Percentage or sats
+  maxDiscount?: number // Cap in sats
+  minPurchase?: number // Minimum purchase in sats
+  validFrom?: number // Start date
+  validUntil?: number // End date
+  usageLimit?: number // Per user
+  description: string // "10% off for Gold members"
+  active: boolean
 }
 ```
 
 ### Example Discount Rules
 
-| Badge | Merchant | Discount | Description |
-|-------|----------|----------|-------------|
-| La Crypta Member | All Partners | 5% | Base member discount |
-| Silver Tier | Cervecería Bitcoin | 10% | Loyal customer discount |
-| Gold Tier | All Partners | 15% | VIP discount |
-| Event Attendee | Event Sponsor | 20% | Same-day event discount |
-| Contributor | Tech Store | 25% | Builder appreciation |
+| Badge            | Merchant           | Discount | Description             |
+| ---------------- | ------------------ | -------- | ----------------------- |
+| La Crypta Member | All Partners       | 5%       | Base member discount    |
+| Silver Tier      | Cervecería Bitcoin | 10%      | Loyal customer discount |
+| Gold Tier        | All Partners       | 15%      | VIP discount            |
+| Event Attendee   | Event Sponsor      | 20%      | Same-day event discount |
+| Contributor      | Tech Store         | 25%      | Builder appreciation    |
 
 ## Technical Specification
 
@@ -143,26 +143,26 @@ GET    /api/plugins/commerce/analytics/:merchantId # Merchant stats
 
 ```typescript
 interface CalculateDiscountRequest {
-  merchantId: string;
-  customerPubkey: string;
-  amount: number;               // Purchase amount in sats
-  badges?: string[];            // Pre-fetched badges (optional)
+  merchantId: string
+  customerPubkey: string
+  amount: number // Purchase amount in sats
+  badges?: string[] // Pre-fetched badges (optional)
 }
 
 interface CalculateDiscountResponse {
-  originalAmount: number;
-  discountAmount: number;
-  finalAmount: number;
-  appliedRules: AppliedRule[];
-  badges: BadgeSummary[];
+  originalAmount: number
+  discountAmount: number
+  finalAmount: number
+  appliedRules: AppliedRule[]
+  badges: BadgeSummary[]
 }
 
 interface AppliedRule {
-  ruleId: string;
-  badgeName: string;
-  discountType: string;
-  discountValue: number;
-  description: string;
+  ruleId: string
+  badgeName: string
+  discountType: string
+  discountValue: number
+  description: string
 }
 ```
 
@@ -258,18 +258,18 @@ CREATE INDEX idx_usage_customer ON discount_usage(customer_pubkey);
 
 ## Merchant Categories
 
-| Category | Icon | Examples |
-|----------|------|----------|
-| `restaurant` | 🍽️ | Restaurants, cafes |
-| `bar` | 🍺 | Bars, pubs |
-| `retail` | 🛍️ | Shops, stores |
-| `services` | 🔧 | Professional services |
-| `tech` | 💻 | Tech stores, repairs |
-| `entertainment` | 🎮 | Gaming, events |
-| `health` | ⚕️ | Health, wellness |
-| `education` | 📚 | Courses, workshops |
-| `travel` | ✈️ | Hotels, tourism |
-| `other` | 📦 | Miscellaneous |
+| Category        | Icon | Examples              |
+| --------------- | ---- | --------------------- |
+| `restaurant`    | 🍽️   | Restaurants, cafes    |
+| `bar`           | 🍺   | Bars, pubs            |
+| `retail`        | 🛍️   | Shops, stores         |
+| `services`      | 🔧   | Professional services |
+| `tech`          | 💻   | Tech stores, repairs  |
+| `entertainment` | 🎮   | Gaming, events        |
+| `health`        | ⚕️   | Health, wellness      |
+| `education`     | 📚   | Courses, workshops    |
+| `travel`        | ✈️   | Hotels, tourism       |
+| `other`         | 📦   | Miscellaneous         |
 
 ## Integration with Other Plugins
 
@@ -305,14 +305,14 @@ CREATE INDEX idx_usage_customer ON discount_usage(customer_pubkey);
 
 ## Status
 
-| Component | Status |
-|-----------|--------|
-| Specification | 📋 Proposal |
+| Component       | Status      |
+| --------------- | ----------- |
+| Specification   | 📋 Proposal |
 | Database Schema | 📋 Proposal |
-| API Endpoints | 📋 Proposal |
-| UI Components | 📋 Proposal |
+| API Endpoints   | 📋 Proposal |
+| UI Components   | 📋 Proposal |
 | POS Integration | 📋 Proposal |
 
 ---
 
-*Proposed by [Claudio](https://github.com/claudiomolt) as a community contribution.*
+_Proposed by [Claudio](https://github.com/claudiomolt) as a community contribution._

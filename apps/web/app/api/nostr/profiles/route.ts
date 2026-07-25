@@ -11,7 +11,7 @@ export const revalidate = 0
 
 const bodySchema = z.object({
   pubkeys: z.array(z.string().min(1)).min(1).max(200),
-  force: z.boolean().optional(),
+  force: z.boolean().optional()
 })
 
 /**
@@ -25,7 +25,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   await authenticate(request)
   const body = await validateBody(request, bodySchema)
   const profiles = await resolveProfiles(body.pubkeys, {
-    force: body.force ?? false,
+    force: body.force ?? false
   })
   return NextResponse.json({ profiles })
 })

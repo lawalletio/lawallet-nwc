@@ -1,31 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
-import { createCardFixture, createCardDesignFixture, createNtag424Fixture } from '@/tests/helpers/fixtures'
+import {
+  createCardFixture,
+  createCardDesignFixture,
+  createNtag424Fixture
+} from '@/tests/helpers/fixtures'
 import { AuthorizationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticateWithPermission: vi.fn(),
+  authenticateWithPermission: vi.fn()
 }))
 
 vi.mock('@/lib/ntag424', () => ({
@@ -36,8 +40,8 @@ vi.mock('@/lib/ntag424', () => ({
     k2: '2'.repeat(32),
     k3: '3'.repeat(32),
     k4: '4'.repeat(32),
-    ctr: 0,
-  })),
+    ctr: 0
+  }))
 }))
 
 import { GET, POST } from '@/app/api/cards/route'
@@ -54,7 +58,7 @@ function mockAdminAuth() {
   vi.mocked(authenticateWithPermission).mockResolvedValue({
     pubkey: ADMIN_PUBKEY,
     role: 'ADMIN' as any,
-    method: 'nip98',
+    method: 'nip98'
   })
 }
 
@@ -69,7 +73,12 @@ describe('GET /api/cards', () => {
     mockAdminAuth()
     const design = createCardDesignFixture()
     const ntag424 = createNtag424Fixture()
-    const card = { ...createCardFixture(), design, ntag424, user: { pubkey: ADMIN_PUBKEY } }
+    const card = {
+      ...createCardFixture(),
+      design,
+      ntag424,
+      user: { pubkey: ADMIN_PUBKEY }
+    }
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([card] as any)
 
     const req = createNextRequest('/api/cards')
@@ -91,14 +100,16 @@ describe('GET /api/cards', () => {
     mockAdminAuth()
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([])
 
-    const req = createNextRequest('/api/cards', { searchParams: { paired: 'true' } })
+    const req = createNextRequest('/api/cards', {
+      searchParams: { paired: 'true' }
+    })
     const res = await GET(req)
     await assertResponse(res, 200)
 
     // Paired === has an owner (`userId`), not `otc` (which every card has).
     expect(prismaMock.card.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ userId: { not: null } }),
+        where: expect.objectContaining({ userId: { not: null } })
       })
     )
   })
@@ -107,13 +118,15 @@ describe('GET /api/cards', () => {
     mockAdminAuth()
     vi.mocked(prismaMock.card.findMany).mockResolvedValue([])
 
-    const req = createNextRequest('/api/cards', { searchParams: { used: 'false' } })
+    const req = createNextRequest('/api/cards', {
+      searchParams: { used: 'false' }
+    })
     const res = await GET(req)
     await assertResponse(res, 200)
 
     expect(prismaMock.card.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ lastUsedAt: { equals: null } }),
+        where: expect.objectContaining({ lastUsedAt: { equals: null } })
       })
     )
   })
@@ -155,13 +168,13 @@ describe('POST /api/cards', () => {
       kind: 'SIMPLE',
       design: createCardDesignFixture(),
       ntag424: ntag,
-      user: null,
+      user: null
     }
     vi.mocked(prismaMock.card.create).mockResolvedValue(createdCard as any)
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
-      body: { id: 'AA:BB:CC:DD:EE:11:22', designId: 'design-1' },
+      body: { id: 'AA:BB:CC:DD:EE:11:22', designId: 'design-1' }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -185,12 +198,12 @@ describe('POST /api/cards', () => {
       kind: 'MASTER',
       design: createCardDesignFixture(),
       ntag424: ntag,
-      user: null,
+      user: null
     } as any)
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
-      body: { id: 'AA:BB:CC:DD:EE:11:22', designId: 'design-1', kind: 'MASTER' },
+      body: { id: 'AA:BB:CC:DD:EE:11:22', designId: 'design-1', kind: 'MASTER' }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 200)
@@ -198,7 +211,7 @@ describe('POST /api/cards', () => {
     expect(body.kind).toBe('MASTER')
     expect(prismaMock.card.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ kind: 'MASTER' }),
+        data: expect.objectContaining({ kind: 'MASTER' })
       })
     )
   })
@@ -208,7 +221,7 @@ describe('POST /api/cards', () => {
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
-      body: { id: 'AABBCCDDEE1122' },
+      body: { id: 'AABBCCDDEE1122' }
     })
     const res = await POST(req)
 
@@ -220,7 +233,7 @@ describe('POST /api/cards', () => {
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
-      body: { id: 'AABBCC', designId: 'd1' },
+      body: { id: 'AABBCC', designId: 'd1' }
     })
     const res = await POST(req)
 
@@ -232,7 +245,7 @@ describe('POST /api/cards', () => {
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
-      body: { designId: 'design-1' },
+      body: { designId: 'design-1' }
     })
     const res = await POST(req)
 
@@ -243,12 +256,12 @@ describe('POST /api/cards', () => {
     mockAdminAuth()
     // The UID is the NTAG424 primary key — a re-used one is a conflict.
     vi.mocked(prismaMock.ntag424.findUnique).mockResolvedValue({
-      cid: 'AABBCCDDEE1122',
+      cid: 'AABBCCDDEE1122'
     } as any)
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
-      body: { id: 'AA:BB:CC:DD:EE:11:22', designId: 'design-1' },
+      body: { id: 'AA:BB:CC:DD:EE:11:22', designId: 'design-1' }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 409)
@@ -265,7 +278,7 @@ describe('POST /api/cards', () => {
 
     const req = createNextRequest('/api/cards', {
       method: 'POST',
-      body: { id: 'AABBCCDDEE1122', designId: 'design-1' },
+      body: { id: 'AABBCCDDEE1122', designId: 'design-1' }
     })
     const res = await POST(req)
     const body: any = await assertResponse(res, 409)

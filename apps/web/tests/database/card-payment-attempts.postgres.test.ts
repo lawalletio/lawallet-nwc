@@ -8,8 +8,7 @@ import type {
 
 const databaseUrl = process.env.CARD_PAYMENT_TEST_DATABASE_URL
 const databaseName = databaseUrl ? new URL(databaseUrl).pathname.slice(1) : ''
-const runDatabaseTests =
-  !!databaseUrl && /(?:_e2e|_test)$/.test(databaseName)
+const runDatabaseTests = !!databaseUrl && /(?:_e2e|_test)$/.test(databaseName)
 
 describe.skipIf(!runDatabaseTests)(
   'atomic card payment claims against PostgreSQL',
@@ -30,12 +29,15 @@ describe.skipIf(!runDatabaseTests)(
       })
       vi.resetModules()
       vi.doMock('@/lib/prisma', () => ({ prisma }))
-      ;({ claimCardPaymentAttempt } = await import(
-        '@/lib/card-payments/attempts'
-      ))
+      ;({ claimCardPaymentAttempt } =
+        await import('@/lib/card-payments/attempts'))
 
       await prisma.cardDesign.create({
-        data: { id: designId, imageUrl: 'https://example.test/card.png', description: 'Concurrency test' }
+        data: {
+          id: designId,
+          imageUrl: 'https://example.test/card.png',
+          description: 'Concurrency test'
+        }
       })
       await prisma.ntag424.create({
         data: {
@@ -87,9 +89,9 @@ describe.skipIf(!runDatabaseTests)(
         'CREATED',
         'EXISTING'
       ])
-      expect(
-        await prisma.cardPaymentAttempt.count({ where: { cardId } })
-      ).toBe(1)
+      expect(await prisma.cardPaymentAttempt.count({ where: { cardId } })).toBe(
+        1
+      )
       const ntag = await prisma.ntag424.findUniqueOrThrow({
         where: { cid: ntag424Cid }
       })
@@ -131,13 +133,15 @@ describe.skipIf(!runDatabaseTests)(
         where: { cardId, status: { in: ['PENDING', 'UNKNOWN'] } },
         data: { status: 'REJECTED', resolvedAt: new Date() }
       })
-      await expect(claimCardPaymentAttempt(input(4, 'd'))).resolves.toMatchObject(
-        { outcome: 'CREATED' }
-      )
+      await expect(
+        claimCardPaymentAttempt(input(4, 'd'))
+      ).resolves.toMatchObject({ outcome: 'CREATED' })
       expect(
-        (await prisma.ntag424.findUniqueOrThrow({
-          where: { cid: ntag424Cid }
-        })).ctr
+        (
+          await prisma.ntag424.findUniqueOrThrow({
+            where: { cid: ntag424Cid }
+          })
+        ).ctr
       ).toBe(4)
     })
   }

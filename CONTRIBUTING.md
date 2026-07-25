@@ -47,12 +47,12 @@ before working on anything non-trivial.
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Node.js | `v22.14.0` | Pinned in [`.nvmrc`](./.nvmrc); `nvm use` to match |
-| pnpm | `10.11.0` | Pinned via `packageManager` field in [`package.json`](./package.json) |
-| PostgreSQL | 15+ | Use the bundled `docker-compose.yml` if you don't have one running |
-| Git | any recent | Hooks rely on a normal `pre-commit`-friendly setup |
+| Tool       | Version    | Notes                                                                 |
+| ---------- | ---------- | --------------------------------------------------------------------- |
+| Node.js    | `v22.14.0` | Pinned in [`.nvmrc`](./.nvmrc); `nvm use` to match                    |
+| pnpm       | `10.11.0`  | Pinned via `packageManager` field in [`package.json`](./package.json) |
+| PostgreSQL | 15+        | Use the bundled `docker-compose.yml` if you don't have one running    |
+| Git        | any recent | Hooks rely on a normal `pre-commit`-friendly setup                    |
 
 If you have [Corepack](https://nodejs.org/api/corepack.html) enabled, pnpm
 will be activated automatically. Otherwise install it with
@@ -169,21 +169,21 @@ with a readable error. Source of truth: [`apps/web/.env.example`](./apps/web/.en
 
 ### Required
 
-| Variable | Notes |
-|----------|-------|
+| Variable       | Notes                                                                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `DATABASE_URL` | Prisma connection string. Use `postgresql://lawallet:lawallet_password@localhost:5432/lawallet` if you ran `docker compose up -d postgres` |
-| `JWT_SECRET` | 32+ char random secret. Required for any authenticated route. Generate with `openssl rand -base64 48` |
+| `JWT_SECRET`   | 32+ char random secret. Required for any authenticated route. Generate with `openssl rand -base64 48`                                      |
 
 ### Frequently Used Optional
 
-| Variable | Purpose |
-|----------|---------|
-| `NODE_ENV` | `development` \| `test` \| `production` |
-| `LOG_LEVEL` | `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` \| `silent` |
-| `LOG_PRETTY` | `true` for human-readable logs in dev |
-| `MAINTENANCE_MODE` | `true` returns 503 for non-admin requests |
-| `ALBY_API_URL` / `ALBY_BEARER_TOKEN` / `AUTO_GENERATE_ALBY_SUBACCOUNTS` | Enable courtesy NWC subaccount provisioning |
-| `NEXT_PUBLIC_LAWALLET_LANDING_URL` | Where `/` redirects (defaults to `https://lawallet.io`) |
+| Variable                                                                | Purpose                                                                  |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `NODE_ENV`                                                              | `development` \| `test` \| `production`                                  |
+| `LOG_LEVEL`                                                             | `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` \| `silent` |
+| `LOG_PRETTY`                                                            | `true` for human-readable logs in dev                                    |
+| `MAINTENANCE_MODE`                                                      | `true` returns 503 for non-admin requests                                |
+| `ALBY_API_URL` / `ALBY_BEARER_TOKEN` / `AUTO_GENERATE_ALBY_SUBACCOUNTS` | Enable courtesy NWC subaccount provisioning                              |
+| `NEXT_PUBLIC_LAWALLET_LANDING_URL`                                      | Where `/` redirects (defaults to `https://lawallet.io`)                  |
 
 See [`apps/web/.env.example`](./apps/web/.env.example) for the full list.
 
@@ -284,20 +284,20 @@ When changing the schema:
 
 ### Workspace-level (from repo root)
 
-| Command | What it does |
-|---------|-------------|
-| `pnpm install` | Install all workspace deps |
-| `pnpm dev` | Run dev servers for every app |
-| `pnpm dev:web` | Run only the web app on `:3000` |
-| `pnpm dev:docs` | Run the docs app |
-| `pnpm build` | Build everything via Turbo |
-| `pnpm lint` | Lint every package |
-| `pnpm typecheck` | Type-check every package |
-| `pnpm test` | Run every package's test suite |
-| `pnpm test:coverage` | Run all tests with coverage |
-| `pnpm format` | Prettier across the whole repo |
-| `pnpm clean` | Clean Turbo + build outputs |
-| `pnpm studio` | Open Prisma Studio for `apps/web` |
+| Command              | What it does                      |
+| -------------------- | --------------------------------- |
+| `pnpm install`       | Install all workspace deps        |
+| `pnpm dev`           | Run dev servers for every app     |
+| `pnpm dev:web`       | Run only the web app on `:3000`   |
+| `pnpm dev:docs`      | Run the docs app                  |
+| `pnpm build`         | Build everything via Turbo        |
+| `pnpm lint`          | Lint every package                |
+| `pnpm typecheck`     | Type-check every package          |
+| `pnpm test`          | Run every package's test suite    |
+| `pnpm test:coverage` | Run all tests with coverage       |
+| `pnpm format`        | Prettier across the whole repo    |
+| `pnpm clean`         | Clean Turbo + build outputs       |
+| `pnpm studio`        | Open Prisma Studio for `apps/web` |
 
 ### Filtered to a single workspace
 
@@ -377,12 +377,12 @@ pnpm --filter @lawallet-nwc/web test:coverage
 
 Enforced by Vitest — CI fails below these:
 
-| Metric | Threshold |
-|--------|----------:|
-| Statements | 60% |
-| Branches | 75% |
-| Functions | 70% |
-| Lines | 60% |
+| Metric     | Threshold |
+| ---------- | --------: |
+| Statements |       60% |
+| Branches   |       75% |
+| Functions  |       70% |
+| Lines      |       60% |
 
 ### What we expect from PRs that touch backend code
 
@@ -407,7 +407,7 @@ Next.js App Router params.
 - **TypeScript** — strict. `pnpm typecheck` is part of CI; keep it green.
 - **No barrel exports for app code** — import from the file that defines the symbol.
 - **Path alias** — `@/*` maps to `apps/web/` root (e.g. `@/lib/jwt`).
-- **Comments** — write them only when the *why* isn't obvious from the code.
+- **Comments** — write them only when the _why_ isn't obvious from the code.
   Don't restate what the code does or reference the current PR / issue.
 
 ### Code patterns to follow
@@ -522,7 +522,7 @@ sure `apps/web/.env` has at least `DATABASE_URL` and `JWT_SECRET`.
 - For config/env-sensitive tests, use `vi.resetModules()` + dynamic
   `import()` to bust the module cache.
 - The logger calls `getConfig()` at import time — `vi.mock('@/lib/config')`
-  must run *before* importing the module under test.
+  must run _before_ importing the module under test.
 
 ---
 

@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createJwtToken } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { withErrorHandling } from '@/types/server/error-handler'
-import {
-  AuthenticationError,
-  InternalServerError,
-} from '@/types/server/errors'
+import { AuthenticationError, InternalServerError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { jwtRequestSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
@@ -39,10 +36,11 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       event: ActivityEvent.USER_AUTH_FAILED,
       level: 'WARN',
       message: 'NIP-98 authentication failed on /api/jwt',
-      metadata: { reason: error instanceof Error ? error.message : 'unknown' },
+      metadata: { reason: error instanceof Error ? error.message : 'unknown' }
     })
     throw new AuthenticationError('Invalid NIP-98 authentication', {
-      details: error instanceof Error ? error.message : 'Invalid or missing Nostr auth',
+      details:
+        error instanceof Error ? error.message : 'Invalid or missing Nostr auth'
     })
   }
 
@@ -50,7 +48,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   let expiresIn: string | number = '1h'
   try {
     const data = await validateBody(request, jwtRequestSchema)
-    expiresIn = /^\d+$/.test(data.expiresIn) ? Number(data.expiresIn) : data.expiresIn
+    expiresIn = /^\d+$/.test(data.expiresIn)
+      ? Number(data.expiresIn)
+      : data.expiresIn
   } catch {
     // Body is optional for this endpoint; default to 1h
   }
@@ -78,13 +78,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       pubkey: sessionPubkey,
       authPubkey: pubkey,
       role,
-      permissions,
+      permissions
     },
     config.jwt.secret,
     {
       expiresIn,
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users',
+      audience: 'lawallet-users'
     }
   )
 
@@ -93,13 +93,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     event: ActivityEvent.USER_JWT_ISSUED,
     message: `JWT issued for ${sessionPubkey.slice(0, 8)}… (role=${role})`,
     userId: account?.id ?? null,
-    metadata: { pubkey: sessionPubkey, authPubkey: pubkey, role, expiresIn },
+    metadata: { pubkey: sessionPubkey, authPubkey: pubkey, role, expiresIn }
   })
 
   return NextResponse.json({
     token,
     expiresIn,
-    type: 'Bearer',
+    type: 'Bearer'
   })
 })
 
@@ -127,7 +127,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   try {
     const result = await validateJwtFromRequest(request, jwtSecret!, {
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users',
+      audience: 'lawallet-users'
     })
 
     return NextResponse.json({
@@ -136,12 +136,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       role: result.payload.role,
       permissions: result.payload.permissions,
       issuedAt: new Date(result.payload.iat * 1000).toISOString(),
-      expiresAt: new Date(result.payload.exp * 1000).toISOString(),
+      expiresAt: new Date(result.payload.exp * 1000).toISOString()
     })
   } catch (error) {
     logger.error({ err: error }, 'JWT validation error')
     throw new AuthenticationError('Invalid or expired token', {
-      details: error instanceof Error ? error.message : 'Unknown error',
+      details: error instanceof Error ? error.message : 'Unknown error'
     })
   }
 })

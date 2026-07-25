@@ -1,3 +1,15 @@
 {
-  "pages": ["vision", "deploy", "architecture", "guides", "contributing", "plugins", "integrations", "roadmap", "reports", "...", "!index"]
+  "pages": [
+    "vision",
+    "deploy",
+    "architecture",
+    "guides",
+    "contributing",
+    "plugins",
+    "integrations",
+    "roadmap",
+    "reports",
+    "...",
+    "!index"
+  ]
 }

@@ -63,15 +63,15 @@ The first month focused on building a solid backend foundation. We exceeded the 
 
 ## Epics Completed (7)
 
-| Epic | Title | Closed |
-|------|-------|--------|
-| [#128](https://github.com/lawalletio/lawallet-nwc/issues/128) | Bug Fixes & Critical Issues | Jan 15 |
+| Epic                                                          | Title                           | Closed |
+| ------------------------------------------------------------- | ------------------------------- | ------ |
+| [#128](https://github.com/lawalletio/lawallet-nwc/issues/128) | Bug Fixes & Critical Issues     | Jan 15 |
 | [#129](https://github.com/lawalletio/lawallet-nwc/issues/129) | Error Handling & Infrastructure | Jan 15 |
-| [#131](https://github.com/lawalletio/lawallet-nwc/issues/131) | Configuration & Environment | Jan 15 |
-| [#130](https://github.com/lawalletio/lawallet-nwc/issues/130) | Logging & Observability | Jan 23 |
-| [#132](https://github.com/lawalletio/lawallet-nwc/issues/132) | Authorization & Security | Jan 30 |
-| [#133](https://github.com/lawalletio/lawallet-nwc/issues/133) | Security Middleware | Feb 5 |
-| [#134](https://github.com/lawalletio/lawallet-nwc/issues/134) | Testing Infrastructure | Feb 5 |
+| [#131](https://github.com/lawalletio/lawallet-nwc/issues/131) | Configuration & Environment     | Jan 15 |
+| [#130](https://github.com/lawalletio/lawallet-nwc/issues/130) | Logging & Observability         | Jan 23 |
+| [#132](https://github.com/lawalletio/lawallet-nwc/issues/132) | Authorization & Security        | Jan 30 |
+| [#133](https://github.com/lawalletio/lawallet-nwc/issues/133) | Security Middleware             | Feb 5  |
+| [#134](https://github.com/lawalletio/lawallet-nwc/issues/134) | Testing Infrastructure          | Feb 5  |
 
 ---
 

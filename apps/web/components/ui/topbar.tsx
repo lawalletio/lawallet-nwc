@@ -47,7 +47,16 @@ interface TopbarProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
   (
-    { className, title, subtitle, type = 'page', alert, actions, tabs, ...props },
+    {
+      className,
+      title,
+      subtitle,
+      type = 'page',
+      alert,
+      actions,
+      tabs,
+      ...props
+    },
     ref
   ) => (
     <div ref={ref} className={cn('w-full', className)} {...props}>
@@ -84,7 +93,7 @@ const Topbar = React.forwardRef<HTMLDivElement, TopbarProps>(
 
       {tabs && tabs.length > 0 && (
         <div className="flex items-center justify-center gap-4 px-4 sm:px-6 py-2 bg-accent border-b border-border">
-          {tabs.map((tab) => (
+          {tabs.map(tab => (
             <button
               key={tab.label}
               onClick={tab.onClick}

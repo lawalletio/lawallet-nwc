@@ -11,7 +11,7 @@ interface AddressRoutingShortcutsProps {
 
 function addressConfigureHref(
   username: string | null | undefined,
-  mode: 'wallet' | 'redirect',
+  mode: 'wallet' | 'redirect'
 ) {
   const query =
     mode === 'redirect'
@@ -23,21 +23,21 @@ function addressConfigureHref(
 
 export function AddressRoutingShortcuts({
   username,
-  className,
+  className
 }: AddressRoutingShortcutsProps) {
   const options = [
     {
       label: 'Connect wallet',
       icon: Wallet,
       href: addressConfigureHref(username, 'wallet'),
-      tone: 'wallet',
+      tone: 'wallet'
     },
     {
       label: 'Redirect',
       icon: Forward,
       href: addressConfigureHref(username, 'redirect'),
-      tone: 'redirect',
-    },
+      tone: 'redirect'
+    }
   ] as const
 
   return (
@@ -50,22 +50,20 @@ export function AddressRoutingShortcuts({
             'group relative isolate flex h-[clamp(220px,34vw,338px)] max-h-[338px] overflow-hidden rounded-xl border p-5 text-left transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-1 hover:shadow-[0_18px_44px_rgba(0,0,0,0.22)] active:translate-y-0',
             option.tone === 'wallet'
               ? 'border-[#897FFF]/30 bg-[radial-gradient(circle_at_22%_18%,rgba(137,127,255,0.22),transparent_34%),linear-gradient(135deg,rgba(137,127,255,0.14),rgba(137,127,255,0.035)_62%,rgba(255,255,255,0.035))] hover:border-[#897FFF]/70'
-              : 'border-primary/30 bg-[radial-gradient(circle_at_22%_18%,hsl(var(--primary)/0.22),transparent_34%),linear-gradient(135deg,hsl(var(--primary)/0.14),hsl(var(--primary)/0.035)_62%,rgba(255,255,255,0.035))] hover:border-primary/70',
+              : 'border-primary/30 bg-[radial-gradient(circle_at_22%_18%,hsl(var(--primary)/0.22),transparent_34%),linear-gradient(135deg,hsl(var(--primary)/0.14),hsl(var(--primary)/0.035)_62%,rgba(255,255,255,0.035))] hover:border-primary/70'
           )}
         >
           <option.icon
             className={cn(
               'absolute -bottom-[10%] -right-[7%] z-[-1] size-[88%] stroke-[1.05] opacity-55 transition-[opacity,transform] duration-300 ease-out group-hover:scale-110 group-hover:rotate-[-4deg] group-hover:opacity-75',
-              option.tone === 'wallet' ? 'text-[#897FFF]' : 'text-primary',
+              option.tone === 'wallet' ? 'text-[#897FFF]' : 'text-primary'
             )}
             aria-hidden
           />
           <span
             className={cn(
               'absolute inset-3 z-[-2] rounded-lg opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-100',
-              option.tone === 'wallet'
-                ? 'bg-[#897FFF]/25'
-                : 'bg-primary/25',
+              option.tone === 'wallet' ? 'bg-[#897FFF]/25' : 'bg-primary/25'
             )}
             aria-hidden
           />
@@ -93,14 +91,14 @@ interface AddressRedirectCardProps {
 export function AddressRedirectCard({
   username,
   redirect,
-  className,
+  className
 }: AddressRedirectCardProps) {
   return (
     <Link
       href={addressConfigureHref(username, 'redirect')}
       className={cn(
         'group relative isolate flex w-full items-center gap-4 overflow-hidden rounded-xl border border-primary/30 bg-[radial-gradient(circle_at_22%_18%,hsl(var(--primary)/0.22),transparent_38%),linear-gradient(135deg,hsl(var(--primary)/0.14),hsl(var(--primary)/0.035)_62%,rgba(255,255,255,0.035))] p-5 text-left transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/70 hover:shadow-[0_18px_44px_rgba(0,0,0,0.22)]',
-        className,
+        className
       )}
     >
       <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">

@@ -7,28 +7,28 @@ import { Role } from '@/lib/auth/permissions'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/events/event-bus', () => ({ eventBus: { emit: vi.fn() } }))
 
 vi.mock('@/lib/activity-log', async importActual => ({
   ...(await importActual<typeof import('@/lib/activity-log')>()),
-  logActivity: { fireAndForget: vi.fn() },
+  logActivity: { fireAndForget: vi.fn() }
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({ authenticate: vi.fn() }))
@@ -40,12 +40,17 @@ const ownerPubkey = 'a'.repeat(64)
 const otherPubkey = 'b'.repeat(64)
 
 const mockAuth = (pubkey: string, role: Role = Role.USER) =>
-  vi.mocked(authenticate).mockResolvedValue({ role, pubkey, method: 'jwt' } as any)
+  vi
+    .mocked(authenticate)
+    .mockResolvedValue({ role, pubkey, method: 'jwt' } as any)
 
 function put(userId: string, body: unknown) {
   return PUT(
-    createNextRequest(`/api/users/${userId}/relays`, { method: 'PUT', body }) as any,
-    createParamsPromise({ userId }),
+    createNextRequest(`/api/users/${userId}/relays`, {
+      method: 'PUT',
+      body
+    }) as any,
+    createParamsPromise({ userId })
   )
 }
 
@@ -57,10 +62,15 @@ beforeEach(() => {
 describe('PUT /api/users/[userId]/relays', () => {
   it('lets the owner set their relays', async () => {
     mockAuth(ownerPubkey)
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'u1', pubkey: ownerPubkey } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      pubkey: ownerPubkey
+    } as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({ id: 'u1' } as any)
 
-    const res = await put('u1', { relays: ['wss://lacrypta.ar', 'wss://relay.damus.io'] })
+    const res = await put('u1', {
+      relays: ['wss://lacrypta.ar', 'wss://relay.damus.io']
+    })
     const body: any = await assertResponse(res, 200)
 
     expect(body.relays).toEqual(['wss://lacrypta.ar', 'wss://relay.damus.io'])
@@ -69,19 +79,22 @@ describe('PUT /api/users/[userId]/relays', () => {
         where: { id: 'u1' },
         data: expect.objectContaining({
           relays: JSON.stringify(['wss://lacrypta.ar', 'wss://relay.damus.io']),
-          relaysUpdatedAt: expect.any(Date),
-        }),
-      }),
+          relaysUpdatedAt: expect.any(Date)
+        })
+      })
     )
   })
 
   it('dedups relays case- and trailing-slash-insensitively', async () => {
     mockAuth(ownerPubkey)
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'u1', pubkey: ownerPubkey } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      pubkey: ownerPubkey
+    } as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({ id: 'u1' } as any)
 
     const res = await put('u1', {
-      relays: ['wss://lacrypta.ar', 'wss://LaCrypta.ar/', 'wss://nos.lol'],
+      relays: ['wss://lacrypta.ar', 'wss://LaCrypta.ar/', 'wss://nos.lol']
     })
     const body: any = await assertResponse(res, 200)
 
@@ -90,24 +103,33 @@ describe('PUT /api/users/[userId]/relays', () => {
 
   it('clears the preference (null) on an empty array', async () => {
     mockAuth(ownerPubkey)
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'u1', pubkey: ownerPubkey } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      pubkey: ownerPubkey
+    } as any)
     vi.mocked(prismaMock.user.update).mockResolvedValue({ id: 'u1' } as any)
 
     await assertResponse(await put('u1', { relays: [] }), 200)
     expect(prismaMock.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ relays: null, relaysUpdatedAt: expect.any(Date) }),
-      }),
+        data: expect.objectContaining({
+          relays: null,
+          relaysUpdatedAt: expect.any(Date)
+        })
+      })
     )
   })
 
   it('rejects a non-owner with 403 and does not write', async () => {
     mockAuth(otherPubkey)
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'u1', pubkey: ownerPubkey } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      pubkey: ownerPubkey
+    } as any)
     // The caller's pubkey resolves to their OWN account (distinct from the
     // target) via the NostrIdentity seam.
     vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
-      user: { id: 'u2', pubkey: otherPubkey, role: 'USER' },
+      user: { id: 'u2', pubkey: otherPubkey, role: 'USER' }
     } as any)
 
     await assertResponse(await put('u1', { relays: ['wss://nos.lol'] }), 403)
@@ -116,9 +138,15 @@ describe('PUT /api/users/[userId]/relays', () => {
 
   it('rejects non-ws(s) relay URLs with 400', async () => {
     mockAuth(ownerPubkey)
-    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({ id: 'u1', pubkey: ownerPubkey } as any)
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      pubkey: ownerPubkey
+    } as any)
 
-    await assertResponse(await put('u1', { relays: ['https://not-a-relay.example'] }), 400)
+    await assertResponse(
+      await put('u1', { relays: ['https://not-a-relay.example'] }),
+      400
+    )
     expect(prismaMock.user.update).not.toHaveBeenCalled()
   })
 

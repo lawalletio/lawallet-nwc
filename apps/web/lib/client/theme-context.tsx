@@ -1,6 +1,12 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback
+} from 'react'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 
 // ─── Theme color presets ───────────────────────────────────────────────────
@@ -14,9 +20,9 @@ export interface ThemePreset {
   primaryForeground: string
   ring: string
   // Gradient stops for "theme" button variant (darker → lighter of the accent)
-  theme200: string  // darkest — border, text-shadow
-  theme300: string  // border color
-  theme400: string  // lightest — gradient-to, inner shadow
+  theme200: string // darkest — border, text-shadow
+  theme300: string // border color
+  theme400: string // lightest — gradient-to, inner shadow
 }
 
 export const THEME_PRESETS: ThemePreset[] = [
@@ -28,7 +34,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     ring: '0 0% 45.1%',
     theme200: '#404040',
     theme300: '#404040',
-    theme400: '#a3a3a3',
+    theme400: '#a3a3a3'
   },
   {
     name: 'Pink',
@@ -38,7 +44,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     ring: '330 81% 45%',
     theme200: '#9d174d',
     theme300: '#be185d',
-    theme400: '#db2777',
+    theme400: '#db2777'
   },
   {
     name: 'Orange',
@@ -48,7 +54,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     ring: '25 95% 40%',
     theme200: '#9a3412',
     theme300: '#c2410c',
-    theme400: '#ea580c',
+    theme400: '#ea580c'
   },
   {
     name: 'Yellow',
@@ -58,7 +64,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     ring: '48 96% 35%',
     theme200: '#854d0e',
     theme300: '#a16207',
-    theme400: '#ca8a04',
+    theme400: '#ca8a04'
   },
   {
     name: 'Green',
@@ -68,7 +74,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     ring: '142 71% 35%',
     theme200: '#166534',
     theme300: '#15803d',
-    theme400: '#16a34a',
+    theme400: '#16a34a'
   },
   {
     name: 'Blue',
@@ -78,7 +84,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     ring: '217 91% 45%',
     theme200: '#1e40af',
     theme300: '#1d4ed8',
-    theme400: '#2563eb',
+    theme400: '#2563eb'
   },
   {
     name: 'Violet',
@@ -88,7 +94,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     ring: '258 90% 50%',
     theme200: '#5b21b6',
     theme300: '#6d28d9',
-    theme400: '#7c3aed',
+    theme400: '#7c3aed'
   },
   {
     name: 'Purple',
@@ -98,20 +104,20 @@ export const THEME_PRESETS: ThemePreset[] = [
     ring: '270 91% 50%',
     theme200: '#6b21a8',
     theme300: '#7e22ce',
-    theme400: '#9333ea',
-  },
+    theme400: '#9333ea'
+  }
 ]
 
 // ─── Rounding presets ─────────────────────────────────────────────────────
 
 export const ROUNDING_OPTIONS = ['None', 'Small', 'Medium', 'Full'] as const
-export type RoundingOption = typeof ROUNDING_OPTIONS[number]
+export type RoundingOption = (typeof ROUNDING_OPTIONS)[number]
 
 const ROUNDING_VALUES: Record<RoundingOption, string> = {
   None: '0rem',
   Small: '0.375rem',
   Medium: '0.75rem',
-  Full: '1.5rem',
+  Full: '1.5rem'
 }
 
 const COLOR_STORAGE_KEY = 'lawallet-theme-color'
@@ -127,7 +133,7 @@ interface ThemeContextValue {
   presets: ThemePreset[]
   rounding: RoundingOption
   setRounding: (option: RoundingOption) => void
-  roundingOptions: readonly typeof ROUNDING_OPTIONS[number][]
+  roundingOptions: readonly (typeof ROUNDING_OPTIONS)[number][]
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
@@ -146,7 +152,10 @@ function applyPreset(preset: ThemePreset) {
   root.style.setProperty('--primary-foreground', preset.primaryForeground)
   root.style.setProperty('--ring', preset.ring)
   root.style.setProperty('--sidebar-primary', preset.primary)
-  root.style.setProperty('--sidebar-primary-foreground', preset.primaryForeground)
+  root.style.setProperty(
+    '--sidebar-primary-foreground',
+    preset.primaryForeground
+  )
   root.style.setProperty('--sidebar-ring', preset.ring)
   // Theme button gradient stops
   root.style.setProperty('--theme-200', preset.theme200)
@@ -155,7 +164,10 @@ function applyPreset(preset: ThemePreset) {
 }
 
 function applyRounding(option: RoundingOption) {
-  document.documentElement.style.setProperty('--radius', ROUNDING_VALUES[option])
+  document.documentElement.style.setProperty(
+    '--radius',
+    ROUNDING_VALUES[option]
+  )
 }
 
 function loadSavedPreset(): ThemePreset {
@@ -163,7 +175,7 @@ function loadSavedPreset(): ThemePreset {
   try {
     const saved = localStorage.getItem(COLOR_STORAGE_KEY)
     if (saved) {
-      const found = THEME_PRESETS.find((p) => p.hex === saved)
+      const found = THEME_PRESETS.find(p => p.hex === saved)
       if (found) return found
     }
   } catch {}
@@ -183,8 +195,12 @@ function loadSavedRounding(): RoundingOption {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { data: settings } = useSettings()
-  const [activePreset, setActivePreset] = useState<ThemePreset>(() => loadSavedPreset())
-  const [rounding, setRoundingState] = useState<RoundingOption>(() => loadSavedRounding())
+  const [activePreset, setActivePreset] = useState<ThemePreset>(() =>
+    loadSavedPreset()
+  )
+  const [rounding, setRoundingState] = useState<RoundingOption>(() =>
+    loadSavedRounding()
+  )
 
   useEffect(() => {
     applyPreset(activePreset)
@@ -221,7 +237,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         } catch {}
       }
     }
-  }, [activePreset.hex, rounding, settings?.brand_rounding, settings?.brand_theme])
+  }, [
+    activePreset.hex,
+    rounding,
+    settings?.brand_rounding,
+    settings?.brand_theme
+  ])
 
   const setTheme = useCallback((preset: ThemePreset) => {
     setActivePreset(preset)
@@ -240,7 +261,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <ThemeContext.Provider value={{ activePreset, setTheme, presets: THEME_PRESETS, rounding, setRounding, roundingOptions: ROUNDING_OPTIONS }}>
+    <ThemeContext.Provider
+      value={{
+        activePreset,
+        setTheme,
+        presets: THEME_PRESETS,
+        rounding,
+        setRounding,
+        roundingOptions: ROUNDING_OPTIONS
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   )

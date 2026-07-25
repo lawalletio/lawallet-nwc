@@ -1,7 +1,9 @@
 import { createServer } from 'node:http'
 import { getOpenApiDocument } from '../src/index.ts'
 
-const port = Number(process.env.OPENAPI_PORT ?? process.env.OPENAPI_DEV_PORT ?? 4500)
+const port = Number(
+  process.env.OPENAPI_PORT ?? process.env.OPENAPI_DEV_PORT ?? 4500
+)
 const host = process.env.OPENAPI_HOST ?? '127.0.0.1'
 
 const server = createServer((req, res) => {
@@ -10,24 +12,24 @@ const server = createServer((req, res) => {
   if (url === '/health') {
     res.writeHead(200, {
       'content-type': 'application/json',
-      'access-control-allow-origin': '*',
+      'access-control-allow-origin': '*'
     })
     res.end(
       JSON.stringify({
         status: 'ok',
-        service: 'openapi',
-      }),
+        service: 'openapi'
+      })
     )
     return
   }
 
   if (url === '/openapi.json' || url === '/') {
     const doc = getOpenApiDocument({
-      serverUrl: process.env.OPENAPI_SERVER_URL ?? `http://127.0.0.1:2288`,
+      serverUrl: process.env.OPENAPI_SERVER_URL ?? `http://127.0.0.1:2288`
     })
     res.writeHead(200, {
       'content-type': 'application/json',
-      'access-control-allow-origin': '*',
+      'access-control-allow-origin': '*'
     })
     res.end(JSON.stringify(doc, null, 2))
     return
@@ -46,6 +48,6 @@ server.listen(port, host, () => {
   process.stdout.write(
     `\n${bold}@lawallet-nwc/openapi${reset} ${dim}— dev server${reset}\n` +
       `  ${cyan}▶ Spec:${reset}       ${base}/openapi.json\n` +
-      `  ${dim}Press Ctrl+C to stop${reset}\n\n`,
+      `  ${dim}Press Ctrl+C to stop${reset}\n\n`
   )
 })

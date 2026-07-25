@@ -180,7 +180,7 @@ export function checkFileLimits(
 
   // Extract all File entries from FormData
   const files: File[] = []
-  formData.forEach((value) => {
+  formData.forEach(value => {
     if (value instanceof File) {
       files.push(value)
     }
@@ -188,10 +188,7 @@ export function checkFileLimits(
 
   // Check file count
   if (maxFiles !== undefined && files.length > maxFiles) {
-    logger.warn(
-      { fileCount: files.length, maxFiles },
-      'request.too_many_files'
-    )
+    logger.warn({ fileCount: files.length, maxFiles }, 'request.too_many_files')
     throw new PayloadTooLargeError(
       `Too many files. Maximum is ${maxFiles} file${maxFiles === 1 ? '' : 's'}.`,
       {

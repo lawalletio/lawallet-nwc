@@ -12,9 +12,12 @@ export type { AnalyticsEventName, EventParams }
  * the helper directly. The returned `trackEvent` is referentially stable.
  */
 export function useAnalytics() {
-  const track = useCallback((name: AnalyticsEventName, params?: EventParams) => {
-    trackEvent(name, params)
-  }, [])
+  const track = useCallback(
+    (name: AnalyticsEventName, params?: EventParams) => {
+      trackEvent(name, params)
+    },
+    []
+  )
 
   return { trackEvent: track }
 }

@@ -33,9 +33,7 @@ const CHALLENGE = 'test-challenge-0123456789abcdef'
 // A real secp256k1 secret so pubkey derivation works.
 const SECRET_HEX =
   '0000000000000000000000000000000000000000000000000000000000000007'
-const PUBKEY = getPublicKey(
-  Uint8Array.from(Buffer.from(SECRET_HEX, 'hex'))
-)
+const PUBKEY = getPublicKey(Uint8Array.from(Buffer.from(SECRET_HEX, 'hex')))
 
 const PRF_OUTPUT = new Uint8Array(32).fill(9).buffer
 
@@ -129,9 +127,7 @@ describe('authenticateWithPasskey', () => {
 })
 
 describe('registerPasskeyAccount', () => {
-  function seedServer(
-    onVerify?: (body: any) => Response | undefined
-  ) {
+  function seedServer(onVerify?: (body: any) => Response | undefined) {
     server.use(
       http.post('/api/auth/passkey/registration/options', () =>
         HttpResponse.json({ options: { challenge: CHALLENGE } })

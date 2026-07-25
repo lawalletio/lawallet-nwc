@@ -13,7 +13,7 @@ import { isDevEnv, startImpersonation } from '@/lib/client/dev-impersonation'
  */
 export function ImpersonateUserButton({
   pubkey,
-  className,
+  className
 }: {
   pubkey: string
   className?: string
@@ -43,7 +43,7 @@ export function ImpersonateUserButton({
       title="Impersonate user (dev)"
       className={cn(
         'flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-amber-400/15 hover:text-amber-500 disabled:opacity-50',
-        className,
+        className
       )}
     >
       {loading ? <Spinner size={16} /> : <VenetianMask className="size-4" />}

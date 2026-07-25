@@ -19,7 +19,12 @@ interface SendResult {
   body: string
 }
 
-export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalProps) {
+export function Nip98Modal({
+  method,
+  path,
+  defaultBody,
+  onClose
+}: Nip98ModalProps) {
   const [signer, setSigner] = useState<NostrSigner | null>(null)
   const [pubkey, setPubkey] = useState<string | null>(null)
   const [body, setBody] = useState(defaultBody ?? '')
@@ -29,12 +34,14 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
   const [busy, setBusy] = useState<'connect' | 'sign' | 'send' | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
-  const bodyRequired = method !== 'GET' && method !== 'DELETE' && method !== 'HEAD'
+  const bodyRequired =
+    method !== 'GET' && method !== 'DELETE' && method !== 'HEAD'
 
   // Auto-connect on mount: if a NIP-07 extension is present the user almost
   // certainly opened this modal to sign, so save them a click.
   useEffect(() => {
-    if (typeof window === 'undefined' || !(window as { nostr?: unknown }).nostr) return
+    if (typeof window === 'undefined' || !(window as { nostr?: unknown }).nostr)
+      return
     void connect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -96,8 +103,8 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
         method,
         headers: {
           Authorization: authHeader,
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json'
+        }
       }
       if (bodyRequired && body.trim()) init.body = body
       const res = await fetch(path, init)
@@ -105,7 +112,7 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
       setResponse({
         status: res.status,
         statusText: res.statusText,
-        body: tryFormatJson(text),
+        body: tryFormatJson(text)
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -136,7 +143,7 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
         justifyContent: 'center',
         padding: '5vh 1rem',
         zIndex: 9999,
-        backdropFilter: 'blur(2px)',
+        backdropFilter: 'blur(2px)'
       }}
     >
       <div
@@ -152,7 +159,7 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
           overflow: 'auto',
           fontFamily: 'var(--scalar-font, inherit)',
           fontSize: 14,
-          boxShadow: '0 24px 64px rgba(0,0,0,0.35)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.35)'
         }}
       >
         <header
@@ -161,7 +168,7 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '16px 20px',
-            borderBottom: '1px solid var(--scalar-border-color)',
+            borderBottom: '1px solid var(--scalar-border-color)'
           }}
         >
           <div>
@@ -175,7 +182,7 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
               style={{
                 margin: '4px 0 0',
                 fontSize: 12,
-                color: 'var(--scalar-color-2)',
+                color: 'var(--scalar-color-2)'
               }}
             >
               Build a NIP-98 signed request using your browser&apos;s Nostr
@@ -207,12 +214,14 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
                 marginTop: 6,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
+                gap: 12
               }}
             >
               {signer && pubkey ? (
                 <>
-                  <span style={dotStyle('var(--scalar-color-green, #22c55e)')} />
+                  <span
+                    style={dotStyle('var(--scalar-color-green, #22c55e)')}
+                  />
                   <span style={{ fontSize: 13 }}>
                     Connected as{' '}
                     <code style={inlineCodeStyle()}>
@@ -227,7 +236,9 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
                   disabled={busy !== null}
                   style={btnStyle('outline')}
                 >
-                  {busy === 'connect' ? 'Connecting…' : 'Connect browser extension'}
+                  {busy === 'connect'
+                    ? 'Connecting…'
+                    : 'Connect browser extension'}
                 </button>
               )}
             </div>
@@ -294,7 +305,7 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
                     color:
                       response.status < 400
                         ? 'var(--scalar-color-green, #22c55e)'
-                        : 'var(--scalar-color-red, #ef4444)',
+                        : 'var(--scalar-color-red, #ef4444)'
                   }}
                 >
                   {response.status} {response.statusText}
@@ -316,9 +327,10 @@ export function Nip98Modal({ method, path, defaultBody, onClose }: Nip98ModalPro
                 padding: '10px 12px',
                 borderRadius: 8,
                 border: '1px solid var(--scalar-color-red, #ef4444)',
-                background: 'color-mix(in srgb, var(--scalar-color-red, #ef4444) 12%, transparent)',
+                background:
+                  'color-mix(in srgb, var(--scalar-color-red, #ef4444) 12%, transparent)',
                 color: 'var(--scalar-color-red, #ef4444)',
-                fontSize: 13,
+                fontSize: 13
               }}
             >
               {error}
@@ -345,7 +357,7 @@ function LabelText({ children }: { children: React.ReactNode }) {
         fontWeight: 600,
         color: 'var(--scalar-color-2)',
         textTransform: 'uppercase',
-        letterSpacing: 0.4,
+        letterSpacing: 0.4
       }}
     >
       {children}
@@ -361,7 +373,7 @@ function RowGrid({ children }: { children: React.ReactNode }) {
         gridTemplateColumns: 'auto 1fr',
         rowGap: 6,
         columnGap: 12,
-        alignItems: 'center',
+        alignItems: 'center'
       }}
     >
       {children}
@@ -371,7 +383,7 @@ function RowGrid({ children }: { children: React.ReactNode }) {
 
 function inputStyle({
   font = 'sans',
-  readonly = false,
+  readonly = false
 }: {
   font?: 'sans' | 'mono'
   readonly?: boolean
@@ -392,12 +404,12 @@ function inputStyle({
         ? 'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)'
         : 'var(--scalar-font, inherit)',
     resize: 'vertical',
-    outline: 'none',
+    outline: 'none'
   }
 }
 
 function btnStyle(
-  variant: 'primary' | 'secondary' | 'outline',
+  variant: 'primary' | 'secondary' | 'outline'
 ): React.CSSProperties {
   const base: React.CSSProperties = {
     padding: '8px 14px',
@@ -406,13 +418,13 @@ function btnStyle(
     fontWeight: 500,
     cursor: 'pointer',
     transition: 'opacity 120ms',
-    border: '1px solid transparent',
+    border: '1px solid transparent'
   }
   if (variant === 'primary') {
     return {
       ...base,
       background: 'var(--scalar-button-1, var(--scalar-color-accent))',
-      color: 'var(--scalar-button-1-color, white)',
+      color: 'var(--scalar-button-1-color, white)'
     }
   }
   if (variant === 'secondary') {
@@ -420,14 +432,14 @@ function btnStyle(
       ...base,
       background: 'var(--scalar-background-3)',
       color: 'var(--scalar-color-1)',
-      border: '1px solid var(--scalar-border-color)',
+      border: '1px solid var(--scalar-border-color)'
     }
   }
   return {
     ...base,
     background: 'transparent',
     color: 'var(--scalar-color-1)',
-    border: '1px solid var(--scalar-border-color)',
+    border: '1px solid var(--scalar-border-color)'
   }
 }
 
@@ -441,7 +453,7 @@ function iconBtnStyle(): React.CSSProperties {
     background: 'transparent',
     color: 'var(--scalar-color-2)',
     borderRadius: 6,
-    cursor: 'pointer',
+    cursor: 'pointer'
   }
 }
 
@@ -454,7 +466,7 @@ function codeChipStyle(): React.CSSProperties {
     fontSize: 12,
     fontFamily:
       'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
-    width: 'fit-content',
+    width: 'fit-content'
   }
 }
 
@@ -465,7 +477,7 @@ function inlineCodeStyle(): React.CSSProperties {
     borderRadius: 3,
     fontSize: 12,
     fontFamily:
-      'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)',
+      'var(--scalar-font-code, ui-monospace, SFMono-Regular, Menlo, monospace)'
   }
 }
 
@@ -475,7 +487,7 @@ function dotStyle(color: string): React.CSSProperties {
     width: 8,
     height: 8,
     borderRadius: '50%',
-    background: color,
+    background: color
   }
 }
 

@@ -3,7 +3,7 @@ import {
   inlineJsonResponse,
   publicErrorResponses,
   publicSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 import { responses } from '../responses'
@@ -19,18 +19,19 @@ registry.registerPath({
   method: 'get',
   path: '/api/remote-connections/{externalDeviceKey}',
   tags: [TAG],
-  summary: 'Bootstrap metadata for a remote device (auth via shared device key).',
+  summary:
+    'Bootstrap metadata for a remote device (auth via shared device key).',
   operationId: 'remoteConnections.get',
   security: publicSecurity,
   request: { params: schemas.ExternalDeviceKeyParam },
   responses: {
     200: inlineJsonResponse(
       'Remote device metadata.',
-      z.object({}).passthrough(),
+      z.object({}).passthrough()
     ),
     ...publicErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -38,22 +39,25 @@ registry.registerPath({
   method: 'post',
   path: '/api/remote-connections/{externalDeviceKey}/cards',
   tags: [TAG],
-  summary: 'Initialize a card from a remote device (auth via shared device key).',
+  summary:
+    'Initialize a card from a remote device (auth via shared device key).',
   operationId: 'remoteConnections.cards.create',
   security: publicSecurity,
   request: {
     params: schemas.ExternalDeviceKeyParam,
     body: {
-      content: { 'application/json': { schema: schemas.RemoteCardCreateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.RemoteCardCreateRequest }
+      }
+    }
   },
   responses: {
     201: inlineJsonResponse(
       'Remote card initialized.',
-      z.object({ id: z.string() }).passthrough(),
+      z.object({ id: z.string() }).passthrough()
     ),
     ...publicErrorResponses,
     404: responses.notFound,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })

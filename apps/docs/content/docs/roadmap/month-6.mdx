@@ -1,6 +1,6 @@
 ---
-title: "Month 6: NWC Payment Listener + Card Activation + Deploy Targets + Backup & Restore"
-description: "Expansion phase: NWC Payment Listener as a live transport service, SIMPLE/ONE_TIME card activation, deploy targets, Backup & Restore. Settlement/compliance deferred to Month 7."
+title: 'Month 6: NWC Payment Listener + Card Activation + Deploy Targets + Backup & Restore'
+description: 'Expansion phase: NWC Payment Listener as a live transport service, SIMPLE/ONE_TIME card activation, deploy targets, Backup & Restore. Settlement/compliance deferred to Month 7.'
 ---
 
 import { CheckCircle2 } from 'lucide-react'
@@ -10,7 +10,16 @@ import { CheckCircle2 } from 'lucide-react'
 **Depends on:** Month 5 (Remote Wallets + Card System Apps + Platform Polish)
 
 <Callout type="info" title="Status update (2026-07)">
-  The infrastructure tier shipped across v1.1.0 → v1.4.0 — the NWC Payment Listener as a live transport service, the **SIMPLE / ONE_TIME** card activation flow (`/wallet/activate/[id]`), deploy targets (Docker Hub / Umbrel / Start9), Backup & Restore, and listener hardening. The **settlement / share / compliance** items were deferred to [Month 7](./month-7): MASTER card account-share (FOREVER QRs + the `CardClaim` / `LightningAddressShare` / `RemoteWalletShare` model), NWC Proxy Lite, full LUD-16 / LUD-21 / LUD-22 / NIP-57 closeout, `@lawallet-nwc/react`, the WordPress plugin, the Resend adapter, and the Nostr scheduler. The spec below is retained as the design of record for that carried-over work.
+  The infrastructure tier shipped across v1.1.0 → v1.4.0 — the NWC Payment
+  Listener as a live transport service, the **SIMPLE / ONE_TIME** card
+  activation flow (`/wallet/activate/[id]`), deploy targets (Docker Hub / Umbrel
+  / Start9), Backup & Restore, and listener hardening. The **settlement / share
+  / compliance** items were deferred to [Month 7](./month-7): MASTER card
+  account-share (FOREVER QRs + the `CardClaim` / `LightningAddressShare` /
+  `RemoteWalletShare` model), NWC Proxy Lite, full LUD-16 / LUD-21 / LUD-22 /
+  NIP-57 closeout, `@lawallet-nwc/react`, the WordPress plugin, the Resend
+  adapter, and the Nostr scheduler. The spec below is retained as the design of
+  record for that carried-over work.
 </Callout>
 
 ## Summary
@@ -158,16 +167,16 @@ A WordPress plugin that integrates LaWallet (Lightning Address / LNURL-pay / NWC
 
 ## Acceptance Criteria
 
-| Deliverable | Criteria | Priority |
-|-------------|----------|----------|
-| WordPress plugin (`lawallet-wordpress`) | Plugin integrates LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress; live demo at `wordpress.lawallet.io` | P1 |
-| API docs | OpenAPI spec complete, interactive docs deployed | P0 |
-| ARCHITECTURE.md | Diagrams, data flow, all services + lncurl documented | P0 |
-| CONTRIBUTING.md | Setup guide, standards, PR process | P0 |
-| Vercel config | One-click deploy working | P1 |
-| Netlify config | Deploy guide working | P1 |
-| Umbrel package | Web + Listener containers, installable from app store | P0 |
-| Start9 package | Embassy package submitted | P1 |
-| Docker Compose | Web + Listener containers running with reverse proxy | P0 |
-| Security docs | Threat model, crypto operations documented | P1 |
-| SDK/Hooks docs | Full API reference, usage examples | P1 |
+| Deliverable                             | Criteria                                                                                                              | Priority |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------- |
+| WordPress plugin (`lawallet-wordpress`) | Plugin integrates LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress; live demo at `wordpress.lawallet.io` | P1       |
+| API docs                                | OpenAPI spec complete, interactive docs deployed                                                                      | P0       |
+| ARCHITECTURE.md                         | Diagrams, data flow, all services + lncurl documented                                                                 | P0       |
+| CONTRIBUTING.md                         | Setup guide, standards, PR process                                                                                    | P0       |
+| Vercel config                           | One-click deploy working                                                                                              | P1       |
+| Netlify config                          | Deploy guide working                                                                                                  | P1       |
+| Umbrel package                          | Web + Listener containers, installable from app store                                                                 | P0       |
+| Start9 package                          | Embassy package submitted                                                                                             | P1       |
+| Docker Compose                          | Web + Listener containers running with reverse proxy                                                                  | P0       |
+| Security docs                           | Threat model, crypto operations documented                                                                            | P1       |
+| SDK/Hooks docs                          | Full API reference, usage examples                                                                                    | P1       |

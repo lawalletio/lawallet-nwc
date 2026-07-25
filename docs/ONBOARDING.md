@@ -108,8 +108,8 @@ At any stage, users can:
 
 When resolving a lightning address, the platform checks in this order:
 
-| Priority | Method | Description |
-|----------|--------|-------------|
-| 1 | Own NWC Connection | User connected their own NWC wallet |
-| 2 | Courtesy NWC | Temporary connection via Courtesy NWC Proxy |
-| 3 | Alias / Redirect | Redirects to external lightning address |
+| Priority | Method             | Description                                 |
+| -------- | ------------------ | ------------------------------------------- |
+| 1        | Own NWC Connection | User connected their own NWC wallet         |
+| 2        | Courtesy NWC       | Temporary connection via Courtesy NWC Proxy |
+| 3        | Alias / Redirect   | Redirects to external lightning address     |

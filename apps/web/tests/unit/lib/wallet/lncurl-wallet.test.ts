@@ -4,12 +4,12 @@ import { createRemoteWalletFixture } from '@/tests/helpers/fixtures'
 
 // Logger reads config at module load — stub both before importing the SUT.
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: unknown) => fn,
+  withRequestLogging: (fn: unknown) => fn
 }))
 
 // The network mint is exercised by lncurl.test.ts — here we stub it so the
@@ -18,14 +18,14 @@ const LNCURL_URI = `nostr+walletconnect://${'b'.repeat(64)}?relay=wss%3A%2F%2Fr.
 vi.mock('@/lib/lncurl', () => ({
   createLncurlWallet: vi.fn(async () => ({
     connectionString: LNCURL_URI,
-    mode: 'SEND_RECEIVE' as const,
+    mode: 'SEND_RECEIVE' as const
   })),
-  DEFAULT_LNCURL_SERVER: 'https://lncurl.lol/',
+  DEFAULT_LNCURL_SERVER: 'https://lncurl.lol/'
 }))
 
 import {
   createLncurlRemoteWallet,
-  lncurlHealTarget,
+  lncurlHealTarget
 } from '@/lib/wallet/lncurl-wallet'
 import { createLncurlWallet } from '@/lib/lncurl'
 
@@ -39,10 +39,12 @@ beforeEach(() => {
   const created = createRemoteWalletFixture({
     id: 'new-wallet',
     userId: USER_ID,
-    isDefault: false,
+    isDefault: false
   })
   vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(created as never)
-  vi.mocked(prismaMock.remoteWallet.findUniqueOrThrow).mockResolvedValue(created as never)
+  vi.mocked(prismaMock.remoteWallet.findUniqueOrThrow).mockResolvedValue(
+    created as never
+  )
 })
 
 describe('createLncurlRemoteWallet', () => {
@@ -61,10 +63,10 @@ describe('createLncurlRemoteWallet', () => {
           config: expect.objectContaining({
             connectionString: LNCURL_URI,
             mode: 'SEND_RECEIVE',
-            provider: 'lncurl',
-          }),
-        }),
-      }),
+            provider: 'lncurl'
+          })
+        })
+      })
     )
   })
 
@@ -73,36 +75,39 @@ describe('createLncurlRemoteWallet', () => {
 
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({
       where: { userId: USER_ID, isDefault: true },
-      data: { isDefault: false },
+      data: { isDefault: false }
     })
   })
 
   it('persists the lncurlServerUrl in config when a serverUrl is given', async () => {
-    await createLncurlRemoteWallet({ userId: USER_ID, serverUrl: 'https://my.lncurl.example' })
+    await createLncurlRemoteWallet({
+      userId: USER_ID,
+      serverUrl: 'https://my.lncurl.example'
+    })
 
     expect(createLncurlWallet).toHaveBeenCalledWith('https://my.lncurl.example')
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           config: expect.objectContaining({
-            lncurlServerUrl: 'https://my.lncurl.example',
-          }),
-        }),
-      }),
+            lncurlServerUrl: 'https://my.lncurl.example'
+          })
+        })
+      })
     )
   })
 
   it('falls back to "LNCurl wallet 2" when "LNCurl wallet" is taken', async () => {
     vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
-      { name: 'LNCurl wallet' },
+      { name: 'LNCurl wallet' }
     ] as never)
 
     await createLncurlRemoteWallet({ userId: USER_ID })
 
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ name: 'LNCurl wallet 2' }),
-      }),
+        data: expect.objectContaining({ name: 'LNCurl wallet 2' })
+      })
     )
   })
 
@@ -110,22 +115,27 @@ describe('createLncurlRemoteWallet', () => {
     await createLncurlRemoteWallet({ userId: USER_ID, name: 'My Curl' })
 
     expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ name: 'My Curl' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ name: 'My Curl' })
+      })
     )
   })
 
   // ── re-provisioning (previousWalletId) ──────────────────────────────────
 
   it('re-points LightningAddress + Card bindings when previousWalletId is set', async () => {
-    await createLncurlRemoteWallet({ userId: USER_ID, previousWalletId: 'dead-wallet' })
+    await createLncurlRemoteWallet({
+      userId: USER_ID,
+      previousWalletId: 'dead-wallet'
+    })
 
     expect(prismaMock.lightningAddress.updateMany).toHaveBeenCalledWith({
       where: { userId: USER_ID, remoteWalletId: 'dead-wallet' },
-      data: { remoteWalletId: 'new-wallet' },
+      data: { remoteWalletId: 'new-wallet' }
     })
     expect(prismaMock.card.updateMany).toHaveBeenCalledWith({
       where: { userId: USER_ID, remoteWalletId: 'dead-wallet' },
-      data: { remoteWalletId: 'new-wallet' },
+      data: { remoteWalletId: 'new-wallet' }
     })
   })
 
@@ -140,14 +150,17 @@ describe('createLncurlRemoteWallet', () => {
     await createLncurlRemoteWallet({
       userId: USER_ID,
       previousWalletId: 'dead-wallet',
-      revokePrevious: true,
+      revokePrevious: true
     })
 
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'dead-wallet', userId: USER_ID },
-        data: expect.objectContaining({ status: 'DEAD', diedAt: expect.any(Date) }),
-      }),
+        data: expect.objectContaining({
+          status: 'DEAD',
+          diedAt: expect.any(Date)
+        })
+      })
     )
   })
 
@@ -155,7 +168,7 @@ describe('createLncurlRemoteWallet', () => {
     await createLncurlRemoteWallet({
       userId: USER_ID,
       previousWalletId: 'dead-wallet',
-      revokePrevious: false,
+      revokePrevious: false
     })
 
     const archived = vi
@@ -170,9 +183,13 @@ describe('createLncurlRemoteWallet', () => {
   })
 
   it('propagates a mint failure without writing anything', async () => {
-    vi.mocked(createLncurlWallet).mockRejectedValueOnce(new Error('LNCurl down'))
+    vi.mocked(createLncurlWallet).mockRejectedValueOnce(
+      new Error('LNCurl down')
+    )
 
-    await expect(createLncurlRemoteWallet({ userId: USER_ID })).rejects.toThrow('LNCurl down')
+    await expect(createLncurlRemoteWallet({ userId: USER_ID })).rejects.toThrow(
+      'LNCurl down'
+    )
     expect(prismaMock.remoteWallet.create).not.toHaveBeenCalled()
   })
 })
@@ -180,16 +197,28 @@ describe('createLncurlRemoteWallet', () => {
 describe('lncurlHealTarget', () => {
   const ON = { lncurl_enabled: 'true', lncurl_auto_recreate: 'true' }
   const CREATE_ONLY = { lncurl_enabled: 'true', lncurl_auto_create: 'true' }
-  const deadLncurl = { id: 'w-dead', status: 'DEAD' as const, config: { provider: 'lncurl' } }
-  const deadOther = { id: 'w-dead', status: 'DEAD' as const, config: { provider: 'alby' } }
-  const activeLncurl = { id: 'w-active', status: 'ACTIVE' as const, config: { provider: 'lncurl' } }
+  const deadLncurl = {
+    id: 'w-dead',
+    status: 'DEAD' as const,
+    config: { provider: 'lncurl' }
+  }
+  const deadOther = {
+    id: 'w-dead',
+    status: 'DEAD' as const,
+    config: { provider: 'alby' }
+  }
+  const activeLncurl = {
+    id: 'w-active',
+    status: 'ACTIVE' as const,
+    config: { provider: 'lncurl' }
+  }
 
   it('returns null when lncurl is disabled', () => {
     expect(
       lncurlHealTarget(
         { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null },
-        { lncurl_enabled: 'false', lncurl_auto_recreate: 'true' },
-      ),
+        { lncurl_enabled: 'false', lncurl_auto_recreate: 'true' }
+      )
     ).toBeNull()
   })
 
@@ -197,53 +226,81 @@ describe('lncurlHealTarget', () => {
     expect(
       lncurlHealTarget(
         { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null },
-        { lncurl_enabled: 'true', lncurl_auto_create: 'false', lncurl_auto_recreate: 'false' },
-      ),
+        {
+          lncurl_enabled: 'true',
+          lncurl_auto_create: 'false',
+          lncurl_auto_recreate: 'false'
+        }
+      )
     ).toBeNull()
   })
 
   it('auto-create alone provisions a first wallet (no-wallet case)', () => {
     expect(
-      lncurlHealTarget({ mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null }, CREATE_ONLY),
+      lncurlHealTarget(
+        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null },
+        CREATE_ONLY
+      )
     ).toEqual({ previousWalletId: null })
   })
 
   it('auto-create alone does NOT recreate a dead wallet (recreation needs auto-recreate)', () => {
     expect(
-      lncurlHealTarget({ mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: deadLncurl }, CREATE_ONLY),
+      lncurlHealTarget(
+        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: deadLncurl },
+        CREATE_ONLY
+      )
     ).toBeNull()
   })
 
   it('DEFAULT_NWC with no default wallet → create fresh (previousWalletId null)', () => {
     expect(
-      lncurlHealTarget({ mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null }, ON),
+      lncurlHealTarget(
+        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null },
+        ON
+      )
     ).toEqual({ previousWalletId: null })
   })
 
   it('CUSTOM_NWC with no bound wallet → create fresh (previousWalletId null)', () => {
     expect(
-      lncurlHealTarget({ mode: 'CUSTOM_NWC', boundWallet: null, defaultWallet: activeLncurl }, ON),
+      lncurlHealTarget(
+        { mode: 'CUSTOM_NWC', boundWallet: null, defaultWallet: activeLncurl },
+        ON
+      )
     ).toEqual({ previousWalletId: null })
   })
 
   it('DEFAULT_NWC with a DEAD lncurl default → recreate that wallet', () => {
     expect(
-      lncurlHealTarget({ mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: deadLncurl }, ON),
+      lncurlHealTarget(
+        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: deadLncurl },
+        ON
+      )
     ).toEqual({ previousWalletId: 'w-dead' })
   })
 
   it('never replaces a DEAD non-LNCurl wallet', () => {
     expect(
-      lncurlHealTarget({ mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: deadOther }, ON),
+      lncurlHealTarget(
+        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: deadOther },
+        ON
+      )
     ).toBeNull()
   })
 
   it('never auto-heals IDLE or ALIAS addresses', () => {
     expect(
-      lncurlHealTarget({ mode: 'IDLE', boundWallet: null, defaultWallet: null }, ON),
+      lncurlHealTarget(
+        { mode: 'IDLE', boundWallet: null, defaultWallet: null },
+        ON
+      )
     ).toBeNull()
     expect(
-      lncurlHealTarget({ mode: 'ALIAS', boundWallet: null, defaultWallet: null }, ON),
+      lncurlHealTarget(
+        { mode: 'ALIAS', boundWallet: null, defaultWallet: null },
+        ON
+      )
     ).toBeNull()
   })
 
@@ -251,9 +308,13 @@ describe('lncurlHealTarget', () => {
     // Bound wallet is a dead lncurl; default is an unrelated active wallet.
     expect(
       lncurlHealTarget(
-        { mode: 'CUSTOM_NWC', boundWallet: deadLncurl, defaultWallet: activeLncurl },
-        ON,
-      ),
+        {
+          mode: 'CUSTOM_NWC',
+          boundWallet: deadLncurl,
+          defaultWallet: activeLncurl
+        },
+        ON
+      )
     ).toEqual({ previousWalletId: 'w-dead' })
   })
 })

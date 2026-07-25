@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import {
   AmountKeypad,
-  parseKeypadValue,
+  parseKeypadValue
 } from '@/components/wallet/shared/amount-keypad'
 import { AmountDisplay } from '@/components/wallet/shared/amount-display'
 import { useApi, invalidateApiPath } from '@/lib/client/hooks/use-api'
@@ -17,10 +17,7 @@ import { useSettings } from '@/lib/client/hooks/use-settings'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useAuth } from '@/components/admin/auth-context'
 import { makeInvoice, describeNwcError } from '@/lib/client/nwc'
-import {
-  useReceiveFlow,
-  receiveActions,
-} from '@/lib/client/wallet-flow-store'
+import { useReceiveFlow, receiveActions } from '@/lib/client/wallet-flow-store'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -39,7 +36,7 @@ export function ReceiveAmountStep() {
   const autoCreate = settings?.lncurl_auto_create === 'true'
 
   const [value, setValue] = useState<string>(
-    flow.amountSats ? String(flow.amountSats) : '0',
+    flow.amountSats ? String(flow.amountSats) : '0'
   )
   const [description, setDescription] = useState(flow.description)
   const [loading, setLoading] = useState(false)
@@ -88,7 +85,12 @@ export function ReceiveAmountStep() {
     <div className="flex flex-1 flex-col px-4 pb-6">
       <AmountDisplay value={value} />
 
-      <AmountKeypad value={value} onChange={setValue} integerOnly disabled={loading} />
+      <AmountKeypad
+        value={value}
+        onChange={setValue}
+        integerOnly
+        disabled={loading}
+      />
 
       <div className="pt-6 space-y-3">
         <Input
@@ -101,7 +103,9 @@ export function ReceiveAmountStep() {
         <Button
           type="button"
           onClick={create}
-          disabled={amount === null || loading || (!effectiveNwc && !autoCreate)}
+          disabled={
+            amount === null || loading || (!effectiveNwc && !autoCreate)
+          }
           className="h-12 w-full"
         >
           {loading ? (

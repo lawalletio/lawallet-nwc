@@ -7,7 +7,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
-  DialogDescription,
+  DialogDescription
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,10 @@ interface InviteUserDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) {
+export function InviteUserDialog({
+  open,
+  onOpenChange
+}: InviteUserDialogProps) {
   const [value, setValue] = useState('')
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -35,7 +38,7 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
     if (!value.trim()) return
     setLoading(true)
     // TODO: connect to invitation API when available
-    await new Promise((r) => setTimeout(r, 500))
+    await new Promise(r => setTimeout(r, 500))
     setLoading(false)
     setSent(true)
     toast.success('Invitation sent')
@@ -55,7 +58,11 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
             <DialogDescription>
               The invitation link has been successfully generated and delivered.
             </DialogDescription>
-            <Button variant="secondary" className="w-full mt-2" onClick={handleClose}>
+            <Button
+              variant="secondary"
+              className="w-full mt-2"
+              onClick={handleClose}
+            >
               Close
             </Button>
           </div>
@@ -75,19 +82,28 @@ export function InviteUserDialog({ open, onOpenChange }: InviteUserDialogProps) 
             Generate an invitation
           </DialogTitle>
           <DialogDescription>
-            Create a secure invitation link to onboard a new member into your community.
+            Create a secure invitation link to onboard a new member into your
+            community.
           </DialogDescription>
           <Input
             placeholder="Email, npub or NIP-05..."
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={e => setValue(e.target.value)}
             className="mt-1"
           />
           <div className="flex gap-3 w-full mt-1">
-            <Button variant="secondary" className="flex-1" onClick={() => onOpenChange(false)}>
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
-            <Button className="flex-1" disabled={!value.trim() || loading} onClick={handleSend}>
+            <Button
+              className="flex-1"
+              disabled={!value.trim() || loading}
+              onClick={handleSend}
+            >
               {loading ? 'Sending...' : 'Send'}
             </Button>
           </div>

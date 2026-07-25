@@ -31,18 +31,18 @@ const BASE_DOMAIN_OPTIONS: readonly DomainOption[] = [
   { domain: 'coinos.io' },
   { domain: 'bitrefill.me' },
   { domain: 'zbd.gg' },
-  { domain: 'npub.cash' },
+  { domain: 'npub.cash' }
 ]
 
 const AVATAR_SLUG_BY_DOMAIN = new Map(
   BASE_DOMAIN_OPTIONS.map(option => [
     option.domain,
-    option.avatarSlug ?? option.domain,
-  ]),
+    option.avatarSlug ?? option.domain
+  ])
 )
 
 export function resolveCurrentLightningDomain(
-  lightningAddress: string | null | undefined,
+  lightningAddress: string | null | undefined
 ): string {
   const domain = lightningAddress?.split('@')[1]?.trim().toLowerCase()
   return domain && PUBLIC_DOMAIN_RE.test(domain) ? domain : DEFAULT_DOMAIN
@@ -52,22 +52,20 @@ export function getDomainAvatarUrl(domain: string): string {
   const normalized = domain.trim().toLowerCase()
   if (!PUBLIC_DOMAIN_RE.test(normalized)) return DEFAULT_DOMAIN_AVATAR
   const slug = AVATAR_SLUG_BY_DOMAIN.get(normalized)
-  return slug
-    ? `${DOMAIN_AVATAR_BASE_URL}/${slug}.png`
-    : DEFAULT_DOMAIN_AVATAR
+  return slug ? `${DOMAIN_AVATAR_BASE_URL}/${slug}.png` : DEFAULT_DOMAIN_AVATAR
 }
 
 export function buildLightningAddressSuggestions(
   input: string,
   currentDomain: string,
   excludedAddresses: Iterable<string> = [],
-  limit = 10,
+  limit = 10
 ): LightningAddressSuggestion[] {
   const parsed = parseSuggestionInput(input)
   if (!parsed) return []
 
   const excluded = new Set(
-    Array.from(excludedAddresses, address => address.trim().toLowerCase()),
+    Array.from(excludedAddresses, address => address.trim().toLowerCase())
   )
 
   return orderedDomains(currentDomain)
@@ -81,7 +79,7 @@ export function buildLightningAddressSuggestions(
         lightningAddress,
         username: parsed.username,
         domain: option.domain,
-        avatarUrl: getDomainAvatarUrl(option.domain),
+        avatarUrl: getDomainAvatarUrl(option.domain)
       }
     })
     .filter(option => !excluded.has(option.lightningAddress))
@@ -89,7 +87,7 @@ export function buildLightningAddressSuggestions(
 }
 
 function parseSuggestionInput(
-  input: string,
+  input: string
 ): { username: string; domainQuery: string } | null {
   const normalized = input.trim().toLowerCase()
   if (!normalized) return null
@@ -113,7 +111,7 @@ function orderedDomains(currentDomain: string): DomainOption[] {
     : DEFAULT_DOMAIN
   const current: DomainOption = {
     domain: normalizedCurrent,
-    avatarSlug: AVATAR_SLUG_BY_DOMAIN.get(normalizedCurrent),
+    avatarSlug: AVATAR_SLUG_BY_DOMAIN.get(normalizedCurrent)
   }
   const options = [current, ...BASE_DOMAIN_OPTIONS]
   const seen = new Set<string>()

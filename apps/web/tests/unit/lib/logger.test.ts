@@ -4,8 +4,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     isProduction: false,
-    logPretty: false,
-  })),
+    logPretty: false
+  }))
 }))
 
 import {
@@ -13,7 +13,7 @@ import {
   createLogger,
   logError,
   withRequestLogging,
-  logger,
+  logger
 } from '@/lib/logger'
 
 beforeEach(() => {
@@ -100,7 +100,9 @@ describe('logError', () => {
 
 describe('withRequestLogging', () => {
   it('wraps a handler and returns a response', async () => {
-    const handler = vi.fn(async (_req: Request) => new Response('ok', { status: 200 }))
+    const handler = vi.fn(
+      async (_req: Request) => new Response('ok', { status: 200 })
+    )
     const wrapped = withRequestLogging(handler)
 
     const request = new Request('http://localhost:3000/api/test')
@@ -110,11 +112,13 @@ describe('withRequestLogging', () => {
   })
 
   it('sets x-request-id header on response', async () => {
-    const handler = vi.fn(async (_req: Request) => new Response('ok', { status: 200 }))
+    const handler = vi.fn(
+      async (_req: Request) => new Response('ok', { status: 200 })
+    )
     const wrapped = withRequestLogging(handler)
 
     const request = new Request('http://localhost:3000/api/test', {
-      headers: { 'x-request-id': 'my-req-id' },
+      headers: { 'x-request-id': 'my-req-id' }
     })
     const response = await wrapped(request)
     expect(response.headers.get('x-request-id')).toBe('my-req-id')

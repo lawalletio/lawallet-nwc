@@ -3,10 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
-import {
-  ConflictError,
-  ValidationError
-} from '@/types/server/errors'
+import { ConflictError, ValidationError } from '@/types/server/errors'
 import { otcParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -17,7 +14,10 @@ import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 export const POST = withErrorHandling(
-  async (request: Request, { params }: { params: Promise<{ otc: string }> }) => {
+  async (
+    request: Request,
+    { params }: { params: Promise<{ otc: string }> }
+  ) => {
     await checkRequestLimits(request, 'json')
     // Apply strict rate limiting for card activation (sensitive operation)
     await rateLimit(request, RateLimitPresets.sensitive)
@@ -70,7 +70,7 @@ export const POST = withErrorHandling(
           event: ActivityEvent.CARD_PAIRED,
           message: `Card paired to user`,
           userId: user.id,
-          metadata: { cardId: card.id, pubkey },
+          metadata: { cardId: card.id, pubkey }
         })
       }
     }

@@ -43,7 +43,7 @@ export function QrDisplay({
   className,
   size = 240,
   centerImage,
-  centerImageSize,
+  centerImageSize
 }: QrDisplayProps) {
   const [copied, setCopied] = useState(false)
   const encoded = uppercasePayload ? value.toUpperCase() : value
@@ -53,7 +53,7 @@ export function QrDisplay({
         src: centerImage,
         height: overlaySize,
         width: overlaySize,
-        excavate: true,
+        excavate: true
       }
     : undefined
 

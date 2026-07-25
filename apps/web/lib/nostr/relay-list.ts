@@ -79,7 +79,7 @@ interface ResolveRelaysOptions {
  */
 export async function resolveUserRelays(
   user: UserRelayRow,
-  options: ResolveRelaysOptions = {},
+  options: ResolveRelaysOptions = {}
 ): Promise<string[]> {
   const db = options.db ?? prisma
   const now = options.now ?? new Date()
@@ -115,7 +115,7 @@ export async function resolveUserRelays(
   await db.user
     .update({
       where: { id: user.id },
-      data: { relays: JSON.stringify(fetched), relaysUpdatedAt: now },
+      data: { relays: JSON.stringify(fetched), relaysUpdatedAt: now }
     })
     .catch(() => {})
   return fetched
@@ -141,19 +141,22 @@ function newestByPubkey(events: RelayListEvent[]) {
 }
 
 async function fetchRelayListsFromRelays(
-  pubkeys: string[],
+  pubkeys: string[]
 ): Promise<RelayListEvent[]> {
   const { SimplePool } = await import('nostr-tools/pool')
   const pool = new SimplePool()
   try {
     const events = await withTimeout(
-      pool.querySync(DEFAULT_NOSTR_RELAYS, { kinds: [10002], authors: pubkeys }),
-      RELAY_FETCH_TIMEOUT_MS,
+      pool.querySync(DEFAULT_NOSTR_RELAYS, {
+        kinds: [10002],
+        authors: pubkeys
+      }),
+      RELAY_FETCH_TIMEOUT_MS
     )
     return (events ?? []).map(event => ({
       pubkey: event.pubkey,
       tags: event.tags,
-      created_at: event.created_at,
+      created_at: event.created_at
     }))
   } finally {
     try {
@@ -167,6 +170,6 @@ async function fetchRelayListsFromRelays(
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([
     promise,
-    new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+    new Promise<null>(resolve => setTimeout(() => resolve(null), ms))
   ])
 }

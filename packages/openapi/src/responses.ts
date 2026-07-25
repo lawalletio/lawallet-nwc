@@ -14,13 +14,13 @@ export const ErrorEnvelope = registry.register(
       error: z.object({
         message: z.string(),
         code: z.string().optional(),
-        details: z.unknown().optional(),
-      }),
+        details: z.unknown().optional()
+      })
     })
     .openapi({
       description:
-        'Standard error envelope returned by every route via `withErrorHandling`.',
-    }),
+        'Standard error envelope returned by every route via `withErrorHandling`.'
+    })
 )
 
 /**
@@ -32,19 +32,25 @@ export const errorResponse = (description: string) => ({
   description,
   content: {
     'application/json': {
-      schema: { $ref: '#/components/schemas/ErrorEnvelope' as const },
-    },
-  },
+      schema: { $ref: '#/components/schemas/ErrorEnvelope' as const }
+    }
+  }
 })
 
 export const responses = {
   validation: errorResponse('Request payload failed Zod validation.'),
   unauthenticated: errorResponse('Missing or invalid authentication.'),
-  forbidden: errorResponse('Caller is authenticated but lacks the required role or permission.'),
+  forbidden: errorResponse(
+    'Caller is authenticated but lacks the required role or permission.'
+  ),
   notFound: errorResponse('Resource not found.'),
   conflict: errorResponse('Request conflicts with current resource state.'),
   payloadTooLarge: errorResponse('Request body exceeds the configured limit.'),
-  rateLimited: errorResponse('Rate limit exceeded; check the Retry-After header.'),
-  serviceUnavailable: errorResponse('Upstream service unavailable or maintenance mode active.'),
-  internalError: errorResponse('Unhandled server error.'),
+  rateLimited: errorResponse(
+    'Rate limit exceeded; check the Retry-After header.'
+  ),
+  serviceUnavailable: errorResponse(
+    'Upstream service unavailable or maintenance mode active.'
+  ),
+  internalError: errorResponse('Unhandled server error.')
 }

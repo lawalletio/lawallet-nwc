@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   if (!token) {
     return new Response(JSON.stringify({ error: 'Missing token parameter' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     })
   }
 
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   if (!config.jwt.secret) {
     return new Response(JSON.stringify({ error: 'JWT not configured' }), {
       status: 503,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     })
   }
 
@@ -31,13 +31,13 @@ export async function GET(request: NextRequest) {
   try {
     const result = verifyJwtToken(token, config.jwt.secret, {
       issuer: 'lawallet-nwc',
-      audience: 'lawallet-users',
+      audience: 'lawallet-users'
     })
     payload = result.payload
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     })
   }
 
@@ -56,13 +56,15 @@ export async function GET(request: NextRequest) {
         id: clientId,
         controller,
         permissions,
-        connectedAt: Date.now(),
+        connectedAt: Date.now()
       })
 
       // Send connected event
       const encoder = new TextEncoder()
       controller.enqueue(
-        encoder.encode(`event: connected\ndata: ${JSON.stringify({ clientId })}\n\n`)
+        encoder.encode(
+          `event: connected\ndata: ${JSON.stringify({ clientId })}\n\n`
+        )
       )
 
       // Heartbeat to keep connection alive and detect dead clients
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
       // Client disconnected
       if (heartbeatTimer) clearInterval(heartbeatTimer)
       eventBus.removeClient(clientId)
-    },
+    }
   })
 
   return new Response(stream, {
@@ -93,7 +95,7 @@ export async function GET(request: NextRequest) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no', // nginx proxy support
-    },
+      'X-Accel-Buffering': 'no' // nginx proxy support
+    }
   })
 }

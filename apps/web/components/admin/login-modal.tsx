@@ -14,7 +14,7 @@ import {
   Copy,
   Link,
   RefreshCw,
-  Smartphone,
+  Smartphone
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
@@ -23,7 +23,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
+  DialogDescription
 } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
@@ -39,7 +39,7 @@ import {
   createBrowserSigner,
   createBunkerSigner,
   createNostrConnectSigner,
-  hasBrowserExtension,
+  hasBrowserExtension
 } from '@/lib/client/nostr-signer'
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
 import { isPasskeySupported } from '@/lib/client/passkey-api'
@@ -67,10 +67,10 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
     <Dialog open={open} onOpenChange={dismissible ? onOpenChange : undefined}>
       <DialogContent
         className="sm:max-w-md"
-        onInteractOutside={(e) => {
+        onInteractOutside={e => {
           if (!dismissible) e.preventDefault()
         }}
-        onEscapeKeyDown={(e) => {
+        onEscapeKeyDown={e => {
           if (!dismissible) e.preventDefault()
         }}
         aria-describedby="login-description"
@@ -155,7 +155,7 @@ function useBrowserExtensionDetected(): boolean {
 
 function NostrMethods({
   bunkerBusy,
-  onBunkerBusyChange,
+  onBunkerBusyChange
 }: {
   bunkerBusy: boolean
   onBunkerBusyChange: (busy: boolean) => void
@@ -172,7 +172,7 @@ function NostrMethods({
         <TabsList
           className={cn(
             'mt-3 grid w-full',
-            extensionAvailable ? 'grid-cols-3' : 'grid-cols-2',
+            extensionAvailable ? 'grid-cols-3' : 'grid-cols-2'
           )}
         >
           {extensionAvailable && (
@@ -223,7 +223,11 @@ function ExtensionTab() {
       await login(signer, 'extension')
     } catch (error) {
       trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'extension' })
-      toast.error(error instanceof Error ? error.message : 'Failed to connect with extension')
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to connect with extension'
+      )
     } finally {
       setLoading(false)
     }
@@ -232,7 +236,8 @@ function ExtensionTab() {
   return (
     <div className="flex flex-col gap-4 pt-4">
       <p className="text-sm text-muted-foreground">
-        Connect using a Nostr browser extension like Alby, nos2x, or Nostr Connect.
+        Connect using a Nostr browser extension like Alby, nos2x, or Nostr
+        Connect.
       </p>
 
       <Button onClick={handleConnect} disabled={loading} className="w-full">
@@ -290,7 +295,7 @@ function NsecTab() {
             type={showKey ? 'text' : 'password'}
             placeholder="nsec or hex private key..."
             value={nsec}
-            onChange={(e) => {
+            onChange={e => {
               setNsec(e.target.value)
               setError(null)
             }}
@@ -306,7 +311,11 @@ function NsecTab() {
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             tabIndex={-1}
           >
-            {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {showKey ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
           </button>
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
@@ -315,12 +324,17 @@ function NsecTab() {
       <div className="flex items-start gap-2 rounded-md bg-muted/50 p-3">
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-yellow-500" />
         <p className="text-xs text-muted-foreground">
-          Your key is used locally for signing and is <strong>never sent to the server</strong>.
-          For better security, consider using a browser extension or NsecBunker.
+          Your key is used locally for signing and is{' '}
+          <strong>never sent to the server</strong>. For better security,
+          consider using a browser extension or NsecBunker.
         </p>
       </div>
 
-      <Button type="submit" disabled={!nsec.trim() || loading} className="w-full">
+      <Button
+        type="submit"
+        disabled={!nsec.trim() || loading}
+        className="w-full"
+      >
         {loading ? (
           <>
             <Spinner size={16} className="mr-2" />
@@ -339,7 +353,11 @@ function NsecTab() {
 
 // ─── Bunker Tab (NIP-46) ──────────────────────────────────────────────────
 
-function BunkerTab({ onBusyChange }: { onBusyChange?: (busy: boolean) => void }) {
+function BunkerTab({
+  onBusyChange
+}: {
+  onBusyChange?: (busy: boolean) => void
+}) {
   const [mode, setMode] = useState<'qr' | 'paste'>('qr')
   const [qrStatus, setQrStatus] = useState<BunkerConnectionStatus>('generating')
   const [pasteLoading, setPasteLoading] = useState(false)
@@ -395,7 +413,7 @@ function BunkerTab({ onBusyChange }: { onBusyChange?: (busy: boolean) => void })
 // ─── Bunker QR Mode (nostrconnect://) ─────────────────────────────────────
 
 function BunkerQRMode({
-  onStatusChange,
+  onStatusChange
 }: {
   onStatusChange?: (status: BunkerConnectionStatus) => void
 }) {
@@ -423,10 +441,10 @@ function BunkerQRMode({
       const signer = await createNostrConnectSigner({
         timeout: 60_000,
         signal: controller.signal,
-        onURI: (generatedUri) => {
+        onURI: generatedUri => {
           setUri(generatedUri)
           setStatus('waiting')
-        },
+        }
       })
 
       if (controller.signal.aborted) return
@@ -437,16 +455,21 @@ function BunkerQRMode({
       if (controller.signal.aborted) return
       trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'bunker', flow: 'qr' })
       const message = err instanceof Error ? err.message : 'Failed to connect'
-      setError(message.includes('timed out') || message.includes('abort')
-        ? 'Connection timed out. Make sure your signer app scanned the QR code.'
-        : message)
+      setError(
+        message.includes('timed out') || message.includes('abort')
+          ? 'Connection timed out. Make sure your signer app scanned the QR code.'
+          : message
+      )
       setStatus('error')
     }
   }, [login])
 
   useEffect(() => {
     const id = requestAnimationFrame(() => startConnection())
-    return () => { cancelAnimationFrame(id); abortRef.current?.abort() }
+    return () => {
+      cancelAnimationFrame(id)
+      abortRef.current?.abort()
+    }
   }, [startConnection])
 
   useEffect(() => {
@@ -464,7 +487,9 @@ function BunkerQRMode({
     return (
       <div className="flex flex-col items-center gap-3 py-6">
         <Spinner size={24} />
-        <p className="text-sm text-muted-foreground">Generating connection...</p>
+        <p className="text-sm text-muted-foreground">
+          Generating connection...
+        </p>
       </div>
     )
   }
@@ -473,7 +498,9 @@ function BunkerQRMode({
     return (
       <div className="flex flex-col items-center gap-3 py-6">
         <Spinner size={24} />
-        <p className="text-sm text-muted-foreground">Signer connected, logging in...</p>
+        <p className="text-sm text-muted-foreground">
+          Signer connected, logging in...
+        </p>
       </div>
     )
   }
@@ -528,7 +555,12 @@ function BunkerQRMode({
 
       <p className="text-xs text-muted-foreground text-center">
         Scan with your signer app (
-        <a href="https://nsec.app" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+        <a
+          href="https://nsec.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-foreground"
+        >
           nsec.app
         </a>
         , Amber, etc.)
@@ -540,7 +572,7 @@ function BunkerQRMode({
 // ─── Bunker Paste Mode (bunker://) ────────────────────────────────────────
 
 function BunkerPasteMode({
-  onLoadingChange,
+  onLoadingChange
 }: {
   onLoadingChange?: (loading: boolean) => void
 }) {
@@ -560,13 +592,20 @@ function BunkerPasteMode({
 
     setLoading(true)
     onLoadingChange?.(true)
-    trackEvent(AnalyticsEvent.LOGIN_STARTED, { method: 'bunker', flow: 'paste' })
+    trackEvent(AnalyticsEvent.LOGIN_STARTED, {
+      method: 'bunker',
+      flow: 'paste'
+    })
     try {
       const signer = await createBunkerSigner(bunkerUrl, { timeout: 30_000 })
       await login(signer, 'bunker')
     } catch (err) {
-      trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'bunker', flow: 'paste' })
-      const message = err instanceof Error ? err.message : 'Failed to connect to bunker'
+      trackEvent(AnalyticsEvent.LOGIN_FAILED, {
+        method: 'bunker',
+        flow: 'paste'
+      })
+      const message =
+        err instanceof Error ? err.message : 'Failed to connect to bunker'
       setError(message)
       toast.error(message)
     } finally {
@@ -584,7 +623,7 @@ function BunkerPasteMode({
           type="text"
           placeholder="bunker://..."
           value={bunkerUrl}
-          onChange={(e) => {
+          onChange={e => {
             setBunkerUrl(e.target.value)
             setError(null)
           }}
@@ -611,7 +650,11 @@ function BunkerPasteMode({
         provider.
       </p>
 
-      <Button type="submit" disabled={!bunkerUrl.trim() || loading} className="w-full">
+      <Button
+        type="submit"
+        disabled={!bunkerUrl.trim() || loading}
+        className="w-full"
+      >
         {loading ? (
           <>
             <Spinner size={16} className="mr-2" />

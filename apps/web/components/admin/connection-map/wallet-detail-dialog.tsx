@@ -14,14 +14,10 @@ import {
   Star,
   Wallet,
   X,
-  Zap,
+  Zap
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import {
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,7 +27,7 @@ import { formatRelativeTime } from '@/lib/client/format'
 import {
   useLiveRemoteWalletBalance,
   useRemoteWalletConnectionString,
-  type RemoteWalletData,
+  type RemoteWalletData
 } from '@/lib/client/hooks/use-remote-wallets'
 import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
 import type { WalletAddress } from '@/lib/client/hooks/use-wallet-addresses'
@@ -43,12 +39,13 @@ import {
   payInvoice,
   payLnurl,
   type MakeInvoiceResult,
-  type ParsedDestination,
+  type ParsedDestination
 } from '@/lib/client/nwc'
 import { useAuth } from '@/components/admin/auth-context'
 import { toast } from 'sonner'
 
-const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+const delay = (ms: number) =>
+  new Promise<void>(resolve => setTimeout(resolve, ms))
 import { AutoHeight } from './auto-height'
 import { InfoField } from './info-field'
 import { routesThroughPrimaryWallet } from './primary-wallet'
@@ -108,13 +105,13 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
     connected: 'Connected',
     searching: 'Searching…',
     error: 'Unavailable',
-    disabled: 'Disabled',
+    disabled: 'Disabled'
   }[state]
 
   return (
     <>
       <DialogHeader>
-          {/*
+        {/*
             Title is the wallet's own name (with the Primary badge when
             applicable), not a generic "Remote Wallet" — there's only
             one of these dialogs on screen at a time, so the user
@@ -123,24 +120,24 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
             used to sit under the balance is gone now (would have been
             redundant).
           */}
-          <DialogTitle className="flex items-center gap-2 min-w-0">
-            <Wallet className="size-4 shrink-0 text-amber-400" />
-            <span className="truncate">{wallet.name}</span>
-            {wallet.isDefault && (
-              <Badge variant="secondary" className="gap-1">
-                <Star className="size-3 fill-amber-400 text-amber-400" />
-                Primary
-              </Badge>
-            )}
-          </DialogTitle>
-        </DialogHeader>
+        <DialogTitle className="flex items-center gap-2 min-w-0">
+          <Wallet className="size-4 shrink-0 text-amber-400" />
+          <span className="truncate">{wallet.name}</span>
+          {wallet.isDefault && (
+            <Badge variant="secondary" className="gap-1">
+              <Star className="size-3 fill-amber-400 text-amber-400" />
+              Primary
+            </Badge>
+          )}
+        </DialogTitle>
+      </DialogHeader>
 
-        <div className="space-y-4">
-          {/* HERO — balance card. */}
-          <div className="relative overflow-hidden rounded-lg border border-border bg-gradient-to-br from-card to-card/40 p-5">
-            <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-amber-400/10 blur-3xl" />
+      <div className="space-y-4">
+        {/* HERO — balance card. */}
+        <div className="relative overflow-hidden rounded-lg border border-border bg-gradient-to-br from-card to-card/40 p-5">
+          <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-amber-400/10 blur-3xl" />
 
-            {/*
+          {/*
               Connection-state indicator — pinned to the top-right of
               the hero card. Status is a meta-signal about the data, not
               a number to read, so it doesn't belong in the centered
@@ -148,49 +145,49 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
               balance reading tall and clean while still surfacing
               the live link state at a glance.
             */}
+          <div
+            className="absolute right-3 top-3 z-10 flex items-center gap-1.5 text-xs text-muted-foreground"
+            aria-label={`Balance ${state}`}
+          >
+            <span
+              className={cn(
+                'inline-block size-1.5 shrink-0 rounded-full',
+                state === 'connected' && 'bg-emerald-400',
+                state === 'searching' && 'animate-pulse bg-amber-400',
+                state === 'error' && 'bg-destructive',
+                state === 'disabled' && 'bg-muted-foreground'
+              )}
+            />
+            {stateLabel}
+          </div>
+
+          <div className="relative space-y-1 text-center">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+              Balance
+            </div>
             <div
-              className="absolute right-3 top-3 z-10 flex items-center gap-1.5 text-xs text-muted-foreground"
+              className="flex items-baseline justify-center gap-2 tabular-nums"
               aria-label={`Balance ${state}`}
             >
               <span
                 className={cn(
-                  'inline-block size-1.5 shrink-0 rounded-full',
-                  state === 'connected' && 'bg-emerald-400',
-                  state === 'searching' && 'animate-pulse bg-amber-400',
-                  state === 'error' && 'bg-destructive',
-                  state === 'disabled' && 'bg-muted-foreground',
+                  'text-4xl font-semibold leading-none transition-colors',
+                  receiving && 'animate-pulse text-emerald-500'
                 )}
-              />
-              {stateLabel}
-            </div>
-
-            <div className="relative space-y-1 text-center">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                Balance
-              </div>
-              <div
-                className="flex items-baseline justify-center gap-2 tabular-nums"
-                aria-label={`Balance ${state}`}
               >
-                <span
-                  className={cn(
-                    'text-4xl font-semibold leading-none transition-colors',
-                    receiving && 'animate-pulse text-emerald-500',
-                  )}
-                >
-                  {hasBalance ? animatedSats.toLocaleString() : '—'}
-                </span>
-                <span className="text-base text-muted-foreground">sats</span>
-              </div>
-              {receiving && (
-                <div className="flex items-center justify-center gap-1.5 pt-1 text-xs font-medium text-emerald-500 animate-in fade-in-0 duration-200">
-                  <Spinner className="size-3" />
-                  Incoming payment…
-                </div>
-              )}
+                {hasBalance ? animatedSats.toLocaleString() : '—'}
+              </span>
+              <span className="text-base text-muted-foreground">sats</span>
             </div>
+            {receiving && (
+              <div className="flex items-center justify-center gap-1.5 pt-1 text-xs font-medium text-emerald-500 animate-in fade-in-0 duration-200">
+                <Spinner className="size-3" />
+                Incoming payment…
+              </div>
+            )}
+          </div>
 
-            {/* `AutoHeight` smooths the dialog as WalletActions swaps
+          {/* `AutoHeight` smooths the dialog as WalletActions swaps
                 between idle / amount / destination / invoice / amount-alby
                 — each state has a different natural height and without
                 a measured transition the surrounding Radix box would
@@ -198,57 +195,60 @@ export function WalletDetailBody({ wallet, addresses, cards }: Props) {
                 room since the wallet-identity row that used to sit
                 between balance and actions moved up to the dialog
                 title. */}
-            <div className="relative mt-6">
-              <AutoHeight>
-                <WalletActions
-                  walletId={wallet.id}
-                  walletName={wallet.name}
-                  disabled={!isLive}
-                  onPaid={() => balance.refetch()}
-                  onReceivingChange={setReceiving}
-                />
-              </AutoHeight>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <InfoField label="Type" value={<Badge variant="outline">{wallet.type}</Badge>} />
-            <InfoField
-              label="Status"
-              value={<Badge variant="outline">{wallet.status}</Badge>}
-            />
-
-            <InfoField
-              label="Bound addresses"
-              value={
-                boundLas.length === 0 ? (
-                  <span className="text-muted-foreground">None</span>
-                ) : (
-                  <span>{boundLas.length}</span>
-                )
-              }
-            />
-            <InfoField
-              label="Bound cards"
-              value={
-                boundCards.length === 0 ? (
-                  <span className="text-muted-foreground">None</span>
-                ) : (
-                  <span>{boundCards.length}</span>
-                )
-              }
-            />
-
-            <InfoField
-              label="Created"
-              value={formatRelativeTime(wallet.createdAt)}
-            />
-            <InfoField
-              label="Updated"
-              value={formatRelativeTime(wallet.updatedAt)}
-            />
+          <div className="relative mt-6">
+            <AutoHeight>
+              <WalletActions
+                walletId={wallet.id}
+                walletName={wallet.name}
+                disabled={!isLive}
+                onPaid={() => balance.refetch()}
+                onReceivingChange={setReceiving}
+              />
+            </AutoHeight>
           </div>
         </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <InfoField
+            label="Type"
+            value={<Badge variant="outline">{wallet.type}</Badge>}
+          />
+          <InfoField
+            label="Status"
+            value={<Badge variant="outline">{wallet.status}</Badge>}
+          />
+
+          <InfoField
+            label="Bound addresses"
+            value={
+              boundLas.length === 0 ? (
+                <span className="text-muted-foreground">None</span>
+              ) : (
+                <span>{boundLas.length}</span>
+              )
+            }
+          />
+          <InfoField
+            label="Bound cards"
+            value={
+              boundCards.length === 0 ? (
+                <span className="text-muted-foreground">None</span>
+              ) : (
+                <span>{boundCards.length}</span>
+              )
+            }
+          />
+
+          <InfoField
+            label="Created"
+            value={formatRelativeTime(wallet.createdAt)}
+          />
+          <InfoField
+            label="Updated"
+            value={formatRelativeTime(wallet.updatedAt)}
+          />
+        </div>
+      </div>
 
       <DialogFooter>
         <Button variant="secondary" asChild>
@@ -300,7 +300,7 @@ export function WalletActions({
   walletName,
   disabled,
   onPaid,
-  onReceivingChange,
+  onReceivingChange
 }: {
   walletId: string
   walletName: string
@@ -351,7 +351,7 @@ export function WalletActions({
   const fetchServerBalance = useCallback(async (): Promise<number | null> => {
     try {
       const r = await apiClient.get<{ balanceSats: number }>(
-        `/api/remote-wallets/${walletId}/balance`,
+        `/api/remote-wallets/${walletId}/balance`
       )
       return typeof r?.balanceSats === 'number' ? r.balanceSats : null
     } catch {
@@ -364,7 +364,7 @@ export function WalletActions({
       baseline: number | null,
       amountSats: number,
       isPayOk: () => boolean,
-      getPayError: () => unknown,
+      getPayError: () => unknown
     ): Promise<boolean> => {
       // Require the balance to fall by ~the sent amount (not just any sat) so a
       // stray 1-sat LNCurl maintenance tick can't be mistaken for the send.
@@ -389,7 +389,7 @@ export function WalletActions({
       }
       return isPayOk()
     },
-    [fetchServerBalance],
+    [fetchServerBalance]
   )
 
   // WebLN feature-detect on any mode change.
@@ -492,12 +492,14 @@ export function WalletActions({
         setInvoice(inv)
         setReceiveStep('invoice')
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Could not mint invoice')
+        toast.error(
+          err instanceof Error ? err.message : 'Could not mint invoice'
+        )
       } finally {
         setMinting(false)
       }
     },
-    [receiveAmount, connection.data, walletName],
+    [receiveAmount, connection.data, walletName]
   )
 
   const handleCopyInvoice = useCallback(async () => {
@@ -550,7 +552,11 @@ export function WalletActions({
       let payError: unknown = null
       void (
         dest.kind === 'invoice'
-          ? payInvoice(nwc, dest.bolt11, dest.amountSats ? undefined : amountSats)
+          ? payInvoice(
+              nwc,
+              dest.bolt11,
+              dest.amountSats ? undefined : amountSats
+            )
           : dest.kind === 'lnurl-pay'
             ? payLnurl(nwc, dest, amountSats)
             : Promise.reject(new Error('Unsupported destination'))
@@ -562,17 +568,24 @@ export function WalletActions({
           payError = err
         })
 
-      const settled = await waitForSend(baseline, amountSats, () => payOk, () => payError)
+      const settled = await waitForSend(
+        baseline,
+        amountSats,
+        () => payOk,
+        () => payError
+      )
       setPaying(false)
       if (settled) {
         setSentAmount(amountSats)
         setSendStep('sent')
         onPaidRef.current?.()
       } else {
-        toast.error(payError instanceof Error ? payError.message : 'Payment failed')
+        toast.error(
+          payError instanceof Error ? payError.message : 'Payment failed'
+        )
       }
     },
-    [connection.data, fetchServerBalance, waitForSend],
+    [connection.data, fetchServerBalance, waitForSend]
   )
 
   // ── Send: parse destination + dispatch to next step ────────────────
@@ -603,7 +616,7 @@ export function WalletActions({
       // an amount from the user.
       setSendStep('amount')
     },
-    [destinationInput, payDestination],
+    [destinationInput, payDestination]
   )
 
   const handleSendAmountSubmit = useCallback(
@@ -634,7 +647,7 @@ export function WalletActions({
           await w.webln.enable()
           const { paymentRequest } = await w.webln.makeInvoice({
             amount: sats,
-            defaultMemo: `From ${walletName}`,
+            defaultMemo: `From ${walletName}`
           })
           const baseline = await fetchServerBalance()
           let payOk = false
@@ -646,13 +659,20 @@ export function WalletActions({
             .catch(err => {
               payError = err
             })
-          const settled = await waitForSend(baseline, sats, () => payOk, () => payError)
+          const settled = await waitForSend(
+            baseline,
+            sats,
+            () => payOk,
+            () => payError
+          )
           if (settled) {
             setSentAmount(sats)
             setSendStep('sent')
             onPaidRef.current?.()
           } else {
-            toast.error(payError instanceof Error ? payError.message : 'Send failed')
+            toast.error(
+              payError instanceof Error ? payError.message : 'Send failed'
+            )
           }
         } catch (err) {
           toast.error(err instanceof Error ? err.message : 'Send failed')
@@ -677,8 +697,8 @@ export function WalletActions({
       walletName,
       payDestination,
       fetchServerBalance,
-      waitForSend,
-    ],
+      waitForSend
+    ]
   )
 
   // ── Render: Send SENT state — success animation ────────────────────
@@ -907,7 +927,7 @@ export function WalletActions({
       sendStep === 'amount-alby'
         ? 'Alby'
         : destination?.kind === 'lnurl-pay'
-          ? destination.address ?? destination.host ?? 'recipient'
+          ? (destination.address ?? destination.host ?? 'recipient')
           : destination?.kind === 'invoice'
             ? 'invoice'
             : 'recipient'

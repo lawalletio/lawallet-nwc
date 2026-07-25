@@ -12,7 +12,7 @@ import {
   Receipt,
   Settings,
   Ticket,
-  Trash2,
+  Trash2
 } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Card3D } from '@/components/activate/card-3d'
@@ -31,14 +31,14 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
+  TableRow
 } from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import {
   AlertDialog,
@@ -48,14 +48,14 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { Permission } from '@/lib/auth/permissions'
 import {
   useCard,
   useCardMutations,
   useCardTransactions,
-  type CardTransaction,
+  type CardTransaction
 } from '@/lib/client/hooks/use-cards'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { truncateNpub, formatRelativeTime } from '@/lib/client/format'
@@ -64,7 +64,7 @@ import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
 export default function CardDetailPage({
-  params,
+  params
 }: {
   params: Promise<{ id: string }>
 }) {
@@ -89,7 +89,9 @@ export default function CardDetailPage({
       invalidateApiPath('/api/cards/counts')
       router.push('/admin/cards')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to delete card')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to delete card'
+      )
     }
   }
 
@@ -301,13 +303,17 @@ export default function CardDetailPage({
                           value={String(card.ntag424.ctr)}
                         />
                         {card.ntag424.otc && (
-                          <InfoField label="OTC" value={card.ntag424.otc} mono />
+                          <InfoField
+                            label="OTC"
+                            value={card.ntag424.otc}
+                            mono
+                          />
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Keys are never displayed. Programming the card (BoltCard
-                        QR) or resetting it (Delete → Reset) exports the keys and
-                        unpairs the card from its user.
+                        QR) or resetting it (Delete → Reset) exports the keys
+                        and unpairs the card from its user.
                       </p>
                     </CardContent>
                   </Card>
@@ -426,7 +432,7 @@ function CardTransactions({ id }: { id: string }) {
                     className={cn(
                       (tx.paymentStatus === 'SUCCEEDED' ||
                         (!tx.paymentStatus && tx.status === 'success')) &&
-                        'border-green-500/30 bg-green-500/15 text-green-600 hover:bg-green-500/20 dark:text-green-400',
+                        'border-green-500/30 bg-green-500/15 text-green-600 hover:bg-green-500/20 dark:text-green-400'
                     )}
                     title={tx.error ?? undefined}
                   >
@@ -471,7 +477,7 @@ function CardTransactions({ id }: { id: string }) {
                   className={cn(
                     (detail.paymentStatus === 'SUCCEEDED' ||
                       (!detail.paymentStatus && detail.status === 'success')) &&
-                      'border-green-500/30 bg-green-500/15 text-green-600 dark:text-green-400',
+                      'border-green-500/30 bg-green-500/15 text-green-600 dark:text-green-400'
                   )}
                 >
                   {transactionStatusLabel(detail)}
@@ -507,11 +513,7 @@ function CardTransactions({ id }: { id: string }) {
                   />
                 )}
                 {detail.error && (
-                  <DetailRow
-                    label="Error"
-                    value={detail.error}
-                    destructive
-                  />
+                  <DetailRow label="Error" value={detail.error} destructive />
                 )}
               </dl>
             </div>
@@ -557,7 +559,7 @@ function DetailRow({
   mono,
   copyable,
   multiline,
-  destructive,
+  destructive
 }: {
   label: string
   value: string
@@ -577,7 +579,7 @@ function DetailRow({
             'min-w-0 flex-1 text-sm',
             mono && 'font-mono text-xs',
             multiline ? 'break-all' : 'truncate',
-            destructive && 'text-destructive',
+            destructive && 'text-destructive'
           )}
         >
           {value}
@@ -617,7 +619,7 @@ function CopyBtn({ value }: { value: string }) {
 function InfoField({
   label,
   value,
-  mono,
+  mono
 }: {
   label: string
   value: React.ReactNode

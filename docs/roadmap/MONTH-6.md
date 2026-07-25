@@ -248,24 +248,24 @@ When a payer hits `username@domain.com`:
 
 ## Lightning Address Compliance Closeout
 
-| Standard | M4 status | M6 closeout work |
-|----------|-----------|------------------|
-| LUD-12 (comments) | ✅ shipped | — |
-| LUD-16 (lightning address) | ✅ mode-aware resolver | Polish `.well-known/lnurlp` schema, finalize metadata |
-| LUD-21 (verify) | ✅ endpoint shipped | Tighten edge cases (expired, double-pay), add status enum |
-| LUD-22 (webhooks) | — | Listener-side plumbing + spec-correct payload, signature, retry + DLQ |
-| NIP-57 (zaps) | — | Receipt minting via Proxy, verification, integration tests with Damus / Amethyst / Primal |
+| Standard                   | M4 status              | M6 closeout work                                                                          |
+| -------------------------- | ---------------------- | ----------------------------------------------------------------------------------------- |
+| LUD-12 (comments)          | ✅ shipped             | —                                                                                         |
+| LUD-16 (lightning address) | ✅ mode-aware resolver | Polish `.well-known/lnurlp` schema, finalize metadata                                     |
+| LUD-21 (verify)            | ✅ endpoint shipped    | Tighten edge cases (expired, double-pay), add status enum                                 |
+| LUD-22 (webhooks)          | —                      | Listener-side plumbing + spec-correct payload, signature, retry + DLQ                     |
+| NIP-57 (zaps)              | —                      | Receipt minting via Proxy, verification, integration tests with Damus / Amethyst / Primal |
 
 ### Protocol Compliance Matrix After Month 6
 
-| Standard | Name | Status |
-|----------|------|--------|
-| LUD-12 | Comments | Full compliance |
-| LUD-16 | Lightning Address | Full compliance |
-| LUD-21 | Verify | Full compliance |
-| LUD-22 | Webhooks | Full compliance |
-| NIP-57 | Zaps | Full compliance |
-| NIP-47 | NWC | Used by Proxy + Listener |
+| Standard | Name              | Status                   |
+| -------- | ----------------- | ------------------------ |
+| LUD-12   | Comments          | Full compliance          |
+| LUD-16   | Lightning Address | Full compliance          |
+| LUD-21   | Verify            | Full compliance          |
+| LUD-22   | Webhooks          | Full compliance          |
+| NIP-57   | Zaps              | Full compliance          |
+| NIP-47   | NWC               | Used by Proxy + Listener |
 
 ---
 
@@ -379,33 +379,33 @@ Schema changes since v0.10.0; migration steps for self-hosters running the M4 re
 
 ## Acceptance Criteria
 
-| Deliverable | Criteria | Priority |
-|-------------|----------|----------|
-| Card kinds | `Card.kind` declared at creation: `SIMPLE` (ownership transfer only) or `MASTER` (transfer + account share) | P0 |
-| Activation tokens model + endpoints | `CardActivationToken.qrKind` is `ONE_TIME` or `FOREVER`; max one active token per (cardId, qrKind); FOREVER rejected on SIMPLE cards; claim enforces burn for ONE_TIME and share-grant for FOREVER | P0 |
-| Card rescue / re-issue path | `POST /api/cards/[id]/rescue` invalidates outstanding tokens and issues a fresh `ONE_TIME` QR; new QR of same kind invalidates the previous on that card | P0 |
-| "Activate Card" flow — `ONE_TIME` | Wallet scans QR → picks Remote Wallet → claim transfers card ownership only → token burns; second scan sees "already claimed"; claimer can be a brand-new user (fresh nsec) or an existing user | P0 |
-| "Activate Card" flow — `FOREVER` (MASTER only) | Wallet scans FOREVER QR → claim succeeds without burning → claimer gains share access to card holder's LAs + Remote Wallets | P0 |
-| Share revocation | Master holder can revoke a specific share per (resource, grantee) | P1 |
-| Connect Card E2E (activation) | Activate-QR → claim → pair → pay; separate `FOREVER` (MASTER) branch covered; re-issue path covered (`card-manager` mints a new QR, unpairing the prior holder) | P0 |
-| WordPress plugin (`lawallet-wordpress`) | Plugin integrates LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress; live demo at `wordpress.lawallet.io` | P1 |
-| NWC Payment Listener (lite) | Built in `apps/listener/`, transport-only, shares Postgres via `LISTEN`/`NOTIFY` keyed on `RemoteWallet` rows of `type = NWC` → HMAC-signed webhook to `apps/web` works | P0 |
-| LUD-22 listener plumbing | Webhook registration + delivery via listener; backend retry policy + DLQ | P0 |
-| NWC Proxy Lite | Mints invoices via NWC; LUD-16 callback returns Proxy invoice | P0 |
-| LUD-16 closeout | `.well-known/lnurlp` spec-correct, `allowsNostr` + `nostrPubkey` set | P0 |
-| LUD-21 closeout | Verify endpoint covers all payment states | P0 |
-| LUD-22 closeout | Spec-correct payload + HMAC + retry policy | P0 |
-| NIP-57 zaps | Zap receipts created and verified, tested with Damus/Amethyst/Primal | P0 |
-| Nostr scheduler | Admin can compose + schedule kind:1 / kind:4; cron dispatches them | P1 |
-| Full Wallet settings | Theme, notifications, currency, contacts, privacy, Remote Wallets mgmt | P1 |
-| Resend adapter | Email sends through Resend; SMTP/Resend toggle in Settings → Infrastructure | P1 |
-| Vercel | One-click deploy still green | P1 |
-| Netlify | `netlify.toml` validated, web app deploys | P1 |
-| Umbrel | All 3 containers in app store, installable | P0 |
-| Start9 | Embassy package submitted | P1 |
-| Docker Compose | Production compose + reverse proxy + SSL guide | P0 |
-| Service docs | `NWC-LISTENER.md` + `NWC-PROXY.md` reflect Lite reality | P0 |
-| Threat model | Crypto operations + attack surfaces documented | P1 |
-| SDK | `@lawallet-nwc/sdk` published, no stub warnings | P1 |
-| `@lawallet-nwc/react` | Package extracted from `apps/web/lib/client/hooks/`, published, used by docs examples | P1 |
-| Security audit prep | Inventory + audit + lint + PR template | P1 |
+| Deliverable                                    | Criteria                                                                                                                                                                                           | Priority |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Card kinds                                     | `Card.kind` declared at creation: `SIMPLE` (ownership transfer only) or `MASTER` (transfer + account share)                                                                                        | P0       |
+| Activation tokens model + endpoints            | `CardActivationToken.qrKind` is `ONE_TIME` or `FOREVER`; max one active token per (cardId, qrKind); FOREVER rejected on SIMPLE cards; claim enforces burn for ONE_TIME and share-grant for FOREVER | P0       |
+| Card rescue / re-issue path                    | `POST /api/cards/[id]/rescue` invalidates outstanding tokens and issues a fresh `ONE_TIME` QR; new QR of same kind invalidates the previous on that card                                           | P0       |
+| "Activate Card" flow — `ONE_TIME`              | Wallet scans QR → picks Remote Wallet → claim transfers card ownership only → token burns; second scan sees "already claimed"; claimer can be a brand-new user (fresh nsec) or an existing user    | P0       |
+| "Activate Card" flow — `FOREVER` (MASTER only) | Wallet scans FOREVER QR → claim succeeds without burning → claimer gains share access to card holder's LAs + Remote Wallets                                                                        | P0       |
+| Share revocation                               | Master holder can revoke a specific share per (resource, grantee)                                                                                                                                  | P1       |
+| Connect Card E2E (activation)                  | Activate-QR → claim → pair → pay; separate `FOREVER` (MASTER) branch covered; re-issue path covered (`card-manager` mints a new QR, unpairing the prior holder)                                    | P0       |
+| WordPress plugin (`lawallet-wordpress`)        | Plugin integrates LaWallet (Lightning Address / LNURL-pay / NWC) into WordPress; live demo at `wordpress.lawallet.io`                                                                              | P1       |
+| NWC Payment Listener (lite)                    | Built in `apps/listener/`, transport-only, shares Postgres via `LISTEN`/`NOTIFY` keyed on `RemoteWallet` rows of `type = NWC` → HMAC-signed webhook to `apps/web` works                            | P0       |
+| LUD-22 listener plumbing                       | Webhook registration + delivery via listener; backend retry policy + DLQ                                                                                                                           | P0       |
+| NWC Proxy Lite                                 | Mints invoices via NWC; LUD-16 callback returns Proxy invoice                                                                                                                                      | P0       |
+| LUD-16 closeout                                | `.well-known/lnurlp` spec-correct, `allowsNostr` + `nostrPubkey` set                                                                                                                               | P0       |
+| LUD-21 closeout                                | Verify endpoint covers all payment states                                                                                                                                                          | P0       |
+| LUD-22 closeout                                | Spec-correct payload + HMAC + retry policy                                                                                                                                                         | P0       |
+| NIP-57 zaps                                    | Zap receipts created and verified, tested with Damus/Amethyst/Primal                                                                                                                               | P0       |
+| Nostr scheduler                                | Admin can compose + schedule kind:1 / kind:4; cron dispatches them                                                                                                                                 | P1       |
+| Full Wallet settings                           | Theme, notifications, currency, contacts, privacy, Remote Wallets mgmt                                                                                                                             | P1       |
+| Resend adapter                                 | Email sends through Resend; SMTP/Resend toggle in Settings → Infrastructure                                                                                                                        | P1       |
+| Vercel                                         | One-click deploy still green                                                                                                                                                                       | P1       |
+| Netlify                                        | `netlify.toml` validated, web app deploys                                                                                                                                                          | P1       |
+| Umbrel                                         | All 3 containers in app store, installable                                                                                                                                                         | P0       |
+| Start9                                         | Embassy package submitted                                                                                                                                                                          | P1       |
+| Docker Compose                                 | Production compose + reverse proxy + SSL guide                                                                                                                                                     | P0       |
+| Service docs                                   | `NWC-LISTENER.md` + `NWC-PROXY.md` reflect Lite reality                                                                                                                                            | P0       |
+| Threat model                                   | Crypto operations + attack surfaces documented                                                                                                                                                     | P1       |
+| SDK                                            | `@lawallet-nwc/sdk` published, no stub warnings                                                                                                                                                    | P1       |
+| `@lawallet-nwc/react`                          | Package extracted from `apps/web/lib/client/hooks/`, published, used by docs examples                                                                                                              | P1       |
+| Security audit prep                            | Inventory + audit + lint + PR template                                                                                                                                                             | P1       |

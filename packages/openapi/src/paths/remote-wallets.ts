@@ -4,7 +4,7 @@ import {
   inlineJsonResponse,
   noContent,
   protectedSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 import { responses } from '../responses'
@@ -28,32 +28,44 @@ const remoteWalletSchema = z
       .string()
       .datetime()
       .nullable()
-      .openapi({ description: 'When an archived (DEAD) disposable wallet was detected dead; null otherwise.' }),
+      .openapi({
+        description:
+          'When an archived (DEAD) disposable wallet was detected dead; null otherwise.'
+      }),
     provider: z
       .enum(['lncurl'])
       .nullable()
-      .openapi({ description: "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection." }),
+      .openapi({
+        description:
+          "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
+      }),
     lncurlServerUrl: z
       .string()
       .nullable()
-      .openapi({ description: 'For LNCurl wallets, the server that minted this wallet; null otherwise.' }),
+      .openapi({
+        description:
+          'For LNCurl wallets, the server that minted this wallet; null otherwise.'
+      })
   })
-  .openapi({ description: 'Remote wallet record. The secret `config` is never returned.' })
+  .openapi({
+    description: 'Remote wallet record. The secret `config` is never returned.'
+  })
 
 registry.registerPath({
   ...withRole('USER'),
   method: 'get',
   path: '/api/remote-wallets',
   tags: [TAG],
-  summary: 'List the caller’s remote wallets (REVOKED hidden unless filtered by status).',
+  summary:
+    'List the caller’s remote wallets (REVOKED hidden unless filtered by status).',
   operationId: 'remoteWallets.list',
   security: protectedSecurity,
   request: { query: schemas.RemoteWalletListQuery },
   responses: {
     200: inlineJsonResponse('Remote wallets.', z.array(remoteWalletSchema)),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -66,15 +78,17 @@ registry.registerPath({
   security: protectedSecurity,
   request: {
     body: {
-      content: { 'application/json': { schema: schemas.RemoteWalletCreateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.RemoteWalletCreateRequest }
+      }
+    }
   },
   responses: {
     201: inlineJsonResponse('Remote wallet created.', remoteWalletSchema),
     ...commonErrorResponses,
     404: responses.notFound,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })
 
 registry.registerPath({
@@ -89,16 +103,16 @@ registry.registerPath({
   request: {
     body: {
       content: {
-        'application/json': { schema: schemas.RemoteWalletLncurlCreateRequest },
-      },
-    },
+        'application/json': { schema: schemas.RemoteWalletLncurlCreateRequest }
+      }
+    }
   },
   responses: {
     201: inlineJsonResponse('LNCurl wallet created.', remoteWalletSchema),
     ...commonErrorResponses,
     404: responses.notFound,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })
 
 registry.registerPath({
@@ -113,8 +127,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('Remote wallet.', remoteWalletSchema),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -128,15 +142,17 @@ registry.registerPath({
   request: {
     params: schemas.IdParam,
     body: {
-      content: { 'application/json': { schema: schemas.RemoteWalletUpdateRequest } },
-    },
+      content: {
+        'application/json': { schema: schemas.RemoteWalletUpdateRequest }
+      }
+    }
   },
   responses: {
     200: inlineJsonResponse('Remote wallet updated.', remoteWalletSchema),
     ...commonErrorResponses,
     404: responses.notFound,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })
 
 registry.registerPath({
@@ -151,6 +167,6 @@ registry.registerPath({
   responses: {
     204: noContent('Wallet revoked.'),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })

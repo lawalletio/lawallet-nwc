@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools/pure'
+import {
+  generateSecretKey,
+  getPublicKey,
+  finalizeEvent
+} from 'nostr-tools/pure'
 import { createNextRequest } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
@@ -12,18 +16,18 @@ vi.mock('@/lib/config', () => ({
     rateLimit: { enabled: false },
     requestLimits: { maxJsonSize: 102400, maxBodySize: 1048576 },
     isDevelopment: false,
-    isTest: true,
-  })),
+    isTest: true
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   withRequestLogging: (fn: any) => fn,
-  getCurrentReqId: vi.fn(() => undefined),
+  getCurrentReqId: vi.fn(() => undefined)
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/rate-limit', () => ({
@@ -31,21 +35,24 @@ vi.mock('@/lib/middleware/rate-limit', () => ({
   RateLimitPresets: {
     public: {},
     auth: { maxRequests: 10, maxRequestsAuth: 30 },
-    sensitive: { maxRequests: 5, maxRequestsAuth: 20 },
-  },
+    sensitive: { maxRequests: 5, maxRequestsAuth: 20 }
+  }
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn(),
+  authenticate: vi.fn()
 }))
 
 vi.mock('@/lib/auth/account', () => ({
-  resolveAccountByPubkey: vi.fn(),
+  resolveAccountByPubkey: vi.fn()
 }))
 
 vi.mock('@/lib/activity-log', () => ({
-  ActivityEvent: new Proxy({}, { get: (_t, key) => `user.${String(key).toLowerCase()}` }),
-  logActivity: Object.assign(vi.fn(), { fireAndForget: vi.fn() }),
+  ActivityEvent: new Proxy(
+    {},
+    { get: (_t, key) => `user.${String(key).toLowerCase()}` }
+  ),
+  logActivity: Object.assign(vi.fn(), { fireAndForget: vi.fn() })
 }))
 
 vi.mock('@/lib/account/merge', () => ({
@@ -53,16 +60,16 @@ vi.mock('@/lib/account/merge', () => ({
   previewMerge: vi.fn(),
   mergeAccounts: vi.fn(),
   setPrimaryIdentity: vi.fn(),
-  unlinkIdentity: vi.fn(),
+  unlinkIdentity: vi.fn()
 }))
 
 vi.mock('@/lib/auth/key-vault', () => ({
   isVaultConfigured: vi.fn(() => true),
-  decryptNsec: vi.fn(() => 'f'.repeat(64)),
+  decryptNsec: vi.fn(() => 'f'.repeat(64))
 }))
 
 vi.mock('@/lib/nostr', () => ({
-  getPublicKeyFromPrivate: vi.fn(() => 'a'.repeat(64)), // == PK_A
+  getPublicKeyFromPrivate: vi.fn(() => 'a'.repeat(64)) // == PK_A
 }))
 
 import { GET } from '@/app/api/account/route'
@@ -78,7 +85,7 @@ import {
   previewMerge,
   mergeAccounts,
   setPrimaryIdentity,
-  unlinkIdentity,
+  unlinkIdentity
 } from '@/lib/account/merge'
 import { mintMergeTicket, LINK_PROOF_EVENT_KIND } from '@/lib/account/proof'
 import { Role } from '@/lib/auth/permissions'
@@ -88,14 +95,14 @@ const ACCOUNT = {
   id: 'user-a',
   primaryPubkey: PK_A,
   authPubkey: PK_A,
-  role: 'USER',
+  role: 'USER'
 }
 
 function authedAs(account: typeof ACCOUNT | null = ACCOUNT) {
   vi.mocked(authenticate).mockResolvedValue({
     pubkey: PK_A,
     role: Role.USER,
-    method: 'jwt',
+    method: 'jwt'
   } as any)
   vi.mocked(resolveAccountByPubkey).mockResolvedValue(account as any)
 }
@@ -114,11 +121,16 @@ describe('GET /api/account', () => {
       pubkey: PK_A,
       nostrIdentities: [
         { pubkey: PK_A, isPrimary: true, label: null, createdAt: new Date() },
-        { pubkey: PK_SECONDARY, isPrimary: false, label: 'Old', createdAt: new Date() },
+        {
+          pubkey: PK_SECONDARY,
+          isPrimary: false,
+          label: 'Old',
+          createdAt: new Date()
+        }
       ],
       passkeyCredentials: [],
       // ciphertext decrypts (mocked) to a key deriving PK_A → custodied.
-      managedNostrKey: { exportedAt: null, ciphertext: Buffer.from('x') },
+      managedNostrKey: { exportedAt: null, ciphertext: Buffer.from('x') }
     } as any)
 
     const response = await GET(createNextRequest('/api/account'))
@@ -130,7 +142,9 @@ describe('GET /api/account', () => {
     expect(body.hasManagedKey).toBe(true)
     expect(body.managedKeyExported).toBe(false)
     // Only the identity whose derived pubkey matches the managed key is custodied.
-    expect(body.identities.find((i: any) => i.pubkey === PK_A).custodied).toBe(true)
+    expect(body.identities.find((i: any) => i.pubkey === PK_A).custodied).toBe(
+      true
+    )
     expect(
       body.identities.find((i: any) => i.pubkey === PK_SECONDARY).custodied
     ).toBe(false)
@@ -142,10 +156,10 @@ describe('GET /api/account', () => {
       id: 'user-a',
       pubkey: PK_A,
       nostrIdentities: [
-        { pubkey: PK_A, isPrimary: true, label: null, createdAt: new Date() },
+        { pubkey: PK_A, isPrimary: true, label: null, createdAt: new Date() }
       ],
       passkeyCredentials: [],
-      managedNostrKey: null,
+      managedNostrKey: null
     } as any)
 
     const body = await (await GET(createNextRequest('/api/account'))).json()
@@ -167,7 +181,7 @@ describe('POST /api/account/identities/link — nostr proof', () => {
     const response = await linkBegin(
       createNextRequest('/api/account/identities/link/begin', {
         method: 'POST',
-        body: { method: 'nostr' },
+        body: { method: 'nostr' }
       })
     )
     expect(response.status).toBe(200)
@@ -183,7 +197,7 @@ describe('POST /api/account/identities/link — nostr proof', () => {
             kind: LINK_PROOF_EVENT_KIND,
             created_at: Math.floor(Date.now() / 1000),
             tags: [['challenge', nonce]],
-            content: '',
+            content: ''
           },
           sk
         )
@@ -205,13 +219,13 @@ describe('POST /api/account/identities/link — nostr proof', () => {
       pubkey,
       isPrimary: false,
       label: null,
-      createdAt: new Date(),
+      createdAt: new Date()
     } as any)
 
     const response = await linkVerify(
       createNextRequest('/api/account/identities/link/verify', {
         method: 'POST',
-        body: { method: 'nostr', challenge, event },
+        body: { method: 'nostr', challenge, event }
       })
     )
     expect(response.status).toBe(200)
@@ -232,19 +246,24 @@ describe('POST /api/account/identities/link — nostr proof', () => {
     vi.mocked(resolveAccountByPubkey).mockImplementation(async pk =>
       pk === PK_A
         ? (ACCOUNT as any)
-        : ({ id: 'user-b', primaryPubkey: pubkey, authPubkey: pk, role: 'USER' } as any)
+        : ({
+            id: 'user-b',
+            primaryPubkey: pubkey,
+            authPubkey: pk,
+            role: 'USER'
+          } as any)
     )
     vi.mocked(previewMerge).mockResolvedValue({
       survivor: {},
       absorbed: { userId: 'user-b' },
       collisions: [],
-      blocked: false,
+      blocked: false
     } as any)
 
     const response = await linkVerify(
       createNextRequest('/api/account/identities/link/verify', {
         method: 'POST',
-        body: { method: 'nostr', challenge, event },
+        body: { method: 'nostr', challenge, event }
       })
     )
     expect(response.status).toBe(200)
@@ -267,7 +286,7 @@ describe('POST /api/account/identities/link — nostr proof', () => {
     const response = await linkVerify(
       createNextRequest('/api/account/identities/link/verify', {
         method: 'POST',
-        body: { method: 'nostr', challenge, event },
+        body: { method: 'nostr', challenge, event }
       })
     )
     expect(response.status).toBe(409)
@@ -281,7 +300,7 @@ describe('POST /api/account/identities/link — nostr proof', () => {
     const response = await linkVerify(
       createNextRequest('/api/account/identities/link/verify', {
         method: 'POST',
-        body: { method: 'nostr', challenge, event },
+        body: { method: 'nostr', challenge, event }
       })
     )
     expect(response.status).toBe(401)
@@ -294,19 +313,19 @@ describe('merge preview + commit', () => {
     const ticket = mintMergeTicket({
       survivorId: 'user-a',
       absorbedId: 'user-b',
-      provenPubkey: 'c'.repeat(64),
+      provenPubkey: 'c'.repeat(64)
     })
     vi.mocked(previewMerge).mockResolvedValue({
       survivor: {},
       absorbed: {},
       collisions: [],
-      blocked: false,
+      blocked: false
     } as any)
 
     const response = await mergePreview(
       createNextRequest('/api/account/merge/preview', {
         method: 'POST',
-        body: { mergeTicket: ticket },
+        body: { mergeTicket: ticket }
       })
     )
     expect(response.status).toBe(200)
@@ -318,12 +337,12 @@ describe('merge preview + commit', () => {
     const foreign = mintMergeTicket({
       survivorId: 'user-x',
       absorbedId: 'user-b',
-      provenPubkey: 'c'.repeat(64),
+      provenPubkey: 'c'.repeat(64)
     })
     const response = await mergePreview(
       createNextRequest('/api/account/merge/preview', {
         method: 'POST',
-        body: { mergeTicket: foreign },
+        body: { mergeTicket: foreign }
       })
     )
     expect(response.status).toBe(401)
@@ -335,7 +354,7 @@ describe('merge preview + commit', () => {
     const ticket = mintMergeTicket({
       survivorId: 'user-a',
       absorbedId: 'user-b',
-      provenPubkey: 'c'.repeat(64),
+      provenPubkey: 'c'.repeat(64)
     })
     vi.mocked(mergeAccounts).mockResolvedValue({
       survivorId: 'user-a',
@@ -344,7 +363,7 @@ describe('merge preview + commit', () => {
       movedPasskeys: 0,
       movedAddresses: 2,
       movedWallets: 1,
-      mergedRelays: 3,
+      mergedRelays: 3
     } as any)
 
     const response = await mergeCommit(
@@ -355,9 +374,9 @@ describe('merge preview + commit', () => {
           mainPubkey: 'c'.repeat(64),
           resolutions: {
             primaryAddressUsername: 'bob',
-            defaultWalletId: 'w-2',
-          },
-        },
+            defaultWalletId: 'w-2'
+          }
+        }
       })
     )
     expect(response.status).toBe(200)
@@ -365,7 +384,7 @@ describe('merge preview + commit', () => {
       survivorId: 'user-a',
       absorbedId: 'user-b',
       mainPubkey: 'c'.repeat(64),
-      resolutions: { primaryAddressUsername: 'bob', defaultWalletId: 'w-2' },
+      resolutions: { primaryAddressUsername: 'bob', defaultWalletId: 'w-2' }
     })
   })
 })
@@ -376,24 +395,31 @@ describe('identities PATCH/DELETE', () => {
   it('promotes a secondary to primary', async () => {
     authedAs()
     vi.mocked(prismaMock.nostrIdentity.findUnique)
-      .mockResolvedValueOnce({ pubkey: OTHER_PK, userId: 'user-a', isPrimary: false } as any)
+      .mockResolvedValueOnce({
+        pubkey: OTHER_PK,
+        userId: 'user-a',
+        isPrimary: false
+      } as any)
       .mockResolvedValueOnce({
         pubkey: OTHER_PK,
         userId: 'user-a',
         isPrimary: true,
         label: null,
-        createdAt: new Date(),
+        createdAt: new Date()
       } as any)
 
     const response = await PATCH(
       createNextRequest(`/api/account/identities/${OTHER_PK}`, {
         method: 'PATCH',
-        body: { isPrimary: true },
+        body: { isPrimary: true }
       }),
       createParamsPromise({ pubkey: OTHER_PK })
     )
     expect(response.status).toBe(200)
-    expect(vi.mocked(setPrimaryIdentity)).toHaveBeenCalledWith('user-a', OTHER_PK)
+    expect(vi.mocked(setPrimaryIdentity)).toHaveBeenCalledWith(
+      'user-a',
+      OTHER_PK
+    )
   })
 
   it('404s (not 403) for a foreign identity', async () => {
@@ -401,11 +427,13 @@ describe('identities PATCH/DELETE', () => {
     vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
       pubkey: OTHER_PK,
       userId: 'someone-else',
-      isPrimary: false,
+      isPrimary: false
     } as any)
 
     const response = await DELETE(
-      createNextRequest(`/api/account/identities/${OTHER_PK}`, { method: 'DELETE' }),
+      createNextRequest(`/api/account/identities/${OTHER_PK}`, {
+        method: 'DELETE'
+      }),
       createParamsPromise({ pubkey: OTHER_PK })
     )
     expect(response.status).toBe(404)
@@ -417,11 +445,13 @@ describe('identities PATCH/DELETE', () => {
     vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
       pubkey: OTHER_PK,
       userId: 'user-a',
-      isPrimary: false,
+      isPrimary: false
     } as any)
 
     const response = await DELETE(
-      createNextRequest(`/api/account/identities/${OTHER_PK}`, { method: 'DELETE' }),
+      createNextRequest(`/api/account/identities/${OTHER_PK}`, {
+        method: 'DELETE'
+      }),
       createParamsPromise({ pubkey: OTHER_PK })
     )
     expect(response.status).toBe(200)

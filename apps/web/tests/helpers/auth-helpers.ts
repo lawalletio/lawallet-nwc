@@ -6,7 +6,7 @@ export function mockAdminAuth(pubkey?: string) {
   const mockPubkey = pubkey || 'a'.repeat(64)
   vi.mock('@/lib/admin-auth', () => ({
     validateAdminAuth: vi.fn().mockResolvedValue(mockPubkey),
-    validateNip98Auth: vi.fn().mockResolvedValue(mockPubkey),
+    validateNip98Auth: vi.fn().mockResolvedValue(mockPubkey)
   }))
   return mockPubkey
 }
@@ -24,9 +24,9 @@ export function mockNip98(pubkey?: string) {
         kind: 27235,
         tags: [],
         content: '',
-        sig: 'b'.repeat(128),
-      },
-    }),
+        sig: 'b'.repeat(128)
+      }
+    })
   }))
   return mockPubkey
 }
@@ -42,8 +42,8 @@ export function createNip98Result(pubkey: string): Nip98ValidationResult {
       kind: 27235,
       tags: [],
       content: '',
-      sig: 'b'.repeat(128),
-    },
+      sig: 'b'.repeat(128)
+    }
   }
 }
 
@@ -54,7 +54,7 @@ export function createJwtPayload(overrides: Record<string, unknown> = {}) {
     role: 'USER',
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 3600,
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -66,7 +66,7 @@ export function createMockRequest(
   const { headers = {}, ...rest } = options
   return new Request(url, {
     ...rest,
-    headers: new Headers(headers),
+    headers: new Headers(headers)
   })
 }
 
@@ -82,8 +82,8 @@ export function createJsonRequest(
     ...rest,
     headers: new Headers({
       'Content-Type': 'application/json',
-      ...headers,
+      ...headers
     }),
-    body: JSON.stringify(body),
+    body: JSON.stringify(body)
   })
 }

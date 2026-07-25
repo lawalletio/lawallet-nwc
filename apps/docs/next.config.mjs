@@ -1,6 +1,6 @@
-import { createMDX } from 'fumadocs-mdx/next';
+import { createMDX } from 'fumadocs-mdx/next'
 
-const withMDX = createMDX();
+const withMDX = createMDX()
 
 /** @type {import('next').NextConfig} */
 const config = {
@@ -10,40 +10,40 @@ const config = {
       {
         source: '/docs/getting-started',
         destination: '/docs/deploy',
-        permanent: true,
+        permanent: true
       },
       {
         source: '/docs/getting-started/vision',
         destination: '/docs/vision',
-        permanent: true,
+        permanent: true
       },
       {
         source: '/docs/getting-started/onboarding',
         destination: '/docs/deploy/onboarding',
-        permanent: true,
+        permanent: true
       },
       {
         source: '/docs/getting-started/docker',
         destination: '/docs/deploy/docker',
-        permanent: true,
+        permanent: true
       },
       {
         source: '/docs/deploy/vision',
         destination: '/docs/vision',
-        permanent: true,
+        permanent: true
       },
       {
         source: '/docs/jwt-authentication',
         destination: '/docs/guides/jwt-authentication',
-        permanent: true,
+        permanent: true
       },
       {
         source: '/docs/roles-and-permissions',
         destination: '/docs/architecture/roles-and-permissions',
-        permanent: true,
-      },
-    ];
-  },
-};
+        permanent: true
+      }
+    ]
+  }
+}
 
-export default withMDX(config);
+export default withMDX(config)

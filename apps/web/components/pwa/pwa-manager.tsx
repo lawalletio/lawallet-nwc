@@ -17,7 +17,8 @@ function isStandalone(): boolean {
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
     // iOS Safari home-screen apps.
-    (window.navigator as unknown as { standalone?: boolean }).standalone === true
+    (window.navigator as unknown as { standalone?: boolean }).standalone ===
+      true
   )
 }
 
@@ -30,7 +31,9 @@ function isStandalone(): boolean {
  * already installed the app or dismissed the banner before.
  */
 export function PwaManager() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
+  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
+    null
+  )
   const [visible, setVisible] = useState(false)
 
   // Register the service worker.
@@ -94,7 +97,9 @@ export function PwaManager() {
           <Download className="size-5 text-foreground" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-tight">Install the wallet</p>
+          <p className="text-sm font-medium leading-tight">
+            Install the wallet
+          </p>
           <p className="truncate text-xs text-muted-foreground">
             Add it to your home screen for quick access.
           </p>

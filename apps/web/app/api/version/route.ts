@@ -13,7 +13,10 @@ type GithubRelease = {
 }
 
 function parseVersion(version: string) {
-  const match = version.trim().replace(/^v/i, '').match(/^(\d+)\.(\d+)\.(\d+)/)
+  const match = version
+    .trim()
+    .replace(/^v/i, '')
+    .match(/^(\d+)\.(\d+)\.(\d+)/)
   if (!match) return null
   return match.slice(1).map(part => Number(part))
 }
@@ -37,7 +40,7 @@ export async function GET() {
   try {
     const headers: HeadersInit = {
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'lawallet-nwc-version-check',
+      'User-Agent': 'lawallet-nwc-version-check'
     }
     if (process.env.GITHUB_TOKEN) {
       headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`
@@ -45,7 +48,7 @@ export async function GET() {
 
     const response = await fetch(LATEST_RELEASE_API, {
       headers,
-      next: { revalidate },
+      next: { revalidate }
     })
 
     if (!response.ok) {
@@ -53,7 +56,7 @@ export async function GET() {
         currentVersion,
         latestVersion: null,
         releaseUrl: RELEASES_URL,
-        updateAvailable: false,
+        updateAvailable: false
       })
     }
 
@@ -66,14 +69,14 @@ export async function GET() {
       releaseUrl: release.html_url || RELEASES_URL,
       updateAvailable: latestVersion
         ? isNewerVersion(latestVersion, currentVersion)
-        : false,
+        : false
     })
   } catch {
     return NextResponse.json({
       currentVersion,
       latestVersion: null,
       releaseUrl: RELEASES_URL,
-      updateAvailable: false,
+      updateAvailable: false
     })
   }
 }

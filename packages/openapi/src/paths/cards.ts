@@ -6,7 +6,7 @@ import {
   protectedSecurity,
   publicErrorResponses,
   publicSecurity,
-  withRole,
+  withRole
 } from '../helpers'
 import { registry } from '../registry'
 import { errorResponse, responses } from '../responses'
@@ -26,11 +26,13 @@ const cardSchema = z
       .openapi({
         description:
           'True once the card’s reset (wipe) keys were exported — ' +
-          'decommissioned and pending delete; can no longer be re-used.',
+          'decommissioned and pending delete; can no longer be re-used.'
       }),
-    createdAt: z.string().datetime(),
+    createdAt: z.string().datetime()
   })
-  .openapi({ description: 'Card resource as returned by /api/cards endpoints.' })
+  .openapi({
+    description: 'Card resource as returned by /api/cards endpoints.'
+  })
 
 registry.registerPath({
   ...withRole('VIEWER'),
@@ -44,10 +46,10 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Paginated list of cards.',
-      z.object({ data: z.array(cardSchema) }),
+      z.object({ data: z.array(cardSchema) })
     ),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -66,8 +68,8 @@ registry.registerPath({
   security: protectedSecurity,
   request: {
     body: {
-      content: { 'application/json': { schema: schemas.CardCreateRequest } },
-    },
+      content: { 'application/json': { schema: schemas.CardCreateRequest } }
+    }
   },
   responses: {
     201: inlineJsonResponse('Card created.', cardSchema),
@@ -75,9 +77,9 @@ registry.registerPath({
     409: errorResponse(
       'A card with the supplied UID already exists. The error envelope carries ' +
         '`error.code` = `CONFLICT` and `error.message` = ' +
-        '`A card with UID <uid> already exists`.',
-    ),
-  },
+        '`A card with UID <uid> already exists`.'
+    )
+  }
 })
 
 registry.registerPath({
@@ -95,11 +97,11 @@ registry.registerPath({
         total: z.number().int().nonnegative(),
         paired: z.number().int().nonnegative(),
         used: z.number().int().nonnegative(),
-        blocked: z.number().int().nonnegative(),
-      }),
+        blocked: z.number().int().nonnegative()
+      })
     ),
-    ...commonErrorResponses,
-  },
+    ...commonErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -114,8 +116,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('Card detail.', cardSchema),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -130,8 +132,8 @@ registry.registerPath({
   responses: {
     204: noContent('Card deleted.'),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 const cardSecretsResponse = inlineJsonResponse(
@@ -144,11 +146,13 @@ const cardSecretsResponse = inlineJsonResponse(
         k1: z.string(),
         k2: z.string(),
         k3: z.string(),
-        k4: z.string(),
+        k4: z.string()
       }),
-      endpoint: z.string().url(),
+      endpoint: z.string().url()
     })
-    .openapi({ description: 'Card programming payload returned to the writer device.' }),
+    .openapi({
+      description: 'Card programming payload returned to the writer device.'
+    })
 )
 
 registry.registerPath({
@@ -173,19 +177,21 @@ registry.registerPath({
       .object({
         token: z
           .string()
-          .openapi({ description: 'Single-use programming token from /write-token.' }),
+          .openapi({
+            description: 'Single-use programming token from /write-token.'
+          })
       })
-      .openapi('CardWriteQuery'),
+      .openapi('CardWriteQuery')
   },
   responses: {
     200: cardSecretsResponse,
     ...publicErrorResponses,
     403: errorResponse(
       'Missing, invalid, expired, or already-consumed programming token, or the ' +
-        'card has already been tapped.',
+        'card has already been tapped.'
     ),
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -210,21 +216,21 @@ registry.registerPath({
         .object({
           token: z.string(),
           url: z.string().url(),
-          expiresAt: z.string().datetime(),
+          expiresAt: z.string().datetime()
         })
         .openapi({
           description:
             'Single-use /write URL + its expiry. `token` is also returned raw so ' +
             'a client on a different host than the public domain can build its ' +
-            'own `<base>/api/cards/{id}/write?token=…` URL.',
-        }),
+            'own `<base>/api/cards/{id}/write?token=…` URL.'
+        })
     ),
     ...commonErrorResponses,
     404: responses.notFound,
     409: errorResponse(
-      'The card has already been tapped and can no longer be programmed.',
-    ),
-  },
+      'The card has already been tapped and can no longer be programmed.'
+    )
+  }
 })
 
 registry.registerPath({
@@ -236,7 +242,7 @@ registry.registerPath({
   operationId: 'cards.write.options',
   security: publicSecurity,
   request: { params: schemas.IdParam },
-  responses: { 204: noContent('Preflight OK.') },
+  responses: { 204: noContent('Preflight OK.') }
 })
 
 const cardWipeResponse = inlineJsonResponse(
@@ -250,12 +256,12 @@ const cardWipeResponse = inlineJsonResponse(
       k3: z.string(),
       k4: z.string(),
       uid: z.string(),
-      version: z.literal(1),
+      version: z.literal(1)
     })
     .openapi({
       description:
-        'BoltCard wipe payload: the current keys + UID a programming device uses to reset the card to factory defaults.',
-    }),
+        'BoltCard wipe payload: the current keys + UID a programming device uses to reset the card to factory defaults.'
+    })
 )
 
 registry.registerPath({
@@ -274,8 +280,8 @@ registry.registerPath({
   responses: {
     200: cardWipeResponse,
     ...publicErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -287,7 +293,7 @@ registry.registerPath({
   operationId: 'cards.wipe.options',
   security: publicSecurity,
   request: { params: schemas.IdParam },
-  responses: { 204: noContent('Preflight OK.') },
+  responses: { 204: noContent('Preflight OK.') }
 })
 
 registry.registerPath({
@@ -311,13 +317,13 @@ registry.registerPath({
         .object({
           p: z.string(),
           c: z.string(),
-          ctr: z.number().int(),
+          ctr: z.number().int()
         })
-        .openapi({ description: 'Public SUN params (no keys).' }),
+        .openapi({ description: 'Public SUN params (no keys).' })
     ),
     ...commonErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 // Public card status, returned by /scan when `x-request-action: info` is set
@@ -333,15 +339,17 @@ const cardInfoSchema = z
     design: z
       .object({
         description: z.string().nullable(),
-        imageUrl: z.string().nullable(),
+        imageUrl: z.string().nullable()
       })
       .nullable(),
     user: z
       .object({ pubkey: z.string(), username: z.string().nullable() })
       .nullable(),
-    lastUsedAt: z.string().nullable(),
+    lastUsedAt: z.string().nullable()
   })
-  .openapi({ description: 'Non-sensitive card status (no keys/OTC/SUN params).' })
+  .openapi({
+    description: 'Non-sensitive card status (no keys/OTC/SUN params).'
+  })
 
 const lnurlScanSchema = z
   .object({
@@ -350,7 +358,7 @@ const lnurlScanSchema = z
     maxWithdrawable: z.number().int(),
     minWithdrawable: z.number().int(),
     defaultDescription: z.string(),
-    tag: z.literal('withdrawRequest'),
+    tag: z.literal('withdrawRequest')
   })
   .passthrough()
 
@@ -359,7 +367,8 @@ registry.registerPath({
   method: 'get',
   path: '/api/cards/{id}/scan',
   tags: [TAG],
-  summary: 'Resolve a scanned card and return the LNURL-withdraw flow entry point.',
+  summary:
+    'Resolve a scanned card and return the LNURL-withdraw flow entry point.',
   description:
     'The first LNURL request on tap. Send the request header `x-request-action: info` ' +
     'to get the card’s public status JSON (design, image, owner, paired/used) instead ' +
@@ -371,10 +380,10 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'LNURL withdraw request, or the card status JSON when `x-request-action: info`.',
-      z.union([lnurlScanSchema, cardInfoSchema]),
+      z.union([lnurlScanSchema, cardInfoSchema])
     ),
-    ...publicErrorResponses,
-  },
+    ...publicErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -386,7 +395,7 @@ registry.registerPath({
   operationId: 'cards.scan.options',
   security: publicSecurity,
   request: { params: schemas.IdParam },
-  responses: { 204: noContent('Preflight OK.') },
+  responses: { 204: noContent('Preflight OK.') }
 })
 
 registry.registerPath({
@@ -403,11 +412,11 @@ registry.registerPath({
       'LUD-03 callback response.',
       z.union([
         z.object({ status: z.literal('OK') }),
-        z.object({ status: z.literal('ERROR'), reason: z.string() }),
-      ]),
+        z.object({ status: z.literal('ERROR'), reason: z.string() })
+      ])
     ),
-    ...publicErrorResponses,
-  },
+    ...publicErrorResponses
+  }
 })
 
 registry.registerPath({
@@ -422,8 +431,8 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse('OTC payload.', z.object({}).passthrough()),
     ...publicErrorResponses,
-    404: responses.notFound,
-  },
+    404: responses.notFound
+  }
 })
 
 registry.registerPath({
@@ -438,10 +447,10 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Card activated.',
-      z.object({ success: z.literal(true) }).passthrough(),
+      z.object({ success: z.literal(true) }).passthrough()
     ),
     ...commonErrorResponses,
     404: responses.notFound,
-    409: responses.conflict,
-  },
+    409: responses.conflict
+  }
 })

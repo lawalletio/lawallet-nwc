@@ -6,7 +6,7 @@ import {
   Eye,
   QrCode,
   ScanLine,
-  Zap,
+  Zap
 } from 'lucide-react'
 
 /**
@@ -18,7 +18,7 @@ import {
 
 const ACTIVITY = [
   { dir: 'in' as const, label: 'Received', sub: 'from bob', amount: '+2,100' },
-  { dir: 'out' as const, label: 'Sent', sub: 'coffee shop', amount: '-850' },
+  { dir: 'out' as const, label: 'Sent', sub: 'coffee shop', amount: '-850' }
 ]
 
 export function WalletHomeMock() {
@@ -31,7 +31,7 @@ export function WalletHomeMock() {
           style={{
             background:
               'linear-gradient(135deg, var(--theme-300), color-mix(in srgb, var(--theme-400) 60%, #000))',
-            color: '#fff',
+            color: '#fff'
           }}
         >
           ay
@@ -53,12 +53,17 @@ export function WalletHomeMock() {
           <span className="text-4xl font-semibold tabular-nums tracking-tight">
             21,000
           </span>
-          <span className="text-sm font-normal text-muted-foreground">sats</span>
+          <span className="text-sm font-normal text-muted-foreground">
+            sats
+          </span>
         </div>
         <div className="mt-1 flex items-center gap-1 rounded-full bg-white/[0.04] p-0.5">
           <span
             className="rounded-full px-2.5 py-0.5 text-[9px] font-medium text-foreground shadow-sm"
-            style={{ background: 'color-mix(in srgb, var(--theme-400) 20%, transparent)' }}
+            style={{
+              background:
+                'color-mix(in srgb, var(--theme-400) 20%, transparent)'
+            }}
           >
             sats
           </span>
@@ -86,7 +91,7 @@ export function WalletHomeMock() {
             background:
               'linear-gradient(180deg, var(--theme-400), var(--theme-300))',
             boxShadow:
-              '0 8px 20px -8px color-mix(in srgb, var(--theme-400) 70%, transparent)',
+              '0 8px 20px -8px color-mix(in srgb, var(--theme-400) 70%, transparent)'
           }}
         >
           <ArrowUpRight className="size-3.5" />
@@ -112,7 +117,9 @@ export function WalletHomeMock() {
 
       {/* Activity */}
       <div className="mt-4 flex items-center justify-between">
-        <span className="text-[10px] font-semibold text-foreground">Activity</span>
+        <span className="text-[10px] font-semibold text-foreground">
+          Activity
+        </span>
         <span className="text-[9px] text-muted-foreground/70">View all</span>
       </div>
       <div className="mt-2 flex flex-col gap-px overflow-hidden rounded-xl bg-white/[0.03]">
@@ -130,7 +137,7 @@ export function WalletHomeMock() {
                     ? {
                         background:
                           'color-mix(in srgb, var(--theme-400) 16%, transparent)',
-                        color: 'var(--theme-400)',
+                        color: 'var(--theme-400)'
                       }
                     : { background: 'rgba(255,255,255,0.05)', color: '#a3a3a3' }
                 }
@@ -168,7 +175,7 @@ export function WalletHomeMock() {
             background:
               'linear-gradient(180deg, var(--theme-400), var(--theme-300))',
             boxShadow:
-              '0 10px 24px -8px color-mix(in srgb, var(--theme-400) 70%, transparent)',
+              '0 10px 24px -8px color-mix(in srgb, var(--theme-400) 70%, transparent)'
           }}
         >
           <ScanLine className="size-5" />

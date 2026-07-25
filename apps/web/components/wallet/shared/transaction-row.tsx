@@ -10,7 +10,11 @@ interface TransactionRowProps {
   className?: string
 }
 
-export function TransactionRow({ tx, onClick, className }: TransactionRowProps) {
+export function TransactionRow({
+  tx,
+  onClick,
+  className
+}: TransactionRowProps) {
   const incoming = tx.type === 'incoming'
   const Icon = incoming ? ArrowDownLeft : ArrowUpRight
   const timestamp = tx.settledAt ?? tx.createdAt
@@ -21,7 +25,7 @@ export function TransactionRow({ tx, onClick, className }: TransactionRowProps) 
       onClick={onClick}
       className={cn(
         'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-accent/60',
-        className,
+        className
       )}
     >
       <div
@@ -29,7 +33,7 @@ export function TransactionRow({ tx, onClick, className }: TransactionRowProps) 
           'flex size-10 shrink-0 items-center justify-center rounded-full',
           incoming
             ? 'bg-green-500/10 text-green-500'
-            : 'bg-orange-500/10 text-orange-500',
+            : 'bg-orange-500/10 text-orange-500'
         )}
       >
         <Icon className="size-4" />
@@ -48,7 +52,7 @@ export function TransactionRow({ tx, onClick, className }: TransactionRowProps) 
         <span
           className={cn(
             'text-sm font-semibold',
-            incoming ? 'text-green-500' : 'text-foreground',
+            incoming ? 'text-green-500' : 'text-foreground'
           )}
         >
           {incoming ? '+' : '−'}

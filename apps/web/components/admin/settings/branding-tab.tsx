@@ -7,22 +7,31 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
-import { useTheme, type ThemePreset, type RoundingOption } from '@/lib/client/theme-context'
+import {
+  useTheme,
+  type ThemePreset,
+  type RoundingOption
+} from '@/lib/client/theme-context'
 import { cn } from '@/lib/utils'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import {
   useSettingSaver,
   SettingTextInput,
-  SettingInputGroup,
+  SettingInputGroup
 } from '@/components/admin/settings/auto-save-controls'
 import { useBlossomUpload } from '@/lib/client/hooks/use-blossom-upload'
 import {
   DEFAULT_ISOTYPO_SRC,
-  DEFAULT_LOGOTYPE_SRC,
+  DEFAULT_LOGOTYPE_SRC
 } from '@/lib/client/hooks/use-brand'
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
+const ACCEPTED_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/svg+xml'
+]
 const ACCEPT_ATTR = '.jpg,.jpeg,.png,.webp,.svg'
 const ACCEPTED_HINT = 'JPG, PNG, WebP or SVG'
 
@@ -39,7 +48,14 @@ function validateImageFile(file: File) {
 }
 
 export function BrandingTab() {
-  const { activePreset, setTheme, presets, rounding, setRounding, roundingOptions } = useTheme()
+  const {
+    activePreset,
+    setTheme,
+    presets,
+    rounding,
+    setRounding,
+    roundingOptions
+  } = useTheme()
   const { data: settings } = useSettings()
   const saveSetting = useSettingSaver()
   const [logotypePreview, setLogotypePreview] = useState<string | null>(null)
@@ -86,8 +102,10 @@ export function BrandingTab() {
   // Revoke blob: object URLs on unmount to avoid memory leaks.
   useEffect(() => {
     return () => {
-      if (logotypePreview?.startsWith('blob:')) URL.revokeObjectURL(logotypePreview)
-      if (isotypoPreview?.startsWith('blob:')) URL.revokeObjectURL(isotypoPreview)
+      if (logotypePreview?.startsWith('blob:'))
+        URL.revokeObjectURL(logotypePreview)
+      if (isotypoPreview?.startsWith('blob:'))
+        URL.revokeObjectURL(isotypoPreview)
     }
     // Cleanup only on unmount — we intentionally don't re-run when previews change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,7 +124,9 @@ export function BrandingTab() {
       await saveSetting({ brand_rounding: opt })
     } catch (err) {
       setRounding(prev)
-      toast.error(err instanceof Error ? err.message : 'Failed to save rounding')
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to save rounding'
+      )
     } finally {
       setRoundingSaving(false)
     }
@@ -226,7 +246,9 @@ export function BrandingTab() {
               <div className="relative flex h-12 w-40 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/60 bg-black/40 px-3 py-2">
                 <img
                   src={logotypeSrc}
-                  alt={logotypePreview ? 'Logotype' : 'Default LaWallet logotype'}
+                  alt={
+                    logotypePreview ? 'Logotype' : 'Default LaWallet logotype'
+                  }
                   className="h-full w-full object-contain"
                   onError={() => {
                     if (logotypePreview) setLogotypePreview(null)
@@ -355,10 +377,12 @@ export function BrandingTab() {
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <p className="text-sm text-foreground">Rounded</p>
-              {roundingSaving && <Spinner size={16} className="text-muted-foreground" />}
+              {roundingSaving && (
+                <Spinner size={16} className="text-muted-foreground" />
+              )}
             </div>
             <div className="inline-flex items-center gap-1 bg-card border border-border rounded-lg p-1 w-fit">
-              {roundingOptions.map((opt) => (
+              {roundingOptions.map(opt => (
                 <button
                   key={opt}
                   disabled={roundingSaving}
@@ -380,10 +404,12 @@ export function BrandingTab() {
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <p className="text-sm text-foreground">Theme</p>
-              {themeSaving && <Spinner size={16} className="text-muted-foreground" />}
+              {themeSaving && (
+                <Spinner size={16} className="text-muted-foreground" />
+              )}
             </div>
             <div className="inline-flex items-center gap-1 bg-card border border-border rounded-lg p-1 w-fit">
-              {presets.map((preset) => {
+              {presets.map(preset => {
                 const isActive = activePreset.hex === preset.hex
                 return (
                   <button
@@ -404,9 +430,11 @@ export function BrandingTab() {
                         <Check
                           className="absolute inset-0 m-auto size-2.5"
                           style={{
-                            color: preset.name === 'Yellow' || preset.name === 'Neutral'
-                              ? '#0a0a0a'
-                              : '#ffffff',
+                            color:
+                              preset.name === 'Yellow' ||
+                              preset.name === 'Neutral'
+                                ? '#0a0a0a'
+                                : '#ffffff'
                           }}
                           strokeWidth={3}
                         />
@@ -503,7 +531,7 @@ function SocialField({
   placeholder,
   value,
   onValueChange,
-  save,
+  save
 }: {
   label: string
   prefix: string

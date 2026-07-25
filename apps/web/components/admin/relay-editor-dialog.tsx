@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useUserMutations } from '@/lib/client/hooks/use-users'
@@ -27,7 +27,7 @@ const POPULAR_RELAYS = [
   'wss://relay.nostr.band',
   'wss://relay.primal.net',
   'wss://nostr.wine',
-  'wss://relay.snort.social',
+  'wss://relay.snort.social'
 ]
 
 /** Soft guidance threshold — not a hard cap (the server allows up to 20). */
@@ -57,7 +57,7 @@ export function RelayEditorDialog({
   onOpenChange,
   userId,
   relays: initialRelays,
-  onSaved,
+  onSaved
 }: RelayEditorDialogProps) {
   const { updateUserRelays, loading } = useUserMutations()
   const [rows, setRows] = useState<string[]>([])
@@ -81,7 +81,9 @@ export function RelayEditorDialog({
   }
   function addRow() {
     // Don't stack empty rows — reuse a trailing blank if one is already there.
-    setRows(prev => (prev[prev.length - 1]?.trim() === '' ? prev : [...prev, '']))
+    setRows(prev =>
+      prev[prev.length - 1]?.trim() === '' ? prev : [...prev, '']
+    )
   }
   function removeRow(index: number) {
     setRows(prev => {
@@ -114,7 +116,7 @@ export function RelayEditorDialog({
       toast.success(
         deduped.length === 0
           ? 'Relays cleared'
-          : `Saved ${deduped.length} relay${deduped.length === 1 ? '' : 's'}`,
+          : `Saved ${deduped.length} relay${deduped.length === 1 ? '' : 's'}`
       )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save relays')
@@ -130,8 +132,8 @@ export function RelayEditorDialog({
             Nostr relays
           </DialogTitle>
           <DialogDescription>
-            Where your Nostr profile and events are published. Add the relays you
-            want your identity discoverable on.
+            Where your Nostr profile and events are published. Add the relays
+            you want your identity discoverable on.
           </DialogDescription>
         </DialogHeader>
 
@@ -147,7 +149,7 @@ export function RelayEditorDialog({
                 className={cn(
                   'flex-1 font-mono text-sm',
                   invalid[index] &&
-                    'border-destructive focus-visible:ring-destructive',
+                    'border-destructive focus-visible:ring-destructive'
                 )}
                 aria-invalid={invalid[index] || undefined}
               />
@@ -201,7 +203,9 @@ export function RelayEditorDialog({
         <p
           className={cn(
             'flex items-center gap-1.5 text-xs',
-            overSuggested ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground',
+            overSuggested
+              ? 'text-amber-600 dark:text-amber-500'
+              : 'text-muted-foreground'
           )}
         >
           {overSuggested && <TriangleAlert className="size-3.5 shrink-0" />}

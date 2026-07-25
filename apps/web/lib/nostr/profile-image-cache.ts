@@ -15,7 +15,7 @@ const ALLOWED_IMAGE_TYPES = new Set([
   'image/png',
   'image/webp',
   'image/gif',
-  'image/avif',
+  'image/avif'
 ])
 
 const EXT_BY_TYPE: Record<string, string> = {
@@ -23,7 +23,7 @@ const EXT_BY_TYPE: Record<string, string> = {
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
-  'image/avif': 'avif',
+  'image/avif': 'avif'
 }
 
 export type ProfileImageKind = 'AVATAR' | 'COVER'
@@ -42,25 +42,31 @@ interface PrecacheOptions {
 
 export async function precacheProfileImages(
   profile: Pick<NostrProfile, 'npub' | 'picture' | 'banner'>,
-  options: PrecacheOptions = {},
+  options: PrecacheOptions = {}
 ) {
   const tasks: Promise<void>[] = []
   if (profile.picture) {
     tasks.push(
-      precacheProfileImage({
-        npub: profile.npub,
-        kind: 'AVATAR',
-        remoteUrl: profile.picture,
-      }, options),
+      precacheProfileImage(
+        {
+          npub: profile.npub,
+          kind: 'AVATAR',
+          remoteUrl: profile.picture
+        },
+        options
+      )
     )
   }
   if (profile.banner) {
     tasks.push(
-      precacheProfileImage({
-        npub: profile.npub,
-        kind: 'COVER',
-        remoteUrl: profile.banner,
-      }, options),
+      precacheProfileImage(
+        {
+          npub: profile.npub,
+          kind: 'COVER',
+          remoteUrl: profile.banner
+        },
+        options
+      )
     )
   }
 
@@ -69,7 +75,7 @@ export async function precacheProfileImages(
 
 export async function precacheProfileImage(
   input: PrecacheImageInput,
-  options: PrecacheOptions = {},
+  options: PrecacheOptions = {}
 ) {
   const db = options.db ?? prisma
   const now = new Date()
@@ -84,7 +90,7 @@ export async function precacheProfileImage(
     try {
       response = await fetchImpl(input.remoteUrl, {
         signal: controller.signal,
-        redirect: 'follow',
+        redirect: 'follow'
       })
     } finally {
       clearTimeout(timeout)
@@ -99,7 +105,9 @@ export async function precacheProfileImage(
       .trim()
       .toLowerCase()
     if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
-      throw new Error(`Unsupported image content type: ${contentType || 'unknown'}`)
+      throw new Error(
+        `Unsupported image content type: ${contentType || 'unknown'}`
+      )
     }
 
     const contentLength = Number(response.headers.get('content-length') ?? '0')
@@ -117,7 +125,7 @@ export async function precacheProfileImage(
     const cachePath = path.join(
       resolveProfileCacheDir(options.cacheDir),
       input.npub,
-      `${input.kind.toLowerCase()}-${sha256}.${ext}`,
+      `${input.kind.toLowerCase()}-${sha256}.${ext}`
     )
     await fs.mkdir(path.dirname(cachePath), { recursive: true })
     await fs.writeFile(cachePath, bytes)
@@ -134,7 +142,7 @@ export async function precacheProfileImage(
         sha256,
         cachedAt: now,
         failedAt: null,
-        lastError: null,
+        lastError: null
       },
       update: {
         remoteUrl: input.remoteUrl,
@@ -144,8 +152,8 @@ export async function precacheProfileImage(
         sha256,
         cachedAt: now,
         failedAt: null,
-        lastError: null,
-      },
+        lastError: null
+      }
     })
   } catch (err) {
     await db.nostrProfileImageCache.upsert({
@@ -155,7 +163,7 @@ export async function precacheProfileImage(
         kind: input.kind,
         remoteUrl: input.remoteUrl,
         failedAt: now,
-        lastError: errorMessage(err),
+        lastError: errorMessage(err)
       },
       update: {
         remoteUrl: input.remoteUrl,
@@ -165,8 +173,8 @@ export async function precacheProfileImage(
         sha256: null,
         cachedAt: null,
         failedAt: now,
-        lastError: errorMessage(err),
-      },
+        lastError: errorMessage(err)
+      }
     })
   }
 }

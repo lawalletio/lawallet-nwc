@@ -1,6 +1,6 @@
 ---
-title: "Events Plugin"
-description: "Community event management with QR/NFC check-in and automatic badge issuance."
+title: 'Events Plugin'
+description: 'Community event management with QR/NFC check-in and automatic badge issuance.'
 ---
 
 > **PROPOSAL - NOT IMPLEMENTED**
@@ -32,23 +32,23 @@ A plugin that integrates event management with LaWallet's existing identity (Nos
 
 ```typescript
 interface Event {
-  id: string;                    // Unique identifier
-  title: string;                 // Event name
-  description: string;           // Event details
+  id: string // Unique identifier
+  title: string // Event name
+  description: string // Event details
   location: {
-    name: string;                // Venue name
-    address?: string;            // Physical address
-    coordinates?: [number, number]; // Lat/lng for map
-  };
-  startTime: number;             // Unix timestamp
-  endTime: number;               // Unix timestamp
-  organizer: string;             // Nostr pubkey
-  capacity?: number;             // Max attendees
-  badge?: BadgeTemplate;         // Badge to issue on check-in
+    name: string // Venue name
+    address?: string // Physical address
+    coordinates?: [number, number] // Lat/lng for map
+  }
+  startTime: number // Unix timestamp
+  endTime: number // Unix timestamp
+  organizer: string // Nostr pubkey
+  capacity?: number // Max attendees
+  badge?: BadgeTemplate // Badge to issue on check-in
   price?: {
-    amount: number;              // In sats
-    paymentRequired: boolean;    // Pay before or at check-in
-  };
+    amount: number // In sats
+    paymentRequired: boolean // Pay before or at check-in
+  }
 }
 ```
 
@@ -61,6 +61,7 @@ interface Event {
 ### Badge Issuance
 
 On successful check-in:
+
 1. Verify attendee identity (Nostr pubkey from LaWallet)
 2. Verify event is active (within time window)
 3. Issue badge to attendee's pubkey (see [Badges](./badges))
@@ -70,12 +71,12 @@ On successful check-in:
 
 ### Nostr Event Kinds
 
-| Kind | Purpose | Reference |
-|------|---------|-----------|
-| 31923 | Calendar Event | [NIP-52](https://github.com/nostr-protocol/nips/blob/master/52.md) |
-| 31924 | Calendar Event RSVP | NIP-52 |
-| 30009 | Badge Definition | [NIP-58](https://github.com/nostr-protocol/nips/blob/master/58.md) |
-| 8 | Badge Award | NIP-58 |
+| Kind  | Purpose             | Reference                                                          |
+| ----- | ------------------- | ------------------------------------------------------------------ |
+| 31923 | Calendar Event      | [NIP-52](https://github.com/nostr-protocol/nips/blob/master/52.md) |
+| 31924 | Calendar Event RSVP | NIP-52                                                             |
+| 30009 | Badge Definition    | [NIP-58](https://github.com/nostr-protocol/nips/blob/master/58.md) |
+| 8     | Badge Award         | NIP-58                                                             |
 
 ### API Endpoints (Proposed)
 
@@ -180,14 +181,14 @@ CREATE TABLE event_checkins (
 
 ## Status
 
-| Component | Status |
-|-----------|--------|
-| Specification | Proposal |
+| Component       | Status   |
+| --------------- | -------- |
+| Specification   | Proposal |
 | Database Schema | Proposal |
-| API Endpoints | Proposal |
-| UI Components | Proposal |
-| Integration | Proposal |
+| API Endpoints   | Proposal |
+| UI Components   | Proposal |
+| Integration     | Proposal |
 
 ---
 
-*Proposed by [Claudio](https://github.com/claudiomolt) as a community contribution.*
+_Proposed by [Claudio](https://github.com/claudiomolt) as a community contribution._

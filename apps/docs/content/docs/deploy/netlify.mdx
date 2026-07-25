@@ -8,8 +8,15 @@ as a Next.js site backed by Netlify Functions. Everything the platform needs at
 runtime is a Postgres database; the long-lived NWC listener runs elsewhere
 (see [below](#the-nwc-listener)).
 
-<a href="https://app.netlify.com/start/deploy?repository=https://github.com/lawalletio/lawallet-nwc" target="_blank" rel="noopener noreferrer">
-  <img src="https://www.netlify.com/img/deploy/button.svg" alt="Deploy to Netlify" />
+<a
+  href="https://app.netlify.com/start/deploy?repository=https://github.com/lawalletio/lawallet-nwc"
+  target="_blank"
+  rel="noopener noreferrer"
+>
+  <img
+    src="https://www.netlify.com/img/deploy/button.svg"
+    alt="Deploy to Netlify"
+  />
 </a>
 
 ## Before you start
@@ -24,12 +31,11 @@ runtime is a Postgres database; the long-lived NWC listener runs elsewhere
 ## Create a database
 
 <Callout type="warn" title="Copy a connection string that supports migrations">
-The build runs `prisma migrate deploy` to create the schema. Prisma Migrate
-opens a single direct session and uses prepared statements, which
-**transaction-mode poolers reject** — deploys fail with
-`prepared statement "s0" already exists`. That rules out Neon's `-pooler`
-hostname and Supabase's port `6543`. Each option below names the exact string
-to copy.
+  The build runs `prisma migrate deploy` to create the schema. Prisma Migrate
+  opens a single direct session and uses prepared statements, which
+  **transaction-mode poolers reject** — deploys fail with `prepared statement
+  "s0" already exists`. That rules out Neon's `-pooler` hostname and Supabase's
+  port `6543`. Each option below names the exact string to copy.
 </Callout>
 
 ### Neon — recommended
@@ -40,7 +46,7 @@ what the Vercel button provisions automatically.
 1. Sign up at [neon.com](https://neon.com) and create a project. Pick the region
    closest to your users.
 2. On the project dashboard, open **Connect** (or **Connection Details**).
-3. Turn **Connection pooling** *off* — the hostname must **not** contain
+3. Turn **Connection pooling** _off_ — the hostname must **not** contain
    `-pooler`.
 4. Copy the string. It looks like:
 
@@ -76,10 +82,10 @@ Transaction mode is IPv4 too, but it drops the prepared statements the
 migration needs.
 
 <Callout type="warn" title="Free Supabase projects pause after a week">
-A Supabase project with no database activity for 7 days is paused until you
-restore it by hand. A paused database means Lightning Addresses stop resolving
-and the wallet stops working. For anything people actually rely on, use Neon —
-it suspends and wakes on its own — or a paid Supabase plan.
+  A Supabase project with no database activity for 7 days is paused until you
+  restore it by hand. A paused database means Lightning Addresses stop resolving
+  and the wallet stops working. For anything people actually rely on, use Neon —
+  it suspends and wakes on its own — or a paid Supabase plan.
 </Callout>
 
 ### Something else
@@ -107,10 +113,10 @@ Add it with `&` if the string already has a `?`, otherwise start with `?`.
 2. Pick a repository name for your copy and a Netlify site name.
 3. Fill in the two environment variables Netlify asks for:
 
-   | Variable | Value |
-   | --- | --- |
+   | Variable       | Value                                                              |
+   | -------------- | ------------------------------------------------------------------ |
    | `DATABASE_URL` | The connection string from [Create a database](#create-a-database) |
-   | `JWT_SECRET` | A random string of 32 characters or more |
+   | `JWT_SECRET`   | A random string of 32 characters or more                           |
 
    Generate the secret locally with:
 
@@ -142,12 +148,12 @@ it.
 Add these under **Site configuration → Environment variables**. A redeploy
 picks them up.
 
-| Variable | Purpose |
-| --- | --- |
-| `KEY_VAULT_SECRET` | Encrypts server-custodied Nostr keys for passkey accounts. Required for passkey login — back it up, losing it makes those keys unrecoverable. |
-| `NEXT_PUBLIC_LAWALLET_LANDING_URL` | Where `/` redirects. Defaults to `https://lawallet.io`. |
-| `UPSTASH_REDIS_URL` / `UPSTASH_REDIS_TOKEN` | Shared rate-limit state. Netlify Functions are horizontally scaled, so the default in-memory limiter counts per instance. |
-| `LISTENER_URL` / `LISTENER_AUTH_SECRET` | Point the web app at an NWC listener. |
+| Variable                                    | Purpose                                                                                                                                       |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KEY_VAULT_SECRET`                          | Encrypts server-custodied Nostr keys for passkey accounts. Required for passkey login — back it up, losing it makes those keys unrecoverable. |
+| `NEXT_PUBLIC_LAWALLET_LANDING_URL`          | Where `/` redirects. Defaults to `https://lawallet.io`.                                                                                       |
+| `UPSTASH_REDIS_URL` / `UPSTASH_REDIS_TOKEN` | Shared rate-limit state. Netlify Functions are horizontally scaled, so the default in-memory limiter counts per instance.                     |
+| `LISTENER_URL` / `LISTENER_AUTH_SECRET`     | Point the web app at an NWC listener.                                                                                                         |
 
 The full list lives in
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example).

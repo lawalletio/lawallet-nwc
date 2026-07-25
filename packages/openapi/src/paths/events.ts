@@ -19,8 +19,11 @@ registry.registerPath({
   security: [{ [EVENTS_TOKEN]: [] }],
   request: {
     query: z.object({
-      token: z.string().min(1).openapi({ description: 'JWT, normally obtained from POST /api/jwt.' }),
-    }),
+      token: z
+        .string()
+        .min(1)
+        .openapi({ description: 'JWT, normally obtained from POST /api/jwt.' })
+    })
   },
   responses: {
     200: {
@@ -29,11 +32,13 @@ registry.registerPath({
         'text/event-stream': {
           schema: z
             .string()
-            .openapi({ description: 'Raw SSE frames; not JSON. See `EventSource` API.' }),
-        },
-      },
+            .openapi({
+              description: 'Raw SSE frames; not JSON. See `EventSource` API.'
+            })
+        }
+      }
     },
     401: responses.unauthenticated,
-    500: responses.internalError,
-  },
+    500: responses.internalError
+  }
 })

@@ -1,20 +1,20 @@
 ---
-title: "Testing Strategy"
-description: "Current testing setup in LaWallet NWC, plus planned E2E expansion."
+title: 'Testing Strategy'
+description: 'Current testing setup in LaWallet NWC, plus planned E2E expansion.'
 ---
 
 ## Current Status
 
 The current repo already has a solid Vitest-based test suite, but it is narrower than the full roadmap testing story.
 
-| Layer | Current Tooling | Status |
-|-------|------------------|--------|
-| Unit | Vitest | Current |
-| Component | React Testing Library + happy-dom | Current |
-| API | Vitest + MSW + route-level tests | Current |
-| Integration | Vitest + Prisma test utilities | Current |
-| Coverage | `vitest --coverage` | Current |
-| E2E | Playwright | Planned, not present in this repo yet |
+| Layer       | Current Tooling                   | Status                                |
+| ----------- | --------------------------------- | ------------------------------------- |
+| Unit        | Vitest                            | Current                               |
+| Component   | React Testing Library + happy-dom | Current                               |
+| API         | Vitest + MSW + route-level tests  | Current                               |
+| Integration | Vitest + Prisma test utilities    | Current                               |
+| Coverage    | `vitest --coverage`               | Current                               |
+| E2E         | Playwright                        | Planned, not present in this repo yet |
 
 ---
 

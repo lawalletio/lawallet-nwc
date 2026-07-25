@@ -14,7 +14,7 @@ export function ProgressScreen({
   statuses,
   mode,
   value,
-  icon,
+  icon
 }: {
   title: string
   statuses: string[]
@@ -53,7 +53,10 @@ export function ProgressScreen({
       )}
 
       <p aria-live="polite" className="h-5 text-sm text-muted-foreground">
-        <span key={index} className="inline-block animate-in fade-in duration-300">
+        <span
+          key={index}
+          className="inline-block animate-in fade-in duration-300"
+        >
           {statuses[index]}
         </span>
       </p>

@@ -15,7 +15,7 @@ import {
   Radio,
   Tag,
   Wallet,
-  WifiOff,
+  WifiOff
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -70,14 +70,16 @@ export function NwcCard({ username }: NwcCardProps = {}) {
     onTransaction: tx => {
       const isIncoming = tx.type === 'incoming'
       const amount = `${tx.amountSats.toLocaleString()} sats`
-      const description = tx.description || (isIncoming ? 'Lightning payment received' : 'Lightning payment sent')
+      const description =
+        tx.description ||
+        (isIncoming ? 'Lightning payment received' : 'Lightning payment sent')
       toast(isIncoming ? `Received ${amount}` : `Sent ${amount}`, {
         description,
         icon: React.createElement(isIncoming ? ArrowDownLeft : ArrowUpRight, {
-          className: `size-4 ${isIncoming ? 'text-green-500' : 'text-yellow-500'}`,
-        }),
+          className: `size-4 ${isIncoming ? 'text-green-500' : 'text-yellow-500'}`
+        })
       })
-    },
+    }
   })
 
   // Don't show the card unless the user has a lightning address
@@ -97,7 +99,13 @@ export function NwcCard({ username }: NwcCardProps = {}) {
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="relative flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#897FFF]/10">
-              <Image src="/logos/nwc.svg" alt="NWC" width={28} height={28} className="size-7" />
+              <Image
+                src="/logos/nwc.svg"
+                alt="NWC"
+                width={28}
+                height={28}
+                className="size-7"
+              />
               {/* Balance couldn't be read → a warning badge on the icon
                   replaces the old "Unavailable" text. */}
               {balance.error && (
@@ -116,19 +124,27 @@ export function NwcCard({ username }: NwcCardProps = {}) {
               <span className="text-xs uppercase tracking-wider text-muted-foreground">
                 Balance
               </span>
-              <span className="text-xs text-muted-foreground">Primary wallet</span>
+              <span className="text-xs text-muted-foreground">
+                Primary wallet
+              </span>
             </div>
           </div>
           {parsedNwc && (
             <button
               type="button"
               onClick={() => setExpanded(v => !v)}
-              aria-label={expanded ? 'Hide connection details' : 'Show connection details'}
+              aria-label={
+                expanded ? 'Hide connection details' : 'Show connection details'
+              }
               aria-expanded={expanded}
-              title={expanded ? 'Hide connection details' : 'Show connection details'}
+              title={
+                expanded ? 'Hide connection details' : 'Show connection details'
+              }
               className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
             >
-              <ChevronDown className={`size-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+              <ChevronDown
+                className={`size-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+              />
             </button>
           )}
         </div>
@@ -154,7 +170,10 @@ export function NwcCard({ username }: NwcCardProps = {}) {
         <Button
           asChild
           variant="theme"
-          className={cn('mt-5 w-full', navigating && 'pointer-events-none opacity-70')}
+          className={cn(
+            'mt-5 w-full',
+            navigating && 'pointer-events-none opacity-70'
+          )}
         >
           <Link
             href="/wallet"
@@ -183,12 +202,16 @@ export function NwcCard({ username }: NwcCardProps = {}) {
               ) : balance.status === 'disconnected' ? (
                 <>
                   <WifiOff className="size-3.5 text-destructive shrink-0" />
-                  <span className="text-destructive font-medium">Disconnected</span>
+                  <span className="text-destructive font-medium">
+                    Disconnected
+                  </span>
                 </>
               ) : (
                 <>
                   <Loader2 className="size-3.5 text-muted-foreground shrink-0 animate-spin" />
-                  <span className="text-muted-foreground font-medium">Connecting…</span>
+                  <span className="text-muted-foreground font-medium">
+                    Connecting…
+                  </span>
                 </>
               )}
             </div>
@@ -203,14 +226,19 @@ export function NwcCard({ username }: NwcCardProps = {}) {
                   <Tag className="size-3" />
                   Name
                 </div>
-                <span className="text-foreground truncate">{parsedNwc.name}</span>
+                <span className="text-foreground truncate">
+                  {parsedNwc.name}
+                </span>
               </>
             )}
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <Key className="size-3" />
               Pubkey
             </div>
-            <span className="text-foreground font-mono truncate" title={parsedNwc.pubkey}>
+            <span
+              className="text-foreground font-mono truncate"
+              title={parsedNwc.pubkey}
+            >
               {truncatePubkey(parsedNwc.pubkey)}
             </span>
             <div className="flex items-start gap-1.5 text-muted-foreground">
@@ -222,7 +250,11 @@ export function NwcCard({ username }: NwcCardProps = {}) {
                 <span className="text-muted-foreground">None</span>
               ) : (
                 parsedNwc.relays.map((relay, i) => (
-                  <span key={i} className="text-foreground font-mono truncate" title={relay}>
+                  <span
+                    key={i}
+                    className="text-foreground font-mono truncate"
+                    title={relay}
+                  >
                     {relay}
                   </span>
                 ))
@@ -234,7 +266,10 @@ export function NwcCard({ username }: NwcCardProps = {}) {
                   <Calendar className="size-3" />
                   Updated
                 </div>
-                <span className="text-foreground" title={new Date(me.nwcUpdatedAt).toLocaleString()}>
+                <span
+                  className="text-foreground"
+                  title={new Date(me.nwcUpdatedAt).toLocaleString()}
+                >
                   {formatRelativeTime(me.nwcUpdatedAt)}
                 </span>
               </>

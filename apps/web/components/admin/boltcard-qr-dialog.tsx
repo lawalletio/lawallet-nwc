@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -35,7 +35,7 @@ type MintState = 'loading' | 'ready' | 'used' | 'error'
 export function BoltcardQrDialog({
   cardId,
   open,
-  onOpenChange,
+  onOpenChange
 }: {
   cardId: string
   open: boolean
@@ -59,7 +59,7 @@ export function BoltcardQrDialog({
     apiClient
       .post<{ url: string; expiresAt: string }>(
         `/api/cards/${cardId}/write-token`,
-        {},
+        {}
       )
       .then(res => {
         if (cancelled) return
@@ -74,7 +74,7 @@ export function BoltcardQrDialog({
           setErrorMsg(
             err instanceof Error
               ? err.message
-              : 'Could not generate the programming link.',
+              : 'Could not generate the programming link.'
           )
           setState('error')
         }
@@ -113,8 +113,8 @@ export function BoltcardQrDialog({
         {state === 'used' ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
             This card has already been tapped, so its keys are locked and it
-            can&apos;t be re-programmed. Reset it first (Delete → Reset) to issue
-            a fresh card.
+            can&apos;t be re-programmed. Reset it first (Delete → Reset) to
+            issue a fresh card.
           </p>
         ) : state === 'error' ? (
           <p className="py-6 text-center text-sm text-destructive">

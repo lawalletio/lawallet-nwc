@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import {
   AmountKeypad,
-  parseKeypadValue,
+  parseKeypadValue
 } from '@/components/wallet/shared/amount-keypad'
 import { AmountDisplay } from '@/components/wallet/shared/amount-display'
 import { useApi } from '@/lib/client/hooks/use-api'
@@ -18,7 +18,7 @@ import { makeInvoice, lookupInvoice, describeNwcError } from '@/lib/client/nwc'
 import { submitLnurlWithdraw, LnurlError } from '@/lib/client/lnurl-scan'
 import {
   useWithdrawFlow,
-  withdrawActions,
+  withdrawActions
 } from '@/lib/client/wallet-flow-store'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
@@ -48,7 +48,7 @@ export function WithdrawScreen() {
 
   const [phase, setPhase] = useState<Phase>('confirm')
   const [value, setValue] = useState<string>(() =>
-    params ? String(params.maxWithdrawableSats) : '0',
+    params ? String(params.maxWithdrawableSats) : '0'
   )
   const [error, setError] = useState<string | null>(null)
   const cancelledRef = useRef(false)
@@ -104,9 +104,7 @@ export function WithdrawScreen() {
     } catch (err) {
       if (cancelledRef.current) return
       const message =
-        err instanceof LnurlError
-          ? err.message
-          : describeNwcError(err)
+        err instanceof LnurlError ? err.message : describeNwcError(err)
       setError(message)
       toast.error(message)
       setPhase('confirm')
@@ -128,7 +126,10 @@ export function WithdrawScreen() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-6">
-      <VoucherPreview host={params.host} description={params.defaultDescription} />
+      <VoucherPreview
+        host={params.host}
+        description={params.defaultDescription}
+      />
 
       {!nwc ? (
         <NoWalletNotice />
@@ -204,7 +205,7 @@ export function WithdrawScreen() {
  */
 async function waitForSettlement(
   nwc: string,
-  paymentHash: string,
+  paymentHash: string
 ): Promise<boolean> {
   const deadline = Date.now() + SETTLE_TIMEOUT_MS
   while (Date.now() < deadline) {
@@ -225,7 +226,7 @@ function delay(ms: number): Promise<void> {
 
 function VoucherPreview({
   host,
-  description,
+  description
 }: {
   host: string
   description: string
@@ -276,7 +277,7 @@ function NoWalletNotice() {
 function WithdrawSuccess({
   amountSats,
   settled,
-  onDone,
+  onDone
 }: {
   amountSats: number
   settled: boolean

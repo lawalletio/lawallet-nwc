@@ -1,31 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
-import { createCardDesignFixture, createNtag424Fixture } from '@/tests/helpers/fixtures'
+import {
+  createCardDesignFixture,
+  createNtag424Fixture
+} from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({
-  checkMaintenance: vi.fn(),
+  checkMaintenance: vi.fn()
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
-  checkRequestLimits: vi.fn(),
+  checkRequestLimits: vi.fn()
 }))
 
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(),
+  getSettings: vi.fn()
 }))
 
 vi.mock('@/lib/ntag424', () => ({
@@ -36,8 +39,8 @@ vi.mock('@/lib/ntag424', () => ({
     k2: '2'.repeat(32),
     k3: '3'.repeat(32),
     k4: '4'.repeat(32),
-    ctr: 0,
-  })),
+    ctr: 0
+  }))
 }))
 
 import { GET as RemoteGet } from '@/app/api/remote-connections/[externalDeviceKey]/route'
@@ -61,7 +64,10 @@ describe('GET /api/remote-connections/[externalDeviceKey]', () => {
     vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([design] as any)
 
     const req = createNextRequest(`/api/remote-connections/${validKey}`)
-    const res = await RemoteGet(req, createParamsPromise({ externalDeviceKey: validKey }))
+    const res = await RemoteGet(
+      req,
+      createParamsPromise({ externalDeviceKey: validKey })
+    )
     const body: any = await assertResponse(res, 200)
 
     expect(body.lnurlwBase).toBe('https://test.com/api/')
@@ -69,7 +75,7 @@ describe('GET /api/remote-connections/[externalDeviceKey]', () => {
     expect(body.skins[0]).toMatchObject({
       label: design.description,
       value: design.id,
-      file: design.imageUrl,
+      file: design.imageUrl
     })
   })
 
@@ -77,7 +83,10 @@ describe('GET /api/remote-connections/[externalDeviceKey]', () => {
     vi.mocked(getSettings).mockResolvedValue({ external_device_key: validKey })
 
     const req = createNextRequest('/api/remote-connections/wrong-key')
-    const res = await RemoteGet(req, createParamsPromise({ externalDeviceKey: 'wrong-key' }))
+    const res = await RemoteGet(
+      req,
+      createParamsPromise({ externalDeviceKey: 'wrong-key' })
+    )
 
     expect(res.status).toBe(401)
   })
@@ -86,7 +95,10 @@ describe('GET /api/remote-connections/[externalDeviceKey]', () => {
     vi.mocked(getSettings).mockResolvedValue({})
 
     const req = createNextRequest('/api/remote-connections/any-key')
-    const res = await RemoteGet(req, createParamsPromise({ externalDeviceKey: 'any-key' }))
+    const res = await RemoteGet(
+      req,
+      createParamsPromise({ externalDeviceKey: 'any-key' })
+    )
 
     expect(res.status).toBe(404)
   })
@@ -98,7 +110,10 @@ describe('GET /api/remote-connections/[externalDeviceKey]', () => {
     vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([])
 
     const req = createNextRequest(`/api/remote-connections/${validKey}`)
-    const res = await RemoteGet(req, createParamsPromise({ externalDeviceKey: validKey }))
+    const res = await RemoteGet(
+      req,
+      createParamsPromise({ externalDeviceKey: validKey })
+    )
     const body: any = await assertResponse(res, 200)
 
     expect(body.skins).toEqual([])
@@ -117,9 +132,12 @@ describe('POST /api/remote-connections/[externalDeviceKey]/cards', () => {
 
     const req = createNextRequest(`/api/remote-connections/${validKey}/cards`, {
       method: 'POST',
-      body: { designId: design.id, cardUID: 'AA:BB:CC:DD:EE:11:22' },
+      body: { designId: design.id, cardUID: 'AA:BB:CC:DD:EE:11:22' }
     })
-    const res = await RemoteCardsPost(req, createParamsPromise({ externalDeviceKey: validKey }))
+    const res = await RemoteCardsPost(
+      req,
+      createParamsPromise({ externalDeviceKey: validKey })
+    )
     const body: any = await assertResponse(res, 200)
 
     expect(body.k0).toBeDefined()
@@ -129,14 +147,21 @@ describe('POST /api/remote-connections/[externalDeviceKey]/cards', () => {
 
   it('rejects duplicate card UID', async () => {
     vi.mocked(getSettings).mockResolvedValue({ external_device_key: validKey })
-    vi.mocked(prismaMock.cardDesign.findUnique).mockResolvedValue(createCardDesignFixture() as any)
-    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({ id: 'existing-card' } as any)
+    vi.mocked(prismaMock.cardDesign.findUnique).mockResolvedValue(
+      createCardDesignFixture() as any
+    )
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
+      id: 'existing-card'
+    } as any)
 
     const req = createNextRequest(`/api/remote-connections/${validKey}/cards`, {
       method: 'POST',
-      body: { designId: 'design-1', cardUID: 'AA:BB:CC:DD:EE:11:22' },
+      body: { designId: 'design-1', cardUID: 'AA:BB:CC:DD:EE:11:22' }
     })
-    const res = await RemoteCardsPost(req, createParamsPromise({ externalDeviceKey: validKey }))
+    const res = await RemoteCardsPost(
+      req,
+      createParamsPromise({ externalDeviceKey: validKey })
+    )
 
     expect(res.status).toBe(409)
   })
@@ -148,9 +173,12 @@ describe('POST /api/remote-connections/[externalDeviceKey]/cards', () => {
 
     const req = createNextRequest(`/api/remote-connections/${validKey}/cards`, {
       method: 'POST',
-      body: { designId: 'nonexistent', cardUID: 'AA:BB:CC:DD:EE:11:22' },
+      body: { designId: 'nonexistent', cardUID: 'AA:BB:CC:DD:EE:11:22' }
     })
-    const res = await RemoteCardsPost(req, createParamsPromise({ externalDeviceKey: validKey }))
+    const res = await RemoteCardsPost(
+      req,
+      createParamsPromise({ externalDeviceKey: validKey })
+    )
 
     expect(res.status).toBe(404)
   })
@@ -160,9 +188,12 @@ describe('POST /api/remote-connections/[externalDeviceKey]/cards', () => {
 
     const req = createNextRequest('/api/remote-connections/wrong-key/cards', {
       method: 'POST',
-      body: { designId: 'design-1', cardUID: 'AA:BB' },
+      body: { designId: 'design-1', cardUID: 'AA:BB' }
     })
-    const res = await RemoteCardsPost(req, createParamsPromise({ externalDeviceKey: 'wrong-key' }))
+    const res = await RemoteCardsPost(
+      req,
+      createParamsPromise({ externalDeviceKey: 'wrong-key' })
+    )
 
     expect(res.status).toBe(401)
   })
@@ -172,9 +203,12 @@ describe('POST /api/remote-connections/[externalDeviceKey]/cards', () => {
 
     const req = createNextRequest(`/api/remote-connections/${validKey}/cards`, {
       method: 'POST',
-      body: { cardUID: 'AA:BB:CC:DD:EE:11:22' },
+      body: { cardUID: 'AA:BB:CC:DD:EE:11:22' }
     })
-    const res = await RemoteCardsPost(req, createParamsPromise({ externalDeviceKey: validKey }))
+    const res = await RemoteCardsPost(
+      req,
+      createParamsPromise({ externalDeviceKey: validKey })
+    )
 
     expect(res.status).toBe(400)
   })
@@ -184,9 +218,12 @@ describe('POST /api/remote-connections/[externalDeviceKey]/cards', () => {
 
     const req = createNextRequest(`/api/remote-connections/${validKey}/cards`, {
       method: 'POST',
-      body: { designId: 'design-1' },
+      body: { designId: 'design-1' }
     })
-    const res = await RemoteCardsPost(req, createParamsPromise({ externalDeviceKey: validKey }))
+    const res = await RemoteCardsPost(
+      req,
+      createParamsPromise({ externalDeviceKey: validKey })
+    )
 
     expect(res.status).toBe(400)
   })

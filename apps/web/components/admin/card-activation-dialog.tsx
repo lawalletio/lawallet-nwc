@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -52,7 +52,7 @@ function escapeHtml(value: string): string {
 export function CardActivationDialog({
   cardId,
   open,
-  onOpenChange,
+  onOpenChange
 }: {
   cardId: string
   open: boolean
@@ -74,7 +74,7 @@ export function CardActivationDialog({
 
     apiClient
       .post<ActivationTokenResponse>(`/api/cards/${cardId}/activation-tokens`, {
-        qrKind: 'ONE_TIME',
+        qrKind: 'ONE_TIME'
       })
       .then(res => {
         if (cancelled) return
@@ -90,7 +90,7 @@ export function CardActivationDialog({
           setErrorMsg(
             err instanceof Error
               ? err.message
-              : 'Could not generate the activation link.',
+              : 'Could not generate the activation link.'
           )
           setState('error')
         }
@@ -200,7 +200,9 @@ export function CardActivationDialog({
               'This card has been blocked and can no longer be activated — delete it instead.'}
           </p>
         ) : state === 'error' ? (
-          <p className="py-6 text-center text-sm text-destructive">{errorMsg}</p>
+          <p className="py-6 text-center text-sm text-destructive">
+            {errorMsg}
+          </p>
         ) : (
           // `min-w-0` lets this column shrink to the dialog width so the long,
           // unbreakable activation URL truncates instead of forcing overflow.

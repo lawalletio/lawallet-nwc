@@ -14,13 +14,13 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from '@/components/ui/select'
 import { QrDisplay } from '@/components/wallet/shared/qr-display'
 import { UserSelector } from '@/components/admin/user-selector'
 import {
   useGenerateDeviceToken,
-  type GenerateDeviceTokenResult,
+  type GenerateDeviceTokenResult
 } from '@/lib/client/hooks/use-device-tokens'
 import { Permission } from '@/lib/auth/permissions'
 import { truncateNpub } from '@/lib/client/format'
@@ -40,7 +40,7 @@ const PERMISSION_LABELS: Record<Permission, string> = {
   [Permission.ADDRESSES_WRITE]: 'Write lightning addresses',
   [Permission.NTAGS_READ]: 'Read NTAG424 keys',
   [Permission.NTAGS_WRITE]: 'Write NTAG424 keys',
-  [Permission.ACTIVITY_READ]: 'Read activity log',
+  [Permission.ACTIVITY_READ]: 'Read activity log'
 }
 
 /** Permissions grouped by resource for a readable checklist. */
@@ -51,33 +51,33 @@ const PERMISSION_GROUPS: { label: string; permissions: Permission[] }[] = [
       Permission.CARDS_READ,
       Permission.CARDS_WRITE,
       Permission.NTAGS_READ,
-      Permission.NTAGS_WRITE,
-    ],
+      Permission.NTAGS_WRITE
+    ]
   },
   {
     label: 'Card designs',
-    permissions: [Permission.CARD_DESIGNS_READ, Permission.CARD_DESIGNS_WRITE],
+    permissions: [Permission.CARD_DESIGNS_READ, Permission.CARD_DESIGNS_WRITE]
   },
   {
     label: 'Lightning addresses',
-    permissions: [Permission.ADDRESSES_READ, Permission.ADDRESSES_WRITE],
+    permissions: [Permission.ADDRESSES_READ, Permission.ADDRESSES_WRITE]
   },
   {
     label: 'Users',
     permissions: [
       Permission.USERS_READ,
       Permission.USERS_WRITE,
-      Permission.USERS_MANAGE_ROLES,
-    ],
+      Permission.USERS_MANAGE_ROLES
+    ]
   },
   {
     label: 'Platform',
     permissions: [
       Permission.SETTINGS_READ,
       Permission.SETTINGS_WRITE,
-      Permission.ACTIVITY_READ,
-    ],
-  },
+      Permission.ACTIVITY_READ
+    ]
+  }
 ]
 
 /** Everything `card-installer` / `card-manager` need to provision cards. */
@@ -88,7 +88,7 @@ const CARD_PROVISIONING_PRESET: Permission[] = [
   Permission.CARD_DESIGNS_WRITE,
   Permission.NTAGS_READ,
   Permission.NTAGS_WRITE,
-  Permission.ADDRESSES_READ,
+  Permission.ADDRESSES_READ
 ]
 
 const EXPIRY_PRESETS: { value: string; label: string }[] = [
@@ -96,7 +96,7 @@ const EXPIRY_PRESETS: { value: string; label: string }[] = [
   { value: '8h', label: '8 hours' },
   { value: '24h', label: '24 hours' },
   { value: '7d', label: '7 days' },
-  { value: 'custom', label: 'Custom…' },
+  { value: 'custom', label: 'Custom…' }
 ]
 
 export function DeviceTokensTab() {
@@ -104,7 +104,7 @@ export function DeviceTokensTab() {
 
   const [userId, setUserId] = useState('')
   const [permissions, setPermissions] = useState<Permission[]>(
-    CARD_PROVISIONING_PRESET,
+    CARD_PROVISIONING_PRESET
   )
   const [expiryPreset, setExpiryPreset] = useState('8h')
   const [customExpiry, setCustomExpiry] = useState('')
@@ -125,7 +125,7 @@ export function DeviceTokensTab() {
         ? prev.includes(permission)
           ? prev
           : [...prev, permission]
-        : prev.filter(p => p !== permission),
+        : prev.filter(p => p !== permission)
     )
   }
 
@@ -135,7 +135,7 @@ export function DeviceTokensTab() {
       setResult(res)
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to generate device token',
+        err instanceof Error ? err.message : 'Failed to generate device token'
       )
     }
   }
@@ -152,8 +152,8 @@ export function DeviceTokensTab() {
           <h3 className="text-lg font-semibold">Scan to sign in</h3>
           <p className="text-sm text-muted-foreground mt-1">
             Open <span className="font-medium">card-installer</span> or{' '}
-            <span className="font-medium">card-manager</span> and scan
-            this code. The token is also copyable below.
+            <span className="font-medium">card-manager</span> and scan this
+            code. The token is also copyable below.
           </p>
         </div>
 
@@ -166,7 +166,9 @@ export function DeviceTokensTab() {
               {result.user.pubkey
                 ? truncateNpub(result.user.pubkey)
                 : result.user.id}{' '}
-              <span className="text-muted-foreground">({result.user.role})</span>
+              <span className="text-muted-foreground">
+                ({result.user.role})
+              </span>
             </dd>
             <dt className="text-muted-foreground">Expires in</dt>
             <dd className="font-medium">{String(result.expiresIn)}</dd>
@@ -233,8 +235,8 @@ export function DeviceTokensTab() {
         <div>
           <h3 className="text-sm font-semibold">Permissions</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            The token is limited to the scopes you tick. Must be a subset of your
-            own permissions.
+            The token is limited to the scopes you tick. Must be a subset of
+            your own permissions.
           </p>
           <div className="flex flex-wrap gap-2 mt-3">
             <Button
@@ -319,8 +321,8 @@ export function DeviceTokensTab() {
                 className="sm:w-[240px]"
               />
               <p className="text-xs text-muted-foreground">
-                A duration like <code>12h</code>, <code>3d</code>, or a number of
-                seconds.
+                A duration like <code>12h</code>, <code>3d</code>, or a number
+                of seconds.
               </p>
             </div>
           )}
@@ -328,7 +330,11 @@ export function DeviceTokensTab() {
       </div>
 
       <div className="flex justify-end">
-        <Button variant="theme" disabled={!canGenerate} onClick={handleGenerate}>
+        <Button
+          variant="theme"
+          disabled={!canGenerate}
+          onClick={handleGenerate}
+        >
           {generating ? (
             <>
               <Spinner size={16} className="mr-2" />

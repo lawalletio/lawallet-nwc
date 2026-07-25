@@ -26,7 +26,7 @@ export function RouteChangeTracker({ gtagId }: RouteChangeTrackerProps) {
     const pagePath = sanitizePagePath(pathname, searchParams)
     window.gtag('event', 'page_view', {
       page_path: pagePath,
-      send_to: gtagId,
+      send_to: gtagId
     })
   }, [pathname, searchParams, gtagId])
 

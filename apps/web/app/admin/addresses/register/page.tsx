@@ -14,7 +14,10 @@ import { Role } from '@/lib/auth/permissions'
 
 function sanitizeUsername(raw: string | null): string {
   if (!raw) return ''
-  return raw.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 16)
 }
 
 function RegisterAddressInner() {
@@ -22,7 +25,7 @@ function RegisterAddressInner() {
   const searchParams = useSearchParams()
   const { status, role, apiClient } = useAuth()
   const { data: settings, loading: settingsLoading } = useSettings(
-    status === 'authenticated',
+    status === 'authenticated'
   )
   const [open, setOpen] = useState(true)
   const initialUsername = useMemo(
@@ -35,16 +38,16 @@ function RegisterAddressInner() {
   // (not a live `useApi` subscription) means the post-claim refetch can't flip
   // the value mid-flow. `fetchedRef` keeps it to a single request; left null on
   // error, which is treated as "not first" (safe default → keep Configure).
-  const [priorAddressCount, setPriorAddressCount] = useState<number | null>(null)
+  const [priorAddressCount, setPriorAddressCount] = useState<number | null>(
+    null
+  )
   const fetchedRef = useRef(false)
   useEffect(() => {
     if (status !== 'authenticated' || fetchedRef.current) return
     fetchedRef.current = true
     apiClient
       .get<WalletAddress[]>('/api/wallet/addresses')
-      .then(list =>
-        setPriorAddressCount(Array.isArray(list) ? list.length : 0),
-      )
+      .then(list => setPriorAddressCount(Array.isArray(list) ? list.length : 0))
       .catch(() => undefined)
   }, [status, apiClient])
   const isFirstAddress = priorAddressCount === 0
@@ -78,7 +81,10 @@ function RegisterAddressInner() {
               This instance only allows admins to create Lightning Addresses.
             </AlertDescription>
           </Alert>
-          <Button variant="outline" onClick={() => router.replace('/admin/addresses')}>
+          <Button
+            variant="outline"
+            onClick={() => router.replace('/admin/addresses')}
+          >
             Back to addresses
           </Button>
         </div>

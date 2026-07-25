@@ -7,19 +7,21 @@ import { createParamsPromise } from '@/tests/helpers/route-helpers'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 },
-  })),
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 1048576 }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: any) => fn,
+  withRequestLogging: (fn: any) => fn
 }))
 
 vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
-vi.mock('@/lib/middleware/request-limits', () => ({ checkRequestLimits: vi.fn() }))
+vi.mock('@/lib/middleware/request-limits', () => ({
+  checkRequestLimits: vi.fn()
+}))
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticateWithPermission: vi.fn(),
+  authenticateWithPermission: vi.fn()
 }))
 
 import { POST } from '@/app/api/cards/[id]/emulate-tap/route'
@@ -28,7 +30,9 @@ import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
-  vi.mocked(authenticateWithPermission).mockResolvedValue({ pubkey: 'x' } as any)
+  vi.mocked(authenticateWithPermission).mockResolvedValue({
+    pubkey: 'x'
+  } as any)
 })
 
 describe('POST /api/cards/[id]/emulate-tap', () => {
@@ -38,7 +42,7 @@ describe('POST /api/cards/[id]/emulate-tap', () => {
 
     const req = createNextRequest('/api/cards/card-1/emulate-tap', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     const res = await POST(req, createParamsPromise({ id: 'card-1' }))
     const body: any = await assertResponse(res, 200)
@@ -56,7 +60,7 @@ describe('POST /api/cards/[id]/emulate-tap', () => {
 
     const req = createNextRequest('/api/cards/none/emulate-tap', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     const res = await POST(req, createParamsPromise({ id: 'none' }))
 
@@ -64,11 +68,13 @@ describe('POST /api/cards/[id]/emulate-tap', () => {
   })
 
   it('returns 400 when the card has no NTAG424', async () => {
-    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({ ntag424: null } as any)
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({
+      ntag424: null
+    } as any)
 
     const req = createNextRequest('/api/cards/card-1/emulate-tap', {
       method: 'POST',
-      body: {},
+      body: {}
     })
     const res = await POST(req, createParamsPromise({ id: 'card-1' }))
 

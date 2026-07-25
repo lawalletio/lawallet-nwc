@@ -5,7 +5,7 @@ import { Permission } from '@/lib/auth/permissions'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   listenerStatusResponseSchema,
-  type ListenerStatusProxyResponse,
+  type ListenerStatusProxyResponse
 } from '@/lib/validation/schemas'
 
 /**
@@ -21,7 +21,7 @@ export const GET = withErrorHandling(async (request: Request) => {
   const listener = await getListenerConfig()
   if (!listener.enabled || !listener.url) {
     return NextResponse.json({
-      state: 'disabled',
+      state: 'disabled'
     } satisfies ListenerStatusProxyResponse)
   }
 
@@ -33,29 +33,29 @@ export const GET = withErrorHandling(async (request: Request) => {
       // seconds. A tight timeout here would intermittently report a healthy
       // listener as 'unreachable' and blank the dashboard.
       signal: AbortSignal.timeout(8000),
-      cache: 'no-store',
+      cache: 'no-store'
     })
     if (!res.ok) {
       return NextResponse.json({
         state: 'unreachable',
-        error: `Listener responded HTTP ${res.status}`,
+        error: `Listener responded HTTP ${res.status}`
       } satisfies ListenerStatusProxyResponse)
     }
     const parsed = listenerStatusResponseSchema.safeParse(await res.json())
     if (!parsed.success) {
       return NextResponse.json({
         state: 'unreachable',
-        error: 'Listener returned a malformed status payload',
+        error: 'Listener returned a malformed status payload'
       } satisfies ListenerStatusProxyResponse)
     }
     return NextResponse.json({
       state: 'ok',
-      status: parsed.data,
+      status: parsed.data
     } satisfies ListenerStatusProxyResponse)
   } catch (err) {
     return NextResponse.json({
       state: 'unreachable',
-      error: err instanceof Error ? err.message : 'Listener unreachable',
+      error: err instanceof Error ? err.message : 'Listener unreachable'
     } satisfies ListenerStatusProxyResponse)
   }
 })

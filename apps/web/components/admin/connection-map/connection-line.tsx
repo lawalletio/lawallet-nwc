@@ -37,7 +37,7 @@ export function ConnectionLine({
   fromPosition,
   toPosition,
   connectionStatus,
-  fromNode,
+  fromNode
 }: ConnectionLineComponentProps) {
   // Wallet source handle (`to-card`) is sky; everything else (LA `out`)
   // is emerald. Mirrors the edge stroke colours.
@@ -53,7 +53,7 @@ export function ConnectionLine({
     sourcePosition: fromPosition,
     targetX: toX,
     targetY: toY,
-    targetPosition: toPosition,
+    targetPosition: toPosition
   })
 
   return (

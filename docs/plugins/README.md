@@ -8,7 +8,7 @@
 > seam is the wallet driver registry — see
 > [docs/FORKING.md](../FORKING.md) and the
 > [add-a-driver guide](../../apps/docs/content/docs/guides/add-a-driver.mdx).
-> The documents below describe a longer-term model of *external* services
+> The documents below describe a longer-term model of _external_ services
 > interoperating via Nostr events and Lightning payments.
 
 ---
@@ -40,11 +40,11 @@ LaWallet (core)
 
 ## Proposed Plugins
 
-| Plugin | Description | Status | Document |
-|--------|-------------|--------|----------|
-| [Events](./EVENTS.md) | Community event management with check-in and badge issuance | 📋 Proposal | [EVENTS.md](./EVENTS.md) |
-| [Badges](./BADGES.md) | Nostr badge system for reputation and rewards | 📋 Proposal | [BADGES.md](./BADGES.md) |
-| [Commerce](./COMMERCE.md) | Merchant directory with badge-based discounts | 📋 Proposal | [COMMERCE.md](./COMMERCE.md) |
+| Plugin                    | Description                                                 | Status      | Document                     |
+| ------------------------- | ----------------------------------------------------------- | ----------- | ---------------------------- |
+| [Events](./EVENTS.md)     | Community event management with check-in and badge issuance | 📋 Proposal | [EVENTS.md](./EVENTS.md)     |
+| [Badges](./BADGES.md)     | Nostr badge system for reputation and rewards               | 📋 Proposal | [BADGES.md](./BADGES.md)     |
+| [Commerce](./COMMERCE.md) | Merchant directory with badge-based discounts               | 📋 Proposal | [COMMERCE.md](./COMMERCE.md) |
 
 ## How Plugins Would Work
 
@@ -91,12 +91,12 @@ These plugins are proposed as community contributions. If you're interested in i
 
 ## Status Legend
 
-| Icon | Meaning |
-|------|---------|
-| 📋 | Proposal - Not implemented |
-| 🚧 | In Development |
-| ✅ | Implemented |
+| Icon | Meaning                    |
+| ---- | -------------------------- |
+| 📋   | Proposal - Not implemented |
+| 🚧   | In Development             |
+| ✅   | Implemented                |
 
 ---
 
-*This documentation was created by [Claudio](https://github.com/claudiomolt) as a community contribution proposal.*
+_This documentation was created by [Claudio](https://github.com/claudiomolt) as a community contribution proposal._

@@ -23,7 +23,11 @@ async function loadBranding(): Promise<{
   }
   if (process.env.NEXT_PHASE === 'phase-production-build') return fallback
   try {
-    const settings = await getSettings(['community_name', 'isotypo_url', 'brand_theme'])
+    const settings = await getSettings([
+      'community_name',
+      'isotypo_url',
+      'brand_theme'
+    ])
     return {
       name: settings.community_name?.trim() || fallback.name,
       themeColor: settings.brand_theme?.trim() || fallback.themeColor,
@@ -45,8 +49,18 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     icons.push({ src: isotypeUrl, sizes: 'any', purpose: 'any' })
   }
   icons.push(
-    { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-    { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    {
+      src: '/icons/icon-192.png',
+      sizes: '192x192',
+      type: 'image/png',
+      purpose: 'any'
+    },
+    {
+      src: '/icons/icon-512.png',
+      sizes: '512x512',
+      type: 'image/png',
+      purpose: 'any'
+    },
     {
       src: '/icons/icon-maskable-512.png',
       sizes: '512x512',

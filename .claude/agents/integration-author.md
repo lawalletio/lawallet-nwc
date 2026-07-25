@@ -15,6 +15,7 @@ The repo's proven pattern is `apps/web/lib/wallet/drivers/`:
 - `index.ts` — self-registration at import time (`registerDriver(nwcDriver)`).
 
 To add a wallet driver:
+
 1. Create `lib/wallet/drivers/<name>-driver.ts` implementing
    `RemoteWalletDriver<YourConfig>` with a Zod config schema (model it on
    `nwc-driver.ts`, including error mapping to `DriverError` subclasses).
@@ -25,6 +26,7 @@ To add a wallet driver:
    `apps/web/.env.example`.
 
 Rules that keep forks merge-clean:
+
 - Touch ONLY your new module + the single registration line.
 - All driver state lives in the JSON `config` column validated by your Zod
   schema — no new tables/columns for a driver.

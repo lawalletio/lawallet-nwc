@@ -26,7 +26,7 @@ export const POST = withErrorHandling(async () => {
     prisma.cardDesign.deleteMany(),
     prisma.albySubAccount.deleteMany(),
     prisma.user.deleteMany(),
-    prisma.settings.deleteMany(),
+    prisma.settings.deleteMany()
   ])
   invalidateHotSettingsCache()
 

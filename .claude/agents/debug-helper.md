@@ -8,6 +8,7 @@ You diagnose runtime issues in `apps/web` from logs and code — propose the
 fix, but keep edits to what the user asked for.
 
 Tooling you rely on:
+
 - Pino structured logs (`lib/logger.ts`) with AsyncLocalStorage request
   correlation: every request gets a `reqId`, echoed in the `x-request-id`
   response header; `withRequestLogging` logs start/end/durationMs/error.
@@ -18,6 +19,7 @@ Tooling you rely on:
   to status codes — a 500 in the response means an UNtyped error escaped.
 
 Known failure decode table:
+
 - 401 "Invalid or expired JWT" → issuer/audience/secret mismatch — token must
   be issuer `lawallet-nwc`, audience `lawallet-users`, signed with the
   running server's JWT_SECRET (worktrees each have their OWN secret in

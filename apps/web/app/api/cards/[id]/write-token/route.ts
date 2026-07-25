@@ -6,7 +6,7 @@ import { Permission } from '@/lib/auth/permissions'
 import {
   ConflictError,
   NotFoundError,
-  ValidationError,
+  ValidationError
 } from '@/types/server/errors'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
@@ -36,8 +36,8 @@ export const POST = withErrorHandling(
         id: true,
         lastUsedAt: true,
         blockedAt: true,
-        ntag424: { select: { ctr: true } },
-      },
+        ntag424: { select: { ctr: true } }
+      }
     })
 
     if (!card) {
@@ -48,12 +48,12 @@ export const POST = withErrorHandling(
     }
     if (card.blockedAt !== null) {
       throw new ConflictError(
-        'This card has been blocked (reset keys exported) and can no longer be programmed — delete it instead.',
+        'This card has been blocked (reset keys exported) and can no longer be programmed — delete it instead.'
       )
     }
     if (!isCardFresh(card)) {
       throw new ConflictError(
-        'This card has already been tapped and can no longer be programmed.',
+        'This card has already been tapped and can no longer be programmed.'
       )
     }
 
@@ -70,7 +70,7 @@ export const POST = withErrorHandling(
     return NextResponse.json({
       token,
       url: `${url}/api/cards/${card.id}/write?token=${token}`,
-      expiresAt: expiresAt.toISOString(),
+      expiresAt: expiresAt.toISOString()
     })
-  },
+  }
 )

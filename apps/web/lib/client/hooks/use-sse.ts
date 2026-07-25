@@ -1,8 +1,18 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback
+} from 'react'
 import { useAuth } from '@/components/admin/auth-context'
-import { ALL_SSE_EVENT_TYPES, type SSEEventType } from '@/lib/events/event-types'
+import {
+  ALL_SSE_EVENT_TYPES,
+  type SSEEventType
+} from '@/lib/events/event-types'
 
 export type { SSEEventType }
 
@@ -14,7 +24,10 @@ interface SSEContextValue {
 const ALL_EVENT_TYPES = ALL_SSE_EVENT_TYPES
 
 function initialVersions(): Record<SSEEventType, number> {
-  return Object.fromEntries(ALL_EVENT_TYPES.map(t => [t, 0])) as Record<SSEEventType, number>
+  return Object.fromEntries(ALL_EVENT_TYPES.map(t => [t, 0])) as Record<
+    SSEEventType,
+    number
+  >
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────
@@ -29,7 +42,8 @@ const INITIAL_RECONNECT_DELAY = 1_000
 export function SSEProvider({ children }: { children: React.ReactNode }) {
   const { status, jwt } = useAuth()
   const [connected, setConnected] = useState(false)
-  const [versions, setVersions] = useState<Record<SSEEventType, number>>(initialVersions)
+  const [versions, setVersions] =
+    useState<Record<SSEEventType, number>>(initialVersions)
   const esRef = useRef<EventSource | null>(null)
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -47,43 +61,48 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
     setConnected(false)
   }, [])
 
-  const connect = useCallback((token: string) => {
-    cleanup()
+  const connect = useCallback(
+    (token: string) => {
+      cleanup()
 
-    const es = new EventSource(`/api/events?token=${encodeURIComponent(token)}`)
-    esRef.current = es
+      const es = new EventSource(
+        `/api/events?token=${encodeURIComponent(token)}`
+      )
+      esRef.current = es
 
-    es.addEventListener('connected', () => {
-      if (!mountedRef.current) return
-      setConnected(true)
-      reconnectDelayRef.current = INITIAL_RECONNECT_DELAY
-    })
-
-    // Listen for all event types
-    for (const eventType of ALL_EVENT_TYPES) {
-      es.addEventListener(eventType, () => {
+      es.addEventListener('connected', () => {
         if (!mountedRef.current) return
-        setVersions(prev => ({ ...prev, [eventType]: prev[eventType] + 1 }))
+        setConnected(true)
+        reconnectDelayRef.current = INITIAL_RECONNECT_DELAY
       })
-    }
 
-    es.onerror = () => {
-      if (!mountedRef.current) return
-      es.close()
-      esRef.current = null
-      setConnected(false)
+      // Listen for all event types
+      for (const eventType of ALL_EVENT_TYPES) {
+        es.addEventListener(eventType, () => {
+          if (!mountedRef.current) return
+          setVersions(prev => ({ ...prev, [eventType]: prev[eventType] + 1 }))
+        })
+      }
 
-      // Reconnect with exponential backoff
-      const delay = reconnectDelayRef.current
-      reconnectDelayRef.current = Math.min(delay * 2, MAX_RECONNECT_DELAY)
+      es.onerror = () => {
+        if (!mountedRef.current) return
+        es.close()
+        esRef.current = null
+        setConnected(false)
 
-      reconnectTimerRef.current = setTimeout(() => {
-        if (mountedRef.current && token) {
-          connect(token)
-        }
-      }, delay)
-    }
-  }, [cleanup])
+        // Reconnect with exponential backoff
+        const delay = reconnectDelayRef.current
+        reconnectDelayRef.current = Math.min(delay * 2, MAX_RECONNECT_DELAY)
+
+        reconnectTimerRef.current = setTimeout(() => {
+          if (mountedRef.current && token) {
+            connect(token)
+          }
+        }, delay)
+      }
+    },
+    [cleanup]
+  )
 
   useEffect(() => {
     mountedRef.current = true

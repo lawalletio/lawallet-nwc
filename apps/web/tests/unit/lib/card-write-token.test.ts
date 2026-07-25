@@ -8,17 +8,35 @@ import { isCardFresh, isWriteTokenValid } from '@/lib/card-write-token'
 
 describe('isCardFresh', () => {
   it('is true only when the card has never been tapped or blocked', () => {
-    expect(isCardFresh({ lastUsedAt: null, blockedAt: null, ntag424: { ctr: 0 } })).toBe(true)
-    expect(isCardFresh({ lastUsedAt: null, blockedAt: null, ntag424: null })).toBe(true)
+    expect(
+      isCardFresh({ lastUsedAt: null, blockedAt: null, ntag424: { ctr: 0 } })
+    ).toBe(true)
+    expect(
+      isCardFresh({ lastUsedAt: null, blockedAt: null, ntag424: null })
+    ).toBe(true)
   })
 
   it('is false once the card has been used', () => {
-    expect(isCardFresh({ lastUsedAt: new Date(), blockedAt: null, ntag424: { ctr: 0 } })).toBe(false)
-    expect(isCardFresh({ lastUsedAt: null, blockedAt: null, ntag424: { ctr: 1 } })).toBe(false)
+    expect(
+      isCardFresh({
+        lastUsedAt: new Date(),
+        blockedAt: null,
+        ntag424: { ctr: 0 }
+      })
+    ).toBe(false)
+    expect(
+      isCardFresh({ lastUsedAt: null, blockedAt: null, ntag424: { ctr: 1 } })
+    ).toBe(false)
   })
 
   it('is false once the card is blocked (reset keys exported)', () => {
-    expect(isCardFresh({ lastUsedAt: null, blockedAt: new Date(), ntag424: { ctr: 0 } })).toBe(false)
+    expect(
+      isCardFresh({
+        lastUsedAt: null,
+        blockedAt: new Date(),
+        ntag424: { ctr: 0 }
+      })
+    ).toBe(false)
   })
 })
 
@@ -28,7 +46,7 @@ describe('isWriteTokenValid', () => {
     writeTokenExpiresAt: new Date(Date.now() + 60_000),
     lastUsedAt: null as Date | null,
     blockedAt: null as Date | null,
-    ntag424: { ctr: 0 } as { ctr: number } | null,
+    ntag424: { ctr: 0 } as { ctr: number } | null
   }
 
   it('accepts a matching, unexpired token on a fresh card', () => {
@@ -46,17 +64,23 @@ describe('isWriteTokenValid', () => {
     expect(
       isWriteTokenValid(
         { ...base, writeTokenExpiresAt: new Date(Date.now() - 1_000) },
-        'abc',
-      ),
+        'abc'
+      )
     ).toBe(false)
   })
 
   it('rejects once the card has been tapped, even with a matching token', () => {
-    expect(isWriteTokenValid({ ...base, lastUsedAt: new Date() }, 'abc')).toBe(false)
-    expect(isWriteTokenValid({ ...base, ntag424: { ctr: 5 } }, 'abc')).toBe(false)
+    expect(isWriteTokenValid({ ...base, lastUsedAt: new Date() }, 'abc')).toBe(
+      false
+    )
+    expect(isWriteTokenValid({ ...base, ntag424: { ctr: 5 } }, 'abc')).toBe(
+      false
+    )
   })
 
   it('rejects a blocked card, even with a matching token', () => {
-    expect(isWriteTokenValid({ ...base, blockedAt: new Date() }, 'abc')).toBe(false)
+    expect(isWriteTokenValid({ ...base, blockedAt: new Date() }, 'abc')).toBe(
+      false
+    )
   })
 })

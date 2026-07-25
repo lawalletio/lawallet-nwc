@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { inlineJsonResponse, jsonResponse, protectedSecurity, withRole } from '../helpers'
+import {
+  inlineJsonResponse,
+  jsonResponse,
+  protectedSecurity,
+  withRole
+} from '../helpers'
 import { registry } from '../registry'
 import { responses } from '../responses'
 import { schemas } from '../schemas'
@@ -19,15 +24,15 @@ registry.registerPath({
   security: [{ [NIP98]: [] }],
   request: {
     body: {
-      content: { 'application/json': { schema: schemas.JwtRequest } },
-    },
+      content: { 'application/json': { schema: schemas.JwtRequest } }
+    }
   },
   responses: {
     200: jsonResponse('JWT issued.', 'JwtResponse'),
     400: responses.validation,
     401: responses.unauthenticated,
-    500: responses.internalError,
-  },
+    500: responses.internalError
+  }
 })
 
 registry.registerPath({
@@ -42,8 +47,8 @@ registry.registerPath({
   security: protectedSecurity,
   request: {
     body: {
-      content: { 'application/json': { schema: schemas.QrJwtGenerateRequest } },
-    },
+      content: { 'application/json': { schema: schemas.QrJwtGenerateRequest } }
+    }
   },
   responses: {
     200: inlineJsonResponse(
@@ -52,27 +57,25 @@ registry.registerPath({
         jwt: z.string(),
         expiresIn: z.union([z.string(), z.number()]),
         scopes: z.array(z.string()),
-        apiUrl: z
-          .string()
-          .openapi({
-            description:
-              'Platform base URL baked into the token; it is only valid against this instance.',
-            example: 'https://app.example.com',
-          }),
+        apiUrl: z.string().openapi({
+          description:
+            'Platform base URL baked into the token; it is only valid against this instance.',
+          example: 'https://app.example.com'
+        }),
         user: z.object({
           id: z.string(),
           pubkey: z.string(),
-          role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']),
-        }),
-      }),
+          role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER'])
+        })
+      })
     ),
     400: responses.validation,
     401: responses.unauthenticated,
     403: responses.forbidden,
     404: responses.notFound,
     429: responses.rateLimited,
-    500: responses.internalError,
-  },
+    500: responses.internalError
+  }
 })
 
 registry.registerPath({
@@ -90,12 +93,12 @@ registry.registerPath({
         valid: z.literal(true),
         pubkey: z.string().optional(),
         role: z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER']).optional(),
-        expiresAt: z.string().datetime().optional(),
-      }),
+        expiresAt: z.string().datetime().optional()
+      })
     ),
     401: responses.unauthenticated,
-    500: responses.internalError,
-  },
+    500: responses.internalError
+  }
 })
 
 registry.registerPath({
@@ -109,11 +112,11 @@ registry.registerPath({
   responses: {
     200: inlineJsonResponse(
       'Caller is authenticated.',
-      z.object({ ok: z.literal(true), pubkey: z.string().optional() }),
+      z.object({ ok: z.literal(true), pubkey: z.string().optional() })
     ),
     401: responses.unauthenticated,
-    500: responses.internalError,
-  },
+    500: responses.internalError
+  }
 })
 
 registry.registerPath({
@@ -125,8 +128,11 @@ registry.registerPath({
   operationId: 'auth.protected.post',
   security: protectedSecurity,
   responses: {
-    200: inlineJsonResponse('Caller is authenticated.', z.object({ ok: z.literal(true) })),
+    200: inlineJsonResponse(
+      'Caller is authenticated.',
+      z.object({ ok: z.literal(true) })
+    ),
     401: responses.unauthenticated,
-    500: responses.internalError,
-  },
+    500: responses.internalError
+  }
 })

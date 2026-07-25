@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Logger reads config at module load — stub both before importing the SUT.
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } })),
+  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  withRequestLogging: (fn: unknown) => fn,
+  withRequestLogging: (fn: unknown) => fn
 }))
 
 import { createLncurlWallet, DEFAULT_LNCURL_SERVER } from '@/lib/lncurl'
@@ -23,7 +23,7 @@ function mockFetch(body: string, init: { status?: number; ok?: boolean } = {}) {
   const fn = vi.fn(async () => ({
     ok,
     status,
-    text: async () => body,
+    text: async () => body
   })) as unknown as typeof fetch
   global.fetch = fn
   return fn
@@ -78,7 +78,7 @@ describe('createLncurlWallet', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://lncurl.lol',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ method: 'POST' })
     )
   })
 
@@ -89,7 +89,7 @@ describe('createLncurlWallet', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://my.lncurl.example',
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ method: 'POST' })
     )
   })
 
@@ -99,7 +99,10 @@ describe('createLncurlWallet', () => {
     await createLncurlWallet()
 
     expect(DEFAULT_LNCURL_SERVER).toBe('https://lncurl.lol/')
-    expect(fetchMock).toHaveBeenCalledWith('https://lncurl.lol', expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://lncurl.lol',
+      expect.anything()
+    )
   })
 
   it('throws on a non-2xx response', async () => {

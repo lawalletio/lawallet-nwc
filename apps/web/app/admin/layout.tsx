@@ -4,11 +4,11 @@ import { AdminProviders } from '@/components/admin/admin-providers'
 
 export const metadata: Metadata = {
   title: 'Admin Dashboard - LaWallet',
-  description: 'Manage your BoltCard + NWC system',
+  description: 'Manage your BoltCard + NWC system'
 }
 
 export default function AdminLayout({
-  children,
+  children
 }: {
   children: React.ReactNode
 }) {

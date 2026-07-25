@@ -41,13 +41,13 @@ export const CURRENCY_CATALOG: Currency[] = [
   { code: 'PEN', name: 'Sol' },
   { code: 'USD', name: 'Dolar Americano' },
   { code: 'UYU', name: 'Peso Uruguayo' },
-  { code: 'VES', name: 'Bolívar' },
+  { code: 'VES', name: 'Bolívar' }
 ]
 
 const STORAGE_KEY = 'lawallet-active-currencies'
 const DEFAULT_ACTIVE: readonly string[] = ['SAT', 'BTC']
 const LOCKED_CODES = new Set(
-  CURRENCY_CATALOG.filter(c => c.locked).map(c => c.code),
+  CURRENCY_CATALOG.filter(c => c.locked).map(c => c.code)
 )
 
 let cache: string[] | null = null
@@ -116,9 +116,7 @@ function onStorage(e: StorageEvent) {
 
 /** Hook returning the currently active currencies in display order. */
 export function useActiveCurrencies(): Currency[] {
-  const codes = useSyncExternalStore(subscribe, read, () => [
-    ...DEFAULT_ACTIVE,
-  ])
+  const codes = useSyncExternalStore(subscribe, read, () => [...DEFAULT_ACTIVE])
   const out: Currency[] = []
   for (const code of codes) {
     const match = CURRENCY_CATALOG.find(c => c.code === code)
@@ -154,7 +152,7 @@ export const currenciesActions = {
       safe.push(code)
     }
     write(safe)
-  },
+  }
 }
 
 /** Test-only hook to drop the in-memory cache between cases. */

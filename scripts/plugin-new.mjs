@@ -8,7 +8,13 @@
 // registration lines to add (plugins/index.ts + plugins/client.ts) — the
 // only core edits a plugin ever needs.
 
-import { cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync
+} from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 

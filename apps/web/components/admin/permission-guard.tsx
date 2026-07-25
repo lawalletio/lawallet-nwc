@@ -14,7 +14,11 @@ interface PermissionGuardProps {
  * Conditionally renders children if the user has the required permission.
  * Otherwise renders the fallback (or nothing).
  */
-export function PermissionGuard({ permission, fallback = null, children }: PermissionGuardProps) {
+export function PermissionGuard({
+  permission,
+  fallback = null,
+  children
+}: PermissionGuardProps) {
   const { isAuthorized } = useAuth()
 
   if (!isAuthorized(permission)) {

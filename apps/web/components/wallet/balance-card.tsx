@@ -43,7 +43,7 @@ const DefaultEmptyIcon = (
 export function BalanceCard({
   connectionString,
   emptyReason,
-  emptyIcon,
+  emptyIcon
 }: BalanceCardProps) {
   const balance = useNwcBalance(connectionString)
 
