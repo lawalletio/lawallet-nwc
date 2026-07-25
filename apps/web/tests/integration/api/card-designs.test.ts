@@ -44,9 +44,24 @@ vi.mock('@/mocks/card-design', () => ({
   mockCardDesignData: [{ id: 'existing-1' }, { id: 'existing-2' }],
 }))
 
+vi.mock('@/lib/auth/account', () => ({
+  resolveAccountByPubkey: vi.fn(),
+}))
+
+vi.mock('@/lib/events/event-bus', () => ({
+  eventBus: { emit: vi.fn() },
+}))
+
+vi.mock('@/lib/activity-log', () => ({
+  ActivityEvent: new Proxy({}, { get: (_t, key) => `card.${String(key).toLowerCase()}` }),
+  logActivity: Object.assign(vi.fn(), { fireAndForget: vi.fn() }),
+}))
+
 import { GET as ListGet } from '@/app/api/card-designs/list/route'
 import { GET as CountGet } from '@/app/api/card-designs/count/route'
 import { GET as GetById } from '@/app/api/card-designs/get/[id]/route'
+import { POST as CreatePost } from '@/app/api/card-designs/route'
+import { PUT as UpdatePut } from '@/app/api/card-designs/[id]/route'
 import { POST as ImportPost } from '@/app/api/card-designs/import/route'
 import {
   POST as ImportVeintiunoPost,
@@ -55,6 +70,7 @@ import {
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { getSettings } from '@/lib/settings'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 
 const mockAdmin = () =>
   vi.mocked(authenticateWithPermission).mockResolvedValue({
@@ -162,6 +178,67 @@ describe('GET /api/card-designs/get/[id]', () => {
   })
 })
 
+// Zod 3's `.url()` is a bare `new URL()` check that accepts every scheme, so
+// these assert the scheme allowlist is actually wired into the routes — not
+// just present on the schema.
+const UNSAFE_URLS = [
+  'javascript:alert(1)',
+  'JaVaScRiPt:alert(1)',
+  'data:image/svg+xml,<svg onload="alert(1)"/>',
+  'file:///etc/passwd',
+]
+
+describe('POST /api/card-designs', () => {
+  it('creates a design from an https image URL', async () => {
+    mockAdmin()
+    vi.mocked(resolveAccountByPubkey).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prismaMock.cardDesign.create).mockResolvedValue({
+      id: 'd1',
+      imageUrl: 'https://blossom.example.com/a.png',
+      description: 'Blue',
+      createdAt: new Date(),
+      archivedAt: null,
+    } as any)
+
+    const req = createNextRequest('/api/card-designs', {
+      method: 'POST',
+      body: { description: 'Blue', imageUrl: 'https://blossom.example.com/a.png' },
+    })
+    const body: any = await assertResponse(await CreatePost(req), 200)
+
+    expect(body.imageUrl).toBe('https://blossom.example.com/a.png')
+  })
+
+  it.each(UNSAFE_URLS)('rejects imageUrl %s with 400', async url => {
+    mockAdmin()
+    vi.mocked(resolveAccountByPubkey).mockResolvedValue({ id: 'user-1' } as any)
+
+    const req = createNextRequest('/api/card-designs', {
+      method: 'POST',
+      body: { description: 'Blue', imageUrl: url },
+    })
+    const res = await CreatePost(req)
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.cardDesign.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/card-designs/[id]', () => {
+  it.each(UNSAFE_URLS)('rejects imageUrl %s with 400', async url => {
+    mockAdmin()
+
+    const req = createNextRequest('/api/card-designs/d1', {
+      method: 'PUT',
+      body: { imageUrl: url },
+    })
+    const res = await UpdatePut(req, createParamsPromise({ id: 'd1' }))
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.cardDesign.update).not.toHaveBeenCalled()
+  })
+})
+
 describe('POST /api/card-designs/import', () => {
   it('imports new designs from veintiuno.lat', async () => {
     mockAdmin()
@@ -205,7 +282,7 @@ describe('POST /api/card-designs/import', () => {
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify([
-        { id: 'existing-1', communityId: 'comm-1', imageUrl: 'u', description: 'd' },
+        { id: 'existing-1', communityId: 'comm-1', imageUrl: 'https://img.com/1.png', description: 'd' },
       ]), { status: 200 })
     )
 
@@ -219,6 +296,42 @@ describe('POST /api/card-designs/import', () => {
 
     expect(body.imported).toBe(0)
     expect(prismaMock.cardDesign.create).not.toHaveBeenCalled()
+  })
+
+  it('drops catalog entries whose imageUrl is not http(s)', async () => {
+    mockAdmin()
+    vi.mocked(getSettings).mockResolvedValue({
+      is_community: 'true',
+      community_id: 'comm-1',
+    })
+
+    // A compromised or changed upstream catalog must not be able to seed a
+    // non-http scheme into a column the admin UI renders.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify([
+        { id: 'good', communityId: 'comm-1', imageUrl: 'https://img.com/1.png', description: 'Good' },
+        { id: 'xss', communityId: 'comm-1', imageUrl: 'javascript:alert(1)', description: 'Bad' },
+        { id: 'inline', communityId: 'comm-1', imageUrl: 'data:image/svg+xml,<svg onload="alert(1)"/>', description: 'Bad' },
+        { id: 'local', communityId: 'comm-1', imageUrl: 'file:///etc/passwd', description: 'Bad' },
+      ]), { status: 200 })
+    )
+
+    vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([])
+    vi.mocked(prismaMock.cardDesign.create).mockImplementation((async ({ data }: any) => ({
+      ...data,
+      createdAt: new Date(),
+    })) as any)
+
+    const req = createNextRequest('/api/card-designs/import', { method: 'POST' })
+    const body: any = await assertResponse(await ImportPost(req), 200)
+
+    expect(body.imported).toBe(1)
+    expect(prismaMock.cardDesign.create).toHaveBeenCalledTimes(1)
+    expect(prismaMock.cardDesign.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ id: 'good' }),
+      })
+    )
   })
 
   it('rejects when community_id not set', async () => {
@@ -321,6 +434,30 @@ describe('POST /api/card-designs/import-veintiuno', () => {
     expect(body.success).toBe(true)
     expect(body.imported).toBe(3)
     expect(prismaMock.cardDesign.upsert).toHaveBeenCalledTimes(3)
+  })
+
+  it('drops catalog entries whose imageUrl is not http(s)', async () => {
+    mockAdmin()
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'lawallet.io' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify([
+        { id: 'ok', imageUrl: 'https://v.lat/ok.png', title: 'OK' },
+        { id: 'xss', imageUrl: 'javascript:alert(1)', title: 'Bad' },
+        { id: 'inline', imageUrl: 'data:image/svg+xml,<svg onload="alert(1)"/>', title: 'Bad' },
+        { id: 'local', imageUrl: 'file:///etc/passwd', title: 'Bad' },
+      ]), { status: 200 }),
+    )
+    vi.mocked(prismaMock.cardDesign.findMany).mockResolvedValue([])
+    vi.mocked(prismaMock.cardDesign.upsert).mockResolvedValue({} as any)
+
+    const req = createNextRequest('/api/card-designs/import-veintiuno', { method: 'POST' })
+    const body: any = await assertResponse(await ImportVeintiunoPost(req), 200)
+
+    expect(body.imported).toBe(1)
+    expect(prismaMock.cardDesign.upsert).toHaveBeenCalledTimes(1)
+    expect(prismaMock.cardDesign.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'ok' } }),
+    )
   })
 
   it('rejects when the instance domain is not lawallet.io', async () => {
