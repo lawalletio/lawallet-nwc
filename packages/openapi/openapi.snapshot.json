@@ -5925,7 +5925,7 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Card design created.",
             "content": {
               "application/json": {
@@ -5941,9 +5941,6 @@
                     "imageUrl": {
                       "type": "string",
                       "format": "uri"
-                    },
-                    "archived": {
-                      "type": "boolean"
                     },
                     "createdAt": {
                       "type": "string",
@@ -5961,8 +5958,8 @@
                     "id",
                     "description",
                     "imageUrl",
-                    "archived",
-                    "createdAt"
+                    "createdAt",
+                    "archivedAt"
                   ],
                   "description": "Card design template."
                 }
@@ -5991,16 +5988,6 @@
           },
           "403": {
             "description": "Caller is authenticated but lacks the required role or permission.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request conflicts with current resource state.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6044,52 +6031,41 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "description": {
-                            "type": "string"
-                          },
-                          "imageUrl": {
-                            "type": "string",
-                            "format": "uri"
-                          },
-                          "archived": {
-                            "type": "boolean"
-                          },
-                          "createdAt": {
-                            "type": "string",
-                            "format": "date-time"
-                          },
-                          "archivedAt": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "format": "date-time"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "description",
-                          "imageUrl",
-                          "archived",
-                          "createdAt"
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "imageUrl": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "archivedAt": {
+                        "type": [
+                          "string",
+                          "null"
                         ],
-                        "description": "Card design template."
+                        "format": "date-time"
                       }
-                    }
-                  },
-                  "required": [
-                    "data"
-                  ]
+                    },
+                    "required": [
+                      "id",
+                      "description",
+                      "imageUrl",
+                      "createdAt",
+                      "archivedAt"
+                    ],
+                    "description": "Card design template."
+                  }
                 }
               }
             }
@@ -6218,13 +6194,17 @@
     },
     "/api/card-designs/get/{id}": {
       "get": {
-        "x-required-role": "PUBLIC",
+        "x-required-role": "ADMIN",
         "tags": [
           "Card Designs"
         ],
         "summary": "Get a card design by ID (alternate path).",
         "operationId": "cardDesigns.getById",
-        "security": [],
+        "security": [
+          {
+            "NIP98": []
+          }
+        ],
         "parameters": [
           {
             "schema": {
@@ -6254,18 +6234,8 @@
                       "type": "string",
                       "format": "uri"
                     },
-                    "archived": {
-                      "type": "boolean"
-                    },
                     "createdAt": {
                       "type": "string",
-                      "format": "date-time"
-                    },
-                    "archivedAt": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
                       "format": "date-time"
                     }
                   },
@@ -6273,16 +6243,35 @@
                     "id",
                     "description",
                     "imageUrl",
-                    "archived",
                     "createdAt"
                   ],
-                  "description": "Card design template."
+                  "description": "Card design template (without archive state)."
                 }
               }
             }
           },
           "400": {
             "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6368,9 +6357,6 @@
                       "type": "string",
                       "format": "uri"
                     },
-                    "archived": {
-                      "type": "boolean"
-                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -6387,8 +6373,8 @@
                     "id",
                     "description",
                     "imageUrl",
-                    "archived",
-                    "createdAt"
+                    "createdAt",
+                    "archivedAt"
                   ],
                   "description": "Card design template."
                 }
@@ -6454,7 +6440,8 @@
         "tags": [
           "Card Designs"
         ],
-        "summary": "Bulk-import card designs.",
+        "summary": "Import this community's card designs from veintiuno.lat.",
+        "description": "Pulls the published veintiuno.lat catalog server-side and inserts the designs whose `communityId` matches the configured `community_id`. Takes no request body. Entries whose image URL is not an http(s) URL are skipped. Designs that already exist are left untouched. Returns 400 when `is_community` / `community_id` are not configured.",
         "operationId": "cardDesigns.import",
         "security": [
           {
@@ -6464,40 +6451,6 @@
             "NIP98": []
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "designs": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "description": {
-                          "type": "string"
-                        },
-                        "imageUrl": {
-                          "type": "string",
-                          "format": "uri"
-                        }
-                      },
-                      "required": [
-                        "description",
-                        "imageUrl"
-                      ]
-                    }
-                  }
-                },
-                "required": [
-                  "designs"
-                ],
-                "description": "Batch payload of card designs."
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Import result.",
@@ -6506,13 +6459,54 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
                     "imported": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "skipped": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "designs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "imageUrl": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "imageUrl",
+                          "description",
+                          "createdAt"
+                        ]
+                      }
                     }
                   },
                   "required": [
-                    "imported"
+                    "success",
+                    "message",
+                    "imported",
+                    "skipped"
                   ]
                 }
               }
