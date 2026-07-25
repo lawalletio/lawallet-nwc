@@ -2,19 +2,60 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+# Dependency build-script policy. pnpm blocks third-party install/postinstall
+# scripts by default; these lists record the deliberate decision to keep every
+# one of them blocked. Verified by clean install + full build: nothing here
+# needs its script to run.
+#
+#   esbuild / sharp / unrs-resolver  load prebuilt binaries from their
+#     @esbuild-*, @img-* and @unrs-* platform packages; the scripts only
+#     re-verify them (sharp's falls back to a node-gyp compile, which would
+#     fail in the toolchain-free node:22-trixie-slim build image).
+#   bufferutil / utf-8-validate / secp256k1  ship node-gyp-build prebuilds and
+#     resolve them at require() time; they are optional accelerators.
+#   @prisma/engines  ships its query/schema engines in the npm tarball, and
+#     apps/web runs `prisma generate` as its own postinstall — workspace
+#     projects always run their scripts, so client generation is unaffected.
+#   msw  is used node-only (setupServer from msw/node); its script only stubs
+#     the browser service worker, which this repo does not use.
+#   es5-ext / vue-demi / prisma  are no-op message scripts or version guards.
+#
+# Two keys because pnpm renamed the setting: 10.x reads
+# `ignoredBuiltDependencies`, 11.x reads `allowBuilds`. The repo pins pnpm
+# 10.11.0 via packageManager, but both are kept so a future bump neither
+# silently enables all 12 (11.x would honour a stale allow-list) nor hard-fails
+# the install (11.x errors on un-triaged build scripts). Re-enabling one is a
+# supply-chain decision: flip it in BOTH lists, or the two versions disagree.
+
+# pnpm 10.x
+ignoredBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - bufferutil
+  - es5-ext
+  - esbuild
+  - msw
+  - prisma
+  - secp256k1
+  - sharp
+  - unrs-resolver
+  - utf-8-validate
+  - vue-demi
+
+# pnpm 11.x
 allowBuilds:
-  '@prisma/client': true
-  '@prisma/engines': true
-  bufferutil: true
-  es5-ext: true
-  esbuild: true
-  msw: true
-  prisma: true
-  secp256k1: true
-  sharp: true
-  unrs-resolver: true
-  utf-8-validate: true
-  vue-demi: true
+  '@prisma/client': false
+  '@prisma/engines': false
+  bufferutil: false
+  es5-ext: false
+  esbuild: false
+  msw: false
+  prisma: false
+  secp256k1: false
+  sharp: false
+  unrs-resolver: false
+  utf-8-validate: false
+  vue-demi: false
 
 # Dependency version pins. Overrides live here rather than in package.json's
 # `pnpm.overrides` — this file is the one pnpm always reads, and it wins when
@@ -43,7 +84,11 @@ overrides:
   brace-expansion@>=2.0.0 <2.1.2: 2.1.2
   brace-expansion@>=3.0.0 <5.0.7: 5.0.8
   ajv@<7: 6.14.0
-  postcss: 8.5.15
+  # GHSA-r28c-9q8g-f849 (high, 2026-07-25): path traversal via sourceMappingURL
+  # auto-loading leaks arbitrary .map files. Patched in >=8.5.18. Range-scoped
+  # so it retires once every parent asks for a patched line; both apps already
+  # request ^8.5.15, which accepts the bump on its own.
+  postcss@<8.5.18: 8.5.23
   # GHSA-f88m-g3jw-g9cj (high): sharp <0.35.0 inherits four libvips CVEs
   # (CVE-2026-33327/33328/35590/35591) in the GIF, TIFF and VIPS decoders.
   # next@16.2.11 caret-pins `sharp: ^0.34.5` as an optionalDependency, which
