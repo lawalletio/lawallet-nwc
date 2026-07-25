@@ -112,15 +112,13 @@ describe('resolveProfiles', () => {
     vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([
       cacheRow({ fetchedAt: new Date('2026-06-01T00:00:00.000Z') })
     ] as any)
-    const relayFetcher = vi
-      .fn()
-      .mockResolvedValue([
-        kind0(PUBKEY_A, 100, { name: 'old' }),
-        kind0(PUBKEY_A, 200, {
-          name: 'new',
-          picture: 'https://cdn.example.com/a.png'
-        })
-      ])
+    const relayFetcher = vi.fn().mockResolvedValue([
+      kind0(PUBKEY_A, 100, { name: 'old' }),
+      kind0(PUBKEY_A, 200, {
+        name: 'new',
+        picture: 'https://cdn.example.com/a.png'
+      })
+    ])
     const precacheImages = vi.fn().mockResolvedValue(undefined)
 
     const profiles = await resolveProfiles([PUBKEY_A], {

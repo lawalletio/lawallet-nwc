@@ -175,11 +175,9 @@ registry.registerPath({
     params: schemas.IdParam,
     query: z
       .object({
-        token: z
-          .string()
-          .openapi({
-            description: 'Single-use programming token from /write-token.'
-          })
+        token: z.string().openapi({
+          description: 'Single-use programming token from /write-token.'
+        })
       })
       .openapi('CardWriteQuery')
   },

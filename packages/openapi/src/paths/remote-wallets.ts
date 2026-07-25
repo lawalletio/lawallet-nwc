@@ -24,28 +24,18 @@ const remoteWalletSchema = z
     isDefault: z.boolean(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
-    diedAt: z
-      .string()
-      .datetime()
-      .nullable()
-      .openapi({
-        description:
-          'When an archived (DEAD) disposable wallet was detected dead; null otherwise.'
-      }),
-    provider: z
-      .enum(['lncurl'])
-      .nullable()
-      .openapi({
-        description:
-          "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
-      }),
-    lncurlServerUrl: z
-      .string()
-      .nullable()
-      .openapi({
-        description:
-          'For LNCurl wallets, the server that minted this wallet; null otherwise.'
-      })
+    diedAt: z.string().datetime().nullable().openapi({
+      description:
+        'When an archived (DEAD) disposable wallet was detected dead; null otherwise.'
+    }),
+    provider: z.enum(['lncurl']).nullable().openapi({
+      description:
+        "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
+    }),
+    lncurlServerUrl: z.string().nullable().openapi({
+      description:
+        'For LNCurl wallets, the server that minted this wallet; null otherwise.'
+    })
   })
   .openapi({
     description: 'Remote wallet record. The secret `config` is never returned.'

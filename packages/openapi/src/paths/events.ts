@@ -30,11 +30,9 @@ registry.registerPath({
       description: 'SSE stream of `data: <json>\\n\\n` frames.',
       content: {
         'text/event-stream': {
-          schema: z
-            .string()
-            .openapi({
-              description: 'Raw SSE frames; not JSON. See `EventSource` API.'
-            })
+          schema: z.string().openapi({
+            description: 'Raw SSE frames; not JSON. See `EventSource` API.'
+          })
         }
       }
     },

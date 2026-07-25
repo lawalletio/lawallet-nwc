@@ -21,20 +21,16 @@ vi.mock('@/lib/admin-auth', () => ({
 }))
 
 vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi
-    .fn()
-    .mockResolvedValue({
-      pubkey: 'a'.repeat(64),
-      role: 'ADMIN',
-      method: 'jwt'
-    }),
-  authenticateWithRole: vi
-    .fn()
-    .mockResolvedValue({
-      pubkey: 'a'.repeat(64),
-      role: 'ADMIN',
-      method: 'jwt'
-    }),
+  authenticate: vi.fn().mockResolvedValue({
+    pubkey: 'a'.repeat(64),
+    role: 'ADMIN',
+    method: 'jwt'
+  }),
+  authenticateWithRole: vi.fn().mockResolvedValue({
+    pubkey: 'a'.repeat(64),
+    role: 'ADMIN',
+    method: 'jwt'
+  }),
   authenticateWithPermission: vi
     .fn()
     .mockResolvedValue({ pubkey: 'a'.repeat(64), role: 'ADMIN', method: 'jwt' })
