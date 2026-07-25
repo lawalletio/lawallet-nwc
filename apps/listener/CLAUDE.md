@@ -74,5 +74,5 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
 - Build is **tsup**, not tsc: `@lawallet-nwc/shared` ships raw TS and Node
   won't type-strip under node_modules, so the shared package is bundled in
   (`noExternal`). `tsc --noEmit` stays the typecheck.
-- Local `prettier.config.js` (ESM) mirrors the root config — the CJS root
-  file can't be loaded by the prettier CLI from here.
+- `pnpm lint` here is `prettier --check`, resolving the repo-root
+  `prettier.config.js`. There is no local copy to keep in sync.
