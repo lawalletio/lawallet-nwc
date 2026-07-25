@@ -10,6 +10,78 @@ export const userIdParam = z.object({
   userId: z.string().min(1, 'User ID is required')
 })
 
+/**
+ * Upper bound for any stored media URL. Blossom URLs are ~100 chars; 2 KB
+ * leaves generous room while keeping a single row from being used as blob
+ * storage.
+ */
+export const MEDIA_URL_MAX_LENGTH = 2048
+
+/**
+ * Media URL accepted from API input (card design create/update).
+ *
+ * Zod 3's `.url()` is a bare `new URL()` constructor check, so on its own it
+ * happily accepts `javascript:`, `data:`, `file:` and every other scheme. It
+ * is kept in the chain because it is what makes the generated OpenAPI emit
+ * `format: uri`; the `.refine()` below is what actually constrains the
+ * scheme. Same idiom as `relayUrl` further down this file.
+ *
+ * `data:` URIs are deliberately rejected: every image in the product is
+ * uploaded to Blossom and referenced by its `https:` URL (see
+ * `components/admin/upload-design-dialog.tsx`), so inline art has no
+ * producer, and allowing it would turn a 2 KB text column into an
+ * unbounded-ish image store. If inline art is ever wanted, add `data:` here
+ * with an explicit, much smaller byte budget rather than reusing
+ * `MEDIA_URL_MAX_LENGTH`.
+ */
+export const imageUrlSchema = z
+  .string()
+  .trim()
+  .url('Image URL must be a valid URL')
+  .max(MEDIA_URL_MAX_LENGTH, 'Image URL too long')
+  .refine(
+    value => {
+      try {
+        const { protocol, hostname } = new URL(value)
+        return (
+          (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
+        )
+      } catch {
+        return false
+      }
+    },
+    { message: 'Image URL must be an http:// or https:// URL' }
+  )
+
+/**
+ * Media URL accepted when restoring rows that are already in a database
+ * (backup import) rather than arriving from a client.
+ *
+ * Looser than {@link imageUrlSchema} on purpose: `prisma/seed.ts` writes
+ * root-relative paths (`/card-primal.png`) straight through Prisma, so a
+ * backup taken from a seeded or dev instance legitimately contains them.
+ * Requiring an absolute http(s) URL here would silently drop those rows on
+ * restore (`lib/backup/import.ts` counts a schema failure as `failed` and
+ * skips the row). Root-relative paths are inert, so they are allowed —
+ * `javascript:`, `data:`, `file:` and protocol-relative `//host` are not.
+ */
+export const storedImageUrlSchema = z
+  .string()
+  .max(MEDIA_URL_MAX_LENGTH, 'Image URL too long')
+  .refine(
+    value => {
+      // Empty is inert and renders as "No image"; keep restores permissive.
+      if (value === '') return true
+      // Root-relative, but not protocol-relative (`//host` is external).
+      if (value.startsWith('/')) return !value.startsWith('//')
+      return imageUrlSchema.safeParse(value).success
+    },
+    {
+      message:
+        'Image URL must be an http:// or https:// URL or a root-relative path'
+    }
+  )
+
 // ── Cards ───────────────────────────────────────────────────────────────────
 
 export const createCardSchema = z.object({
@@ -59,11 +131,7 @@ export const createCardDesignSchema = z.object({
     .trim()
     .min(1, 'Design name is required')
     .max(120, 'Design name must be 120 characters or less'),
-  imageUrl: z
-    .string()
-    .trim()
-    .url('Image URL must be a valid URL')
-    .max(2048, 'Image URL too long')
+  imageUrl: imageUrlSchema
 })
 
 /**
@@ -79,12 +147,7 @@ export const updateCardDesignSchema = z
       .min(1, 'Design name is required')
       .max(120, 'Design name must be 120 characters or less')
       .optional(),
-    imageUrl: z
-      .string()
-      .trim()
-      .url('Image URL must be a valid URL')
-      .max(2048, 'Image URL too long')
-      .optional(),
+    imageUrl: imageUrlSchema.optional(),
     /**
      * Archive toggle. `true` stamps `archivedAt = now()`, `false` clears it.
      * The wire stays as a simple boolean so the client doesn't have to know

@@ -7,6 +7,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { InternalServerError, ValidationError } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { imageUrlSchema } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
 
 /**
@@ -79,10 +80,20 @@ export const POST = withErrorHandling(async (request: Request) => {
 
   const payload = (await res.json()) as unknown
   const cards = Array.isArray(payload) ? (payload as VeintiunoCard[]) : []
-  // Keep only well-formed entries: an id and an absolute image URL.
-  const valid = cards.filter(
-    c => !!c?.id && typeof c.imageUrl === 'string' && /^https?:\/\//.test(c.imageUrl),
-  )
+  // Keep only well-formed entries: an id and an http(s) image URL within the
+  // stored-length budget. `imageUrlSchema` rather than a `^https?://` regex so
+  // a compromised or changed upstream catalog can't smuggle a `javascript:` /
+  // `data:` / `file:` URL into a column the admin UI renders.
+  const valid = cards.flatMap(c => {
+    const parsed = imageUrlSchema.safeParse(c?.imageUrl)
+    if (!c?.id || !parsed.success) return []
+    // Carry the parsed (trimmed) URL forward, not the raw upstream string.
+    return [{ ...c, imageUrl: parsed.data }]
+  })
+  const rejected = cards.length - valid.length
+  if (rejected > 0) {
+    logger.warn({ rejected }, 'Skipped catalog entries with a missing id or unusable image URL')
+  }
   logger.info({ count: valid.length }, 'Fetched valid designs from catalog')
 
   if (valid.length === 0) {

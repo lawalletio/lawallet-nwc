@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Prisma } from '@/lib/generated/prisma'
-import type { BackupTableName } from '@/lib/validation/schemas'
+import { type BackupTableName, storedImageUrlSchema } from '@/lib/validation/schemas'
 import { TABLE_DESCRIPTORS } from '@/lib/backup/tables'
 
 /**
@@ -63,7 +63,9 @@ const userRow = z.object({
 
 const cardDesignRow = z.object({
   id: z.string().min(1),
-  imageUrl: z.string(),
+  // Deliberately the *stored* variant, not the API-input one: seeded rows use
+  // root-relative paths. See storedImageUrlSchema for why.
+  imageUrl: storedImageUrlSchema,
   description: z.string(),
   createdAt: date,
   archivedAt: nullableDate,
