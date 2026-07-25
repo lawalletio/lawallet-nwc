@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { Prisma } from '@/lib/generated/prisma'
-import { type BackupTableName, storedImageUrlSchema } from '@/lib/validation/schemas'
+import {
+  type BackupTableName,
+  storedImageUrlSchema
+} from '@/lib/validation/schemas'
 import { TABLE_DESCRIPTORS } from '@/lib/backup/tables'
 
 /**
