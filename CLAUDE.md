@@ -65,7 +65,8 @@ never wipe data (`pnpm dev:db:reset` does, on purpose).
 
 Prettier: no semicolons, single quotes, no trailing commas, arrow parens
 avoid. ESLint: Next.js core-web-vitals. An Edit/Write hook auto-formats
-changed TS/TSX files — don't hand-format.
+changed `.ts/.tsx/.js/.jsx/.mjs` files — don't hand-format. Other types
+(md, mdx, json, css) are only formatted by `pnpm format`.
 
 ## Skill & Subagent Map
 
