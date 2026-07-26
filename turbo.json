@@ -15,7 +15,14 @@
       "dependsOn": ["^build", "db:generate"],
       "inputs": ["$TURBO_DEFAULT$", "!tests/**", "!**/*.test.*"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "env": ["DATABASE_URL", "JWT_SECRET", "NODE_ENV", "SKIP_ENV_VALIDATION"]
+      "env": [
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "NODE_ENV",
+        "SKIP_ENV_VALIDATION",
+        "NEXT_PUBLIC_GTAG_ID",
+        "NEXT_PUBLIC_API_DOCS_URL"
+      ]
     },
     "dev": {
       "cache": false,
