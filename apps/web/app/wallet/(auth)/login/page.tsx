@@ -1,9 +1,9 @@
-import { LoginTabs } from '@/components/wallet/onboarding/login-tabs'
+import { LoginOptions } from '@/components/wallet/onboarding/login-options'
 
 export const metadata = {
   title: 'Login - LaWallet'
 }
 
 export default function WalletLoginPage() {
-  return <LoginTabs />
+  return <LoginOptions />
 }
