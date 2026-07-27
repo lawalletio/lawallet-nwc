@@ -32,6 +32,19 @@ const nextConfig = {
   // "inferred workspace root" warning.
   outputFileTracingRoot: join(__dirname, '../..'),
   allowedDevOrigins,
+  async redirects() {
+    return [
+      // `/wallet/nostr-login` was the signup chooser's path from v0.10.0
+      // through v2.0.0 before it was renamed to `/wallet/signup`. It shipped
+      // in released builds, so bookmarks and external links to it exist;
+      // 308 keeps them working instead of 404ing.
+      {
+        source: '/wallet/nostr-login',
+        destination: '/wallet/signup',
+        permanent: true
+      }
+    ]
+  },
   async rewrites() {
     return [
       {
