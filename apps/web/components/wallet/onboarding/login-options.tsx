@@ -55,7 +55,7 @@ export function LoginOptions() {
       <div className="space-y-3 text-center">
         <p className="text-sm text-muted-foreground">New to LaWallet?</p>
         <Link
-          href="/wallet/create-account"
+          href="/wallet/signup"
           className="inline-flex h-11 w-full items-center justify-center rounded-md bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
         >
           Create an account
