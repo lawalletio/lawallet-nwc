@@ -43,7 +43,7 @@ export function LandingHero() {
 
       <div className="space-y-3">
         <Button asChild variant="theme" className="h-12 w-full">
-          <Link href="/wallet/nostr-login">Create account</Link>
+          <Link href="/wallet/signup">Create account</Link>
         </Button>
         <Button asChild variant="secondary" className="h-12 w-full">
           <Link href="/wallet/login">Login</Link>
