@@ -8,11 +8,12 @@ import { ScreenHeader } from '@/components/wallet/shared/screen-header'
 import { isPasskeySupported } from '@/lib/client/passkey-api'
 
 /**
- * Choice screen between `landing` and the actual account/login flows.
- * Passkey-first for mainstream users (hidden when the browser lacks
- * WebAuthn); Nostr users can still generate or bring their own key.
+ * Sign-up chooser sitting between `landing` and the concrete account
+ * creation flows. Passkey-first for mainstream users (hidden when the
+ * browser lacks WebAuthn); Nostr users can still generate a random key, or
+ * bail out to `/wallet/login` if they already have one.
  */
-export function NostrLoginChoice() {
+export function SignupChoice() {
   const [passkeySupported] = useState(() => isPasskeySupported())
 
   return (
