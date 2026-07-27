@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { KeyRound } from 'lucide-react'
 import { BrandLogotype } from '@/components/ui/brand-logotype'
-import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 
-export function LoginTabs() {
+export function LoginOptions() {
   const router = useRouter()
 
   return (
@@ -24,7 +25,7 @@ export function LoginTabs() {
 
         <div className="w-full space-y-5">
           {/* Passkey-first: renders nothing on unsupported browsers, leaving
-              the Nostr form exactly as before. */}
+              the Nostr button as the only option. */}
           <PasskeyLoginButton
             mode="authenticate"
             variant="theme"
@@ -36,15 +37,18 @@ export function LoginTabs() {
           <div className="relative">
             <Separator />
             <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
-              or use a Nostr key
+              or
             </span>
           </div>
 
-          <NostrConnectForm
-            submitLabel="Login"
-            loadingLabel="Signing in..."
-            onSuccess={() => router.replace('/wallet')}
-          />
+          {/* The key-based methods (private key, bunker, extension) get their
+              own screen so this one stays a simple two-option choice. */}
+          <Button asChild variant="secondary" className="h-12 w-full">
+            <Link href="/wallet/login/nostr">
+              <KeyRound className="size-4" />
+              Continue with Nostr
+            </Link>
+          </Button>
         </div>
       </div>
 
