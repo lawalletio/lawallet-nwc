@@ -3,7 +3,8 @@ import crypto from 'node:crypto'
 import b11 from 'bolt11'
 import {
   ExpiredCardPaymentInvoiceError,
-  parseCardPaymentInvoice
+  parseCardPaymentInvoice,
+  parseExactPaymentInvoice
 } from '@/lib/invoice-utils'
 
 /**
@@ -126,5 +127,42 @@ describe('parseCardPaymentInvoice', () => {
         'Invalid Lightning invoice'
       )
     })
+  })
+})
+
+describe('parseExactPaymentInvoice', () => {
+  it('validates a signed msat invoice and extracts its description hash', () => {
+    const paymentHash = crypto.randomBytes(32).toString('hex')
+    const descriptionHash = crypto.randomBytes(32).toString('hex')
+    const encoded = b11.encode({
+      millisatoshis: '1001',
+      timestamp: Math.floor(Date.now() / 1000),
+      tags: [
+        { tagName: 'payment_hash', data: paymentHash },
+        {
+          tagName: 'payment_secret',
+          data: crypto.randomBytes(32).toString('hex')
+        },
+        { tagName: 'purpose_commit_hash', data: descriptionHash },
+        { tagName: 'expire_time', data: 600 }
+      ]
+    })
+    const { paymentRequest } = b11.sign(encoded, crypto.randomBytes(32))
+    if (!paymentRequest) throw new Error('failed to sign test invoice')
+
+    expect(parseExactPaymentInvoice(paymentRequest)).toEqual({
+      paymentHash,
+      amountMsats: 1001,
+      expiresAt: expect.any(Number),
+      descriptionHash
+    })
+  })
+
+  it('rejects an invoice with a corrupted signature/checksum', () => {
+    const invoice = makeInvoice()
+    const final = invoice.at(-1) === 'q' ? 'p' : 'q'
+    expect(() =>
+      parseExactPaymentInvoice(invoice.slice(0, -1) + final)
+    ).toThrow(/Invalid Lightning invoice/)
   })
 })

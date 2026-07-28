@@ -102,7 +102,11 @@ export default async function pay(
 
   let resolved: ReturnType<typeof driverForWallet>
   try {
-    resolved = driverForWallet({ type: route.type, config: route.config })
+    resolved = driverForWallet({
+      id: route.walletId ?? undefined,
+      type: route.type,
+      config: route.config
+    })
   } catch (error) {
     logger.error(
       { err: error, cardId: card.id },
@@ -317,7 +321,7 @@ async function resumeAttempt(
 
   const wallet = await prisma.remoteWallet.findUnique({
     where: { id: attempt.walletId },
-    select: { type: true, config: true }
+    select: { id: true, type: true, config: true }
   })
   if (!wallet || wallet.type !== 'NWC') {
     return ludError('Payment outcome is still being resolved', true)

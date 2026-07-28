@@ -57,6 +57,14 @@ The listener is already running alongside the web app and wired to it, so
 push-style payment notifications and webhooks work out of the box — no
 `LISTENER_URL` to configure.
 
+Umbrel also supplies a stable, domain-separated `NWC_VAULT_SECRET` to both web
+and listener from the app's persistent seed. It encrypts RemoteWallet NWC
+connections and enables deferred proxy settlement without asking the operator
+to manage a host environment variable.
+Configure the NIP-57 receipt signer as a write-only `nsec` under **Admin →
+Settings → NWC Services**; the `nsec` is encrypted with the vault key and is
+never placed in the Umbrel manifest.
+
 <Callout type="warn" title="Lightning Addresses need a public domain">
   An Umbrel app is reachable on your LAN and over Tor. Lightning Addresses are
   resolved by *other people's* wallets over the public internet, so
@@ -99,6 +107,10 @@ docker compose --project-name lawallet-nwc-local --file test/docker-compose.regt
 **The app won't start** — check the app logs in umbrelOS. The web container
 waits on Postgres and then runs migrations; a first start on a slow disk can
 take a minute.
+
+**Deferred proxy settings say the vault or listener is unavailable** — update
+to a package release that bundles the listener and shared NWC vault key, then
+restart the app. Both containers must receive the same key.
 
 **Lightning Addresses resolve locally but not from other wallets** — the
 public-domain step above is missing. Confirm with

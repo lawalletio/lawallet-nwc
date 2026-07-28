@@ -15,6 +15,7 @@ import {
   utf8Encode
 } from '@/lib/backup/serialize'
 import { encryptArchive } from '@/lib/backup/crypto'
+import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import packageJson from '../../package.json'
 
 type ExportOptions = BackupExportRequest['options']
@@ -53,6 +54,26 @@ async function gatherTable(
     findMany: (args?: unknown) => Promise<unknown[]>
   }
   const rows = await delegate.findMany()
+  if (table === 'remoteWallets') {
+    return {
+      rows: rows.map(raw => {
+        const row = raw as {
+          id: string
+          type: 'NWC' | 'LND' | 'CLN' | 'BTCPAY'
+          config: unknown
+        }
+        return {
+          ...(raw as Record<string, unknown>),
+          // Backups are portable across installations with different vault
+          // keys. The archive itself is sensitive (and should be password
+          // encrypted); restore encrypts this field under the destination key.
+          config: decryptRemoteWalletConfig(row.id, row.type, row.config),
+          nwcConfigEncryptedAt: null
+        }
+      }),
+      truncated: false
+    }
+  }
   return { rows, truncated: false }
 }
 

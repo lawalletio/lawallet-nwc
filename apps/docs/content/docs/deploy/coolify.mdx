@@ -41,44 +41,44 @@ The Compose file builds four public-facing/internal services plus Postgres:
 | `postgres`         | Application and listener data           | No — internal only    |
 | `docs` / `openapi` | Documentation and OpenAPI surfaces      | Optional              |
 
-## Configure environment variables
+## Generate and import environment variables
 
-In **Environment Variables**, add the following values. Mark every secret as
-secret in Coolify; do not commit them to the repository.
-
-```dotenv
-# Core application and database
-NODE_ENV=production
-JWT_SECRET=<generate-with-openssl-rand-hex-32>
-POSTGRES_DB=lawallet
-POSTGRES_USER=lawallet
-POSTGRES_PASSWORD=<generate-with-openssl-rand-hex-32>
-
-# Enable the listener service declared with profiles: ['listener']
-COMPOSE_PROFILES=listener
-LISTENER_URL=http://listener:4100
-
-# Listener → web webhook signature (minimum 32 characters)
-LISTENER_AUTH_SECRET=<generate-with-openssl-rand-hex-32>
-
-# Web → listener authenticated requests (minimum 32 characters)
-LISTENER_REQUEST_AUTH_SECRET=<generate-with-openssl-rand-hex-32>
-```
-
-Generate each value locally with:
+From a local clone, generate the complete Compose environment:
 
 ```bash
-openssl rand -hex 32
+bash scripts/generate-deployment-env.sh \
+  --mode compose \
+  --output lawallet.coolify.env
 ```
+
+Open `lawallet.coolify.env`, copy every entry into Coolify's **Environment
+Variables** editor, and mark the password and all variables ending in
+`_SECRET` as secret. Delete the local copy after storing it in your encrypted
+backup.
+
+The file includes independent values for Postgres, JWT signing, the user-key
+vault, the RemoteWallet/proxy NWC vault, and both listener authentication directions. It
+also sets `COMPOSE_PROFILES=listener` and
+`LISTENER_URL=http://listener:4100`.
+
+See [Environment Variables](/docs/deploy/environment) for a description of
+every value and rotation guidance.
 
 `COMPOSE_PROFILES=listener` is important: without it Docker Compose does not
 start the optional `listener` service. `LISTENER_URL` uses Docker's internal
 service DNS, so it must remain `http://listener:4100`; it should not be exposed
 as a public URL.
 
-`LISTENER_AUTH_SECRET` and `LISTENER_REQUEST_AUTH_SECRET` may be different.
-Keeping them separate isolates listener-to-web webhook signing from web-to-listener
-requests. Both must be supplied to the Compose deployment.
+`LISTENER_AUTH_SECRET` and `LISTENER_REQUEST_AUTH_SECRET` are intentionally
+different. Keeping them separate isolates listener-to-web webhook signing from
+web-to-listener requests. Both must be supplied to the Compose deployment.
+
+`NWC_VAULT_SECRET` is passed by Compose to both web and listener. Keep it stable
+across upgrades and backups. During a controlled rotation, set
+`NWC_VAULT_SECRET_PREVIOUS` to the previous value on both services until stored
+credentials have been rewritten. The NIP-57 receipt signer is an `nsec`
+configured in **Admin → Settings → NWC Services**, not a Coolify environment
+variable.
 
 ## Add the domain and TLS
 

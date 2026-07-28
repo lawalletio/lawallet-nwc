@@ -6,6 +6,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, ValidationError } from '@/types/server/errors'
 import { idParam } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
+import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -54,7 +55,11 @@ export const GET = withErrorHandling(
     // enough to read the field. The strict shape is enforced upstream by
     // `nwcConfigSchema` in nwc-driver.ts on write, so we can trust the
     // type at read time.
-    const config = wallet.config as { connectionString?: string } | null
+    const config = decryptRemoteWalletConfig(
+      wallet.id,
+      wallet.type,
+      wallet.config
+    )
     const connectionString = config?.connectionString ?? null
 
     if (!connectionString) {

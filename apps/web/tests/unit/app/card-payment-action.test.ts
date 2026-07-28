@@ -393,7 +393,7 @@ describe('card payment callback action', () => {
     expect(mocks.getInFlight).toHaveBeenCalledWith(existing.requestId)
     expect(mocks.findWallet).toHaveBeenCalledWith({
       where: { id: existing.walletId },
-      select: { type: true, config: true }
+      select: { id: true, type: true, config: true }
     })
     expect(mocks.reconcileDirect).toHaveBeenCalledWith(
       (card.remoteWallet!.config as { connectionString: string })

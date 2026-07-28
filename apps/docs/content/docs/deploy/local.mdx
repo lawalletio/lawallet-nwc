@@ -51,6 +51,15 @@ SQL
 
 ## 4. Configure environment variables
 
+The recommended development bootstrap generates isolated database, web,
+listener, and vault secrets for this checkout:
+
+```bash
+pnpm dev:env
+```
+
+For a manual setup, continue with the steps below.
+
 ```bash
 cp apps/web/.env.example apps/web/.env
 ```
@@ -60,13 +69,22 @@ Edit `apps/web/.env` and set at least:
 ```bash
 DATABASE_URL="postgresql://lawallet:lawallet_password@localhost:5432/lawallet"
 JWT_SECRET="<generate-a-32+-char-random-string>"
+NWC_VAULT_SECRET="<generate-a-different-32+-char-random-string>"
 ```
 
-Generate a secure JWT secret:
+Generate each secret independently:
 
 ```bash
 openssl rand -base64 48
+openssl rand -base64 48
 ```
+
+Use the same `NWC_VAULT_SECRET` in `apps/listener/.env.local` when running the
+listener. Configure the NIP-57 receipt signer `nsec` in Admin Settings.
+
+Production deployments should use the
+[deployment environment generator](/docs/deploy/environment), which creates
+all required secrets and the correct web/listener pair.
 
 ## 5. Run database migrations
 

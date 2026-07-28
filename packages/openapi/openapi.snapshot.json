@@ -52,6 +52,10 @@
       "description": "Public LUD-16 / LUD-21 / LUD-22 lightning address resolution."
     },
     {
+      "name": "LUD-16 Proxy",
+      "description": "Administrative configuration, settlement queue, safe retries, and listener-driven reconciliation for deferred Lightning Address forwarding."
+    },
+    {
       "name": "Wallet",
       "description": "End-user wallet addresses and NWC connections."
     },
@@ -107,6 +111,12 @@
         "in": "query",
         "name": "token",
         "description": "JWT passed as a query string parameter for SSE clients."
+      },
+      "ListenerHmac": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-lawallet-signature",
+        "description": "Listener-only HMAC signature: `sha256=<hex HMAC-SHA256(secret, `${x-lawallet-timestamp}.${rawBody}`)>`. The request must also include the current Unix-millisecond `x-lawallet-timestamp` header."
       }
     },
     "schemas": {
@@ -363,6 +373,10 @@
           "comment": {
             "type": "string",
             "maxLength": 200
+          },
+          "nostr": {
+            "type": "string",
+            "maxLength": 65536
           }
         },
         "required": [
@@ -402,6 +416,7 @@
         "enum": [
           "IDLE",
           "ALIAS",
+          "PROXY_ALIAS",
           "CUSTOM_NWC",
           "DEFAULT_NWC"
         ]
@@ -420,6 +435,7 @@
             "enum": [
               "IDLE",
               "ALIAS",
+              "PROXY_ALIAS",
               "CUSTOM_NWC",
               "DEFAULT_NWC"
             ]
@@ -437,6 +453,7 @@
             "enum": [
               "IDLE",
               "ALIAS",
+              "PROXY_ALIAS",
               "CUSTOM_NWC",
               "DEFAULT_NWC"
             ]
@@ -6959,6 +6976,15 @@
             "required": false,
             "name": "comment",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 65536
+            },
+            "required": false,
+            "name": "nostr",
+            "in": "query"
           }
         ],
         "responses": {
@@ -11610,6 +11636,932 @@
           },
           "403": {
             "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/lud16-proxy": {
+      "get": {
+        "x-required-role": "VIEWER",
+        "tags": [
+          "LUD-16 Proxy"
+        ],
+        "summary": "Read deferred Lightning Address proxy configuration and health.",
+        "description": "Returns write-only credential presence flags, fee configuration, listener/vault readiness, balance, capability probe results, and outstanding settlement count. Secret values are never returned.",
+        "operationId": "lud16Proxy.config.get",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proxy configuration and health.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "feeBps": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "walletId": {
+                      "type": "string"
+                    },
+                    "hasNwc": {
+                      "type": "boolean"
+                    },
+                    "hasReceiptNsec": {
+                      "type": "boolean"
+                    },
+                    "receiptPubkey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "vaultConfigured": {
+                      "type": "boolean"
+                    },
+                    "listenerEnabled": {
+                      "type": "boolean"
+                    },
+                    "outstandingPayments": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "capabilities": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "methods": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "notifications": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "balanceMsats": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastProbeAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "lastProbeError": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastListenerSeenAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "lastCronAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "feeBps",
+                    "walletId",
+                    "hasNwc",
+                    "hasReceiptNsec",
+                    "receiptPubkey"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "LUD-16 Proxy"
+        ],
+        "summary": "Update deferred Lightning Address proxy configuration.",
+        "description": "Stores the NWC URI and NIP-57 receipt signer as write-only encrypted settings. Enabling requires a configured vault, listener, NWC connection, and receipt signer.",
+        "operationId": "lud16Proxy.config.update",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "feeBps": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "nwcUri": {
+                    "type": "string",
+                    "maxLength": 8192,
+                    "description": "Write-only proxy NWC connection URI. An empty string clears it when no settlements are outstanding."
+                  },
+                  "receiptNsec": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "description": "Write-only NIP-57 receipt signer as nsec or 64-character hex. It is encrypted at rest and never returned."
+                  }
+                },
+                "description": "Partial proxy configuration update. At least one field is required. Credential removal or rotation is blocked while settlements are outstanding."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated non-secret proxy configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "feeBps": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "walletId": {
+                      "type": "string"
+                    },
+                    "hasNwc": {
+                      "type": "boolean"
+                    },
+                    "hasReceiptNsec": {
+                      "type": "boolean"
+                    },
+                    "receiptPubkey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "vaultConfigured": {
+                      "type": "boolean"
+                    },
+                    "listenerEnabled": {
+                      "type": "boolean"
+                    },
+                    "outstandingPayments": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "capabilities": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "methods": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "notifications": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "balanceMsats": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastProbeAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "lastProbeError": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastListenerSeenAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "lastCronAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "feeBps",
+                    "walletId",
+                    "hasNwc",
+                    "hasReceiptNsec",
+                    "receiptPubkey"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/lud16-proxy/test": {
+      "post": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "LUD-16 Proxy"
+        ],
+        "summary": "Probe proxy NWC capabilities and balance.",
+        "description": "Tests the saved write-only NWC connection. The proxy requires make_invoice, pay_invoice, lookup_invoice, and get_balance.",
+        "operationId": "lud16Proxy.config.test",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Capability test result. HTTP 200 may contain `ok: false` for an upstream probe failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "balanceMsats": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "methods": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "missingMethods": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/lud16-proxy/payments": {
+      "get": {
+        "x-required-role": "VIEWER",
+        "tags": [
+          "LUD-16 Proxy"
+        ],
+        "summary": "List the deferred settlement queue.",
+        "description": "Returns up to 100 recent proxy payments, including gross amount, retained fee, destination amount, routing fee, current destination invoice attempt, retry timing, and errors.",
+        "operationId": "lud16Proxy.payments.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING_INBOUND",
+                "READY_TO_FORWARD",
+                "FORWARDING",
+                "RECEIPT_PENDING",
+                "BLOCKED",
+                "COMPLETED",
+                "EXPIRED"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proxy settlement queue.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "payments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "destination": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING_INBOUND",
+                              "READY_TO_FORWARD",
+                              "FORWARDING",
+                              "RECEIPT_PENDING",
+                              "BLOCKED",
+                              "COMPLETED",
+                              "EXPIRED"
+                            ]
+                          },
+                          "grossAmountMsats": {
+                            "type": "string"
+                          },
+                          "serviceFeeMsats": {
+                            "type": "string"
+                          },
+                          "destinationAmountMsats": {
+                            "type": "string"
+                          },
+                          "routingFeeMsats": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sourceStatus": {
+                            "type": "string"
+                          },
+                          "sourcePaymentHash": {
+                            "type": "string"
+                          },
+                          "sourcePaidAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "forwardedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "receiptPublishedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "retryCount": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "nextRetryAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "lastError": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "currentAttempt": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "bolt11": {
+                                "type": "string"
+                              },
+                              "attemptNo": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "paymentHash": {
+                                "type": "string"
+                              },
+                              "expiresAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "error": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "bolt11",
+                              "attemptNo",
+                              "status",
+                              "paymentHash",
+                              "expiresAt",
+                              "error"
+                            ]
+                          },
+                          "attemptCount": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "username",
+                          "destination",
+                          "status",
+                          "grossAmountMsats",
+                          "serviceFeeMsats",
+                          "destinationAmountMsats",
+                          "routingFeeMsats",
+                          "sourceStatus",
+                          "sourcePaymentHash",
+                          "sourcePaidAt",
+                          "forwardedAt",
+                          "receiptPublishedAt",
+                          "retryCount",
+                          "nextRetryAt",
+                          "lastError",
+                          "currentAttempt",
+                          "attemptCount",
+                          "createdAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "payments"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/lud16-proxy/payments/{id}/retry": {
+      "post": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "LUD-16 Proxy"
+        ],
+        "summary": "Wake reconciliation for one proxy payment.",
+        "description": "Clears retry timing for an eligible, unleased payment and schedules reconciliation. It does not bypass worker leases or create a competing destination invoice.",
+        "operationId": "lud16Proxy.payments.retry",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retry accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "accepted",
+                    "id"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/internal/lud16-proxy/reconcile": {
+      "post": {
+        "tags": [
+          "LUD-16 Proxy"
+        ],
+        "summary": "Request a bounded deferred-settlement reconciliation pass.",
+        "description": "Internal listener-only endpoint. The listener signs the exact raw body with HMAC-SHA256 over `<timestamp>.<body>` and supplies x-lawallet-timestamp plus x-lawallet-signature. The response is immediate; reconciliation runs after the response.",
+        "operationId": "lud16Proxy.internal.reconcile",
+        "security": [
+          {
+            "ListenerHmac": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "settlementIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxItems": 10
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reconciliation request accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accepted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
             "content": {
               "application/json": {
                 "schema": {

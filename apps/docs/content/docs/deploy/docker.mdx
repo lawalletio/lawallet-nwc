@@ -21,11 +21,14 @@ The quickest path — pull and run, no build, no repo clone.
 optional [NWC listener](/docs/deploy/listener-setup) profile:
 
 ```bash
-# Grab just the compose file
+# Grab the compose file and safe environment generator
 curl -O https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/docker-compose.hub.yml
+curl -O https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/scripts/generate-deployment-env.sh
+chmod +x generate-deployment-env.sh
 
-# Set a strong secret and start (pulls masize/lawallet-nwc from Docker Hub)
-JWT_SECRET=$(openssl rand -hex 32) docker compose -f docker-compose.hub.yml up -d
+# Generate every required secret, enable the listener, and start
+./generate-deployment-env.sh --mode compose --output .env
+docker compose -f docker-compose.hub.yml up -d
 ```
 
 The web container waits for Postgres, applies pending Prisma migrations on
@@ -33,25 +36,34 @@ startup (`prisma migrate deploy`), then serves on port **2288**.
 
 ### Configuration
 
-Override any of these via environment variables or a `.env` file next to the
-compose file:
+The generator writes the recommended variables to `.env`. See
+[Environment Variables](/docs/deploy/environment) for every generated value,
+cloud-mode output, placement, backups, and rotation.
 
-| Variable                                              | Default                  | Notes                                                                       |
-| ----------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------- |
-| `LAWALLET_TAG`                                        | `latest`                 | Image tag to run (pin to a release, e.g. `1.0.0`)                           |
-| `PORT`                                                | `2288`                   | Host port the app is published on                                           |
-| `JWT_SECRET`                                          | _(insecure placeholder)_ | **Set this** — must be ≥ 32 characters                                      |
-| `LISTENER_URL`                                        | _(unset)_                | Set to `http://listener:4100` when enabling the bundled listener profile    |
-| `LISTENER_AUTH_SECRET`                                | _(unset)_                | Operator-generated shared secret for the optional listener, ≥ 32 characters |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `lawallet`               | Bundled Postgres credentials                                                |
+Common Compose overrides:
+
+| Variable                                              | Default                  | Notes                                                                                                         |
+| ----------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `LAWALLET_TAG`                                        | `latest`                 | Image tag to run (pin to a release, e.g. `1.0.0`)                                                             |
+| `PORT`                                                | `2288`                   | Host port the app is published on                                                                             |
+| `JWT_SECRET`                                          | _(insecure placeholder)_ | **Set this** — must be ≥ 32 characters                                                                        |
+| `LISTENER_URL`                                        | _(unset)_                | Set to `http://listener:4100` when enabling the bundled listener profile                                      |
+| `LISTENER_AUTH_SECRET`                                | _(unset)_                | Operator-generated shared secret for the optional listener, ≥ 32 characters                                   |
+| `NWC_VAULT_SECRET`                                    | _(unset)_                | Dedicated ≥32-character key shared by web/listener; required for stored NWC RemoteWallets or proxy settlement |
+| `NWC_VAULT_SECRET_PREVIOUS`                           | _(unset)_                | Previous vault keys accepted temporarily during a controlled rotation; use the same list on both services     |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `lawallet`               | Bundled Postgres credentials                                                                                  |
 
 Postgres data persists in the `lawallet_hub_pgdata` named volume.
 
-To enable the private listener accelerator, persist a generated secret in
-`.env`, set `LISTENER_URL=http://listener:4100`, then start the profile:
+Persist the generated `.env` in the operator's encrypted backup. The NIP-57
+receipt signer is an `nsec` entered in Admin Settings; it is encrypted with the
+vault key but is not itself an environment variable.
+
+The generated file contains `COMPOSE_PROFILES=listener`, so normal Compose
+commands include the private listener automatically:
 
 ```bash
-docker compose -f docker-compose.hub.yml --profile listener up -d
+docker compose -f docker-compose.hub.yml up -d
 ```
 
 Without that profile and pairing configuration, card payments use direct NWC.
@@ -80,6 +92,7 @@ If you already have a Postgres instance, run just the web container:
 docker run -d --name lawallet-web -p 2288:2288 \
   -e DATABASE_URL="postgresql://user:pass@host:5432/lawallet" \
   -e JWT_SECRET="$(openssl rand -hex 32)" \
+  -e NWC_VAULT_SECRET="$(openssl rand -hex 32)" \
   masize/lawallet-nwc:latest
 ```
 
@@ -93,6 +106,7 @@ pulling it — useful when you're hacking on the app:
 ```bash
 git clone https://github.com/lawalletio/lawallet-nwc
 cd lawallet-nwc
+pnpm deploy:env
 docker compose up -d
 ```
 

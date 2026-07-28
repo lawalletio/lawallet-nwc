@@ -182,6 +182,23 @@ export const nwcPaymentRequestSchema = z.object({
   walletId: z.string().min(1),
   invoice: z.string().min(1).max(8192),
   paymentHash: hex64,
+  /**
+   * Business-operation scope for workflows where the same destination
+   * invoice must never join another source payment's listener operation.
+   */
+  idempotencyScope: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
+  /**
+   * Optional retry sequence for workflows that may retry an explicitly
+   * rejected payment against the same still-valid invoice. When present the
+   * sequence is added to the deterministic id. Omitting both optional fields
+   * preserves the original card-payment sha256(walletId|paymentHash) format.
+   */
+  attemptNo: z.number().int().min(1).max(1_000_000).optional(),
   /** How long HTTP waits; the underlying payment may continue. */
   waitMs: z.number().int().min(100).max(8000).default(8000)
 })

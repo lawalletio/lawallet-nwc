@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+const emptyEnvToUndefined = (value: unknown): unknown =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value
+
 /**
  * Environment schema for the listener service. Mirrors the validation style
  * of apps/web/lib/config/env.ts — string inputs transformed to typed values,
@@ -43,6 +46,31 @@ const envSchema = z.object({
     .string()
     .url('WEB_ORIGIN must be a valid URL')
     .describe('Base URL of apps/web — webhook target'),
+
+  NWC_VAULT_SECRET: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .min(32, 'NWC_VAULT_SECRET must be at least 32 characters long')
+      .describe(
+        'Decrypts RemoteWallet NWC connection strings and the system proxy credentials stored by apps/web'
+      )
+  ),
+
+  NWC_VAULT_SECRET_PREVIOUS: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .optional()
+      .describe('Comma-separated previous NWC vault secrets during rotation')
+  ),
+
+  PROXY_RECONCILE_INTERVAL_MS: z
+    .string()
+    .default('600000')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .describe('How often the deferred LUD-16 proxy pipeline is reconciled'),
 
   LOG_LEVEL: z
     .string()

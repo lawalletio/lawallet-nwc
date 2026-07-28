@@ -256,9 +256,23 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
     config,
     input: MakeInvoiceInput
   ): Promise<MakeInvoiceResult> {
-    if (!Number.isFinite(input.amountSats) || input.amountSats <= 0) {
+    const amountMsats =
+      input.amountMsats ??
+      (input.amountSats !== undefined ? input.amountSats * 1000 : Number.NaN)
+    if (!Number.isSafeInteger(amountMsats) || amountMsats <= 0) {
       throw new DriverRemoteError('makeInvoice requires a positive amount')
     }
+    if (
+      input.descriptionHash !== undefined &&
+      !/^[0-9a-f]{64}$/i.test(input.descriptionHash)
+    ) {
+      throw new DriverRemoteError(
+        'makeInvoice descriptionHash must be 32-byte hex'
+      )
+    }
+    const descriptionParams = input.descriptionHash
+      ? { description_hash: input.descriptionHash.toLowerCase() }
+      : { description: input.description ?? '' }
     return withSpan('nwc.make_invoice', async () => {
       const bridge = await resolveListenerBridge()
       if (bridge.enabled) {
@@ -273,14 +287,17 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
             connectionString: config.connectionString,
             method: 'make_invoice',
             params: {
-              amount: input.amountSats * 1000,
-              description: input.description ?? ''
+              amount: amountMsats,
+              ...descriptionParams
             }
           })
           return {
             bolt11: res.invoice,
             paymentHash: res.payment_hash,
             amountSats: Math.floor(res.amount / 1000),
+            ...(input.amountMsats !== undefined
+              ? { amountMsats: res.amount }
+              : {}),
             description: res.description ?? input.description ?? '',
             expiresAt:
               typeof res.expires_at === 'number' ? res.expires_at * 1000 : null
@@ -297,13 +314,16 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
         const client = await getServerNwcClient(config.connectionString)
         const res = await client.makeInvoice({
           // NWC speaks msats.
-          amount: input.amountSats * 1000,
-          description: input.description ?? ''
+          amount: amountMsats,
+          ...descriptionParams
         })
         return {
           bolt11: res.invoice,
           paymentHash: res.payment_hash,
           amountSats: Math.floor(res.amount / 1000),
+          ...(input.amountMsats !== undefined
+            ? { amountMsats: res.amount }
+            : {}),
           description: res.description ?? input.description ?? '',
           // NWC reports expiry in unix seconds; normalise to ms (or null).
           expiresAt:

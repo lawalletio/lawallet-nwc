@@ -37,7 +37,19 @@ connections, and no incoming payment notifications are received.
 The listener is one small container — use the prebuilt multi-arch image
 [`masize/lawallet-nwc-listener`](https://hub.docker.com/r/masize/lawallet-nwc-listener)
 (published alongside each release) or build from
-`apps/listener/Dockerfile`. Default port 4100. It needs:
+`apps/listener/Dockerfile`. Default port 4100.
+
+For a Vercel or Netlify deployment, generate matched web/listener files with:
+
+```bash
+pnpm deploy:env:cloud
+```
+
+Replace the placeholders, then use `lawallet-cloud-env/listener.env` on this
+host. See [Environment Variables](/docs/deploy/environment) for the role and
+placement of each value.
+
+Its required and optional variables are:
 
 | Variable                        | Required | Description                                                                                                                                                                                                          |
 | ------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -45,6 +57,9 @@ The listener is one small container — use the prebuilt multi-arch image
 | `LISTENER_AUTH_SECRET`          | ✅       | Webhook HMAC secret, min 32 chars. Also guards the listener API when no dedicated request secret is set. Must match the web-side webhook secret.                                                                     |
 | `LISTENER_REQUEST_AUTH_SECRET`  | —        | Optional dedicated web→listener bearer secret, min 32 chars. Set the same value on web; otherwise both sides fall back to `LISTENER_AUTH_SECRET`.                                                                    |
 | `WEB_ORIGIN`                    | ✅       | Public URL of your web app (e.g. `https://wallet.example.com`) — payment webhooks are POSTed back there.                                                                                                             |
+| `NWC_VAULT_SECRET`              | NWC data | Required on both web and listener whenever NWC RemoteWallets or deferred forwarding are used. Encrypts/decrypts RemoteWallet and proxy NWC URIs; min 32 chars.                                                       |
+| `NWC_VAULT_SECRET_PREVIOUS`     | —        | Comma-separated previous NWC vault keys accepted temporarily during rotation.                                                                                                                                        |
+| `PROXY_RECONCILE_INTERVAL_MS`   | —        | Deferred proxy recovery scheduler (default `600000`, ten minutes).                                                                                                                                                   |
 | `LISTENER_PORT`                 | —        | HTTP port (default `4100`).                                                                                                                                                                                          |
 | `LOG_LEVEL` / `LOG_PRETTY`      | —        | Logging (default `info` / JSON).                                                                                                                                                                                     |
 | `EVENT_RETENTION_DAYS`          | —        | Days of processed events kept for dedup + dashboard feed (default 30).                                                                                                                                               |
@@ -98,6 +113,7 @@ generated `fly.toml`.
 docker run -d --restart unless-stopped -p 4100:4100 \
   -e DATABASE_URL="postgresql://..." \
   -e LISTENER_AUTH_SECRET="<same secret as the web app>" \
+  -e NWC_VAULT_SECRET="<same NWC vault secret as the web app>" \
   -e WEB_ORIGIN="https://wallet.example.com" \
   masize/lawallet-nwc-listener:latest
 ```
@@ -133,6 +149,11 @@ docker compose --profile listener up -d
 Persist those values in `.env` for subsequent Compose commands. Plain
 `docker compose up -d` leaves the listener unconfigured and all payments use
 the regular direct NWC path.
+
+Deferred proxy settlement additionally requires a persistent
+`NWC_VAULT_SECRET` in that `.env` file. Compose passes it to both services. The
+NIP-57 receipt signer remains a write-only `nsec` field in Admin Settings and
+must not be copied into the listener environment.
 
 ## Health & failure modes
 

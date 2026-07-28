@@ -160,10 +160,12 @@ NWC connection string never crosses this endpoint:
 
 ```ts
 {
-  requestId: string   // sha256(walletId|paymentHash), 64-hex
+  requestId: string   // deterministic 64-hex idempotency key
   walletId: string
   invoice: string
   paymentHash: string // 64-hex
+  idempotencyScope?: string // proxy source-payment ID
+  attemptNo?: number  // proxy retry sequence within that scope
   waitMs?: number     // 100–8000, default 8000
 }
 ```

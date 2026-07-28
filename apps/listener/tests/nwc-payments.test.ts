@@ -131,6 +131,35 @@ describe('preimage verification', () => {
 })
 
 describe('NwcPaymentService', () => {
+  it('accepts deterministic attempt-scoped ids for explicit proxy retries', async () => {
+    const retryInput = {
+      ...input,
+      idempotencyScope: 'proxy-payment-1',
+      attemptNo: 2,
+      requestId: computeNwcPaymentRequestId(
+        input.walletId,
+        input.paymentHash,
+        2,
+        'proxy-payment-1'
+      )
+    }
+    const { service, nwcPool } = makeService()
+    vi.mocked(registerNwcRequest).mockResolvedValue({
+      created: true,
+      request: stored({ requestId: retryInput.requestId })
+    })
+    nwcPool.payInvoiceByWalletId.mockResolvedValue({
+      preimage,
+      fees_paid: 0
+    })
+
+    await expect(service.submit(retryInput)).resolves.toMatchObject({
+      ok: true,
+      requestId: retryInput.requestId
+    })
+    expect(nwcPool.payInvoiceByWalletId).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects an invoice whose encoded hash does not match before dispatch', async () => {
     const { service, nwcPool } = makeService()
     decodeMock.mockReturnValueOnce({

@@ -1,0 +1,167 @@
+import { finalizeEvent, getPublicKey, verifyEvent } from 'nostr-tools/pure'
+import { nip19, SimplePool } from 'nostr-tools'
+import type { Event } from 'nostr-tools'
+import { bech32 } from 'bech32'
+
+const HEX_64 = /^[0-9a-f]{64}$/i
+const MAX_ZAP_SKEW_SECONDS = 10 * 60
+
+export function normalizeNostrPrivateKey(value: string): string {
+  const trimmed = value.trim()
+  if (HEX_64.test(trimmed)) return trimmed.toLowerCase()
+  const decoded = nip19.decode(trimmed)
+  if (decoded.type !== 'nsec' || !(decoded.data instanceof Uint8Array)) {
+    throw new Error('Receipt signer must be an nsec or 64-character hex key')
+  }
+  return Buffer.from(decoded.data).toString('hex')
+}
+
+export function receiptPubkey(privateKeyHex: string): string {
+  return getPublicKey(Buffer.from(privateKeyHex, 'hex'))
+}
+
+export interface ValidZapRequest {
+  event: Event
+  canonicalJson: string
+  relays: string[]
+}
+
+export function validateZapRequest(input: {
+  raw: string
+  amountMsats: number
+  recipientPubkey: string
+  expectedLnurl: string
+  nowSeconds?: number
+}): ValidZapRequest {
+  let event: Event
+  try {
+    event = JSON.parse(input.raw) as Event
+  } catch {
+    throw new Error('Zap request is not valid JSON')
+  }
+  if (
+    event.kind !== 9734 ||
+    !verifyEvent(event) ||
+    Math.abs(
+      (input.nowSeconds ?? Math.floor(Date.now() / 1000)) - event.created_at
+    ) > MAX_ZAP_SKEW_SECONDS
+  ) {
+    throw new Error('Zap request signature, kind, or timestamp is invalid')
+  }
+  const pTags = event.tags.filter(tag => tag[0] === 'p')
+  if (
+    pTags.length !== 1 ||
+    pTags[0][1]?.toLowerCase() !== input.recipientPubkey.toLowerCase()
+  ) {
+    throw new Error('Zap request recipient does not match this address')
+  }
+  const amountTag = event.tags.find(tag => tag[0] === 'amount')?.[1]
+  if (
+    amountTag !== undefined &&
+    (!/^\d+$/.test(amountTag) || Number(amountTag) !== input.amountMsats)
+  ) {
+    throw new Error('Zap request amount does not match callback amount')
+  }
+  const lnurlTags = event.tags.filter(tag => tag[0] === 'lnurl')
+  if (
+    lnurlTags.length !== 1 ||
+    !lnurlTags[0][1] ||
+    decodeLnurl(lnurlTags[0][1]) !== input.expectedLnurl
+  ) {
+    throw new Error('Zap request LNURL does not match this address')
+  }
+  const relays = [
+    ...new Set(
+      event.tags
+        .find(tag => tag[0] === 'relays')
+        ?.slice(1)
+        .filter(isRelayUrl)
+        .slice(0, 8) ?? []
+    )
+  ]
+  if (relays.length === 0) {
+    throw new Error('Zap request must include at least one relay')
+  }
+  // The raw string is the exact value committed into description_hash and
+  // copied into the receipt's description tag.
+  return { event, canonicalJson: input.raw, relays }
+}
+
+export async function publishZapReceipt(input: {
+  zapRequest: Event
+  zapRequestJson: string
+  payerInvoice: string
+  payerPreimage?: string | null
+  privateKeyHex: string
+  /** Persisted forwarding time keeps the receipt event id stable on retries. */
+  createdAtSeconds: number
+}): Promise<string> {
+  const relays =
+    input.zapRequest.tags
+      .find(tag => tag[0] === 'relays')
+      ?.slice(1)
+      .filter(isRelayUrl)
+      .slice(0, 8) ?? []
+  if (relays.length === 0) throw new Error('Zap request has no publish relays')
+
+  const copiedTags = input.zapRequest.tags.filter(tag =>
+    ['e', 'p', 'a'].includes(tag[0])
+  )
+  const event = finalizeEvent(
+    {
+      kind: 9735,
+      created_at: input.createdAtSeconds,
+      content: '',
+      tags: [
+        ...copiedTags,
+        ['bolt11', input.payerInvoice],
+        ['description', input.zapRequestJson],
+        ...(input.payerPreimage ? [['preimage', input.payerPreimage]] : [])
+      ]
+    },
+    Buffer.from(input.privateKeyHex, 'hex')
+  )
+
+  const pool = new SimplePool()
+  let timeout: ReturnType<typeof setTimeout> | null = null
+  try {
+    await Promise.race([
+      Promise.any(pool.publish(relays, event)),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error('Zap receipt relay publication timed out')),
+          30_000
+        )
+        timeout.unref?.()
+      })
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+    pool.close(relays)
+  }
+  return event.id
+}
+
+function decodeLnurl(value: string): string | null {
+  try {
+    const decoded = bech32.decode(value.toLowerCase(), 2048)
+    if (decoded.prefix !== 'lnurl') return null
+    return new TextDecoder().decode(
+      Uint8Array.from(bech32.fromWords(decoded.words))
+    )
+  } catch {
+    return null
+  }
+}
+
+function isRelayUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (
+      (url.protocol === 'wss:' || url.protocol === 'ws:') &&
+      url.hostname.length > 0
+    )
+  } catch {
+    return false
+  }
+}

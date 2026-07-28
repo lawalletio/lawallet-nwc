@@ -4,6 +4,17 @@ import { buildBackup } from '@/lib/backup/export'
 import { parseBackupFile } from '@/lib/backup/archive'
 import { isEncryptedArchive } from '@/lib/backup/crypto'
 import { BACKUP_SCHEMA_VERSION } from '@/lib/validation/schemas'
+import { encryptRemoteWalletEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
+
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn(() => ({
+    nwcVault: {
+      secret: 'test-backup-nwc-vault-secret-0123456789abcdef',
+      previousSecrets: [],
+      enabled: true
+    }
+  }))
+}))
 
 // Deterministic core-table fixtures (one row per table, valid per row-schema).
 const USER = {
@@ -39,7 +50,15 @@ const REMOTE_WALLET = {
   userId: 'user-1',
   name: 'primary',
   type: 'NWC',
-  config: { nwcUri: 'nostr+walletconnect://x' },
+  config: {
+    connectionString: encryptRemoteWalletEnvelope(
+      'nostr+walletconnect://x',
+      'wallet-1',
+      'test-backup-nwc-vault-secret-0123456789abcdef'
+    ),
+    mode: 'SEND_RECEIVE'
+  },
+  nwcConfigEncryptedAt: new Date('2026-01-01T00:00:00.000Z'),
   status: 'ACTIVE',
   isDefault: true,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -168,6 +187,17 @@ describe('backup export (buildBackup)', () => {
     expect(parsed.tables.cardDesigns).toHaveLength(1)
     expect(parsed.tables.cardActivationTokens).toHaveLength(0)
     expect(parsed.tables.albySubAccounts).toHaveLength(0)
+    expect(
+      (
+        parsed.tables.remoteWallets as {
+          config: { connectionString: string }
+          nwcConfigEncryptedAt: null
+        }[]
+      )[0]
+    ).toMatchObject({
+      config: { connectionString: 'nostr+walletconnect://x' },
+      nwcConfigEncryptedAt: null
+    })
     // The parsed user row survived NDJSON serialization (Date → ISO string).
     expect((parsed.tables.users as Record<string, unknown>[])[0].id).toBe(
       'user-1'

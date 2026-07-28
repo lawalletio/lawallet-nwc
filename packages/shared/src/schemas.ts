@@ -231,7 +231,9 @@ export const lud16CallbackQuerySchema = z.object({
       LUD12_MAX_COMMENT_LENGTH,
       `Comment exceeds ${LUD12_MAX_COMMENT_LENGTH} characters`
     )
-    .optional()
+    .optional(),
+  /** NIP-57 kind:9734 zap request, encoded as JSON in the query string. */
+  nostr: z.string().max(65_536, 'Zap request is too large').optional()
 })
 
 export const updateLightningAddressSchema = z.object({
@@ -259,6 +261,7 @@ export const walletAddressUsernameParam = z.object({
 export const lightningAddressModeSchema = z.enum([
   'IDLE',
   'ALIAS',
+  'PROXY_ALIAS',
   'CUSTOM_NWC',
   'DEFAULT_NWC'
 ])

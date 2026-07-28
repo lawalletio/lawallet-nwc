@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'node:crypto'
 import { logger } from '@/lib/logger'
 import { createLncurlWallet, DEFAULT_LNCURL_SERVER } from '@/lib/lncurl'
 import type {
@@ -8,6 +9,7 @@ import type {
   RemoteWalletStatus
 } from '@/lib/generated/prisma'
 import { syncPrimaryRemoteWalletFlag } from '@/lib/wallet/primary-wallet'
+import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
 const DEFAULT_WALLET_NAME = 'LNCurl wallet'
 
@@ -141,6 +143,7 @@ export async function createLncurlRemoteWallet(
   // Mint OUTSIDE the transaction — it's a network call and we don't want to
   // hold a DB transaction open while we wait on LNCurl.
   const { connectionString, mode } = await createLncurlWallet(serverUrl)
+  const walletId = randomUUID()
 
   return prisma.$transaction(async tx => {
     // Resolve a collision-free name within the user's namespace.
@@ -151,7 +154,7 @@ export async function createLncurlRemoteWallet(
     const taken = new Set(existing.map(w => w.name))
     const name = uniqueName(input.name ?? DEFAULT_WALLET_NAME, taken)
 
-    const config: Prisma.InputJsonValue = {
+    const plaintextConfig = {
       connectionString,
       mode,
       provider: 'lncurl',
@@ -160,13 +163,20 @@ export async function createLncurlRemoteWallet(
       // (used by the detail-page "LNCurl" badge link).
       lncurlServerUrl: serverUrl?.trim() || DEFAULT_LNCURL_SERVER
     }
+    const config = encryptRemoteWalletConfig(
+      walletId,
+      'NWC',
+      plaintextConfig
+    ) as Prisma.InputJsonValue
 
     const created = await tx.remoteWallet.create({
       data: {
+        id: walletId,
         userId,
         name,
         type: 'NWC',
         config,
+        nwcConfigEncryptedAt: new Date(),
         status: 'ACTIVE',
         isDefault: false
       }

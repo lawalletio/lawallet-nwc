@@ -49,6 +49,29 @@ const envSchema = z.object({
       )
   ),
 
+  // NWC connection vault. Kept separate from the user-key vault so the
+  // listener never needs access to passkey-custody key material.
+  NWC_VAULT_SECRET: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .min(32, 'NWC_VAULT_SECRET must be at least 32 characters long')
+      .optional()
+      .describe(
+        'Master secret encrypting RemoteWallet NWC connection strings, the settings-managed proxy NWC URI, and the zap receipt signer'
+      )
+  ),
+
+  NWC_VAULT_SECRET_PREVIOUS: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .optional()
+      .describe(
+        'Comma-separated previous NWC_VAULT_SECRET values accepted during rotation'
+      )
+  ),
+
   // NWC Listener service (optional — web runs without it)
   LISTENER_URL: z.preprocess(
     emptyEnvToUndefined,

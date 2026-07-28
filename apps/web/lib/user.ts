@@ -1,10 +1,12 @@
 import { randomUUID } from 'crypto'
+import type { Prisma } from './generated/prisma'
 import { AlbyHub } from './albyhub'
 import { prisma } from './prisma'
 import { getSettings } from './settings'
 import { ActivityEvent, logActivity } from './activity-log'
 import { logger } from './logger'
 import { createLncurlRemoteWallet } from './wallet/lncurl-wallet'
+import { encryptRemoteWalletConfig } from './wallet/remote-wallet-vault'
 
 /**
  * Creates a brand-new `User` record for an authenticated pubkey, optionally
@@ -54,6 +56,14 @@ export async function createNewUser(
     alby_auto_generate === 'true'
       ? await albyHub.createSubAccount(`LaWallet-${userId}`)
       : null
+  const remoteWalletId = subAccount ? randomUUID() : null
+  const remoteWalletConfig =
+    subAccount && remoteWalletId
+      ? encryptRemoteWalletConfig(remoteWalletId, 'NWC', {
+          connectionString: subAccount.pairingUri,
+          mode: 'SEND_RECEIVE'
+        })
+      : null
 
   const user = await prisma.user.create({
     data: {
@@ -81,12 +91,11 @@ export async function createNewUser(
       remoteWallets: subAccount
         ? {
             create: {
+              id: remoteWalletId!,
               name: 'NWC Wallet',
               type: 'NWC',
-              config: {
-                connectionString: subAccount.pairingUri,
-                mode: 'SEND_RECEIVE'
-              },
+              config: remoteWalletConfig! as Prisma.InputJsonValue,
+              nwcConfigEncryptedAt: new Date(),
               status: 'ACTIVE',
               isDefault: false
             }

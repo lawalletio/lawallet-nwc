@@ -47,7 +47,7 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
       log,
       metrics,
       refreshWallet: async walletId => {
-        const wallet = await loadActiveWalletById(pgPool, walletId, log)
+        const wallet = await loadActiveWalletById(pgPool, walletId, log, env)
         if (!wallet) return false
         await nwcPool.reconcileOne(walletId, wallet)
         return true

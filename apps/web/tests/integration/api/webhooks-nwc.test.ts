@@ -9,6 +9,16 @@ const SECRET = 'listener-shared-secret-0123456789abcdef!'
 const configState = vi.hoisted(() => ({
   secret: 'listener-shared-secret-0123456789abcdef!' as string | undefined
 }))
+const afterMock = vi.hoisted(() =>
+  vi.fn((callback: () => void | Promise<void>) => {
+    void callback()
+  })
+)
+
+vi.mock('next/server', async importActual => ({
+  ...(await importActual<typeof import('next/server')>()),
+  after: afterMock
+}))
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
@@ -38,6 +48,7 @@ vi.mock('@/lib/events/event-bus', () => ({
 }))
 
 const fireAndForgetMock = vi.fn()
+const reconcileProxyPaymentsMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/activity-log', () => ({
   ActivityEvent: {
     NWC_PAYMENT_RECEIVED: 'nwc.payment_received',
@@ -52,6 +63,9 @@ vi.mock('@/lib/activity-log', () => ({
     fireAndForget: (...args: unknown[]) => fireAndForgetMock(...args)
   }
 }))
+vi.mock('@/lib/proxy/reconcile', () => ({
+  reconcileProxyPayments: reconcileProxyPaymentsMock
+}))
 
 import { POST } from '@/app/api/webhooks/nwc/route'
 import { eventBus } from '@/lib/events/event-bus'
@@ -60,6 +74,10 @@ const HASH = 'a'.repeat(64)
 const SENT_PREIMAGE = '11'.repeat(32)
 const SENT_HASH = createHash('sha256')
   .update(Buffer.from(SENT_PREIMAGE, 'hex'))
+  .digest('hex')
+const PROXY_PREIMAGE = '22'.repeat(32)
+const PROXY_HASH = createHash('sha256')
+  .update(Buffer.from(PROXY_PREIMAGE, 'hex'))
   .digest('hex')
 
 const paymentReceived = {
@@ -247,6 +265,104 @@ describe('POST /api/webhooks/nwc', () => {
     const res = await POST(signedRequest(paymentReceived))
     await assertResponse(res, 200)
     expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+  })
+
+  it('atomically queues a proxy settlement without forwarding in the webhook', async () => {
+    const proxyPayment = {
+      id: 'proxy-payment-1',
+      grossAmountMsats: BigInt(21_000),
+      status: 'PENDING_INBOUND'
+    }
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...pendingInvoice,
+      paymentHash: PROXY_HASH,
+      proxyPayment
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+      walletId: '__lawallet_proxy__'
+    } as never)
+    vi.mocked(prismaMock.invoice.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    const res = await POST(
+      signedRequest({
+        ...paymentReceived,
+        walletId: '__lawallet_proxy__',
+        payment: {
+          ...paymentReceived.payment,
+          paymentHash: PROXY_HASH,
+          preimage: PROXY_PREIMAGE
+        }
+      })
+    )
+    const body = (await assertResponse(res, 200)) as {
+      received: boolean
+      settlementIds: string[]
+    }
+
+    expect(body).toEqual({
+      received: true,
+      settlementIds: ['proxy-payment-1']
+    })
+    expect(prismaMock.invoice.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'inv-1', status: 'PENDING' },
+        data: expect.objectContaining({ status: 'PAID' })
+      })
+    )
+    expect(prismaMock.proxyPayment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'proxy-payment-1',
+          status: { in: ['PENDING_INBOUND', 'BLOCKED'] }
+        }),
+        data: { status: 'READY_TO_FORWARD' }
+      })
+    )
+    await vi.waitFor(() =>
+      expect(reconcileProxyPaymentsMock).toHaveBeenCalledWith({
+        ids: ['proxy-payment-1']
+      })
+    )
+  })
+
+  it('treats a duplicate paid proxy webhook as a safe reconciliation wake-up', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...pendingInvoice,
+      paymentHash: PROXY_HASH,
+      status: 'PAID',
+      preimage: PROXY_PREIMAGE,
+      proxyPayment: {
+        id: 'proxy-payment-1',
+        grossAmountMsats: BigInt(21_000),
+        status: 'FORWARDING'
+      }
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+      walletId: '__lawallet_proxy__'
+    } as never)
+
+    const res = await POST(
+      signedRequest({
+        ...paymentReceived,
+        walletId: '__lawallet_proxy__',
+        payment: {
+          ...paymentReceived.payment,
+          paymentHash: PROXY_HASH,
+          preimage: PROXY_PREIMAGE
+        }
+      })
+    )
+    await assertResponse(res, 200)
+
+    expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+    expect(prismaMock.proxyPayment.update).not.toHaveBeenCalled()
+    await vi.waitFor(() =>
+      expect(reconcileProxyPaymentsMock).toHaveBeenCalledWith({
+        ids: ['proxy-payment-1']
+      })
+    )
   })
 
   it('accepts a payment for an unknown payment hash without touching invoices', async () => {

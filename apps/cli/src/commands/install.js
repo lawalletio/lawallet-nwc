@@ -260,6 +260,7 @@ export async function runInstallCommand(args) {
     postgresDatabase: createDatabaseName(instanceId),
     jwtSecret: createJwtSecret(),
     keyVaultSecret: createJwtSecret(),
+    nwcVaultSecret: createJwtSecret(),
     composeProjectName: createComposeProjectName(instanceId)
   })
 

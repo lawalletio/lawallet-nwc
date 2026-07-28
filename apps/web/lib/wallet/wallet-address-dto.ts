@@ -1,6 +1,11 @@
 import type { LightningAddress, RemoteWallet } from '@/lib/generated/prisma'
 
-export type WalletAddressMode = 'IDLE' | 'ALIAS' | 'CUSTOM_NWC' | 'DEFAULT_NWC'
+export type WalletAddressMode =
+  | 'IDLE'
+  | 'ALIAS'
+  | 'PROXY_ALIAS'
+  | 'CUSTOM_NWC'
+  | 'DEFAULT_NWC'
 export type EffectiveNwcMode = 'NONE' | 'RECEIVE' | 'SEND_RECEIVE'
 
 export interface WalletAddressDto {
@@ -50,6 +55,7 @@ export function deriveEffectiveNwcMode(
   switch (address.mode) {
     case 'IDLE':
     case 'ALIAS':
+    case 'PROXY_ALIAS':
       return 'NONE'
     case 'CUSTOM_NWC':
       return walletCapability(address.remoteWallet)

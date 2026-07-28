@@ -6,7 +6,7 @@ description: Choose your deployment path.
 <div className="not-prose grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
 
 <a
-  href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&root-directory=apps%2Fweb"
+  href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&root-directory=apps%2Fweb&env=JWT_SECRET%2CNWC_VAULT_SECRET&envDescription=JWT_SECRET%20and%20NWC_VAULT_SECRET%20must%20each%20be%20a%20different%2032%2B%20character%20random%20string.%20Generate%20each%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc%2Fblob%2Fmain%2Fapps%2Fweb%2F.env.example"
   target="_blank"
   rel="noopener noreferrer"
   className="group relative flex flex-col items-center justify-center aspect-square rounded-xl border border-fd-border bg-fd-card/80 p-6 transition-all hover:border-[#F5A623]/40 hover:bg-fd-card hover:-translate-y-0.5 no-underline"
@@ -177,3 +177,12 @@ description: Choose your deployment path.
 </a>
 
 </div>
+
+<Callout type="info" title="Deferred proxy settlement">
+  Every deployment needs a stable `NWC_VAULT_SECRET` before NWC wallets or the
+  proxy can be enabled. Deployments with a separate listener must use the same
+  value on web and listener. Configure the NIP-57 receipt `nsec` in **Admin →
+  Settings → NWC Services**; it is encrypted at rest and is not an environment
+  variable. Use the [deployment environment generator](/docs/deploy/environment)
+  to create the correct matched files automatically.
+</Callout>

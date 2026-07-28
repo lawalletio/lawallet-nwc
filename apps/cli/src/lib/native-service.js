@@ -384,6 +384,9 @@ function getManagedServices(state) {
         JWT_SECRET: state.jwtSecret,
         ...(state.keyVaultSecret
           ? { KEY_VAULT_SECRET: state.keyVaultSecret }
+          : {}),
+        ...(state.nwcVaultSecret
+          ? { NWC_VAULT_SECRET: state.nwcVaultSecret }
           : {})
       },
       buildBeforeStart: true,

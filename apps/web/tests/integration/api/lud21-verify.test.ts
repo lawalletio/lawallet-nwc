@@ -144,6 +144,30 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(lookupInvoiceMock).not.toHaveBeenCalled()
   })
 
+  it('returns settled when the listener confirmed payment without a preimage', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      status: 'PAID',
+      preimage: null,
+      expiresAt: PAST
+    } as any)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const res = await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body).toEqual({
+      status: 'OK',
+      settled: true,
+      preimage: null,
+      pr: 'lnbc100n1test'
+    })
+    expect(lookupInvoiceMock).not.toHaveBeenCalled()
+  })
+
   it('returns unsettled for expired invoices without querying NWC', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,

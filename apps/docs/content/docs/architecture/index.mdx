@@ -127,10 +127,10 @@ Beyond the core services, LaWallet ships companion apps and integrations. The mo
 
 ## Deployment Options
 
-| Platform       | Containers                          | Notes                                            |
-| -------------- | ----------------------------------- | ------------------------------------------------ |
-| Vercel         | web only                            | Best fit for the current repo state              |
-| Netlify        | web only                            | Similar constraints to Vercel                    |
-| Umbrel         | planned web + listener              | Depends on roadmap services                      |
-| Start9         | planned web + listener              | Depends on roadmap services                      |
-| Docker Compose | current web, planned extra services | Current repo includes web app deployment support |
+| Platform       | Containers                | Notes                                                   |
+| -------------- | ------------------------- | ------------------------------------------------------- |
+| Vercel         | web only                  | Listener hosted separately; share the NWC vault key     |
+| Netlify        | web only                  | Listener hosted separately; share the NWC vault key     |
+| Umbrel         | web + listener + Postgres | Persistent app seed supplies the shared NWC vault key   |
+| Start9         | web + listener + Postgres | Package generates and persists the shared NWC vault key |
+| Docker Compose | web + optional listener   | Operator supplies the shared NWC vault key              |

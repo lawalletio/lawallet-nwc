@@ -19,6 +19,7 @@ const userRole = z.enum(['ADMIN', 'OPERATOR', 'VIEWER', 'USER'])
 const lightningAddressMode = z.enum([
   'IDLE',
   'ALIAS',
+  'PROXY_ALIAS',
   'CUSTOM_NWC',
   'DEFAULT_NWC'
 ])
@@ -97,6 +98,8 @@ const remoteWalletRow = z.object({
   isDefault: z.boolean(),
   createdAt: date,
   updatedAt: date,
+  // Optional keeps archives from before the vault migration importable.
+  nwcConfigEncryptedAt: nullableDate.optional().default(null),
   diedAt: nullableDate
 })
 

@@ -22,6 +22,10 @@ import {
   warmNostrProfileForLud16
 } from '@/lib/nostr/lud16-avatar'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
+import { getActiveProxyConfig } from '@/lib/proxy/config'
+import { getListenerConfig } from '@/lib/listener-config'
+import { fetchDestinationMetadata } from '@/lib/proxy/lnurl'
+import { grossRangeForDestination } from '@/lib/proxy/money'
 
 /** Abort the remote LUD-16 fetch for ALIAS mode after this many ms. */
 const ALIAS_FETCH_TIMEOUT_MS = 5000
@@ -178,6 +182,94 @@ export const GET = withErrorHandling(
       } finally {
         clearTimeout(timer)
       }
+    }
+
+    if (route.kind === 'proxyAlias') {
+      const [proxy, listener] = await Promise.all([
+        getActiveProxyConfig(),
+        getListenerConfig()
+      ])
+      if (!proxy || !listener.enabled) {
+        throw new NotFoundError('Deferred payment proxy is not configured')
+      }
+      const parsed = parseLightningAddress(route.redirect)
+      const [{ host, url }, apiUrl] = await Promise.all([
+        resolvePublicEndpoint(req),
+        resolveApiUrl(req)
+      ])
+      const blockedHosts = [host, new URL(apiUrl).hostname]
+      if (
+        !parsed ||
+        blockedHosts.some(
+          blocked =>
+            new URL(
+              blocked.includes('://') ? blocked : `https://${blocked}`
+            ).hostname.toLowerCase() === parsed.host.toLowerCase()
+        )
+      ) {
+        throw new NotFoundError('Proxy target is invalid')
+      }
+      let remote
+      try {
+        remote = await fetchDestinationMetadata(route.redirect, {
+          blockedHosts
+        })
+      } catch (err) {
+        logger.warn(
+          { username, destination: route.redirect, err },
+          'LUD16 proxy metadata fetch failed'
+        )
+        throw new NotFoundError('Proxy target not reachable')
+      }
+      const range = grossRangeForDestination(
+        remote.minSendable,
+        remote.maxSendable,
+        proxy.row.feeBps
+      )
+      const callback = `${apiUrl}/api/lud16/${username}/cb`
+      const feePercent = (proxy.row.feeBps / 100).toFixed(2)
+      const metadata: [string, string][] = [
+        ['text/identifier', `${username}@${host}`],
+        [
+          'text/plain',
+          `Payment to ${route.redirect} via LaWallet proxy (${feePercent}% service fee)`
+        ]
+      ]
+      try {
+        const remoteEntries = JSON.parse(remote.metadata) as unknown
+        if (Array.isArray(remoteEntries)) {
+          for (const entry of remoteEntries) {
+            if (
+              Array.isArray(entry) &&
+              typeof entry[0] === 'string' &&
+              entry[0].startsWith('image/') &&
+              typeof entry[1] === 'string'
+            ) {
+              metadata.push([entry[0], entry[1]])
+            }
+          }
+        }
+      } catch {
+        // Remote metadata images are optional; local identifiers remain valid.
+      }
+
+      return NextResponse.json({
+        status: 'OK',
+        tag: 'payRequest',
+        callback,
+        ...range,
+        metadata: JSON.stringify(metadata),
+        commentAllowed: Math.min(
+          LUD12_MAX_COMMENT_LENGTH,
+          remote.commentAllowed ?? 0
+        ),
+        ...(proxy.row.receiptPubkey && proxy.receiptPrivateKey
+          ? {
+              allowsNostr: true,
+              nostrPubkey: proxy.row.receiptPubkey
+            }
+          : {})
+      } as LUD06Response)
     }
 
     // route.kind === 'wallet' — return our own LUD-16 so /cb can mint an

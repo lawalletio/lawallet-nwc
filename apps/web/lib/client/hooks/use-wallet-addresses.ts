@@ -9,6 +9,7 @@ import {
 export type LightningAddressMode =
   | 'IDLE'
   | 'ALIAS'
+  | 'PROXY_ALIAS'
   | 'CUSTOM_NWC'
   | 'DEFAULT_NWC'
 export type EffectiveNwcMode = 'NONE' | 'RECEIVE' | 'SEND_RECEIVE'
@@ -41,6 +42,7 @@ export interface WalletAddressDetail {
   /**
    * Pre-resolved NWC URI this address currently routes to, matching the
    * server-side `resolveWalletRoute` output. `null` for IDLE / ALIAS /
+   * PROXY_ALIAS /
    * unconfigured. Also `null` in the admin read-only view (`isOwner: false`):
    * the connection secret is never surfaced to a non-owner.
    */

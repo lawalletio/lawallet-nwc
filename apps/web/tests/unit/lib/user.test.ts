@@ -7,7 +7,14 @@ import {
 
 // Logger reads config at module load — stub both before importing the SUT.
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
+  getConfig: vi.fn(() => ({
+    maintenance: { enabled: false },
+    nwcVault: {
+      secret: 'test-nwc-vault-secret-0123456789abcdef',
+      previousSecrets: [],
+      enabled: true
+    }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({

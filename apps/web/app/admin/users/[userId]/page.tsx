@@ -72,6 +72,7 @@ const ROLE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
 const MODE_LABEL: Record<WalletAddress['mode'], string> = {
   IDLE: 'Idle',
   ALIAS: 'Alias',
+  PROXY_ALIAS: 'Deferred proxy',
   CUSTOM_NWC: 'Custom NWC',
   DEFAULT_NWC: 'Default NWC'
 }
@@ -501,7 +502,9 @@ export default function UserDetailPage({
                               </div>
                             </TableCell>
                             <TableCell>
-                              {addr.mode === 'ALIAS' && addr.redirect ? (
+                              {(addr.mode === 'ALIAS' ||
+                                addr.mode === 'PROXY_ALIAS') &&
+                              addr.redirect ? (
                                 <Badge
                                   variant="outline"
                                   title={addr.redirect}
@@ -512,7 +515,9 @@ export default function UserDetailPage({
                                     aria-hidden
                                   />
                                   <span className="truncate">
-                                    {addr.redirect}
+                                    {addr.mode === 'PROXY_ALIAS'
+                                      ? `Proxy → ${addr.redirect}`
+                                      : addr.redirect}
                                   </span>
                                 </Badge>
                               ) : (

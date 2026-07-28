@@ -4,7 +4,14 @@ import { createRemoteWalletFixture } from '@/tests/helpers/fixtures'
 
 // Logger reads config at module load — stub both before importing the SUT.
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
+  getConfig: vi.fn(() => ({
+    maintenance: { enabled: false },
+    nwcVault: {
+      secret: 'test-nwc-vault-secret-0123456789abcdef',
+      previousSecrets: [],
+      enabled: true
+    }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -60,8 +67,9 @@ describe('createLncurlRemoteWallet', () => {
           type: 'NWC',
           status: 'ACTIVE',
           isDefault: false,
+          nwcConfigEncryptedAt: expect.any(Date),
           config: expect.objectContaining({
-            connectionString: LNCURL_URI,
+            connectionString: expect.stringMatching(/^lwrw1:/),
             mode: 'SEND_RECEIVE',
             provider: 'lncurl'
           })

@@ -70,6 +70,7 @@ export function buildInstallState({
   postgresDatabase,
   jwtSecret,
   keyVaultSecret,
+  nwcVaultSecret,
   composeProjectName
 }) {
   const services = buildServiceMap({
@@ -79,7 +80,7 @@ export function buildInstallState({
   })
 
   return {
-    version: 2,
+    version: 3,
     installedAt: new Date().toISOString(),
     repoRoot,
     mode,
@@ -96,6 +97,7 @@ export function buildInstallState({
     },
     jwtSecret,
     keyVaultSecret,
+    nwcVaultSecret,
     paths: {
       webDir: getWebDir(repoRoot),
       docsDir: getDocsDir(repoRoot),
@@ -139,6 +141,9 @@ export async function writeRootEnvFile(repoRoot, state) {
     // empty value so passkey signup reports "not configured" cleanly.
     ...(state.keyVaultSecret
       ? [`KEY_VAULT_SECRET=${state.keyVaultSecret}`]
+      : []),
+    ...(state.nwcVaultSecret
+      ? [`NWC_VAULT_SECRET=${state.nwcVaultSecret}`]
       : [])
   ].join('\n')
 
@@ -152,6 +157,9 @@ export async function writeNativeEnvFile(repoRoot, state) {
     `JWT_SECRET="${state.jwtSecret}"`,
     ...(state.keyVaultSecret
       ? [`KEY_VAULT_SECRET="${state.keyVaultSecret}"`]
+      : []),
+    ...(state.nwcVaultSecret
+      ? [`NWC_VAULT_SECRET="${state.nwcVaultSecret}"`]
       : []),
     'NODE_ENV="production"',
     `PORT="${state.app.port}"`

@@ -33,6 +33,8 @@ export interface LUD06Response {
     email?: { mandatory: boolean }
   }
   commentAllowed?: number
+  allowsNostr?: boolean
+  nostrPubkey?: string
 }
 
 export interface LUD06CallbackError {
