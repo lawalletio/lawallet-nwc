@@ -161,7 +161,6 @@ picks them up.
 
 | Variable                                    | Purpose                                                                                                                                       |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NWC_VAULT_SECRET_PREVIOUS`                 | Comma-separated old NWC vault keys accepted temporarily during a controlled key rotation. Set the same value on the listener.                 |
 | `KEY_VAULT_SECRET`                          | Encrypts server-custodied Nostr keys for passkey accounts. Required for passkey login — back it up, losing it makes those keys unrecoverable. |
 | `NEXT_PUBLIC_LAWALLET_LANDING_URL`          | Where `/` redirects. Defaults to `https://lawallet.io`.                                                                                       |
 | `UPSTASH_REDIS_URL` / `UPSTASH_REDIS_TOKEN` | Shared rate-limit state. Netlify Functions are horizontally scaled, so the default in-memory limiter counts per instance.                     |

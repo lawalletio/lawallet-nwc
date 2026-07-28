@@ -15,10 +15,7 @@ vi.mock('@/lib/logger', () => ({
 
 import { getConfig } from '@/lib/config'
 import { migrateRemoteWalletNwcConfigs } from '@/lib/wallet/migrate-remote-wallet-vault'
-import {
-  decryptRemoteWalletEnvelope,
-  encryptRemoteWalletEnvelope
-} from '@/lib/wallet/remote-wallet-vault-core'
+import { encryptRemoteWalletEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
 
 const ACTIVE_SECRET =
   'active-remote-wallet-secret-0123456789abcdef0123456789abcdef'
@@ -28,15 +25,11 @@ const NWC_URI =
   '?relay=wss%3A%2F%2Frelay.example&secret=' +
   'b'.repeat(64)
 
-function mockVault(
-  secret: string | null = ACTIVE_SECRET,
-  previousSecrets: string[] = []
-) {
+function mockVault(secret: string | null = ACTIVE_SECRET) {
   const configured = secret ?? undefined
   vi.mocked(getConfig).mockReturnValue({
     nwcVault: {
       secret: configured,
-      previousSecrets,
       enabled: !!configured
     }
   } as never)
@@ -96,33 +89,6 @@ describe('RemoteWallet NWC startup migration', () => {
 
     await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(0)
     expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
-  })
-
-  it('rewrites an envelope that still uses a previous rotation key', async () => {
-    const oldSecret =
-      'previous-remote-wallet-secret-0123456789abcdef0123456789abcd'
-    const stored = encryptRemoteWalletEnvelope(NWC_URI, 'wallet-1', oldSecret)
-    mockVault(ACTIVE_SECRET, [oldSecret])
-    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
-    vi.mocked(prismaMock.$queryRaw)
-      .mockResolvedValueOnce([] as never)
-      .mockResolvedValueOnce([
-        {
-          id: 'wallet-1',
-          config: { connectionString: stored, mode: 'RECEIVE' },
-          nwcConfigEncryptedAt: new Date()
-        }
-      ] as never)
-      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
-
-    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(1)
-    const update = vi.mocked(prismaMock.remoteWallet.update).mock.calls[0][0]
-    const rotated = (update.data.config as { connectionString: string })
-      .connectionString
-    expect(rotated).not.toBe(stored)
-    expect(
-      decryptRemoteWalletEnvelope(rotated, 'wallet-1', [ACTIVE_SECRET])
-    ).toBe(NWC_URI)
   })
 
   it('fails closed when NWC rows exist without the vault key', async () => {

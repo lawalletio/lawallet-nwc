@@ -84,12 +84,6 @@ for (const [contents, label] of [
     2,
     `${label} must pass NWC_VAULT_SECRET to web and listener`
   )
-  requireOccurrences(
-    contents,
-    'NWC_VAULT_SECRET_PREVIOUS:',
-    2,
-    `${label} must pass rotation keys to web and listener`
-  )
 }
 
 requireMatch(

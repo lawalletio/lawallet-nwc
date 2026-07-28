@@ -105,23 +105,15 @@ The complete list of lower-level tuning variables is documented in
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example)
 and the [listener setup guide](/docs/deploy/listener-setup).
 
-## Rotation variables
+## Key rotation
 
-`KEY_VAULT_SECRET_PREVIOUS` and `NWC_VAULT_SECRET_PREVIOUS` accept
-comma-separated previous keys during a controlled rotation.
+`KEY_VAULT_SECRET_PREVIOUS` accepts comma-separated previous server-custody
+key-vault secrets during a controlled rotation.
 
-For an NWC vault rotation:
-
-1. Put a new `NWC_VAULT_SECRET` and the old value in
-   `NWC_VAULT_SECRET_PREVIOUS` on both web and listener.
-2. Restart both services together.
-3. Keep the previous key available until every RemoteWallet and proxy
-   credential has been rewritten under the new key and no in-flight settlement
-   depends on the old key.
-4. Remove the old value from both services together.
-
-Do not rotate or remove proxy credentials while non-completed proxy payments
-exist.
+`NWC_VAULT_SECRET` does not have a previous-key fallback. Keep it stable across
+upgrades and backups: changing it makes existing RemoteWallet and proxy
+credentials unreadable. Do not rotate or remove proxy credentials while
+non-completed proxy payments exist.
 
 ## Values configured in Admin Settings
 

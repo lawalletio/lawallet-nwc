@@ -5,8 +5,6 @@ import { encryptRemoteWalletEnvelope } from '../../web/lib/wallet/remote-wallet-
 
 const ACTIVE_SECRET =
   'active-remote-wallet-secret-0123456789abcdef0123456789abcdef'
-const OLD_SECRET =
-  'previous-remote-wallet-secret-0123456789abcdef0123456789abcd'
 const NWC_URI =
   'nostr+walletconnect://' +
   'a'.repeat(64) +
@@ -30,17 +28,6 @@ describe('listener remote wallet vault', () => {
       ACTIVE_SECRET
     )
     expect(decryptRemoteWalletNwcUri(stored, 'wallet-1', env())).toBe(NWC_URI)
-  })
-
-  it('accepts the previous deployment secret during rotation', () => {
-    const stored = encryptRemoteWalletEnvelope(NWC_URI, 'wallet-1', OLD_SECRET)
-    expect(
-      decryptRemoteWalletNwcUri(
-        stored,
-        'wallet-1',
-        env({ NWC_VAULT_SECRET_PREVIOUS: OLD_SECRET })
-      )
-    ).toBe(NWC_URI)
   })
 
   it('rejects an envelope copied to another wallet id', () => {

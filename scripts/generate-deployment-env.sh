@@ -119,7 +119,6 @@ KEY_VAULT_SECRET_PREVIOUS=
 
 # RemoteWallet + deferred proxy NWC vault. Web and listener must match.
 NWC_VAULT_SECRET=$nwc_vault_secret
-NWC_VAULT_SECRET_PREVIOUS=
 
 # Listener HMAC and request authentication. Web and listener must match.
 LISTENER_AUTH_SECRET=$listener_auth_secret
@@ -161,7 +160,6 @@ JWT_SECRET=$jwt_secret
 KEY_VAULT_SECRET=$key_vault_secret
 KEY_VAULT_SECRET_PREVIOUS=
 NWC_VAULT_SECRET=$nwc_vault_secret
-NWC_VAULT_SECRET_PREVIOUS=
 LISTENER_URL=REPLACE_WITH_HTTPS_LISTENER_URL
 LISTENER_AUTH_SECRET=$listener_auth_secret
 LISTENER_REQUEST_AUTH_SECRET=$listener_request_auth_secret
@@ -179,7 +177,6 @@ LISTENER_PORT=4100
 LISTENER_AUTH_SECRET=$listener_auth_secret
 LISTENER_REQUEST_AUTH_SECRET=$listener_request_auth_secret
 NWC_VAULT_SECRET=$nwc_vault_secret
-NWC_VAULT_SECRET_PREVIOUS=
 PROXY_RECONCILE_INTERVAL_MS=600000
 
 # The listener never receives the NIP-57 receipt signer nsec.

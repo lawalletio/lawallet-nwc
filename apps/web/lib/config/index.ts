@@ -31,7 +31,6 @@ export interface AppConfig {
 
   nwcVault: {
     secret: string | undefined
-    previousSecrets: string[]
     enabled: boolean
   }
 
@@ -145,10 +144,6 @@ export function getConfig(strict: boolean = true): AppConfig {
 
     nwcVault: {
       secret: env.NWC_VAULT_SECRET,
-      previousSecrets: (env.NWC_VAULT_SECRET_PREVIOUS ?? '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean),
       enabled: !!env.NWC_VAULT_SECRET
     },
 

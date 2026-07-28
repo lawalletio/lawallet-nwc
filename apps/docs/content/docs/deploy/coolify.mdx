@@ -74,11 +74,9 @@ different. Keeping them separate isolates listener-to-web webhook signing from
 web-to-listener requests. Both must be supplied to the Compose deployment.
 
 `NWC_VAULT_SECRET` is passed by Compose to both web and listener. Keep it stable
-across upgrades and backups. During a controlled rotation, set
-`NWC_VAULT_SECRET_PREVIOUS` to the previous value on both services until stored
-credentials have been rewritten. The NIP-57 receipt signer is an `nsec`
-configured in **Admin → Settings → NWC Services**, not a Coolify environment
-variable.
+across upgrades and backups; changing it makes stored NWC credentials
+unreadable. The NIP-57 receipt signer is an `nsec` configured in **Admin →
+Settings → NWC Services**, not a Coolify environment variable.
 
 ## Add the domain and TLS
 

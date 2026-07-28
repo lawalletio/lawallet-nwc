@@ -57,14 +57,6 @@ const envSchema = z.object({
       )
   ),
 
-  NWC_VAULT_SECRET_PREVIOUS: z.preprocess(
-    emptyEnvToUndefined,
-    z
-      .string()
-      .optional()
-      .describe('Comma-separated previous NWC vault secrets during rotation')
-  ),
-
   PROXY_RECONCILE_INTERVAL_MS: z
     .string()
     .default('600000')

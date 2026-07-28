@@ -35,7 +35,6 @@ services:
       # Encrypts RemoteWallet and proxy NWC data. Use the same stable value on
       # web and listener; generate it with `pnpm deploy:env`.
       NWC_VAULT_SECRET: ${NWC_VAULT_SECRET:-}
-      NWC_VAULT_SECRET_PREVIOUS: ${NWC_VAULT_SECRET_PREVIOUS:-}
       # NWC listener bridge — web works without these, but with them the NWC
       # driver reuses the listener's open relay connections and accepts its
       # payment webhooks. No depends_on: the listener is optional by design.
@@ -68,7 +67,6 @@ services:
       LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-}
       LISTENER_REQUEST_AUTH_SECRET: ${LISTENER_REQUEST_AUTH_SECRET:-${LISTENER_AUTH_SECRET:-}}
       NWC_VAULT_SECRET: ${NWC_VAULT_SECRET:-}
-      NWC_VAULT_SECRET_PREVIOUS: ${NWC_VAULT_SECRET_PREVIOUS:-}
       WEB_ORIGIN: http://web:${PORT:-2288}
       NODE_ENV: ${NODE_ENV:-production}
     depends_on:

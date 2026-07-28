@@ -39,7 +39,6 @@ services:
       # Use one stable value on both web and listener. The signer nsec itself is
       # entered through Admin Settings and is never an environment variable.
       NWC_VAULT_SECRET: ${NWC_VAULT_SECRET:-}
-      NWC_VAULT_SECRET_PREVIOUS: ${NWC_VAULT_SECRET_PREVIOUS:-}
       NODE_ENV: production
       PORT: 2288
       # Next standalone binds to $HOSTNAME; Docker defaults it to the container
@@ -75,7 +74,6 @@ services:
       LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-}
       LISTENER_REQUEST_AUTH_SECRET: ${LISTENER_REQUEST_AUTH_SECRET:-${LISTENER_AUTH_SECRET:-}}
       NWC_VAULT_SECRET: ${NWC_VAULT_SECRET:-}
-      NWC_VAULT_SECRET_PREVIOUS: ${NWC_VAULT_SECRET_PREVIOUS:-}
       WEB_ORIGIN: http://web:2288
       NODE_ENV: production
     depends_on:

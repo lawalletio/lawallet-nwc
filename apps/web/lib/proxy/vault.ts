@@ -59,7 +59,7 @@ export function decryptProxySecret(
   recordId: string,
   field: string
 ): string {
-  const { secret, previousSecrets } = getConfig().nwcVault
+  const { secret } = getConfig().nwcVault
   if (!secret) throw new Error('NWC_VAULT_SECRET is not configured')
 
   const buf = Buffer.from(envelope)
@@ -74,22 +74,19 @@ export function decryptProxySecret(
   const tag = buf.subarray(offset, (offset += TAG_LEN))
   const ciphertext = buf.subarray(offset)
 
-  for (const candidate of [secret, ...previousSecrets]) {
-    try {
-      const decipher = createDecipheriv(
-        'aes-256-gcm',
-        deriveKey(candidate, salt),
-        iv
-      )
-      decipher.setAAD(aad(recordId, field))
-      decipher.setAuthTag(tag)
-      return Buffer.concat([
-        decipher.update(ciphertext),
-        decipher.final()
-      ]).toString('utf8')
-    } catch {
-      // Try the next rotation key.
-    }
+  try {
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      deriveKey(secret, salt),
+      iv
+    )
+    decipher.setAAD(aad(recordId, field))
+    decipher.setAuthTag(tag)
+    return Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final()
+    ]).toString('utf8')
+  } catch {
+    throw new ProxyVaultDecryptError()
   }
-  throw new ProxyVaultDecryptError()
 }

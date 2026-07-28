@@ -31,8 +31,8 @@ notification catch-up also recovers source settlements missed during downtime.
 ## Configuration
 
 Set the same `NWC_VAULT_SECRET` (at least 32 characters) on web and listener.
-During key rotation, put old values in
-`NWC_VAULT_SECRET_PREVIOUS` until the stored credentials are rewritten.
+Keep it stable across upgrades and backups: existing NWC credentials cannot be
+decrypted after it changes.
 
 Then open **Admin → Settings → NWC Services → Lightning Address proxy**:
 

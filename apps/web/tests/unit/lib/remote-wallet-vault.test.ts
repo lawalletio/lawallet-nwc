@@ -16,17 +16,15 @@ import {
 
 const ACTIVE_SECRET =
   'active-remote-wallet-secret-0123456789abcdef0123456789abcdef'
-const OLD_SECRET =
-  'previous-remote-wallet-secret-0123456789abcdef0123456789abcd'
 const NWC_URI =
   'nostr+walletconnect://' +
   'a'.repeat(64) +
   '?relay=wss%3A%2F%2Frelay.example&secret=' +
   'b'.repeat(64)
 
-function mockVault(secret: string | undefined, previousSecrets: string[] = []) {
+function mockVault(secret: string | undefined) {
   vi.mocked(getConfig).mockReturnValue({
-    nwcVault: { secret, previousSecrets, enabled: !!secret }
+    nwcVault: { secret, enabled: !!secret }
   } as never)
 }
 
@@ -69,16 +67,6 @@ describe('remote wallet NWC vault', () => {
     expect(() =>
       decryptRemoteWalletConnectionString(envelope, 'wallet-2')
     ).toThrow(RemoteWalletVaultDecryptError)
-  })
-
-  it('accepts the previous key during vault rotation', () => {
-    mockVault(OLD_SECRET)
-    const envelope = encryptRemoteWalletConnectionString(NWC_URI, 'wallet-1')
-
-    mockVault(ACTIVE_SECRET, [OLD_SECRET])
-    expect(decryptRemoteWalletConnectionString(envelope, 'wallet-1')).toBe(
-      NWC_URI
-    )
   })
 
   it('passes a legacy plaintext value through for rolling migration', () => {

@@ -14,16 +14,15 @@ import {
 
 const ACTIVE_SECRET =
   'active-proxy-vault-secret-0123456789abcdef0123456789abcdef'
-const OLD_SECRET = 'previous-proxy-vault-secret-0123456789abcdef0123456789abcd'
 const NWC_URI =
   'nostr+walletconnect://' +
   'a'.repeat(64) +
   '?relay=wss%3A%2F%2Frelay.example&secret=' +
   'b'.repeat(64)
 
-function mockVault(secret: string | undefined, previousSecrets: string[] = []) {
+function mockVault(secret: string | undefined) {
   vi.mocked(getConfig).mockReturnValue({
-    nwcVault: { secret, previousSecrets, enabled: !!secret }
+    nwcVault: { secret, enabled: !!secret }
   } as never)
 }
 
@@ -55,13 +54,5 @@ describe('proxy vault', () => {
     expect(() => decryptProxySecret(envelope, 'default', 'nwc')).toThrow(
       ProxyVaultDecryptError
     )
-  })
-
-  it('accepts the previous key during a vault-key rotation', () => {
-    mockVault(OLD_SECRET)
-    const envelope = encryptProxySecret(NWC_URI, 'default', 'nwc')
-
-    mockVault(ACTIVE_SECRET, [OLD_SECRET])
-    expect(decryptProxySecret(envelope, 'default', 'nwc')).toBe(NWC_URI)
   })
 })

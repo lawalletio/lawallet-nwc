@@ -62,16 +62,6 @@ const envSchema = z.object({
       )
   ),
 
-  NWC_VAULT_SECRET_PREVIOUS: z.preprocess(
-    emptyEnvToUndefined,
-    z
-      .string()
-      .optional()
-      .describe(
-        'Comma-separated previous NWC_VAULT_SECRET values accepted during rotation'
-      )
-  ),
-
   // NWC Listener service (optional — web runs without it)
   LISTENER_URL: z.preprocess(
     emptyEnvToUndefined,

@@ -31,27 +31,19 @@ export function decryptProxyNwcUri(
   const iv = buf.subarray(offset, (offset += IV_LEN))
   const tag = buf.subarray(offset, (offset += TAG_LEN))
   const ciphertext = buf.subarray(offset)
-  const previous = (env.NWC_VAULT_SECRET_PREVIOUS ?? '')
-    .split(',')
-    .map(value => value.trim())
-    .filter(Boolean)
-
-  for (const secret of [env.NWC_VAULT_SECRET, ...previous]) {
-    try {
-      const decipher = createDecipheriv(
-        'aes-256-gcm',
-        deriveKey(secret, salt),
-        iv
-      )
-      decipher.setAAD(Buffer.from(`${recordId}:nwc`, 'utf8'))
-      decipher.setAuthTag(tag)
-      return Buffer.concat([
-        decipher.update(ciphertext),
-        decipher.final()
-      ]).toString('utf8')
-    } catch {
-      // Try the next rotation key.
-    }
+  try {
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      deriveKey(env.NWC_VAULT_SECRET, salt),
+      iv
+    )
+    decipher.setAAD(Buffer.from(`${recordId}:nwc`, 'utf8'))
+    decipher.setAuthTag(tag)
+    return Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final()
+    ]).toString('utf8')
+  } catch {
+    throw new Error('Proxy NWC vault decryption failed')
   }
-  throw new Error('Proxy NWC vault decryption failed')
 }

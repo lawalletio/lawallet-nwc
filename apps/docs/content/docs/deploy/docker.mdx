@@ -50,7 +50,6 @@ Common Compose overrides:
 | `LISTENER_URL`                                        | _(unset)_                | Set to `http://listener:4100` when enabling the bundled listener profile                                      |
 | `LISTENER_AUTH_SECRET`                                | _(unset)_                | Operator-generated shared secret for the optional listener, ≥ 32 characters                                   |
 | `NWC_VAULT_SECRET`                                    | _(unset)_                | Dedicated ≥32-character key shared by web/listener; required for stored NWC RemoteWallets or proxy settlement |
-| `NWC_VAULT_SECRET_PREVIOUS`                           | _(unset)_                | Previous vault keys accepted temporarily during a controlled rotation; use the same list on both services     |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `lawallet`               | Bundled Postgres credentials                                                                                  |
 
 Postgres data persists in the `lawallet_hub_pgdata` named volume.

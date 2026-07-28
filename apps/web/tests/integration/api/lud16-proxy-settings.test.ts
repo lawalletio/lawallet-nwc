@@ -6,7 +6,7 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
     requestLimits: { maxBodySize: 1_048_576, maxJsonSize: 1_048_576 },
-    nwcVault: { enabled: true, secret: 'secret', previousSecrets: [] }
+    nwcVault: { enabled: true, secret: 'secret' }
   }))
 }))
 vi.mock('@/lib/logger', () => ({

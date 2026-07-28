@@ -36,12 +36,8 @@ export function decryptRemoteWalletConnectionString(
   walletId: string
 ): string {
   if (!isEncryptedRemoteWalletConnectionString(stored)) return stored
-  const { secret, previousSecrets } = getConfig().nwcVault
-  return decryptRemoteWalletEnvelope(
-    stored,
-    walletId,
-    secret ? [secret, ...previousSecrets] : []
-  )
+  const { secret } = getConfig().nwcVault
+  return decryptRemoteWalletEnvelope(stored, walletId, secret ? [secret] : [])
 }
 
 /** Encrypts only NWC's secret field while preserving queryable config fields. */

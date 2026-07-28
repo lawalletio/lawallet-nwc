@@ -3,11 +3,9 @@ import { getConfig } from '@/lib/config'
 import { createLogger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import {
-  decryptRemoteWalletConfig,
   encryptRemoteWalletConfig,
   isEncryptedRemoteWalletConnectionString
 } from '@/lib/wallet/remote-wallet-vault'
-import { decryptRemoteWalletEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
 
 const log = createLogger({ module: 'remote-wallet-vault-migration' })
 const MIGRATION_TIMEOUT_MS = 120_000
@@ -61,23 +59,8 @@ export async function migrateRemoteWalletNwcConfigs(): Promise<number> {
           )
         }
 
-        let config = encryptRemoteWalletConfig(row.id, 'NWC', row.config)
-        let needsRewrite = !isEncryptedRemoteWalletConnectionString(stored)
-        if (!needsRewrite) {
-          try {
-            // If only a previous key can open it, rewrite under the active key
-            // during the same mandatory pass.
-            decryptRemoteWalletEnvelope(stored, row.id, [vaultSecret])
-          } catch {
-            const plaintext = decryptRemoteWalletConfig(
-              row.id,
-              'NWC',
-              row.config
-            )
-            config = encryptRemoteWalletConfig(row.id, 'NWC', plaintext)
-            needsRewrite = true
-          }
-        }
+        const config = encryptRemoteWalletConfig(row.id, 'NWC', row.config)
+        const needsRewrite = !isEncryptedRemoteWalletConnectionString(stored)
         if (needsRewrite || row.nwcConfigEncryptedAt === null) {
           await tx.remoteWallet.update({
             where: { id: row.id },

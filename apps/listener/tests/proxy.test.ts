@@ -8,7 +8,6 @@ import type { ListenerEnv } from '../src/env'
 const MAGIC = Buffer.from('LWPX01', 'utf8')
 const ACTIVE_SECRET =
   'active-proxy-vault-secret-0123456789abcdef0123456789abcdef'
-const OLD_SECRET = 'previous-proxy-vault-secret-0123456789abcdef0123456789abcd'
 const NWC_URI =
   'nostr+walletconnect://' +
   'a'.repeat(64) +
@@ -56,16 +55,6 @@ describe('listener proxy integration', () => {
   it('decrypts the web-compatible proxy NWC envelope', () => {
     expect(
       decryptProxyNwcUri(envelope(NWC_URI, ACTIVE_SECRET), 'default', env())
-    ).toBe(NWC_URI)
-  })
-
-  it('accepts a previous vault key during rotation', () => {
-    expect(
-      decryptProxyNwcUri(
-        envelope(NWC_URI, OLD_SECRET),
-        'default',
-        env({ NWC_VAULT_SECRET_PREVIOUS: OLD_SECRET })
-      )
     ).toBe(NWC_URI)
   })
 

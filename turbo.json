@@ -23,7 +23,7 @@
         "NEXT_PUBLIC_GTAG_ID",
         "NEXT_PUBLIC_API_DOCS_URL"
       ],
-      "passThroughEnv": ["NWC_VAULT_SECRET", "NWC_VAULT_SECRET_PREVIOUS"]
+      "passThroughEnv": ["NWC_VAULT_SECRET"]
     },
     "dev": {
       "cache": false,

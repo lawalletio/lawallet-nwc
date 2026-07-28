@@ -439,7 +439,6 @@ All environment variables are validated at startup via Zod schema in `lib/config
 | `DATABASE_URL`                   |    ✓     | PostgreSQL connection string                                           |
 | `JWT_SECRET`                     |          | 32+ char secret for HS256 signing                                      |
 | `NWC_VAULT_SECRET`               | NWC data | Encrypts RemoteWallet NWC URIs and proxy secrets; shared with listener |
-| `NWC_VAULT_SECRET_PREVIOUS`      |          | Previous NWC vault keys accepted during rotation                       |
 | `LISTENER_URL`                   |          | Private or public listener base URL                                    |
 | `LISTENER_AUTH_SECRET`           |          | Listener webhook HMAC secret                                           |
 | `LISTENER_REQUEST_AUTH_SECRET`   |          | Optional separate web-to-listener request secret                       |
