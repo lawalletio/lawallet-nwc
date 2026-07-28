@@ -1,4 +1,5 @@
 import type { RemoteWalletType } from '@/lib/generated/prisma'
+import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 import { DriverConfigError, UnsupportedDriverError } from './errors'
 import type { RemoteWalletDriver } from './types'
 
@@ -51,11 +52,16 @@ export function getDriver(type: RemoteWalletType): RemoteWalletDriver {
  *         driver's schema (corrupt row).
  */
 export function driverForWallet(wallet: {
+  /** Required for decrypting a persisted NWC config. */
+  id?: string
   type: RemoteWalletType
   config: unknown
 }): { driver: RemoteWalletDriver<unknown>; config: unknown } {
   const driver = getDriver(wallet.type)
-  const parsed = driver.configSchema.safeParse(wallet.config)
+  const config = wallet.id
+    ? decryptRemoteWalletConfig(wallet.id, wallet.type, wallet.config)
+    : wallet.config
+  const parsed = driver.configSchema.safeParse(config)
   if (!parsed.success) {
     throw new DriverConfigError(wallet.type, parsed.error.issues)
   }

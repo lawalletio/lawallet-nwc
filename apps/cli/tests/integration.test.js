@@ -502,7 +502,10 @@ test(
     assert.match(rootEnv, new RegExp(`^DOCS_PORT=${docsPort}$`, 'm'))
     assert.match(rootEnv, new RegExp(`^OPENAPI_PORT=${openapiPort}$`, 'm'))
     assert.match(rootEnv, new RegExp(`^POSTGRES_PORT=${postgresPort}$`, 'm'))
+    assert.match(rootEnv, /^NWC_VAULT_SECRET=.{32,}$/m)
     assert.match(webEnv, new RegExp(`^PORT="${appPort}"$`, 'm'))
+    assert.match(webEnv, /^NWC_VAULT_SECRET=".{32,}"$/m)
+    assert.equal(state.nwcVaultSecret.length >= 32, true)
 
     const serviceStatus = await runProcess(
       process.execPath,
@@ -632,6 +635,8 @@ test(
     assert.equal(await pathExists(docsPidFile), true)
     assert.equal(await pathExists(openapiPidFile), true)
     assert.match(webEnv, /^NODE_ENV="production"$/m)
+    assert.match(webEnv, /^NWC_VAULT_SECRET=".{32,}"$/m)
+    assert.equal(state.nwcVaultSecret.length >= 32, true)
 
     const status = await runProcess(
       process.execPath,

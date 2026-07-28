@@ -20,6 +20,7 @@ import {
   type DbClient
 } from '@/lib/backup/classify'
 import type { ParsedBackup } from '@/lib/backup/archive'
+import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
 const IMPORT_TX_TIMEOUT_MS = 120_000
 const IMPORT_TX_MAX_WAIT_MS = 20_000
@@ -235,6 +236,14 @@ export async function applyBackup(
     })
     validByTable[table] = valid
     result.tables[table] = tableResult
+  }
+
+  // Portable backups carry plaintext NWC URIs inside the sensitive archive.
+  // Re-encrypt every valid row before conflict classification or any DB write.
+  for (const row of validByTable.remoteWallets ?? []) {
+    if (row.type !== 'NWC') continue
+    row.config = encryptRemoteWalletConfig(String(row.id), 'NWC', row.config)
+    row.nwcConfigEncryptedAt = new Date()
   }
 
   const state: MergeState = {

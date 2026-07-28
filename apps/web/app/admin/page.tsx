@@ -75,7 +75,13 @@ export default function AdminDashboardPage() {
     // The primary address's configured mode drives which card renders
     // below — NwcCard for NWC-ish modes, ForwardingCard for IDLE/ALIAS.
     // Null when the user has no primary address yet.
-    primaryAddressMode: 'IDLE' | 'ALIAS' | 'CUSTOM_NWC' | 'DEFAULT_NWC' | null
+    primaryAddressMode:
+      | 'IDLE'
+      | 'ALIAS'
+      | 'PROXY_ALIAS'
+      | 'CUSTOM_NWC'
+      | 'DEFAULT_NWC'
+      | null
     primaryUsername: string | null
     primaryRedirect: string | null
   }>(status === 'authenticated' ? '/api/users/me' : null)
@@ -133,11 +139,14 @@ export default function AdminDashboardPage() {
             with no primary address mode recorded), preserving the
             "set up your NWC wallet" flow it ships. */}
             {me?.primaryAddressMode === 'IDLE' ||
-            me?.primaryAddressMode === 'ALIAS' ? (
+            me?.primaryAddressMode === 'ALIAS' ||
+            me?.primaryAddressMode === 'PROXY_ALIAS' ? (
               me.primaryUsername ? (
                 // Already forwarding (ALIAS + a target) → show where it points
                 // instead of the Connect-wallet / Redirect choice cards.
-                me.primaryAddressMode === 'ALIAS' && me.primaryRedirect ? (
+                (me.primaryAddressMode === 'ALIAS' ||
+                  me.primaryAddressMode === 'PROXY_ALIAS') &&
+                me.primaryRedirect ? (
                   <AddressRedirectCard
                     username={me.primaryUsername}
                     redirect={me.primaryRedirect}

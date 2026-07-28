@@ -21,11 +21,20 @@ start:
 
 ```bash
 curl -O https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/docker-compose.hub.yml
-JWT_SECRET=$(openssl rand -hex 32) docker compose -f docker-compose.hub.yml up -d
+curl -O https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/scripts/generate-deployment-env.sh
+chmod +x generate-deployment-env.sh
+./generate-deployment-env.sh --mode compose --output .env
+docker compose -f docker-compose.hub.yml up -d
 ```
 
-Override `LAWALLET_TAG`, `PORT`, `JWT_SECRET` (≥ 32 chars), or the `POSTGRES_*`
-credentials via env / a `.env` file. Note: the repo's default
+The generator creates independent secrets for Postgres, JWT, both vaults, and
+both listener authentication directions; enables the listener profile; sets
+mode `600`; and refuses to overwrite existing output. Persist the file in an
+encrypted backup. The full reference is in
+[`apps/docs/content/docs/deploy/environment.mdx`](../apps/docs/content/docs/deploy/environment.mdx).
+
+Override `LAWALLET_TAG`, `PORT`, or the generated values through `.env`. Note:
+the repo's default
 `docker-compose.yml` _builds from source_ instead — use `docker-compose.hub.yml`
 to run the prebuilt image.
 
@@ -35,8 +44,13 @@ Or run the container directly against your own Postgres:
 docker run -d --name lawallet-web -p 2288:2288 \
   -e DATABASE_URL="postgresql://user:pass@host:5432/lawallet" \
   -e JWT_SECRET="$(openssl rand -hex 32)" \
+  -e NWC_VAULT_SECRET="$(openssl rand -hex 32)" \
   masize/lawallet-nwc:latest
 ```
+
+RemoteWallet NWC URIs and proxy credentials are encrypted with
+`NWC_VAULT_SECRET`. The NIP-57 receipt signer is an `nsec` entered through
+Admin Settings and is never configured directly in the container environment.
 
 The container runs `prisma migrate deploy` on startup, then `node server.js`,
 listening on `0.0.0.0:2288`.

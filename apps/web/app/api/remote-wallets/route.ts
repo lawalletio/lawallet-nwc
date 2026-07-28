@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountId } from '@/lib/auth/account'
@@ -16,11 +17,16 @@ import { validateBody, validateQuery } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { getDriver } from '@/lib/wallet/drivers'
 import { eventBus } from '@/lib/events/event-bus'
-import type { RemoteWallet, RemoteWalletStatus } from '@/lib/generated/prisma'
+import type {
+  Prisma,
+  RemoteWallet,
+  RemoteWalletStatus
+} from '@/lib/generated/prisma'
 import {
   bindPrimaryAddressToWallet,
   syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
+import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -155,18 +161,27 @@ export const POST = withErrorHandling(async (request: Request) => {
     })
   }
 
+  const walletId = randomUUID()
+  const storedConfig = encryptRemoteWalletConfig(
+    walletId,
+    body.type,
+    parsedConfig.data
+  )
+
   try {
     const { created, boundPrimaryAddress } = await prisma.$transaction(
       async tx => {
         const created = await tx.remoteWallet.create({
           data: {
+            id: walletId,
             userId,
             name: body.name,
             type: body.type,
             // Persist the *parsed* config (defaults applied) so reads are
             // stable. Cast to Prisma input type — Zod schemas always return
             // JSON-serialisable shapes for our drivers.
-            config: parsedConfig.data as object,
+            config: storedConfig as Prisma.InputJsonValue,
+            nwcConfigEncryptedAt: body.type === 'NWC' ? new Date() : undefined,
             isDefault: false
           }
         })

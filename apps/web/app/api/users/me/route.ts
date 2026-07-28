@@ -7,6 +7,7 @@ import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { getSettings } from '@/lib/settings'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
+import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,9 +55,17 @@ export const GET = withErrorHandling(async (request: Request) => {
   // CUSTOM_NWC binding. The legacy/display isDefault flag is synchronized from
   // that link, but is no longer the source of truth.
   const primaryWallet = await getPrimaryRemoteWalletForUser(user.id)
+  const primaryWalletConfig = primaryWallet
+    ? decryptRemoteWalletConfig(
+        primaryWallet.id,
+        primaryWallet.type,
+        primaryWallet.config
+      )
+    : null
   const primaryWalletConn =
-    (primaryWallet?.config as { connectionString?: string } | null)
-      ?.connectionString ?? null
+    typeof primaryWalletConfig?.connectionString === 'string'
+      ? primaryWalletConfig.connectionString
+      : null
   const nwcString = primaryWalletConn ?? ''
   const nwcUpdatedAt = primaryWallet?.updatedAt.toISOString() ?? null
 

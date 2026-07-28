@@ -434,20 +434,24 @@ PostgreSQL via Prisma ORM. 7 models + 1 enum.
 
 All environment variables are validated at startup via Zod schema in `lib/config/env.ts`. Invalid config crashes the process immediately.
 
-| Variable                         | Required | Purpose                            |
-| -------------------------------- | :------: | ---------------------------------- |
-| `DATABASE_URL`                   |    ✓     | PostgreSQL connection string       |
-| `JWT_SECRET`                     |          | 32+ char secret for HS256 signing  |
-| `ALBY_API_URL`                   |          | Alby Hub endpoint                  |
-| `ALBY_BEARER_TOKEN`              |          | Alby API authentication            |
-| `AUTO_GENERATE_ALBY_SUBACCOUNTS` |          | Auto-provision wallets on signup   |
-| `MAINTENANCE_MODE`               |          | Enable 503 for non-admins          |
-| `LOG_LEVEL`                      |          | Pino log level (default: `info`)   |
-| `LOG_PRETTY`                     |          | Human-readable logs (dev)          |
-| `RATE_LIMIT_WINDOW_MS`           |          | Rate limit window (default: 60000) |
-| `RATE_LIMIT_MAX_REQUESTS`        |          | Max requests per window            |
-| `RATE_LIMIT_MAX_AUTHENTICATED`   |          | Max for authenticated users        |
-| `REQUEST_MAX_BODY_SIZE`          |          | Max body in bytes                  |
+| Variable                         | Required | Purpose                                                                |
+| -------------------------------- | :------: | ---------------------------------------------------------------------- |
+| `DATABASE_URL`                   |    ✓     | PostgreSQL connection string                                           |
+| `JWT_SECRET`                     |          | 32+ char secret for HS256 signing                                      |
+| `NWC_VAULT_SECRET`               | NWC data | Encrypts RemoteWallet NWC URIs and proxy secrets; shared with listener |
+| `LISTENER_URL`                   |          | Private or public listener base URL                                    |
+| `LISTENER_AUTH_SECRET`           |          | Listener webhook HMAC secret                                           |
+| `LISTENER_REQUEST_AUTH_SECRET`   |          | Optional separate web-to-listener request secret                       |
+| `ALBY_API_URL`                   |          | Alby Hub endpoint                                                      |
+| `ALBY_BEARER_TOKEN`              |          | Alby API authentication                                                |
+| `AUTO_GENERATE_ALBY_SUBACCOUNTS` |          | Auto-provision wallets on signup                                       |
+| `MAINTENANCE_MODE`               |          | Enable 503 for non-admins                                              |
+| `LOG_LEVEL`                      |          | Pino log level (default: `info`)                                       |
+| `LOG_PRETTY`                     |          | Human-readable logs (dev)                                              |
+| `RATE_LIMIT_WINDOW_MS`           |          | Rate limit window (default: 60000)                                     |
+| `RATE_LIMIT_MAX_REQUESTS`        |          | Max requests per window                                                |
+| `RATE_LIMIT_MAX_AUTHENTICATED`   |          | Max for authenticated users                                            |
+| `REQUEST_MAX_BODY_SIZE`          |          | Max body in bytes                                                      |
 
 ### Cached Config Object
 
@@ -456,6 +460,7 @@ All environment variables are validated at startup via Zod schema in `lib/config
 ```typescript
 const config = getConfig()
 config.jwt.secret // JWT_SECRET
+config.nwcVault.secret // NWC_VAULT_SECRET
 config.alby.apiUrl // ALBY_API_URL
 config.server.port // PORT
 config.rateLimit.window // RATE_LIMIT_WINDOW_MS

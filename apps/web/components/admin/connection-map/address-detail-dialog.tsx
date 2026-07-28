@@ -100,13 +100,18 @@ export function AddressDetailBody({
             value={<Badge variant="outline">{address.nwcMode}</Badge>}
           />
 
-          {address.mode === 'ALIAS' && address.redirect && (
-            <InfoField
-              label="Redirect"
-              value={<span className="truncate">{address.redirect}</span>}
-              mono
-            />
-          )}
+          {(address.mode === 'ALIAS' || address.mode === 'PROXY_ALIAS') &&
+            address.redirect && (
+              <InfoField
+                label={
+                  address.mode === 'PROXY_ALIAS'
+                    ? 'Settlement destination'
+                    : 'Redirect'
+                }
+                value={<span className="truncate">{address.redirect}</span>}
+                mono
+              />
+            )}
 
           {boundWallet && (
             <InfoField

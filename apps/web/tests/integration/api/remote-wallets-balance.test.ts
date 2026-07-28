@@ -9,7 +9,13 @@ import {
 import { AuthenticationError } from '@/types/server/errors'
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
+  getConfig: vi.fn(() => ({
+    maintenance: { enabled: false },
+    nwcVault: {
+      secret: 'test-balance-nwc-vault-secret-0123456789abcdef',
+      enabled: true
+    }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -35,6 +41,7 @@ vi.mock('@getalby/sdk', () => ({
 import { GET as balanceHandler } from '@/app/api/remote-wallets/[id]/balance/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
+import { encryptRemoteWalletEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
 
 const USER_PUBKEY = 'a'.repeat(64)
 
@@ -57,12 +64,23 @@ describe('GET /api/remote-wallets/[id]/balance', () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: user.id,
+      status: 'ACTIVE'
+    })
+    const connectionString = (wallet.config as { connectionString: string })
+      .connectionString
+    wallet.config = {
+      ...wallet.config,
+      connectionString: encryptRemoteWalletEnvelope(
+        connectionString,
+        'w1',
+        'test-balance-nwc-vault-secret-0123456789abcdef'
+      )
+    }
     vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
-      createRemoteWalletFixture({
-        id: 'w1',
-        userId: user.id,
-        status: 'ACTIVE'
-      }) as never
+      wallet as never
     )
     getBalanceMock.mockResolvedValueOnce({ balance: 12_345_000 }) // msats
 

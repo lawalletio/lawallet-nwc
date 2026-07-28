@@ -40,6 +40,7 @@ export const GET = withErrorHandling(
 
     try {
       const { driver, config } = driverForWallet({
+        id: wallet.id,
         type: wallet.type,
         config: wallet.config
       })

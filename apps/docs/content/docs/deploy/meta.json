@@ -2,6 +2,7 @@
   "title": "Deploy",
   "pages": [
     "index",
+    "environment",
     "local",
     "docker",
     "coolify",

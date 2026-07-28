@@ -72,10 +72,14 @@ export interface WalletOperationContext {
  * receiving.
  */
 export interface MakeInvoiceInput {
-  /** Amount to request, in sats. Must be > 0. */
-  amountSats: number
+  /** Amount to request, in sats. Used when amountMsats is omitted. */
+  amountSats?: number
+  /** Exact amount for protocols such as NWC that support millisatoshis. */
+  amountMsats?: number
   /** Optional human-readable memo embedded in the invoice. */
   description?: string
+  /** Optional SHA-256 commitment used by NIP-57 payer invoices. */
+  descriptionHash?: string
 }
 
 /** Result of a successful {@link RemoteWalletDriver.makeInvoice} call. */
@@ -86,6 +90,8 @@ export interface MakeInvoiceResult {
   paymentHash: string
   /** Amount encoded in the invoice, in sats (normalised from msats). */
   amountSats: number
+  /** Exact amount returned by the wallet, when available. */
+  amountMsats?: number
   /** Memo echoed back by the wallet (may differ from the requested one). */
   description: string
   /** Expiry as a unix-ms timestamp, or `null` if the wallet didn't report one. */

@@ -5,7 +5,8 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import {
   InternalServerError,
   NotFoundError,
-  ServiceUnavailableError
+  ServiceUnavailableError,
+  ValidationError
 } from '@/types/server/errors'
 import {
   lud16CallbackQuerySchema,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/validation/schemas'
 import { validateQuery } from '@/lib/validation/middleware'
 import { resolveApiUrl } from '@/lib/public-url'
+import { resolvePublicEndpoint } from '@/lib/public-url'
 import {
   extractPaymentHash,
   extractExpiry,
@@ -33,6 +35,7 @@ import {
   getPrimaryRemoteWalletForUser,
   syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
+import { createProxyPayRequest } from '@/lib/proxy/pay-request'
 
 export const GET = withErrorHandling(
   async (
@@ -41,7 +44,10 @@ export const GET = withErrorHandling(
   ) => {
     const { username: _username } = await params
     const username = _username.trim().toLowerCase()
-    const { amount, comment } = validateQuery(req.url, lud16CallbackQuerySchema)
+    const { amount, comment, nostr } = validateQuery(
+      req.url,
+      lud16CallbackQuerySchema
+    )
 
     // LUD-12: sanitize the comment (defense in depth — schema enforces max length).
     // Strip control chars that some wallets might refuse in bolt11 descriptions.
@@ -62,7 +68,8 @@ export const GET = withErrorHandling(
         },
         user: {
           select: {
-            id: true
+            id: true,
+            pubkey: true
           }
         }
       }
@@ -82,6 +89,45 @@ export const GET = withErrorHandling(
       remoteWallet: lightningAddress.remoteWallet,
       defaultRemoteWallet: primaryWallet
     })
+
+    if (route.kind === 'proxyAlias') {
+      const amountMsats = Number(amount)
+      if (!/^\d+$/.test(amount) || !Number.isSafeInteger(amountMsats)) {
+        throw new ValidationError('Invalid payment amount')
+      }
+      const [publicEndpoint, apiUrl] = await Promise.all([
+        resolvePublicEndpoint(req),
+        resolveApiUrl(req)
+      ])
+      const created = await createProxyPayRequest({
+        username,
+        userId: lightningAddress.user.id,
+        recipientPubkey: lightningAddress.user.pubkey,
+        destination: route.redirect,
+        blockedHosts: [publicEndpoint.host, new URL(apiUrl).hostname],
+        expectedZapLnurl: `${publicEndpoint.url}/.well-known/lnurlp/${encodeURIComponent(username)}`,
+        amountMsats,
+        comment: sanitizedComment,
+        zapRequestJson: nostr
+      })
+      logger.info(
+        {
+          invoiceId: created.invoiceId,
+          proxyPaymentId: created.proxyPaymentId,
+          username,
+          paymentHash: created.paymentHash,
+          amountMsats
+        },
+        'LUD-16 proxy invoice created'
+      )
+      eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
+      const verify = `${apiUrl}/api/lud16/${username}/verify/${created.paymentHash}`
+      return NextResponse.json({
+        pr: created.bolt11,
+        routes: [],
+        verify
+      } satisfies LUD06CallbackSuccess)
+    }
 
     // Lazy LNCurl self-heal: an address that can't currently route — no wallet
     // yet (e.g. signup with auto-create off), or a dead disposable wallet —
@@ -188,6 +234,7 @@ export const GET = withErrorHandling(
     let made
     try {
       const { driver, config } = driverForWallet({
+        id: mintRoute.walletId ?? undefined,
         type: mintRoute.type,
         config: mintRoute.config
       })
@@ -227,6 +274,7 @@ export const GET = withErrorHandling(
               })
               eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
               const { driver, config } = driverForWallet({
+                id: replacement.id,
                 type: replacement.type,
                 config: replacement.config
               })

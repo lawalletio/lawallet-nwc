@@ -27,6 +27,7 @@ apps/*/.cache/
 .env.development.local
 apps/*/.env.local
 apps/*/.env.development.local
+lawallet-cloud-env/
 
 # vercel
 .vercel

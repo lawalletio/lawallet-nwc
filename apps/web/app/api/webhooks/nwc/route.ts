@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
+import { after } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getListenerConfig } from '@/lib/listener-config'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -24,7 +25,11 @@ import {
 } from '@/lib/activity-log'
 import { logger } from '@/lib/logger'
 import { clearPrimaryWalletLinkToWallet } from '@/lib/wallet/primary-wallet'
-import { succeedCardPaymentAttempt } from '@/lib/card-payments/lifecycle'
+import {
+  preimageMatchesPaymentHash,
+  succeedCardPaymentAttempt
+} from '@/lib/card-payments/lifecycle'
+import { reconcileProxyPayments } from '@/lib/proxy/reconcile'
 
 /**
  * Internal machine-to-machine webhook from the NWC listener service
@@ -86,12 +91,26 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
   const event = parsed.data
 
+  if ('walletId' in event && event.walletId) {
+    await prisma.proxyServiceConfig.updateMany({
+      where: { walletId: event.walletId },
+      data: { lastListenerSeenAt: new Date() }
+    })
+  }
+
+  const settlementIds: string[] = []
   switch (event.type) {
     case 'payment_received':
-      await handlePaymentReceived(event)
+      {
+        const id = await handlePaymentReceived(event)
+        if (id) settlementIds.push(id)
+      }
       break
     case 'payment_sent':
-      await handlePaymentSent(event)
+      {
+        const id = await handlePaymentSent(event)
+        if (id) settlementIds.push(id)
+      }
       break
     case 'listener_error':
       logActivity.fireAndForget({
@@ -113,16 +132,26 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+  if (settlementIds.length > 0) {
+    after(async () => {
+      await reconcileProxyPayments({ ids: settlementIds })
+    })
+  }
 
   // Object shape (not a bare boolean) so the planned "web returns Nostr
   // events for the listener to publish" extension isn't a breaking change.
-  return NextResponse.json({ received: true })
+  return NextResponse.json({
+    received: true,
+    ...(settlementIds.length > 0 ? { settlementIds } : {})
+  })
 })
 
 type PaymentEvent = Extract<NwcWebhookPayload, { type: 'payment_received' }>
 type PaymentSentEvent = Extract<NwcWebhookPayload, { type: 'payment_sent' }>
 
-async function handlePaymentSent(event: PaymentSentEvent): Promise<void> {
+async function handlePaymentSent(
+  event: PaymentSentEvent
+): Promise<string | null> {
   logActivity.fireAndForget({
     category: 'NWC',
     event: ActivityEvent.NWC_PAYMENT_SENT,
@@ -131,6 +160,60 @@ async function handlePaymentSent(event: PaymentSentEvent): Promise<void> {
   })
 
   const paymentHash = event.payment.paymentHash.toLowerCase()
+  const proxyAttempt = await prisma.proxyForwardAttempt.findFirst({
+    where: {
+      paymentHash,
+      status: { in: ['PENDING', 'UNKNOWN', 'REJECTED', 'EXPIRED'] }
+    },
+    include: { proxyPayment: { select: { id: true } } },
+    orderBy: { createdAt: 'desc' }
+  })
+  if (proxyAttempt && event.payment.preimage) {
+    const proxyPreimage = event.payment.preimage
+    const proxyConfig = await prisma.proxyServiceConfig.findUnique({
+      where: { id: 'default' },
+      select: { walletId: true }
+    })
+    if (
+      proxyConfig?.walletId === event.walletId &&
+      preimageMatchesPaymentHash(proxyPreimage, proxyAttempt.paymentHash)
+    ) {
+      const transitioned = await prisma.$transaction(async tx => {
+        const result = await tx.proxyForwardAttempt.updateMany({
+          where: {
+            id: proxyAttempt.id,
+            status: { in: ['PENDING', 'UNKNOWN', 'REJECTED', 'EXPIRED'] }
+          },
+          data: {
+            status: 'SUCCEEDED',
+            preimage: proxyPreimage.toLowerCase(),
+            routingFeeMsats: BigInt(event.payment.feesPaidMsats ?? 0),
+            resolvedAt: new Date(),
+            errorCode: null,
+            errorMessage: null
+          }
+        })
+        if (result.count === 0) return false
+        await tx.proxyPayment.updateMany({
+          where: {
+            id: proxyAttempt.proxyPayment.id,
+            status: { notIn: ['COMPLETED', 'EXPIRED'] }
+          },
+          data: {
+            status: 'FORWARDING',
+            nextRetryAt: new Date()
+          }
+        })
+        return true
+      })
+      return transitioned ? proxyAttempt.proxyPayment.id : null
+    }
+    logger.error(
+      { paymentHash, attemptId: proxyAttempt.id },
+      'nwc.proxy_payment_sent_preimage_mismatch'
+    )
+  }
+
   const attempt = await prisma.cardPaymentAttempt.findUnique({
     where: {
       walletId_paymentHash: { walletId: event.walletId, paymentHash }
@@ -140,7 +223,7 @@ async function handlePaymentSent(event: PaymentSentEvent): Promise<void> {
     !attempt ||
     (attempt.status !== 'PENDING' && attempt.status !== 'UNKNOWN')
   ) {
-    return
+    return null
   }
 
   // A preimage is cryptographic proof that this exact invoice settled. Some
@@ -151,7 +234,7 @@ async function handlePaymentSent(event: PaymentSentEvent): Promise<void> {
       { requestId: attempt.requestId, paymentHash },
       'nwc.payment_sent_missing_preimage'
     )
-    return
+    return null
   }
 
   try {
@@ -164,7 +247,7 @@ async function handlePaymentSent(event: PaymentSentEvent): Promise<void> {
       },
       attempt.transport
     )
-    if (!transitioned) return
+    if (!transitioned) return null
 
     logger.info(
       { requestId: attempt.requestId, paymentHash, walletId: event.walletId },
@@ -196,9 +279,12 @@ async function handlePaymentSent(event: PaymentSentEvent): Promise<void> {
       'nwc.payment_sent_preimage_mismatch'
     )
   }
+  return null
 }
 
-async function handlePaymentReceived(event: PaymentEvent): Promise<void> {
+async function handlePaymentReceived(
+  event: PaymentEvent
+): Promise<string | null> {
   const paymentHash = event.payment.paymentHash.toLowerCase()
 
   logActivity.fireAndForget({
@@ -208,20 +294,80 @@ async function handlePaymentReceived(event: PaymentEvent): Promise<void> {
     metadata: webhookLogMetadata(event)
   })
 
-  const invoice = await prisma.invoice.findUnique({ where: { paymentHash } })
+  const invoice = await prisma.invoice.findUnique({
+    where: { paymentHash },
+    include: { proxyPayment: true }
+  })
   // Unknown hash (not one of our minted invoices) or already settled —
   // nothing to apply, still 200 so listener retries are no-ops.
-  if (!invoice || invoice.status === 'PAID') return
-
+  if (!invoice) return null
   const paidAt = event.payment.settledAt
     ? new Date(event.payment.settledAt * 1000)
     : new Date()
   const preimage = event.payment.preimage ?? null
 
-  await prisma.invoice.update({
-    where: { paymentHash },
-    data: { status: 'PAID', preimage, paidAt }
-  })
+  if (invoice.proxyPayment) {
+    const proxyPayment = invoice.proxyPayment
+    const proxyConfig = await prisma.proxyServiceConfig.findUnique({
+      where: { id: 'default' },
+      select: { walletId: true }
+    })
+    if (!proxyConfig || proxyConfig.walletId !== event.walletId) return null
+    if (
+      event.payment.amountMsats !== undefined &&
+      BigInt(event.payment.amountMsats) !== proxyPayment.grossAmountMsats
+    ) {
+      logger.error(
+        { paymentHash, walletId: event.walletId },
+        'nwc.proxy_payment_received_amount_mismatch'
+      )
+      return null
+    }
+    if (preimage && !preimageMatchesPaymentHash(preimage, paymentHash)) {
+      logger.error(
+        { paymentHash, walletId: event.walletId },
+        'nwc.proxy_payment_received_preimage_mismatch'
+      )
+      return null
+    }
+    if (invoice.status === 'PAID') {
+      return proxyPayment.status !== 'COMPLETED' &&
+        proxyPayment.status !== 'EXPIRED'
+        ? proxyPayment.id
+        : null
+    }
+    const transitioned = await prisma.$transaction(async tx => {
+      const source = await tx.invoice.updateMany({
+        where: { id: invoice.id, status: 'PENDING' },
+        data: { status: 'PAID', preimage, paidAt }
+      })
+      if (source.count === 0) return false
+      await tx.proxyPayment.update({
+        where: { id: proxyPayment.id },
+        data: {
+          sourcePaidAt: paidAt,
+          sourcePreimage: preimage,
+          nextRetryAt: new Date(),
+          lastError: null
+        }
+      })
+      await tx.proxyPayment.updateMany({
+        where: {
+          id: proxyPayment.id,
+          status: { in: ['PENDING_INBOUND', 'BLOCKED'] }
+        },
+        data: { status: 'READY_TO_FORWARD' }
+      })
+      return true
+    })
+    if (!transitioned) return proxyPayment.id
+  } else {
+    if (invoice.status === 'PAID') return null
+    await prisma.invoice.update({
+      where: { paymentHash },
+      data: { status: 'PAID', preimage, paidAt }
+    })
+  }
 
   logger.info(
     { paymentHash, walletId: event.walletId },
@@ -242,6 +388,7 @@ async function handlePaymentReceived(event: PaymentEvent): Promise<void> {
       source: 'nwc_listener'
     }
   })
+  return invoice.proxyPayment?.id ?? null
 }
 
 function webhookLogMetadata(

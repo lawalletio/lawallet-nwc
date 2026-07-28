@@ -64,7 +64,12 @@ export class NwcPaymentService {
   submit(input: NwcPaymentRequest): Promise<NwcPaymentResponse> {
     const paymentHash = input.paymentHash.toLowerCase()
     const requestId = input.requestId.toLowerCase()
-    const expectedId = computeNwcPaymentRequestId(input.walletId, paymentHash)
+    const expectedId = computeNwcPaymentRequestId(
+      input.walletId,
+      paymentHash,
+      input.attemptNo,
+      input.idempotencyScope
+    )
     if (!safeHexEqual(requestId, expectedId)) {
       return Promise.resolve({
         ok: false,
@@ -72,7 +77,8 @@ export class NwcPaymentService {
         requestId,
         error: {
           code: 'validation_error',
-          message: 'requestId must be sha256(walletId|paymentHash)'
+          message:
+            'requestId does not match the deterministic payment operation'
         }
       })
     }
@@ -579,10 +585,17 @@ export class NwcPaymentService {
 
 export function computeNwcPaymentRequestId(
   walletId: string,
-  paymentHash: string
+  paymentHash: string,
+  attemptNo?: number,
+  idempotencyScope?: string
 ): string {
+  const scopeSuffix =
+    idempotencyScope === undefined ? '' : `|${idempotencyScope}`
+  const retrySuffix = attemptNo === undefined ? '' : `|${attemptNo}`
   return createHash('sha256')
-    .update(`${walletId}|${paymentHash.toLowerCase()}`)
+    .update(
+      `${walletId}|${paymentHash.toLowerCase()}${scopeSuffix}${retrySuffix}`
+    )
     .digest('hex')
 }
 

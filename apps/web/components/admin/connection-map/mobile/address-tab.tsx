@@ -31,6 +31,8 @@ function chipFor(
   if (addr.mode === 'DEFAULT_NWC')
     return { label: 'Primary wallet', tone: 'default' }
   if (addr.mode === 'ALIAS') return { label: 'Alias', tone: 'none' }
+  if (addr.mode === 'PROXY_ALIAS')
+    return { label: 'Deferred proxy', tone: 'none' }
   return { label: 'Idle', tone: 'none' }
 }
 

@@ -38,6 +38,7 @@ import {
   useSettingSaver
 } from '@/components/admin/settings/auto-save-controls'
 import type { ListenerProbeResponse } from '@lawallet-nwc/shared'
+import { ProxyServiceSection } from './proxy-service-section'
 
 /**
  * Setup guide on the documentation site (apps/docs) — same host convention as
@@ -435,6 +436,10 @@ export function NwcServicesTab() {
           )}
         </div>
       </div>
+
+      <Separator />
+
+      <ProxyServiceSection />
 
       <Separator />
 

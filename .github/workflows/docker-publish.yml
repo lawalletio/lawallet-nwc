@@ -267,6 +267,7 @@ jobs:
           GH_TOKEN: ${{ secrets.START9_APP_STORE_DISPATCH_TOKEN }}
           VERSION: ${{ needs.merge.outputs.version }}
           IMAGE_REPOSITORY: ${{ env.WEB_IMAGE }}
+          LISTENER_IMAGE_REPOSITORY: ${{ env.LISTENER_IMAGE }}
           SOURCE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -282,12 +283,14 @@ jobs:
 
           version = os.environ["VERSION"]
           image = f"{os.environ['IMAGE_REPOSITORY']}:{version}"
+          listener_image = f"{os.environ['LISTENER_IMAGE_REPOSITORY']}:{version}"
 
           print(json.dumps({
               "event_type": "lawallet-nwc-release",
               "client_payload": {
                   "version": version,
                   "image": image,
+                  "listener_image": listener_image,
                   "source_repository": os.environ["GITHUB_REPOSITORY"],
                   "source_sha": os.environ["GITHUB_SHA"],
                   "source_run_url": os.environ["SOURCE_RUN_URL"],

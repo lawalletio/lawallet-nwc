@@ -38,12 +38,36 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 
 # One Click Deploy 👇
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&root-directory=apps%2Fweb&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD&env=JWT_SECRET&envDescription=JWT_SECRET%20must%20be%20a%2032%2B%20character%20random%20string.%20Generate%20one%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc%2Fblob%2Fmain%2Fapps%2Fweb%2F.env.example)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&root-directory=apps%2Fweb&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD&env=JWT_SECRET%2CNWC_VAULT_SECRET&envDescription=JWT_SECRET%20and%20NWC_VAULT_SECRET%20must%20each%20be%20a%20different%2032%2B%20character%20random%20string.%20Generate%20each%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc%2Fblob%2Fmain%2Fapps%2Fweb%2F.env.example)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/lawalletio/lawallet-nwc)
 
 Vercel provisions Postgres for you. On Netlify, bring a Postgres connection
 string ([Neon](https://neon.com) and [Supabase](https://supabase.com) both have
 free tiers) — see the [Netlify guide](https://docs.lawallet.io/docs/deploy/netlify).
+Both one-click flows prompt for a dedicated `NWC_VAULT_SECRET`; it encrypts
+every stored RemoteWallet NWC connection and the optional proxy credentials.
+Keep it stable, back it up, and copy the same value to the listener. The
+NIP-57 signing `nsec` is entered later in Admin Settings, not as an environment
+variable.
+
+For Docker or Coolify, generate every required secret and enable the bundled
+listener in one command:
+
+```bash
+pnpm deploy:env
+```
+
+For Vercel or Netlify with a separately hosted listener, generate matched
+`web.env` and `listener.env` files:
+
+```bash
+pnpm deploy:env:cloud
+```
+
+The generator creates independent 256-bit secrets, uses private file
+permissions, and refuses to overwrite existing output. See the
+[environment-variable guide](https://docs.lawallet.io/docs/deploy/environment)
+for what each value does and where to place it.
 
 ---
 

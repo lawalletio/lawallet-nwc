@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { NWCClient } from '@getalby/sdk'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -13,6 +13,9 @@ import {
 } from '@/lib/activity-log'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
+import { getProxySettlementConfig } from '@/lib/proxy/config'
+import { preimageMatchesPaymentHash } from '@/lib/card-payments/lifecycle'
+import { reconcileProxyPayments } from '@/lib/proxy/reconcile'
 
 /**
  * LUD-21 (LNURL verify) endpoint.
@@ -54,6 +57,9 @@ export const GET = withErrorHandling(
     const invoice = await prisma.invoice.findUnique({
       where: { paymentHash },
       include: {
+        proxyPayment: {
+          select: { id: true, status: true }
+        },
         user: {
           select: {
             id: true,
@@ -61,7 +67,7 @@ export const GET = withErrorHandling(
               where: { username },
               include: {
                 remoteWallet: {
-                  select: { type: true, config: true, status: true }
+                  select: { id: true, type: true, config: true, status: true }
                 }
               },
               take: 1
@@ -80,12 +86,14 @@ export const GET = withErrorHandling(
       throw new NotFoundError('Invoice not found for this username')
     }
 
-    // If already settled, return cached preimage
-    if (invoice.status === 'PAID' && invoice.preimage) {
+    // The authenticated listener can confirm settlement even when a wallet
+    // notification omits the optional preimage. LUD-21's preimage is nullable,
+    // so the persisted source status remains authoritative in either case.
+    if (invoice.status === 'PAID') {
       const response: LUD21VerifySuccess = {
         status: 'OK',
         settled: true,
-        preimage: invoice.preimage,
+        preimage: invoice.preimage ?? null,
         pr: invoice.bolt11
       }
       return NextResponse.json(response)
@@ -116,8 +124,12 @@ export const GET = withErrorHandling(
             defaultRemoteWallet: primaryWallet
           })
         : { kind: 'unconfigured' as const }
-    const walletConn =
-      route.kind === 'wallet'
+    const proxyConfig = invoice.proxyPayment
+      ? await getProxySettlementConfig()
+      : null
+    const walletConn = invoice.proxyPayment
+      ? (proxyConfig?.connectionString ?? null)
+      : route.kind === 'wallet'
         ? ((route.config as { connectionString?: string } | null)
             ?.connectionString ?? null)
         : null
@@ -136,19 +148,50 @@ export const GET = withErrorHandling(
       nwcClient = new NWCClient({ nostrWalletConnectUrl: walletConn })
       const tx = await nwcClient.lookupInvoice({ payment_hash: paymentHash })
 
-      const settled = tx.state === 'settled'
-      const preimage = settled && tx.preimage ? tx.preimage : null
+      const settled =
+        tx.state === 'settled' &&
+        !!tx.preimage &&
+        (!invoice.proxyPayment ||
+          preimageMatchesPaymentHash(tx.preimage, paymentHash))
+      const preimage = settled ? tx.preimage : null
 
       // Persist settled state so subsequent calls avoid the NWC round-trip
-      if (settled && preimage && invoice.status !== 'PAID') {
-        await prisma.invoice.update({
-          where: { paymentHash },
-          data: {
-            status: 'PAID',
-            preimage,
-            paidAt: new Date(tx.settled_at ? tx.settled_at * 1000 : Date.now())
-          }
-        })
+      if (settled && preimage) {
+        const paidAt = new Date(
+          tx.settled_at ? tx.settled_at * 1000 : Date.now()
+        )
+        if (invoice.proxyPayment) {
+          await prisma.$transaction(async database => {
+            await database.invoice.update({
+              where: { paymentHash },
+              data: { status: 'PAID', preimage, paidAt }
+            })
+            await database.proxyPayment.update({
+              where: { id: invoice.proxyPayment!.id },
+              data: {
+                sourcePaidAt: paidAt,
+                sourcePreimage: preimage,
+                nextRetryAt: new Date(),
+                lastError: null
+              }
+            })
+            await database.proxyPayment.updateMany({
+              where: {
+                id: invoice.proxyPayment!.id,
+                status: { in: ['PENDING_INBOUND', 'BLOCKED'] }
+              },
+              data: { status: 'READY_TO_FORWARD' }
+            })
+          })
+          after(async () => {
+            await reconcileProxyPayments({ ids: [invoice.proxyPayment!.id] })
+          })
+        } else {
+          await prisma.invoice.update({
+            where: { paymentHash },
+            data: { status: 'PAID', preimage, paidAt }
+          })
+        }
         // Broadcast the PENDING → PAID flip so the owner's address invoice
         // feed flips without requiring a manual refresh. Only emit on the
         // transition (we're already inside the `status !== 'PAID'` guard)
@@ -164,9 +207,7 @@ export const GET = withErrorHandling(
               ...invoice,
               status: 'PAID',
               preimage,
-              paidAt: new Date(
-                tx.settled_at ? tx.settled_at * 1000 : Date.now()
-              )
+              paidAt
             }),
             source: 'lud21_verify'
           }

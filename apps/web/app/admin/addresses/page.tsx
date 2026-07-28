@@ -61,6 +61,7 @@ const NWC_LABEL: Record<WalletAddress['nwcMode'], string> = {
 const MODE_LABEL: Record<WalletAddress['mode'], string> = {
   IDLE: 'Idle',
   ALIAS: 'Alias',
+  PROXY_ALIAS: 'Deferred proxy',
   CUSTOM_NWC: 'Custom NWC',
   DEFAULT_NWC: 'Default NWC'
 }
@@ -361,14 +362,15 @@ export default function AdminAddressesPage() {
                             *derived* capability (Receive / Send & Receive /
                             None) so the row tells you both intent and
                             effective state without the columns drifting. */}
-                          {/* ALIAS gets a single condensed badge
+                          {/* Redirect modes get a single condensed badge
                             `[→ target]` instead of the generic "Alias"
                             label plus a separate redirect sub-line — the
                             target address *is* the mode in this case, so
                             surfacing it as the badge content keeps the
                             cell to one row and conveys both intent and
                             destination at once. */}
-                          {addr.mode === 'ALIAS' ? (
+                          {addr.mode === 'ALIAS' ||
+                          addr.mode === 'PROXY_ALIAS' ? (
                             addr.redirect && (
                               <Badge
                                 variant="outline"
@@ -379,7 +381,9 @@ export default function AdminAddressesPage() {
                                   aria-hidden
                                 />
                                 <span className="break-all">
-                                  {addr.redirect}
+                                  {addr.mode === 'PROXY_ALIAS'
+                                    ? `Proxy → ${addr.redirect}`
+                                    : addr.redirect}
                                 </span>
                               </Badge>
                             )

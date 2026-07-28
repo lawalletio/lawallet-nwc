@@ -125,6 +125,11 @@ export function getOpenApiDocument(
           'Public LUD-16 / LUD-21 / LUD-22 lightning address resolution.'
       },
       {
+        name: 'LUD-16 Proxy',
+        description:
+          'Administrative configuration, settlement queue, safe retries, and listener-driven reconciliation for deferred Lightning Address forwarding.'
+      },
+      {
         name: 'Wallet',
         description: 'End-user wallet addresses and NWC connections.'
       },

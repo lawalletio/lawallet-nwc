@@ -29,6 +29,11 @@ export interface AppConfig {
     enabled: boolean
   }
 
+  nwcVault: {
+    secret: string | undefined
+    enabled: boolean
+  }
+
   // NWC Listener service env values — raw inputs only. The EFFECTIVE config
   // (merged with the Settings DB, incl. the enable toggle) comes from
   // lib/listener-config.ts `getListenerConfig()`; consumers use that, not this.
@@ -135,6 +140,11 @@ export function getConfig(strict: boolean = true): AppConfig {
         .map(s => s.trim())
         .filter(Boolean),
       enabled: !!env.KEY_VAULT_SECRET
+    },
+
+    nwcVault: {
+      secret: env.NWC_VAULT_SECRET,
+      enabled: !!env.NWC_VAULT_SECRET
     },
 
     listener: {

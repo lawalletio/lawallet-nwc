@@ -44,6 +44,10 @@ function createPrismaMock(): PrismaClient {
     webAuthnChallenge: createModelMock(),
     nostrIdentity: createModelMock(),
     activityLog: createModelMock(),
+    proxyServiceConfig: createModelMock(),
+    proxyInvoiceIntent: createModelMock(),
+    proxyPayment: createModelMock(),
+    proxyForwardAttempt: createModelMock(),
     $transaction: vi.fn(fn => {
       if (typeof fn === 'function') {
         return fn(prismaMock)
@@ -88,7 +92,11 @@ export function resetPrismaMock() {
     'managedNostrKey',
     'webAuthnChallenge',
     'nostrIdentity',
-    'activityLog'
+    'activityLog',
+    'proxyServiceConfig',
+    'proxyInvoiceIntent',
+    'proxyPayment',
+    'proxyForwardAttempt'
   ] as const
   for (const model of models) {
     const m = (prismaMock as any)[model] as Record<

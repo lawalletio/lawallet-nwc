@@ -85,6 +85,10 @@ const MODE_DESCRIPTIONS: Record<
     label: 'Alias',
     help: 'Forward incoming payments to another lightning address.'
   },
+  PROXY_ALIAS: {
+    label: 'Deferred proxy',
+    help: 'Receive first, then forward minus the configured service fee.'
+  },
   CUSTOM_NWC: {
     label: 'Custom wallet',
     help: 'Receive via a specific wallet.'
@@ -318,7 +322,11 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   }, [data, searchParams, username])
 
   useEffect(() => {
-    if (mode !== 'ALIAS' || !modeOpen || !pendingRedirectFocusRef.current) {
+    if (
+      (mode !== 'ALIAS' && mode !== 'PROXY_ALIAS') ||
+      !modeOpen ||
+      !pendingRedirectFocusRef.current
+    ) {
       return
     }
 
@@ -344,9 +352,10 @@ export default function AdminAddressEditPage({ params }: PageProps) {
 
   const domain = settings?.domain || 'your-domain'
   const fullAddress = `${username}@${domain}`
+  const isRedirectMode = mode === 'ALIAS' || mode === 'PROXY_ALIAS'
   const aliasInvalid =
-    mode === 'ALIAS' && redirect.length > 0 && !isLightningAddress(redirect)
-  const aliasMissing = mode === 'ALIAS' && redirect.length === 0
+    isRedirectMode && redirect.length > 0 && !isLightningAddress(redirect)
+  const aliasMissing = isRedirectMode && redirect.length === 0
   const customMissing = mode === 'CUSTOM_NWC' && !remoteWalletId
 
   // Dirty check: compare the current form state to the last-saved baseline.
@@ -377,7 +386,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   async function persistCurrentAddress() {
     await updateAddress(username, {
       mode,
-      redirect: mode === 'ALIAS' ? redirect.trim().toLowerCase() : null,
+      redirect: isRedirectMode ? redirect.trim().toLowerCase() : null,
       remoteWalletId: mode === 'CUSTOM_NWC' ? remoteWalletId : null
     })
     // Wait for the refetch to land too — this is what prevents the
@@ -558,7 +567,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
           // `resolvePaymentRoute`, so it already handles the full fallback
           // chain (CUSTOM_NWC link → DEFAULT_NWC primary → legacy
           // `User.nwc` for un-migrated accounts) without duplicating the
-          // logic here. Null for IDLE / ALIAS / unconfigured — the widgets
+          // logic here. Null for IDLE / ALIAS / PROXY_ALIAS / unconfigured — the widgets
           // below render an empty state in those cases.
           const persistedMode = data.address.mode
           const defaultWallet = data.wallets.find(w => w.isDefault) ?? null
@@ -581,7 +590,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               'Balance is private to the address owner.'
             : persistedMode === 'IDLE'
               ? 'This address is disabled.'
-              : persistedMode === 'ALIAS'
+              : persistedMode === 'ALIAS' || persistedMode === 'PROXY_ALIAS'
                 ? `Forwards to ${data.address.redirect ?? 'another address'}.`
                 : persistedMode === 'CUSTOM_NWC'
                   ? 'No wallet is linked to this address yet.'
@@ -624,7 +633,8 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                 // in the empty-state tile so the visual signals "redirect"
                 // instead of the generic NWC-logo used for other empty states.
                 emptyIcon={
-                  persistedMode === 'ALIAS' ? (
+                  persistedMode === 'ALIAS' ||
+                  persistedMode === 'PROXY_ALIAS' ? (
                     <Forward
                       className="size-5 text-muted-foreground"
                       aria-hidden
@@ -649,7 +659,8 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                     </span>
                   </div>
                   <div className="border-t border-border/60 px-5 py-4 text-sm">
-                    {persistedMode === 'ALIAS' ? (
+                    {persistedMode === 'ALIAS' ||
+                    persistedMode === 'PROXY_ALIAS' ? (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Forward className="size-4 shrink-0" aria-hidden />
                         <span className="font-mono break-all text-foreground">
@@ -699,7 +710,8 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                       </span>
                       <span className="truncate text-sm font-medium">
                         {MODE_DESCRIPTIONS[data.address.mode].label}
-                        {data.address.mode === 'ALIAS' &&
+                        {(data.address.mode === 'ALIAS' ||
+                          data.address.mode === 'PROXY_ALIAS') &&
                           data.address.redirect && (
                             <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
                               → {data.address.redirect}
@@ -760,7 +772,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                         })}
                       </RadioGroup>
 
-                      {mode === 'ALIAS' && (
+                      {(mode === 'ALIAS' || mode === 'PROXY_ALIAS') && (
                         <div className="space-y-2">
                           <Label htmlFor="redirect">Redirect to</Label>
                           <Input
@@ -777,6 +789,14 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                           {aliasInvalid && (
                             <p className="text-xs text-destructive">
                               Enter a valid lightning address.
+                            </p>
+                          )}
+                          {mode === 'PROXY_ALIAS' && (
+                            <p className="text-xs text-muted-foreground">
+                              LaWallet receives the payer invoice first, then
+                              requests and pays the destination invoice in the
+                              background. This requires the operator proxy
+                              service to be enabled.
                             </p>
                           )}
                         </div>

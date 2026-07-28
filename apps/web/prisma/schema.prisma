@@ -1,6 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../lib/generated/prisma"
+  provider      = "prisma-client-js"
+  output        = "../lib/generated/prisma"
   // `rhel-openssl-3.0.x` is for AWS Lambda hosts (Netlify Functions): the
   // build image is Ubuntu, so `native` alone produces an engine the runtime
   // can't load. Vercel builds on Amazon Linux, where `native` already resolves
@@ -35,6 +35,7 @@ enum InvoiceStatus {
 enum LightningAddressMode {
   IDLE // address exists but does nothing (disabled)
   ALIAS // forwards to another LN address via `redirect`
+  PROXY_ALIAS // receives locally, then forwards to `redirect` after settlement
   CUSTOM_NWC // uses the RemoteWallet referenced by remoteWalletId
   DEFAULT_NWC // uses the user's default RemoteWallet
 }
@@ -114,6 +115,24 @@ enum CardPaymentStatus {
   UNKNOWN
 }
 
+enum ProxyPaymentStatus {
+  PENDING_INBOUND
+  READY_TO_FORWARD
+  FORWARDING
+  RECEIPT_PENDING
+  BLOCKED
+  COMPLETED
+  EXPIRED
+}
+
+enum ProxyForwardAttemptStatus {
+  PENDING
+  UNKNOWN
+  REJECTED
+  SUCCEEDED
+  EXPIRED
+}
+
 /// The ceremony a WebAuthnChallenge was minted for. REGISTER = new-account
 /// signup (unauthenticated), LINK = add a credential to an existing account,
 /// LOGIN = discoverable-credential authentication, EXPORT = step-up assertion
@@ -126,9 +145,9 @@ enum WebAuthnFlow {
 }
 
 model User {
-  id                 String             @id
-  pubkey             String             @unique
-  createdAt          DateTime           @default(now())
+  id                 String              @id
+  pubkey             String              @unique
+  createdAt          DateTime            @default(now())
   cardDesigns        CardDesign[]
   ntag424s           Ntag424[]
   lightningAddresses LightningAddress[]
@@ -136,8 +155,8 @@ model User {
   cards              Card[]
   invoices           Invoice[]
   albySubAccount     AlbySubAccount?
-  albyEnabled        Boolean            @default(false)
-  role               UserRole           @default(USER)
+  albyEnabled        Boolean             @default(false)
+  role               UserRole            @default(USER)
   activityLogs       ActivityLog[]
   /// The user's preferred Nostr relays (NIP-65-style), as a JSON-stringified
   /// `string[]` of `wss://` URLs. Null/absent means the user hasn't picked any
@@ -296,22 +315,26 @@ model LightningAddress {
 
 /// Generic remote wallet attached by a user. `type` discriminates the driver;
 /// `config` holds the driver-specific payload (e.g. NWC URI + mode). Encryption
-/// of `config` at rest is enforced at the application layer by the driver
-/// registry — never persist `config` here without going through it.
+/// of NWC connection strings at rest is enforced by the application vault
+/// helpers — never persist an NWC `config` here without going through them.
 model RemoteWallet {
-  id        String             @id @default(cuid())
-  userId    String
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name      String
-  type      RemoteWalletType
-  config    Json
-  status    RemoteWalletStatus @default(ACTIVE)
-  isDefault Boolean            @default(false)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  id                   String             @id @default(cuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                 String
+  type                 RemoteWalletType
+  config               Json
+  /// Set after an NWC config has been encrypted with NWC_VAULT_SECRET. The
+  /// envelope itself remains inside config.connectionString so other
+  /// driver-specific config fields stay queryable.
+  nwcConfigEncryptedAt DateTime?
+  status               RemoteWalletStatus @default(ACTIVE)
+  isDefault            Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
   /// When a disposable LNCurl wallet was detected dead and archived (status
   /// DEAD). Null for every other wallet. Drives the "graveyard" death stats.
-  diedAt    DateTime?
+  diedAt               DateTime?
 
   lightningAddresses LightningAddress[]
   cards              Card[]
@@ -440,24 +463,140 @@ model Settings {
 }
 
 model Invoice {
-  id          String         @id @default(uuid())
-  bolt11      String
-  paymentHash String         @unique
-  amountSats  Int
-  description String
-  purpose     InvoicePurpose
-  metadata    Json?
-  status      InvoiceStatus  @default(PENDING)
-  preimage    String?
-  userId      String?
-  user        User?          @relation(fields: [userId], references: [id])
-  expiresAt   DateTime
-  paidAt      DateTime?
-  createdAt   DateTime       @default(now())
+  id           String         @id @default(uuid())
+  bolt11       String
+  paymentHash  String         @unique
+  amountSats   Int
+  /// Exact amount for msat-denominated proxy invoices. Null on legacy rows.
+  amountMsats  BigInt?
+  description  String
+  purpose      InvoicePurpose
+  metadata     Json?
+  status       InvoiceStatus  @default(PENDING)
+  preimage     String?
+  userId       String?
+  user         User?          @relation(fields: [userId], references: [id])
+  expiresAt    DateTime
+  paidAt       DateTime?
+  createdAt    DateTime       @default(now())
+  proxyPayment ProxyPayment?
 
   @@index([userId])
   @@index([status])
   @@index([purpose, status])
+}
+
+/// Singleton operator configuration for the deferred LUD-16 proxy. Secrets
+/// are AES-256-GCM envelopes encrypted with NWC_VAULT_SECRET; neither value
+/// is exposed by the generic Settings API or included in Settings backups.
+model ProxyServiceConfig {
+  id                    String    @id @default("default")
+  enabled               Boolean   @default(false)
+  feeBps                Int       @default(50)
+  walletId              String    @unique @default("__lawallet_proxy__")
+  nwcCiphertext         Bytes?
+  receiptNsecCiphertext Bytes?
+  receiptPubkey         String?
+  capabilities          Json?
+  balanceMsats          BigInt?
+  lastProbeAt           DateTime?
+  lastProbeError        String?
+  lastListenerSeenAt    DateTime?
+  lastCronAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+/// Pre-issuance commitment for NIP-57 and fee/destination inputs. The row is
+/// written before NWC is asked to mint the payer invoice, then consumed by the
+/// transaction that creates Invoice + ProxyPayment. Stale rows are safe to
+/// prune because no BOLT11 was ever returned to a payer without that consume.
+model ProxyInvoiceIntent {
+  id                     String   @id @default(cuid())
+  username               String
+  userId                 String
+  destination            String
+  blockedHosts           String[] @default([])
+  feeBps                 Int
+  grossAmountMsats       BigInt
+  serviceFeeMsats        BigInt
+  destinationAmountMsats BigInt
+  comment                String?
+  zapRequest             Json?
+  zapRequestJson         String?
+  descriptionHash        String?
+  expiresAt              DateTime
+  createdAt              DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+/// Durable end-to-end state for one payer-facing proxy invoice. The source
+/// Invoice settles first; only then may a destination invoice be requested.
+model ProxyPayment {
+  id                     String                @id @default(cuid())
+  invoiceId              String                @unique
+  invoice                Invoice               @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  username               String
+  destination            String
+  blockedHosts           String[]              @default([])
+  destinationMetadata    Json?
+  feeBps                 Int
+  grossAmountMsats       BigInt
+  serviceFeeMsats        BigInt
+  destinationAmountMsats BigInt
+  forwardedAmountMsats   BigInt?
+  routingFeeMsats        BigInt?
+  comment                String?
+  zapRequest             Json?
+  zapRequestJson         String?
+  status                 ProxyPaymentStatus    @default(PENDING_INBOUND)
+  sourcePaidAt           DateTime?
+  sourcePreimage         String?
+  forwardedAt            DateTime?
+  receiptEventId         String?
+  receiptPublishedAt     DateTime?
+  retryCount             Int                   @default(0)
+  nextRetryAt            DateTime              @default(now())
+  lastError              String?
+  leaseOwner             String?
+  leaseExpiresAt         DateTime?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  attempts               ProxyForwardAttempt[]
+
+  @@index([status, nextRetryAt])
+  @@index([leaseExpiresAt])
+  @@index([username, createdAt])
+}
+
+/// One NWC dispatch attempt. Rejected attempts may be followed by another
+/// attempt for the same unexpired BOLT11; a migration trigger prevents that
+/// BOLT11/payment hash from belonging to a different ProxyPayment. A new
+/// BOLT11 is allowed only after the prior invoice expired unconfirmed.
+model ProxyForwardAttempt {
+  id              String                    @id @default(cuid())
+  proxyPaymentId  String
+  proxyPayment    ProxyPayment              @relation(fields: [proxyPaymentId], references: [id], onDelete: Cascade)
+  attemptNo       Int
+  bolt11          String
+  paymentHash     String
+  amountMsats     BigInt
+  expiresAt       DateTime
+  requestId       String                    @unique
+  status          ProxyForwardAttemptStatus @default(PENDING)
+  preimage        String?
+  routingFeeMsats BigInt?
+  errorCode       String?
+  errorMessage    String?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  resolvedAt      DateTime?
+
+  @@unique([proxyPaymentId, attemptNo])
+  @@index([proxyPaymentId, createdAt])
+  @@index([paymentHash])
+  @@index([status, updatedAt])
 }
 
 model ActivityLog {

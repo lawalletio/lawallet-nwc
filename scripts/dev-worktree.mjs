@@ -55,6 +55,7 @@ function renderEnv(env) {
     `WEB_PORT="${env.WEB_PORT}"`,
     `JWT_SECRET="${env.JWT_SECRET}"`,
     `KEY_VAULT_SECRET="${env.KEY_VAULT_SECRET}"`,
+    `NWC_VAULT_SECRET="${env.NWC_VAULT_SECRET}"`,
     // NWC listener bridge (optional service; web falls back without it).
     `LISTENER_PORT="${env.LISTENER_PORT}"`,
     `LISTENER_AUTH_SECRET="${env.LISTENER_AUTH_SECRET}"`,
@@ -148,6 +149,10 @@ async function loadOrCreateEnv() {
     KEY_VAULT_SECRET:
       validSecret(existing.KEY_VAULT_SECRET) ||
       validSecret(state.KEY_VAULT_SECRET) ||
+      randomBytes(48).toString('base64url'),
+    NWC_VAULT_SECRET:
+      validSecret(existing.NWC_VAULT_SECRET) ||
+      validSecret(state.NWC_VAULT_SECRET) ||
       randomBytes(48).toString('base64url'),
     LISTENER_PORT: listenerPort,
     LISTENER_AUTH_SECRET:

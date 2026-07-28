@@ -18,12 +18,18 @@ import {
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
-import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
+import {
+  parseLightningAddress,
+  resolveWalletRoute
+} from '@/lib/wallet/resolve-payment-route'
 import type { RemoteWallet } from '@/lib/generated/prisma'
 import {
   getPrimaryRemoteWalletForUser,
   syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
+import { getActiveProxyConfig } from '@/lib/proxy/config'
+import { getListenerConfig } from '@/lib/listener-config'
+import { resolvePublicEndpoint } from '@/lib/public-url'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -209,9 +215,33 @@ export const PUT = withErrorHandling(
     let redirect: string | null = null
     let remoteWalletId: string | null = null
 
-    if (body.mode === 'ALIAS') {
+    if (body.mode === 'ALIAS' || body.mode === 'PROXY_ALIAS') {
       if (!body.redirect) {
-        throw new ValidationError('redirect is required when mode is ALIAS')
+        throw new ValidationError(
+          `redirect is required when mode is ${body.mode}`
+        )
+      }
+      if (body.mode === 'PROXY_ALIAS') {
+        const [proxy, listener] = await Promise.all([
+          getActiveProxyConfig(),
+          getListenerConfig()
+        ])
+        if (!proxy || !listener.enabled) {
+          throw new ValidationError(
+            'Deferred proxy mode requires an enabled listener and configured proxy wallet'
+          )
+        }
+        const target = parseLightningAddress(body.redirect)
+        const endpoint = await resolvePublicEndpoint(request)
+        if (
+          target &&
+          new URL(endpoint.url).hostname.toLowerCase() ===
+            target.host.toLowerCase()
+        ) {
+          throw new ValidationError(
+            'Deferred proxy destination cannot point to this LaWallet instance'
+          )
+        }
       }
       redirect = body.redirect
     } else if (body.mode === 'CUSTOM_NWC') {

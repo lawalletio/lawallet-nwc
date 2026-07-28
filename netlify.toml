@@ -34,6 +34,7 @@
 [template.environment]
   DATABASE_URL = "DATABASE_URL — Postgres connection string, e.g. postgresql://user:pass@host/db?sslmode=require (free tiers at neon.com and supabase.com)"
   JWT_SECRET = "JWT_SECRET — random 32+ character string. Generate one with: openssl rand -base64 32"
+  NWC_VAULT_SECRET = "NWC_VAULT_SECRET — a separate random 32+ character string. Keep it stable and use the same value on the NWC listener."
 
 [[headers]]
   for = "/api/*"

@@ -109,20 +109,31 @@ Add it with `&` if the string already has a `?`, otherwise start with `?`.
 
 ## Deploy
 
+Before using the button, generate the web/listener secret pair:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/scripts/generate-deployment-env.sh
+bash generate-deployment-env.sh \
+  --mode cloud \
+  --output lawallet-cloud-env
+```
+
+Use `lawallet-cloud-env/web.env` for Netlify and
+`lawallet-cloud-env/listener.env` on the always-on listener host. Replace the
+database and URL placeholders first. The
+[Environment Variables guide](/docs/deploy/environment) explains each value.
+
 1. Click **Deploy to Netlify**. Authorize GitHub if prompted.
 2. Pick a repository name for your copy and a Netlify site name.
-3. Fill in the two environment variables Netlify asks for:
+3. Fill in the three environment variables Netlify asks for:
 
-   | Variable       | Value                                                              |
-   | -------------- | ------------------------------------------------------------------ |
-   | `DATABASE_URL` | The connection string from [Create a database](#create-a-database) |
-   | `JWT_SECRET`   | A random string of 32 characters or more                           |
+   | Variable           | Value                                                                     |
+   | ------------------ | ------------------------------------------------------------------------- |
+   | `DATABASE_URL`     | The connection string from [Create a database](#create-a-database)        |
+   | `JWT_SECRET`       | A random string of 32 characters or more                                  |
+   | `NWC_VAULT_SECRET` | A different random string of 32+ characters; keep it stable and backed up |
 
-   Generate the secret locally with:
-
-   ```bash
-   openssl rand -base64 32
-   ```
+   Copy `JWT_SECRET` and `NWC_VAULT_SECRET` from the generated `web.env`.
 
 4. Select **Save & Deploy**.
 
@@ -168,7 +179,10 @@ Lightning Addresses, the admin dashboard, and NWC payments initiated from the
 UI all work without it. You need the listener for push-style payment
 notifications and webhooks. Host it on any always-on target — a VPS, Fly.io,
 Railway, or Render — and set `LISTENER_URL` and `LISTENER_AUTH_SECRET` on the
-Netlify site to connect the two.
+Netlify site to connect the two. When deferred proxy settlement is enabled,
+also set the exact same `NWC_VAULT_SECRET` on that listener. Enter the NIP-57
+receipt signer `nsec` through Admin Settings; never add the `nsec` to Netlify
+or the listener environment.
 
 ## Updating
 

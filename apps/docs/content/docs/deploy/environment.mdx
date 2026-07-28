@@ -1,0 +1,147 @@
+---
+title: 'Environment Variables'
+description: 'Generate, place, back up, and rotate every secret needed by LaWallet web, listener, and deferred Lightning Address proxy deployments.'
+---
+
+LaWallet ships a generator so operators do not need to invent, copy, or
+accidentally reuse deployment secrets. It creates independent 256-bit values,
+sets private file permissions, and refuses to overwrite existing output.
+
+<Callout type="warn" title="Do not regenerate secrets after launch">
+  Keep the generated values stable and include them in your encrypted backup.
+  Replacing a vault key without a rotation plan can make stored credentials
+  unreadable. Replacing listener secrets on only one service disconnects web
+  from the listener.
+</Callout>
+
+## Fastest complete Docker deployment
+
+Download the published Compose file and generator:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/docker-compose.hub.yml
+curl -fsSLO https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/scripts/generate-deployment-env.sh
+chmod +x generate-deployment-env.sh
+```
+
+Generate `.env` and start web, listener, and Postgres:
+
+```bash
+./generate-deployment-env.sh --mode compose --output .env
+docker compose -f docker-compose.hub.yml up -d
+```
+
+The generated `.env` enables the private listener automatically through
+`COMPOSE_PROFILES=listener`. It is written with mode `600` and the generator
+will not replace it on a later run.
+
+From a cloned repository, the equivalent shortcut is:
+
+```bash
+pnpm deploy:env
+docker compose up -d
+```
+
+## Vercel or Netlify with a separate listener
+
+Serverless platforms run the web app but cannot keep the listener's Nostr
+WebSocket subscriptions alive. Generate a matched pair of files:
+
+```bash
+pnpm deploy:env:cloud
+```
+
+Or run the downloaded script directly:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/lawalletio/lawallet-nwc/main/scripts/generate-deployment-env.sh
+chmod +x generate-deployment-env.sh
+./generate-deployment-env.sh \
+  --mode cloud \
+  --output lawallet-cloud-env
+```
+
+This creates:
+
+- `lawallet-cloud-env/web.env` — enter these values in Vercel or Netlify.
+- `lawallet-cloud-env/listener.env` — enter these values on the always-on
+  listener host.
+
+Replace the `DATABASE_URL`, `LISTENER_URL`, and `WEB_ORIGIN` placeholders
+before deploying. Both services must use the same database, NWC vault key, and
+listener authentication values.
+
+## What the generator creates
+
+| Variable                       | Where it goes    | Purpose                                                                                                                     |
+| ------------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `POSTGRES_PASSWORD`            | Compose Postgres | Password for the bundled database. Not used when a cloud `DATABASE_URL` is supplied.                                        |
+| `JWT_SECRET`                   | Web              | Signs browser/API sessions. Changing it signs every user out.                                                               |
+| `KEY_VAULT_SECRET`             | Web              | Encrypts server-custodied Nostr keys. It is deliberately separate from the NWC vault.                                       |
+| `NWC_VAULT_SECRET`             | Web + listener   | Encrypts all RemoteWallet NWC URIs, the proxy NWC URI, and the settings-managed NIP-57 signer. The two services must match. |
+| `LISTENER_AUTH_SECRET`         | Web + listener   | Signs listener-to-web payment webhooks and provides the compatibility authentication fallback.                              |
+| `LISTENER_REQUEST_AUTH_SECRET` | Web + listener   | Separately authenticates web-to-listener requests.                                                                          |
+
+Every generated secret is independent. Do not use `JWT_SECRET`,
+`KEY_VAULT_SECRET`, or either listener secret as `NWC_VAULT_SECRET`.
+
+## Connection and runtime variables
+
+| Variable                      | Service           | Required when           | Purpose                                                                              |
+| ----------------------------- | ----------------- | ----------------------- | ------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                | Web + listener    | External/cloud Postgres | Prisma-format connection string. Both services must reach the same database.         |
+| `LISTENER_URL`                | Web               | Listener enabled        | Listener base URL. Compose uses `http://listener:4100`; cloud deployments use HTTPS. |
+| `WEB_ORIGIN`                  | Listener          | Listener enabled        | Public or private origin where the listener sends authenticated webhooks.            |
+| `LISTENER_PORT`               | Listener          | Optional                | Listener HTTP port; defaults to `4100`.                                              |
+| `COMPOSE_PROFILES`            | Docker/Coolify    | Bundled listener        | Set to `listener` so Compose starts the listener service.                            |
+| `POSTGRES_DB`                 | Compose Postgres  | Bundled Postgres        | Database name; generator uses `lawallet`.                                            |
+| `POSTGRES_USER`               | Compose Postgres  | Bundled Postgres        | Database role; generator uses `lawallet`.                                            |
+| `NODE_ENV`                    | Web + listener    | Production              | Set to `production`.                                                                 |
+| `PORT`                        | Web               | Optional                | Web HTTP port; the container default is `2288`.                                      |
+| `LAWALLET_TAG`                | Published Compose | Optional                | Docker image version; defaults to `latest`. Pin a release for controlled upgrades.   |
+| `PROXY_RECONCILE_INTERVAL_MS` | Listener          | Optional                | Recovery sweep interval for proxy settlements; defaults to `600000` (ten minutes).   |
+
+The complete list of lower-level tuning variables is documented in
+[`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example)
+and the [listener setup guide](/docs/deploy/listener-setup).
+
+## Key rotation
+
+`KEY_VAULT_SECRET_PREVIOUS` accepts comma-separated previous server-custody
+key-vault secrets during a controlled rotation.
+
+`NWC_VAULT_SECRET` does not have a previous-key fallback. Keep it stable across
+upgrades and backups: changing it makes existing RemoteWallet and proxy
+credentials unreadable. Do not rotate or remove proxy credentials while
+non-completed proxy payments exist.
+
+## Values configured in Admin Settings
+
+These values are intentionally **not** generated as environment variables:
+
+| Setting                    | Location                        | Storage                                                   |
+| -------------------------- | ------------------------------- | --------------------------------------------------------- |
+| Proxy NWC connection URI   | Admin → Settings → NWC Services | Write-only, encrypted with `NWC_VAULT_SECRET`             |
+| NIP-57 receipt signer nsec | Admin → Settings → NWC Services | Write-only, encrypted with `NWC_VAULT_SECRET`             |
+| Proxy fee percentage       | Admin → Settings → NWC Services | Database setting, snapshotted onto each new payer invoice |
+
+User and LNCurl RemoteWallet NWC connection strings are also encrypted with
+`NWC_VAULT_SECRET`. A post-migration startup pass encrypts legacy plaintext
+rows idempotently and refuses to start if those rows exist but the key is
+missing. The listener must use the same key so it can open the connections.
+
+The listener receives the NWC vault key because it must decrypt RemoteWallet
+and proxy NWC connections. It never receives the NIP-57 `nsec`.
+
+## Platform summary
+
+| Platform           | Secret setup                                                                  |
+| ------------------ | ----------------------------------------------------------------------------- |
+| Docker / Coolify   | Run the generator in `compose` mode and load the resulting `.env`.            |
+| Vercel / Netlify   | Run `cloud` mode; use `web.env` there and `listener.env` on a container host. |
+| Umbrel             | Managed automatically from Umbrel's persistent per-app seed.                  |
+| StartOS            | Generated and backed up automatically by the service package.                 |
+| `lawallet install` | Generated automatically by the CLI installer.                                 |
+
+Never commit generated files, paste them into support tickets, or expose them
+through generic Settings/backup APIs.

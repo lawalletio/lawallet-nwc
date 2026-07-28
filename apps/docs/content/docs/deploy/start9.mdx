@@ -4,19 +4,19 @@ description: 'Run LaWallet NWC on your Start9 server (StartOS) as a self-contain
 ---
 
 [StartOS](https://start9.com) is the sovereign-server OS behind Start9. LaWallet
-NWC ships as a StartOS **service package** (`.s9pk`) that bundles the web app and
-its own PostgreSQL database into one installable app — nothing external to wire
-up. The package lives in its own repo,
+NWC ships as a StartOS **service package** (`.s9pk`) that bundles the web app,
+NWC listener, and its own PostgreSQL database into one installable app —
+nothing external to wire up. The package lives in its own repo,
 [`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos),
 and wraps the same published image as every other target,
 [`masize/lawallet-nwc`](https://hub.docker.com/r/masize/lawallet-nwc).
 
-| Property      | Value                                                |
-| ------------- | ---------------------------------------------------- |
-| Package id    | `lawallet-nwc`                                       |
-| Images        | `masize/lawallet-nwc` (web) + `postgres:15-alpine`   |
-| Architectures | `x86_64`, `aarch64`                                  |
-| Web UI        | port `2288` (LAN, `.local`, Tor, or a custom domain) |
+| Property      | Value                                                         |
+| ------------- | ------------------------------------------------------------- |
+| Package id    | `lawallet-nwc`                                                |
+| Images        | `masize/lawallet-nwc` (web) + listener + `postgres:15-alpine` |
+| Architectures | `x86_64`, `aarch64`                                           |
+| Web UI        | port `2288` (LAN, `.local`, Tor, or a custom domain)          |
 
 ## Install the current release
 
@@ -86,16 +86,29 @@ paths. The in-app onboarding wizard prints copy-paste rewrite recipes
 
 ## What's managed for you
 
-The package generates and persists a `JWT_SECRET` and the PostgreSQL password on
-first install (stored on the service's `main` volume), and sets the runtime
-environment automatically:
+The package generates and persists JWT, listener authentication, NWC vault, and
+PostgreSQL secrets on first install (stored on the service's `main` volume),
+and sets the runtime environment automatically:
 
-| Variable            | Value                      |
-| ------------------- | -------------------------- |
-| `DATABASE_URL`      | bundled localhost Postgres |
-| `JWT_SECRET`        | generated on install       |
-| `NODE_ENV`          | `production`               |
-| `PORT` / `HOSTNAME` | `2288` / `0.0.0.0`         |
+| Variable               | Value                                                        |
+| ---------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`         | bundled localhost Postgres                                   |
+| `JWT_SECRET`           | generated on install                                         |
+| `LISTENER_AUTH_SECRET` | generated once; shared by web/listener                       |
+| `NWC_VAULT_SECRET`     | encrypts RemoteWallet/proxy NWC data; shared by web/listener |
+| `LISTENER_URL`         | private bundled listener                                     |
+| `NODE_ENV`             | `production`                                                 |
+| `PORT` / `HOSTNAME`    | `2288` / `0.0.0.0`                                           |
+
+Existing installs are upgraded safely: if the listener or NWC vault secrets are
+missing from an older `store.json`, the package generates and persists them
+once. Configure the NIP-57 receipt signer `nsec` in **Admin → Settings → NWC
+Services**. It is encrypted with the generated vault key and is not a StartOS
+environment variable.
+
+The web startup pass encrypts any legacy plaintext RemoteWallet NWC rows before
+its health check becomes ready. The listener waits for that health check and
+uses the same generated key.
 
 For the full env-var reference (used when self-hosting outside StartOS), see
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example).

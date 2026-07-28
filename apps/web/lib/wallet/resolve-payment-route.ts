@@ -3,6 +3,7 @@ import type {
   RemoteWalletStatus,
   RemoteWalletType
 } from '@/lib/generated/prisma'
+import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
 // ── RemoteWallet routing ─────────────────────────────────────────────────────
 //
@@ -26,12 +27,14 @@ export interface RemoteWalletRef {
  *
  *   - `idle`          address is disabled (`mode=IDLE`).
  *   - `alias`         forward LUD-16 to another LN address (`mode=ALIAS`).
+ *   - `proxyAlias`    receive locally, then settle the alias asynchronously.
  *   - `wallet`        resolve through the driver registry.
  *   - `unconfigured`  no usable wallet/redirect — a 404 at the HTTP layer.
  */
 export type WalletRoute =
   | { kind: 'idle' }
   | { kind: 'alias'; redirect: string }
+  | { kind: 'proxyAlias'; redirect: string }
   | {
       kind: 'wallet'
       walletId: string | null
@@ -55,7 +58,9 @@ function walletRoute(wallet: RemoteWalletRef): WalletRoute {
         kind: 'wallet',
         walletId: wallet.id ?? null,
         type: wallet.type,
-        config: wallet.config
+        config: wallet.id
+          ? decryptRemoteWalletConfig(wallet.id, wallet.type, wallet.config)
+          : wallet.config
       }
     : { kind: 'unconfigured' }
 }
@@ -84,6 +89,10 @@ export function resolveWalletRoute(
     case 'ALIAS':
       return input.redirect && input.redirect.trim().length > 0
         ? { kind: 'alias', redirect: input.redirect.trim() }
+        : { kind: 'unconfigured' }
+    case 'PROXY_ALIAS':
+      return input.redirect && input.redirect.trim().length > 0
+        ? { kind: 'proxyAlias', redirect: input.redirect.trim() }
         : { kind: 'unconfigured' }
     case 'CUSTOM_NWC':
       return input.remoteWallet
@@ -138,7 +147,13 @@ export function resolveCardWallet(
       kind: 'wallet',
       walletId: input.defaultRemoteWallet.id ?? null,
       type: input.defaultRemoteWallet.type,
-      config: input.defaultRemoteWallet.config
+      config: input.defaultRemoteWallet.id
+        ? decryptRemoteWalletConfig(
+            input.defaultRemoteWallet.id,
+            input.defaultRemoteWallet.type,
+            input.defaultRemoteWallet.config
+          )
+        : input.defaultRemoteWallet.config
     }
   }
   return { kind: 'unconfigured' }

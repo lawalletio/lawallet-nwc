@@ -18,7 +18,11 @@ import { AuthenticationError } from '@/types/server/errors'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1_048_576, maxJsonSize: 1_048_576 }
+    requestLimits: { maxBodySize: 1_048_576, maxJsonSize: 1_048_576 },
+    nwcVault: {
+      secret: 'test-nwc-vault-secret-0123456789abcdef',
+      enabled: true
+    }
   }))
 }))
 
@@ -304,9 +308,10 @@ describe('POST /api/remote-wallets', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           config: expect.objectContaining({
-            connectionString: VALID_NWC,
+            connectionString: expect.stringMatching(/^lwrw1:/),
             mode: 'RECEIVE'
-          })
+          }),
+          nwcConfigEncryptedAt: expect.any(Date)
         })
       })
     )

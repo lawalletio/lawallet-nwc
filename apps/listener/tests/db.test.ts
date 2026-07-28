@@ -1,7 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type pg from 'pg'
 import type { Logger } from 'pino'
-import { waitForSchema } from '../src/db'
+import { loadActiveNwcWallets, waitForSchema } from '../src/db'
+import type { ListenerEnv } from '../src/env'
+import { encryptRemoteWalletEnvelope } from '../../web/lib/wallet/remote-wallet-vault-core'
+
+const NWC_VAULT_SECRET =
+  'listener-remote-wallet-secret-0123456789abcdef0123456789abcd'
+const NWC_URI =
+  'nostr+walletconnect://' +
+  'a'.repeat(64) +
+  '?relay=wss%3A%2F%2Frelay.example&secret=' +
+  'b'.repeat(64)
 
 const logMock = () => {
   const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
@@ -62,5 +72,43 @@ describe('waitForSchema', () => {
 
     expect(query).toHaveBeenCalledTimes(60)
     expect(String(failure)).toContain('never appeared')
+  })
+})
+
+describe('loadActiveNwcWallets', () => {
+  it('decrypts RemoteWallet rows before adding them to the pool', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'wallet-1',
+            name: 'Primary',
+            userId: 'user-1',
+            connectionString: encryptRemoteWalletEnvelope(
+              NWC_URI,
+              'wallet-1',
+              NWC_VAULT_SECRET
+            )
+          }
+        ]
+      })
+      .mockResolvedValueOnce({ rows: [] }) // no proxy wallet
+    const pool = { query } as unknown as pg.Pool
+    const env = {
+      DATABASE_URL: 'postgresql://test',
+      LISTENER_AUTH_SECRET: 'listener-secret-0123456789abcdef',
+      WEB_ORIGIN: 'https://lawallet.example',
+      NWC_VAULT_SECRET
+    } as ListenerEnv
+
+    await expect(loadActiveNwcWallets(pool, logMock(), env)).resolves.toEqual([
+      {
+        id: 'wallet-1',
+        name: 'Primary',
+        userId: 'user-1',
+        connectionString: NWC_URI
+      }
+    ])
   })
 })
