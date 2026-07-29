@@ -31,6 +31,11 @@ jobs:
     env:
       # provision-db.mjs derives lawallet_e2e from this and creates it.
       DATABASE_URL: postgresql://e2e:e2e@localhost:5432/lawallet
+      # The seed encrypts NWC envelopes and the webServer's boot migration
+      # decrypts them — pin ONE shared secret at the job level so the seed
+      # process and the Next.js webServer can never resolve different values
+      # (see apps/web/e2e/env.ts, which reads this same var).
+      NWC_VAULT_SECRET: e2e-only-nwc-vault-secret-at-least-32-characters
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
