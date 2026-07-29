@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   Key,
   KeyRound,
@@ -14,10 +14,15 @@ import {
   Copy,
   Link,
   RefreshCw,
-  Smartphone
+  Smartphone,
+  ChevronLeft,
+  Sparkles
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
+import { generateSecretKey } from 'nostr-tools/pure'
+import { nip19 } from 'nostr-tools'
+import { bytesToHex } from 'nostr-tools/utils'
 import {
   Dialog,
   DialogContent,
@@ -33,7 +38,7 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { useIsMobile } from '@/components/ui/use-mobile'
 import { cn } from '@/lib/utils'
-import { useAuth, type LoginMethod } from '@/components/admin/auth-context'
+import { useAuth } from '@/components/admin/auth-context'
 import {
   createNsecSigner,
   createBrowserSigner,
@@ -43,6 +48,7 @@ import {
 } from '@/lib/client/nostr-signer'
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
 import { isPasskeySupported } from '@/lib/client/passkey-api'
+import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -56,12 +62,52 @@ interface LoginModalProps {
 
 type BunkerConnectionStatus = 'generating' | 'waiting' | 'connecting' | 'error'
 
+/**
+ * Login wizard steps. `choose` is the two-method picker; the rest are each
+ * method's own screen. When WebAuthn is unavailable Nostr is the only method,
+ * so we skip `choose` and open straight on `nostr`.
+ */
+type Step = 'choose' | 'nostr' | 'nostr-create' | 'passkey'
+
+const STEP_DESCRIPTIONS: Record<Step, string> = {
+  choose: 'Choose how to sign in.',
+  nostr: 'Sign in with a Nostr key.',
+  'nostr-create': 'We generated a new key for you.',
+  passkey: 'Use a passkey — Face ID, Touch ID, or your screen lock.'
+}
+
 export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   const dismissible = !!onOpenChange
   const [bunkerBusy, setBunkerBusy] = useState(false)
   // WebAuthn support is stable for the page's lifetime; unsupported browsers
-  // see the original three-tab layout untouched.
+  // never see the Passkey method and open straight on the Nostr step.
   const [passkeySupported] = useState(() => isPasskeySupported())
+  const initialStep: Step = passkeySupported ? 'choose' : 'nostr'
+  const [step, setStep] = useState<Step>(initialStep)
+
+  // The landing page keeps this modal mounted and toggles `open`; reset to the
+  // first screen whenever it reopens so it never resurfaces mid-flow.
+  // Adjusting state during render (React's recommended pattern for resetting on
+  // a prop change) avoids the post-paint flash a reset effect would cause.
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open) {
+      setStep(initialStep)
+      setBunkerBusy(false)
+    }
+  }
+
+  // Back target: the two method screens return to the picker; the nsec
+  // generator returns to the Nostr screen. No back on the initial step, and
+  // never while the bunker QR is mid-connection.
+  const backTo: Step | null =
+    step === 'nostr-create'
+      ? 'nostr'
+      : step === initialStep
+        ? null
+        : 'choose'
+  const showBack = backTo !== null && !bunkerBusy
 
   return (
     <Dialog open={open} onOpenChange={dismissible ? onOpenChange : undefined}>
@@ -75,52 +121,148 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
         }}
         aria-describedby="login-description"
       >
+        {showBack && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => backTo && setStep(backTo)}
+            aria-label="Back"
+            className="absolute left-3 top-3 size-8 text-muted-foreground"
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+        )}
+
         <DialogHeader>
           <DialogTitle className="text-center">Connect to LaWallet</DialogTitle>
           <DialogDescription id="login-description" className="text-center">
-            Sign in to access the admin dashboard.
+            {STEP_DESCRIPTIONS[step]}
           </DialogDescription>
         </DialogHeader>
 
-        {passkeySupported ? (
-          // Two top-level methods: Nostr (extension / secret key / bunker) and
-          // Passkey. Hidden entirely while the bunker QR is connecting so the
-          // QR gets the full dialog.
-          <Tabs defaultValue="nostr" className="w-full">
-            {!bunkerBusy && (
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="nostr">
-                  <KeyRound className="mr-1.5 size-4" />
-                  Nostr
-                </TabsTrigger>
-                <TabsTrigger value="passkey">
-                  <Fingerprint className="mr-1.5 size-4" />
-                  Passkey
-                </TabsTrigger>
-              </TabsList>
-            )}
-
-            <TabsContent value="nostr">
-              <NostrMethods
-                bunkerBusy={bunkerBusy}
-                onBunkerBusyChange={setBunkerBusy}
-              />
-            </TabsContent>
-            <TabsContent value="passkey">
-              <PasskeyTab />
-            </TabsContent>
-          </Tabs>
-        ) : (
-          // No WebAuthn support — Nostr is the only method, so skip the
-          // redundant top-level wrapper and show its sub-tabs directly.
+        {step === 'choose' && (
+          <ChooseMethodStep
+            passkeySupported={passkeySupported}
+            onPick={setStep}
+          />
+        )}
+        {step === 'nostr' && (
           <NostrMethods
             bunkerBusy={bunkerBusy}
             onBunkerBusyChange={setBunkerBusy}
+            onCreateNew={() => setStep('nostr-create')}
           />
         )}
+        {step === 'nostr-create' && <NostrCreateStep />}
+        {step === 'passkey' && <PasskeyTab />}
       </DialogContent>
     </Dialog>
   )
+}
+
+// ─── Step 1 · Choose method ────────────────────────────────────────────────
+
+function ChooseMethodStep({
+  passkeySupported,
+  onPick
+}: {
+  passkeySupported: boolean
+  onPick: (step: Step) => void
+}) {
+  const extensionAvailable = useBrowserExtensionDetected()
+  const { connect, loading } = useExtensionLogin()
+
+  return (
+    <div className="flex flex-col gap-3 pt-2">
+      <Button
+        variant="outline"
+        onClick={() => onPick('nostr')}
+        className="h-14 w-full justify-start gap-3 px-4"
+      >
+        <KeyRound className="size-5 shrink-0" />
+        <span className="flex flex-col items-start text-left">
+          <span className="font-medium">Nostr</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            Secret key, bunker, or a new key
+          </span>
+        </span>
+      </Button>
+
+      {passkeySupported && (
+        <Button
+          variant="outline"
+          onClick={() => onPick('passkey')}
+          className="h-14 w-full justify-start gap-3 px-4"
+        >
+          <Fingerprint className="size-5 shrink-0" />
+          <span className="flex flex-col items-start text-left">
+            <span className="font-medium">Passkey</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              Face ID, Touch ID, or screen lock
+            </span>
+          </span>
+        </Button>
+      )}
+
+      {extensionAvailable && (
+        <>
+          <div className="flex items-center gap-3 pt-1">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground">or</span>
+            <Separator className="flex-1" />
+          </div>
+          <Button
+            variant="ghost"
+            onClick={connect}
+            disabled={loading}
+            className="w-full"
+          >
+            {loading ? (
+              <>
+                <Spinner size={16} className="mr-2" />
+                Connecting...
+              </>
+            ) : (
+              <>
+                <Globe className="mr-2 size-4" />
+                Continue with extension
+              </>
+            )}
+          </Button>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Shared connect handler for a detected NIP-07 extension, reused by both the
+ * step-1 shortcut and the Extension sub-tab under Nostr.
+ */
+function useExtensionLogin() {
+  const { login } = useAuth()
+  const [loading, setLoading] = useState(false)
+
+  const connect = useCallback(async () => {
+    setLoading(true)
+    trackEvent(AnalyticsEvent.LOGIN_STARTED, { method: 'extension' })
+    try {
+      const signer = createBrowserSigner()
+      await login(signer, 'extension')
+    } catch (error) {
+      trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'extension' })
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Failed to connect with extension'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [login])
+
+  return { connect, loading }
 }
 
 // ─── Nostr methods (extension / secret key / bunker) ───────────────────────
@@ -155,10 +297,12 @@ function useBrowserExtensionDetected(): boolean {
 
 function NostrMethods({
   bunkerBusy,
-  onBunkerBusyChange
+  onBunkerBusyChange,
+  onCreateNew
 }: {
   bunkerBusy: boolean
   onBunkerBusyChange: (busy: boolean) => void
+  onCreateNew: () => void
 }) {
   const extensionAvailable = useBrowserExtensionDetected()
 
@@ -203,6 +347,26 @@ function NostrMethods({
       <TabsContent value="bunker">
         <BunkerTab onBusyChange={onBunkerBusyChange} />
       </TabsContent>
+
+      {/* Symmetric with the Passkey step's "New here?" — a first-class path to
+          mint a fresh Nostr key. Hidden during the bunker QR takeover. */}
+      {!bunkerBusy && (
+        <div className="mt-4">
+          <div className="flex items-center gap-3">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground">New to Nostr?</span>
+            <Separator className="flex-1" />
+          </div>
+          <Button
+            variant="outline"
+            onClick={onCreateNew}
+            className="mt-3 h-11 w-full"
+          >
+            <Sparkles className="mr-2 size-4" />
+            Generate a new key
+          </Button>
+        </div>
+      )}
     </Tabs>
   )
 }
@@ -212,26 +376,7 @@ function NostrMethods({
 // Only rendered once `useBrowserExtensionDetected()` has found `window.nostr`,
 // so there's no "no extension" fallback state here.
 function ExtensionTab() {
-  const { login } = useAuth()
-  const [loading, setLoading] = useState(false)
-
-  async function handleConnect() {
-    setLoading(true)
-    trackEvent(AnalyticsEvent.LOGIN_STARTED, { method: 'extension' })
-    try {
-      const signer = createBrowserSigner()
-      await login(signer, 'extension')
-    } catch (error) {
-      trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'extension' })
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to connect with extension'
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { connect, loading } = useExtensionLogin()
 
   return (
     <div className="flex flex-col gap-4 pt-4">
@@ -240,7 +385,7 @@ function ExtensionTab() {
         Connect.
       </p>
 
-      <Button onClick={handleConnect} disabled={loading} className="w-full">
+      <Button onClick={connect} disabled={loading} className="w-full">
         {loading ? (
           <>
             <Spinner size={16} className="mr-2" />
@@ -668,6 +813,86 @@ function BunkerPasteMode({
         )}
       </Button>
     </form>
+  )
+}
+
+// ─── Step 2a′ · Generate a new Nostr key ───────────────────────────────────
+
+/**
+ * Generates a fresh nsec client-side, makes the user reveal + acknowledge it,
+ * then runs the standard NIP-98 → JWT login. Mirrors the wallet's
+ * create-account flow; the key never leaves the browser. No redirect here —
+ * the admin surfaces react to the auth-context status flip (same as every
+ * other method in this modal).
+ */
+function NostrCreateStep() {
+  const { login } = useAuth()
+  const { nsec, hex } = useMemo(() => {
+    const secretKey = generateSecretKey()
+    return {
+      nsec: nip19.nsecEncode(secretKey),
+      hex: bytesToHex(secretKey)
+    }
+  }, [])
+
+  const [confirmed, setConfirmed] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleContinue() {
+    setError(null)
+    setLoading(true)
+    trackEvent(AnalyticsEvent.LOGIN_STARTED, { method: 'nsec', flow: 'create' })
+    try {
+      const signer = createNsecSigner(hex)
+      // Persist the nsec so reloads silently rebuild the signer.
+      await login(signer, 'nsec', { secret: nsec })
+    } catch (err) {
+      trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'nsec', flow: 'create' })
+      const message =
+        err instanceof Error ? err.message : 'Failed to create account'
+      setError(message)
+      toast.error(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4 pt-2">
+      <div className="flex items-start gap-2 rounded-md bg-muted/50 p-3">
+        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-yellow-500" />
+        <p className="text-xs text-muted-foreground">
+          Save this key somewhere safe — it&apos;s the only way back into your
+          account and is <strong>never sent to the server</strong>.
+        </p>
+      </div>
+
+      <SecretKeyReveal
+        nsec={nsec}
+        disabled={loading}
+        confirmed={confirmed}
+        onConfirmedChange={setConfirmed}
+      />
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+
+      <Button
+        type="button"
+        onClick={handleContinue}
+        disabled={!confirmed || loading}
+        className="w-full"
+      >
+        {loading ? (
+          <>
+            <Spinner size={16} className="mr-2" />
+            Creating account...
+          </>
+        ) : (
+          'Continue'
+        )}
+      </Button>
+    </div>
   )
 }
 
