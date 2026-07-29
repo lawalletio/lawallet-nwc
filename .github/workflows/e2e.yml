@@ -31,6 +31,10 @@ jobs:
     env:
       # provision-db.mjs derives lawallet_e2e from this and creates it.
       DATABASE_URL: postgresql://e2e:e2e@localhost:5432/lawallet
+      # prisma/seed.ts encrypts the mock NWC URIs with this and the app decrypts
+      # them at runtime; both inherit it from the job env, so the value only has
+      # to match itself. Hardcoded like ci.yml's JWT_SECRET (non-sensitive CI value).
+      NWC_VAULT_SECRET: ci-e2e-nwc-vault-secret-minimum-32-characters
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
