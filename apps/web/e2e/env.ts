@@ -61,6 +61,15 @@ export function resolveE2eDatabaseUrl(): string {
 /** Fixed secret shared by the webServer and the token-minting fixture. */
 export const E2E_JWT_SECRET = 'e2e-only-jwt-secret-at-least-32-characters'
 
+/**
+ * Fixed vault secret (32+ chars) shared by the seed and the webServer so the
+ * app can decrypt the NWC envelopes the seed encrypts with the same key. Must
+ * stay identical to the literal in e2e/provision-db.mjs — that script runs
+ * under plain node and cannot import this TS module.
+ */
+export const E2E_NWC_VAULT_SECRET =
+  'e2e-only-nwc-vault-secret-at-least-32-characters'
+
 export const E2E_PORT = Number(process.env.E2E_PORT || 3100)
 
 export const E2E_BASE_URL = `http://localhost:${E2E_PORT}`
