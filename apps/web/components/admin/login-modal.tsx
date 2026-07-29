@@ -104,11 +104,7 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
   // generator returns to the Nostr screen. No back on the initial step, and
   // never while the bunker QR is mid-connection.
   const backTo: Step | null =
-    step === 'nostr-create'
-      ? 'nostr'
-      : step === initialStep
-        ? null
-        : 'choose'
+    step === 'nostr-create' ? 'nostr' : step === initialStep ? null : 'choose'
   const showBack = backTo !== null && !bunkerBusy
 
   return (
@@ -191,7 +187,7 @@ function ChooseMethodStep({
         <MethodButton
           icon={<Fingerprint />}
           title="Passkey"
-          subtitle="Syncs across your devices — Face ID, Touch ID, Android"
+          subtitle="Syncs across your devices"
           onClick={() => onPick('passkey')}
         />
       )}
@@ -248,20 +244,24 @@ function MethodButton({
       type="button"
       variant="secondary"
       onClick={onClick}
-      className="h-auto w-full justify-between gap-3 px-3 py-3"
+      // whitespace-normal overrides the button base's `whitespace-nowrap`, and
+      // min-w-0 lets the label shrink — otherwise a long subtitle's no-wrap
+      // min-content stretches the dialog's grid track past its padding and
+      // pushes every row off-centre on wide viewports.
+      className="h-auto w-full justify-between gap-3 whitespace-normal px-3 py-3 text-left"
     >
-      <span className="flex items-center gap-3">
+      <span className="flex min-w-0 flex-1 items-center gap-3">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
           {icon}
         </span>
-        <span className="flex flex-col items-start text-left">
+        <span className="flex min-w-0 flex-col items-start">
           <span className="text-sm font-semibold text-foreground">{title}</span>
           <span className="text-xs font-normal text-muted-foreground">
             {subtitle}
           </span>
         </span>
       </span>
-      <ChevronRight className="text-muted-foreground" />
+      <ChevronRight className="shrink-0 text-muted-foreground" />
     </Button>
   )
 }
@@ -878,7 +878,10 @@ function NostrCreateStep() {
       // Persist the nsec so reloads silently rebuild the signer.
       await login(signer, 'nsec', { secret: nsec })
     } catch (err) {
-      trackEvent(AnalyticsEvent.LOGIN_FAILED, { method: 'nsec', flow: 'create' })
+      trackEvent(AnalyticsEvent.LOGIN_FAILED, {
+        method: 'nsec',
+        flow: 'create'
+      })
       const message =
         err instanceof Error ? err.message : 'Failed to create account'
       setError(message)
