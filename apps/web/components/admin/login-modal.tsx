@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Smartphone,
   ChevronLeft,
+  ChevronRight,
   Sparkles
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
@@ -49,6 +50,7 @@ import {
 import { PasskeyLoginButton } from '@/components/shared/passkey-login-button'
 import { isPasskeySupported } from '@/lib/client/passkey-api'
 import { SecretKeyReveal } from '@/components/shared/secret-key-reveal'
+import { BrandLogotype } from '@/components/ui/brand-logotype'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -128,14 +130,17 @@ export function LoginModal({ open, onOpenChange, onSuccess }: LoginModalProps) {
             size="icon"
             onClick={() => backTo && setStep(backTo)}
             aria-label="Back"
-            className="absolute left-3 top-3 size-8 text-muted-foreground"
+            className="absolute left-3 top-3 size-8 rounded-full text-muted-foreground"
           >
             <ChevronLeft className="size-4" />
           </Button>
         )}
 
-        <DialogHeader>
-          <DialogTitle className="text-center">Connect to LaWallet</DialogTitle>
+        <DialogHeader className="items-center">
+          <BrandLogotype width={128} height={28} className="mb-1 h-7" />
+          <DialogTitle className="text-center text-xl">
+            Connect to LaWallet
+          </DialogTitle>
           <DialogDescription id="login-description" className="text-center">
             {STEP_DESCRIPTIONS[step]}
           </DialogDescription>
@@ -175,34 +180,20 @@ function ChooseMethodStep({
 
   return (
     <div className="flex flex-col gap-3 pt-2">
-      <Button
-        variant="outline"
+      <MethodButton
+        icon={<KeyRound />}
+        title="Nostr"
+        subtitle="Secret key, bunker, or a new key"
         onClick={() => onPick('nostr')}
-        className="h-14 w-full justify-start gap-3 px-4"
-      >
-        <KeyRound className="size-5 shrink-0" />
-        <span className="flex flex-col items-start text-left">
-          <span className="font-medium">Nostr</span>
-          <span className="text-xs font-normal text-muted-foreground">
-            Secret key, bunker, or a new key
-          </span>
-        </span>
-      </Button>
+      />
 
       {passkeySupported && (
-        <Button
-          variant="outline"
+        <MethodButton
+          icon={<Fingerprint />}
+          title="Passkey"
+          subtitle="Syncs across your devices — Face ID, Touch ID, Android"
           onClick={() => onPick('passkey')}
-          className="h-14 w-full justify-start gap-3 px-4"
-        >
-          <Fingerprint className="size-5 shrink-0" />
-          <span className="flex flex-col items-start text-left">
-            <span className="font-medium">Passkey</span>
-            <span className="text-xs font-normal text-muted-foreground">
-              Face ID, Touch ID, or screen lock
-            </span>
-          </span>
-        </Button>
+        />
       )}
 
       {extensionAvailable && (
@@ -213,19 +204,19 @@ function ChooseMethodStep({
             <Separator className="flex-1" />
           </div>
           <Button
-            variant="ghost"
+            variant="theme"
             onClick={connect}
             disabled={loading}
-            className="w-full"
+            className="h-11 w-full"
           >
             {loading ? (
               <>
-                <Spinner size={16} className="mr-2" />
+                <Spinner size={16} />
                 Connecting...
               </>
             ) : (
               <>
-                <Globe className="mr-2 size-4" />
+                <Globe />
                 Continue with extension
               </>
             )}
@@ -233,6 +224,45 @@ function ChooseMethodStep({
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * A branded method row for the picker: a filled `secondary` button with the
+ * icon in a LaWallet-green chip, a title/subtitle, and a forward chevron —
+ * proper button-component styling instead of a flat outline card.
+ */
+function MethodButton({
+  icon,
+  title,
+  subtitle,
+  onClick
+}: {
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+  onClick: () => void
+}) {
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      onClick={onClick}
+      className="h-auto w-full justify-between gap-3 px-3 py-3"
+    >
+      <span className="flex items-center gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-green-500/10 text-green-400">
+          {icon}
+        </span>
+        <span className="flex flex-col items-start text-left">
+          <span className="text-sm font-semibold text-foreground">{title}</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {subtitle}
+          </span>
+        </span>
+      </span>
+      <ChevronRight className="text-muted-foreground" />
+    </Button>
   )
 }
 
@@ -902,8 +932,9 @@ function PasskeyTab() {
   return (
     <div className="space-y-4 pt-2">
       <p className="text-sm text-muted-foreground">
-        Sign in with the passkey you created on this instance — Face ID, Touch
-        ID, or your device screen lock. No keys to paste.
+        Sign in with your passkey — it syncs across your devices through iCloud
+        Keychain or Google Password Manager. Use Face ID, Touch ID, or your
+        screen lock; no keys to paste.
       </p>
       <PasskeyLoginButton
         mode="authenticate"
