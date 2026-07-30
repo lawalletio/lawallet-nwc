@@ -35,6 +35,27 @@ function requireCondition(condition, label) {
   }
 }
 
+const UMBREL_RAW_BASE =
+  'https://raw.githubusercontent.com/lawalletio/umbrel-app-store/master'
+const UMBREL_PACKAGE_FILES = [
+  'lawallet-nwc/docker-compose.yml',
+  'test/docker-compose.regtest.yml'
+]
+
+async function readRemote(relativePath) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 10_000)
+  try {
+    const response = await fetch(`${UMBREL_RAW_BASE}/${relativePath}`, {
+      signal: controller.signal
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.text()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 function parseDotenv(contents) {
   return Object.fromEntries(
     contents
@@ -84,6 +105,41 @@ for (const [contents, label] of [
     2,
     `${label} must pass NWC_VAULT_SECRET to web and listener`
   )
+}
+
+// The Umbrel package lives in lawalletio/umbrel-app-store and is only ever
+// rewritten by tag-bumping automation, so a newly required variable never
+// reaches its env block on its own. v2.1.0 shipped without NWC_VAULT_SECRET
+// and crash-looped both containers while this gate stayed green.
+//
+// Strict only where it matters — the release gate sets
+// STRICT_EXTERNAL_PACKAGES=1. On ordinary PRs this stays advisory: the Umbrel
+// package is a different repository, and its drift must not block unrelated
+// work here. It must, however, block shipping. A network failure always skips,
+// so a GitHub outage can never break a release either way.
+const strictExternalPackages = process.env.STRICT_EXTERNAL_PACKAGES === '1'
+
+for (const packagePath of UMBREL_PACKAGE_FILES) {
+  let contents
+  try {
+    contents = await readRemote(packagePath)
+  } catch (error) {
+    console.warn(
+      `Skipped Umbrel package check for ${packagePath}: ${error.message}`
+    )
+    continue
+  }
+  const label = `Umbrel package ${packagePath} must pass NWC_VAULT_SECRET to web and listener`
+  if (strictExternalPackages) {
+    requireOccurrences(contents, 'NWC_VAULT_SECRET:', 2, label)
+    continue
+  }
+  const found = contents.split('NWC_VAULT_SECRET:').length - 1
+  if (found < 2) {
+    console.warn(
+      `WARNING: ${label} (found ${found}, expected at least 2). Releases stay blocked until lawalletio/umbrel-app-store is updated.`
+    )
+  }
 }
 
 requireMatch(

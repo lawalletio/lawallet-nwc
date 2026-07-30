@@ -50,6 +50,13 @@ jobs:
           DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
           JWT_SECRET: 'ci-build-secret-minimum-32-characters-long'
       - run: pnpm docs:check
+      # Strict here, advisory in CI: this is the last point before images are
+      # published and the Umbrel/Start9 packages are dispatched, so a package
+      # missing a required runtime secret must stop the release rather than
+      # ship a crash-looping app (as v2.1.0 did on Umbrel).
+      - run: pnpm deploy:check
+        env:
+          STRICT_EXTERNAL_PACKAGES: '1'
 
       - name: Bump versions + scaffold changelog
         id: bump
