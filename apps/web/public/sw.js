@@ -13,11 +13,13 @@
  *
  * Bump CACHE_VERSION to invalidate old caches on deploy.
  */
-const CACHE_VERSION = 'v2'
+const CACHE_VERSION = 'v3'
 const STATIC_CACHE = `lawallet-static-${CACHE_VERSION}`
 const PAGE_CACHE = `lawallet-pages-${CACHE_VERSION}`
 const API_CACHE = `lawallet-api-${CACHE_VERSION}`
 const OFFLINE_URL = '/wallet'
+const USER_DATA_CACHE_PREFIXES = ['lawallet-api-', 'lawallet-pages-']
+let userDataEpoch = 0
 
 // Wallet routes precached at install so cold, offline launches render the app
 // shell for whichever tab the user opens.
@@ -66,6 +68,26 @@ self.addEventListener('activate', event => {
 // Let the page trigger an immediate activation after an update.
 self.addEventListener('message', event => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting()
+  if (event.data?.type === 'CLEAR_USER_DATA') {
+    // Any authenticated fetch already in flight belongs to the session that
+    // just ended. Bumping the epoch prevents its eventual response from
+    // recreating a cache after the deletion below.
+    userDataEpoch += 1
+    event.waitUntil(
+      caches
+        .keys()
+        .then(keys =>
+          Promise.all(
+            keys
+              .filter(key =>
+                USER_DATA_CACHE_PREFIXES.some(prefix => key.startsWith(prefix))
+              )
+              .map(key => caches.delete(key))
+          )
+        )
+        .catch(() => {})
+    )
+  }
 })
 
 function isStaticAsset(url) {
@@ -79,6 +101,23 @@ function isStaticAsset(url) {
 
 function isCacheableApi(url) {
   return CACHEABLE_API.some(re => re.test(url.pathname + url.search))
+}
+
+async function apiCacheRequest(request) {
+  const authorization = request.headers.get('authorization') || 'anonymous'
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(authorization)
+  )
+  const fingerprint = Array.from(new Uint8Array(digest).slice(0, 16))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('')
+  const url = new URL(request.url)
+  // CacheStorage keys do not distinguish Authorization headers. Add an opaque
+  // fingerprint to the internal cache key so two JWTs can never share a
+  // `/api/users/me` (or wallet/activity) response.
+  url.searchParams.set('__lawallet_session', fingerprint)
+  return new Request(url.toString(), { method: 'GET' })
 }
 
 self.addEventListener('fetch', event => {
@@ -123,12 +162,21 @@ self.addEventListener('fetch', event => {
 
   // Wallet read APIs — stale-while-revalidate.
   if (isCacheableApi(url)) {
+    const requestEpoch = userDataEpoch
     event.respondWith(
       caches.open(API_CACHE).then(async cache => {
-        const cached = await cache.match(request)
+        const cacheRequest = await apiCacheRequest(request)
+        const cached = await cache.match(cacheRequest)
         const network = fetch(request)
           .then(response => {
-            if (response.ok) cache.put(request, response.clone())
+            const cacheControl = response.headers.get('cache-control') ?? ''
+            if (
+              response.ok &&
+              requestEpoch === userDataEpoch &&
+              !cacheControl.includes('no-store')
+            ) {
+              cache.put(cacheRequest, response.clone()).catch(() => {})
+            }
             return response
           })
           .catch(() => cached || Response.error())

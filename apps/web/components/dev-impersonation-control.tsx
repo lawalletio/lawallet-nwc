@@ -26,8 +26,8 @@ export function DevImpersonationControl() {
 
   if (!active) return null
 
-  function stop() {
-    stopImpersonation()
+  async function stop() {
+    await stopImpersonation()
     window.location.href = '/admin/users'
   }
 

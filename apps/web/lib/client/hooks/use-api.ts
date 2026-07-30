@@ -191,7 +191,10 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
   const [loading, setLoading] = useState(path ? !initialCacheEntry : false)
   const [error, setError] = useState<Error | null>(null)
   const dataRef = useRef(data)
-  const dataPathRef = useRef<string | null>(data !== null ? path : null)
+  const dataContextRef = useRef<{
+    path: string | null
+    authKey: string
+  }>({ path, authKey })
   const fetchIdRef = useRef(0)
   const authKeyRef = useRef(authKey)
   const sseVersionRef = useRef(0)
@@ -218,7 +221,9 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
       const fetchId = ++fetchIdRef.current
       const cacheEntry = getUsableCacheEntry<T>(path, authKey)
       const hasCurrentData =
-        dataPathRef.current === path && dataRef.current !== null
+        dataContextRef.current.path === path &&
+        dataContextRef.current.authKey === authKey &&
+        dataRef.current !== null
 
       // Only show the loading skeleton when there's truly nothing to show for
       // this path. Manual invalidations delete the cache so the next request
@@ -226,15 +231,19 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
       if (cacheEntry) {
         const cachedData = cacheEntry.data
         dataRef.current = cachedData
-        dataPathRef.current = path
+        dataContextRef.current = { path, authKey }
         setData(cachedData)
         setLoading(false)
       } else if (!hasCurrentData) {
-        if (dataPathRef.current !== path && dataRef.current !== null) {
+        if (
+          (dataContextRef.current.path !== path ||
+            dataContextRef.current.authKey !== authKey) &&
+          dataRef.current !== null
+        ) {
           dataRef.current = null
-          dataPathRef.current = path
           setData(null)
         }
+        dataContextRef.current = { path, authKey }
         setLoading(true)
       } else {
         setLoading(false)
@@ -274,7 +283,7 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
         // Only update if this is still the latest fetch
         if (fetchId === fetchIdRef.current) {
           dataRef.current = result
-          dataPathRef.current = path
+          dataContextRef.current = { path, authKey: requestAuthKey }
           setData(result)
         }
       } catch (err) {
@@ -317,7 +326,21 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
 
   const refetch = useCallback(() => fetchData({ force: true }), [fetchData])
 
-  return { data, loading, error, refetch }
+  const dataIsCurrent =
+    dataContextRef.current.path === path &&
+    dataContextRef.current.authKey === authKey
+  const visibleData = dataIsCurrent ? data : (initialCacheEntry?.data ?? null)
+  const visibleLoading =
+    path !== null && !dataIsCurrent && initialCacheEntry === null
+      ? true
+      : loading
+
+  return {
+    data: visibleData,
+    loading: visibleLoading,
+    error: dataIsCurrent ? error : null,
+    refetch
+  }
 }
 
 /**

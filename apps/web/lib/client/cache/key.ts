@@ -43,7 +43,10 @@ export function nwcCacheKey(nwcString: string): string {
   return key
 }
 
-/** Test-only: drop memoised keys so successive cases don't bleed into each other. */
-export function __resetNwcCacheKeyMemoForTests() {
+/** Drop memoised NWC URI hashes so logout leaves no wallet secret in memory. */
+export function clearNwcCacheKeyMemo(): void {
   cache.clear()
 }
+
+/** Test-only alias retained for existing cache-isolation tests. */
+export const __resetNwcCacheKeyMemoForTests = clearNwcCacheKeyMemo

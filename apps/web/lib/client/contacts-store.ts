@@ -230,6 +230,23 @@ export const contactsActions = {
   }
 }
 
+/**
+ * Removes persisted recipients and resets the module snapshot immediately.
+ * Unlike the user-facing `contactsActions.clear()`, this removes the storage
+ * key entirely because it is part of the authenticated session cleanup.
+ */
+export function clearContactsCache(): void {
+  cache = []
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // ignore unavailable storage
+    }
+  }
+  for (const listener of listeners) listener()
+}
+
 interface Nip05Response {
   names?: Record<string, string>
   relays?: Record<string, string[]>
