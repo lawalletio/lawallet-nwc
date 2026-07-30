@@ -84,15 +84,23 @@ export const storedImageUrlSchema = z
 
 // ── Cards ───────────────────────────────────────────────────────────────────
 
+/**
+ * SIMPLE is an ordinary card; MASTER designates the holder's account-recovery
+ * card. At most one MASTER per holder — enforced in the database by a partial
+ * unique index and in the PATCH routes, which demote the previous master.
+ */
+export const cardKindSchema = z.enum(['SIMPLE', 'MASTER'])
+
 export const createCardSchema = z.object({
   id: z.string().min(1, 'Card ID is required'),
   designId: z.string().min(1, 'Design ID is required'),
   /**
-   * Card kind, declared at creation. Defaults to SIMPLE when omitted. MASTER is
-   * reserved for the deferred account-share feature but is accepted here so the
-   * field can be set ahead of that work landing.
+   * Card kind, declared at creation. Defaults to SIMPLE when omitted. Note that
+   * MASTER does not survive pairing: cards are created unpaired, and every
+   * change of holder resets `kind` to SIMPLE, so the designation has to be made
+   * by the holder (or an admin) on an already-paired card.
    */
-  kind: z.enum(['SIMPLE', 'MASTER']).optional()
+  kind: cardKindSchema.optional()
 })
 
 export const cardListQuerySchema = z.object({
@@ -101,26 +109,36 @@ export const cardListQuerySchema = z.object({
 })
 
 /**
- * Partial update for a card. Today only the wallet binding can change:
+ * Partial update for a card (admin-scoped). Two independent fields:
  *   - `remoteWalletId: string` rebinds the card to that wallet (must
  *     belong to the caller, must not be REVOKED — validated in the
  *     route handler since cross-field rules don't fit Zod cleanly).
  *   - `remoteWalletId: null` unbinds the card; spending falls back to
  *     the owner's default wallet at run-time.
+ *   - `kind` promotes/demotes the card as the holder's MASTER (recovery)
+ *     card. Requires a paired, unblocked card; promoting demotes whichever
+ *     card held the designation before.
  */
-export const updateCardSchema = z.object({
-  remoteWalletId: z.string().min(1).nullable()
-})
+export const updateCardSchema = z
+  .object({
+    remoteWalletId: z.string().min(1).nullable().optional(),
+    kind: cardKindSchema.optional()
+  })
+  .refine(v => v.remoteWalletId !== undefined || v.kind !== undefined, {
+    message: 'No fields to update'
+  })
 
 export const updateWalletCardSchema = z
   .object({
     enabled: z.boolean().optional(),
-    linkDefaultWallet: z.boolean().optional()
+    linkDefaultWallet: z.boolean().optional(),
+    kind: cardKindSchema.optional()
   })
   .refine(
     v =>
       (v.enabled !== undefined ? 1 : 0) +
-        (v.linkDefaultWallet === true ? 1 : 0) ===
+        (v.linkDefaultWallet === true ? 1 : 0) +
+        (v.kind !== undefined ? 1 : 0) ===
       1,
     { message: 'Provide exactly one card update action' }
   )

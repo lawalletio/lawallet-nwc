@@ -61,6 +61,7 @@ export const GET = withErrorHandling(async (request: Request) => {
       otc: true,
       remoteWalletId: true,
       kind: true,
+      userId: true,
       blockedAt: true,
       disabledAt: true,
       design: {
@@ -96,6 +97,18 @@ export const GET = withErrorHandling(async (request: Request) => {
     }
   })
 
+  // Which card holds each holder's MASTER designation. Queried separately
+  // rather than derived from `cards` because the paired/used filters can hide
+  // the master from this page while a sibling row still needs to point at it.
+  // Bounded by the partial unique index: at most one row per holder.
+  const masterCards = await prisma.card.findMany({
+    where: { kind: 'MASTER', userId: { not: null } },
+    select: { id: true, userId: true }
+  })
+  const masterCardByUserId = new Map(
+    masterCards.map(card => [card.userId, card.id])
+  )
+
   // Transform to match Card type
   const transformedCards: Card[] = cards.map(card => ({
     id: card.id,
@@ -114,6 +127,9 @@ export const GET = withErrorHandling(async (request: Request) => {
     otc: card.otc || undefined,
     remoteWalletId: card.remoteWalletId ?? null,
     kind: card.kind,
+    masterCardId: card.userId
+      ? (masterCardByUserId.get(card.userId) ?? null)
+      : null,
     blocked: card.blockedAt !== null,
     disabled: card.disabledAt !== null
   }))

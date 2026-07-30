@@ -58,9 +58,14 @@ enum RemoteWalletStatus {
   DEAD
 }
 
-/// A card's kind, declared at creation. SIMPLE cards only support
-/// ownership-transfer activation; MASTER cards (reserved for the deferred
-/// account-share feature) will additionally support FOREVER share grants.
+/// A card's kind. SIMPLE is an ordinary card. MASTER designates the holder's
+/// account-recovery card — at most one per holder, enforced by a raw partial
+/// unique index (see the `Card` doc comment). The designation is switchable
+/// after creation via the card PATCH routes.
+///
+/// The recovery *mechanism* itself (FOREVER share QRs, CardClaim,
+/// LightningAddressShare/RemoteWalletShare) is still deferred — see
+/// docs/roadmap/MONTH-6.md. Today MASTER only marks the card.
 enum CardKind {
   SIMPLE
   MASTER
@@ -345,6 +350,16 @@ model RemoteWallet {
   @@index([status])
 }
 
+/// A physical card. At most one MASTER card may exist per holder — enforced by
+/// a raw partial unique index (`Card_userId_master_unique`, on `userId` WHERE
+/// `kind = 'MASTER' AND userId IS NOT NULL`), because Prisma can't express
+/// partial indexes. Unpaired cards (`userId = null`) are exempt.
+///
+/// `kind` resets to SIMPLE on every change of holder (claim, OTC activate,
+/// unpair) — the designation is about the account, not the plastic, so it
+/// never travels to a new owner. Promoting always demotes the holder's
+/// previous master first, in a transaction, because Postgres evaluates the
+/// partial index mid-transaction.
 model Card {
   id                  String    @id @default(uuid())
   designId            String

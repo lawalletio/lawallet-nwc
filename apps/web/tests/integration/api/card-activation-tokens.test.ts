@@ -201,11 +201,17 @@ describe('POST /api/cards/[id]/rescue', () => {
     expect(body.qrPayload).toMatch(
       /^https:\/\/test\.example\/wallet\/activate\/[0-9a-f]{32}$/
     )
-    // Card unassigned: holder, lightning address, and bound wallet cleared.
+    // Card unassigned: holder, lightning address, bound wallet, and the MASTER
+    // designation all cleared — the latter belongs to the account it just left.
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'card1' },
-        data: { userId: null, username: null, remoteWalletId: null }
+        data: {
+          userId: null,
+          username: null,
+          remoteWalletId: null,
+          kind: 'SIMPLE'
+        }
       })
     )
   })

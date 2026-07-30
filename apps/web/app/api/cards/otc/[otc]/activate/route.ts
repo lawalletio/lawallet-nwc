@@ -61,9 +61,12 @@ export const POST = withErrorHandling(
             'This card has been blocked and can no longer be activated.'
           )
         }
+        // `kind: 'SIMPLE'` because the MASTER designation never travels with
+        // the card — it's the holder's own decision about their account, so a
+        // card changing hands always lands unpromoted.
         await prisma.card.update({
           where: { id: card.id },
-          data: { userId: user.id }
+          data: { userId: user.id, kind: 'SIMPLE' }
         })
         logActivity.fireAndForget({
           category: 'CARD',

@@ -14,6 +14,11 @@ import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import {
+  clearMasterCard,
+  getMasterCardId,
+  setMasterCard
+} from '@/lib/cards/master-card'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -47,6 +52,7 @@ export const GET = withErrorHandling(
             createdAt: true
           }
         },
+        userId: true,
         user: {
           select: {
             pubkey: true,
@@ -66,6 +72,13 @@ export const GET = withErrorHandling(
       throw new NotFoundError('Card not found')
     }
 
+    // Which of the holder's cards currently holds the MASTER designation. The
+    // detail page only loads one card, so it can't derive this itself — and it
+    // needs it to warn before switching.
+    const masterCardId = card.userId
+      ? await getMasterCardId(card.userId)
+      : null
+
     // Transform to match Card type
     const transformedCard: Card = {
       id: card.id,
@@ -83,6 +96,7 @@ export const GET = withErrorHandling(
       username: card.user?.lightningAddresses?.[0]?.username || undefined,
       otc: card.otc || undefined,
       kind: card.kind,
+      masterCardId,
       blocked: card.blockedAt !== null,
       disabled: card.disabledAt !== null
     }
@@ -94,11 +108,14 @@ export const GET = withErrorHandling(
 /**
  * PATCH /api/cards/[id]
  *
- * Today only the wallet binding can change:
+ * Two independent fields, each optional:
  *   - `remoteWalletId: <id>` rebinds the card to that wallet. The wallet
  *     must be owned by the caller's user record and must not be REVOKED.
  *   - `remoteWalletId: null` unbinds; the card falls back to the owner's
  *     primary-address wallet at run-time.
+ *   - `kind` promotes the card to the holder's MASTER (account-recovery)
+ *     card, or demotes it back to SIMPLE. Promoting demotes whichever card
+ *     held the designation before — at most one MASTER per holder.
  *
  * Cross-field validation lives here (not in Zod) for the same reason as
  * the LA PUT — the rules depend on database state, not just the body
@@ -107,6 +124,7 @@ export const GET = withErrorHandling(
  * The cards routes are admin-scoped (`Permission.CARDS_WRITE`); the
  * Connection Map only shows the cards section to users with that
  * permission, so the rebind UI matches what the caller can actually do.
+ * Cardholders set their own master card via `PATCH /api/wallet/cards/[id]`.
  */
 export const PATCH = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
@@ -117,12 +135,22 @@ export const PATCH = withErrorHandling(
 
     const card = await prisma.card.findUnique({
       where: { id },
-      select: { id: true, userId: true, remoteWalletId: true }
+      select: {
+        id: true,
+        userId: true,
+        remoteWalletId: true,
+        kind: true,
+        blockedAt: true
+      }
     })
     if (!card) throw new NotFoundError('Card not found')
 
+    // ── Wallet rebind ──────────────────────────────────────────────────────
+    // `remoteWalletId` is optional now that `kind` shares this endpoint, so a
+    // kind-only PATCH must leave the binding alone (`undefined`, not `null`).
+    const rebinding = body.remoteWalletId !== undefined
     let nextWalletId: string | null = null
-    if (body.remoteWalletId !== null) {
+    if (rebinding && body.remoteWalletId !== null) {
       const wallet = await prisma.remoteWallet.findUnique({
         where: { id: body.remoteWalletId }
       })
@@ -139,9 +167,36 @@ export const PATCH = withErrorHandling(
       nextWalletId = wallet.id
     }
 
+    // ── Master designation ─────────────────────────────────────────────────
+    let previousMasterCardId: string | null = null
+    if (body.kind !== undefined) {
+      // The designation is per-holder, so it needs a holder. Unpaired
+      // inventory cards can still carry `kind` from creation, but it only
+      // becomes a holder's master when the card is claimed.
+      if (!card.userId) {
+        throw new ValidationError(
+          'Pair the card to a user before setting the master card'
+        )
+      }
+      if (card.blockedAt !== null) {
+        throw new ConflictError(
+          'Blocked cards cannot be used as the master card'
+        )
+      }
+      const ownerId = card.userId
+      previousMasterCardId = await prisma.$transaction(async tx => {
+        if (body.kind === 'MASTER') {
+          const result = await setMasterCard(ownerId, id, tx)
+          return result.previousMasterCardId
+        }
+        await clearMasterCard(id, tx)
+        return null
+      })
+    }
+
     const updated = await prisma.card.update({
       where: { id },
-      data: { remoteWalletId: nextWalletId },
+      data: rebinding ? { remoteWalletId: nextWalletId } : {},
       select: {
         id: true,
         createdAt: true,
@@ -178,7 +233,7 @@ export const PATCH = withErrorHandling(
     // by category — bound/unbound under CARD, plus a sibling under NWC
     // when a binding actually changes (mirrors the LA endpoint's
     // NWC_ASSIGNED_TO_ADDRESS pattern).
-    const changed = nextWalletId !== card.remoteWalletId
+    const changed = rebinding && nextWalletId !== card.remoteWalletId
     if (changed) {
       logActivity.fireAndForget({
         category: 'CARD',
@@ -206,6 +261,24 @@ export const PATCH = withErrorHandling(
       }
     }
 
+    // Logged after the transaction commits, like every other switch event in
+    // the codebase (see setPrimaryIdentity in lib/account/merge.ts).
+    if (body.kind !== undefined && body.kind !== card.kind) {
+      logActivity.fireAndForget({
+        category: 'CARD',
+        event:
+          body.kind === 'MASTER'
+            ? ActivityEvent.CARD_MASTER_SET
+            : ActivityEvent.CARD_MASTER_CLEARED,
+        message:
+          body.kind === 'MASTER'
+            ? `Card ${id} set as master card`
+            : `Card ${id} is no longer the master card`,
+        userId: card.userId ?? undefined,
+        metadata: { cardId: id, previousMasterCardId }
+      })
+    }
+
     const transformedCard: Card = {
       id: updated.id,
       design: updated.design,
@@ -220,6 +293,7 @@ export const PATCH = withErrorHandling(
       otc: updated.otc || undefined,
       remoteWalletId: updated.remoteWalletId ?? null,
       kind: updated.kind,
+      masterCardId: card.userId ? await getMasterCardId(card.userId) : null,
       blocked: updated.blockedAt !== null,
       disabled: updated.disabledAt !== null
     }

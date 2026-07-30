@@ -45,9 +45,20 @@ export interface CardData {
   blocked: boolean
   /** True when the owner has temporarily paused tap-to-pay. */
   disabled: boolean
+  /** MASTER designates the holder's account-recovery card. One per holder. */
+  kind: CardKind
+  /**
+   * Id of the *holder's* current master card — this card's own id when it is
+   * the master, a sibling's when another card holds it, null when the holder
+   * has none or the card is unpaired. Lets the UI warn before a switch rather
+   * than discovering the collision from a failed request.
+   */
+  masterCardId: string | null
   createdAt: string
   updatedAt: string
 }
+
+export type CardKind = 'SIMPLE' | 'MASTER'
 
 export interface CardCounts {
   total: number
@@ -97,6 +108,8 @@ interface ApiCard {
   defaultRemoteWalletId?: string | null
   blocked?: boolean
   disabled?: boolean
+  kind?: CardKind
+  masterCardId?: string | null
 }
 
 function toCardData(c: ApiCard): CardData {
@@ -128,6 +141,8 @@ function toCardData(c: ApiCard): CardData {
     defaultRemoteWalletId: c.defaultRemoteWalletId ?? null,
     blocked: c.blocked ?? false,
     disabled: c.disabled ?? false,
+    kind: c.kind ?? 'SIMPLE',
+    masterCardId: c.masterCardId ?? null,
     createdAt: c.createdAt,
     // Legacy API has no `updatedAt` — fall back to lastUsedAt/createdAt so
     // the "Last used" column still shows something sensible.
@@ -242,8 +257,10 @@ export function useCardTransactions(id: string | null) {
 }
 
 export interface UpdateCardInput {
-  /** New wallet to bind; pass `null` to unbind. */
-  remoteWalletId: string | null
+  /** New wallet to bind; pass `null` to unbind. Omit to leave the binding alone. */
+  remoteWalletId?: string | null
+  /** Promote to the holder's master card, or demote back to SIMPLE. */
+  kind?: CardKind
 }
 
 /**
@@ -269,6 +286,17 @@ export function useCardMutations() {
       create.mutate('post', '/api/cards', data),
     updateCard: (id: string, input: UpdateCardInput) =>
       update.mutate('patch', `/api/cards/${id}`, input),
+    /**
+     * Promote/demote the card as its holder's master (account-recovery) card.
+     * Admin-scoped. Invalidates both card feeds because promoting demotes a
+     * sibling — the row that lost the designation has to refetch too.
+     */
+    setCardKind: async (id: string, kind: CardKind) => {
+      const result = await update.mutate('patch', `/api/cards/${id}`, { kind })
+      invalidateApiPath('/api/cards')
+      invalidateApiPath('/api/wallet/cards')
+      return toCardData(result)
+    },
     deleteCard: (id: string) => del.mutate('del', `/api/cards/${id}`),
     creating: create.loading,
     updating: update.loading,
@@ -281,11 +309,20 @@ export function useCardMutations() {
 
 export function useMyCardMutations() {
   const update = useMutation<
-    { enabled: boolean } | { linkDefaultWallet: true },
+    { enabled: boolean } | { linkDefaultWallet: true } | { kind: CardKind },
     ApiCard
   >()
 
   return {
+    /** Owner-scoped counterpart of `useCardMutations().setCardKind`. */
+    setCardKind: async (id: string, kind: CardKind) => {
+      const result = await update.mutate('patch', `/api/wallet/cards/${id}`, {
+        kind
+      })
+      invalidateApiPath('/api/wallet/cards')
+      invalidateApiPath('/api/cards')
+      return toCardData(result)
+    },
     setCardEnabled: async (id: string, enabled: boolean) => {
       const result = await update.mutate('patch', `/api/wallet/cards/${id}`, {
         enabled

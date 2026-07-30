@@ -318,3 +318,137 @@ describe('PATCH /api/cards/[id]', () => {
     expect(res.status).toBeGreaterThanOrEqual(400)
   })
 })
+
+describe('PATCH /api/cards/[id] — master card designation', () => {
+  /** Wire up the reads the kind branch performs, plus the response re-read. */
+  function mockMasterLookup(cardId: string, currentMasterId: string | null) {
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue(
+      currentMasterId ? ({ id: currentMasterId } as any) : (null as any)
+    )
+    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 1 } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue({
+      ...createCardFixture({ id: cardId, userId: 'user-1' }),
+      kind: 'MASTER',
+      design: createCardDesignFixture(),
+      ntag424: createNtag424Fixture(),
+      user: { pubkey: 'a'.repeat(64) }
+    } as any)
+  }
+
+  it('promotes the card and demotes the holder’s previous master', async () => {
+    mockAdmin()
+    const card = createCardFixture({ userId: 'user-1', kind: 'SIMPLE' })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    mockMasterLookup(card.id, 'card-old')
+
+    const res = await PATCH(
+      patchReq(card.id, { kind: 'MASTER' }),
+      createParamsPromise({ id: card.id })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.kind).toBe('MASTER')
+    // Demote-first — the partial unique index is checked mid-transaction.
+    expect(prismaMock.card.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', kind: 'MASTER', id: { not: card.id } },
+      data: { kind: 'SIMPLE' }
+    })
+    expect(prismaMock.card.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: card.id },
+        data: { kind: 'MASTER' }
+      })
+    )
+  })
+
+  it('leaves the wallet binding untouched on a kind-only PATCH', async () => {
+    mockAdmin()
+    const card = createCardFixture({
+      userId: 'user-1',
+      remoteWalletId: 'wallet-keep'
+    })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    mockMasterLookup(card.id, null)
+
+    await PATCH(
+      patchReq(card.id, { kind: 'MASTER' }),
+      createParamsPromise({ id: card.id })
+    )
+
+    // `remoteWalletId` is absent, not null — the binding must survive.
+    expect(prismaMock.card.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: card.id }, data: {} })
+    )
+    expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('demotes back to SIMPLE without touching siblings', async () => {
+    mockAdmin()
+    const card = createCardFixture({ userId: 'user-1', kind: 'MASTER' })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue(null as any)
+    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 1 } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue({
+      ...card,
+      kind: 'SIMPLE',
+      design: createCardDesignFixture(),
+      ntag424: createNtag424Fixture(),
+      user: { pubkey: 'a'.repeat(64) }
+    } as any)
+
+    const res = await PATCH(
+      patchReq(card.id, { kind: 'SIMPLE' }),
+      createParamsPromise({ id: card.id })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.kind).toBe('SIMPLE')
+    expect(prismaMock.card.updateMany).toHaveBeenCalledWith({
+      where: { id: card.id, kind: 'MASTER' },
+      data: { kind: 'SIMPLE' }
+    })
+  })
+
+  it('rejects an unpaired card with 400', async () => {
+    mockAdmin()
+    const card = createCardFixture({ userId: null })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+
+    const res = await PATCH(
+      patchReq(card.id, { kind: 'MASTER' }),
+      createParamsPromise({ id: card.id })
+    )
+
+    expect(res.status).toBe(400)
+    expect(prismaMock.card.updateMany).not.toHaveBeenCalled()
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects a blocked card with 409', async () => {
+    mockAdmin()
+    const card = createCardFixture({
+      userId: 'user-1',
+      blockedAt: new Date()
+    })
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+
+    const res = await PATCH(
+      patchReq(card.id, { kind: 'MASTER' }),
+      createParamsPromise({ id: card.id })
+    )
+
+    expect(res.status).toBe(409)
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty payload with 400', async () => {
+    mockAdmin()
+
+    const res = await PATCH(
+      patchReq('any-id', {}),
+      createParamsPromise({ id: 'any-id' })
+    )
+
+    expect(res.status).toBe(400)
+  })
+})

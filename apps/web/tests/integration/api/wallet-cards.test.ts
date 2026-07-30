@@ -32,6 +32,8 @@ vi.mock('@/lib/activity-log', () => ({
   ActivityEvent: {
     CARD_STATUS_UPDATED: 'card.status_updated',
     CARD_WALLET_BOUND: 'card.wallet_bound',
+    CARD_MASTER_SET: 'card.master_set',
+    CARD_MASTER_CLEARED: 'card.master_cleared',
     NWC_ASSIGNED_TO_CARD: 'nwc.assigned_to_card'
   },
   logActivity: { fireAndForget: vi.fn() }
@@ -356,5 +358,103 @@ describe('PATCH /api/wallet/cards/[id]', () => {
 
     expect(res.status).toBe(409)
     expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('PATCH /api/wallet/cards/[id] — master card designation', () => {
+  function mockOwner(cardOverrides: Partial<any> = {}) {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      pubkey: mockPubkey,
+      remoteWallets: []
+    } as any)
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue({
+      id: 'card-1',
+      userId: 'user-1',
+      remoteWalletId: null,
+      kind: 'SIMPLE',
+      blockedAt: null,
+      disabledAt: null,
+      ...cardOverrides
+    } as any)
+  }
+
+  function patchKind(kind: 'SIMPLE' | 'MASTER') {
+    return UpdateCard(
+      createNextRequest('/api/wallet/cards/card-1', {
+        method: 'PATCH',
+        body: { kind }
+      }),
+      createParamsPromise({ id: 'card-1' })
+    )
+  }
+
+  it('lets the owner promote their own card, demoting the previous one', async () => {
+    mockOwner()
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
+      id: 'card-old'
+    } as any)
+    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 1 } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue(
+      makeCardRow({ kind: 'MASTER' }) as any
+    )
+
+    const body: any = await assertResponse(await patchKind('MASTER'), 200)
+
+    expect(body.kind).toBe('MASTER')
+    expect(prismaMock.card.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1', kind: 'MASTER', id: { not: 'card-1' } },
+      data: { kind: 'SIMPLE' }
+    })
+    // Kind-only PATCH must not disturb enabled/binding state.
+    expect(prismaMock.card.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: 'card-1' }, data: {} })
+    )
+  })
+
+  it('demotes back to SIMPLE', async () => {
+    mockOwner({ kind: 'MASTER' })
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue(null as any)
+    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 1 } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue(
+      makeCardRow({ kind: 'SIMPLE' }) as any
+    )
+
+    const body: any = await assertResponse(await patchKind('SIMPLE'), 200)
+
+    expect(body.kind).toBe('SIMPLE')
+    expect(prismaMock.card.updateMany).toHaveBeenCalledWith({
+      where: { id: 'card-1', kind: 'MASTER' },
+      data: { kind: 'SIMPLE' }
+    })
+  })
+
+  it("404s on another user's card rather than leaking its existence", async () => {
+    mockOwner({ userId: 'someone-else' })
+
+    expect((await patchKind('MASTER')).status).toBe(404)
+    expect(prismaMock.card.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects a blocked card with 409', async () => {
+    mockOwner({ blockedAt: new Date('2026-01-02T00:00:00Z') })
+
+    expect((await patchKind('MASTER')).status).toBe(409)
+    expect(prismaMock.card.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects combining kind with another action', async () => {
+    mockOwner()
+
+    const res = await UpdateCard(
+      createNextRequest('/api/wallet/cards/card-1', {
+        method: 'PATCH',
+        body: { kind: 'MASTER', enabled: false }
+      }),
+      createParamsPromise({ id: 'card-1' })
+    )
+
+    expect(res.status).toBe(400)
   })
 })

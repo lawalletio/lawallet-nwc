@@ -28,6 +28,24 @@ const cardSchema = z
           'True once the card’s reset (wipe) keys were exported — ' +
           'decommissioned and pending delete; can no longer be re-used.'
       }),
+    kind: z
+      .enum(['SIMPLE', 'MASTER'])
+      .optional()
+      .openapi({
+        description:
+          'MASTER designates the holder’s account-recovery card. At most ' +
+          'one per holder.'
+      }),
+    masterCardId: z
+      .string()
+      .nullable()
+      .optional()
+      .openapi({
+        description:
+          'Id of the holder’s current MASTER card — this card’s own id when ' +
+          'it holds the designation, a sibling’s when another does, null ' +
+          'when the holder has none or the card is unpaired.'
+      }),
     createdAt: z.string().datetime()
   })
   .openapi({
@@ -115,6 +133,34 @@ registry.registerPath({
   request: { params: schemas.IdParam },
   responses: {
     200: inlineJsonResponse('Card detail.', cardSchema),
+    ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('OPERATOR'),
+  method: 'patch',
+  path: '/api/cards/{id}',
+  tags: [TAG],
+  summary: 'Update a card.',
+  description:
+    'Rebinds the card’s spending wallet and/or changes its kind. Setting ' +
+    '`kind` to MASTER designates the card as its holder’s account-recovery ' +
+    'card and demotes whichever of their cards previously held that ' +
+    'designation; the card must be paired (400 otherwise) and not blocked ' +
+    '(409 otherwise). Cardholders can set their own via ' +
+    'PATCH /api/wallet/cards/{id}.',
+  operationId: 'cards.update',
+  security: protectedSecurity,
+  request: {
+    params: schemas.IdParam,
+    body: {
+      content: { 'application/json': { schema: schemas.CardUpdateRequest } }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse('Updated card.', cardSchema),
     ...commonErrorResponses,
     404: responses.notFound
   }

@@ -72,6 +72,10 @@ export const ActivityEvent = {
   CARD_CREATED: 'card.created',
   CARD_PAIRED: 'card.paired',
   CARD_STATUS_UPDATED: 'card.status_updated',
+  // The holder's account-recovery card designation moved to / off this card.
+  // `previousMasterCardId` in the metadata names the card it displaced.
+  CARD_MASTER_SET: 'card.master_set',
+  CARD_MASTER_CLEARED: 'card.master_cleared',
   CARD_WALLET_BOUND: 'card.wallet_bound',
   CARD_WALLET_UNBOUND: 'card.wallet_unbound',
   CARD_DELETED: 'card.deleted',

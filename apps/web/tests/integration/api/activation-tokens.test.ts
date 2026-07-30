@@ -154,6 +154,37 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
     } as any)
   }
 
+  it('resets the card to SIMPLE so the master designation never changes hands', async () => {
+    // A card stamped MASTER in inventory (or handed on by a previous holder)
+    // must not arrive already marked as the claimer's recovery card — that's
+    // their decision to make. Resetting here also means assigning `userId` can
+    // never collide with the Card_userId_master_unique partial index.
+    mockClaimer('w1')
+    mockPendingToken()
+    vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({
+      count: 1
+    } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue(claimedCardRow as any)
+
+    const req = createNextRequest('/api/activation-tokens/tok1/claim', {
+      method: 'POST',
+      body: {}
+    })
+    await assertResponse(
+      await ClaimToken(req, createParamsPromise({ id: 'tok1' })),
+      200
+    )
+
+    expect(prismaMock.card.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'card1' },
+        data: expect.objectContaining({ kind: 'SIMPLE' })
+      })
+    )
+    // No sibling demotion needed — nothing is ever promoted by a claim.
+    expect(prismaMock.card.updateMany).not.toHaveBeenCalled()
+  })
+
   it('transfers card ownership, binds the primary-address wallet, and burns the token', async () => {
     mockClaimer('w1')
     mockPendingToken()
@@ -183,7 +214,7 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'card1' },
-        data: { userId: 'user1', remoteWalletId: 'w1' }
+        data: { userId: 'user1', remoteWalletId: 'w1', kind: 'SIMPLE' }
       })
     )
     // The fallback only considers the wallet linked by the claimer's primary
@@ -242,7 +273,7 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
 
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { userId: 'user1', remoteWalletId: null }
+        data: { userId: 'user1', remoteWalletId: null, kind: 'SIMPLE' }
       })
     )
   })
@@ -278,7 +309,7 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
     expect(createNewUser).toHaveBeenCalledWith(CLAIMER_PUBKEY)
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { userId: 'user2', remoteWalletId: null }
+        data: { userId: 'user2', remoteWalletId: null, kind: 'SIMPLE' }
       })
     )
   })
@@ -308,7 +339,7 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
 
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { userId: 'user1', remoteWalletId: 'w2' }
+        data: { userId: 'user1', remoteWalletId: 'w2', kind: 'SIMPLE' }
       })
     )
   })

@@ -89,11 +89,17 @@ describe('GET /api/cards/[id]/write', () => {
     expect(body.protocol_name).toBe('new_bolt_card_response')
     expect(body.k0).toBeDefined()
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
-    // Exporting the keys unpairs the card from any user...
+    // Exporting the keys unpairs the card from any user — including dropping
+    // the MASTER designation, which belongs to the account it just left...
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: card.id },
-        data: { userId: null, username: null, remoteWalletId: null }
+        data: {
+          userId: null,
+          username: null,
+          remoteWalletId: null,
+          kind: 'SIMPLE'
+        }
       })
     )
     // ...and consumes the one-time token (single-use replay protection).
