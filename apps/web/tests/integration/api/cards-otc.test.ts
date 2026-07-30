@@ -138,8 +138,9 @@ describe('POST /api/cards/otc/[otc]/activate', () => {
       userId: user.id,
       lightningAddress: 'alice@test.com'
     })
+    // `kind: 'SIMPLE'` — the master designation never travels with the card.
     expect(prismaMock.card.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { userId: user.id } })
+      expect.objectContaining({ data: { userId: user.id, kind: 'SIMPLE' } })
     )
   })
 

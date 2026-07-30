@@ -200,6 +200,26 @@
         ],
         "description": "Create-card payload. `id` is the card UID (4- or 7-byte hex, colons optional); it is normalized to uppercase hex and used as the unique NTAG424 key, so re-using a UID returns 409 Conflict. `designId` must reference an existing design; `kind` defaults to `SIMPLE`."
       },
+      "CardUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "remoteWalletId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "SIMPLE",
+              "MASTER"
+            ]
+          }
+        },
+        "description": "Admin card update. At least one field is required. `remoteWalletId` rebinds the card to that wallet (or unbinds it when null); `kind` promotes the card to its holder’s MASTER (account-recovery) card, or demotes it back to SIMPLE. A card must be paired and unblocked to be made MASTER, and promoting demotes whichever of the holder’s cards previously held the designation — at most one MASTER per holder."
+      },
       "CardListQuery": {
         "type": "object",
         "properties": {
@@ -499,9 +519,16 @@
           },
           "linkDefaultWallet": {
             "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "SIMPLE",
+              "MASTER"
+            ]
           }
         },
-        "description": "Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, or set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet."
+        "description": "Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet, or set `kind` to designate this card as the caller’s MASTER (account-recovery) card — which demotes whichever card previously held that designation."
       },
       "UserRoleUpdateRequest": {
         "type": "object",
@@ -3715,6 +3742,21 @@
                             "type": "boolean",
                             "description": "True once the card’s reset (wipe) keys were exported — decommissioned and pending delete; can no longer be re-used."
                           },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "SIMPLE",
+                              "MASTER"
+                            ],
+                            "description": "MASTER designates the holder’s account-recovery card. At most one per holder."
+                          },
+                          "masterCardId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Id of the holder’s current MASTER card — this card’s own id when it holds the designation, a sibling’s when another does, null when the holder has none or the card is unpaired."
+                          },
                           "createdAt": {
                             "type": "string",
                             "format": "date-time"
@@ -3830,6 +3872,21 @@
                     "blocked": {
                       "type": "boolean",
                       "description": "True once the card’s reset (wipe) keys were exported — decommissioned and pending delete; can no longer be re-used."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "SIMPLE",
+                        "MASTER"
+                      ],
+                      "description": "MASTER designates the holder’s account-recovery card. At most one per holder."
+                    },
+                    "masterCardId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Id of the holder’s current MASTER card — this card’s own id when it holds the designation, a sibling’s when another does, null when the holder has none or the card is unpaired."
                     },
                     "createdAt": {
                       "type": "string",
@@ -4047,6 +4104,167 @@
                     "blocked": {
                       "type": "boolean",
                       "description": "True once the card’s reset (wipe) keys were exported — decommissioned and pending delete; can no longer be re-used."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "SIMPLE",
+                        "MASTER"
+                      ],
+                      "description": "MASTER designates the holder’s account-recovery card. At most one per holder."
+                    },
+                    "masterCardId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Id of the holder’s current MASTER card — this card’s own id when it holds the designation, a sibling’s when another does, null when the holder has none or the card is unpaired."
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "paired",
+                    "used",
+                    "createdAt"
+                  ],
+                  "description": "Card resource as returned by /api/cards endpoints."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "x-required-role": "OPERATOR",
+        "tags": [
+          "Cards"
+        ],
+        "summary": "Update a card.",
+        "description": "Rebinds the card’s spending wallet and/or changes its kind. Setting `kind` to MASTER designates the card as its holder’s account-recovery card and demotes whichever of their cards previously held that designation; the card must be paired (400 otherwise) and not blocked (409 otherwise). Cardholders can set their own via PATCH /api/wallet/cards/{id}.",
+        "operationId": "cards.update",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated card.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "designId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "paired": {
+                      "type": "boolean"
+                    },
+                    "used": {
+                      "type": "boolean"
+                    },
+                    "blocked": {
+                      "type": "boolean",
+                      "description": "True once the card’s reset (wipe) keys were exported — decommissioned and pending delete; can no longer be re-used."
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "SIMPLE",
+                        "MASTER"
+                      ],
+                      "description": "MASTER designates the holder’s account-recovery card. At most one per holder."
+                    },
+                    "masterCardId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Id of the holder’s current MASTER card — this card’s own id when it holds the designation, a sibling’s when another does, null when the holder has none or the card is unpaired."
                     },
                     "createdAt": {
                       "type": "string",
@@ -7415,7 +7633,15 @@
                         "enum": [
                           "SIMPLE",
                           "MASTER"
-                        ]
+                        ],
+                        "description": "MASTER designates the caller’s account-recovery card — at most one."
+                      },
+                      "masterCardId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Id of the caller’s current MASTER card, or null when they have none."
                       }
                     },
                     "required": [
@@ -7551,7 +7777,15 @@
                       "enum": [
                         "SIMPLE",
                         "MASTER"
-                      ]
+                      ],
+                      "description": "MASTER designates the caller’s account-recovery card — at most one."
+                    },
+                    "masterCardId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Id of the caller’s current MASTER card, or null when they have none."
                     }
                   },
                   "required": [

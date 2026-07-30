@@ -62,6 +62,7 @@ import { truncateNpub, formatRelativeTime } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
+import { MasterCardToggle } from '@/components/admin/master-card-toggle'
 
 export default function CardDetailPage({
   params
@@ -71,7 +72,7 @@ export default function CardDetailPage({
   const { id } = use(params)
   const router = useRouter()
   const { data: card, loading } = useCard(id)
-  const { deleteCard, loading: deleteLoading } = useCardMutations()
+  const { deleteCard, setCardKind, loading: deleteLoading } = useCardMutations()
   const [qrOpen, setQrOpen] = useState(false)
   const [activationOpen, setActivationOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -211,6 +212,9 @@ export default function CardDetailPage({
                               : 'Unpaired'}
                         </Badge>
                         {isUsed && <Badge variant="outline">Used</Badge>}
+                        {card.kind === 'MASTER' && (
+                          <Badge variant="outline">Master</Badge>
+                        )}
                       </div>
                     }
                   />
@@ -269,6 +273,30 @@ export default function CardDetailPage({
                         {card.blocked
                           ? 'This card is blocked and can no longer be activated.'
                           : 'Generate a one-time link or QR. The cardholder scans it with their wallet to claim this card and link it to their account.'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </PermissionGuard>
+
+                {/* Master card. The holder's account-recovery card — exactly
+                    one per user, so promoting this card demotes whichever
+                    sibling held the designation (confirmed in the toggle). */}
+                <PermissionGuard permission={Permission.CARDS_WRITE}>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between gap-2">
+                      <CardTitle className="text-base">Master card</CardTitle>
+                      <MasterCardToggle
+                        card={card}
+                        onSetKind={kind => setCardKind(card.id, kind)}
+                      />
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground">
+                        {card.blocked
+                          ? 'This card is blocked and cannot be the master card.'
+                          : !isPaired
+                            ? 'Pair this card to a user before making it their master card.'
+                            : 'The master card is the one that can recover this user’s whole account. Each user has at most one — turning this on takes the designation away from any other card they hold.'}
                       </p>
                     </CardContent>
                   </Card>

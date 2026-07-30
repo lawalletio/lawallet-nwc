@@ -5,6 +5,8 @@
 **Depends on:** [Month 5](MONTH-5.md)
 
 > **Status update (2026-07):** The infrastructure tier shipped across the v1.1.0 → v1.4.0 releases — the NWC Payment Listener as a live transport service, the **SIMPLE / ONE_TIME** card activation flow (`/wallet/activate/[id]`), deploy targets (Docker Hub / Umbrel / Start9), Backup & Restore, and listener hardening. The **settlement / share / compliance** items were deferred to [Month 7](MONTH-7.md): **MASTER card account-share** (FOREVER QRs + the `CardClaim` / `LightningAddressShare` / `RemoteWalletShare` model + share-revoke), **NWC Proxy Lite**, full **LUD-16 / LUD-21 / LUD-22 / NIP-57** closeout, **`@lawallet-nwc/react`**, the **WordPress plugin**, the **Resend** adapter, and the **Nostr scheduler**. The detailed spec below is retained as the design of record for that carried-over work. See the [Month 6 report](../reports/MONTH-6.md).
+>
+> **MASTER card, partially landed:** the **designation** now ships — an admin (or the cardholder) picks which of a user's cards is their MASTER account-recovery card, from `/admin/cards` or the card detail page. Exactly one MASTER per holder, enforced by the `Card_userId_master_unique` partial index and a demote-then-promote transaction (`lib/cards/master-card.ts`); the claim/activation paths demote the claimer's previous master so an inventory card stamped MASTER pairs cleanly. What remains deferred is the **mechanism** the designation unlocks: FOREVER share QRs, `CardClaim`, `LightningAddressShare` / `RemoteWalletShare`, and share-revoke. Today MASTER only marks the card.
 
 ## Summary
 

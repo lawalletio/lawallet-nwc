@@ -123,9 +123,18 @@ export const POST = withErrorHandling(
       })
       if (burn.count === 0) throw new ConflictError('Already claimed')
 
+      // The MASTER designation never travels with the card. It's a trust
+      // decision the *holder* makes about their own account, so a card
+      // changing hands always lands as SIMPLE — the new holder can promote it
+      // themselves. This also means assigning `userId` can never collide with
+      // the `Card_userId_master_unique` partial index.
       return tx.card.update({
         where: { id: token.cardId },
-        data: { userId: claimer.id, remoteWalletId: nextWalletId },
+        data: {
+          userId: claimer.id,
+          remoteWalletId: nextWalletId,
+          kind: 'SIMPLE'
+        },
         select: {
           id: true,
           createdAt: true,

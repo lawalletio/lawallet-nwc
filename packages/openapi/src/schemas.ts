@@ -15,6 +15,7 @@ import {
   createActivationTokenSchema,
   createCardDesignSchema,
   createCardSchema,
+  updateCardSchema,
   createInvoiceSchema,
   createLncurlWalletSchema,
   createRemoteCardSchema,
@@ -71,6 +72,18 @@ export const schemas = {
         'optional); it is normalized to uppercase hex and used as the unique ' +
         'NTAG424 key, so re-using a UID returns 409 Conflict. `designId` must ' +
         'reference an existing design; `kind` defaults to `SIMPLE`.'
+    })
+  ),
+  CardUpdateRequest: registry.register(
+    'CardUpdateRequest',
+    updateCardSchema.openapi({
+      description:
+        'Admin card update. At least one field is required. `remoteWalletId` ' +
+        'rebinds the card to that wallet (or unbinds it when null); `kind` ' +
+        'promotes the card to its holder’s MASTER (account-recovery) card, or ' +
+        'demotes it back to SIMPLE. A card must be paired and unblocked to be ' +
+        'made MASTER, and promoting demotes whichever of the holder’s cards ' +
+        'previously held the designation — at most one MASTER per holder.'
     })
   ),
   CardListQuery: registry.register('CardListQuery', cardListQuerySchema),
@@ -145,7 +158,7 @@ export const schemas = {
     'WalletCardUpdateRequest',
     updateWalletCardSchema.openapi({
       description:
-        'Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, or set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet.'
+        'Owner-scoped card update. Provide exactly one action: set `enabled` to enable or disable the card, set `linkDefaultWallet` to true to bind it to the caller’s primary remote wallet, or set `kind` to designate this card as the caller’s MASTER (account-recovery) card — which demotes whichever card previously held that designation.'
     })
   ),
 

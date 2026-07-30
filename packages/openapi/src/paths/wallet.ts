@@ -61,7 +61,14 @@ const walletCardSchema = z
     pubkey: z.string().optional(),
     username: z.string().optional(),
     remoteWalletId: z.string().nullable().optional(),
-    kind: z.enum(['SIMPLE', 'MASTER']).optional()
+    kind: z.enum(['SIMPLE', 'MASTER']).optional().openapi({
+      description:
+        'MASTER designates the caller’s account-recovery card — at most one.'
+    }),
+    masterCardId: z.string().nullable().optional().openapi({
+      description:
+        'Id of the caller’s current MASTER card, or null when they have none.'
+    })
   })
   .passthrough()
   .openapi({

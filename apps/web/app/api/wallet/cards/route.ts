@@ -90,6 +90,9 @@ export const GET = withErrorHandling(async (request: Request) => {
     }
   })
 
+  // One designation per holder, so a single value covers the whole list.
+  const masterCardId = cards.find(card => card.kind === 'MASTER')?.id ?? null
+
   const transformed: Card[] = cards.map(card => ({
     id: card.id,
     design: card.design,
@@ -108,6 +111,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     remoteWalletId: card.remoteWalletId ?? null,
     defaultRemoteWalletId,
     kind: card.kind,
+    masterCardId,
     blocked: card.blockedAt !== null,
     disabled: card.disabledAt !== null
   }))

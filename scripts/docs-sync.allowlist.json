@@ -1,7 +1,6 @@
 [
   "POST /api/card-designs/import-veintiuno",
   "DELETE /api/card-designs/import-veintiuno",
-  "PATCH /api/cards/{id}",
   "POST /api/dev/reset",
   "POST /api/dev/login",
   "POST /api/dev/impersonate",

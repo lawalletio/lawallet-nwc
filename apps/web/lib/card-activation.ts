@@ -104,13 +104,17 @@ export async function mintActivationToken(
 
 /**
  * Unassigns a card from any user — clears the holder (`userId`), the
- * lightning-address link (`username`), and the bound wallet (`remoteWalletId`),
- * plus the NTAG424's own `userId` link.
+ * lightning-address link (`username`), the bound wallet (`remoteWalletId`) and
+ * the MASTER designation (`kind`), plus the NTAG424's own `userId` link.
  *
  * Called whenever a card's keys are exported for (re)programming or reset
  * (`/write`, `/wipe`): once the physical card's secrets have been handed out it
  * can no longer be safely tied to a user. Idempotent — clearing already-null
  * fields is a no-op, so repeated key exports stay harmless.
+ *
+ * `kind` resets with the holder because the MASTER designation is a decision
+ * about *an account*, not a property of the plastic. A card that leaves its
+ * holder must not arrive at the next one still marked as their recovery card.
  */
 export async function unpairCard(
   tx: Prisma.TransactionClient,
@@ -119,7 +123,12 @@ export async function unpairCard(
 ) {
   await tx.card.update({
     where: { id: cardId },
-    data: { userId: null, username: null, remoteWalletId: null }
+    data: {
+      userId: null,
+      username: null,
+      remoteWalletId: null,
+      kind: 'SIMPLE'
+    }
   })
   if (ntag424Cid) {
     await tx.ntag424.update({

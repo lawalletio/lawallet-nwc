@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Search,
-  MoreHorizontal,
   RefreshCw,
   Upload,
   Download,
@@ -43,12 +42,6 @@ import {
   TableRow
 } from '@/components/ui/table'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -64,8 +57,14 @@ import { useAuth } from '@/components/admin/auth-context'
 import {
   useCards,
   useMyCards,
-  useCardCounts
+  useCardCounts,
+  useCardMutations,
+  useMyCardMutations
 } from '@/lib/client/hooks/use-cards'
+import {
+  CardRowActions,
+  MasterCardIcon
+} from '@/components/admin/master-card-toggle'
 import {
   useDesigns,
   useDesignMutations,
@@ -110,6 +109,13 @@ export default function CardsPage() {
     loading: countsLoading,
     refetch: refetchCounts
   } = useCardCounts({ enabled: viewingAll })
+  // Master-card designation. Admins go through the admin route (they may be
+  // looking at someone else's card); everyone else uses the owner-scoped one,
+  // which only ever accepts their own cards.
+  const canWriteCards = isAuthorized(Permission.CARDS_WRITE)
+  const { setCardKind: setCardKindAsAdmin } = useCardMutations()
+  const { setCardKind: setOwnCardKind } = useMyCardMutations()
+  const setCardKind = viewingAll ? setCardKindAsAdmin : setOwnCardKind
   const {
     data: designs,
     loading: designsLoading,
@@ -384,7 +390,7 @@ export default function CardsPage() {
 
         {/* Cards Table */}
         {cardsLoading ? (
-          <TableSkeleton rows={5} columns={4} />
+          <TableSkeleton rows={5} columns={5} />
         ) : !paginated.length ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-sm text-muted-foreground">
@@ -402,6 +408,7 @@ export default function CardsPage() {
                     <TableHead>Card</TableHead>
                     <TableHead>Identity</TableHead>
                     <TableHead>Last used</TableHead>
+                    <TableHead className="w-[80px]">Master</TableHead>
                     <TableHead className="w-[50px]" />
                   </TableRow>
                 </TableHeader>
@@ -480,26 +487,21 @@ export default function CardsPage() {
                           {formatRelativeTime(card.updatedAt)}
                         </TableCell>
                         <TableCell>
-                          {canReadAll && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-8"
-                                >
-                                  <MoreHorizontal className="size-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/admin/cards/${card.id}`}>
-                                    View Details
-                                  </Link>
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
+                          {/* Read-only marker — the account-recovery card,
+                              one per user. Setting it lives in the row menu. */}
+                          {card.kind === 'MASTER' && <MasterCardIcon />}
+                        </TableCell>
+                        <TableCell>
+                          <CardRowActions
+                            card={card}
+                            canViewDetails={canReadAll}
+                            // Own-cards mode goes through the owner-scoped
+                            // route, which any authenticated user may call for
+                            // their own cards — CARDS_WRITE is only required
+                            // to change someone else's.
+                            canSetMaster={!viewingAll || canWriteCards}
+                            onSetKind={kind => setCardKind(card.id, kind)}
+                          />
                         </TableCell>
                       </TableRow>
                     )
