@@ -110,9 +110,15 @@ for (const [contents, label] of [
 // The Umbrel package lives in lawalletio/umbrel-app-store and is only ever
 // rewritten by tag-bumping automation, so a newly required variable never
 // reaches its env block on its own. v2.1.0 shipped without NWC_VAULT_SECRET
-// and crash-looped both containers while this gate stayed green. A network
-// failure skips rather than breaks the release; a file we can actually read
-// and that misses the variable is a hard failure.
+// and crash-looped both containers while this gate stayed green.
+//
+// Strict only where it matters — the release gate sets
+// STRICT_EXTERNAL_PACKAGES=1. On ordinary PRs this stays advisory: the Umbrel
+// package is a different repository, and its drift must not block unrelated
+// work here. It must, however, block shipping. A network failure always skips,
+// so a GitHub outage can never break a release either way.
+const strictExternalPackages = process.env.STRICT_EXTERNAL_PACKAGES === '1'
+
 for (const packagePath of UMBREL_PACKAGE_FILES) {
   let contents
   try {
@@ -123,12 +129,17 @@ for (const packagePath of UMBREL_PACKAGE_FILES) {
     )
     continue
   }
-  requireOccurrences(
-    contents,
-    'NWC_VAULT_SECRET:',
-    2,
-    `Umbrel package ${packagePath} must pass NWC_VAULT_SECRET to web and listener`
-  )
+  const label = `Umbrel package ${packagePath} must pass NWC_VAULT_SECRET to web and listener`
+  if (strictExternalPackages) {
+    requireOccurrences(contents, 'NWC_VAULT_SECRET:', 2, label)
+    continue
+  }
+  const found = contents.split('NWC_VAULT_SECRET:').length - 1
+  if (found < 2) {
+    console.warn(
+      `WARNING: ${label} (found ${found}, expected at least 2). Releases stay blocked until lawalletio/umbrel-app-store is updated.`
+    )
+  }
 }
 
 requireMatch(
