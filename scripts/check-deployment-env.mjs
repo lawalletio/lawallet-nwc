@@ -29,6 +29,12 @@ function requireOccurrences(contents, value, minimum, label) {
   }
 }
 
+function exactOccurrenceFailure(contents, value, expected, label) {
+  const count = contents.split(value).length - 1
+  if (count === expected) return null
+  return `${label} (found ${count}, expected exactly ${expected})`
+}
+
 function requireCondition(condition, label) {
   if (!condition) {
     throw new Error(`Deployment environment check failed: ${label}`)
@@ -41,6 +47,47 @@ const UMBREL_PACKAGE_FILES = [
   'lawallet-nwc/docker-compose.yml',
   'test/docker-compose.regtest.yml'
 ]
+const UMBREL_PERSISTED_SECRET_CONTRACT = {
+  'lawallet-nwc/docker-compose.yml': [
+    {
+      value: 'NWC_VAULT_SECRET: "${APP_SEED}-nwc-vault-v1"',
+      expected: 2,
+      label: 'must preserve the v1 NWC vault derivation on web and listener'
+    },
+    {
+      value: 'KEY_VAULT_SECRET: "${APP_SEED}-key-vault-v1"',
+      expected: 1,
+      label: 'must preserve the v1 user-key vault derivation'
+    },
+    {
+      value: 'LISTENER_REQUEST_AUTH_SECRET: "${APP_SEED}-listener-request-v1"',
+      expected: 2,
+      label:
+        'must pass the domain-separated request-auth secret to web and listener'
+    }
+  ],
+  'test/docker-compose.regtest.yml': [
+    {
+      value:
+        'NWC_VAULT_SECRET: "${APP_SEED:-lawallet-local-jwt-secret-at-least-32-chars}-nwc-vault-v1"',
+      expected: 2,
+      label: 'must preserve the v1 NWC vault derivation on web and listener'
+    },
+    {
+      value:
+        'KEY_VAULT_SECRET: "${APP_SEED:-lawallet-local-jwt-secret-at-least-32-chars}-key-vault-v1"',
+      expected: 1,
+      label: 'must preserve the v1 user-key vault derivation'
+    },
+    {
+      value:
+        'LISTENER_REQUEST_AUTH_SECRET: "${APP_SEED:-lawallet-local-jwt-secret-at-least-32-chars}-listener-request-v1"',
+      expected: 2,
+      label:
+        'must pass the domain-separated request-auth secret to web and listener'
+    }
+  ]
+}
 
 async function readRemote(relativePath) {
   const controller = new AbortController()
@@ -110,7 +157,10 @@ for (const [contents, label] of [
 // The Umbrel package lives in lawalletio/umbrel-app-store and is only ever
 // rewritten by tag-bumping automation, so a newly required variable never
 // reaches its env block on its own. v2.1.0 shipped without NWC_VAULT_SECRET
-// and crash-looped both containers while this gate stayed green.
+// and crash-looped both containers while this gate stayed green. v2.2.0 then
+// changed the APP_SEED suffixes and made already-encrypted NWC/user-key data
+// unreadable. Those exact domain tags are therefore a persisted-data contract,
+// not merely presence checks.
 //
 // Strict only where it matters — the release gate sets
 // STRICT_EXTERNAL_PACKAGES=1. On ordinary PRs this stays advisory: the Umbrel
@@ -129,17 +179,26 @@ for (const packagePath of UMBREL_PACKAGE_FILES) {
     )
     continue
   }
-  const label = `Umbrel package ${packagePath} must pass NWC_VAULT_SECRET to web and listener`
+  const failures = UMBREL_PERSISTED_SECRET_CONTRACT[packagePath]
+    .map(contract =>
+      exactOccurrenceFailure(
+        contents,
+        contract.value,
+        contract.expected,
+        `Umbrel package ${packagePath} ${contract.label}`
+      )
+    )
+    .filter(Boolean)
+  if (failures.length === 0) continue
+
   if (strictExternalPackages) {
-    requireOccurrences(contents, 'NWC_VAULT_SECRET:', 2, label)
-    continue
-  }
-  const found = contents.split('NWC_VAULT_SECRET:').length - 1
-  if (found < 2) {
-    console.warn(
-      `WARNING: ${label} (found ${found}, expected at least 2). Releases stay blocked until lawalletio/umbrel-app-store is updated.`
+    throw new Error(
+      `Deployment environment check failed: ${failures.join('; ')}`
     )
   }
+  console.warn(
+    `WARNING: ${failures.join('; ')}. Releases stay blocked until lawalletio/umbrel-app-store is updated.`
+  )
 }
 
 requireMatch(
