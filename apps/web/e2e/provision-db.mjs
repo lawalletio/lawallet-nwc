@@ -86,7 +86,7 @@ const env = {
   // e2e/env.ts so the webServer decrypts what the seed encrypted.
   NWC_VAULT_SECRET:
     process.env.NWC_VAULT_SECRET ||
-    'e2e-only-nwc-vault-secret-at-least-32-characters'
+    'ci-e2e-nwc-vault-secret-minimum-32-characters'
 }
 const run = cmd => execSync(cmd, { cwd: webRoot, env, stdio: 'inherit' })
 

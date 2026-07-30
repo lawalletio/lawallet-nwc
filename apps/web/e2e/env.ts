@@ -74,7 +74,7 @@ export const E2E_JWT_SECRET = 'e2e-only-jwt-secret-at-least-32-characters'
  */
 export const E2E_NWC_VAULT_SECRET =
   process.env.NWC_VAULT_SECRET ||
-  'e2e-only-nwc-vault-secret-at-least-32-characters'
+  'ci-e2e-nwc-vault-secret-minimum-32-characters'
 
 export const E2E_PORT = Number(process.env.E2E_PORT || 3100)
 
