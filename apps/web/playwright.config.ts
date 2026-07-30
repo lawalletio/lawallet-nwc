@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 import {
   resolveE2eDatabaseUrl,
   E2E_JWT_SECRET,
+  E2E_NWC_VAULT_SECRET,
   E2E_PORT,
   E2E_BASE_URL
 } from './e2e/env'
@@ -47,6 +48,9 @@ export default defineConfig({
     env: {
       DATABASE_URL: resolveE2eDatabaseUrl(),
       JWT_SECRET: E2E_JWT_SECRET,
+      // Same secret the seed used to encrypt NWC envelopes, so the app can
+      // decrypt them at runtime.
+      NWC_VAULT_SECRET: E2E_NWC_VAULT_SECRET,
       NODE_ENV: 'development',
       RATE_LIMIT_ENABLED: 'false',
       AUTO_GENERATE_ALBY_SUBACCOUNTS: 'false',

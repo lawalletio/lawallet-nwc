@@ -61,6 +61,21 @@ export function resolveE2eDatabaseUrl(): string {
 /** Fixed secret shared by the webServer and the token-minting fixture. */
 export const E2E_JWT_SECRET = 'e2e-only-jwt-secret-at-least-32-characters'
 
+/**
+ * Vault secret (32+ chars) shared by the seed and the webServer so the app can
+ * decrypt the NWC envelopes the seed encrypts. Both sides MUST resolve to the
+ * same value or the boot-time re-encryption migration fails to decrypt and the
+ * webServer crashes. We mirror provision-db.mjs's `process.env.NWC_VAULT_SECRET
+ * || <literal>` exactly: both processes are children of the same `pnpm e2e`
+ * shell, so reading the same env var (with the same fallback) can never
+ * diverge — hard-coding only the literal here did diverge whenever
+ * NWC_VAULT_SECRET was set in the environment. Keep the literal identical to
+ * e2e/provision-db.mjs (that script runs under plain node, can't import this).
+ */
+export const E2E_NWC_VAULT_SECRET =
+  process.env.NWC_VAULT_SECRET ||
+  'ci-e2e-nwc-vault-secret-minimum-32-characters'
+
 export const E2E_PORT = Number(process.env.E2E_PORT || 3100)
 
 export const E2E_BASE_URL = `http://localhost:${E2E_PORT}`
