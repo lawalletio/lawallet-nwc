@@ -155,6 +155,23 @@ export const currenciesActions = {
   }
 }
 
+/**
+ * Restores account-scoped display preferences to their defaults on logout.
+ * Subscribers are notified so a still-mounted wallet shell cannot retain the
+ * previous account's selected currencies for a frame.
+ */
+export function clearCurrencyPreferences(): void {
+  cache = ensureLocked([...DEFAULT_ACTIVE])
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // ignore unavailable storage
+    }
+  }
+  for (const listener of listeners) listener()
+}
+
 /** Test-only hook to drop the in-memory cache between cases. */
 export function __resetCurrenciesCacheForTests() {
   cache = null

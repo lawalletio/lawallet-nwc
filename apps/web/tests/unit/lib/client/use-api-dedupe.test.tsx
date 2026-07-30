@@ -132,4 +132,45 @@ describe('useApi request dedupe', () => {
 
     expect(authMock.getMock).toHaveBeenCalledTimes(2)
   })
+
+  it('hides mounted data immediately when the authenticated identity changes', async () => {
+    let resolveSecond!: (value: { domain: string; hasRoot: boolean }) => void
+    authMock.getMock
+      .mockResolvedValueOnce({ domain: 'alice.example', hasRoot: true })
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveSecond = resolve
+          })
+      )
+    authMock.authState.pubkey = 'alice-pubkey'
+
+    const view = render(<SettingsReader id="settings" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings')).toHaveAttribute(
+        'data-domain',
+        'alice.example'
+      )
+    })
+
+    authMock.authState.pubkey = 'bob-pubkey'
+    view.rerender(<SettingsReader id="settings" />)
+
+    // Bob's request is deliberately unresolved. Alice's payload must not
+    // survive in hook-local state while that fresh response is in flight.
+    expect(screen.getByTestId('settings')).toHaveAttribute('data-domain', '')
+    expect(screen.getByTestId('settings')).toHaveAttribute(
+      'data-loading',
+      'true'
+    )
+
+    resolveSecond({ domain: 'bob.example', hasRoot: true })
+    await waitFor(() => {
+      expect(screen.getByTestId('settings')).toHaveAttribute(
+        'data-domain',
+        'bob.example'
+      )
+    })
+  })
 })

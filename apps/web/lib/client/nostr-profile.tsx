@@ -14,11 +14,14 @@ import {
   normalizeNostrPubkey,
   type NostrProfile
 } from '@/lib/nostr/profile'
+import {
+  NOSTR_PROFILE_CACHE_CLEARED_EVENT,
+  NOSTR_PROFILE_CACHE_KEY,
+  getNostrProfileCacheEpoch
+} from '@/lib/client/cache/nostr-profile-cache'
 
 export { DEFAULT_NOSTR_RELAYS, parseKind0Content } from '@/lib/nostr/profile'
 export type { NostrProfile } from '@/lib/nostr/profile'
-
-const CACHE_KEY = 'lawallet-nostr-profiles'
 
 interface ProfileCache {
   [pubkey: string]: NostrProfile
@@ -77,7 +80,10 @@ export function useNostrProfile(
   }
 
   const cachedProfile = pubkey ? ctx.getProfile(pubkey) : null
-  const [profile, setProfile] = useState<NostrProfile | null>(cachedProfile)
+  const [profileState, setProfileState] = useState<{
+    pubkey: string | null
+    profile: NostrProfile | null
+  }>({ pubkey, profile: cachedProfile })
   const [loading, setLoading] = useState(false)
   const force = options.force ?? false
 
@@ -89,7 +95,7 @@ export function useNostrProfile(
     if (!pubkey) {
       queueMicrotask(() => {
         if (!cancelled) {
-          setProfile(null)
+          setProfileState({ pubkey: null, profile: null })
           setLoading(false)
         }
       })
@@ -109,7 +115,7 @@ export function useNostrProfile(
       .fetchProfile(pubkey, { force })
       .then(result => {
         if (!cancelled && result) {
-          setProfile(result)
+          setProfileState({ pubkey, profile: result })
         }
       })
       .finally(() => {
@@ -125,12 +131,17 @@ export function useNostrProfile(
     (next: NostrProfile) => {
       if (!pubkey) return
       ctx.updateProfile(pubkey, next)
-      setProfile(next)
+      setProfileState({ pubkey, profile: next })
     },
     [ctx, pubkey]
   )
 
-  return { profile: cachedProfile ?? profile, loading, updateProfile }
+  const profileIsCurrent = profileState.pubkey === pubkey
+  return {
+    profile: cachedProfile ?? (profileIsCurrent ? profileState.profile : null),
+    loading: Boolean(pubkey) && !profileIsCurrent ? true : loading,
+    updateProfile
+  }
 }
 
 /**
@@ -163,14 +174,16 @@ export function useNostrProfiles(pubkeys: string[]): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx, key])
 
-  const [profiles, setProfiles] =
-    useState<Record<string, NostrProfile | null>>(seed)
+  const [profilesState, setProfilesState] = useState<{
+    key: string
+    profiles: Record<string, NostrProfile | null>
+  }>(() => ({ key, profiles: seed() }))
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     const current = seed()
-    setProfiles(current)
+    setProfilesState({ key, profiles: current })
 
     const allCached = Object.values(current).every(Boolean)
     if (key && !allCached) {
@@ -184,14 +197,14 @@ export function useNostrProfiles(pubkeys: string[]): {
       .then(fetched => {
         if (cancelled) return
         if (Object.keys(fetched).length > 0) {
-          setProfiles(prev => {
-            const next = { ...prev, ...fetched }
+          setProfilesState(prev => {
+            const next = { ...prev.profiles, ...fetched }
             for (const requested of key ? key.split(',') : []) {
               const normalized = normalizeNostrPubkey(requested)
               const profile = normalized ? fetched[normalized.pubkey] : null
               if (profile) next[requested] = profile
             }
-            return next
+            return { key, profiles: next }
           })
         }
       })
@@ -205,7 +218,11 @@ export function useNostrProfiles(pubkeys: string[]): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, ctx])
 
-  return { profiles, loading }
+  const profilesAreCurrent = profilesState.key === key
+  return {
+    profiles: profilesAreCurrent ? profilesState.profiles : seed(),
+    loading: Boolean(key) && !profilesAreCurrent ? true : loading
+  }
 }
 
 export function NostrProfileProvider({
@@ -218,6 +235,23 @@ export function NostrProfileProvider({
   const inflightRef = useRef<Map<string, Promise<NostrProfile | null>>>(
     new Map()
   )
+
+  useEffect(() => {
+    function handleCacheCleared() {
+      cacheRef.current = {}
+      inflightRef.current.clear()
+    }
+
+    window.addEventListener(
+      NOSTR_PROFILE_CACHE_CLEARED_EVENT,
+      handleCacheCleared
+    )
+    return () =>
+      window.removeEventListener(
+        NOSTR_PROFILE_CACHE_CLEARED_EVENT,
+        handleCacheCleared
+      )
+  }, [])
 
   const getProfile = useCallback((pubkey: string): NostrProfile | null => {
     const normalized = normalizeNostrPubkey(pubkey)
@@ -235,6 +269,7 @@ export function NostrProfileProvider({
       force: boolean
     ): Promise<Record<string, NostrProfile>> => {
       if (status !== 'authenticated' || pubkeys.length === 0) return {}
+      const requestEpoch = getNostrProfileCacheEpoch()
       let response: NostrProfilesResponse
       try {
         response = await apiClient.post<NostrProfilesResponse>(
@@ -248,6 +283,7 @@ export function NostrProfileProvider({
         console.warn('Failed to refresh Nostr profiles from server cache', err)
         return {}
       }
+      if (requestEpoch !== getNostrProfileCacheEpoch()) return {}
       const profiles = response.profiles ?? []
       for (const profile of profiles) {
         cacheRef.current[profile.pubkey] = profile
@@ -373,7 +409,7 @@ export function NostrProfileProvider({
 function loadCache(): ProfileCache {
   if (typeof window === 'undefined') return {}
   try {
-    const raw = localStorage.getItem(CACHE_KEY)
+    const raw = localStorage.getItem(NOSTR_PROFILE_CACHE_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as ProfileCache
     const now = Date.now()
@@ -398,7 +434,7 @@ function loadCache(): ProfileCache {
 
 function saveCache(cache: ProfileCache) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache))
+    localStorage.setItem(NOSTR_PROFILE_CACHE_KEY, JSON.stringify(cache))
   } catch {
     // Storage full or unavailable
   }

@@ -22,9 +22,10 @@ import {
   createNsecSigner,
   hasBrowserExtension
 } from '@/lib/client/nostr-signer'
-import { clearApiCache } from '@/lib/client/hooks/use-api'
-import { clearAllBalances } from '@/lib/client/cache/balance-cache'
-import { clearAll as clearAllActivity } from '@/lib/client/cache/activity-cache'
+import {
+  clearSessionCaches,
+  waitForSessionCacheCleanup
+} from '@/lib/client/cache/session-cache'
 import { SignerUnlockDialog } from '@/components/admin/signer-unlock-dialog'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
@@ -47,6 +48,7 @@ const LOGIN_METHOD_KEY = 'lawallet-login-method'
  * restores exactly like the nsec method.
  */
 const SIGNER_SECRET_KEY = 'lawallet-signer-secret'
+const IMPERSONATOR_RETURN_KEY = 'lawallet-impersonator-return'
 
 // How many ms before JWT expiry to trigger refresh
 const REFRESH_BUFFER_MS = 5 * 60 * 1000
@@ -174,15 +176,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(JWT_STORAGE_KEY)
     localStorage.removeItem(LOGIN_METHOD_KEY)
     localStorage.removeItem(SIGNER_SECRET_KEY)
-    // Wipe the module-level cache from `useApi` so the next user doesn't
-    // see the previous user's data on the first frame after login.
-    clearApiCache()
-    // Drop the per-NWC balance + activity caches too. We don't track the
-    // active NWC inside this provider, so we wipe everything — keys are
-    // hashed and account-scoped, but a future user on the same device
-    // shouldn't see *any* prior wallet's snapshot anyway.
-    clearAllBalances()
-    void clearAllActivity()
+    localStorage.removeItem(IMPERSONATOR_RETURN_KEY)
+    // Synchronous stores are gone before this returns. IndexedDB and browser
+    // CacheStorage continue behind a barrier that the next login awaits.
+    void clearSessionCaches()
     setState({
       status: 'unauthenticated',
       jwt: null,
@@ -265,6 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       method: LoginMethod,
       credentials?: SignerCredentials
     ) => {
+      await waitForSessionCacheCleanup()
       const { token } = await exchangeNip98ForJwt(signer)
       const validation = await validateJwt(token)
 
@@ -340,6 +338,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     signerRef.current = state.signer
   }, [state.signer])
+
+  // localStorage is shared across tabs. If one tab logs out, immediately tear
+  // down the session in every other open tab as well so none can repopulate
+  // user caches with requests from the identity that just signed out.
+  useEffect(() => {
+    function handleCrossTabLogout(event: StorageEvent) {
+      if (
+        event.storageArea === window.localStorage &&
+        event.key === JWT_STORAGE_KEY &&
+        event.newValue === null
+      ) {
+        logout()
+      }
+    }
+
+    window.addEventListener('storage', handleCrossTabLogout)
+    return () => window.removeEventListener('storage', handleCrossTabLogout)
+  }, [logout])
 
   // Check for existing JWT on mount
   useEffect(() => {
@@ -436,6 +452,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem(JWT_STORAGE_KEY)
         localStorage.removeItem(LOGIN_METHOD_KEY)
         localStorage.removeItem(SIGNER_SECRET_KEY)
+        localStorage.removeItem(IMPERSONATOR_RETURN_KEY)
+        void clearSessionCaches()
         if (cancelled) return
         setState(prev => ({ ...prev, status: 'unauthenticated' }))
       }
@@ -506,7 +524,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return openUnlockDialog()
-  }, [state.signer, state.loginMethod, state.jwt])
+  }, [state.signer, state.loginMethod])
 
   const handleUnlock = useCallback(
     (

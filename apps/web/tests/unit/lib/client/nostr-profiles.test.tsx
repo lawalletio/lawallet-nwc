@@ -168,6 +168,44 @@ describe('useNostrProfiles', () => {
     })
   })
 
+  it('does not render the prior profile while a new identity is loading', async () => {
+    let resolveBob!: (value: {
+      profiles: ReturnType<typeof apiProfile>[]
+    }) => void
+    apiPostMock
+      .mockResolvedValueOnce({ profiles: [apiProfile(PK_A, 'alice')] })
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveBob = resolve
+          })
+      )
+
+    const view = render(
+      <NostrProfileProvider>
+        <SingleProbe pubkey={PK_A} />
+      </NostrProfileProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('single')).toHaveTextContent('alice')
+    })
+
+    view.rerender(
+      <NostrProfileProvider>
+        <SingleProbe pubkey={PK_B} />
+      </NostrProfileProvider>
+    )
+
+    expect(screen.getByTestId('single')).toHaveTextContent('missing')
+    expect(screen.getByTestId('single')).toHaveAttribute('data-loading', 'true')
+
+    resolveBob({ profiles: [apiProfile(PK_B, 'bob')] })
+    await waitFor(() => {
+      expect(screen.getByTestId('single')).toHaveTextContent('bob')
+    })
+  })
+
   it('keeps the UI stable when the profile API fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     apiPostMock.mockRejectedValue(new Error('database not ready'))

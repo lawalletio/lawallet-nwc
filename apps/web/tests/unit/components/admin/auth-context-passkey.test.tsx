@@ -15,9 +15,8 @@ const mocks = vi.hoisted(() => ({
   createBunkerSigner: vi.fn(),
   hasBrowserExtension: vi.fn(() => false),
   trackEvent: vi.fn(),
-  clearApiCache: vi.fn(),
-  clearAllBalances: vi.fn(),
-  clearAllActivity: vi.fn(() => Promise.resolve())
+  clearSessionCaches: vi.fn(() => Promise.resolve()),
+  waitForSessionCacheCleanup: vi.fn(() => Promise.resolve())
 }))
 
 vi.mock('@/lib/client/auth-api', () => ({
@@ -38,14 +37,9 @@ vi.mock('@/lib/client/api-client', () => ({
     del: vi.fn()
   }))
 }))
-vi.mock('@/lib/client/hooks/use-api', () => ({
-  clearApiCache: mocks.clearApiCache
-}))
-vi.mock('@/lib/client/cache/balance-cache', () => ({
-  clearAllBalances: mocks.clearAllBalances
-}))
-vi.mock('@/lib/client/cache/activity-cache', () => ({
-  clearAll: mocks.clearAllActivity
+vi.mock('@/lib/client/cache/session-cache', () => ({
+  clearSessionCaches: mocks.clearSessionCaches,
+  waitForSessionCacheCleanup: mocks.waitForSessionCacheCleanup
 }))
 vi.mock('@/components/admin/signer-unlock-dialog', () => ({
   SignerUnlockDialog: () => null
@@ -267,6 +261,7 @@ describe('AuthProvider passkey sessions (PRF model)', () => {
       expect(localStorage.getItem(JWT_KEY)).toBeNull()
       expect(localStorage.getItem(METHOD_KEY)).toBeNull()
       expect(localStorage.getItem(SECRET_KEY)).toBeNull()
+      expect(mocks.clearSessionCaches).toHaveBeenCalledOnce()
     })
   })
 })

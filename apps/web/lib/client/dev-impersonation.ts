@@ -8,6 +8,8 @@
  * Everything here is a no-op outside `development` — the API is double-gated.
  */
 
+import { clearSessionCaches } from '@/lib/client/cache/session-cache'
+
 // Must match the keys AuthProvider reads on rehydrate (auth-context.tsx).
 const JWT_KEY = 'lawallet-jwt'
 const METHOD_KEY = 'lawallet-login-method'
@@ -49,6 +51,8 @@ export async function startImpersonation(pubkey: string): Promise<void> {
     )
   }
 
+  await clearSessionCaches()
+
   // Pure-JWT session for the impersonated identity — no signer to rebuild.
   localStorage.setItem(JWT_KEY, token)
   localStorage.removeItem(METHOD_KEY)
@@ -56,7 +60,7 @@ export async function startImpersonation(pubkey: string): Promise<void> {
 }
 
 /** Restore the stashed pre-impersonation session. Caller should reload. */
-export function stopImpersonation(): void {
+export async function stopImpersonation(): Promise<void> {
   const raw = localStorage.getItem(RETURN_KEY)
   if (!raw) return
 
@@ -70,6 +74,8 @@ export function stopImpersonation(): void {
   } catch {
     /* fall through with empty prev → just clears the impersonation session */
   }
+
+  await clearSessionCaches()
 
   const restore = (key: string, value: string | null | undefined) => {
     if (value) localStorage.setItem(key, value)
