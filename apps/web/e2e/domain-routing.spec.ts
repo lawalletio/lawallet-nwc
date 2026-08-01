@@ -227,7 +227,9 @@ test('verified .well-known rewrite clears domain setup alerts', async ({
     }
   )
   expect(nip05Response.status()).toBe(200)
-  expect(await nip05Response.json()).toMatchObject({ names: {} })
+  const nip05Body = await nip05Response.json()
+  expect(nip05Body.names._).toMatch(/^[0-9a-f]{64}$/)
+  expect(nip05Body.relays[nip05Body.names._]).toBeTruthy()
 
   const lnurlResponse = await request.get(
     `${publicUrl}/.well-known/lnurlp/alice`,

@@ -4,6 +4,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { getSettings } from '@/lib/settings'
 import { DEFAULT_NOSTR_RELAYS } from '@/lib/nostr/profile'
 import { resolveUserRelays } from '@/lib/nostr/relay-list'
+import { PROXY_CONFIG_ID } from '@/lib/proxy/constants'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -56,11 +57,36 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     ?.trim()
     .toLowerCase()
 
-  // A lookup is always for a specific name. Without one — or for the reserved
-  // `_` root — return empty maps rather than enumerating every registered
-  // user: the address book is not public.
-  if (!name || name === '_') {
+  // A lookup is always for a specific name. Without one, return empty maps
+  // rather than enumerating every registered user: the address book is not
+  // public.
+  if (!name) {
     return NextResponse.json(EMPTY, { headers: CORS_HEADERS })
+  }
+
+  // The root-domain NIP-05 identity belongs to the zap receipt signer. Only
+  // expose its public key; the encrypted private key never leaves the server.
+  if (name === '_') {
+    const [config, settings] = await Promise.all([
+      prisma.proxyServiceConfig.findUnique({
+        where: { id: PROXY_CONFIG_ID },
+        select: { receiptPubkey: true }
+      }),
+      getSettings(['relays'])
+    ])
+    const pubkey = config?.receiptPubkey
+
+    if (!pubkey) {
+      return NextResponse.json(EMPTY, { headers: CORS_HEADERS })
+    }
+
+    return NextResponse.json(
+      {
+        names: { _: pubkey },
+        relays: { [pubkey]: resolveOperatorRelays(settings.relays) }
+      },
+      { headers: CORS_HEADERS }
+    )
   }
 
   const address = await prisma.lightningAddress.findUnique({

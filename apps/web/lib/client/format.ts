@@ -80,6 +80,26 @@ export function formatRelativeTime(
 }
 
 /**
+ * Formats a millisatoshi integer string without losing sub-sat precision.
+ * BigInt arithmetic stays server-side; string slicing keeps this safe in
+ * browsers whose JavaScript target does not include BigInt literals.
+ */
+export function formatMsats(value: string): string {
+  const negative = value.startsWith('-')
+  const digits = (negative ? value.slice(1) : value).replace(/^0+(?=\d)/, '')
+  if (!/^\d+$/.test(digits)) return `${value} msats`
+
+  const padded = digits.padStart(4, '0')
+  const whole = padded
+    .slice(0, -3)
+    .replace(/^0+(?=\d)/, '')
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const fraction = padded.slice(-3).replace(/0+$/, '')
+
+  return `${negative ? '−' : ''}${whole}${fraction ? `.${fraction}` : ''} sats`
+}
+
+/**
  * Truncates a hex string (card IDs, etc.) for display.
  * Example: "04:ab:cd:ef" → "04:ab:...ef"
  */

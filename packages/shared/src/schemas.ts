@@ -321,6 +321,32 @@ export const updateWalletAddressSchema = z.object({
   remoteWalletId: z.string().min(1).nullish()
 })
 
+/** URL parameters for commands against one deferred proxy settlement. */
+export const proxyForwardingCommandParams = walletAddressUsernameParam.extend({
+  invoiceId: z.string().min(1).max(128)
+})
+
+/**
+ * Manual recovery actions for a failed deferred proxy settlement.
+ * Changing the destination is intentionally separate from retrying so the
+ * owner can review the new route before any outgoing payment is attempted.
+ */
+export const proxyForwardingCommandSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('retry') }),
+  z.object({
+    action: z.literal('change_destination'),
+    destination: z
+      .string()
+      .trim()
+      .max(254)
+      .regex(
+        /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i,
+        'Must be a valid LN address'
+      )
+      .transform(value => value.toLowerCase())
+  })
+])
+
 /** Body for POST /api/wallet/addresses/alias-probe. */
 export const probeAliasAddressSchema = z.object({
   address: z

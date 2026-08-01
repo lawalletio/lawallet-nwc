@@ -47,6 +47,7 @@ vi.mock('@/lib/wallet/drivers/nwc-client-cache', () => ({
 }))
 
 import { GET, PUT } from '@/app/api/settings/lud16-proxy/route'
+import { encryptProxySecret } from '@/lib/proxy/vault'
 
 const config = {
   id: 'default',
@@ -103,5 +104,35 @@ describe('admin LUD-16 proxy settings', () => {
 
     expect(response.status).toBe(409)
     expect(prismaMock.proxyServiceConfig.upsert).not.toHaveBeenCalled()
+  })
+
+  it('lets the operator rotate the auto-generated receipt signer', async () => {
+    const nextSigner = 'b'.repeat(64)
+    vi.mocked(prismaMock.proxyServiceConfig.upsert).mockResolvedValue({
+      ...config,
+      receiptPubkey: 'a'.repeat(64)
+    } as never)
+
+    const response = await PUT(
+      createNextRequest('/api/settings/lud16-proxy', {
+        method: 'PUT',
+        body: { receiptNsec: nextSigner }
+      })
+    )
+
+    await assertResponse(response, 200)
+    expect(encryptProxySecret).toHaveBeenCalledWith(
+      nextSigner,
+      'default',
+      'receipt-nsec'
+    )
+    expect(prismaMock.proxyServiceConfig.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          receiptNsecCiphertext: Uint8Array.from([1, 2, 3]),
+          receiptPubkey: 'a'.repeat(64)
+        })
+      })
+    )
   })
 })

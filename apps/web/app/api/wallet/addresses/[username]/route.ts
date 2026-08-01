@@ -27,7 +27,7 @@ import {
   getPrimaryRemoteWalletForUser,
   syncPrimaryRemoteWalletFlag
 } from '@/lib/wallet/primary-wallet'
-import { getActiveProxyConfig } from '@/lib/proxy/config'
+import { getActiveProxyConfig, isProxyEnabled } from '@/lib/proxy/config'
 import { getListenerConfig } from '@/lib/listener-config'
 import { resolvePublicEndpoint } from '@/lib/public-url'
 
@@ -124,11 +124,13 @@ export const GET = withErrorHandling(
       // Same 404 as a genuine miss so non-admins can't enumerate usernames.
       if (!canRead) throw new NotFoundError('Address not found')
 
-      const primaryWallet = await getPrimaryRemoteWalletForUser(address.userId)
-      const wallets = sortWalletsWithPrimary(
-        await selectableWallets(address.userId),
-        primaryWallet
-      )
+      const [primaryWallet, selectable, deferredProxyEnabled] =
+        await Promise.all([
+          getPrimaryRemoteWalletForUser(address.userId),
+          selectableWallets(address.userId),
+          isProxyEnabled()
+        ])
+      const wallets = sortWalletsWithPrimary(selectable, primaryWallet)
 
       return NextResponse.json({
         address: toWalletAddressDto(address, primaryWallet),
@@ -136,16 +138,20 @@ export const GET = withErrorHandling(
         // The connection URI is the owner's wallet secret — never surfaced to
         // an admin viewing someone else's address.
         effectiveConnectionString: null,
+        deferredProxyEnabled,
         isOwner: false,
         ownerPubkey: address.user.pubkey
       })
     }
 
-    const primaryWallet = await getPrimaryRemoteWalletForUser(caller.id)
-    const wallets = sortWalletsWithPrimary(
-      await selectableWallets(caller.id),
-      primaryWallet
+    const [primaryWallet, selectable, deferredProxyEnabled] = await Promise.all(
+      [
+        getPrimaryRemoteWalletForUser(caller.id),
+        selectableWallets(caller.id),
+        isProxyEnabled()
+      ]
     )
+    const wallets = sortWalletsWithPrimary(selectable, primaryWallet)
 
     // Ship the already-resolved connection URI so the balance / transactions
     // widgets don't duplicate the server's resolution. Null for IDLE / ALIAS
@@ -167,6 +173,7 @@ export const GET = withErrorHandling(
       address: toWalletAddressDto(address, primaryWallet),
       wallets: wallets.map(w => toWalletSummaryWithPrimary(w, primaryWallet)),
       effectiveConnectionString,
+      deferredProxyEnabled,
       isOwner: true,
       ownerPubkey: auth.pubkey
     })

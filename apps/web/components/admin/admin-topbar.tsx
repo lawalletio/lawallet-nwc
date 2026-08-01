@@ -2,7 +2,6 @@
 
 import React from 'react'
 import { Menu } from 'lucide-react'
-import { useIsMobile } from '@/components/ui/use-mobile'
 import {
   Topbar,
   TabBadge,
@@ -38,7 +37,7 @@ export function AdminTopbar({
   alert,
   tabs
 }: AdminTopbarProps) {
-  const isMobile = useIsMobile()
+  const { isMobile } = useSidebar()
 
   if (isMobile) {
     if (type === 'subpage') {
@@ -102,6 +101,7 @@ function MobilePageTopbar({
       <div className="flex items-center justify-between px-4 sm:px-6 h-[56px]">
         <BrandLogotype width={100} height={24} className="h-6 w-auto" />
         <button
+          aria-label="Open navigation"
           onClick={() => setOpenMobile(true)}
           className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
         >
