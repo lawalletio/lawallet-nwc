@@ -53,7 +53,7 @@ Its required and optional variables are:
 
 | Variable                        | Required | Description                                                                                                                                                                                                          |
 | ------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                  | ✅       | The **same Postgres** your web app uses (it reads NWC wallets and stores processed events plus the idempotent payment journal).                                                                                      |
+| `DATABASE_URL`                  | ✅       | The **same Postgres** your web app uses (it reads NWC wallets and stores processed events plus the idempotent payment journal). Must be a **direct** connection — see the pooling note below.                        |
 | `LISTENER_AUTH_SECRET`          | ✅       | Webhook HMAC secret, min 32 chars. Also guards the listener API when no dedicated request secret is set. Must match the web-side webhook secret.                                                                     |
 | `LISTENER_REQUEST_AUTH_SECRET`  | —        | Optional dedicated web→listener bearer secret, min 32 chars. Set the same value on web; otherwise both sides fall back to `LISTENER_AUTH_SECRET`.                                                                    |
 | `WEB_ORIGIN`                    | ✅       | Public URL of your web app (e.g. `https://wallet.example.com`) — payment webhooks are POSTed back there.                                                                                                             |
@@ -78,6 +78,15 @@ reach your web app's URL. With a hosted Postgres (Neon, Supabase, Railway
 Postgres — typical for Vercel deployments) all of this works over the public
 internet.
 
+<Callout type="warn" title="Use the direct (unpooled) database URL">
+  The listener keeps a dedicated `LISTEN` client open so wallet changes apply
+  instantly. Transaction-mode poolers drop `LISTEN/NOTIFY` silently, so a pooled
+  URL leaves the listener reconciling only every five minutes instead of on
+  every change. Neon publishes the direct host as `DATABASE_URL_UNPOOLED` (the
+  pooled one has a `-pooler` suffix); on Supabase use port `5432`, not the
+  `6543` pooler.
+</Callout>
+
 ## Hosting options for Vercel/Netlify deployments
 
 ### Railway (walkthrough)
@@ -100,11 +109,33 @@ Create a **Web Service** from the repo, environment **Docker**, set the
 Dockerfile path to `apps/listener/Dockerfile`, add the env vars, and use the
 assigned `onrender.com` URL.
 
-### Fly.io
+### Fly.io (walkthrough)
 
-`fly launch --dockerfile apps/listener/Dockerfile --no-deploy`, add the env
-vars with `fly secrets set`, then `fly deploy`. Expose port 4100 in the
-generated `fly.toml`.
+The repo ships a ready `apps/listener/fly.toml` (port 4100, `/health` check,
+scale-to-zero disabled). Do **not** run `fly launch` — it would overwrite it
+and scope the build to `apps/listener`, which cannot see `packages/shared`.
+
+1. From the **repo root**, create the app: `fly apps create lawallet-listener`.
+2. Set the secrets (all four are required — the service refuses to boot
+   without them):
+
+   ```bash
+   fly secrets set --app lawallet-listener \
+     DATABASE_URL="postgresql://…" \
+     LISTENER_AUTH_SECRET="<same secret as the web app>" \
+     NWC_VAULT_SECRET="<same NWC vault secret as the web app>" \
+     WEB_ORIGIN="https://wallet.example.com"
+   ```
+
+3. Deploy, still from the repo root so the build context is the whole
+   workspace: `fly deploy --config apps/listener/fly.toml`.
+4. Paste `https://lawallet-listener.fly.dev` and the shared secret into
+   **Settings → NWC Services** and hit **Test connection**.
+
+Deploying from GitHub instead? In App ▸ Settings, leave **Current Working
+Directory** at the repository root and set **Config path** to
+`apps/listener/fly.toml`. Pointing the working directory at `apps/listener`
+fails the build with `"/packages/shared": not found`.
 
 ### Any VPS with Docker
 
