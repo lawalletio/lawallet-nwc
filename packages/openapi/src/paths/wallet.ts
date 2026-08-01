@@ -37,6 +37,21 @@ const walletAliasProbeResultSchema = z.object({
   })
 })
 
+const proxyBalanceSchema = z.object({
+  pendingAmountMsats: z.string(),
+  pendingPaymentCount: z.number().int().nonnegative(),
+  blockedPaymentCount: z.number().int().nonnegative(),
+  inFlightPaymentCount: z.number().int().nonnegative(),
+  oldestPendingAt: z.string().datetime().nullable(),
+  destination: z.string().nullable()
+})
+
+const proxyReconciliationSchema = z.object({
+  claimed: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative()
+})
+
 registry.registerPath({
   ...withRole('USER'),
   method: 'get',
@@ -51,6 +66,50 @@ registry.registerPath({
       z.object({ data: z.array(walletAddressSchema) })
     ),
     ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'get',
+  path: '/api/wallet/addresses/{username}/proxy-balance',
+  tags: [TAG],
+  summary: 'Get the caller’s pending deferred-proxy balance.',
+  description:
+    'Returns only paid inbound proxy settlements that are still owed to their destination, excluding settled or ambiguous outgoing payments.',
+  operationId: 'wallet.addresses.proxyBalance.get',
+  security: protectedSecurity,
+  request: { params: schemas.WalletAddressUsernameParam },
+  responses: {
+    200: inlineJsonResponse('Pending proxy balance.', proxyBalanceSchema),
+    ...commonErrorResponses,
+    404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'post',
+  path: '/api/wallet/addresses/{username}/proxy-balance',
+  tags: [TAG],
+  summary: 'Forward every safe pending deferred-proxy settlement.',
+  description:
+    'Atomically locks eligible settlements and schedules a bounded reconciliation pass. Requests are rejected while any payment has an active worker lease or ambiguous outgoing attempt, preventing duplicate sends.',
+  operationId: 'wallet.addresses.proxyBalance.forward',
+  security: protectedSecurity,
+  request: { params: schemas.WalletAddressUsernameParam },
+  responses: {
+    200: inlineJsonResponse(
+      'Pending settlements forwarded or queued for reconciliation.',
+      z.object({
+        success: z.literal(true),
+        queued: z.number().int().positive(),
+        reconciliation: proxyReconciliationSchema
+      })
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound,
+    409: responses.conflict
   }
 })
 
@@ -95,6 +154,51 @@ registry.registerPath({
     200: inlineJsonResponse('Cards.', z.array(walletCardSchema)),
     ...commonErrorResponses,
     404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'post',
+  path: '/api/wallet/addresses/{username}/invoices/{invoiceId}/forwarding',
+  tags: [TAG],
+  summary: 'Recover a blocked deferred-proxy settlement.',
+  description:
+    'Retries a blocked forwarding payment or changes that payment’s destination. A destination change only applies to the selected settlement; active or ambiguous outgoing attempts cannot be changed or retried.',
+  operationId: 'wallet.addresses.invoices.forwarding.recover',
+  security: protectedSecurity,
+  request: {
+    params: schemas.ProxyForwardingCommandParams,
+    body: {
+      content: {
+        'application/json': {
+          schema: schemas.ProxyForwardingCommandRequest
+        }
+      }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Recovery command completed.',
+      z.object({
+        success: z.literal(true),
+        action: z.enum(['retry', 'change_destination']),
+        reconciliation: proxyReconciliationSchema.optional(),
+        payment: z
+          .object({
+            id: z.string(),
+            status: z.string(),
+            destination: z.string(),
+            lastError: z.string().nullable()
+          })
+          .nullable()
+          .optional()
+      })
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound,
+    409: responses.conflict,
+    413: responses.payloadTooLarge
   }
 })
 

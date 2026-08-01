@@ -35,6 +35,8 @@ import {
   passkeyRegistrationOptionsRequestSchema,
   passkeyRegistrationVerifyRequestSchema,
   payActionQuerySchema,
+  proxyForwardingCommandParams,
+  proxyForwardingCommandSchema,
   probeAliasAddressSchema,
   remoteWalletListQuerySchema,
   scanCardQuerySchema,
@@ -153,6 +155,14 @@ export const schemas = {
   WalletAliasProbeRequest: registry.register(
     'WalletAliasProbeRequest',
     probeAliasAddressSchema
+  ),
+  ProxyForwardingCommandParams: registry.register(
+    'ProxyForwardingCommandParams',
+    proxyForwardingCommandParams
+  ),
+  ProxyForwardingCommandRequest: registry.register(
+    'ProxyForwardingCommandRequest',
+    proxyForwardingCommandSchema
   ),
   WalletCardUpdateRequest: registry.register(
     'WalletCardUpdateRequest',
