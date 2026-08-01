@@ -79,15 +79,36 @@ fly auth whoami >/dev/null 2>&1 || {
   exit 1
 }
 
-fly apps list 2>/dev/null | awk '{print $1}' | grep -qx "$app" || {
-  echo "Fly app '$app' does not exist. Create it with: fly apps create $app" >&2
-  exit 1
-}
+# --quiet prints bare app names; if a flyctl version ever drops it, don't
+# block the deploy on a formatting guess — fly itself will reject a bad app.
+if app_names=$(fly apps list --quiet 2>/dev/null) && [[ -n "$app_names" ]]; then
+  grep -qx "$app" <<<"$app_names" || {
+    echo "Fly app '$app' does not exist. Create it with: fly apps create $app" >&2
+    exit 1
+  }
+fi
 
 # ── secrets ───────────────────────────────────────────────────────────────
 if [[ "$do_secrets" == "1" ]]; then
-  existing=$(fly secrets list --app "$app" 2>/dev/null | awk 'NR>1 {print $1}')
-  has_secret() { grep -qx "$1" <<<"$existing"; }
+  # JSON so this doesn't hinge on column layout. Names only — values are not
+  # retrievable from Fly, which is also why generated ones are printed once.
+  #
+  # A FAILED lookup must not be read as "no secrets set": that would silently
+  # regenerate NWC_VAULT_SECRET and rotate the vault key out from under any
+  # already-encrypted wallet. An app with no secrets returns [] and succeeds,
+  # so only a genuine error lands here.
+  secrets_json=$(fly secrets list --app "$app" --json 2>/dev/null) || {
+    echo "Could not read the secret list for '$app'." >&2
+    echo "Refusing to continue — re-running blind would regenerate the shared" >&2
+    echo "secrets and invalidate any wallet already encrypted with them." >&2
+    exit 1
+  }
+  existing=$(
+    printf '%s' "$secrets_json" |
+      grep -o '"Name"[[:space:]]*:[[:space:]]*"[^"]*"' |
+      sed -E 's/.*"([^"]*)"$/\1/'
+  ) || true
+  has_secret() { [[ -n "$existing" ]] && grep -qx "$1" <<<"$existing"; }
 
   if [[ -n "$from_vercel" && -z "$database_url" ]]; then
     command -v vercel >/dev/null 2>&1 || {
