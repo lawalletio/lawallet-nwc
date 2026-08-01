@@ -436,12 +436,17 @@ listener container elsewhere and paste its URL + shared secret into
   env vars above → generate a public domain. Healthcheck: `/health`.
 - **Render** — Web Service from the repo, environment _Docker_, same
   Dockerfile path + env vars.
-- **Fly.io** — a committed `apps/listener/fly.toml` describes the service.
-  Deploy **from the repo root** so the build context includes the workspace:
-  `fly deploy --config apps/listener/fly.toml`. On Fly's GitHub builder the
-  equivalent is App ▸ Settings ▸ _Current Working Directory_ = repository
-  root and _Config path_ = `apps/listener/fly.toml`; pointing the working
-  directory at `apps/listener` fails with `"/packages/shared": not found`.
+- **Fly.io** — a committed `apps/listener/fly.toml` describes the service, and
+  `pnpm deploy:fly` (`scripts/deploy-listener-fly.sh`) stages the four
+  required secrets and deploys in one step. It reads the database URL from a
+  Vercel project's production env with `--from-vercel scope/project`, refuses
+  a pooled connection string, and generates the two web-shared secrets on
+  first run. Under the hood it is `fly deploy --config apps/listener/fly.toml`
+  **from the repo root**, so the build context includes the workspace. On
+  Fly's GitHub builder the equivalent is App ▸ Settings ▸ _Current Working
+  Directory_ = repository root and _Config path_ = `apps/listener/fly.toml`;
+  pointing the working directory at `apps/listener` fails with
+  `"/packages/shared": not found`.
 - **Any VPS** — `docker build -f apps/listener/Dockerfile .` and run with
   the env vars; put TLS in front if web connects over the public internet.
 

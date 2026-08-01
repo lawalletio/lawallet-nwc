@@ -115,22 +115,34 @@ The repo ships a ready `apps/listener/fly.toml` (port 4100, `/health` check,
 scale-to-zero disabled). Do **not** run `fly launch` — it would overwrite it
 and scope the build to `apps/listener`, which cannot see `packages/shared`.
 
-1. From the **repo root**, create the app: `fly apps create lawallet-listener`.
-2. Set the secrets (all four are required — the service refuses to boot
-   without them):
+1. Create the app once: `fly apps create lawallet-listener`.
+2. From the **repo root**, provision and deploy in one step:
 
    ```bash
-   fly secrets set --app lawallet-listener \
-     DATABASE_URL="postgresql://…" \
-     LISTENER_AUTH_SECRET="<same secret as the web app>" \
-     NWC_VAULT_SECRET="<same NWC vault secret as the web app>" \
-     WEB_ORIGIN="https://wallet.example.com"
+   pnpm deploy:fly --web-origin https://wallet.example.com \
+     --database-url "postgresql://…"
    ```
 
-3. Deploy, still from the repo root so the build context is the whole
-   workspace: `fly deploy --config apps/listener/fly.toml`.
-4. Paste `https://lawallet-listener.fly.dev` and the shared secret into
-   **Settings → NWC Services** and hit **Test connection**.
+   Hosting web on Vercel? Let the script read the database URL straight out
+   of the project's production environment instead of copying it by hand:
+
+   ```bash
+   pnpm deploy:fly --web-origin https://wallet.example.com \
+     --from-vercel your-scope/your-project
+   ```
+
+   It refuses a pooled connection string, generates
+   `LISTENER_AUTH_SECRET` and `NWC_VAULT_SECRET` on first run (leaving any
+   secret already set on the app untouched), and prints the generated pair
+   once — you need both on the web side.
+
+3. Paste `https://lawallet-listener.fly.dev` and the `LISTENER_AUTH_SECRET`
+   into **Settings → NWC Services**, enable the toggle, and hit **Test
+   connection**. Set the same `NWC_VAULT_SECRET` on the web host too.
+
+Prefer doing it by hand? `fly secrets set --app lawallet-listener DATABASE_URL=… WEB_ORIGIN=… LISTENER_AUTH_SECRET=… NWC_VAULT_SECRET=…`
+then `fly deploy --config apps/listener/fly.toml` — run from the repo root so
+the build context is the whole workspace.
 
 Deploying from GitHub instead? In App ▸ Settings, leave **Current Working
 Directory** at the repository root and set **Config path** to
