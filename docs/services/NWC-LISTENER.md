@@ -436,8 +436,12 @@ listener container elsewhere and paste its URL + shared secret into
   env vars above → generate a public domain. Healthcheck: `/health`.
 - **Render** — Web Service from the repo, environment _Docker_, same
   Dockerfile path + env vars.
-- **Fly.io** — `fly launch --dockerfile apps/listener/Dockerfile`, set env
-  via `fly secrets set`, expose port 4100.
+- **Fly.io** — a committed `apps/listener/fly.toml` describes the service.
+  Deploy **from the repo root** so the build context includes the workspace:
+  `fly deploy --config apps/listener/fly.toml`. On Fly's GitHub builder the
+  equivalent is App ▸ Settings ▸ _Current Working Directory_ = repository
+  root and _Config path_ = `apps/listener/fly.toml`; pointing the working
+  directory at `apps/listener` fails with `"/packages/shared": not found`.
 - **Any VPS** — `docker build -f apps/listener/Dockerfile .` and run with
   the env vars; put TLS in front if web connects over the public internet.
 
@@ -446,6 +450,20 @@ Postgres like Neon/Supabase/Railway works) and the Nostr relays; web must
 reach the listener URL; the listener must reach `WEB_ORIGIN`. Operator-facing
 walkthrough: `apps/docs/content/docs/deploy/listener-setup.mdx` (docs site
 `/docs/deploy/listener-setup`).
+
+Two constraints bite on managed platforms:
+
+- **`DATABASE_URL` must be a DIRECT connection, not a pooled one.** The
+  wallet-change listener holds a dedicated `LISTEN` client, and transaction-
+  mode poolers (PgBouncer, Neon's `-pooler` host, Supabase's `:6543`) silently
+  drop `LISTEN/NOTIFY`. Use the unpooled host — Neon exposes it as
+  `DATABASE_URL_UNPOOLED`. Symptom: wallets only reconcile on the 5-minute
+  `RECONCILE_INTERVAL_MS` safety net instead of instantly.
+- **Disable scale-to-zero and stay at one machine.** The process is a daemon
+  holding a relay websocket per ACTIVE wallet; suspending it on HTTP idleness
+  drops every subscription while `/health` still looks fine. Two instances
+  double-subscribe — the DB dedup absorbs duplicate webhooks, but catch-up
+  runs and the dead-wallet prober race on the shared cursors.
 
 ## Operations
 

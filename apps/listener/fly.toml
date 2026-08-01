@@ -1,0 +1,60 @@
+# fly.toml — @lawallet-nwc/listener (NWC relay bridge)
+#
+# The Docker build context MUST be the repository root: apps/listener's
+# Dockerfile copies the root lockfile, pnpm-workspace.yaml and
+# packages/shared, none of which exist in a context scoped to apps/listener.
+# The root .dockerignore is the one BuildKit reads.
+#
+#   flyctl deploy --config apps/listener/fly.toml    # run from the repo root
+#
+# On Fly's GitHub builder the equivalent is App ▸ Settings ▸ "Current Working
+# Directory" left at the repository root, with "Config path" set to
+# apps/listener/fly.toml.
+#
+# Service contract and ops runbook: docs/services/NWC-LISTENER.md
+
+app = 'lawallet-listener'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'apps/listener/Dockerfile'
+
+[env]
+  LISTENER_PORT = '4100'
+  LOG_LEVEL = 'info'
+  LOG_PRETTY = 'false'
+
+[http_service]
+  internal_port = 4100
+  force_https = true
+
+  # The listener is a long-lived daemon, not a request/response service: it
+  # holds one relay WebSocket per ACTIVE wallet plus a dedicated Postgres
+  # LISTEN client. Scale-to-zero would silently drop every NWC subscription
+  # while /health still looked fine, so the machine never stops on idleness.
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  # Keep this at exactly ONE machine. Two listeners double-subscribe to every
+  # wallet; the DB dedup absorbs duplicate webhooks, but catch-up runs and the
+  # dead-wallet prober would race on the shared cursors.
+  [http_service.concurrency]
+    type = 'requests'
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    # Boot blocks on waitForSchema until apps/web has run its migrations, so
+    # the first check must not fire before that has had a chance to settle.
+    grace_period = '45s'
+    interval = '15s'
+    timeout = '5s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
