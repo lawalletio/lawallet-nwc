@@ -1,6 +1,6 @@
 import { lookup } from 'node:dns/promises'
 import { request as httpsRequest } from 'node:https'
-import { BlockList, isIP } from 'node:net'
+import { BlockList, isIP, type LookupFunction } from 'node:net'
 import type { IncomingHttpHeaders } from 'node:http'
 import { z } from 'zod'
 import {
@@ -8,6 +8,7 @@ import {
   parseExactPaymentInvoice
 } from '@/lib/invoice-utils'
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
+import { isDestinationInvoiceAmountAcceptable } from './money'
 
 const MAX_RESPONSE_BYTES = 64 * 1024
 const FETCH_TIMEOUT_MS = 7000
@@ -146,8 +147,15 @@ export async function requestDestinationInvoice(input: {
     throw new Error('Destination callback did not return a BOLT11 invoice')
   }
   const invoice = parseExactPaymentInvoice(json.pr)
-  if (invoice.amountMsats !== input.amountMsats) {
-    throw new Error('Destination invoice amount does not match proxy amount')
+  if (
+    !isDestinationInvoiceAmountAcceptable(
+      input.amountMsats,
+      invoice.amountMsats
+    )
+  ) {
+    throw new Error(
+      'Destination invoice amount exceeds the proxy amount or is more than 10 sats lower'
+    )
   }
   const paymentHash = extractPaymentHash(json.pr)
   if (!paymentHash || paymentHash !== invoice.paymentHash) {
@@ -231,9 +239,7 @@ async function safeHttpsGet(
           'user-agent': 'LaWallet-LUD16-Proxy/1'
         },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        lookup: (_hostname, _options, callback) => {
-          callback(null, pinned.address, pinned.family)
-        }
+        lookup: createPinnedLookup(pinned)
       },
       response => {
         const declaredLength = Number(response.headers['content-length'] ?? 0)
@@ -270,6 +276,21 @@ async function safeHttpsGet(
     request.once('error', reject)
     request.end()
   })
+}
+
+/**
+ * Pin the request to the address that passed the SSRF checks. Recent Node
+ * versions may ask custom lookup functions for every address (`all: true`)
+ * when auto-family selection is enabled; that callback must receive an array.
+ */
+export function createPinnedLookup(pinned: SafeAddress): LookupFunction {
+  return (_hostname, options, callback) => {
+    if (options.all) {
+      callback(null, [pinned])
+      return
+    }
+    callback(null, pinned.address, pinned.family)
+  }
 }
 
 function parseJson(bytes: Uint8Array, message: string): unknown {

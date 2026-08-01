@@ -56,7 +56,10 @@ import {
   CollapsibleTrigger
 } from '@/components/ui/collapsible'
 import { BalanceCard } from '@/components/wallet/balance-card'
+import { ProxyPendingBalanceCard } from '@/components/wallet/proxy-pending-balance-card'
 import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
+import { ProxyAddressWorkspace } from '@/components/wallet/proxy-address-workspace'
+import { ProxyForwardingActivity } from '@/components/wallet/proxy-forwarding-activity'
 import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
@@ -580,7 +583,9 @@ export default function AdminAddressEditPage({ params }: PageProps) {
           const modeOptions = (
             Object.keys(MODE_DESCRIPTIONS) as LightningAddressMode[]
           ).filter(
-            option => !(data.address.isPrimary && option === 'DEFAULT_NWC')
+            option =>
+              !(data.address.isPrimary && option === 'DEFAULT_NWC') &&
+              (data.deferredProxyEnabled || option !== 'PROXY_ALIAS')
           )
 
           const emptyReason = !isOwner
@@ -623,374 +628,405 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                 )}
               </div>
 
-              {/* Layout order: balance first (glanceable hero), then Mode so the
-              configuration is reachable without scrolling past the whole
-              transaction list, then the transactions feed at the bottom. */}
-              <BalanceCard
-                connectionString={data.effectiveConnectionString}
-                emptyReason={emptyReason}
-                // ALIAS addresses forward payments — render a forward arrow
-                // in the empty-state tile so the visual signals "redirect"
-                // instead of the generic NWC-logo used for other empty states.
-                emptyIcon={
-                  persistedMode === 'ALIAS' ||
-                  persistedMode === 'PROXY_ALIAS' ? (
-                    <Forward
-                      className="size-5 text-muted-foreground"
-                      aria-hidden
+              <ProxyAddressWorkspace
+                enabled={isOwner && persistedMode === 'PROXY_ALIAS'}
+                balance={
+                  isOwner && persistedMode === 'PROXY_ALIAS' ? (
+                    <ProxyPendingBalanceCard
+                      username={username}
+                      configuredDestination={data.address.redirect}
                     />
-                  ) : undefined
-                }
-              />
-
-              {/* Owner sees the editable configuration; an admin viewing someone
-              else's address gets a read-only summary of the same settings. */}
-              {!isOwner ? (
-                <div className="rounded-lg border border-border bg-card">
-                  <div className="flex flex-col gap-0.5 px-5 py-4">
-                    <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                      Mode
-                    </span>
-                    <span className="text-sm font-medium">
-                      {MODE_DESCRIPTIONS[persistedMode].label}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {MODE_DESCRIPTIONS[persistedMode].help}
-                    </span>
-                  </div>
-                  <div className="border-t border-border/60 px-5 py-4 text-sm">
-                    {persistedMode === 'ALIAS' ||
-                    persistedMode === 'PROXY_ALIAS' ? (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Forward className="size-4 shrink-0" aria-hidden />
-                        <span className="font-mono break-all text-foreground">
-                          {data.address.redirect ?? '—'}
-                        </span>
-                      </div>
-                    ) : persistedMode === 'CUSTOM_NWC' ? (
-                      <div className="flex items-center gap-2">
-                        <Wallet
-                          className="size-4 shrink-0 text-muted-foreground"
-                          aria-hidden
-                        />
-                        <span className="text-foreground">
-                          {boundWallet ? boundWallet.name : 'No wallet linked'}
-                        </span>
-                      </div>
-                    ) : persistedMode === 'DEFAULT_NWC' ? (
-                      <div className="flex items-center gap-2">
-                        <Wallet
-                          className="size-4 shrink-0 text-muted-foreground"
-                          aria-hidden
-                        />
-                        <span className="text-foreground">
-                          {defaultWallet
-                            ? `${defaultWallet.name} (primary)`
-                            : 'No primary wallet'}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">
-                        Address is disabled and rejects payments.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <Collapsible
-                  open={modeOpen}
-                  onOpenChange={setModeOpen}
-                  className="rounded-lg border border-border bg-card"
-                  id="address-mode-settings"
-                >
-                  <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/40">
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Mode
-                      </span>
-                      <span className="truncate text-sm font-medium">
-                        {MODE_DESCRIPTIONS[data.address.mode].label}
-                        {(data.address.mode === 'ALIAS' ||
-                          data.address.mode === 'PROXY_ALIAS') &&
-                          data.address.redirect && (
-                            <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
-                              → {data.address.redirect}
-                            </span>
-                          )}
-                      </span>
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        'size-4 shrink-0 text-muted-foreground transition-transform',
-                        modeOpen && 'rotate-180'
-                      )}
-                    />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="border-t border-border/60">
-                    <form
-                      onSubmit={handleModeSubmit}
-                      className="flex flex-col gap-4 p-5"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        Pick what happens when someone sends to {fullAddress}.
-                      </p>
-
-                      <RadioGroup
-                        value={mode}
-                        onValueChange={value =>
-                          setMode(value as LightningAddressMode)
-                        }
-                        disabled={saving}
-                        className="grid gap-2"
-                      >
-                        {modeOptions.map(option => {
-                          const isActive = mode === option
-                          return (
-                            <Label
-                              key={option}
-                              htmlFor={`mode-${option}`}
-                              className={cn(
-                                'flex cursor-pointer items-start gap-3 rounded-md border border-input p-3 transition-colors',
-                                isActive && 'border-primary bg-primary/5'
-                              )}
-                            >
-                              <RadioGroupItem
-                                id={`mode-${option}`}
-                                value={option}
-                                className="mt-0.5"
-                              />
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-medium">
-                                  {MODE_DESCRIPTIONS[option].label}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {MODE_DESCRIPTIONS[option].help}
-                                </span>
-                              </div>
-                            </Label>
-                          )
-                        })}
-                      </RadioGroup>
-
-                      {(mode === 'ALIAS' || mode === 'PROXY_ALIAS') && (
-                        <div className="space-y-2">
-                          <Label htmlFor="redirect">Redirect to</Label>
-                          <Input
-                            ref={redirectInputRef}
-                            id="redirect"
-                            placeholder="someone@example.com"
-                            value={redirect}
-                            disabled={saving}
-                            onChange={e =>
-                              setRedirect(e.target.value.toLowerCase())
-                            }
-                            className={cn(aliasInvalid && 'border-destructive')}
+                  ) : (
+                    <BalanceCard
+                      connectionString={data.effectiveConnectionString}
+                      emptyReason={emptyReason}
+                      // Alias addresses forward payments — render a forward arrow
+                      // in the empty-state tile so the visual signals "redirect"
+                      // instead of the generic NWC logo used for other empty states.
+                      emptyIcon={
+                        persistedMode === 'ALIAS' ||
+                        persistedMode === 'PROXY_ALIAS' ? (
+                          <Forward
+                            className="size-5 text-muted-foreground"
+                            aria-hidden
                           />
-                          {aliasInvalid && (
-                            <p className="text-xs text-destructive">
-                              Enter a valid lightning address.
-                            </p>
-                          )}
-                          {mode === 'PROXY_ALIAS' && (
-                            <p className="text-xs text-muted-foreground">
-                              LaWallet receives the payer invoice first, then
-                              requests and pays the destination invoice in the
-                              background. This requires the operator proxy
-                              service to be enabled.
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {mode === 'CUSTOM_NWC' && (
-                        <div className="space-y-4">
-                          {data.wallets.length > 0 ? (
-                            <div className="space-y-2">
-                              <Label htmlFor="remote-wallet">Use wallet</Label>
-                              {data.address.isPrimary && (
-                                <p className="text-xs text-muted-foreground">
-                                  The selected wallet becomes the account
-                                  primary wallet.
-                                </p>
-                              )}
-                              <Select
-                                value={remoteWalletId}
-                                onValueChange={handleWalletSelect}
-                                disabled={saving}
-                              >
-                                <SelectTrigger id="remote-wallet">
-                                  <SelectValue placeholder="Pick a wallet" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value={CONNECT_NEW_WALLET_VALUE}>
-                                    <span className="flex items-center gap-2">
-                                      <Plus className="size-3.5 text-muted-foreground" />
-                                      <span>Connect new wallet</span>
-                                    </span>
-                                  </SelectItem>
-                                  <SelectSeparator />
-                                  {data.wallets.map(
-                                    (w: WalletRemoteWalletSummary) => (
-                                      <SelectItem
-                                        key={w.id}
-                                        value={w.id}
-                                        disabled={w.status === 'DISABLED'}
-                                      >
-                                        {w.name}
-                                        {w.isDefault && ' (primary)'}
-                                        {w.status === 'DISABLED' &&
-                                          ' — disabled'}
-                                      </SelectItem>
-                                    )
-                                  )}
-                                </SelectContent>
-                              </Select>
-                              {customMissing && (
-                                <p className="text-xs text-destructive">
-                                  Pick a wallet to continue.
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            // No wallets yet \u2014 wallets are created on the Remote Wallets
-                            // page, so point the user there instead of an inline form.
-                            <p className="text-xs text-muted-foreground">
-                              You don&apos;t have any wallets yet.{' '}
-                              <Link
-                                href="/admin/remote-wallets"
-                                className="underline"
-                              >
-                                Add one on the Remote Wallets page
-                              </Link>{' '}
-                              first.
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {mode === 'DEFAULT_NWC' && (
-                        <div className="rounded-md border border-border bg-muted/30 p-3">
-                          {defaultWallet ? (
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div className="flex min-w-0 items-center gap-3">
-                                <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
-                                  <Wallet
-                                    className="size-4 text-primary"
-                                    aria-hidden
-                                  />
+                        ) : undefined
+                      }
+                    />
+                  )
+                }
+                payments={
+                  isOwner ? <AddressInvoicesCard username={username} /> : null
+                }
+                activity={
+                  isOwner ? (
+                    <ProxyForwardingActivity username={username} />
+                  ) : null
+                }
+              >
+                {/* Owner sees the editable configuration; an admin viewing someone
+              else's address gets a read-only summary of the same settings. */}
+                <div
+                  className={cn(
+                    isOwner
+                      ? 'overflow-hidden rounded-xl border border-border bg-card'
+                      : 'contents'
+                  )}
+                >
+                  {!isOwner ? (
+                    <div className="rounded-lg border border-border bg-card">
+                      <div className="flex flex-col gap-0.5 px-5 py-4">
+                        <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                          Mode
+                        </span>
+                        <span className="text-sm font-medium">
+                          {MODE_DESCRIPTIONS[persistedMode].label}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {MODE_DESCRIPTIONS[persistedMode].help}
+                        </span>
+                      </div>
+                      <div className="border-t border-border/60 px-5 py-4 text-sm">
+                        {persistedMode === 'ALIAS' ||
+                        persistedMode === 'PROXY_ALIAS' ? (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Forward className="size-4 shrink-0" aria-hidden />
+                            <span className="font-mono break-all text-foreground">
+                              {data.address.redirect ?? '—'}
+                            </span>
+                          </div>
+                        ) : persistedMode === 'CUSTOM_NWC' ? (
+                          <div className="flex items-center gap-2">
+                            <Wallet
+                              className="size-4 shrink-0 text-muted-foreground"
+                              aria-hidden
+                            />
+                            <span className="text-foreground">
+                              {boundWallet
+                                ? boundWallet.name
+                                : 'No wallet linked'}
+                            </span>
+                          </div>
+                        ) : persistedMode === 'DEFAULT_NWC' ? (
+                          <div className="flex items-center gap-2">
+                            <Wallet
+                              className="size-4 shrink-0 text-muted-foreground"
+                              aria-hidden
+                            />
+                            <span className="text-foreground">
+                              {defaultWallet
+                                ? `${defaultWallet.name} (primary)`
+                                : 'No primary wallet'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            Address is disabled and rejects payments.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <Collapsible
+                      open={modeOpen}
+                      onOpenChange={setModeOpen}
+                      className="bg-card"
+                      id="address-mode-settings"
+                    >
+                      <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/40">
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                            Mode
+                          </span>
+                          <span className="truncate text-sm font-medium">
+                            {MODE_DESCRIPTIONS[data.address.mode].label}
+                            {(data.address.mode === 'ALIAS' ||
+                              data.address.mode === 'PROXY_ALIAS') &&
+                              data.address.redirect && (
+                                <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+                                  → {data.address.redirect}
                                 </span>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium">
-                                    Primary wallet
-                                  </p>
-                                  <Link
-                                    href={`/admin/remote-wallets#wallet-${defaultWallet.id}`}
-                                    className="block truncate text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                                  >
-                                    {defaultWallet.name}
-                                  </Link>
-                                </div>
-                              </div>
-                              <Button
-                                asChild
-                                variant="outline"
-                                size="sm"
-                                className="shrink-0 gap-1.5"
-                              >
-                                <Link
-                                  href={`/admin/remote-wallets#wallet-${defaultWallet.id}`}
+                              )}
+                          </span>
+                        </div>
+                        <ChevronDown
+                          className={cn(
+                            'size-4 shrink-0 text-muted-foreground transition-transform',
+                            modeOpen && 'rotate-180'
+                          )}
+                        />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="border-t border-border/60">
+                        <form
+                          onSubmit={handleModeSubmit}
+                          className="flex flex-col gap-4 p-5"
+                        >
+                          <p className="text-xs text-muted-foreground">
+                            Pick what happens when someone sends to{' '}
+                            {fullAddress}.
+                          </p>
+
+                          <RadioGroup
+                            value={mode}
+                            onValueChange={value =>
+                              setMode(value as LightningAddressMode)
+                            }
+                            disabled={saving}
+                            className="grid gap-2"
+                          >
+                            {modeOptions.map(option => {
+                              const isActive = mode === option
+                              return (
+                                <Label
+                                  key={option}
+                                  htmlFor={`mode-${option}`}
+                                  className={cn(
+                                    'flex cursor-pointer items-start gap-3 rounded-md border border-input p-3 transition-colors',
+                                    isActive && 'border-primary bg-primary/5'
+                                  )}
                                 >
-                                  View wallet
-                                  <ExternalLink
-                                    className="size-3.5"
-                                    aria-hidden
+                                  <RadioGroupItem
+                                    id={`mode-${option}`}
+                                    value={option}
+                                    className="mt-0.5"
                                   />
-                                </Link>
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div className="space-y-1">
-                                <p className="text-sm font-medium">
-                                  {data.wallets.length > 0
-                                    ? 'No primary wallet selected'
-                                    : 'No remote wallet linked'}
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-sm font-medium">
+                                      {MODE_DESCRIPTIONS[option].label}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {MODE_DESCRIPTIONS[option].help}
+                                    </span>
+                                  </div>
+                                </Label>
+                              )
+                            })}
+                          </RadioGroup>
+
+                          {(mode === 'ALIAS' || mode === 'PROXY_ALIAS') && (
+                            <div className="space-y-2">
+                              <Label htmlFor="redirect">Redirect to</Label>
+                              <Input
+                                ref={redirectInputRef}
+                                id="redirect"
+                                placeholder="someone@example.com"
+                                value={redirect}
+                                disabled={saving}
+                                onChange={e =>
+                                  setRedirect(e.target.value.toLowerCase())
+                                }
+                                className={cn(
+                                  aliasInvalid && 'border-destructive'
+                                )}
+                              />
+                              {aliasInvalid && (
+                                <p className="text-xs text-destructive">
+                                  Enter a valid lightning address.
                                 </p>
+                              )}
+                              {mode === 'PROXY_ALIAS' && (
                                 <p className="text-xs text-muted-foreground">
-                                  {data.wallets.length > 0
-                                    ? 'Bind your primary address to a wallet to use this mode.'
-                                    : 'Link a Remote Wallet before using primary wallet mode.'}
+                                  LaWallet receives the payer invoice first,
+                                  then requests and pays the destination invoice
+                                  in the background. This requires the operator
+                                  proxy service to be enabled.
                                 </p>
-                              </div>
-                              <Button
-                                asChild
-                                variant="theme"
-                                size="sm"
-                                className="shrink-0 gap-1.5"
-                              >
-                                <Link href="/admin/remote-wallets">
-                                  {data.wallets.length > 0
-                                    ? 'Use for primary address'
-                                    : 'Link Remote Wallets'}
-                                  <ExternalLink
-                                    className="size-3.5"
-                                    aria-hidden
-                                  />
-                                </Link>
-                              </Button>
+                              )}
                             </div>
                           )}
-                        </div>
-                      )}
 
-                      {/* Save/Cancel live inside the collapsible — once the user
+                          {mode === 'CUSTOM_NWC' && (
+                            <div className="space-y-4">
+                              {data.wallets.length > 0 ? (
+                                <div className="space-y-2">
+                                  <Label htmlFor="remote-wallet">
+                                    Use wallet
+                                  </Label>
+                                  {data.address.isPrimary && (
+                                    <p className="text-xs text-muted-foreground">
+                                      The selected wallet becomes the account
+                                      primary wallet.
+                                    </p>
+                                  )}
+                                  <Select
+                                    value={remoteWalletId}
+                                    onValueChange={handleWalletSelect}
+                                    disabled={saving}
+                                  >
+                                    <SelectTrigger id="remote-wallet">
+                                      <SelectValue placeholder="Pick a wallet" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem
+                                        value={CONNECT_NEW_WALLET_VALUE}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          <Plus className="size-3.5 text-muted-foreground" />
+                                          <span>Connect new wallet</span>
+                                        </span>
+                                      </SelectItem>
+                                      <SelectSeparator />
+                                      {data.wallets.map(
+                                        (w: WalletRemoteWalletSummary) => (
+                                          <SelectItem
+                                            key={w.id}
+                                            value={w.id}
+                                            disabled={w.status === 'DISABLED'}
+                                          >
+                                            {w.name}
+                                            {w.isDefault && ' (primary)'}
+                                            {w.status === 'DISABLED' &&
+                                              ' — disabled'}
+                                          </SelectItem>
+                                        )
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                  {customMissing && (
+                                    <p className="text-xs text-destructive">
+                                      Pick a wallet to continue.
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                // No wallets yet \u2014 wallets are created on the Remote Wallets
+                                // page, so point the user there instead of an inline form.
+                                <p className="text-xs text-muted-foreground">
+                                  You don&apos;t have any wallets yet.{' '}
+                                  <Link
+                                    href="/admin/remote-wallets"
+                                    className="underline"
+                                  >
+                                    Add one on the Remote Wallets page
+                                  </Link>{' '}
+                                  first.
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {mode === 'DEFAULT_NWC' && (
+                            <div className="rounded-md border border-border bg-muted/30 p-3">
+                              {defaultWallet ? (
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="flex min-w-0 items-center gap-3">
+                                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                                      <Wallet
+                                        className="size-4 text-primary"
+                                        aria-hidden
+                                      />
+                                    </span>
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-medium">
+                                        Primary wallet
+                                      </p>
+                                      <Link
+                                        href={`/admin/remote-wallets#wallet-${defaultWallet.id}`}
+                                        className="block truncate text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                                      >
+                                        {defaultWallet.name}
+                                      </Link>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    asChild
+                                    variant="outline"
+                                    size="sm"
+                                    className="shrink-0 gap-1.5"
+                                  >
+                                    <Link
+                                      href={`/admin/remote-wallets#wallet-${defaultWallet.id}`}
+                                    >
+                                      View wallet
+                                      <ExternalLink
+                                        className="size-3.5"
+                                        aria-hidden
+                                      />
+                                    </Link>
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-medium">
+                                      {data.wallets.length > 0
+                                        ? 'No primary wallet selected'
+                                        : 'No remote wallet linked'}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {data.wallets.length > 0
+                                        ? 'Bind your primary address to a wallet to use this mode.'
+                                        : 'Link a Remote Wallet before using primary wallet mode.'}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    asChild
+                                    variant="theme"
+                                    size="sm"
+                                    className="shrink-0 gap-1.5"
+                                  >
+                                    <Link href="/admin/remote-wallets">
+                                      {data.wallets.length > 0
+                                        ? 'Use for primary address'
+                                        : 'Link Remote Wallets'}
+                                      <ExternalLink
+                                        className="size-3.5"
+                                        aria-hidden
+                                      />
+                                    </Link>
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Save/Cancel live inside the collapsible — once the user
                     expands Mode and makes changes, the actions are right
                     there with the form; the rest of the page stays calm.
                     Cancel reverts local form state back to the loaded
                     baseline and collapses, so re-opening shows a clean
                     form instead of stale uncommitted edits. */}
-                      <div className="flex items-center justify-end gap-2 pt-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          disabled={saving}
-                          onClick={() => {
-                            setMode(data.address.mode)
-                            setRedirect(data.address.redirect ?? '')
-                            setRemoteWalletId(data.address.remoteWalletId ?? '')
-                            setModeOpen(false)
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="submit"
-                          variant="theme"
-                          disabled={saveDisabled}
-                        >
-                          {saving && (
-                            <Spinner size={16} data-icon="inline-start" />
-                          )}
-                          Save
-                        </Button>
-                      </div>
-                    </form>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
+                          <div className="flex items-center justify-end gap-2 pt-2">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={saving}
+                              onClick={() => {
+                                setMode(data.address.mode)
+                                setRedirect(data.address.redirect ?? '')
+                                setRemoteWalletId(
+                                  data.address.remoteWalletId ?? ''
+                                )
+                                setModeOpen(false)
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="submit"
+                              variant="theme"
+                              disabled={saveDisabled}
+                            >
+                              {saving && (
+                                <Spinner size={16} data-icon="inline-start" />
+                              )}
+                              Save
+                            </Button>
+                          </div>
+                        </form>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
 
-              {/* Invoices and the delete danger zone are owner-only: the invoices
-              feed is served by an owner-scoped route, and an admin's read-only
-              view must not mutate another user's address. */}
+                  {isOwner && persistedMode !== 'PROXY_ALIAS' ? (
+                    <AddressInvoicesCard username={username} embedded />
+                  ) : null}
+                </div>
+              </ProxyAddressWorkspace>
+
+              {/* The delete danger zone is owner-only. */}
               {isOwner && (
                 <>
-                  {/* Invoices are the authoritative per-address activity feed —
-              they're minted by our own LUD-16 cb route with the username
-              stamped on the metadata, so they filter cleanly by address.
-              NWC `list_transactions` can't give us per-address scoping
-              and is blocked by several wallet providers anyway. */}
-                  <AddressInvoicesCard username={username} />
-
                   {/* Danger zone — deleting an address is irreversible, so it's
               isolated at the bottom behind a destructive-tinted card and a
               confirm dialog. Mirrors the card detail page convention. */}

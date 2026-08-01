@@ -26,6 +26,8 @@ function getEventTypeForPath(path: string): SSEEventType | null {
   // `listener:updated` (new NWC connection events / errors).
   if (path.startsWith('/api/admin/listener')) return 'listener:updated'
   if (path.startsWith('/api/lightning-addresses')) return 'addresses:updated'
+  if (/^\/api\/wallet\/addresses\/[^/]+\/proxy-balance/.test(path))
+    return 'invoices:updated'
   // Per-address invoices feed has to match before the generic
   // `/api/wallet/addresses` rule below — otherwise invoice refreshes would
   // be tied to the `addresses:updated` event instead of `invoices:updated`.

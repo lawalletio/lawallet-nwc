@@ -30,6 +30,7 @@ const getSettingsMock = vi.mocked(getSettings)
 const resolveUserRelaysMock = vi.mocked(resolveUserRelays)
 
 const PK_ALICE = 'a'.repeat(64)
+const PK_RECEIPT = 'b'.repeat(64)
 
 function url(name?: string, param: 'name' | 'username' = 'name') {
   const base = 'http://localhost:3000/.well-known/nostr.json'
@@ -153,7 +154,35 @@ describe('GET /.well-known/nostr.json', () => {
     expect(body).toEqual({ names: {}, relays: {} })
   })
 
-  it('returns empty maps for the reserved "_" identity without querying', async () => {
+  it('exposes the zap receipt signer as the root "_" identity', async () => {
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+      receiptPubkey: PK_RECEIPT
+    } as any)
+    getSettingsMock.mockResolvedValue({
+      relays: JSON.stringify(['wss://relay.one', 'wss://relay.two'])
+    })
+
+    const res = await GET(createNextRequest(url('_')) as any)
+    const body = await res.json()
+
+    expect(body).toEqual({
+      names: { _: PK_RECEIPT },
+      relays: {
+        [PK_RECEIPT]: ['wss://relay.one', 'wss://relay.two']
+      }
+    })
+    expect(prismaMock.proxyServiceConfig.findUnique).toHaveBeenCalledWith({
+      where: { id: 'default' },
+      select: { receiptPubkey: true }
+    })
+    expect(prismaMock.lightningAddress.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('returns empty maps for "_" when no receipt signer exists', async () => {
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue(
+      null as any
+    )
+
     const res = await GET(createNextRequest(url('_')) as any)
     const body = await res.json()
 

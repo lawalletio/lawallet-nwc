@@ -57,7 +57,7 @@ const proxyUpdateRequestSchema = z
     }),
     receiptNsec: z.string().max(256).optional().openapi({
       description:
-        'Write-only NIP-57 receipt signer as nsec or 64-character hex. It is encrypted at rest and never returned.'
+        'Write-only NIP-57 receipt signer as nsec or 64-character hex. A random signer is generated during installation; supplying this field rotates it. It is encrypted at rest and never returned.'
     })
   })
   .openapi({
@@ -122,7 +122,7 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Update deferred Lightning Address proxy configuration.',
   description:
-    'Stores the NWC URI and NIP-57 receipt signer as write-only encrypted settings. Enabling requires a configured vault, listener, NWC connection, and receipt signer.',
+    'Stores the NWC URI and rotates the automatically generated NIP-57 receipt signer as write-only encrypted settings. Enabling requires a configured vault, listener, NWC connection, and receipt signer.',
   operationId: 'lud16Proxy.config.update',
   security: protectedSecurity,
   request: {

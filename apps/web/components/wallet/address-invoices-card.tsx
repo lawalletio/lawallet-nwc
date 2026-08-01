@@ -1,8 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import {
   ArrowDownLeft,
+  ChevronRight,
   Clock,
   RefreshCw,
   WifiOff,
@@ -17,10 +18,13 @@ import {
 } from '@/lib/client/hooks/use-wallet-addresses'
 import { formatRelativeTime } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
+import { AddressInvoiceDetailsDialog } from './address-invoice-details-dialog'
 
 export interface AddressInvoicesCardProps {
   /** Username of the lightning address whose invoices we're listing. */
   username: string
+  /** Render inside a shared settings/activity shell without another border. */
+  embedded?: boolean
 }
 
 /**
@@ -36,47 +40,77 @@ export interface AddressInvoicesCardProps {
  * maps this path to that event type), so a payment landing on the wallet
  * flips the row from PENDING → PAID without a manual refresh.
  */
-export function AddressInvoicesCard({ username }: AddressInvoicesCardProps) {
+export function AddressInvoicesCard({
+  username,
+  embedded = false
+}: AddressInvoicesCardProps) {
   const { data, loading, error, refetch } = useAddressInvoices(username)
   const invoices = data?.invoices ?? []
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
+    null
+  )
+  const selectedInvoice = selectedInvoiceId
+    ? (invoices.find(invoice => invoice.id === selectedInvoiceId) ?? null)
+    : null
 
   return (
-    <div className="rounded-xl border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border/60 px-5 py-3">
-        <h3 className="text-sm font-medium">Recent invoices</h3>
-        <button
-          type="button"
-          onClick={refetch}
-          disabled={loading}
-          aria-label="Refresh invoices"
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
-        </button>
+    <>
+      <div
+        className={cn(
+          'bg-card',
+          embedded
+            ? 'border-t border-border/60'
+            : 'rounded-xl border border-border'
+        )}
+      >
+        <div className="flex items-center justify-between border-b border-border/60 px-5 py-3">
+          <h3 className="text-sm font-medium">Recent invoices</h3>
+          <button
+            type="button"
+            onClick={refetch}
+            disabled={loading}
+            aria-label="Refresh invoices"
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
+          </button>
+        </div>
+
+        {error && invoices.length === 0 ? (
+          <div className="flex items-center gap-3 px-5 py-8 text-sm text-destructive">
+            <WifiOff className="size-4 shrink-0" />
+            <span>Couldn&rsquo;t load invoices.</span>
+          </div>
+        ) : invoices.length === 0 && loading ? (
+          <div className="flex items-center justify-center py-10">
+            <Spinner size={24} className="text-muted-foreground" />
+          </div>
+        ) : invoices.length === 0 ? (
+          <div className="flex items-center gap-3 px-5 py-8 text-sm text-muted-foreground">
+            <Clock className="size-4 shrink-0" />
+            <span>No invoices yet.</span>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {invoices.map(inv => (
+              <InvoiceRow
+                key={inv.id}
+                invoice={inv}
+                onSelect={() => setSelectedInvoiceId(inv.id)}
+              />
+            ))}
+          </ul>
+        )}
       </div>
 
-      {error && invoices.length === 0 ? (
-        <div className="flex items-center gap-3 px-5 py-8 text-sm text-destructive">
-          <WifiOff className="size-4 shrink-0" />
-          <span>Couldn&rsquo;t load invoices.</span>
-        </div>
-      ) : invoices.length === 0 && loading ? (
-        <div className="flex items-center justify-center py-10">
-          <Spinner size={24} className="text-muted-foreground" />
-        </div>
-      ) : invoices.length === 0 ? (
-        <div className="flex items-center gap-3 px-5 py-8 text-sm text-muted-foreground">
-          <Clock className="size-4 shrink-0" />
-          <span>No invoices yet.</span>
-        </div>
-      ) : (
-        <ul className="divide-y divide-border/60">
-          {invoices.map(inv => (
-            <InvoiceRow key={inv.id} invoice={inv} />
-          ))}
-        </ul>
-      )}
-    </div>
+      <AddressInvoiceDetailsDialog
+        username={username}
+        invoice={selectedInvoice}
+        open={selectedInvoiceId !== null}
+        onOpenChange={open => !open && setSelectedInvoiceId(null)}
+        onUpdated={refetch}
+      />
+    </>
   )
 }
 
@@ -113,7 +147,13 @@ const STATUS_META: Record<
   }
 }
 
-function InvoiceRow({ invoice }: { invoice: AddressInvoice }) {
+function InvoiceRow({
+  invoice,
+  onSelect
+}: {
+  invoice: AddressInvoice
+  onSelect: () => void
+}) {
   const meta = STATUS_META[invoice.status]
   const Icon = meta.icon
   // Paid timestamp is the interesting one; fall back to created for pending /
@@ -128,35 +168,43 @@ function InvoiceRow({ invoice }: { invoice: AddressInvoice }) {
     'Lightning payment'
 
   return (
-    <li className="flex items-center gap-3 px-5 py-3">
-      <div
-        className={cn(
-          'flex size-9 shrink-0 items-center justify-center rounded-full',
-          meta.bgClass
-        )}
+    <li>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-label={`View details for ${primaryLine}`}
+        className="group flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <Icon className={cn('size-4', meta.iconClass)} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="truncate text-sm font-medium">{primaryLine}</p>
-        <p className="text-xs text-muted-foreground">
-          {formatRelativeTime(new Date(whenIso))}
-          {invoice.status !== 'PAID' && (
-            <span className="ml-2 italic">
-              · {invoice.status.toLowerCase()}
-            </span>
+        <div
+          className={cn(
+            'flex size-9 shrink-0 items-center justify-center rounded-full',
+            meta.bgClass
           )}
-        </p>
-      </div>
-      <span
-        className={cn(
-          'shrink-0 text-sm font-semibold tabular-nums',
-          meta.amountClass
-        )}
-      >
-        {invoice.status === 'PAID' ? '+' : ''}
-        {invoice.amountSats.toLocaleString()} sats
-      </span>
+        >
+          <Icon className={cn('size-4', meta.iconClass)} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="truncate text-sm font-medium">{primaryLine}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatRelativeTime(new Date(whenIso))}
+            {invoice.status !== 'PAID' && (
+              <span className="ml-2 italic">
+                · {invoice.status.toLowerCase()}
+              </span>
+            )}
+          </p>
+        </div>
+        <span
+          className={cn(
+            'shrink-0 text-sm font-semibold tabular-nums',
+            meta.amountClass
+          )}
+        >
+          {invoice.status === 'PAID' ? '+' : ''}
+          {invoice.amountSats.toLocaleString()} sats
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+      </button>
     </li>
   )
 }

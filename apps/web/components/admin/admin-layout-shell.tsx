@@ -19,6 +19,7 @@ interface DatabaseStatus {
 }
 
 const HEALTH_POLL_INTERVAL_MS = 25_000
+const ADMIN_SIDEBAR_BREAKPOINT = 1024
 
 function useDatabaseStatus(
   enabled: boolean
@@ -143,7 +144,7 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-dvh bg-background">
         {/* Sidebar skeleton */}
-        <div className="hidden md:flex w-64 flex-col border-r border-border p-4 gap-4">
+        <div className="hidden lg:flex w-64 flex-col border-r border-border p-4 gap-4">
           <Skeleton className="h-8 w-32" />
           <div className="flex flex-col gap-2 mt-4">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -180,7 +181,7 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   // non-admin users see the maintenance screen while admins keep a banner
   // at the top and can still toggle the flag.
   return (
-    <SidebarProvider>
+    <SidebarProvider mobileBreakpoint={ADMIN_SIDEBAR_BREAKPOINT}>
       <AdminSidebar disabled={databaseDown} />
       {/* `min-w-0` on the SidebarInset main prevents flex children
           (wide tables, long URLs, stat cards) from expanding the layout
@@ -188,7 +189,7 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
           internal overflow:auto has nothing to clip against and the
           whole admin shell scrolls horizontally. */}
       <SidebarInset className="min-w-0">
-        <main className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
+        <main className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">
           {database.error ? (
             <DatabaseUnavailable
               error={database.error}

@@ -12,4 +12,8 @@ export async function register() {
   const { migrateRemoteWalletNwcConfigs } =
     await import('@/lib/wallet/migrate-remote-wallet-vault')
   await migrateRemoteWalletNwcConfigs()
+
+  const { initializeProxyReceiptSigner } =
+    await import('@/lib/proxy/initialize-receipt-signer')
+  await initializeProxyReceiptSigner()
 }

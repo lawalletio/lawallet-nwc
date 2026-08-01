@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   calculateProxyAmounts,
-  grossRangeForDestination
+  grossRangeForDestination,
+  isDestinationInvoiceAmountAcceptable,
+  MAX_DESTINATION_INVOICE_SHORTFALL_MSATS
 } from '@/lib/proxy/money'
 
 describe('deferred proxy money', () => {
@@ -39,5 +41,30 @@ describe('deferred proxy money', () => {
     expect(
       calculateProxyAmounts(range.maxSendable + 1, 50).destinationAmountMsats
     ).toBeGreaterThan(10_000)
+  })
+
+  it('accepts a lower destination invoice through the exact 10-sat boundary', () => {
+    const requested = 100_000
+    expect(isDestinationInvoiceAmountAcceptable(requested, requested)).toBe(
+      true
+    )
+    expect(
+      isDestinationInvoiceAmountAcceptable(
+        requested,
+        requested - MAX_DESTINATION_INVOICE_SHORTFALL_MSATS
+      )
+    ).toBe(true)
+    expect(
+      isDestinationInvoiceAmountAcceptable(
+        requested,
+        requested - MAX_DESTINATION_INVOICE_SHORTFALL_MSATS - 1
+      )
+    ).toBe(false)
+  })
+
+  it('never accepts a destination invoice above the requested amount', () => {
+    expect(isDestinationInvoiceAmountAcceptable(100_000, 100_001)).toBe(false)
+    expect(isDestinationInvoiceAmountAcceptable(100_000, 0)).toBe(false)
+    expect(isDestinationInvoiceAmountAcceptable(100_000, 99_999.5)).toBe(false)
   })
 })

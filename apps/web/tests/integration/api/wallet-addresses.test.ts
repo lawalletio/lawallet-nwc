@@ -487,6 +487,28 @@ describe('GET /api/wallet/addresses/[username]', () => {
       isDefault: true
     })
     expect(body.wallets[0]).not.toHaveProperty('config')
+    expect(body.deferredProxyEnabled).toBe(false)
+  })
+
+  it('reports when deferred forwarding is enabled', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
+      makeAddress() as any
+    )
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([])
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+      enabled: true
+    } as any)
+
+    const res = await DetailGet(
+      createNextRequest('/api/wallet/addresses/alice'),
+      createParamsPromise({ username: 'alice' })
+    )
+    const body: any = await assertResponse(res, 200)
+    expect(body.deferredProxyEnabled).toBe(true)
   })
 
   it('returns 404 when the address belongs to a different user', async () => {
@@ -943,6 +965,8 @@ describe('GET /api/wallet/addresses/[username]/invoices', () => {
     return {
       id: 'inv-1',
       amountSats: 1000,
+      amountMsats: BigInt(1_000_000),
+      bolt11: 'lnbc1incoming',
       description: 'Payment to @alice',
       status: 'PENDING',
       metadata: { username: 'alice' },
@@ -950,6 +974,7 @@ describe('GET /api/wallet/addresses/[username]/invoices', () => {
       createdAt: new Date('2026-02-01T00:00:00Z'),
       paidAt: null,
       expiresAt: new Date('2026-02-01T01:00:00Z'),
+      proxyPayment: null,
       ...overrides
     }
   }
@@ -997,6 +1022,97 @@ describe('GET /api/wallet/addresses/[username]/invoices', () => {
         take: 20
       })
     )
+  })
+
+  it('includes the full proxy payment and destination invoice details', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      userId: 'user-1'
+    } as any)
+    vi.mocked(prismaMock.invoice.findMany).mockResolvedValue([
+      makeInvoice({
+        status: 'PAID',
+        amountSats: 10,
+        amountMsats: BigInt(10_000),
+        paidAt: new Date('2026-02-01T00:01:00Z'),
+        proxyPayment: {
+          id: 'proxy-payment-1',
+          status: 'COMPLETED',
+          destination: 'bob@example.com',
+          feeBps: 50,
+          grossAmountMsats: BigInt(10_000),
+          serviceFeeMsats: BigInt(50),
+          destinationAmountMsats: BigInt(9_950),
+          forwardedAmountMsats: BigInt(9_950),
+          routingFeeMsats: BigInt(2),
+          sourcePaidAt: new Date('2026-02-01T00:01:00Z'),
+          forwardedAt: new Date('2026-02-01T00:02:00Z'),
+          receiptEventId: 'receipt-event-1',
+          receiptPublishedAt: new Date('2026-02-01T00:03:00Z'),
+          retryCount: 0,
+          nextRetryAt: new Date('2026-02-01T00:04:00Z'),
+          leaseExpiresAt: null,
+          lastError: null,
+          createdAt: new Date('2026-02-01T00:00:00Z'),
+          updatedAt: new Date('2026-02-01T00:03:00Z'),
+          _count: { attempts: 1 },
+          attempts: [
+            {
+              id: 'attempt-1',
+              attemptNo: 1,
+              requestId: 'request-1',
+              bolt11: 'lnbc1destination',
+              paymentHash: 'd'.repeat(64),
+              amountMsats: BigInt(9_950),
+              status: 'SUCCEEDED',
+              routingFeeMsats: BigInt(2),
+              errorCode: null,
+              errorMessage: null,
+              expiresAt: new Date('2026-02-01T01:00:00Z'),
+              createdAt: new Date('2026-02-01T00:01:30Z'),
+              updatedAt: new Date('2026-02-01T00:02:00Z'),
+              resolvedAt: new Date('2026-02-01T00:02:00Z')
+            }
+          ]
+        }
+      })
+    ] as any)
+
+    const res = await InvoicesGet(
+      createNextRequest('/api/wallet/addresses/alice/invoices'),
+      createParamsPromise({ username: 'alice' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.invoices[0]).toMatchObject({
+      amountMsats: '10000',
+      bolt11: 'lnbc1incoming',
+      proxy: {
+        status: 'COMPLETED',
+        destination: 'bob@example.com',
+        grossAmountMsats: '10000',
+        serviceFeeMsats: '50',
+        destinationAmountMsats: '9950',
+        routingFeeMsats: '2',
+        nextRetryAt: '2026-02-01T00:04:00.000Z',
+        attemptCount: 1,
+        attempts: [
+          {
+            requestId: 'request-1',
+            bolt11: 'lnbc1destination',
+            paymentHash: 'd'.repeat(64),
+            amountMsats: '9950',
+            status: 'SUCCEEDED',
+            updatedAt: '2026-02-01T00:02:00.000Z'
+          }
+        ]
+      }
+    })
+    expect(body.invoices[0].proxy).not.toHaveProperty('sourcePreimage')
+    expect(body.invoices[0].proxy.attempts[0]).not.toHaveProperty('preimage')
   })
 
   it('returns an empty list when the address has no invoices yet', async () => {

@@ -15,6 +15,15 @@ export async function getProxyConfig(): Promise<ProxyServiceConfig | null> {
   })
 }
 
+/** Non-sensitive feature flag used by address configuration surfaces. */
+export async function isProxyEnabled(): Promise<boolean> {
+  const config = await prisma.proxyServiceConfig.findUnique({
+    where: { id: PROXY_CONFIG_ID },
+    select: { enabled: true }
+  })
+  return config?.enabled ?? false
+}
+
 export async function getActiveProxyConfig(): Promise<ActiveProxyConfig | null> {
   const row = await getProxyConfig()
   if (!row?.enabled || !row.nwcCiphertext) return null

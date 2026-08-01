@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { ProxyForwardAttempt, ProxyPayment } from '@/lib/generated/prisma'
 import type { Event } from 'nostr-tools'
-import { Prisma } from '@/lib/generated/prisma'
+import { eventBus } from '@/lib/events/event-bus'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getListenerConfig } from '@/lib/listener-config'
@@ -18,6 +18,7 @@ import {
   PROXY_RETRY_INTERVAL_MS
 } from './constants'
 import { fetchDestinationMetadata, requestDestinationInvoice } from './lnurl'
+import { isDestinationInvoiceAmountAcceptable } from './money'
 import { publishZapReceipt } from './nostr'
 
 type PaymentWithAttempts = ProxyPayment & {
@@ -56,14 +57,20 @@ export async function reconcileProxyPayments(
     options.ids,
     Math.min(PROXY_BATCH_SIZE, Math.max(1, options.limit ?? PROXY_BATCH_SIZE))
   )
+  if (ids.length > 0) emitProxyActivityUpdated()
   const outcomes = await Promise.all(
     ids.map(async id => {
       try {
-        return (await reconcileOne(id, workerId)) ? 'completed' : 'pending'
+        const outcome = (await reconcileOne(id, workerId))
+          ? 'completed'
+          : 'pending'
+        emitProxyActivityUpdated()
+        return outcome
       } catch (err) {
         const message = errorMessage(err)
         logger.error({ err, proxyPaymentId: id }, 'proxy.reconcile_failed')
         await releaseWithError(id, workerId, message)
+        emitProxyActivityUpdated()
         return 'failed'
       }
     })
@@ -93,10 +100,6 @@ async function claimDuePayments(
       (requestedIds ?? []).filter(id => typeof id === 'string' && id.length > 0)
     )
   ].slice(0, PROXY_BATCH_SIZE)
-  const idFilter =
-    normalizedIds.length > 0
-      ? Prisma.sql`AND p."id" IN (${Prisma.join(normalizedIds)})`
-      : Prisma.empty
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     WITH candidates AS (
       SELECT p."id"
@@ -110,7 +113,10 @@ async function claimDuePayments(
       )
         AND p."nextRetryAt" <= CURRENT_TIMESTAMP
         AND (p."leaseExpiresAt" IS NULL OR p."leaseExpiresAt" < CURRENT_TIMESTAMP)
-        ${idFilter}
+        AND (
+          cardinality(${normalizedIds}::text[]) = 0
+          OR p."id" = ANY(${normalizedIds}::text[])
+        )
       ORDER BY p."nextRetryAt" ASC, p."createdAt" ASC
       FOR UPDATE SKIP LOCKED
       LIMIT ${limit}
@@ -185,7 +191,11 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
     )
   }
 
-  let reusable: ProxyForwardAttempt | null = latest
+  // A rejected attempt can normally reuse the same still-valid BOLT11. When
+  // the owner deliberately changes the destination, the recovery endpoint
+  // marks that attempt as superseded so no retry can pay the old recipient.
+  let reusable: ProxyForwardAttempt | null =
+    latest?.errorCode === 'destination_changed' ? null : latest
   if (latest && ['PENDING', 'UNKNOWN'].includes(latest.status)) {
     const resolution = await reconcileExistingAttempt(
       latest,
@@ -280,6 +290,10 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
       status: 'PENDING'
     }
   })
+  // Publish after the attempt is durable and before waiting on the listener.
+  // The Activity tab can now show the in-flight payment immediately, while
+  // the listener request remains protected by its idempotent request id.
+  emitProxyActivityUpdated()
 
   const bridge = await getListenerConfig()
   const result = await listenerNwcPayment(bridge, {
@@ -607,7 +621,10 @@ async function finishForwarding(
 ): Promise<boolean> {
   if (
     payment.invoice.status !== 'PAID' ||
-    attempt.amountMsats !== payment.destinationAmountMsats ||
+    !isDestinationInvoiceAmountAcceptable(
+      payment.destinationAmountMsats,
+      attempt.amountMsats
+    ) ||
     !attempt.preimage ||
     !preimageMatchesPaymentHash(attempt.preimage, attempt.paymentHash)
   ) {
@@ -694,4 +711,8 @@ async function releaseWithError(
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function emitProxyActivityUpdated(): void {
+  eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
 }

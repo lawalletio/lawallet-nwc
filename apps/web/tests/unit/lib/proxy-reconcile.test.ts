@@ -14,7 +14,8 @@ const {
   listenerNwcPayment,
   listenerNwcRequest,
   fetchDestinationMetadata,
-  requestDestinationInvoice
+  requestDestinationInvoice,
+  emitEvent
 } = vi.hoisted(() => ({
   getProxySettlementConfig: vi.fn(),
   getListenerConfig: vi.fn(),
@@ -22,7 +23,8 @@ const {
   listenerNwcPayment: vi.fn(),
   listenerNwcRequest: vi.fn(),
   fetchDestinationMetadata: vi.fn(),
-  requestDestinationInvoice: vi.fn()
+  requestDestinationInvoice: vi.fn(),
+  emitEvent: vi.fn()
 }))
 
 vi.mock('@/lib/proxy/config', () => ({ getProxySettlementConfig }))
@@ -38,6 +40,9 @@ vi.mock('@/lib/proxy/lnurl', () => ({
 }))
 vi.mock('@/lib/proxy/nostr', () => ({
   publishZapReceipt: vi.fn()
+}))
+vi.mock('@/lib/events/event-bus', () => ({
+  eventBus: { emit: emitEvent }
 }))
 vi.mock('@/lib/logger', () => ({
   logger: {
@@ -270,6 +275,56 @@ describe('proxy reconciler', () => {
         })
       })
     )
+    expect(emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'invoices:updated' })
+    )
+    // Claim, durable in-flight attempt, and completed outcome each broadcast.
+    expect(emitEvent).toHaveBeenCalledTimes(3)
+  })
+
+  it('completes a destination invoice that rounds down by exactly 10 sats', async () => {
+    const roundedDownMsats = 89_500
+    vi.mocked(prismaMock.proxyPayment.findUnique).mockResolvedValue(
+      payment() as never
+    )
+    requestDestinationInvoice.mockResolvedValue({
+      bolt11: 'lnbc1roundeddown',
+      paymentHash: destinationHash,
+      amountMsats: roundedDownMsats,
+      expiresAt: new Date(Date.now() + 60_000)
+    })
+    vi.mocked(prismaMock.proxyForwardAttempt.create).mockResolvedValue(
+      attempt({
+        bolt11: 'lnbc1roundeddown',
+        amountMsats: BigInt(roundedDownMsats)
+      }) as never
+    )
+    listenerNwcPayment.mockResolvedValue({
+      ok: true,
+      status: 'succeeded',
+      requestId: 'e'.repeat(64),
+      preimage,
+      feesPaidMsats: 25
+    })
+
+    const result = await reconcileProxyPayments({
+      workerId: 'worker-from-claim'
+    })
+
+    expect(result.completed).toBe(1)
+    expect(prismaMock.proxyForwardAttempt.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        amountMsats: BigInt(roundedDownMsats)
+      })
+    })
+    expect(prismaMock.proxyPayment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'COMPLETED',
+          forwardedAmountMsats: BigInt(roundedDownMsats)
+        })
+      })
+    )
   })
 
   it('lets only one simultaneous worker claim and create the destination invoice', async () => {
@@ -379,6 +434,39 @@ describe('proxy reconciler', () => {
           .update(`__lawallet_proxy__|${destinationHash}|payment-1|2`)
           .digest('hex')
       })
+    })
+  })
+
+  it('never reuses the previous invoice after the owner changes destination', async () => {
+    vi.mocked(prismaMock.proxyPayment.findUnique).mockResolvedValue(
+      payment({
+        destination: 'carol@new-destination.example',
+        attempts: [
+          attempt({
+            status: 'REJECTED',
+            errorCode: 'destination_changed',
+            errorMessage: 'Superseded by carol@new-destination.example'
+          })
+        ]
+      }) as never
+    )
+    listenerNwcPayment.mockResolvedValue({
+      ok: true,
+      status: 'succeeded',
+      requestId: 'd'.repeat(64),
+      preimage,
+      feesPaidMsats: 0
+    })
+
+    await reconcileProxyPayments({ workerId: 'worker-from-claim' })
+
+    expect(fetchDestinationMetadata).toHaveBeenCalledWith(
+      'carol@new-destination.example',
+      { blockedHosts: ['lawallet.example'] }
+    )
+    expect(requestDestinationInvoice).toHaveBeenCalledOnce()
+    expect(prismaMock.proxyForwardAttempt.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ attemptNo: 2 })
     })
   })
 

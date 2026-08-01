@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createPinnedLookup,
   fetchDestinationMetadata,
   isPrivateNetworkAddress
 } from '@/lib/proxy/lnurl'
@@ -21,5 +22,40 @@ describe('proxy LNURL network safety', () => {
         blockedHosts: ['lawallet.example']
       })
     ).rejects.toThrow(/this LaWallet instance/)
+  })
+
+  it('returns an address array when Node requests all lookup results', async () => {
+    const lookup = createPinnedLookup({ address: '1.1.1.1', family: 4 })
+
+    const result = await new Promise<{
+      address: string | Array<{ address: string; family: number }>
+      family?: number
+    }>((resolve, reject) => {
+      lookup('destination.example', { all: true }, (error, address, family) => {
+        if (error) reject(error)
+        else resolve({ address, family })
+      })
+    })
+
+    expect(result).toEqual({
+      address: [{ address: '1.1.1.1', family: 4 }],
+      family: undefined
+    })
+  })
+
+  it('returns one address for the classic lookup callback', async () => {
+    const lookup = createPinnedLookup({ address: '1.1.1.1', family: 4 })
+
+    const result = await new Promise<{
+      address: string | Array<{ address: string; family: number }>
+      family?: number
+    }>((resolve, reject) => {
+      lookup('destination.example', {}, (error, address, family) => {
+        if (error) reject(error)
+        else resolve({ address, family })
+      })
+    })
+
+    expect(result).toEqual({ address: '1.1.1.1', family: 4 })
   })
 })

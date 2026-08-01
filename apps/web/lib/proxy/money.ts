@@ -1,9 +1,32 @@
 import { MAX_PROXY_FEE_BPS } from './constants'
 
+/** Maximum amount a destination invoice may undershoot the requested net. */
+export const MAX_DESTINATION_INVOICE_SHORTFALL_MSATS = 10_000
+
 export interface ProxyAmounts {
   grossAmountMsats: number
   serviceFeeMsats: number
   destinationAmountMsats: number
+}
+
+/**
+ * Destination providers occasionally round a requested LNURL amount down.
+ * Accept a lower invoice through the configured 10-sat tolerance, but never
+ * accept an invoice above the requested amount.
+ */
+export function isDestinationInvoiceAmountAcceptable(
+  requestedMsats: number | bigint,
+  invoiceMsats: number | bigint
+): boolean {
+  const requested = normalizeMsats(requestedMsats)
+  const invoiced = normalizeMsats(invoiceMsats)
+  if (requested === null || invoiced === null || invoiced <= BigInt(0)) {
+    return false
+  }
+  return (
+    invoiced <= requested &&
+    requested - invoiced <= BigInt(MAX_DESTINATION_INVOICE_SHORTFALL_MSATS)
+  )
 }
 
 export function calculateProxyAmounts(
@@ -79,4 +102,9 @@ export function grossRangeForDestination(
 
 function ceilDivide(numerator: bigint, denominator: bigint): bigint {
   return (numerator + denominator - BigInt(1)) / denominator
+}
+
+function normalizeMsats(value: number | bigint): bigint | null {
+  if (typeof value === 'bigint') return value
+  return Number.isSafeInteger(value) ? BigInt(value) : null
 }

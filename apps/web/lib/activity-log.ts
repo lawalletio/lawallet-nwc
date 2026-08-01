@@ -61,6 +61,8 @@ export const ActivityEvent = {
   NWC_PAYMENT_SENT: 'nwc.payment_sent',
   NWC_LISTENER_ERROR: 'nwc.listener_error',
   NWC_WALLET_DEAD: 'nwc.wallet_dead',
+  PROXY_DESTINATION_CHANGED: 'proxy.destination_changed',
+  PROXY_FORWARD_RETRY_REQUESTED: 'proxy.forward_retry_requested',
   // INVOICE
   INVOICE_GENERATED: 'invoice.generated',
   INVOICE_PAID: 'invoice.paid',

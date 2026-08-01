@@ -511,6 +511,64 @@
           "address"
         ]
       },
+      "ProxyForwardingCommandParams": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16,
+            "pattern": "^[a-z0-9]+$"
+          },
+          "invoiceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "username",
+          "invoiceId"
+        ]
+      },
+      "ProxyForwardingCommandRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "retry"
+                ]
+              }
+            },
+            "required": [
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "change_destination"
+                ]
+              },
+              "destination": {
+                "type": "string",
+                "maxLength": 254,
+                "pattern": "^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$"
+              }
+            },
+            "required": [
+              "action",
+              "destination"
+            ]
+          }
+        ]
+      },
       "WalletCardUpdateRequest": {
         "type": "object",
         "properties": {
@@ -7580,6 +7638,279 @@
         }
       }
     },
+    "/api/wallet/addresses/{username}/proxy-balance": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Get the caller’s pending deferred-proxy balance.",
+        "description": "Returns only paid inbound proxy settlements that are still owed to their destination, excluding settled or ambiguous outgoing payments.",
+        "operationId": "wallet.addresses.proxyBalance.get",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "pattern": "^[a-z0-9]+$"
+            },
+            "required": true,
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending proxy balance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pendingAmountMsats": {
+                      "type": "string"
+                    },
+                    "pendingPaymentCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "blockedPaymentCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "inFlightPaymentCount": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "oldestPendingAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "destination": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "pendingAmountMsats",
+                    "pendingPaymentCount",
+                    "blockedPaymentCount",
+                    "inFlightPaymentCount",
+                    "oldestPendingAt",
+                    "destination"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Forward every safe pending deferred-proxy settlement.",
+        "description": "Atomically locks eligible settlements and schedules a bounded reconciliation pass. Requests are rejected while any payment has an active worker lease or ambiguous outgoing attempt, preventing duplicate sends.",
+        "operationId": "wallet.addresses.proxyBalance.forward",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "pattern": "^[a-z0-9]+$"
+            },
+            "required": true,
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending settlements forwarded or queued for reconciliation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "queued": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "reconciliation": {
+                      "type": "object",
+                      "properties": {
+                        "claimed": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "completed": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "failed": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "claimed",
+                        "completed",
+                        "failed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "queued",
+                    "reconciliation"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/wallet/cards": {
       "get": {
         "x-required-role": "USER",
@@ -7685,6 +8016,209 @@
           },
           "404": {
             "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/addresses/{username}/invoices/{invoiceId}/forwarding": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Recover a blocked deferred-proxy settlement.",
+        "description": "Retries a blocked forwarding payment or changes that payment’s destination. A destination change only applies to the selected settlement; active or ambiguous outgoing attempts cannot be changed or retried.",
+        "operationId": "wallet.addresses.invoices.forwarding.recover",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16,
+              "pattern": "^[a-z0-9]+$"
+            },
+            "required": true,
+            "name": "username",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "required": true,
+            "name": "invoiceId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProxyForwardingCommandRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recovery command completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "action": {
+                      "type": "string",
+                      "enum": [
+                        "retry",
+                        "change_destination"
+                      ]
+                    },
+                    "reconciliation": {
+                      "type": "object",
+                      "properties": {
+                        "claimed": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "completed": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "failed": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "claimed",
+                        "completed",
+                        "failed"
+                      ]
+                    },
+                    "payment": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "destination": {
+                          "type": "string"
+                        },
+                        "lastError": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "status",
+                        "destination",
+                        "lastError"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "action"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the configured limit.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12062,7 +12596,7 @@
           "LUD-16 Proxy"
         ],
         "summary": "Update deferred Lightning Address proxy configuration.",
-        "description": "Stores the NWC URI and NIP-57 receipt signer as write-only encrypted settings. Enabling requires a configured vault, listener, NWC connection, and receipt signer.",
+        "description": "Stores the NWC URI and rotates the automatically generated NIP-57 receipt signer as write-only encrypted settings. Enabling requires a configured vault, listener, NWC connection, and receipt signer.",
         "operationId": "lud16Proxy.config.update",
         "security": [
           {
@@ -12094,7 +12628,7 @@
                   "receiptNsec": {
                     "type": "string",
                     "maxLength": 256,
-                    "description": "Write-only NIP-57 receipt signer as nsec or 64-character hex. It is encrypted at rest and never returned."
+                    "description": "Write-only NIP-57 receipt signer as nsec or 64-character hex. A random signer is generated during installation; supplying this field rotates it. It is encrypted at rest and never returned."
                   }
                 },
                 "description": "Partial proxy configuration update. At least one field is required. Credential removal or rotation is blocked while settlements are outstanding."

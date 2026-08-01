@@ -75,7 +75,7 @@ export function MobileTabBar({ disabled = false }: { disabled?: boolean }) {
   )
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background lg:hidden">
       <div className="flex items-center justify-around h-14">
         {visibleTabs.map(tab => {
           const active = isActive(tab.href)
