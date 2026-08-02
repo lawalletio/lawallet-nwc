@@ -212,7 +212,10 @@ fi
 # ── deploy ────────────────────────────────────────────────────────────────
 if [[ "$do_deploy" == "1" ]]; then
   echo "==> Deploying $app (context: repo root)"
-  fly deploy --config apps/listener/fly.toml --app "$app"
+  # --ha=false: fly deploy otherwise adds a second "spare" machine, and two
+  # listeners double-subscribe every wallet and race on the shared catch-up
+  # and dead-prober cursors. This service is a singleton on purpose.
+  fly deploy --config apps/listener/fly.toml --app "$app" --ha=false
 fi
 
 if [[ -n "${adopted:-}" ]]; then
