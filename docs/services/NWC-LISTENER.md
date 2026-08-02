@@ -464,6 +464,13 @@ Two constraints bite on managed platforms:
   drop `LISTEN/NOTIFY`. Use the unpooled host — Neon exposes it as
   `DATABASE_URL_UNPOOLED`. Symptom: wallets only reconcile on the 5-minute
   `RECONCILE_INTERVAL_MS` safety net instead of instantly.
+- **On Vercel, add the shared secrets with `--no-sensitive`.** `vercel env add`
+  defaults Production variables to sensitive/write-only: `vercel env pull`
+  returns them empty and the value is unrecoverable. `NWC_VAULT_SECRET` added
+  that way encrypts every RemoteWallet under a key the listener can never be
+  given, and the only recovery is re-encrypting from a deployment that still
+  holds the outgoing key. `pnpm deploy:fly --from-vercel` relies on the value
+  being readable.
 - **Disable scale-to-zero and stay at one machine.** The process is a daemon
   holding a relay websocket per ACTIVE wallet; suspending it on HTTP idleness
   drops every subscription while `/health` still looks fine. Two instances
