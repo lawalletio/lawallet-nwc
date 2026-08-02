@@ -17,7 +17,10 @@ app = 'lawallet-listener'
 primary_region = 'iad'
 
 [build]
-  dockerfile = 'apps/listener/Dockerfile'
+  # Resolved relative to THIS file, not to the build context. Spelling it as
+  # apps/listener/Dockerfile makes flyctl look for
+  # apps/listener/apps/listener/Dockerfile and fail.
+  dockerfile = 'Dockerfile'
 
 [env]
   LISTENER_PORT = '4100'

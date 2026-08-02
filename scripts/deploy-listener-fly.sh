@@ -82,9 +82,11 @@ fly auth whoami >/dev/null 2>&1 || {
   exit 1
 }
 
-# --quiet prints bare app names; if a flyctl version ever drops it, don't
-# block the deploy on a formatting guess — fly itself will reject a bad app.
-if app_names=$(fly apps list --quiet 2>/dev/null) && [[ -n "$app_names" ]]; then
+# --quiet prints one app name per line, but pads them with spaces, so the
+# names have to be trimmed before comparing. If a flyctl version ever drops
+# the flag, don't block on a formatting guess — fly rejects a bad app anyway.
+if app_names=$(fly apps list --quiet 2>/dev/null | tr -d '[:blank:]') &&
+  [[ -n "$app_names" ]]; then
   grep -qx "$app" <<<"$app_names" || {
     echo "Fly app '$app' does not exist. Create it with: fly apps create $app" >&2
     exit 1
@@ -210,7 +212,10 @@ fi
 # ── deploy ────────────────────────────────────────────────────────────────
 if [[ "$do_deploy" == "1" ]]; then
   echo "==> Deploying $app (context: repo root)"
-  fly deploy --config apps/listener/fly.toml --app "$app"
+  # --ha=false: fly deploy otherwise adds a second "spare" machine, and two
+  # listeners double-subscribe every wallet and race on the shared catch-up
+  # and dead-prober cursors. This service is a singleton on purpose.
+  fly deploy --config apps/listener/fly.toml --app "$app" --ha=false
 fi
 
 if [[ -n "${adopted:-}" ]]; then
