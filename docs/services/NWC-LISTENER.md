@@ -436,17 +436,14 @@ listener container elsewhere and paste its URL + shared secret into
   env vars above → generate a public domain. Healthcheck: `/health`.
 - **Render** — Web Service from the repo, environment _Docker_, same
   Dockerfile path + env vars.
-- **Fly.io** — a committed `apps/listener/fly.toml` describes the service, and
-  `pnpm deploy:fly` (`scripts/deploy-listener-fly.sh`) stages the four
-  required secrets and deploys in one step. It reads the database URL from a
-  Vercel project's production env with `--from-vercel scope/project`, refuses
-  a pooled connection string, and generates the two web-shared secrets on
-  first run. Under the hood it is `fly deploy --config apps/listener/fly.toml`
-  **from the repo root**, so the build context includes the workspace. On
-  Fly's GitHub builder the equivalent is App ▸ Settings ▸ _Current Working
-  Directory_ = repository root and _Config path_ = `apps/listener/fly.toml`;
-  pointing the working directory at `apps/listener` fails with
-  `"/packages/shared": not found`.
+- **Fly.io** (recommended) — a committed `apps/listener/fly.toml` describes the
+  service and `pnpm deploy:fly` (`scripts/deploy-listener-fly.sh`) stages the
+  four required secrets and deploys in one step, adopting `NWC_VAULT_SECRET`
+  and `LISTENER_AUTH_SECRET` from a Vercel project via
+  `--from-vercel scope/project` so the two hosts cannot drift. Under the hood
+  it is `fly deploy --config apps/listener/fly.toml --ha=false` **from the repo
+  root**. Full walkthrough, verification and troubleshooting:
+  `apps/docs/content/docs/deploy/fly.mdx` (docs site `/docs/deploy/fly`).
 - **Any VPS** — `docker build -f apps/listener/Dockerfile .` and run with
   the env vars; put TLS in front if web connects over the public internet.
 
@@ -456,7 +453,7 @@ reach the listener URL; the listener must reach `WEB_ORIGIN`. Operator-facing
 walkthrough: `apps/docs/content/docs/deploy/listener-setup.mdx` (docs site
 `/docs/deploy/listener-setup`).
 
-Two constraints bite on managed platforms:
+Three constraints bite on managed platforms:
 
 - **`DATABASE_URL` must be a DIRECT connection, not a pooled one.** The
   wallet-change listener holds a dedicated `LISTEN` client, and transaction-
@@ -475,7 +472,10 @@ Two constraints bite on managed platforms:
   holding a relay websocket per ACTIVE wallet; suspending it on HTTP idleness
   drops every subscription while `/health` still looks fine. Two instances
   double-subscribe — the DB dedup absorbs duplicate webhooks, but catch-up
-  runs and the dead-wallet prober race on the shared cursors.
+  runs and the dead-wallet prober race on the shared cursors. On Fly this
+  needs `fly deploy --ha=false`: `min_machines_running = 1` does not cap the
+  count, and a plain deploy silently adds a spare (`fly scale count 1` to
+  recover).
 
 ## Operations
 

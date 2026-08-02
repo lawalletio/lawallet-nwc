@@ -1,16 +1,23 @@
 # fly.toml — @lawallet-nwc/listener (NWC relay bridge)
 #
+# Deploy with `pnpm deploy:fly`, which provisions the four required secrets
+# and applies the flags this service needs. Doing it by hand is equivalent to:
+#
+#   fly deploy --config apps/listener/fly.toml --ha=false   # from the repo root
+#
 # The Docker build context MUST be the repository root: apps/listener's
 # Dockerfile copies the root lockfile, pnpm-workspace.yaml and
 # packages/shared, none of which exist in a context scoped to apps/listener.
 # The root .dockerignore is the one BuildKit reads.
 #
-#   flyctl deploy --config apps/listener/fly.toml    # run from the repo root
-#
 # On Fly's GitHub builder the equivalent is App ▸ Settings ▸ "Current Working
 # Directory" left at the repository root, with "Config path" set to
 # apps/listener/fly.toml.
 #
+# Do NOT run `fly launch` — it overwrites this file with defaults that scope
+# the build to apps/listener and turn scale-to-zero back on.
+#
+# Install guide: apps/docs/content/docs/deploy/fly.mdx (/docs/deploy/fly)
 # Service contract and ops runbook: docs/services/NWC-LISTENER.md
 
 app = 'lawallet-listener'
@@ -35,14 +42,20 @@ primary_region = 'iad'
   # holds one relay WebSocket per ACTIVE wallet plus a dedicated Postgres
   # LISTEN client. Scale-to-zero would silently drop every NWC subscription
   # while /health still looked fine, so the machine never stops on idleness.
+  #
+  # This service is a SINGLETON. Two listeners double-subscribe every wallet;
+  # the DB dedup absorbs the duplicate webhooks, but the catch-up and
+  # dead-wallet-prober cursors are shared and would race. Note that
+  # min_machines_running does NOT cap the count — `fly deploy` adds a spare
+  # machine unless it is passed --ha=false, which scripts/deploy-listener-fly.sh
+  # always does. If a second one appears: fly scale count 1.
   auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
   processes = ['app']
 
-  # Keep this at exactly ONE machine. Two listeners double-subscribe to every
-  # wallet; the DB dedup absorbs duplicate webhooks, but catch-up runs and the
-  # dead-wallet prober would race on the shared cursors.
+  # Only /nwc/request and the dashboard's /status hit this over HTTP; the real
+  # work is on the relay sockets, so these limits are just a sanity bound.
   [http_service.concurrency]
     type = 'requests'
     soft_limit = 200

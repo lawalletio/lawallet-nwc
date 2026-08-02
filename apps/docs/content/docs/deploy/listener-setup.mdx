@@ -109,55 +109,21 @@ Create a **Web Service** from the repo, environment **Docker**, set the
 Dockerfile path to `apps/listener/Dockerfile`, add the env vars, and use the
 assigned `onrender.com` URL.
 
-### Fly.io (walkthrough)
+### Fly.io
 
-The repo ships a ready `apps/listener/fly.toml` (port 4100, `/health` check,
-scale-to-zero disabled). Do **not** run `fly launch` — it would overwrite it
-and scope the build to `apps/listener`, which cannot see `packages/shared`.
+The recommended host, and the only one here with a committed `fly.toml`. From
+the repo root:
 
-1. Create the app once: `fly apps create lawallet-listener`.
-2. From the **repo root**, provision and deploy in one step:
+```bash
+fly auth login
+fly apps create lawallet-listener
+pnpm deploy:fly --web-origin https://wallet.example.com \
+  --from-vercel your-scope/your-project
+```
 
-   ```bash
-   pnpm deploy:fly --web-origin https://wallet.example.com \
-     --database-url "postgresql://…"
-   ```
-
-   Hosting web on Vercel? Let the script read the database URL straight out
-   of the project's production environment instead of copying it by hand:
-
-   ```bash
-   pnpm deploy:fly --web-origin https://wallet.example.com \
-     --from-vercel your-scope/your-project
-   ```
-
-   It refuses a pooled connection string, adopts `NWC_VAULT_SECRET` and
-   `LISTENER_AUTH_SECRET` from that same Vercel project when they exist (so
-   the two hosts cannot drift), and only generates them when neither side has
-   one — printing the pair once so you can set it web-side.
-
-3. Paste `https://lawallet-listener.fly.dev` and the `LISTENER_AUTH_SECRET`
-   into **Settings → NWC Services**, enable the toggle, and hit **Test
-   connection**. Set the same `NWC_VAULT_SECRET` on the web host too.
-
-<Callout type="warn" title="Add Vercel secrets with --no-sensitive">
-  `vercel env add` marks Production variables **sensitive** by default, which
-  makes them write-only — `vercel env pull` returns them as empty and nothing
-  can ever read the value back. Adding `NWC_VAULT_SECRET` that way encrypts
-  every RemoteWallet under a key you cannot hand to the listener, and the only
-  way out is re-encrypting from a deployment that still holds the old key. Use
-  `vercel env add NWC_VAULT_SECRET production --no-sensitive`, and check with
-  `vercel env pull` that the value comes back non-empty before deploying.
-</Callout>
-
-Prefer doing it by hand? `fly secrets set --app lawallet-listener DATABASE_URL=… WEB_ORIGIN=… LISTENER_AUTH_SECRET=… NWC_VAULT_SECRET=…`
-then `fly deploy --config apps/listener/fly.toml` — run from the repo root so
-the build context is the whole workspace.
-
-Deploying from GitHub instead? In App ▸ Settings, leave **Current Working
-Directory** at the repository root and set **Config path** to
-`apps/listener/fly.toml`. Pointing the working directory at `apps/listener`
-fails the build with `"/packages/shared": not found`.
+Full walkthrough, verification steps, and the traps worth knowing about —
+pooled database URLs, single-machine enforcement, and Vercel's write-only
+secrets — are on the dedicated [Fly.io](/docs/deploy/fly) page.
 
 ### Any VPS with Docker
 
