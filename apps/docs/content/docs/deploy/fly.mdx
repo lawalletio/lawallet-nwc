@@ -1,0 +1,189 @@
+---
+title: 'Fly.io (NWC Listener)'
+description: 'Run the NWC listener as an always-on Fly.io machine next to a Vercel, Netlify, or any other web deployment that cannot hold websockets open.'
+---
+
+Fly.io is the recommended host for the **NWC listener** when `apps/web` runs
+somewhere that cannot keep a process alive — Vercel and Netlify both fall in
+that category. Fly runs the container as a long-lived machine; web keeps
+running exactly as it does today and simply gains real-time payment
+notifications.
+
+This page covers the listener only. The web app itself is deployed per
+[Netlify](/docs/deploy/netlify), [Coolify](/docs/deploy/coolify), or your own
+platform.
+
+## What the repo already ships
+
+`apps/listener/fly.toml` is committed and correct — port 4100, a `/health`
+check with a boot grace period, scale-to-zero disabled, and `primary_region`
+set. `pnpm deploy:fly` wraps the whole provision-and-deploy flow, including
+the guards described below.
+
+<Callout type="warn" title="Do not run fly launch">
+  `fly launch` overwrites the committed `fly.toml` with generated defaults —
+  scale-to-zero on, and a build scoped to `apps/listener`, which cannot see
+  `packages/shared`. Use `fly apps create` plus `pnpm deploy:fly` instead.
+</Callout>
+
+## Prerequisites
+
+- `flyctl` — `brew install flyctl` (or see [fly.io/docs](https://fly.io/docs/flyctl/install/))
+- Node 22 and pnpm, run from the **repository root**
+- A reachable Postgres that web already uses, and web's public URL
+
+## Deploy
+
+<Callout type="warn" title="fly auth login needs a real terminal">
+  The browser flow ends by handing a one-time code back to the terminal that
+  started it, so run this yourself — it cannot be automated or delegated.
+</Callout>
+
+```bash
+fly auth login
+fly apps create lawallet-listener
+```
+
+Then, from the repository root:
+
+```bash
+pnpm deploy:fly \
+  --web-origin https://wallet.example.com \
+  --database-url "postgresql://user:pass@direct-host/db?sslmode=require"
+```
+
+If web is on Vercel, point the script at the project instead of copying
+secrets by hand:
+
+```bash
+pnpm deploy:fly \
+  --web-origin https://wallet.example.com \
+  --from-vercel your-scope/your-project
+```
+
+`--from-vercel` reads `DATABASE_URL_UNPOOLED` and **adopts** `NWC_VAULT_SECRET`
+and `LISTENER_AUTH_SECRET` from that production environment, so the two hosts
+share one vault key by construction. It only generates them when neither side
+has one yet, printing the pair once so you can set it web-side.
+
+The script also stages `WEB_ORIGIN`, refuses a pooled connection string,
+deploys from the repo root with `--config apps/listener/fly.toml`, and pins
+`--ha=false`. All four secrets are required — `apps/listener/src/env.ts`
+validates them at boot and the process refuses to start without them.
+
+## Verify
+
+```bash
+curl https://lawallet-listener.fly.dev/health
+# {"status":"ok","db":true}
+```
+
+`/status` needs the shared secret and reports the live pool:
+
+```bash
+curl -H "Authorization: Bearer $LISTENER_AUTH_SECRET" \
+  https://lawallet-listener.fly.dev/status
+```
+
+Check three things in the response: `degraded` is empty, `relays` is
+non-zero, and `connections` has **one entry per ACTIVE NWC RemoteWallet**. A
+wallet missing from `connections` entirely means its connection string failed
+to decrypt — the vault key does not match web's.
+
+Confirm exactly one machine is running:
+
+```bash
+fly machines list --app lawallet-listener
+```
+
+## Connect it to web
+
+The listener is inert until web is told about it. Either set `LISTENER_URL`
+and `LISTENER_AUTH_SECRET` in web's environment, or fill them into **Settings
+▸ NWC Services** in the admin UI — the stored values win over env.
+
+Either way the `listener_enabled` toggle decides: `true` enables it, `false`
+force-offs it **even when both env vars are set**, and no stored row means
+_env-auto_ (on iff both env vars exist). Hit **Test connection** to confirm.
+
+A quick check from outside: web's webhook receiver returns `404` while the
+pairing is off and `401 Missing webhook signature` once it is live.
+
+```bash
+curl -X POST -H 'Content-Type: application/json' -d '{}' \
+  https://wallet.example.com/api/webhooks/nwc
+```
+
+## Constraints that bite
+
+<Callout type="warn" title="DATABASE_URL must be a direct connection">
+  The listener holds a dedicated `LISTEN` client so wallet changes apply
+  instantly. Transaction-mode poolers drop `LISTEN/NOTIFY` **silently**, which
+  degrades wallet changes to the five-minute `RECONCILE_INTERVAL_MS` sweep with
+  nothing in the logs. Neon publishes the direct host as `DATABASE_URL_UNPOOLED`
+  (the pooled one carries a `-pooler` suffix); on Supabase use port `5432`, not
+  `6543`. `pnpm deploy:fly` rejects a pooled URL rather than let this ship.
+</Callout>
+
+<Callout type="warn" title="Exactly one machine">
+  `fly deploy` adds a second "spare" machine unless you pass `--ha=false`, and
+  `min_machines_running = 1` does **not** prevent it. Two listeners
+  double-subscribe every wallet; the database dedup absorbs the duplicate
+  webhooks, but the catch-up and dead-wallet-prober cursors are shared and race.
+  Scale back with `fly scale count 1 --app lawallet-listener` if one appears.
+</Callout>
+
+<Callout type="warn" title="Vercel secrets need --no-sensitive">
+  `vercel env add` marks Production variables **sensitive** by default, making
+  them write-only: `vercel env pull` returns them empty and the value is
+  unrecoverable by anyone. Adding `NWC_VAULT_SECRET` that way still works for
+  web, so the boot migration happily encrypts every RemoteWallet under a key
+  that can never be handed to the listener — recoverable only by re-encrypting
+  from a deployment that still holds the outgoing key. Use `vercel env add
+  NWC_VAULT_SECRET production --no-sensitive` and confirm with `vercel env pull`
+  that the value comes back non-empty **before** deploying.
+</Callout>
+
+Scale-to-zero is off for the same class of reason: the listener holds one
+relay websocket per ACTIVE wallet, so suspending it on HTTP idleness drops
+every subscription while `/health` still looks fine.
+
+## Deploying from GitHub instead
+
+Fly can build from the repository on push. Two settings matter, both under
+App ▸ Settings:
+
+| Setting                       | Value                    |
+| ----------------------------- | ------------------------ |
+| **Current Working Directory** | leave empty (repo root)  |
+| **Config path**               | `apps/listener/fly.toml` |
+
+The working directory is the Docker build context. Pointing it at
+`apps/listener` fails the build, because the Dockerfile copies the root
+lockfile, `pnpm-workspace.yaml`, and `packages/shared`.
+
+## Troubleshooting
+
+| Symptom                                                             | Cause                                                                                                                              |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `dockerfile '…/apps/listener/apps/listener/Dockerfile' not found`   | `[build] dockerfile` resolves relative to `fly.toml`, not the context. It must be plain `Dockerfile`.                              |
+| `failed to compute cache key: "/packages/shared": not found`        | Build context scoped to `apps/listener`. Deploy from the repo root, or clear the GitHub builder's working directory.               |
+| `Fly app 'lawallet-listener' does not exist` for an app that exists | `fly apps list --quiet` pads names with spaces; trim before comparing.                                                             |
+| Boot fails on `Listener environment validation failed`              | One of the four required secrets is missing. `fly secrets list --app lawallet-listener` shows names.                               |
+| Health check flaps for the first minute                             | Boot blocks in `waitForSchema` until web has run `prisma migrate deploy`. The committed 45s `grace_period` covers the normal case. |
+| Wallets show `no info event (kind 13194) returned from relay`       | The remote NWC service is not answering — usually a destroyed disposable wallet, not a listener fault. See below.                  |
+
+### Wallets stuck in `error`
+
+`state: error` with `no info event (kind 13194)` or a `reply timeout` means
+the wallet's own NWC provider stopped responding. For disposable LNCurl
+wallets this is expected end-of-life: the dead-wallet prober archives them as
+`DEAD` after `DEAD_THRESHOLD_HOURS` (default 4) of silence while relays stay
+up. Non-LNCurl wallets are **never** auto-archived and are worth investigating
+— the user likely revoked the connection upstream.
+
+## Reference
+
+Full service contract, environment table, webhook payloads, and the ops
+runbook live in `docs/services/NWC-LISTENER.md`. Operator-facing setup for
+other hosts is in [NWC Listener Setup](/docs/deploy/listener-setup).
