@@ -13,9 +13,12 @@ Usage:
 Options:
   --app NAME              Fly app name. Default: lawallet-listener
   --web-origin URL        Base URL of apps/web — the webhook target.
-  --from-vercel SCOPE/PRJ Read DATABASE_URL_UNPOOLED from that Vercel
-                          project's production environment, so the credential
-                          never passes through a shell history or clipboard.
+  --from-vercel SCOPE/PRJ Read DATABASE_URL_UNPOOLED — plus NWC_VAULT_SECRET
+                          and LISTENER_AUTH_SECRET when web already defines
+                          them — from that Vercel project's production
+                          environment, so the values never pass through a
+                          shell history or clipboard and cannot drift between
+                          the two hosts.
   --database-url URL      Supply the Postgres URL directly instead.
   --secrets-only          Stage secrets, skip the deploy.
   --deploy-only           Skip secrets, just deploy.
@@ -88,6 +91,13 @@ if app_names=$(fly apps list --quiet 2>/dev/null) && [[ -n "$app_names" ]]; then
   }
 fi
 
+# Read one key out of the pulled Vercel production env. Empty when the key is
+# absent or --from-vercel was not used; never echoes the value.
+vercel_value() {
+  [[ -n "${vercel_env:-}" && -f "${vercel_env:-}" ]] || return 0
+  grep -m1 "^$1=" "$vercel_env" | cut -d= -f2- | tr -d '"' || true
+}
+
 # ── secrets ───────────────────────────────────────────────────────────────
 if [[ "$do_secrets" == "1" ]]; then
   # JSON so this doesn't hinge on column layout. Names only — values are not
@@ -110,7 +120,8 @@ if [[ "$do_secrets" == "1" ]]; then
   ) || true
   has_secret() { [[ -n "$existing" ]] && grep -qx "$1" <<<"$existing"; }
 
-  if [[ -n "$from_vercel" && -z "$database_url" ]]; then
+  vercel_env=""
+  if [[ -n "$from_vercel" ]]; then
     command -v vercel >/dev/null 2>&1 || {
       echo "--from-vercel needs the Vercel CLI on PATH." >&2
       exit 1
@@ -118,22 +129,26 @@ if [[ "$do_secrets" == "1" ]]; then
     scope="${from_vercel%%/*}"
     project="${from_vercel##*/}"
     [[ "$scope" != "$from_vercel" ]] || {
-      echo "--from-vercel expects SCOPE/PROJECT (e.g. lacrypta/lawallet-nwc)." >&2
+      echo "--from-vercel expects SCOPE/PROJECT (e.g. lacrypta/lawallet-nwc-web)." >&2
       exit 2
     }
     work=$(mktemp -d)
     trap 'rm -rf "$work"' EXIT
-    echo "==> Reading DATABASE_URL_UNPOOLED from $scope/$project (production)"
+    echo "==> Reading production environment from $scope/$project"
     (
       cd "$work"
       vercel link --scope "$scope" --project "$project" --yes >/dev/null 2>&1
       vercel env pull .env.prod --environment=production --yes >/dev/null 2>&1
     ) || { echo "Could not pull the Vercel environment." >&2; exit 1; }
-    database_url=$(grep -m1 '^DATABASE_URL_UNPOOLED=' "$work/.env.prod" | cut -d= -f2- | tr -d '"') || true
-    [[ -n "$database_url" ]] || {
-      echo "DATABASE_URL_UNPOOLED not found in $scope/$project production." >&2
-      exit 1
-    }
+    vercel_env="$work/.env.prod"
+
+    if [[ -z "$database_url" ]]; then
+      database_url=$(vercel_value DATABASE_URL_UNPOOLED)
+      [[ -n "$database_url" ]] || {
+        echo "DATABASE_URL_UNPOOLED not found in $scope/$project production." >&2
+        exit 1
+      }
+    fi
   fi
 
   args=()
@@ -162,16 +177,25 @@ if [[ "$do_secrets" == "1" ]]; then
     exit 1
   fi
 
-  # Shared with the web side. Generated once, then never rotated silently:
-  # changing NWC_VAULT_SECRET after wallets are encrypted makes them
-  # undecryptable, and changing LISTENER_AUTH_SECRET breaks the pairing.
+  # Shared with the web side, so prefer the value web already uses: pulling it
+  # out of the Vercel project means the two can never drift, and the secret
+  # never passes through a terminal. Only generate when neither side has one.
+  # Never rotated silently — changing NWC_VAULT_SECRET after wallets are
+  # encrypted makes them undecryptable, and changing LISTENER_AUTH_SECRET
+  # breaks the pairing.
   generated=""
+  adopted=""
   for name in LISTENER_AUTH_SECRET NWC_VAULT_SECRET; do
-    if ! has_secret "$name"; then
-      value=$(openssl rand -hex 32)
+    if has_secret "$name"; then continue; fi
+    value=$(vercel_value "$name")
+    if [[ -n "$value" ]]; then
+      adopted+="$name "
       args+=("$name=$value")
-      generated+="  $name = $value"$'\n'
+      continue
     fi
+    value=$(openssl rand -hex 32)
+    args+=("$name=$value")
+    generated+="  $name = $value"$'\n'
   done
 
   if [[ ${#args[@]} -gt 0 ]]; then
@@ -189,6 +213,11 @@ if [[ "$do_deploy" == "1" ]]; then
   fly deploy --config apps/listener/fly.toml --app "$app"
 fi
 
+if [[ -n "${adopted:-}" ]]; then
+  echo
+  echo "Adopted from the Vercel project (identical on both sides): ${adopted% }"
+fi
+
 if [[ -n "${generated:-}" ]]; then
   cat <<EOF
 
@@ -203,6 +232,9 @@ Both are SHARED with the web app:
   * NWC_VAULT_SECRET → set the identical value on the web host before any
     RemoteWallet gets encrypted, or web and listener end up with different
     vault keys.
+
+Setting these on the web host FIRST and re-running with --from-vercel avoids
+this copy entirely — the script adopts whatever web already uses.
 ────────────────────────────────────────────────────────────────────────
 EOF
 fi
