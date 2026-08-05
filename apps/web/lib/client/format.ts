@@ -100,6 +100,33 @@ export function formatMsats(value: string): string {
 }
 
 /**
+ * Absolute date+time in the viewer's locale. Accepts anything the platform
+ * hands us — an ISO string, epoch millis, or a Date — and returns `fallback`
+ * for a missing or unparseable value instead of rendering "Invalid Date".
+ */
+export function formatDateTime(
+  value: string | number | Date | null | undefined,
+  fallback = 'Unknown time'
+): string {
+  if (value === null || value === undefined) return fallback
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return fallback
+  return date.toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  })
+}
+
+/**
+ * Turns a SCREAMING_SNAKE status into sentence case for display:
+ * `PARTIALLY_SENT` → `Partially sent`.
+ */
+export function humanizeStatus(status: string): string {
+  const words = status.toLowerCase().replaceAll('_', ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/**
  * Truncates a hex string (card IDs, etc.) for display.
  * Example: "04:ab:cd:ef" → "04:ab:...ef"
  */

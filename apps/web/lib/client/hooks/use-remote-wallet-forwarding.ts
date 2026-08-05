@@ -38,6 +38,8 @@ export interface RemoteWalletReceiveActionData {
   pausedAt: string | null
   pendingReceipts: number
   pendingAmountMsats: number
+  /** Server-wide, not just the page in view: gates Force Forward. */
+  attemptInProgress: boolean
   routingReserveBps: number
   routingReserveBaseSats: number
   revision: {

@@ -20,6 +20,13 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import {
+  CursorPagination,
+  useCursorPagination
+} from '@/components/wallet/shared/cursor-pagination'
+import { ForwardingStatusBadge } from '@/components/wallet/shared/forwarding-status'
+import { errorMessage } from '@/lib/error-message'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -34,7 +41,6 @@ import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
   useRemoteWalletNotificationDeliveries,
@@ -182,7 +188,8 @@ export function RemoteWalletNotificationsPanel({
             </div>
           )}
         </div>
-        <Pagination
+        <CursorPagination
+          label="deliveries"
           page={pagination.page}
           hasNext={Boolean(deliveries.data?.nextCursor)}
           loading={deliveries.loading}
@@ -324,7 +331,7 @@ function DeliveryRow({
           <span className="text-sm font-medium">
             {delivery.notification?.name ?? 'Removed notification'}
           </span>
-          <DeliveryStatusBadge status={delivery.status} />
+          <ForwardingStatusBadge status={delivery.status} />
           <Badge variant="outline">{delivery.action}</Badge>
         </div>
         <p className="mt-1 truncate text-xs text-muted-foreground">
@@ -347,26 +354,6 @@ function DeliveryRow({
         </Button>
       </div>
     </div>
-  )
-}
-
-function DeliveryStatusBadge({
-  status
-}: {
-  status: RemoteWalletNotificationDeliveryData['status']
-}) {
-  return (
-    <Badge
-      variant={
-        status === 'SUCCEEDED'
-          ? 'default'
-          : status === 'REJECTED' || status === 'EXPIRED'
-            ? 'destructive'
-            : 'secondary'
-      }
-    >
-      {status}
-    </Badge>
   )
 }
 
@@ -434,21 +421,24 @@ function CreateNotificationDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="mt-5 space-y-5">
-            <Tabs
+            <ToggleGroup
+              type="single"
               value={channel}
-              onValueChange={value => setChannel(value as 'WEBHOOK' | 'NOSTR')}
+              onValueChange={value => {
+                if (value) setChannel(value as 'WEBHOOK' | 'NOSTR')
+              }}
+              aria-label="Delivery channel"
+              className="grid w-full grid-cols-2"
             >
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="WEBHOOK" className="gap-2">
-                  <Webhook className="size-4" />
-                  Webhook
-                </TabsTrigger>
-                <TabsTrigger value="NOSTR" className="gap-2">
-                  <Send className="size-4" />
-                  Nostr
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+              <ToggleGroupItem value="WEBHOOK" className="gap-2">
+                <Webhook className="size-4" />
+                Webhook
+              </ToggleGroupItem>
+              <ToggleGroupItem value="NOSTR" className="gap-2">
+                <Send className="size-4" />
+                Nostr
+              </ToggleGroupItem>
+            </ToggleGroup>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Name">
                 <Input
@@ -576,7 +566,7 @@ function DeliveryDetailDialog({
           <DialogTitle className="flex items-center gap-2">
             <Code2 className="size-5" />
             Notification delivery{' '}
-            {delivery && <DeliveryStatusBadge status={delivery.status} />}
+            {delivery && <ForwardingStatusBadge status={delivery.status} />}
           </DialogTitle>
           <DialogDescription>{delivery?.eventKey}</DialogDescription>
         </DialogHeader>
@@ -672,65 +662,4 @@ function Metric({ label, value }: { label: string; value: string }) {
       <div className="mt-1 truncate text-sm font-medium">{value}</div>
     </div>
   )
-}
-
-function Pagination({
-  page,
-  hasNext,
-  loading,
-  onPrevious,
-  onNext
-}: {
-  page: number
-  hasNext: boolean
-  loading: boolean
-  onPrevious: () => void
-  onNext: () => void
-}) {
-  if (page === 1 && !hasNext) return null
-  return (
-    <div className="flex items-center justify-between border-t px-5 py-3">
-      <span className="text-xs text-muted-foreground">Page {page}</span>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={page === 1 || loading}
-          onClick={onPrevious}
-        >
-          <ChevronLeft />
-          Previous
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!hasNext || loading}
-          onClick={onNext}
-        >
-          Next
-          <ChevronRight />
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function useCursorPagination() {
-  const [cursors, setCursors] = useState<Array<string | null>>([null])
-  return {
-    cursor: cursors.at(-1) ?? null,
-    page: cursors.length,
-    next(nextCursor: string | null | undefined) {
-      if (nextCursor) setCursors(current => [...current, nextCursor])
-    },
-    previous() {
-      setCursors(current =>
-        current.length > 1 ? current.slice(0, -1) : current
-      )
-    }
-  }
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Something went wrong'
 }

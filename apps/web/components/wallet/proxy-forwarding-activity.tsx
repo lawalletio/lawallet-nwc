@@ -4,9 +4,7 @@ import {
   Activity as ActivityIcon,
   AlertTriangle,
   ArrowDownLeft,
-  CheckCircle2,
   Clock3,
-  Copy,
   RotateCcw,
   Route,
   WifiOff
@@ -22,14 +20,20 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
+import { CopyButton } from '@/components/ui/copy-button'
 import { Spinner } from '@/components/ui/spinner'
+import { ForwardingStatusBadge } from '@/components/wallet/shared/forwarding-status'
 import {
   useAddressInvoices,
   type AddressInvoice,
   type AddressProxyAttempt,
   type AddressProxyPayment
 } from '@/lib/client/hooks/use-wallet-addresses'
-import { formatMsats, formatRelativeTime } from '@/lib/client/format'
+import {
+  formatDateTime,
+  formatMsats,
+  formatRelativeTime
+} from '@/lib/client/format'
 import { cn } from '@/lib/utils'
 
 interface ProxyForwardingActivityProps {
@@ -185,7 +189,7 @@ function ProxyPaymentActivity({ invoice }: { invoice: ProxyInvoice }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-medium">Payment received</p>
-              <ProxyStatusBadge status={proxy.status} />
+              <ForwardingStatusBadge status={proxy.status} />
               {hasWorkerLease ? (
                 <Badge
                   variant="secondary"
@@ -293,7 +297,7 @@ function AttemptActivity({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-medium">{label}</p>
-              <ProxyStatusBadge status={attempt.status} />
+              <ForwardingStatusBadge status={attempt.status} />
             </div>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               Attempt #{attempt.attemptNo} · {formatDateTime(attempt.createdAt)}
@@ -349,15 +353,6 @@ function DebugIdentifier({
   value: string
   className?: string
 }) {
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value)
-      toast.success(`${label} copied`)
-    } catch {
-      toast.error(`Could not copy ${label.toLowerCase()}`)
-    }
-  }
-
   return (
     <div className={cn('flex min-w-0 items-center gap-1.5', className)}>
       <div className="min-w-0 flex-1">
@@ -371,49 +366,7 @@ function DebugIdentifier({
           {value}
         </p>
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={() => void copy()}
-        aria-label={`Copy ${label.toLowerCase()}`}
-        className="size-7 shrink-0"
-      >
-        <Copy data-icon="inline-start" />
-      </Button>
+      <CopyButton value={value} label={label} />
     </div>
   )
-}
-
-function ProxyStatusBadge({ status }: { status: string }) {
-  const positive = ['SUCCEEDED', 'COMPLETED'].includes(status)
-  const negative = ['REJECTED', 'BLOCKED', 'EXPIRED'].includes(status)
-
-  return (
-    <Badge
-      variant={negative ? 'destructive' : 'outline'}
-      className={cn(
-        'shrink-0 text-[10px] [&_svg]:mr-1 [&_svg]:size-3',
-        positive && 'border-primary/30 bg-primary/10 text-primary',
-        !positive && !negative && 'bg-muted text-muted-foreground'
-      )}
-    >
-      {positive ? <CheckCircle2 data-icon="inline-start" /> : null}
-      {humanizeStatus(status)}
-    </Badge>
-  )
-}
-
-function humanizeStatus(status: string): string {
-  const words = status.toLowerCase().replaceAll('_', ' ')
-  return words.charAt(0).toUpperCase() + words.slice(1)
-}
-
-function formatDateTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Unknown time'
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  }).format(date)
 }

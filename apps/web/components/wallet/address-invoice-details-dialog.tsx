@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { CopyButton } from '@/components/ui/copy-button'
+import { ForwardingStatusBadge } from '@/components/wallet/shared/forwarding-status'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -30,7 +32,7 @@ import type {
   AddressProxyAttempt
 } from '@/lib/client/hooks/use-wallet-addresses'
 import { useProxyForwardingMutations } from '@/lib/client/hooks/use-wallet-addresses'
-import { formatMsats } from '@/lib/client/format'
+import { formatDateTime, formatMsats } from '@/lib/client/format'
 import { cn } from '@/lib/utils'
 
 interface AddressInvoiceDetailsDialogProps {
@@ -121,7 +123,9 @@ export function AddressInvoiceDetailsDialog({
                 <DialogTitle>
                   {proxy ? 'Proxy payment details' : 'Invoice details'}
                 </DialogTitle>
-                <StatusBadge status={proxy?.status ?? invoice.status} />
+                <ForwardingStatusBadge
+                  status={proxy?.status ?? invoice.status}
+                />
               </div>
               <DialogDescription className="mt-1">
                 {proxy
@@ -134,7 +138,7 @@ export function AddressInvoiceDetailsDialog({
                 +{formatMsats(invoice.amountMsats)}
               </p>
               <p className="text-[11px] text-muted-foreground">
-                {formatDate(invoice.paidAt ?? invoice.createdAt)}
+                {formatDateTime(invoice.paidAt ?? invoice.createdAt)}
               </p>
             </div>
           </div>
@@ -355,13 +359,13 @@ export function AddressInvoiceDetailsDialog({
                   label="Zap receipt"
                   value={
                     proxy.receiptPublishedAt
-                      ? `Published ${formatDate(proxy.receiptPublishedAt)}`
+                      ? `Published ${formatDateTime(proxy.receiptPublishedAt)}`
                       : 'Not published'
                   }
                 />
                 <DetailItem
                   label="Updated"
-                  value={formatDate(proxy.updatedAt)}
+                  value={formatDateTime(proxy.updatedAt)}
                 />
               </dl>
               {proxy.receiptEventId && (
@@ -394,14 +398,14 @@ export function AddressInvoiceDetailsDialog({
                         Attempt #{attempt.attemptNo}
                       </span>
                       <span className="ml-2 text-muted-foreground">
-                        {formatDate(attempt.createdAt)}
+                        {formatDateTime(attempt.createdAt)}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="tabular-nums">
                         {formatMsats(attempt.amountMsats)}
                       </span>
-                      <StatusBadge status={attempt.status} />
+                      <ForwardingStatusBadge status={attempt.status} />
                     </div>
                   </div>
                 ))}
@@ -522,7 +526,7 @@ function InvoicePayload({
             {formatMsats(amountMsats)}
           </p>
         </div>
-        <StatusBadge status={status} />
+        <ForwardingStatusBadge status={status} />
       </div>
       <div className="mt-4 space-y-3">
         <CopyValue label="BOLT11" value={bolt11} multiline />
@@ -530,12 +534,12 @@ function InvoicePayload({
         <div className="grid grid-cols-2 gap-3 text-xs">
           <div>
             <p className="text-muted-foreground">Created</p>
-            <p className="mt-0.5">{formatDate(createdAt)}</p>
+            <p className="mt-0.5">{formatDateTime(createdAt)}</p>
           </div>
           <div>
             <p className="text-muted-foreground">Resolved</p>
             <p className="mt-0.5">
-              {resolvedAt ? formatDate(resolvedAt) : 'Not yet'}
+              {resolvedAt ? formatDateTime(resolvedAt) : 'Not yet'}
             </p>
           </div>
         </div>
@@ -554,32 +558,13 @@ function CopyValue({
   value: string
   multiline?: boolean
 }) {
-  const [copied, setCopied] = useState(false)
-
-  async function copy() {
-    await navigator.clipboard.writeText(value)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1600)
-  }
-
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {label}
         </p>
-        <button
-          type="button"
-          onClick={() => void copy()}
-          aria-label={`Copy ${label}`}
-          className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          {copied ? (
-            <Check className="size-3.5" />
-          ) : (
-            <Copy className="size-3.5" />
-          )}
-        </button>
+        <CopyButton value={value} label={label} className="size-6" />
       </div>
       <code
         className={cn(
@@ -627,42 +612,6 @@ function SectionTitle({
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const normalized = status.toUpperCase()
-  const positive = ['PAID', 'COMPLETED', 'SUCCEEDED'].includes(normalized)
-  const negative = ['BLOCKED', 'EXPIRED', 'REJECTED', 'FAILED'].includes(
-    normalized
-  )
-
-  return (
-    <Badge
-      variant={negative ? 'destructive' : 'outline'}
-      className={cn(
-        'shrink-0 text-[10px]',
-        positive && 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500',
-        !positive &&
-          !negative &&
-          'border-amber-500/30 bg-amber-500/10 text-amber-500'
-      )}
-    >
-      {positive && <CheckCircle2 className="mr-1 size-3" />}
-      {humanizeStatus(status)}
-    </Badge>
-  )
-}
-
-function humanizeStatus(status: string): string {
-  const words = status.toLowerCase().replaceAll('_', ' ')
-  return words.charAt(0).toUpperCase() + words.slice(1)
-}
-
 function formatOptionalDate(value: string | null): string {
-  return value ? formatDate(value) : 'Not yet'
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  }).format(new Date(value))
+  return value ? formatDateTime(value) : 'Not yet'
 }

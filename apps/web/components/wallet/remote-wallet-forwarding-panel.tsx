@@ -43,6 +43,15 @@ import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+  CursorPagination,
+  useCursorPagination
+} from '@/components/wallet/shared/cursor-pagination'
+import {
+  ForwardingStatusBadge,
+  ForwardingStatusIcon
+} from '@/components/wallet/shared/forwarding-status'
+import { formatDateTime, formatMsats } from '@/lib/client/format'
+import {
   useRemoteWalletForwardingMutations,
   useRemoteWalletForwardActivity,
   useRemoteWalletForwardReceipts,
@@ -64,12 +73,15 @@ export function RemoteWalletForwardingPanel({
   walletId,
   transactions = [],
   transactionsLoading = false,
-  transactionsError = null
+  transactionsError = null,
+  walletActive = true
 }: {
   walletId: string
   transactions?: NwcTransaction[]
   transactionsLoading?: boolean
   transactionsError?: Error | null
+  /** Inactive wallets are never polled, so "no payments" would be a lie. */
+  walletActive?: boolean
 }) {
   const action = useRemoteWalletReceiveAction(walletId)
   const activityPagination = useCursorPagination()
@@ -110,12 +122,14 @@ export function RemoteWalletForwardingPanel({
     currentPaymentsPage * FORWARDING_PAGE_SIZE,
     (currentPaymentsPage + 1) * FORWARDING_PAGE_SIZE
   )
-  const forwardActivity = activity.data?.activity ?? []
-  const persistedAttemptInProgress = forwardActivity.some(entry =>
-    ['PENDING', 'UNKNOWN'].includes(entry.status)
+  const forwardActivity = useMemo(
+    () => activity.data?.activity ?? [],
+    [activity.data?.activity]
   )
+  // The server flag covers every attempt, not only the ones on the activity
+  // page currently rendered.
   const attemptInProgress =
-    persistedAttemptInProgress || queuedForwarding != null
+    action.data?.attemptInProgress === true || queuedForwarding != null
 
   // The forced run is acknowledged before the background reconciler has
   // fetched a destination invoice and persisted its first attempt. Keep a
@@ -291,6 +305,7 @@ export function RemoteWalletForwardingPanel({
             rows={visiblePayments}
             loading={receipts.loading || transactionsLoading}
             error={transactionsError}
+            walletActive={walletActive}
             onOpenReceipt={receipt => setSelectedReceiptId(receipt.id)}
             onOpenTransaction={setSelectedTransaction}
           />
@@ -300,11 +315,11 @@ export function RemoteWalletForwardingPanel({
             hasNext={currentPaymentsPage < paymentsPageCount - 1}
             loading={receipts.loading || transactionsLoading}
             onPrevious={() =>
-              setPaymentsPage(current => Math.max(0, current - 1))
+              setPaymentsPage(Math.max(0, currentPaymentsPage - 1))
             }
             onNext={() =>
-              setPaymentsPage(current =>
-                Math.min(paymentsPageCount - 1, current + 1)
+              setPaymentsPage(
+                Math.min(paymentsPageCount - 1, currentPaymentsPage + 1)
               )
             }
           />
@@ -392,26 +407,6 @@ function RemoteWalletPaymentDialog({
   )
 }
 
-function useCursorPagination() {
-  const [cursors, setCursors] = useState<Array<string | null>>([null])
-  return {
-    cursor: cursors.at(-1) ?? null,
-    page: cursors.length,
-    next(nextCursor: string | null | undefined) {
-      if (!nextCursor) return
-      setCursors(current => [...current, nextCursor])
-    },
-    previous() {
-      setCursors(current =>
-        current.length > 1 ? current.slice(0, -1) : current
-      )
-    },
-    reset() {
-      setCursors([null])
-    }
-  }
-}
-
 function Overview({ action }: { action: RemoteWalletReceiveActionData }) {
   if (!action.revision) {
     return (
@@ -430,7 +425,7 @@ function Overview({ action }: { action: RemoteWalletReceiveActionData }) {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric
           label="Pending balance"
-          value={formatSats(action.pendingAmountMsats)}
+          value={formatMsats(String(action.pendingAmountMsats))}
           accent
         />
         <Metric label="Open receipts" value={String(action.pendingReceipts)} />
@@ -543,12 +538,14 @@ function ReceivedPaymentsList({
   rows,
   loading,
   error,
+  walletActive,
   onOpenReceipt,
   onOpenTransaction
 }: {
   rows: ReceivedPaymentRow[]
   loading: boolean
   error: Error | null
+  walletActive: boolean
   onOpenReceipt: (receipt: ForwardReceiptData) => void
   onOpenTransaction: (transaction: NwcTransaction) => void
 }) {
@@ -564,7 +561,9 @@ function ReceivedPaymentsList({
         text={
           error
             ? 'Could not load wallet payments. Forwarding receipts will appear when available.'
-            : 'No payments have been received by this wallet yet.'
+            : !walletActive
+              ? 'Payment activity is only available while the wallet is active.'
+              : 'No payments have been received by this wallet yet.'
         }
       />
     )
@@ -594,7 +593,7 @@ function ReceivedPaymentsList({
               className="group flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-accent/50"
             >
               {receipt ? (
-                <ReceiptIcon status={receipt.status} />
+                <ForwardingStatusIcon status={receipt.status} />
               ) : (
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
                   <ArrowDownLeft className="size-5" />
@@ -606,13 +605,13 @@ function ReceivedPaymentsList({
                     {transaction?.description || 'Payment received'}
                   </span>
                   {receipt ? (
-                    <ReceiptStatusBadge status={receipt.status} />
+                    <ForwardingStatusBadge status={receipt.status} />
                   ) : (
                     <Badge variant="outline">regular</Badge>
                   )}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {formatPaymentDate(row.timestamp)}
+                  {formatDateTime(row.timestamp)}
                   {receipt
                     ? ` · ${receipt.legs.length} destination${receipt.legs.length === 1 ? '' : 's'}`
                     : transaction?.settledAt == null
@@ -635,7 +634,7 @@ function ReceivedPaymentsList({
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {receipt
-                    ? `sent ${formatSats(receipt.forwardedAmountMsats)}`
+                    ? `sent ${formatMsats(String(receipt.forwardedAmountMsats))}`
                     : 'kept in wallet'}
                 </div>
               </div>
@@ -699,9 +698,9 @@ function ForwardingActivity({
             </div>
           </div>
           <div className="text-right text-xs text-muted-foreground">
-            {formatDate(new Date(queuedForwarding.startedAt).toISOString())}
+            {formatDateTime(new Date(queuedForwarding.startedAt).toISOString())}
             <div className="mt-1 tabular-nums">
-              {formatSats(queuedForwarding.amountMsats)} pending
+              {formatMsats(String(queuedForwarding.amountMsats))} pending
             </div>
           </div>
         </div>
@@ -753,64 +752,14 @@ function ForwardingActivity({
               )}
             </div>
             <div className="text-right text-xs text-muted-foreground">
-              {formatDate(entry.createdAt)}
+              {formatDateTime(entry.createdAt)}
               <div className="mt-1 tabular-nums">
-                {formatSats(entry.amountMsats)}
+                {formatMsats(String(entry.amountMsats))}
               </div>
             </div>
           </div>
         )
       })}
-    </div>
-  )
-}
-
-function CursorPagination({
-  label,
-  page,
-  hasNext,
-  loading,
-  onPrevious,
-  onNext
-}: {
-  label: string
-  page: number
-  hasNext: boolean
-  loading: boolean
-  onPrevious: () => void
-  onNext: () => void
-}) {
-  if (page === 1 && !hasNext) return null
-  return (
-    <div
-      className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3"
-      aria-label={`${label} pagination`}
-    >
-      <span className="text-xs text-muted-foreground">Page {page}</span>
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={page === 1 || loading}
-          onClick={onPrevious}
-          aria-label={`Previous ${label} page`}
-        >
-          <ChevronLeft data-icon="inline-start" />
-          Previous
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!hasNext || loading}
-          onClick={onNext}
-          aria-label={`Next ${label} page`}
-        >
-          Next
-          <ChevronRight data-icon="inline-end" />
-        </Button>
-      </div>
     </div>
   )
 }
@@ -841,20 +790,28 @@ function ForwardingConfigDialog({
     String(revision?.baseFeeSats ?? 1)
   )
   const [destinations, setDestinations] = useState<
-    Array<{ address: string; percent: string }>
+    Array<{ id: number; address: string; percent: string }>
   >(
     () =>
-      revision?.destinations.map(destination => ({
+      revision?.destinations.map((destination, index) => ({
+        id: index,
         address: destination.address,
         percent: String(destination.allocationBps / 100)
-      })) ?? [{ address: '', percent: '100' }]
+      })) ?? [{ id: 0, address: '', percent: '100' }]
   )
   const total = destinations.reduce(
     (sum, destination) => sum + (Number(destination.percent) || 0),
     0
   )
+  const addresses = destinations.map(destination =>
+    destination.address.trim().toLowerCase()
+  )
+  const duplicated = addresses.some(
+    (address, index) => address && addresses.indexOf(address) !== index
+  )
   const valid =
     Math.abs(total - 100) < 0.001 &&
+    !duplicated &&
     destinations.every(
       destination =>
         destination.address.trim() && Number(destination.percent) > 0
@@ -935,7 +892,7 @@ function ForwardingConfigDialog({
           </div>
           {destinations.map((destination, index) => (
             <div
-              key={index}
+              key={destination.id}
               className="grid grid-cols-[minmax(0,1fr)_6rem_auto] gap-2"
             >
               <Input
@@ -995,7 +952,14 @@ function ForwardingConfigDialog({
             variant="outline"
             size="sm"
             onClick={() =>
-              setDestinations(rows => [...rows, { address: '', percent: '0' }])
+              setDestinations(rows => [
+                ...rows,
+                {
+                  id: rows.reduce((max, row) => Math.max(max, row.id), -1) + 1,
+                  address: '',
+                  percent: '0'
+                }
+              ])
             }
           >
             <Plus data-icon="inline-start" />
@@ -1044,10 +1008,10 @@ function ForwardReceiptDialog({
         <DialogHeader className="px-5 pt-5 sm:px-6 sm:pt-6">
           <div className="flex flex-wrap items-center gap-2">
             <DialogTitle>Forwarding receipt</DialogTitle>
-            <ReceiptStatusBadge status={receipt.status} />
+            <ForwardingStatusBadge status={receipt.status} />
           </div>
           <DialogDescription>
-            {formatDate(receipt.sourceSettledAt)} · revision{' '}
+            {formatDateTime(receipt.sourceSettledAt)} · revision{' '}
             {receipt.configRevision}
           </DialogDescription>
         </DialogHeader>
@@ -1074,32 +1038,32 @@ function ForwardReceiptDialog({
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Metric
                 label="Received"
-                value={formatSats(receipt.grossAmountMsats)}
+                value={formatMsats(String(receipt.grossAmountMsats))}
               />
               <Metric
                 label="Service fee retained"
-                value={formatSats(receipt.retainedFeeMsats)}
+                value={formatMsats(String(receipt.retainedFeeMsats))}
               />
               <Metric
                 label="Forwarded"
-                value={formatSats(receipt.forwardedAmountMsats)}
+                value={formatMsats(String(receipt.forwardedAmountMsats))}
                 accent
               />
               <Metric
                 label="Routing reserve"
-                value={formatSats(receipt.routingReserveMsats)}
+                value={formatMsats(String(receipt.routingReserveMsats))}
               />
               <Metric
                 label="Actual routing fee"
-                value={formatSats(receipt.routingFeeMsats)}
+                value={formatMsats(String(receipt.routingFeeMsats))}
               />
               <Metric
                 label="Unused reserve"
-                value={formatSats(receipt.unusedRoutingReserveMsats)}
+                value={formatMsats(String(receipt.unusedRoutingReserveMsats))}
               />
               <Metric
                 label="Destination shortfall"
-                value={formatSats(receipt.shortfallMsats)}
+                value={formatMsats(String(receipt.shortfallMsats))}
               />
             </div>
             {receipt.lastError && (
@@ -1175,12 +1139,12 @@ function ForwardReceiptLegs({ receipt }: { receipt: ForwardReceiptData }) {
           <div className="truncate font-mono text-sm">{leg.destination}</div>
           <div className="mt-1 text-xs text-muted-foreground">
             {(leg.allocationBps / 100).toFixed(2)}% · requested{' '}
-            {formatSats(leg.requestedAmountMsats)} · forwarded{' '}
-            {formatSats(leg.forwardedAmountMsats ?? 0)} · reserved{' '}
-            {formatSats(leg.routingReserveMsats)} · routing fee{' '}
-            {formatSats(leg.routingFeeMsats ?? 0)} · unused{' '}
-            {formatSats(leg.unusedRoutingReserveMsats)} · destination shortfall{' '}
-            {formatSats(leg.destinationShortfallMsats)}
+            {formatMsats(String(leg.requestedAmountMsats))} · forwarded{' '}
+            {formatMsats(String(leg.forwardedAmountMsats ?? 0))} · reserved{' '}
+            {formatMsats(String(leg.routingReserveMsats))} · routing fee{' '}
+            {formatMsats(String(leg.routingFeeMsats ?? 0))} · unused{' '}
+            {formatMsats(String(leg.unusedRoutingReserveMsats))} · destination
+            shortfall {formatMsats(String(leg.destinationShortfallMsats))}
           </div>
         </div>
         <Badge variant="outline">{leg.status}</Badge>
@@ -1195,7 +1159,7 @@ function ForwardReceiptLegs({ receipt }: { receipt: ForwardReceiptData }) {
               <summary className="cursor-pointer font-medium text-foreground">
                 {leg.batchAnchorId ? 'Batch attempt' : 'Attempt'}{' '}
                 {attempt.attemptNo} · {attempt.status} ·{' '}
-                {formatSats(attempt.amountMsats)}
+                {formatMsats(String(attempt.amountMsats))}
               </summary>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <AuditValue label="Request ID" value={attempt.requestId} />
@@ -1207,22 +1171,22 @@ function ForwardReceiptLegs({ receipt }: { receipt: ForwardReceiptData }) {
                 />
                 <AuditValue
                   label="Routing reserve"
-                  value={formatSats(attempt.routingReserveMsats)}
+                  value={formatMsats(String(attempt.routingReserveMsats))}
                 />
                 <AuditValue
                   label="Routing fee"
-                  value={formatSats(attempt.routingFeeMsats ?? 0)}
+                  value={formatMsats(String(attempt.routingFeeMsats ?? 0))}
                 />
                 {leg.routingFeeOverageMsats > 0 && (
                   <AuditValue
                     label="Routing fee over reserve"
-                    value={formatSats(leg.routingFeeOverageMsats)}
+                    value={formatMsats(String(leg.routingFeeOverageMsats))}
                     destructive
                   />
                 )}
                 <AuditValue
                   label="Expires"
-                  value={formatDate(attempt.expiresAt)}
+                  value={formatDateTime(attempt.expiresAt)}
                 />
                 {(attempt.errorCode || attempt.errorMessage) && (
                   <div className="sm:col-span-2">
@@ -1295,7 +1259,7 @@ function ZapReceiptDocument({
         </p>
         {zap.nextRetryAt && (
           <p className="text-xs text-muted-foreground">
-            Next retry {formatDate(zap.nextRetryAt)}
+            Next retry {formatDateTime(zap.nextRetryAt)}
           </p>
         )}
       </div>
@@ -1312,7 +1276,7 @@ function ZapReceiptDocument({
           label="Published"
           value={
             zap.receiptPublishedAt
-              ? formatDate(zap.receiptPublishedAt)
+              ? formatDateTime(zap.receiptPublishedAt)
               : 'Not published'
           }
         />
@@ -1356,50 +1320,6 @@ function StateBadge({ action }: { action: RemoteWalletReceiveActionData }) {
     <Badge variant="secondary">Paused</Badge>
   )
 }
-function ReceiptStatusBadge({
-  status
-}: {
-  status: ForwardReceiptData['status']
-}) {
-  const destructive = status === 'BLOCKED'
-  const successful = status === 'COMPLETED' || status === 'RETAINED'
-  return (
-    <Badge
-      variant={
-        destructive ? 'destructive' : successful ? 'default' : 'secondary'
-      }
-    >
-      {status.toLowerCase().replace('_', ' ')}
-    </Badge>
-  )
-}
-function ReceiptIcon({ status }: { status: ForwardReceiptData['status'] }) {
-  const done = status === 'COMPLETED' || status === 'RETAINED'
-  const forwarding =
-    status === 'RECEIVED' || status === 'FORWARDING' || status === 'PARTIAL'
-  return (
-    <span
-      role={forwarding ? 'status' : undefined}
-      aria-label={forwarding ? 'Payment forwarding in progress' : undefined}
-      className={cn(
-        'flex size-10 shrink-0 items-center justify-center rounded-full',
-        done
-          ? 'bg-emerald-500/10 text-emerald-500'
-          : status === 'BLOCKED'
-            ? 'bg-destructive/10 text-destructive'
-            : 'bg-amber-500/10 text-amber-500'
-      )}
-    >
-      {done ? (
-        <CheckCircle2 className="size-5" />
-      ) : status === 'BLOCKED' ? (
-        <AlertTriangle className="size-5" />
-      ) : (
-        <Spinner size={24} color="yellow" aria-hidden="true" />
-      )}
-    </span>
-  )
-}
 function EmptyActivity({ text }: { text: string }) {
   return (
     <div className="flex flex-col items-center gap-2 px-6 py-14 text-center text-sm text-muted-foreground">
@@ -1407,19 +1327,4 @@ function EmptyActivity({ text }: { text: string }) {
       <p>{text}</p>
     </div>
   )
-}
-function formatSats(msats: number) {
-  return `${(msats / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 })} sats`
-}
-function formatDate(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  })
-}
-function formatPaymentDate(value: number) {
-  return new Date(value).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short'
-  })
 }

@@ -1,15 +1,7 @@
-import type { ReactNode } from 'react'
 import { Radio, ShieldCheck } from 'lucide-react'
-import { nip19 } from 'nostr-tools'
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
-
-function displayNpub(pubkey: string) {
-  if (pubkey.startsWith('npub1')) return pubkey
-  return /^[0-9a-f]{64}$/i.test(pubkey)
-    ? nip19.npubEncode(pubkey.toLowerCase())
-    : pubkey
-}
+import { ProtocolRow } from '@/components/wallet/shared/protocol-row'
+import { toNpub } from '@/lib/client/format'
 
 export function RemoteWalletReceiveProtocols({
   active,
@@ -38,7 +30,7 @@ export function RemoteWalletReceiveProtocols({
         </Badge>
       </div>
       <div className="grid divide-y divide-border/60 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <ProtocolLine
+        <ProtocolRow
           icon={<ShieldCheck className="size-4" />}
           title="LUD-21 verification"
           detail={
@@ -48,7 +40,7 @@ export function RemoteWalletReceiveProtocols({
           }
           enabled={active}
         />
-        <ProtocolLine
+        <ProtocolRow
           icon={<Radio className="size-4" />}
           title="NIP-57 zaps"
           detail={
@@ -67,56 +59,11 @@ export function RemoteWalletReceiveProtocols({
             className="ml-1 break-all font-mono"
             title={capabilities.receiptPubkey}
           >
-            {displayNpub(capabilities.receiptPubkey)}
+            {toNpub(capabilities.receiptPubkey)}
           </code>{' '}
           · exposed as NIP-05 <code>_</code> on this domain
         </div>
       )}
     </section>
-  )
-}
-
-function ProtocolLine({
-  icon,
-  title,
-  detail,
-  enabled
-}: {
-  icon: ReactNode
-  title: string
-  detail: string
-  enabled: boolean
-}) {
-  return (
-    <div className="flex gap-3 px-5 py-4">
-      <span
-        className={cn(
-          'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg',
-          enabled
-            ? 'bg-emerald-500/10 text-emerald-500'
-            : 'bg-muted text-muted-foreground'
-        )}
-      >
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium">{title}</span>
-          <Badge
-            className={cn(
-              enabled
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                : ''
-            )}
-            variant={enabled ? 'outline' : 'secondary'}
-          >
-            {enabled ? 'Enabled' : 'Unavailable'}
-          </Badge>
-        </div>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          {detail}
-        </p>
-      </div>
-    </div>
   )
 }

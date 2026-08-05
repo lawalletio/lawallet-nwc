@@ -49,7 +49,6 @@ export interface CapturedPayment {
   }
 }
 
-
 function remoteWalletForwardingEligibility(wallet: RemoteWallet): {
   eligible: boolean
   reason: string | null
@@ -120,11 +119,22 @@ export async function getReceiveActionDto(walletId: string, userId: string) {
         : receipt.targetAmountMsats),
     carriedLegs.reduce((sum, leg) => sum + leg.requestedAmountMsats, BigInt(0))
   )
+  // Whether *any* attempt is still in flight, not just one on the page the UI
+  // happens to be showing — Force Forward is gated on this.
+  const attemptInProgress = action
+    ? (await prisma.remoteWalletForwardAttempt.count({
+        where: {
+          leg: { receipt: { actionId: action.id } },
+          status: { in: ['PENDING', 'UNKNOWN'] }
+        }
+      })) > 0
+    : false
   const eligibility = remoteWalletForwardingEligibility(wallet)
 
   return {
     walletId,
     ...eligibility,
+    attemptInProgress,
     configured: Boolean(action?.currentRevision),
     enabled: action?.enabled ?? false,
     enabledAt: action?.enabledAt?.toISOString() ?? null,
@@ -181,7 +191,11 @@ export async function putReceiveAction(
     }
     // Dispatch refuses these too, but catching it here means the owner learns
     // now instead of after a real payment arrives and the leg blocks.
-    if (blockedHosts.some(host => host.toLowerCase() === parsed.host.toLowerCase())) {
+    if (
+      blockedHosts.some(
+        host => host.toLowerCase() === parsed.host.toLowerCase()
+      )
+    ) {
       throw new ValidationError(
         `Forwarding destination cannot point to this LaWallet instance: ${destination.address}`
       )

@@ -177,6 +177,7 @@ export default function RemoteWalletDetailPage() {
               transactions={txs.data ?? []}
               transactionsLoading={txs.loading || connection.loading}
               transactionsError={txs.error}
+              walletActive={isActive}
             />
 
             <RemoteWalletNotificationsPanel walletId={wallet.id} />
