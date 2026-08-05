@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
-import { resolveAccountId } from '@/lib/auth/account'
+import { requireUserId } from '@/lib/auth/account'
+import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
@@ -61,30 +62,6 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
   }
 }
 
-async function resolveUserId(pubkey: string): Promise<string> {
-  const userId = await resolveAccountId(pubkey)
-  if (!userId) throw new NotFoundError('User not found')
-  return userId
-}
-
-/**
- * Load a wallet **scoped to the caller**. Returns 404 — not 403 — when the
- * wallet exists but belongs to someone else, so we don't leak the existence
- * of other users' wallet IDs to a casual probe.
- */
-async function loadOwnedWallet(
-  walletId: string,
-  userId: string
-): Promise<RemoteWallet> {
-  const wallet = await prisma.remoteWallet.findUnique({
-    where: { id: walletId }
-  })
-  if (!wallet || wallet.userId !== userId) {
-    throw new NotFoundError('Wallet not found')
-  }
-  return wallet
-}
-
 /**
  * `GET /api/remote-wallets/[id]` — fetch a single wallet by id, scoped to
  * the caller. `config` is intentionally omitted from the response; the
@@ -92,11 +69,10 @@ async function loadOwnedWallet(
  */
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const auth = await authenticate(request)
-    const userId = await resolveUserId(auth.pubkey)
+    const userId = await requireUserId(request)
 
     const { id } = validateParams(await params, idParam)
-    const wallet = await loadOwnedWallet(id, userId)
+    const wallet = await loadOwnedRemoteWallet(id, userId)
 
     const receiveCapabilities = await getZapReceiptCapability()
     return NextResponse.json({ ...toDto(wallet), receiveCapabilities })
@@ -120,14 +96,13 @@ export const PATCH = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await checkRequestLimits(request, 'json')
 
-    const auth = await authenticate(request)
-    const userId = await resolveUserId(auth.pubkey)
+    const userId = await requireUserId(request)
 
     const { id } = validateParams(await params, idParam)
     const body = await validateBody(request, updateRemoteWalletSchema)
 
     // Ownership check up front so a 404 fires before any writes.
-    const wallet = await loadOwnedWallet(id, userId)
+    const wallet = await loadOwnedRemoteWallet(id, userId)
     if (body.isDefault === false) {
       throw new ValidationError(
         'RemoteWallet.isDefault is derived from the primary lightning address'
@@ -239,11 +214,10 @@ export const PATCH = withErrorHandling(
  */
 export const DELETE = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const auth = await authenticate(request)
-    const userId = await resolveUserId(auth.pubkey)
+    const userId = await requireUserId(request)
 
     const { id } = validateParams(await params, idParam)
-    const wallet = await loadOwnedWallet(id, userId)
+    const wallet = await loadOwnedRemoteWallet(id, userId)
 
     const permanent =
       new URL(request.url).searchParams.get('permanent') === 'true'

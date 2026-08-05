@@ -1,10 +1,6 @@
 'use client'
 
-import {
-  invalidateApiPath,
-  useApi,
-  useMutation
-} from '@/lib/client/hooks/use-api'
+import { useApi, useMutation, withQuery } from '@/lib/client/hooks/use-api'
 
 export type ForwardReceiptStatus =
   | 'RECEIVED'
@@ -161,14 +157,13 @@ export function useRemoteWalletForwardReceipts(
     limit?: number
   } = {}
 ) {
-  const query = new URLSearchParams()
-  if (options.status) query.set('status', options.status)
-  if (options.cursor) query.set('cursor', options.cursor)
-  if (options.limit) query.set('limit', String(options.limit))
-  const suffix = query.size > 0 ? `?${query.toString()}` : ''
   return useApi<{ receipts: ForwardReceiptData[]; nextCursor: string | null }>(
     walletId
-      ? `/api/remote-wallets/${walletId}/forwarding-receipts${suffix}`
+      ? withQuery(`/api/remote-wallets/${walletId}/forwarding-receipts`, {
+          status: options.status,
+          cursor: options.cursor ?? undefined,
+          limit: options.limit
+        })
       : null
   )
 }
@@ -177,13 +172,12 @@ export function useRemoteWalletForwardActivity(
   walletId: string | null,
   options: { cursor?: string | null; limit?: number } = {}
 ) {
-  const query = new URLSearchParams()
-  if (options.cursor) query.set('cursor', options.cursor)
-  if (options.limit) query.set('limit', String(options.limit))
-  const suffix = query.size > 0 ? `?${query.toString()}` : ''
   return useApi<{ activity: ForwardActivityData[]; nextCursor: string | null }>(
     walletId
-      ? `/api/remote-wallets/${walletId}/forwarding-activity${suffix}`
+      ? withQuery(`/api/remote-wallets/${walletId}/forwarding-activity`, {
+          cursor: options.cursor ?? undefined,
+          limit: options.limit
+        })
       : null
   )
 }
@@ -211,6 +205,12 @@ export function useRemoteWalletPayment(
 }
 
 export function useRemoteWalletForwardingMutations(walletId: string) {
+  const actionPath = `/api/remote-wallets/${walletId}/receive-action`
+  const receiptsPath = `/api/remote-wallets/${walletId}/forwarding-receipts`
+  const activityPath = `/api/remote-wallets/${walletId}/forwarding-activity`
+  const forwardingPaths = [actionPath, receiptsPath, activityPath]
+  const mapPath = '/api/remote-wallets/forwarding-map'
+
   const configure = useMutation<
     {
       feeBps: number
@@ -219,66 +219,39 @@ export function useRemoteWalletForwardingMutations(walletId: string) {
       destinations: ReceiveActionDestination[]
     },
     RemoteWalletReceiveActionData
-  >()
+  >([...forwardingPaths, mapPath])
   const toggle = useMutation<
     { enabled: boolean },
     RemoteWalletReceiveActionData
-  >()
+  >([...forwardingPaths, mapPath])
   const retry = useMutation<
     { legIds?: string[] },
     { accepted: boolean; retryingLegs: number }
-  >()
+  >(forwardingPaths)
   const force = useMutation<
     Record<string, never>,
     { accepted: boolean; forwardingReceipts: number }
-  >()
-  const actionPath = `/api/remote-wallets/${walletId}/receive-action`
-  const receiptsPath = `/api/remote-wallets/${walletId}/forwarding-receipts`
-  const activityPath = `/api/remote-wallets/${walletId}/forwarding-activity`
+  >(forwardingPaths)
 
   return {
-    configure: async (input: {
+    configure: (input: {
       feeBps: number
       baseFeeSats: number
       enabled?: boolean
       destinations: ReceiveActionDestination[]
-    }) => {
-      const result = await configure.mutate('put', actionPath, input)
-      invalidateApiPath(actionPath)
-      invalidateApiPath('/api/remote-wallets/forwarding-map')
-      invalidateApiPath(receiptsPath)
-      invalidateApiPath(activityPath)
-      return result
-    },
-    setEnabled: async (enabled: boolean) => {
-      const result = await toggle.mutate('patch', actionPath, { enabled })
-      invalidateApiPath(actionPath)
-      invalidateApiPath('/api/remote-wallets/forwarding-map')
-      invalidateApiPath(receiptsPath)
-      invalidateApiPath(activityPath)
-      return result
-    },
-    retryReceipt: async (receiptId: string, legIds?: string[]) => {
-      const result = await retry.mutate(
+    }) => configure.mutate('put', actionPath, input),
+    setEnabled: (enabled: boolean) =>
+      toggle.mutate('patch', actionPath, { enabled }),
+    retryReceipt: (receiptId: string, legIds?: string[]) =>
+      retry.mutate(
         'post',
         `${receiptsPath}/${receiptId}/retry`,
         legIds ? { legIds } : {}
-      )
-      invalidateApiPath(actionPath)
-      invalidateApiPath(receiptsPath)
-      invalidateApiPath(activityPath)
-      return result
-    },
-    forceForward: async () => {
-      const result = await force.mutate('post', `${actionPath}/force`, {})
-      invalidateApiPath(actionPath)
-      invalidateApiPath(receiptsPath)
-      invalidateApiPath(activityPath)
-      return result
-    },
+      ),
+    forceForward: () => force.mutate('post', `${actionPath}/force`, {}),
     forcing: force.loading,
     loading:
       configure.loading || toggle.loading || retry.loading || force.loading,
-    error: configure.error || toggle.error || retry.error || force.error
+    error: configure.error ?? toggle.error ?? retry.error ?? force.error
   }
 }

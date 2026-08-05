@@ -3,8 +3,7 @@ import {
   remoteWalletNotificationParamsSchema,
   remoteWalletNotificationToggleSchema
 } from '@lawallet-nwc/shared'
-import { resolveAccountId } from '@/lib/auth/account'
-import { authenticate } from '@/lib/auth/unified-auth'
+import { requireUserId } from '@/lib/auth/account'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { setRemoteWalletNotificationEnabled } from '@/lib/remote-wallet-notifications/service'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
@@ -17,9 +16,7 @@ export const PATCH = withErrorHandling(
     { params }: { params: Promise<{ id: string; notificationId: string }> }
   ) => {
     await checkRequestLimits(request, 'json')
-    const auth = await authenticate(request)
-    const userId = await resolveAccountId(auth.pubkey)
-    if (!userId) throw new NotFoundError('User not found')
+    const userId = await requireUserId(request)
     const { id, notificationId } = validateParams(
       await params,
       remoteWalletNotificationParamsSchema

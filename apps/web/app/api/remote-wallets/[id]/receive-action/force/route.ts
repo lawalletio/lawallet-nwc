@@ -1,19 +1,13 @@
 import { after, NextResponse } from 'next/server'
-import { authenticate } from '@/lib/auth/unified-auth'
-import { resolveAccountId } from '@/lib/auth/account'
+import { requireUserId } from '@/lib/auth/account'
 import { prisma } from '@/lib/prisma'
 import { reconcileRemoteWalletForwarding } from '@/lib/remote-wallet-forwarding/reconcile'
-import {
-  emitForwardingUpdated,
-  loadOwnedRemoteWallet
-} from '@/lib/remote-wallet-forwarding/service'
+import { emitForwardingUpdated } from '@/lib/remote-wallet-forwarding/service'
+import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
+import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 import { validateParams } from '@/lib/validation/middleware'
 import { idParam } from '@/lib/validation/schemas'
-import {
-  ConflictError,
-  NotFoundError,
-  ValidationError
-} from '@/types/server/errors'
+import { ConflictError, NotFoundError } from '@/types/server/errors'
 import { withErrorHandling } from '@/types/server/error-handler'
 
 const OPEN_RECEIPT_STATUSES = [
@@ -25,9 +19,8 @@ const OPEN_RECEIPT_STATUSES = [
 
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const auth = await authenticate(request)
-    const userId = await resolveAccountId(auth.pubkey)
-    if (!userId) throw new NotFoundError('User not found')
+    await rateLimit(request, RateLimitPresets.sensitive)
+    const userId = await requireUserId(request)
     const { id } = validateParams(await params, idParam)
     await loadOwnedRemoteWallet(id, userId)
 
@@ -55,7 +48,7 @@ export const POST = withErrorHandling(
       data: { nextRetryAt: new Date() }
     })
     if (result.count === 0) {
-      throw new ValidationError('There are no pending funds to forward')
+      throw new ConflictError('There are no pending funds to forward')
     }
 
     emitForwardingUpdated()

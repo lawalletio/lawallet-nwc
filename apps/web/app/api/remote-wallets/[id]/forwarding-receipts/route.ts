@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { remoteWalletForwardReceiptListQuerySchema } from '@lawallet-nwc/shared'
-import { authenticate } from '@/lib/auth/unified-auth'
-import { resolveAccountId } from '@/lib/auth/account'
+import { requireUserId } from '@/lib/auth/account'
 import { prisma } from '@/lib/prisma'
 import { forwardReceiptToDto } from '@/lib/remote-wallet-forwarding/dto'
-import { loadOwnedRemoteWallet } from '@/lib/remote-wallet-forwarding/service'
+import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
 import { idParam } from '@/lib/validation/schemas'
 import { NotFoundError } from '@/types/server/errors'
@@ -12,9 +11,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const auth = await authenticate(request)
-    const userId = await resolveAccountId(auth.pubkey)
-    if (!userId) throw new NotFoundError('User not found')
+    const userId = await requireUserId(request)
     const { id } = validateParams(await params, idParam)
     await loadOwnedRemoteWallet(id, userId)
     const query = validateQuery(

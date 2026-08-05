@@ -4,15 +4,12 @@ import {
   remoteWalletForwardReceiptParamsSchema,
   remoteWalletForwardRetrySchema
 } from '@lawallet-nwc/shared'
-import { authenticate } from '@/lib/auth/unified-auth'
-import { resolveAccountId } from '@/lib/auth/account'
+import { requireUserId } from '@/lib/auth/account'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { prisma } from '@/lib/prisma'
 import { reconcileRemoteWalletForwarding } from '@/lib/remote-wallet-forwarding/reconcile'
-import {
-  emitForwardingUpdated,
-  loadOwnedRemoteWallet
-} from '@/lib/remote-wallet-forwarding/service'
+import { emitForwardingUpdated } from '@/lib/remote-wallet-forwarding/service'
+import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import {
   ConflictError,
@@ -27,9 +24,7 @@ export const POST = withErrorHandling(
     { params }: { params: Promise<{ id: string; receiptId: string }> }
   ) => {
     await checkRequestLimits(request, 'json')
-    const auth = await authenticate(request)
-    const userId = await resolveAccountId(auth.pubkey)
-    if (!userId) throw new NotFoundError('User not found')
+    const userId = await requireUserId(request)
     const { id, receiptId } = validateParams(
       await params,
       remoteWalletForwardReceiptParamsSchema
@@ -44,16 +39,28 @@ export const POST = withErrorHandling(
     if (!receipt.action.enabled) {
       throw new ConflictError('Resume forwarding before retrying a receipt')
     }
+    // A leg already READY needs no retry; counting it would make the
+    // "nothing to retry" branch unreachable and report work that never happened.
     const result = await prisma.remoteWalletForwardLeg.updateMany({
       where: {
         receiptId,
-        status: { in: ['READY', 'REJECTED', 'EXPIRED'] },
+        status: { in: ['REJECTED', 'EXPIRED'] },
         ...(body.legIds?.length ? { id: { in: body.legIds } } : {})
       },
       data: { status: 'READY', nextRetryAt: new Date(), lastError: null }
     })
-    if (result.count === 0) {
-      throw new ValidationError(
+    const rescheduled = await prisma.remoteWalletForwardLeg.updateMany({
+      where: {
+        receiptId,
+        status: 'READY',
+        nextRetryAt: { gt: new Date() },
+        ...(body.legIds?.length ? { id: { in: body.legIds } } : {})
+      },
+      data: { nextRetryAt: new Date() }
+    })
+    const retryingLegs = result.count + rescheduled.count
+    if (retryingLegs === 0) {
+      throw new ConflictError(
         'No safely retryable forwarding legs were selected'
       )
     }
@@ -69,7 +76,7 @@ export const POST = withErrorHandling(
     emitForwardingUpdated()
     after(() => reconcileRemoteWalletForwarding({ ids: [receiptId] }))
     return NextResponse.json(
-      { accepted: true, retryingLegs: result.count },
+      { accepted: true, retryingLegs },
       { status: 202 }
     )
   }

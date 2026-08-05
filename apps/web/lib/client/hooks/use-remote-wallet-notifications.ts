@@ -1,10 +1,6 @@
 'use client'
 
-import {
-  invalidateApiPath,
-  useApi,
-  useMutation
-} from '@/lib/client/hooks/use-api'
+import { useApi, useMutation, withQuery } from '@/lib/client/hooks/use-api'
 
 export type RemoteWalletNotificationAction = 'RECEIVED' | 'FORWARDED'
 export type RemoteWalletNotificationChannel = 'WEBHOOK' | 'NOSTR'
@@ -98,63 +94,44 @@ export function useRemoteWalletNotificationDeliveries(
   walletId: string | null,
   options: { cursor?: string | null; limit?: number } = {}
 ) {
-  const query = new URLSearchParams()
-  if (options.cursor) query.set('cursor', options.cursor)
-  if (options.limit) query.set('limit', String(options.limit))
-  const suffix = query.size > 0 ? `?${query.toString()}` : ''
   return useApi<{
     deliveries: RemoteWalletNotificationDeliveryData[]
     nextCursor: string | null
   }>(
     walletId
-      ? `/api/remote-wallets/${walletId}/notification-deliveries${suffix}`
+      ? withQuery(`/api/remote-wallets/${walletId}/notification-deliveries`, {
+          cursor: options.cursor ?? undefined,
+          limit: options.limit
+        })
       : null
   )
 }
 
 export function useRemoteWalletNotificationMutations(walletId: string) {
+  const notificationsPath = `/api/remote-wallets/${walletId}/notifications`
+  const deliveriesPath = `/api/remote-wallets/${walletId}/notification-deliveries`
+  const paths = [notificationsPath, deliveriesPath]
+
   const create = useMutation<
     CreateRemoteWalletNotificationInput,
     { notifications: RemoteWalletNotificationData[] }
-  >()
+  >(paths)
   const toggle = useMutation<
     { enabled: boolean },
     { notifications: RemoteWalletNotificationData[] }
-  >()
-  const retry = useMutation<Record<string, never>, { accepted: boolean }>()
-  const notificationsPath = `/api/remote-wallets/${walletId}/notifications`
-  const deliveriesPath = `/api/remote-wallets/${walletId}/notification-deliveries`
-
-  function invalidate() {
-    invalidateApiPath(notificationsPath)
-    invalidateApiPath(deliveriesPath)
-  }
+  >(paths)
+  const retry = useMutation<Record<string, never>, { accepted: boolean }>(paths)
 
   return {
-    create: async (input: CreateRemoteWalletNotificationInput) => {
-      const result = await create.mutate('post', notificationsPath, input)
-      invalidate()
-      return result
-    },
-    setEnabled: async (notificationId: string, enabled: boolean) => {
-      const result = await toggle.mutate(
-        'patch',
-        `${notificationsPath}/${notificationId}`,
-        { enabled }
-      )
-      invalidate()
-      return result
-    },
-    retry: async (deliveryId: string) => {
-      const result = await retry.mutate(
-        'post',
-        `${deliveriesPath}/${deliveryId}/retry`,
-        {}
-      )
-      invalidate()
-      return result
-    },
+    create: (input: CreateRemoteWalletNotificationInput) =>
+      create.mutate('post', notificationsPath, input),
+    setEnabled: (notificationId: string, enabled: boolean) =>
+      toggle.mutate('patch', `${notificationsPath}/${notificationId}`, {
+        enabled
+      }),
+    retry: (deliveryId: string) =>
+      retry.mutate('post', `${deliveriesPath}/${deliveryId}/retry`, {}),
     loading: create.loading || toggle.loading || retry.loading,
-    error: create.error || toggle.error || retry.error
+    error: create.error ?? toggle.error ?? retry.error
   }
 }

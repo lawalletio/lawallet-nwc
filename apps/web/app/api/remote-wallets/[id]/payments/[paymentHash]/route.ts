@@ -1,27 +1,19 @@
 import { NextResponse } from 'next/server'
-import { authenticate } from '@/lib/auth/unified-auth'
-import { resolveAccountId } from '@/lib/auth/account'
+import { requireUserId } from '@/lib/auth/account'
 import { prisma } from '@/lib/prisma'
-import { loadOwnedRemoteWallet } from '@/lib/remote-wallet-forwarding/service'
+import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
+import { z } from 'zod'
 import { validateParams } from '@/lib/validation/middleware'
-import { idParam } from '@/lib/validation/schemas'
-import { NotFoundError, ValidationError } from '@/types/server/errors'
+import { NotFoundError } from '@/types/server/errors'
 import { withErrorHandling } from '@/types/server/error-handler'
 
-const paymentHashParam = {
-  parse(input: unknown) {
-    if (
-      !input ||
-      typeof input !== 'object' ||
-      !('paymentHash' in input) ||
-      typeof input.paymentHash !== 'string' ||
-      !/^[0-9a-f]{64}$/i.test(input.paymentHash)
-    ) {
-      throw new ValidationError('Invalid payment hash')
-    }
-    return { paymentHash: input.paymentHash.toLowerCase() }
-  }
-}
+const paymentRouteParams = z.object({
+  id: z.string().min(1),
+  paymentHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'Invalid payment hash')
+    .transform(value => value.toLowerCase())
+})
 
 /**
  * Payment-only audit endpoint for a RemoteWallet. It deliberately returns an
@@ -33,12 +25,11 @@ export const GET = withErrorHandling(
     request: Request,
     { params }: { params: Promise<{ id: string; paymentHash: string }> }
   ) => {
-    const auth = await authenticate(request)
-    const userId = await resolveAccountId(auth.pubkey)
-    if (!userId) throw new NotFoundError('User not found')
-    const { id, paymentHash } = await params
-    const walletId = validateParams({ id }, idParam).id
-    const hash = paymentHashParam.parse({ paymentHash }).paymentHash
+    const userId = await requireUserId(request)
+    const { id: walletId, paymentHash: hash } = validateParams(
+      await params,
+      paymentRouteParams
+    )
     await loadOwnedRemoteWallet(walletId, userId)
 
     const invoice = await prisma.invoice.findFirst({

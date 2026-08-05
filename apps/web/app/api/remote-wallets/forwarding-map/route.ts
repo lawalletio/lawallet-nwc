@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticate } from '@/lib/auth/unified-auth'
-import { resolveAccountId } from '@/lib/auth/account'
+import { requireUserId } from '@/lib/auth/account'
 import { NotFoundError } from '@/types/server/errors'
 import { withErrorHandling } from '@/types/server/error-handler'
 
@@ -11,9 +10,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
  * currentRevisionId unique, and destinations.revisionId.
  */
 export const GET = withErrorHandling(async (request: Request) => {
-  const auth = await authenticate(request)
-  const userId = await resolveAccountId(auth.pubkey)
-  if (!userId) throw new NotFoundError('User not found')
+  const userId = await requireUserId(request)
 
   const actions = await prisma.remoteWalletReceiveAction.findMany({
     where: {

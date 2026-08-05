@@ -2,7 +2,9 @@ import type { RemoteWallet } from '@/lib/generated/prisma'
 import { eventBus } from '@/lib/events/event-bus'
 import { parseExactPaymentInvoice } from '@/lib/invoice-utils'
 import { prisma } from '@/lib/prisma'
+import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 import { MAX_PROXY_FEE_BPS } from '@/lib/proxy/constants'
+import { localBlockedHosts } from '@/lib/proxy/local-hosts'
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
 import {
   ConflictError,
@@ -47,18 +49,6 @@ export interface CapturedPayment {
   }
 }
 
-export async function loadOwnedRemoteWallet(
-  walletId: string,
-  userId: string
-): Promise<RemoteWallet> {
-  const wallet = await prisma.remoteWallet.findUnique({
-    where: { id: walletId }
-  })
-  if (!wallet || wallet.userId !== userId) {
-    throw new NotFoundError('Wallet not found')
-  }
-  return wallet
-}
 
 function remoteWalletForwardingEligibility(wallet: RemoteWallet): {
   eligible: boolean
@@ -181,10 +171,19 @@ export async function putReceiveAction(
       error instanceof Error ? error.message : 'Invalid destinations'
     )
   }
+  const blockedHosts = await localBlockedHosts().catch(() => [])
   for (const destination of destinations) {
-    if (!parseLightningAddress(destination.address)) {
+    const parsed = parseLightningAddress(destination.address)
+    if (!parsed) {
       throw new ValidationError(
         `Invalid Lightning Address: ${destination.address}`
+      )
+    }
+    // Dispatch refuses these too, but catching it here means the owner learns
+    // now instead of after a real payment arrives and the leg blocks.
+    if (blockedHosts.some(host => host.toLowerCase() === parsed.host.toLowerCase())) {
+      throw new ValidationError(
+        `Forwarding destination cannot point to this LaWallet instance: ${destination.address}`
       )
     }
   }

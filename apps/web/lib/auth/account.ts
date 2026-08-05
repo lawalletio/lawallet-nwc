@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { UserRole } from '@/lib/generated/prisma'
+import { authenticate } from '@/lib/auth/unified-auth'
+import { NotFoundError } from '@/types/server/errors'
 
 /**
  * The account a pubkey resolves to. `primaryPubkey` is the account's public
@@ -58,4 +60,16 @@ export async function resolveAccountByPubkey(
 export async function resolveAccountId(pubkey: string): Promise<string | null> {
   const account = await resolveAccountByPubkey(pubkey)
   return account?.id ?? null
+}
+
+/**
+ * Authenticate a request and resolve it to an owning account id. Owner-scoped
+ * routes all need exactly this, and answering 404 (not 403) keeps them from
+ * confirming that a resource exists to someone who cannot see it.
+ */
+export async function requireUserId(request: Request): Promise<string> {
+  const auth = await authenticate(request)
+  const userId = await resolveAccountId(auth.pubkey)
+  if (!userId) throw new NotFoundError('User not found')
+  return userId
 }

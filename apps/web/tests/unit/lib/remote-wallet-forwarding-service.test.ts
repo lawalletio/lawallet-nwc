@@ -7,9 +7,9 @@ vi.mock('@/lib/events/event-bus', () => ({
 
 import {
   captureForwardingReceipt,
-  loadOwnedRemoteWallet,
   putReceiveAction
 } from '@/lib/remote-wallet-forwarding/service'
+import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 
 const enabledAt = new Date('2026-08-01T12:00:00.000Z')
 const event = {

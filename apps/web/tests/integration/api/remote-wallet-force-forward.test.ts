@@ -20,10 +20,13 @@ vi.mock('@/lib/auth/unified-auth', () => ({
   authenticate: vi.fn().mockResolvedValue({ pubkey: 'a'.repeat(64) })
 }))
 vi.mock('@/lib/auth/account', () => ({
-  resolveAccountId: vi.fn().mockResolvedValue('user-1')
+  resolveAccountId: vi.fn().mockResolvedValue('user-1'),
+  requireUserId: vi.fn().mockResolvedValue('user-1')
+}))
+vi.mock('@/lib/remote-wallets/owned', () => ({
+  loadOwnedRemoteWallet: loadOwnedRemoteWalletMock
 }))
 vi.mock('@/lib/remote-wallet-forwarding/service', () => ({
-  loadOwnedRemoteWallet: loadOwnedRemoteWalletMock,
   emitForwardingUpdated: emitForwardingUpdatedMock
 }))
 vi.mock('@/lib/remote-wallet-forwarding/reconcile', () => ({
@@ -41,6 +44,10 @@ vi.mock('@/lib/logger', () => ({
     debug: vi.fn()
   })),
   withRequestLogging: (handler: unknown) => handler
+}))
+vi.mock('@/lib/middleware/rate-limit', () => ({
+  rateLimit: vi.fn().mockResolvedValue(undefined),
+  RateLimitPresets: { sensitive: {} }
 }))
 vi.mock('@/lib/middleware/maintenance', () => ({
   checkMaintenance: vi.fn()
@@ -126,7 +133,7 @@ describe('POST /api/remote-wallets/[id]/receive-action/force', () => {
     expect(reconcileRemoteWalletForwardingMock).not.toHaveBeenCalled()
   })
 
-  it('returns a client error when there is nothing pending', async () => {
+  it('reports a state conflict when there is nothing pending', async () => {
     vi.mocked(
       prismaMock.remoteWalletForwardReceipt.updateMany
     ).mockResolvedValue({ count: 0 })
@@ -139,7 +146,9 @@ describe('POST /api/remote-wallets/[id]/receive-action/force', () => {
       createParamsPromise({ id: walletId })
     )
 
-    expect(response.status).toBe(400)
+    // 409, matching /proxy-balance for the same condition — it is a state
+    // conflict, not malformed input.
+    expect(response.status).toBe(409)
     expect(afterMock).not.toHaveBeenCalled()
   })
 })

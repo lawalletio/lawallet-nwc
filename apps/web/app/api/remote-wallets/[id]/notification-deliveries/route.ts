@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { remoteWalletNotificationListQuerySchema } from '@lawallet-nwc/shared'
-import { resolveAccountId } from '@/lib/auth/account'
-import { authenticate } from '@/lib/auth/unified-auth'
+import { requireUserId } from '@/lib/auth/account'
 import { listRemoteWalletNotificationDeliveries } from '@/lib/remote-wallet-notifications/service'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
 import { idParam } from '@/lib/validation/schemas'
@@ -10,9 +9,7 @@ import { NotFoundError } from '@/types/server/errors'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const auth = await authenticate(request)
-    const userId = await resolveAccountId(auth.pubkey)
-    if (!userId) throw new NotFoundError('User not found')
+    const userId = await requireUserId(request)
     const { id } = validateParams(await params, idParam)
     const query = validateQuery(
       request.url,

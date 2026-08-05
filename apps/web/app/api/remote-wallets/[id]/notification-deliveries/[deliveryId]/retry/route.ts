@@ -1,7 +1,7 @@
 import { after, NextResponse } from 'next/server'
 import { remoteWalletNotificationDeliveryParamsSchema } from '@lawallet-nwc/shared'
-import { resolveAccountId } from '@/lib/auth/account'
-import { authenticate } from '@/lib/auth/unified-auth'
+import { requireUserId } from '@/lib/auth/account'
+import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { reconcileRemoteWalletNotifications } from '@/lib/remote-wallet-notifications/reconcile'
 import { retryRemoteWalletNotificationDelivery } from '@/lib/remote-wallet-notifications/service'
 import { validateParams } from '@/lib/validation/middleware'
@@ -13,9 +13,8 @@ export const POST = withErrorHandling(
     request: Request,
     { params }: { params: Promise<{ id: string; deliveryId: string }> }
   ) => {
-    const auth = await authenticate(request)
-    const userId = await resolveAccountId(auth.pubkey)
-    if (!userId) throw new NotFoundError('User not found')
+    await rateLimit(request, RateLimitPresets.sensitive)
+    const userId = await requireUserId(request)
     const { id, deliveryId } = validateParams(
       await params,
       remoteWalletNotificationDeliveryParamsSchema

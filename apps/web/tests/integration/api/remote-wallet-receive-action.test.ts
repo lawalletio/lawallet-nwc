@@ -19,7 +19,8 @@ vi.mock('@/lib/auth/unified-auth', () => ({
   authenticate: vi.fn().mockResolvedValue({ pubkey: 'a'.repeat(64) })
 }))
 vi.mock('@/lib/auth/account', () => ({
-  resolveAccountId: vi.fn().mockResolvedValue('user-1')
+  resolveAccountId: vi.fn().mockResolvedValue('user-1'),
+  requireUserId: vi.fn().mockResolvedValue('user-1')
 }))
 vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn()

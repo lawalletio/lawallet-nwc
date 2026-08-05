@@ -2,7 +2,7 @@ import type { Prisma } from '@/lib/generated/prisma'
 import { eventBus } from '@/lib/events/event-bus'
 import { normalizeNostrPubkey } from '@/lib/nostr/profile'
 import { prisma } from '@/lib/prisma'
-import { loadOwnedRemoteWallet } from '@/lib/remote-wallet-forwarding/service'
+import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 import {
   ConflictError,
   NotFoundError,

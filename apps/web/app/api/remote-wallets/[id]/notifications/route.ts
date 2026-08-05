@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createRemoteWalletNotificationSchema } from '@lawallet-nwc/shared'
-import { resolveAccountId } from '@/lib/auth/account'
-import { authenticate } from '@/lib/auth/unified-auth'
+import { requireUserId } from '@/lib/auth/account'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import {
   createRemoteWalletNotification,
@@ -13,15 +12,13 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
 
 async function userIdFor(request: Request): Promise<string> {
-  const auth = await authenticate(request)
-  const userId = await resolveAccountId(auth.pubkey)
-  if (!userId) throw new NotFoundError('User not found')
+  const userId = await requireUserId(request)
   return userId
 }
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const userId = await userIdFor(request)
+    const userId = await requireUserId(request)
     const { id } = validateParams(await params, idParam)
     return NextResponse.json(await listRemoteWalletNotifications(id, userId))
   }
@@ -30,7 +27,7 @@ export const GET = withErrorHandling(
 export const POST = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await checkRequestLimits(request, 'json')
-    const userId = await userIdFor(request)
+    const userId = await requireUserId(request)
     const { id } = validateParams(await params, idParam)
     const body = await validateBody(
       request,

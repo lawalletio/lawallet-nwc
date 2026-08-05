@@ -14,7 +14,7 @@ import {
   requestDestinationInvoice
 } from '@/lib/proxy/lnurl'
 import { isDestinationInvoiceAmountAcceptable } from '@/lib/proxy/money'
-import { resolveApiUrl, resolvePublicEndpoint } from '@/lib/public-url'
+import { localBlockedHosts } from '@/lib/proxy/local-hosts'
 import {
   getListenerNwcPayment,
   listenerNwcPayment,
@@ -1426,14 +1426,6 @@ function walletConfig(receipt: ReceiptWithRelations): {
     receipt.wallet.type,
     receipt.wallet.config
   ) as { connectionString: string }
-}
-
-async function localBlockedHosts(): Promise<string[]> {
-  const [publicEndpoint, apiUrl] = await Promise.all([
-    resolvePublicEndpoint(),
-    resolveApiUrl()
-  ])
-  return [publicEndpoint.host, new URL(apiUrl).hostname]
 }
 
 function firstLegError(legs: RemoteWalletForwardLeg[]): string | null {
