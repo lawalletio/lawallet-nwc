@@ -1,5 +1,5 @@
 import type { User } from '@/types/user'
-import { DEV_ADMIN_PUBKEY, DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
+import { DEV_ADMIN_PUBKEY, DEV_ADMIN_USER_ID } from '../lib/dev-identity'
 
 export const mockUserData: User[] = [
   {

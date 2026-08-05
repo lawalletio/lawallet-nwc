@@ -1,5 +1,5 @@
 import type { LightningAddress } from '@/types/lightning-address'
-import { DEV_ADMIN_PUBKEY } from '@/lib/dev-identity'
+import { DEV_ADMIN_PUBKEY } from '../lib/dev-identity'
 
 export const mockLightningAddressData: LightningAddress[] = [
   {

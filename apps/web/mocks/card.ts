@@ -1,5 +1,5 @@
 import type { Card } from '@/types/card'
-import { DEV_ADMIN_PUBKEY } from '@/lib/dev-identity'
+import { DEV_ADMIN_PUBKEY } from '../lib/dev-identity'
 import { mockCardDesignData } from './card-design'
 import { mockNtag424Data } from './ntag424'
 
