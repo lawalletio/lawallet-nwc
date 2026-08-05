@@ -11597,6 +11597,9 @@
                     "pendingAmountMsats": {
                       "type": "integer"
                     },
+                    "attemptInProgress": {
+                      "type": "boolean"
+                    },
                     "routingReserveBps": {
                       "type": "integer"
                     },
@@ -11616,7 +11619,7 @@
                           "type": "integer"
                         },
                         "baseFeeSats": {
-                          "type": "integer"
+                          "type": "number"
                         },
                         "destinations": {
                           "type": "array",
@@ -11655,6 +11658,7 @@
                     "pausedAt",
                     "pendingReceipts",
                     "pendingAmountMsats",
+                    "attemptInProgress",
                     "routingReserveBps",
                     "routingReserveBaseSats",
                     "revision"
@@ -11796,6 +11800,9 @@
                     "pendingAmountMsats": {
                       "type": "integer"
                     },
+                    "attemptInProgress": {
+                      "type": "boolean"
+                    },
                     "routingReserveBps": {
                       "type": "integer"
                     },
@@ -11815,7 +11822,7 @@
                           "type": "integer"
                         },
                         "baseFeeSats": {
-                          "type": "integer"
+                          "type": "number"
                         },
                         "destinations": {
                           "type": "array",
@@ -11854,6 +11861,7 @@
                     "pausedAt",
                     "pendingReceipts",
                     "pendingAmountMsats",
+                    "attemptInProgress",
                     "routingReserveBps",
                     "routingReserveBaseSats",
                     "revision"
@@ -12005,6 +12013,9 @@
                     "pendingAmountMsats": {
                       "type": "integer"
                     },
+                    "attemptInProgress": {
+                      "type": "boolean"
+                    },
                     "routingReserveBps": {
                       "type": "integer"
                     },
@@ -12024,7 +12035,7 @@
                           "type": "integer"
                         },
                         "baseFeeSats": {
-                          "type": "integer"
+                          "type": "number"
                         },
                         "destinations": {
                           "type": "array",
@@ -12063,6 +12074,7 @@
                     "pausedAt",
                     "pendingReceipts",
                     "pendingAmountMsats",
+                    "attemptInProgress",
                     "routingReserveBps",
                     "routingReserveBaseSats",
                     "revision"

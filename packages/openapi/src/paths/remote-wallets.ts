@@ -56,13 +56,14 @@ const receiveActionSchema = z.object({
   pausedAt: z.string().datetime().nullable(),
   pendingReceipts: z.number().int(),
   pendingAmountMsats: z.number().int(),
+  attemptInProgress: z.boolean(),
   routingReserveBps: z.number().int(),
   routingReserveBaseSats: z.number().int(),
   revision: z
     .object({
       number: z.number().int(),
       feeBps: z.number().int(),
-      baseFeeSats: z.number().int(),
+      baseFeeSats: z.number(),
       destinations: z.array(destinationSchema)
     })
     .nullable()

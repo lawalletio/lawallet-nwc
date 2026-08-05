@@ -35,6 +35,12 @@ audited separately. A destination invoice may be up to 10 sats smaller than
 that reduced request, but never larger; that separate shortfall is also
 recorded and retained.
 
+Whatever the reserve did not spend on routing is still owed to the destination,
+so it is carried forward as pending balance on a *residual* leg (one per
+destination) that the next batch to the same destination absorbs. Residual legs
+count towards the pending amount but never keep the originating receipt from
+completing.
+
 ## Safety and recovery
 
 - The webhook persists a receipt keyed by wallet and source payment hash

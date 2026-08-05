@@ -28,6 +28,16 @@ stored separately. A destination invoice may be up to 10 sats below that
 reduced request, never above it; this separate shortfall remains in the wallet
 and is recorded on the leg.
 
+Routing usually costs less than the reserve. The leftover is still owed to the
+destination, so it is **carried forward as pending balance** rather than kept
+in the source wallet: on completion the engine parks it on a *residual* leg —
+one per destination per action — which the next batch to that destination picks
+up. A residual leg is real pending balance and shows up in the pending amount,
+but it never holds the originating receipt open, so a forward still reports
+`COMPLETED` (and fires its notification and zap receipt) as soon as the
+destination has been paid. If no further payment ever arrives, the residual
+simply keeps accumulating until it is large enough to send.
+
 ## Durable workflow
 
 The listener webhook first inserts a receipt keyed by
