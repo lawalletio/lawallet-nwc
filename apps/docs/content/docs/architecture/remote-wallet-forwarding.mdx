@@ -1,0 +1,100 @@
+---
+title: 'RemoteWallet receive forwarding'
+description: 'Owner-scoped, auditable forwarding actions for active NWC wallets.'
+---
+
+## Overview
+
+Any authenticated user can turn an active `SEND_RECEIVE` NWC RemoteWallet
+into a personal proxy. Every new incoming payment is journaled and forwarded
+to one or more Lightning Addresses, while a configurable fee remains in the
+wallet. The default fee is **0.5% + 1 sat**.
+
+This feature is independent from the operator-managed LUD-16 proxy. Existing
+wallets start with forwarding disabled, and future wallet drivers can join
+through the same action abstraction after they provide equivalent receive,
+pay, and reconciliation guarantees.
+
+## Accounting
+
+The immutable action revision stores `feeBps`, `baseFeeMsats`, and destination
+allocations totaling exactly 10,000 bps. Calculations use integer
+millisatoshis:
+
+```text
+retained = ceil(gross × feeBps / 10,000) + base fee
+net      = gross − retained
+```
+
+If the net is not positive, the receipt closes as `RETAINED`. Otherwise,
+largest-remainder allocation distributes every millisatoshi deterministically.
+Before requesting a destination invoice, the engine keeps a routing reserve
+of **1% + 1 sat** for that leg; the percentage is rounded up to whole sats.
+The planned reserve, actual routing fee, unused reserve and any overage are
+audited separately. A destination invoice may be up to 10 sats smaller than
+that reduced request, but never larger; that separate shortfall is also
+recorded and retained.
+
+## Safety and recovery
+
+- The webhook persists a receipt keyed by wallet and source payment hash
+  before acknowledging the listener event.
+- Workers claim receipts with a per-wallet lease and `FOR UPDATE SKIP LOCKED`.
+- Attempts are persisted before payment and use deterministic listener
+  journal request IDs.
+- A `PENDING` or `UNKNOWN` payment is never republished until its outcome is
+  proven.
+- Only terminal `INSUFFICIENT_BALANCE` increases the reserve and creates a
+  fresh, lower destination invoice.
+- Legs within one receipt run sequentially; independent receipts can progress
+  concurrently.
+- Database ownership checks prevent a destination invoice from being reused
+  by another leg or by the global proxy.
+- Pausing the action, disabling the wallet, or archiving it prevents new
+  captures, claims, and retries.
+
+Configuration changes are atomic and do not require pausing, but are rejected
+while an uncertain attempt exists. Previously successful legs remain final;
+unpaid legs are superseded and the remaining balance is redistributed under a
+new revision.
+
+## Experience
+
+Open a wallet from **Wallet → Settings → Remote wallets**, or use **Create
+proxy wallet** to select/create an eligible NWC wallet and configure its first
+destination. The wallet detail provides:
+
+- **Overview** — eligibility, action state, fees, destinations, pending amount
+  and pause/resume controls.
+- **Payments received** — ordinary incoming wallet payments and forwarding
+  receipts in one deduplicated, paginated timeline. Forwarded rows expose gross,
+  retained, target, sent, routing cost and receipt state.
+- **Forwarding** — every destination attempt and retry, updated live through
+  SSE without a Refresh button. Payments and attempts have independent cursor
+  pagination.
+- **Receipt detail** — revision, source/destination invoices, request IDs,
+  hashes, preimages, routing fees, shortfalls, errors and safe retry actions.
+
+The same operational panel appears in the administrative RemoteWallet detail,
+while every API remains owner-scoped.
+
+## Notifications and public protocols
+
+A RemoteWallet can emit independent `RECEIVED` and `FORWARDED` notifications
+to HTTPS webhooks or Nostr. Deliveries and attempts are journaled and
+lease-protected: webhook outcomes that may have been sent become `UNKNOWN`
+rather than risking a duplicate, while a Nostr retry republishes the same
+signed event. Nostr notifications support configurable kind, `p` tag, relays,
+templated content, and optional NIP-44 encryption. The detail UI can pause or
+resume channels and follows delivery state through owner-scoped SSE updates.
+
+RemoteWallet-backed Lightning Addresses always expose LUD-21 verification.
+They advertise NIP-57 only if the NWC listener is enabled and the instance
+receipt signer is available, because settlement must be observed before a
+kind `9735` zap receipt can be published. The signer is the root-domain
+NIP-05 identity (`_`); public NIP-05 resolves to hex keys even when the UI
+displays an `npub`.
+
+NIP-05, LNURL-pay, LUD-21 verification, and their `OPTIONS` responses are
+public CORS endpoints. The operational API and recovery guidance are in the
+[RemoteWallet forwarding service guide](https://github.com/lawalletio/lawallet-nwc/blob/main/docs/services/REMOTE-WALLET-FORWARDING.md).

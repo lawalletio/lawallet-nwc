@@ -1,6 +1,10 @@
 import { test as base, type Page } from '@playwright/test'
 import { createJwtToken } from '../../lib/jwt'
 import { Role, getRolePermissions } from '../../lib/auth/permissions'
+import {
+  DEV_ADMIN_PUBKEY,
+  DEV_ADMIN_USER_ID
+} from '../../lib/dev-identity'
 import { E2E_JWT_SECRET } from '../env'
 
 /**
@@ -18,15 +22,20 @@ import { E2E_JWT_SECRET } from '../env'
 
 // Seeded identities — fixed pubkeys from apps/web/mocks/user.ts, inserted by
 // the deterministic seed in global-setup.
-export const SEEDED_ADMIN_PUBKEY =
-  'npub1xyz123abc456def789ghi012jkl345mno678pqr901stu234vwx567yz890'
+export const SEEDED_ADMIN_PUBKEY = DEV_ADMIN_PUBKEY
+export const SEEDED_ADMIN_USER_ID = DEV_ADMIN_USER_ID
 export const SEEDED_USER_PUBKEY =
   'npub1abc456def789ghi012jkl345mno678pqr901stu234vwx567yz890xyz123'
 
-export function mintSessionToken(pubkey: string, role: Role): string {
+export function mintSessionToken(
+  pubkey: string,
+  role: Role,
+  userId =
+    pubkey === SEEDED_ADMIN_PUBKEY ? SEEDED_ADMIN_USER_ID : pubkey
+): string {
   return createJwtToken(
     {
-      userId: pubkey,
+      userId,
       pubkey,
       role,
       permissions: getRolePermissions(role)
@@ -40,8 +49,13 @@ export function mintSessionToken(pubkey: string, role: Role): string {
   )
 }
 
-async function loginAs(page: Page, pubkey: string, role: Role) {
-  const token = mintSessionToken(pubkey, role)
+async function loginAs(
+  page: Page,
+  pubkey: string,
+  role: Role,
+  userId = pubkey
+) {
+  const token = mintSessionToken(pubkey, role, userId)
   await page.addInitScript(
     ([key, value]) => {
       localStorage.setItem(key, value)
@@ -61,7 +75,12 @@ export const test = base.extend<AuthFixtures>({
   // The fixture callback's second argument is conventionally named `use`,
   // but that trips eslint's react-hooks rule — `provide` is the same thing.
   adminPage: async ({ page }, provide) => {
-    await loginAs(page, SEEDED_ADMIN_PUBKEY, Role.ADMIN)
+    await loginAs(
+      page,
+      SEEDED_ADMIN_PUBKEY,
+      Role.ADMIN,
+      SEEDED_ADMIN_USER_ID
+    )
     await provide(page)
   },
   userPage: async ({ page }, provide) => {

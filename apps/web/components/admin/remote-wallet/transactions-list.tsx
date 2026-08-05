@@ -7,7 +7,10 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Copy
+  Copy,
+  FileJson,
+  Radio,
+  Zap
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -81,7 +84,7 @@ export function WalletTransactionsList({
           const incoming = tx.type === 'incoming'
           const when = tx.settledAt ?? tx.createdAt
           return (
-            <li key={tx.paymentHash || `${tx.type}-${when}`}>
+            <li key={`${tx.type}:${tx.paymentHash || when}`}>
               <button
                 type="button"
                 onClick={() => setSelected(tx)}
@@ -163,15 +166,37 @@ export function WalletTransactionsList({
         onOpenChange={open => !open && setSelected(null)}
       >
         <DialogContent className="sm:max-w-md">
-          {selected && <TransactionDetail tx={selected} />}
+          {selected && <WalletTransactionDetail tx={selected} />}
         </DialogContent>
       </Dialog>
     </div>
   )
 }
 
-function TransactionDetail({ tx }: { tx: NwcTransaction }) {
+export interface WalletTransactionZap {
+  request: unknown
+  requestJson: string
+  receipt: unknown | null
+  receiptJson: string | null
+  receiptEventId: string | null
+  receiptPublishedAt: string | null
+  error: string | null
+  nextRetryAt: string | null
+}
+
+export function WalletTransactionDetail({
+  tx,
+  zap = null,
+  zapLoading = false
+}: {
+  tx: NwcTransaction
+  zap?: WalletTransactionZap | null
+  zapLoading?: boolean
+}) {
   const incoming = tx.type === 'incoming'
+  const [artifact, setArtifact] = useState<'request' | 'receipt' | null>(null)
+  const artifactJson =
+    artifact === 'request' ? zap?.requestJson : zap?.receiptJson
   return (
     <>
       <DialogHeader>
@@ -235,9 +260,212 @@ function TransactionDetail({ tx }: { tx: NwcTransaction }) {
           )}
           {tx.preimage && <CopyRow label="Preimage" value={tx.preimage} />}
         </dl>
+
+        {(zap || zapLoading) && (
+          <section className="overflow-hidden rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-background to-background">
+            <div className="flex items-start gap-3 border-b border-amber-500/15 px-4 py-3">
+              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500">
+                <Zap className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <div className="font-medium">NIP-57 zap audit</div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Signed request and receipt are retained with this payment.
+                </p>
+              </div>
+            </div>
+            {zapLoading ? (
+              <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+                <Spinner size={16} />
+                Loading zap artefacts…
+              </div>
+            ) : zap ? (
+              <div className="divide-y divide-amber-500/15">
+                <ZapArtifactRow
+                  icon={<FileJson className="size-4" />}
+                  title="Zap request"
+                  detail="Kind 9734 · captured with the invoice"
+                  badge="Captured"
+                  onOpen={() => setArtifact('request')}
+                />
+                <ZapArtifactRow
+                  icon={<Radio className="size-4" />}
+                  title="Zap receipt"
+                  detail={receiptDetail(zap)}
+                  badge={zap.receiptEventId ? 'Published' : 'Pending'}
+                  pending={!zap.receiptEventId}
+                  onOpen={
+                    zap.receiptJson ? () => setArtifact('receipt') : undefined
+                  }
+                />
+              </div>
+            ) : null}
+          </section>
+        )}
       </div>
+      <Dialog
+        open={artifact !== null}
+        onOpenChange={open => !open && setArtifact(null)}
+      >
+        <DialogContent className="max-h-[85vh] sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {artifact === 'request' ? 'Zap request' : 'Zap receipt'}
+            </DialogTitle>
+          </DialogHeader>
+          {artifactJson && (
+            <ZapEventJson
+              label={
+                artifact === 'request' ? 'Kind 9734 event' : 'Kind 9735 event'
+              }
+              value={artifactJson}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   )
+}
+
+function ZapArtifactRow({
+  icon,
+  title,
+  detail,
+  badge,
+  pending = false,
+  onOpen
+}: {
+  icon: React.ReactNode
+  title: string
+  detail: string
+  badge: string
+  pending?: boolean
+  onOpen?: () => void
+}) {
+  const content = (
+    <>
+      <span
+        className={cn(
+          'flex size-8 shrink-0 items-center justify-center rounded-lg',
+          pending
+            ? 'bg-amber-500/10 text-amber-500'
+            : 'bg-emerald-500/10 text-emerald-500'
+        )}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {detail}
+        </span>
+      </span>
+      <Badge variant={pending ? 'secondary' : 'default'}>{badge}</Badge>
+    </>
+  )
+  return onOpen ? (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-500/5"
+    >
+      {content}
+    </button>
+  ) : (
+    <div className="flex items-center gap-3 px-4 py-3">{content}</div>
+  )
+}
+
+export function ZapEventJson({
+  label,
+  value
+}: {
+  label: string
+  value: string
+}) {
+  const [copied, setCopied] = useState(false)
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      toast.success(`${label} copied`)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      toast.error('Copy failed')
+    }
+  }
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+        <Button type="button" variant="outline" size="sm" onClick={copy}>
+          {copied ? (
+            <Check data-icon="inline-start" />
+          ) : (
+            <Copy data-icon="inline-start" />
+          )}
+          {copied ? 'Copied' : 'Copy JSON'}
+        </Button>
+      </div>
+      <pre className="max-h-[52vh] overflow-auto rounded-xl border bg-muted/30 p-3 font-mono text-xs leading-relaxed text-muted-foreground">
+        {prettyJson(value)}
+      </pre>
+    </div>
+  )
+}
+
+function prettyJson(value: string) {
+  try {
+    return JSON.stringify(decodeNestedJson(JSON.parse(value)), null, 2)
+  } catch {
+    return value
+  }
+}
+
+function decodeNestedJson(value: unknown, depth = 0): unknown {
+  if (depth >= 4) return value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))
+    ) {
+      try {
+        return decodeNestedJson(JSON.parse(trimmed), depth + 1)
+      } catch {
+        return value
+      }
+    }
+    return value
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => decodeNestedJson(item, depth + 1))
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        decodeNestedJson(item, depth + 1)
+      ])
+    )
+  }
+  return value
+}
+
+function receiptDetail(zap: WalletTransactionZap) {
+  if (zap.receiptEventId) {
+    return zap.receiptPublishedAt
+      ? `Kind 9735 · ${formatFull(Date.parse(zap.receiptPublishedAt))}`
+      : 'Kind 9735 · published to requested relays'
+  }
+  if (zap.error) {
+    return zap.nextRetryAt
+      ? `Retrying after ${formatFull(Date.parse(zap.nextRetryAt))}: ${zap.error}`
+      : zap.error
+  }
+  return 'Awaiting listener-confirmed settlement'
 }
 
 function DetailRow({

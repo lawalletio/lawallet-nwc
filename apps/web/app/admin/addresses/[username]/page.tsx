@@ -58,6 +58,7 @@ import {
 import { BalanceCard } from '@/components/wallet/balance-card'
 import { ProxyPendingBalanceCard } from '@/components/wallet/proxy-pending-balance-card'
 import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
+import { AddressReceiveProtocols } from '@/components/wallet/address-receive-protocols'
 import { ProxyAddressWorkspace } from '@/components/wallet/proxy-address-workspace'
 import { ProxyForwardingActivity } from '@/components/wallet/proxy-forwarding-activity'
 import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
@@ -615,18 +616,29 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                 ) : (
                   <p className="max-w-md text-sm text-muted-foreground">
                     Viewing another user&rsquo;s address (read-only). Owner{' '}
-                    <span
-                      className="font-mono text-foreground"
-                      title={data.ownerPubkey}
-                    >
-                      {data.ownerPubkey
-                        ? truncateNpub(data.ownerPubkey)
-                        : 'unknown'}
-                    </span>
+                    {data.ownerPubkey ? (
+                      <Link
+                        href={`/admin/users/${encodeURIComponent(data.ownerPubkey)}`}
+                        className="font-mono text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        title={`View ${truncateNpub(data.ownerPubkey)} user profile`}
+                        aria-label={`View user profile for ${truncateNpub(data.ownerPubkey)}`}
+                      >
+                        {truncateNpub(data.ownerPubkey)}
+                      </Link>
+                    ) : (
+                      <span className="font-mono text-foreground">unknown</span>
+                    )}
                     .
                   </p>
                 )}
               </div>
+
+              <AddressReceiveProtocols
+                lud21={data.receiveProtocols?.lud21 ?? false}
+                nip57={data.receiveProtocols?.nip57 ?? false}
+                source={data.receiveProtocols?.source ?? 'unavailable'}
+                reason={data.receiveProtocols?.reason ?? null}
+              />
 
               <ProxyAddressWorkspace
                 enabled={isOwner && persistedMode === 'PROXY_ALIAS'}
@@ -733,29 +745,57 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                       className="bg-card"
                       id="address-mode-settings"
                     >
-                      <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/40">
-                        <div className="flex flex-col gap-0.5 min-w-0">
-                          <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                            Mode
-                          </span>
-                          <span className="truncate text-sm font-medium">
-                            {MODE_DESCRIPTIONS[data.address.mode].label}
-                            {(data.address.mode === 'ALIAS' ||
-                              data.address.mode === 'PROXY_ALIAS') &&
-                              data.address.redirect && (
-                                <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
-                                  → {data.address.redirect}
+                      <div className="flex items-center gap-3 px-5 py-3">
+                        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md py-1 text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <div className="flex min-w-0 flex-col gap-0.5">
+                            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                              Mode
+                            </span>
+                            <span className="truncate text-sm font-medium">
+                              {MODE_DESCRIPTIONS[data.address.mode].label}
+                              {(data.address.mode === 'ALIAS' ||
+                                data.address.mode === 'PROXY_ALIAS') &&
+                                data.address.redirect && (
+                                  <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+                                    → {data.address.redirect}
+                                  </span>
+                                )}
+                            </span>
+                            {data.address.mode === 'CUSTOM_NWC' &&
+                              boundWallet && (
+                                <span className="truncate text-xs text-muted-foreground">
+                                  Connected to {boundWallet.name}
                                 </span>
                               )}
-                          </span>
-                        </div>
-                        <ChevronDown
-                          className={cn(
-                            'size-4 shrink-0 text-muted-foreground transition-transform',
-                            modeOpen && 'rotate-180'
-                          )}
-                        />
-                      </CollapsibleTrigger>
+                          </div>
+                          <ChevronDown
+                            className={cn(
+                              'size-4 shrink-0 text-muted-foreground transition-transform',
+                              modeOpen && 'rotate-180'
+                            )}
+                          />
+                        </CollapsibleTrigger>
+
+                        {data.address.mode === 'CUSTOM_NWC' && boundWallet && (
+                          <Button
+                            asChild
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 gap-1.5"
+                          >
+                            <Link
+                              href={`/admin/remote-wallets/${boundWallet.id}`}
+                              aria-label={`View remote wallet ${boundWallet.name}`}
+                            >
+                              <Wallet className="size-3.5" aria-hidden />
+                              <span className="hidden sm:inline">
+                                View wallet
+                              </span>
+                              <ExternalLink className="size-3.5" aria-hidden />
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
                       <CollapsibleContent className="border-t border-border/60">
                         <form
                           onSubmit={handleModeSubmit}
@@ -1017,10 +1057,6 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                       </CollapsibleContent>
                     </Collapsible>
                   )}
-
-                  {isOwner && persistedMode !== 'PROXY_ALIAS' ? (
-                    <AddressInvoicesCard username={username} embedded />
-                  ) : null}
                 </div>
               </ProxyAddressWorkspace>
 

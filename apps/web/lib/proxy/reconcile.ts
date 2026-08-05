@@ -651,7 +651,7 @@ async function finishForwarding(
   if (!receiptPrivateKey || !payment.zapRequestJson) {
     throw new Error('Zap receipt signer is not configured')
   }
-  const receiptEventId = await publishZapReceipt({
+  const receipt = await publishZapReceipt({
     zapRequest: payment.zapRequest as unknown as Event,
     zapRequestJson: payment.zapRequestJson,
     payerInvoice: payment.invoice.bolt11,
@@ -665,7 +665,7 @@ async function finishForwarding(
     where: { id: payment.id, leaseOwner: workerId },
     data: {
       status: 'COMPLETED',
-      receiptEventId,
+      receiptEventId: receipt.event.id,
       receiptPublishedAt: new Date(),
       leaseOwner: null,
       leaseExpiresAt: null,

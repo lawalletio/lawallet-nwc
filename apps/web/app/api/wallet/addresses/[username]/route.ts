@@ -30,6 +30,7 @@ import {
 import { getActiveProxyConfig, isProxyEnabled } from '@/lib/proxy/config'
 import { getListenerConfig } from '@/lib/listener-config'
 import { resolvePublicEndpoint } from '@/lib/public-url'
+import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -75,6 +76,51 @@ function toWalletSummaryWithPrimary(
   return {
     ...toWalletSummary(w),
     isDefault: w.id === primaryWallet?.id
+  }
+}
+
+type AddressReceiveProtocols = {
+  lud21: boolean
+  nip57: boolean
+  source: 'proxy' | 'wallet' | 'unavailable'
+  reason: string | null
+}
+
+/**
+ * Mirrors the public LUD-16 route's effective capability. A deferred proxy
+ * owns both the LUD-21 verification path and NIP-57 receipt lifecycle, so
+ * report it as the provider instead of attributing it to the linked wallet.
+ */
+async function getAddressReceiveProtocols(
+  mode: string
+): Promise<AddressReceiveProtocols> {
+  if (mode === 'PROXY_ALIAS') {
+    const [proxy, listener] = await Promise.all([
+      getActiveProxyConfig(),
+      getListenerConfig()
+    ])
+    const ready = Boolean(proxy && listener.enabled)
+    const nip57 = Boolean(
+      ready && proxy?.receiptPrivateKey && proxy.row.receiptPubkey
+    )
+    return {
+      lud21: ready,
+      nip57,
+      source: ready ? 'proxy' : 'unavailable',
+      reason: ready
+        ? nip57
+          ? null
+          : 'The proxy zap receipt signer is not configured.'
+        : 'Deferred proxy requires an enabled listener and proxy wallet.'
+    }
+  }
+
+  const capability = await getZapReceiptCapability()
+  return {
+    lud21: capability.lud21,
+    nip57: capability.nip57,
+    source: 'wallet',
+    reason: capability.reason
   }
 }
 
@@ -124,11 +170,12 @@ export const GET = withErrorHandling(
       // Same 404 as a genuine miss so non-admins can't enumerate usernames.
       if (!canRead) throw new NotFoundError('Address not found')
 
-      const [primaryWallet, selectable, deferredProxyEnabled] =
+      const [primaryWallet, selectable, deferredProxyEnabled, receiveProtocols] =
         await Promise.all([
           getPrimaryRemoteWalletForUser(address.userId),
           selectableWallets(address.userId),
-          isProxyEnabled()
+          isProxyEnabled(),
+          getAddressReceiveProtocols(address.mode)
         ])
       const wallets = sortWalletsWithPrimary(selectable, primaryWallet)
 
@@ -139,16 +186,18 @@ export const GET = withErrorHandling(
         // an admin viewing someone else's address.
         effectiveConnectionString: null,
         deferredProxyEnabled,
+        receiveProtocols,
         isOwner: false,
         ownerPubkey: address.user.pubkey
       })
     }
 
-    const [primaryWallet, selectable, deferredProxyEnabled] = await Promise.all(
+    const [primaryWallet, selectable, deferredProxyEnabled, receiveProtocols] = await Promise.all(
       [
         getPrimaryRemoteWalletForUser(caller.id),
         selectableWallets(caller.id),
-        isProxyEnabled()
+        isProxyEnabled(),
+        getAddressReceiveProtocols(address.mode)
       ]
     )
     const wallets = sortWalletsWithPrimary(selectable, primaryWallet)
@@ -174,6 +223,7 @@ export const GET = withErrorHandling(
       wallets: wallets.map(w => toWalletSummaryWithPrimary(w, primaryWallet)),
       effectiveConnectionString,
       deferredProxyEnabled,
+      receiveProtocols,
       isOwner: true,
       ownerPubkey: auth.pubkey
     })

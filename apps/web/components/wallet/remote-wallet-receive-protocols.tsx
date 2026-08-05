@@ -1,0 +1,122 @@
+import type { ReactNode } from 'react'
+import { Radio, ShieldCheck } from 'lucide-react'
+import { nip19 } from 'nostr-tools'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+
+function displayNpub(pubkey: string) {
+  if (pubkey.startsWith('npub1')) return pubkey
+  return /^[0-9a-f]{64}$/i.test(pubkey)
+    ? nip19.npubEncode(pubkey.toLowerCase())
+    : pubkey
+}
+
+export function RemoteWalletReceiveProtocols({
+  active,
+  capabilities
+}: {
+  active: boolean
+  capabilities?: {
+    lud21: true
+    nip57: boolean
+    receiptPubkey: string | null
+    reason: string | null
+  }
+}) {
+  const zapEnabled = active && capabilities?.nip57 === true
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-card/70">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-5 py-4">
+        <div>
+          <h2 className="font-semibold">Receive protocols</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Settlement verification and zap-receipt support for this wallet.
+          </p>
+        </div>
+        <Badge variant={active ? 'secondary' : 'outline'}>
+          {active ? 'Wallet active' : 'Wallet inactive'}
+        </Badge>
+      </div>
+      <div className="grid divide-y divide-border/60 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <ProtocolLine
+          icon={<ShieldCheck className="size-4" />}
+          title="LUD-21 verification"
+          detail={
+            active
+              ? 'Enabled · senders can verify an issued invoice by payment hash.'
+              : 'Available when this RemoteWallet is active.'
+          }
+          enabled={active}
+        />
+        <ProtocolLine
+          icon={<Radio className="size-4" />}
+          title="NIP-57 zaps"
+          detail={
+            zapEnabled
+              ? 'Enabled · listener-confirmed payments publish a signed receipt.'
+              : (capabilities?.reason ??
+                'Requires an active wallet, listener, and zap receipt signer.')
+          }
+          enabled={zapEnabled}
+        />
+      </div>
+      {zapEnabled && capabilities?.receiptPubkey && (
+        <div className="border-t border-border/60 bg-muted/20 px-5 py-3 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">Receipt signer</span>{' '}
+          <code
+            className="ml-1 break-all font-mono"
+            title={capabilities.receiptPubkey}
+          >
+            {displayNpub(capabilities.receiptPubkey)}
+          </code>{' '}
+          · exposed as NIP-05 <code>_</code> on this domain
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ProtocolLine({
+  icon,
+  title,
+  detail,
+  enabled
+}: {
+  icon: ReactNode
+  title: string
+  detail: string
+  enabled: boolean
+}) {
+  return (
+    <div className="flex gap-3 px-5 py-4">
+      <span
+        className={cn(
+          'mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg',
+          enabled
+            ? 'bg-emerald-500/10 text-emerald-500'
+            : 'bg-muted text-muted-foreground'
+        )}
+      >
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium">{title}</span>
+          <Badge
+            className={cn(
+              enabled
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                : ''
+            )}
+            variant={enabled ? 'outline' : 'secondary'}
+          >
+            {enabled ? 'Enabled' : 'Unavailable'}
+          </Badge>
+        </div>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          {detail}
+        </p>
+      </div>
+    </div>
+  )
+}

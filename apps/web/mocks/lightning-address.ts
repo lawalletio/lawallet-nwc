@@ -1,9 +1,10 @@
 import type { LightningAddress } from '@/types/lightning-address'
+import { DEV_ADMIN_PUBKEY } from '@/lib/dev-identity'
 
 export const mockLightningAddressData: LightningAddress[] = [
   {
     username: 'alice',
-    pubkey: 'npub1xyz123abc456def789ghi012jkl345mno678pqr901stu234vwx567yz890',
+    pubkey: DEV_ADMIN_PUBKEY,
     createdAt: new Date('2024-01-10T08:00:00Z'),
     nwc: 'nostr+walletconnect://69effe7b49a6dd5cf525bd0905917a5005ffe480b58eeb8e861418cf3ae760d9?relay=wss%3A%2F%2Frelay.getalby.com%2Fv1&secret=d07195c8b86564c0d0c7c7d1c8b7e1a2f3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8'
   },

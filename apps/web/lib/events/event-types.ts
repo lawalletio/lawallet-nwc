@@ -13,6 +13,8 @@ export type SSEEventType =
   | 'users:updated'
   | 'activity:new'
   | 'listener:updated'
+  | 'remote-wallet-forwarding:updated'
+  | 'remote-wallet-notifications:updated'
 
 export interface SSEEvent {
   type: SSEEventType
@@ -30,5 +32,7 @@ export const ALL_SSE_EVENT_TYPES: readonly SSEEventType[] = [
   'invoices:updated',
   'users:updated',
   'activity:new',
-  'listener:updated'
+  'listener:updated',
+  'remote-wallet-forwarding:updated',
+  'remote-wallet-notifications:updated'
 ] as const

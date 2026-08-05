@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
+import { DEV_ADMIN_PUBKEY, DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
@@ -43,6 +44,9 @@ describe('POST /api/dev/login', () => {
     expect(body.token).toBeTruthy()
     const payload = decodePayload(body.token)
     expect(payload.role).toBe('ADMIN')
+    expect(payload.userId).toBe(DEV_ADMIN_USER_ID)
+    expect(payload.pubkey).toBe(DEV_ADMIN_PUBKEY)
+    expect(payload.pubkey).toMatch(/^[0-9a-f]{64}$/)
     expect(payload.permissions).toContain('cards:write')
     expect(payload.iss).toBe('lawallet-nwc')
     expect(payload.aud).toBe('lawallet-users')

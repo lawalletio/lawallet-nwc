@@ -3,17 +3,9 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import {
-  ArrowLeft,
-  ExternalLink,
-  RefreshCw,
-  Star,
-  Wallet,
-  Zap
-} from 'lucide-react'
+import { ArrowLeft, ExternalLink, Star, Wallet, Zap } from 'lucide-react'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import {
@@ -29,7 +21,9 @@ import { RemoteWalletRowActions } from '@/components/admin/remote-wallet-row-act
 import { WalletActions } from '@/components/admin/connection-map/wallet-detail-dialog'
 import { LncurlCountdown } from '@/components/admin/remote-wallet/lncurl-countdown'
 import { WalletBalanceChart } from '@/components/admin/remote-wallet/balance-chart'
-import { WalletTransactionsList } from '@/components/admin/remote-wallet/transactions-list'
+import { RemoteWalletForwardingPanel } from '@/components/wallet/remote-wallet-forwarding-panel'
+import { RemoteWalletReceiveProtocols } from '@/components/wallet/remote-wallet-receive-protocols'
+import { RemoteWalletNotificationsPanel } from '@/components/wallet/remote-wallet-notifications-panel'
 
 const STATUS_VARIANT: Record<
   RemoteWalletData['status'],
@@ -134,6 +128,11 @@ export default function RemoteWalletDetailPage() {
               </div>
             )}
 
+            <RemoteWalletReceiveProtocols
+              active={isActive}
+              capabilities={wallet.receiveCapabilities}
+            />
+
             {/* Balance + chart */}
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="flex flex-col gap-4">
@@ -173,35 +172,14 @@ export default function RemoteWalletDetailPage() {
               </div>
             </div>
 
-            {/* Transactions */}
-            <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Transactions</h2>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  onClick={() => txs.refetch()}
-                  disabled={txs.loading || !isActive}
-                  aria-label="Refresh transactions"
-                >
-                  <RefreshCw
-                    className={cn('size-4', txs.loading && 'animate-spin')}
-                  />
-                </Button>
-              </div>
-              {isActive ? (
-                <WalletTransactionsList
-                  transactions={txs.data ?? []}
-                  loading={txs.loading || connection.loading}
-                  error={txs.error}
-                />
-              ) : (
-                <p className="py-10 text-center text-sm text-muted-foreground">
-                  Activity is only available for active wallets.
-                </p>
-              )}
-            </div>
+            <RemoteWalletForwardingPanel
+              walletId={wallet.id}
+              transactions={txs.data ?? []}
+              transactionsLoading={txs.loading || connection.loading}
+              transactionsError={txs.error}
+            />
+
+            <RemoteWalletNotificationsPanel walletId={wallet.id} />
           </>
         )}
       </div>

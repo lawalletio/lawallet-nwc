@@ -1,5 +1,6 @@
 import pino, { type Logger } from 'pino'
 import type { ListenerEnv } from './env'
+import { createLogThrottle } from './process-errors'
 
 let root: Logger | null = null
 
@@ -50,12 +51,17 @@ export function createLogger(context?: Record<string, unknown>): Logger {
  */
 export function patchConsole(logger: Logger): void {
   const sdkLog = logger.child({ module: 'console' })
-  console.log = (...args: unknown[]) =>
-    sdkLog.info({ args: args.slice(1) }, String(args[0]))
-  console.info = (...args: unknown[]) =>
-    sdkLog.info({ args: args.slice(1) }, String(args[0]))
-  console.warn = (...args: unknown[]) =>
-    sdkLog.warn({ args: args.slice(1) }, String(args[0]))
-  console.error = (...args: unknown[]) =>
-    sdkLog.error({ args: args.slice(1) }, String(args[0]))
+  const take = createLogThrottle({ windowMs: 30_000, maxTracked: 50 })
+
+  const emit = (level: 'info' | 'warn' | 'error', args: unknown[]): void => {
+    const message = String(args[0])
+    const suppressed = take(`${level}:${message}`)
+    if (suppressed === null) return
+    sdkLog[level]({ args: args.slice(1), suppressed }, message)
+  }
+
+  console.log = (...args: unknown[]) => emit('info', args)
+  console.info = (...args: unknown[]) => emit('info', args)
+  console.warn = (...args: unknown[]) => emit('warn', args)
+  console.error = (...args: unknown[]) => emit('error', args)
 }

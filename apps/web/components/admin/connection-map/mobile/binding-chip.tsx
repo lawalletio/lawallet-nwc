@@ -30,15 +30,10 @@ export function BindingChip({
   return (
     <button
       type="button"
-      onClick={e => {
-        // Row taps open the detail dialog; the chip must not bubble up
-        // to that handler or tapping the chip would do both.
-        e.stopPropagation()
-        onClick()
-      }}
+      onClick={onClick}
       disabled={disabled}
       className={cn(
-        'inline-flex max-w-[9.5rem] shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50',
+        'inline-flex max-w-[9.5rem] shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50',
         tone === 'bound' &&
           'border-border bg-secondary text-secondary-foreground hover:bg-secondary/80',
         tone === 'default' &&

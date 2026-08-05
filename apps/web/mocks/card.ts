@@ -1,4 +1,5 @@
 import type { Card } from '@/types/card'
+import { DEV_ADMIN_PUBKEY } from '@/lib/dev-identity'
 import { mockCardDesignData } from './card-design'
 import { mockNtag424Data } from './ntag424'
 
@@ -10,7 +11,7 @@ export const mockCardData: Card[] = [
     createdAt: new Date('2024-01-15T10:30:00Z'),
     ntag424: mockNtag424Data[0],
     lastUsedAt: new Date('2024-03-01T14:22:00Z'),
-    pubkey: 'npub1xyz123abc456def789ghi012jkl345mno678pqr901stu234vwx567yz890',
+    pubkey: DEV_ADMIN_PUBKEY,
     username: 'pipo',
     otc: 'OTC789ABC123'
   },

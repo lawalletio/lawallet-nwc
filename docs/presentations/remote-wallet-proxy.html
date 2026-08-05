@@ -1,0 +1,2123 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Presentación técnica del proxy propio para RemoteWallet en LaWallet NWC"
+    />
+    <title>RemoteWallet Proxy — LaWallet NWC</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #070907;
+        --panel: #0d110f;
+        --panel-2: #121814;
+        --line: #2a332d;
+        --line-hot: #506257;
+        --paper: #edf3eb;
+        --muted: #9fa9a2;
+        --green: #35e47a;
+        --green-soft: #163823;
+        --amber: #ffb000;
+        --amber-soft: #412f0b;
+        --red: #ff5c57;
+        --blue: #69b7ff;
+        --shadow: 0 28px 90px rgb(0 0 0 / 0.55);
+        --display:
+          'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+        --mono:
+          'SFMono-Regular', 'Cascadia Mono', 'Liberation Mono', Menlo, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        background: var(--ink);
+        color: var(--paper);
+      }
+
+      body {
+        overflow: hidden;
+        font-family: var(--mono);
+        background-image:
+          linear-gradient(rgb(53 228 122 / 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgb(53 228 122 / 0.035) 1px, transparent 1px),
+          radial-gradient(
+            circle at 78% 18%,
+            rgb(255 176 0 / 0.09),
+            transparent 30%
+          );
+        background-size:
+          28px 28px,
+          28px 28px,
+          auto;
+      }
+
+      button,
+      a {
+        font: inherit;
+      }
+
+      button:focus-visible,
+      a:focus-visible {
+        outline: 2px solid var(--green);
+        outline-offset: 3px;
+      }
+
+      .deck {
+        position: relative;
+        width: 100vw;
+        height: 100dvh;
+        isolation: isolate;
+      }
+
+      .deck::before {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        border: 1px solid rgb(255 255 255 / 0.08);
+        pointer-events: none;
+        content: '';
+      }
+
+      .slide {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: clamp(1rem, 2.2vw, 2rem);
+        width: 100%;
+        height: 100%;
+        padding: clamp(1.25rem, 4vw, 4.5rem) clamp(1.25rem, 5.5vw, 6.5rem)
+          clamp(4.5rem, 7vw, 6.2rem);
+        overflow: auto;
+        visibility: hidden;
+        opacity: 0;
+        transform: translateX(34px);
+        transition:
+          opacity 220ms ease,
+          transform 260ms ease,
+          visibility 0s linear 260ms;
+      }
+
+      .slide.active {
+        z-index: 2;
+        visibility: visible;
+        opacity: 1;
+        transform: none;
+        transition-delay: 0s;
+      }
+
+      .slide.active .reveal {
+        animation: rise 500ms both;
+        animation-delay: calc(var(--i, 0) * 70ms + 80ms);
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      .eyebrow,
+      .kicker {
+        color: var(--green);
+        font-size: clamp(0.64rem, 0.82vw, 0.82rem);
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .slide-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 2rem;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 1rem;
+      }
+
+      .slide-head h2 {
+        max-width: 20ch;
+        margin: 0.3rem 0 0;
+        font-family: var(--display);
+        font-size: clamp(2rem, 4.2vw, 4.8rem);
+        font-weight: 500;
+        letter-spacing: -0.045em;
+        line-height: 0.95;
+      }
+
+      .chapter {
+        color: var(--muted);
+        font-size: 0.74rem;
+        letter-spacing: 0.08em;
+        text-align: right;
+        text-transform: uppercase;
+      }
+
+      .chapter b {
+        display: block;
+        color: var(--amber);
+        font-size: 1.2rem;
+      }
+
+      .slide-body {
+        display: grid;
+        align-content: center;
+        min-height: 0;
+      }
+
+      .slide-foot {
+        display: flex;
+        justify-content: space-between;
+        color: #78827b;
+        font-size: 0.68rem;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      .title-slide {
+        grid-template-rows: 1fr auto;
+      }
+
+      .title-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(17rem, 0.75fr);
+        gap: clamp(2rem, 6vw, 7rem);
+        align-items: center;
+      }
+
+      .title-layout > * {
+        min-width: 0;
+      }
+
+      .title-layout h1 {
+        max-width: 12ch;
+        margin: 1.4rem 0;
+        font-family: var(--display);
+        font-size: clamp(3.8rem, 8.8vw, 10rem);
+        font-weight: 500;
+        letter-spacing: -0.07em;
+        line-height: 0.79;
+        overflow-wrap: anywhere;
+      }
+
+      .title-layout h1 em {
+        color: var(--amber);
+        font-style: normal;
+      }
+
+      .lede {
+        max-width: 62ch;
+        margin: 0;
+        color: var(--muted);
+        font-size: clamp(0.95rem, 1.4vw, 1.3rem);
+        line-height: 1.6;
+      }
+
+      .signal-card {
+        position: relative;
+        display: grid;
+        gap: 1.2rem;
+        padding: clamp(1.4rem, 2.7vw, 2.7rem);
+        border: 1px solid var(--line-hot);
+        background: rgb(10 14 11 / 0.86);
+        box-shadow: var(--shadow);
+      }
+
+      .signal-card::before,
+      .signal-card::after {
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        content: '';
+      }
+
+      .signal-card::before {
+        top: -1px;
+        left: -1px;
+        border-top: 3px solid var(--green);
+        border-left: 3px solid var(--green);
+      }
+
+      .signal-card::after {
+        right: -1px;
+        bottom: -1px;
+        border-right: 3px solid var(--amber);
+        border-bottom: 3px solid var(--amber);
+      }
+
+      .signal {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        color: var(--paper);
+      }
+
+      .signal::before {
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 18px var(--green);
+        content: '';
+      }
+
+      .big-stat {
+        font-family: var(--display);
+        font-size: clamp(2.8rem, 5vw, 5rem);
+        letter-spacing: -0.05em;
+      }
+
+      .big-stat small {
+        display: block;
+        margin-top: 0.3rem;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .grid-2,
+      .grid-3,
+      .grid-4 {
+        display: grid;
+        gap: clamp(1rem, 2vw, 1.8rem);
+      }
+
+      .grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid-4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .card {
+        padding: clamp(1rem, 1.8vw, 1.7rem);
+        border: 1px solid var(--line);
+        background: rgb(13 17 15 / 0.78);
+      }
+
+      .card.hot {
+        border-color: #755710;
+        background: linear-gradient(
+          135deg,
+          rgb(65 47 11 / 0.65),
+          rgb(13 17 15 / 0.82)
+        );
+      }
+
+      .card.green {
+        border-color: #23643c;
+        background: linear-gradient(
+          135deg,
+          rgb(22 56 35 / 0.72),
+          rgb(13 17 15 / 0.82)
+        );
+      }
+
+      .card h3,
+      .card h4 {
+        margin: 0 0 0.75rem;
+        font-family: var(--display);
+        font-weight: 500;
+        letter-spacing: -0.02em;
+      }
+
+      .card h3 {
+        font-size: clamp(1.45rem, 2.5vw, 2.4rem);
+      }
+
+      .card h4 {
+        font-size: clamp(1.15rem, 1.6vw, 1.55rem);
+      }
+
+      .card p,
+      .card li {
+        color: var(--muted);
+        font-size: clamp(0.74rem, 0.95vw, 0.94rem);
+        line-height: 1.55;
+      }
+
+      .card p:last-child {
+        margin-bottom: 0;
+      }
+
+      .card ul {
+        margin: 0;
+        padding-left: 1.2rem;
+      }
+
+      .number {
+        display: inline-grid;
+        place-items: center;
+        width: 2rem;
+        height: 2rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--green);
+        color: var(--green);
+        font-size: 0.78rem;
+      }
+
+      .compare {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        gap: clamp(1rem, 2vw, 2rem);
+        align-items: stretch;
+      }
+
+      .versus {
+        display: grid;
+        place-items: center;
+        color: var(--amber);
+        font-family: var(--display);
+        font-size: 2rem;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        min-height: 1.8rem;
+        padding: 0.35rem 0.6rem;
+        border: 1px solid var(--line-hot);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 0.67rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .tag::before {
+        width: 0.42rem;
+        height: 0.42rem;
+        border-radius: 50%;
+        background: currentcolor;
+        content: '';
+      }
+
+      .tag.green {
+        border-color: #23643c;
+        color: var(--green);
+      }
+
+      .tag.amber {
+        border-color: #755710;
+        color: var(--amber);
+      }
+
+      .tag.red {
+        border-color: #6f2c2a;
+        color: var(--red);
+      }
+
+      .mono {
+        font-family: var(--mono);
+      }
+
+      .accent {
+        color: var(--green);
+      }
+
+      .amber {
+        color: var(--amber);
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 0;
+        align-items: center;
+      }
+
+      .flow-node {
+        position: relative;
+        min-height: 8rem;
+        padding: 1.1rem 0.9rem;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .flow-node:not(:last-child)::after {
+        position: absolute;
+        top: 50%;
+        right: -1.2rem;
+        z-index: 2;
+        width: 2.3rem;
+        height: 1px;
+        background: var(--amber);
+        box-shadow: 0 0 8px rgb(255 176 0 / 0.55);
+        content: '';
+      }
+
+      .flow-node .step {
+        color: var(--amber);
+        font-size: 0.66rem;
+        letter-spacing: 0.12em;
+      }
+
+      .flow-node b {
+        display: block;
+        margin: 0.8rem 0 0.5rem;
+        font-family: var(--display);
+        font-size: clamp(1rem, 1.5vw, 1.45rem);
+        font-weight: 500;
+      }
+
+      .flow-node small {
+        color: var(--muted);
+        font-size: clamp(0.58rem, 0.72vw, 0.72rem);
+        line-height: 1.45;
+      }
+
+      .flow-callout {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 1rem;
+        align-items: start;
+        margin-top: 1.5rem;
+        padding: 1rem 1.2rem;
+        border-left: 3px solid var(--green);
+        background: rgb(22 56 35 / 0.35);
+        color: var(--muted);
+        font-size: clamp(0.7rem, 0.9vw, 0.9rem);
+        line-height: 1.55;
+      }
+
+      .flow-callout strong {
+        color: var(--green);
+        white-space: nowrap;
+      }
+
+      .formula {
+        padding: clamp(1.3rem, 2.5vw, 2.5rem);
+        border: 1px solid #755710;
+        background: rgb(33 24 7 / 0.76);
+        color: #ffe0a0;
+        font-size: clamp(1rem, 1.7vw, 1.65rem);
+        line-height: 1.9;
+      }
+
+      .waterfall {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 0.7rem;
+        align-items: end;
+        min-height: 16rem;
+      }
+
+      .bar {
+        display: grid;
+        align-content: end;
+        min-height: var(--h);
+        padding: 1rem;
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+      }
+
+      .bar b {
+        display: block;
+        color: var(--paper);
+        font-family: var(--display);
+        font-size: clamp(1.1rem, 2vw, 2rem);
+        font-weight: 500;
+      }
+
+      .bar small {
+        color: var(--muted);
+        font-size: 0.62rem;
+        line-height: 1.4;
+        text-transform: uppercase;
+      }
+
+      .bar.fee {
+        border-color: #755710;
+        background: var(--amber-soft);
+      }
+
+      .bar.dest {
+        border-color: #23643c;
+        background: var(--green-soft);
+      }
+
+      .er {
+        display: grid;
+        grid-template-columns: 1fr 1.16fr 1fr;
+        grid-template-areas:
+          'wallet action revision'
+          '. receipt destination'
+          '. leg .'
+          '. attempt .';
+        gap: 1rem 2.7rem;
+        align-items: center;
+      }
+
+      .entity {
+        position: relative;
+        min-width: 0;
+        border: 1px solid var(--line-hot);
+        background: rgb(13 17 15 / 0.94);
+        box-shadow: 0 12px 28px rgb(0 0 0 / 0.22);
+      }
+
+      .entity h3 {
+        margin: 0;
+        padding: 0.7rem 0.85rem;
+        border-bottom: 1px solid var(--line-hot);
+        color: var(--green);
+        font-size: clamp(0.72rem, 0.9vw, 0.9rem);
+        letter-spacing: 0.05em;
+      }
+
+      .entity ul {
+        display: grid;
+        gap: 0.32rem;
+        margin: 0;
+        padding: 0.65rem 0.85rem 0.8rem;
+        list-style: none;
+      }
+
+      .entity li {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        color: var(--paper);
+        font-size: clamp(0.55rem, 0.68vw, 0.7rem);
+      }
+
+      .entity li span {
+        color: var(--muted);
+      }
+
+      .entity .relation {
+        position: absolute;
+        color: var(--amber);
+        font-size: 0.62rem;
+        white-space: nowrap;
+      }
+
+      .e-wallet {
+        grid-area: wallet;
+      }
+      .e-action {
+        grid-area: action;
+        border-color: #23643c;
+      }
+      .e-revision {
+        grid-area: revision;
+      }
+      .e-destination {
+        grid-area: destination;
+      }
+      .e-receipt {
+        grid-area: receipt;
+        border-color: #755710;
+      }
+      .e-leg {
+        grid-area: leg;
+      }
+      .e-attempt {
+        grid-area: attempt;
+      }
+
+      .e-wallet::after,
+      .e-action::after,
+      .e-revision::after,
+      .e-receipt::after,
+      .e-leg::after {
+        position: absolute;
+        z-index: -1;
+        background: var(--line-hot);
+        content: '';
+      }
+
+      .e-wallet::after,
+      .e-action::after,
+      .e-revision::after {
+        top: 50%;
+        right: -2.75rem;
+        width: 2.75rem;
+        height: 1px;
+      }
+
+      .e-receipt::after,
+      .e-leg::after {
+        bottom: -1.05rem;
+        left: 50%;
+        width: 1px;
+        height: 1.05rem;
+      }
+
+      .state-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: clamp(1.2rem, 3vw, 3rem);
+      }
+
+      .state-machine {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+        align-items: center;
+      }
+
+      .state {
+        padding: 0.7rem 0.85rem;
+        border: 1px solid var(--line-hot);
+        background: var(--panel);
+        color: var(--paper);
+        font-size: clamp(0.62rem, 0.82vw, 0.82rem);
+      }
+
+      .state.good {
+        border-color: #23643c;
+        color: var(--green);
+      }
+
+      .state.warn {
+        border-color: #755710;
+        color: var(--amber);
+      }
+
+      .state.bad {
+        border-color: #6f2c2a;
+        color: var(--red);
+      }
+
+      .arrow {
+        color: var(--line-hot);
+      }
+
+      .rail {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        margin: 1rem 0 2rem;
+      }
+
+      .rail::before {
+        position: absolute;
+        top: 1.05rem;
+        right: 9%;
+        left: 9%;
+        height: 1px;
+        background: var(--line-hot);
+        content: '';
+      }
+
+      .rail-item {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+      }
+
+      .rail-dot {
+        display: grid;
+        place-items: center;
+        width: 2.1rem;
+        height: 2.1rem;
+        margin: 0 auto 0.8rem;
+        border: 1px solid var(--green);
+        border-radius: 50%;
+        background: var(--ink);
+        color: var(--green);
+        font-size: 0.65rem;
+      }
+
+      .rail-item b {
+        display: block;
+        font-family: var(--display);
+        font-size: clamp(0.9rem, 1.3vw, 1.2rem);
+        font-weight: 500;
+      }
+
+      .rail-item small {
+        color: var(--muted);
+        font-size: clamp(0.55rem, 0.7vw, 0.7rem);
+        line-height: 1.4;
+      }
+
+      .code-line {
+        margin-top: 1rem;
+        padding: 1rem 1.2rem;
+        border: 1px dashed var(--line-hot);
+        color: var(--blue);
+        font-size: clamp(0.62rem, 0.9vw, 0.9rem);
+        text-align: center;
+        overflow-wrap: anywhere;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: clamp(0.65rem, 0.85vw, 0.86rem);
+      }
+
+      th,
+      td {
+        padding: clamp(0.65rem, 1.1vw, 1rem);
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--green);
+        font-size: 0.68rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      td {
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      td:first-child {
+        color: var(--paper);
+      }
+
+      .api-list {
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .api {
+        display: grid;
+        grid-template-columns: 4.2rem 1fr auto;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--line);
+        background: rgb(13 17 15 / 0.8);
+        font-size: clamp(0.62rem, 0.82vw, 0.82rem);
+      }
+
+      .method {
+        color: var(--amber);
+        font-weight: 800;
+      }
+
+      .api small {
+        color: var(--muted);
+        text-align: right;
+      }
+
+      .tabs-demo {
+        overflow: hidden;
+        border: 1px solid var(--line-hot);
+        background: #0a0d0b;
+        box-shadow: var(--shadow);
+      }
+
+      .tabs-bar {
+        display: flex;
+        gap: 1.5rem;
+        padding: 1rem 1.2rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .tab {
+        padding: 0 0 0.8rem;
+        color: var(--muted);
+        font-size: clamp(0.62rem, 0.82vw, 0.82rem);
+      }
+
+      .tab.active {
+        border-bottom: 2px solid var(--green);
+        color: var(--paper);
+      }
+
+      .tabs-content {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 1rem;
+        padding: 1.2rem;
+      }
+
+      .mini-balance {
+        padding: 1.2rem;
+        border: 1px solid #755710;
+        background: rgb(65 47 11 / 0.25);
+      }
+
+      .mini-balance b {
+        display: block;
+        margin: 0.5rem 0;
+        color: var(--amber);
+        font-family: var(--display);
+        font-size: clamp(2rem, 3.5vw, 3.7rem);
+        font-weight: 500;
+      }
+
+      .activity-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 0.75rem;
+        align-items: center;
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: clamp(0.58rem, 0.75vw, 0.75rem);
+      }
+
+      .activity-row i {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 10px rgb(53 228 122 / 0.4);
+      }
+
+      .activity-row b {
+        color: var(--paper);
+        font-weight: 500;
+      }
+
+      .checklist {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem 1.5rem;
+      }
+
+      .check {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.7rem;
+        align-items: start;
+        padding: 0.8rem 0;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: clamp(0.66rem, 0.86vw, 0.86rem);
+        line-height: 1.45;
+      }
+
+      .check::before {
+        display: grid;
+        place-items: center;
+        width: 1.25rem;
+        height: 1.25rem;
+        border: 1px solid var(--green);
+        color: var(--green);
+        font-size: 0.72rem;
+        content: '✓';
+      }
+
+      .nav {
+        position: fixed;
+        right: clamp(1rem, 2vw, 2rem);
+        bottom: clamp(1rem, 2vw, 2rem);
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem;
+        border: 1px solid var(--line-hot);
+        background: rgb(7 9 7 / 0.9);
+        backdrop-filter: blur(12px);
+      }
+
+      .nav button {
+        display: grid;
+        place-items: center;
+        width: 2.35rem;
+        height: 2.35rem;
+        border: 0;
+        background: transparent;
+        color: var(--paper);
+        cursor: pointer;
+      }
+
+      .nav button:hover:not(:disabled) {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .nav button:disabled {
+        cursor: default;
+        opacity: 0.25;
+      }
+
+      .counter {
+        min-width: 4.2rem;
+        color: var(--muted);
+        font-size: 0.7rem;
+        text-align: center;
+      }
+
+      .progress {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 60;
+        height: 3px;
+        background: #151b17;
+      }
+
+      .progress span {
+        display: block;
+        width: 0;
+        height: 100%;
+        background: var(--green);
+        box-shadow: 0 0 14px var(--green);
+        transition: width 240ms ease;
+      }
+
+      .help {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 50;
+        border: 0;
+        background: transparent;
+        color: #68726b;
+        cursor: pointer;
+        font-size: 0.72rem;
+      }
+
+      dialog {
+        max-width: 34rem;
+        border: 1px solid var(--line-hot);
+        background: var(--panel);
+        color: var(--paper);
+        box-shadow: var(--shadow);
+      }
+
+      dialog::backdrop {
+        background: rgb(0 0 0 / 0.78);
+      }
+
+      dialog h2 {
+        font-family: var(--display);
+        font-size: 2rem;
+        font-weight: 500;
+      }
+
+      dialog kbd {
+        display: inline-block;
+        min-width: 2rem;
+        margin-right: 0.5rem;
+        padding: 0.25rem 0.4rem;
+        border: 1px solid var(--line-hot);
+        color: var(--green);
+        text-align: center;
+      }
+
+      dialog p {
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      dialog button {
+        padding: 0.7rem 1rem;
+        border: 1px solid var(--green);
+        background: transparent;
+        color: var(--green);
+        cursor: pointer;
+      }
+
+      @media (max-width: 900px) {
+        .title-layout,
+        .grid-3,
+        .grid-4,
+        .state-grid,
+        .tabs-content {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .title-layout {
+          align-content: center;
+        }
+
+        .title-layout h1 {
+          font-size: clamp(3.3rem, 12vw, 7rem);
+        }
+
+        .flow {
+          grid-template-columns: repeat(4, 1fr);
+          gap: 0.8rem;
+        }
+
+        .flow-node:not(:last-child)::after {
+          display: none;
+        }
+
+        .er {
+          grid-template-columns: repeat(2, 1fr);
+          grid-template-areas:
+            'wallet action'
+            'revision destination'
+            'receipt receipt'
+            'leg attempt';
+          gap: 0.8rem;
+        }
+
+        .entity::after {
+          display: none;
+        }
+      }
+
+      @media (max-width: 640px) {
+        body {
+          overflow: auto;
+        }
+
+        .slide {
+          padding: 1.1rem 1rem 5.4rem;
+        }
+
+        .slide-head {
+          align-items: start;
+        }
+
+        .chapter {
+          display: none;
+        }
+
+        .title-layout,
+        .grid-2,
+        .grid-3,
+        .grid-4,
+        .state-grid,
+        .tabs-content,
+        .checklist,
+        .compare {
+          grid-template-columns: 1fr;
+        }
+
+        .title-layout {
+          gap: 1.6rem;
+        }
+
+        .title-layout h1 {
+          margin: 0.8rem 0;
+          font-size: clamp(3.1rem, 20vw, 5.4rem);
+        }
+
+        .versus {
+          min-height: 2rem;
+        }
+
+        .flow {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .waterfall {
+          grid-template-columns: repeat(2, 1fr);
+          align-items: stretch;
+        }
+
+        .bar {
+          min-height: 7rem;
+        }
+
+        .er {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .entity {
+          width: 100%;
+        }
+
+        .rail {
+          grid-template-columns: 1fr;
+        }
+
+        .rail::before {
+          display: none;
+        }
+
+        .rail-item {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 0.8rem;
+          text-align: left;
+        }
+
+        .rail-dot {
+          grid-row: 1 / 3;
+          margin: 0;
+        }
+
+        .api {
+          grid-template-columns: 3.6rem 1fr;
+        }
+
+        .api small {
+          grid-column: 2;
+          text-align: left;
+        }
+
+        .slide-foot {
+          display: none;
+        }
+      }
+
+      @media print {
+        body {
+          overflow: visible;
+          background: #080a08;
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+
+        .deck {
+          height: auto;
+        }
+
+        .slide {
+          position: relative;
+          display: grid !important;
+          width: 100vw;
+          height: 100vh;
+          page-break-after: always;
+          visibility: visible;
+          opacity: 1;
+          transform: none;
+        }
+
+        .nav,
+        .progress,
+        .help {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="deck" aria-live="polite">
+      <section
+        class="slide title-slide active"
+        data-title="Portada"
+        aria-label="Diapositiva 1"
+      >
+        <div class="title-layout">
+          <div>
+            <div class="eyebrow reveal" style="--i: 0">
+              LaWallet NWC · arquitectura de producto
+            </div>
+            <h1 class="reveal" style="--i: 1">
+              Remote<wbr />Wallet como <em>proxy</em>
+            </h1>
+            <p class="lede reveal" style="--i: 2">
+              Una acción programable al recibir: retiene comisión, distribuye
+              fondos y deja cada intento completamente auditable.
+            </p>
+          </div>
+          <aside class="signal-card reveal" style="--i: 3">
+            <div class="signal">IMPLEMENTADO · V1</div>
+            <div class="big-stat">
+              0,5% + 1 sat<small>fee por defecto retenido en la wallet</small>
+            </div>
+            <div class="big-stat">
+              1 → N<small>destinos por porcentajes exactos</small>
+            </div>
+            <div class="tag green">Owner-scoped</div>
+          </aside>
+        </div>
+        <footer class="slide-foot">
+          <span>RemoteWallet receive forwarding</span>
+          <span>Agosto 2026</span>
+        </footer>
+      </section>
+
+      <section
+        class="slide"
+        data-title="Cambio de modelo"
+        aria-label="Diapositiva 2"
+      >
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">01 · propósito</div>
+            <h2>De wallet remota a wallet programable</h2>
+          </div>
+          <div class="chapter"><b>01</b>Qué cambia</div>
+        </header>
+        <div class="slide-body">
+          <div class="compare">
+            <article class="card reveal" style="--i: 1">
+              <span class="tag">Antes</span>
+              <h3>Una conexión para enviar y recibir</h3>
+              <p>
+                La RemoteWallet exponía capacidades NWC, balance y actividad. La
+                lógica de proxy pertenecía al operador y al LUD-16 global.
+              </p>
+              <ul>
+                <li>Destino único en el proxy global</li>
+                <li>Configuración administrativa</li>
+                <li>Sin automatización owner-scoped</li>
+              </ul>
+            </article>
+            <div class="versus reveal" style="--i: 2">→</div>
+            <article class="card green reveal" style="--i: 3">
+              <span class="tag green">Ahora</span>
+              <h3>Cualquier usuario crea su propio proxy</h3>
+              <p>
+                La wallet conserva una acción
+                <span class="accent">FORWARD</span> versionada: uno o varios
+                destinos, comisión configurable y trazabilidad por recibo.
+              </p>
+              <ul>
+                <li>Disponible para NWC activo + SEND_RECEIVE</li>
+                <li>Configurable al crear o después</li>
+                <li>El proxy global sigue independiente</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+        <footer class="slide-foot">
+          <span>Dos motores, sin mezclar ownership</span
+          ><span>La abstracción admite drivers futuros</span>
+        </footer>
+      </section>
+
+      <section
+        class="slide"
+        data-title="Experiencia"
+        aria-label="Diapositiva 3"
+      >
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">02 · configuración</div>
+            <h2>El flujo del usuario</h2>
+          </div>
+          <div class="chapter"><b>02</b>Setup</div>
+        </header>
+        <div class="slide-body">
+          <div class="grid-4">
+            <article class="card reveal" style="--i: 1">
+              <div class="number">01</div>
+              <h4>Elegir wallet</h4>
+              <p>
+                Selecciona una NWC existente o crea y prueba una nueva desde
+                “Create proxy wallet”.
+              </p>
+            </article>
+            <article class="card reveal" style="--i: 2">
+              <div class="number">02</div>
+              <h4>Validar capacidades</h4>
+              <p>
+                Debe estar activa, recibir eventos y soportar
+                <span class="mono">pay_invoice</span> con seguridad.
+              </p>
+            </article>
+            <article class="card hot reveal" style="--i: 3">
+              <div class="number">03</div>
+              <h4>Definir reglas</h4>
+              <p>
+                Fee porcentual, sats base y destinos Lightning Address cuyos bps
+                suman exactamente 10.000.
+              </p>
+            </article>
+            <article class="card green reveal" style="--i: 4">
+              <div class="number">04</div>
+              <h4>Activar</h4>
+              <p>
+                Los pagos posteriores a <span class="mono">enabledAt</span> se
+                capturan. Pausar detiene ingresos, claims y retries.
+              </p>
+            </article>
+          </div>
+          <div class="flow-callout reveal" style="--i: 5">
+            <strong>Guardrail</strong
+            ><span
+              >Si la wallet no cumple los requisitos se conserva, pero la acción
+              no se habilita. Las wallets existentes empiezan con forwarding
+              apagado.</span
+            >
+          </div>
+        </div>
+        <footer class="slide-foot">
+          <span>100% owner-scoped</span><span>IDs ajenos responden 404</span>
+        </footer>
+      </section>
+
+      <section
+        class="slide"
+        data-title="Flujo de recepción"
+        aria-label="Diapositiva 4"
+      >
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">03 · hot path</div>
+            <h2>Del pago recibido al reenvío</h2>
+          </div>
+          <div class="chapter"><b>03</b>Flujo</div>
+        </header>
+        <div class="slide-body">
+          <div class="flow">
+            <article class="flow-node reveal" style="--i: 1">
+              <span class="step">01</span><b>NWC listener</b
+              ><small
+                >Emite <span class="mono">payment_received</span> con eventKey y
+                hash.</small
+              >
+            </article>
+            <article class="flow-node reveal" style="--i: 2">
+              <span class="step">02</span><b>Webhook</b
+              ><small>Autentica y detecta wallet/acción vigente.</small>
+            </article>
+            <article class="flow-node reveal" style="--i: 3">
+              <span class="step">03</span><b>Receipt durable</b
+              ><small
+                >Inserta antes de responder. Deduplica wallet + hash.</small
+              >
+            </article>
+            <article class="flow-node reveal" style="--i: 4">
+              <span class="step">04</span><b>Contabilidad</b
+              ><small>Calcula retenido, neto y legs exactos en msats.</small>
+            </article>
+            <article class="flow-node reveal" style="--i: 5">
+              <span class="step">05</span><b>Lease</b
+              ><small
+                >Worker reclama con
+                <span class="mono">SKIP LOCKED</span>.</small
+              >
+            </article>
+            <article class="flow-node reveal" style="--i: 6">
+              <span class="step">06</span><b>LNURL + pago</b
+              ><small
+                >Resuelve seguro, persiste attempt y recién luego paga.</small
+              >
+            </article>
+            <article class="flow-node reveal" style="--i: 7">
+              <span class="step">07</span><b>Auditoría</b
+              ><small
+                >Guarda preimage, fees, shortfall, error y timestamps.</small
+              >
+            </article>
+          </div>
+          <div class="flow-callout reveal" style="--i: 8">
+            <strong>Coexistencia</strong
+            ><span
+              >Registrar el receipt no interrumpe el settlement normal de
+              facturas LaWallet conocidas; ambos caminos continúan.</span
+            >
+          </div>
+        </div>
+        <footer class="slide-foot">
+          <span>Durabilidad antes del ACK</span
+          ><span>Un receipt por ingreso económico</span>
+        </footer>
+      </section>
+
+      <section
+        class="slide"
+        data-title="Contabilidad"
+        aria-label="Diapositiva 5"
+      >
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">04 · money model</div>
+            <h2>Cada millisatoshi tiene destino</h2>
+          </div>
+          <div class="chapter"><b>04</b>Importes</div>
+        </header>
+        <div class="slide-body grid-2">
+          <div>
+            <div class="formula reveal" style="--i: 1">
+              retenido = ceil(bruto × feeBps / 10.000) + base<br />
+              <span class="accent">neto = bruto − retenido</span>
+            </div>
+            <article class="card reveal" style="--i: 2">
+              <h4>Reglas que evitan deriva</h4>
+              <ul>
+                <li>Todo se calcula con enteros en millisatoshis.</li>
+                <li>
+                  Largest-remainder reparte el neto de forma exacta y
+                  determinística.
+                </li>
+                <li>
+                  Si el neto ≤ 0, el receipt termina como
+                  <span class="amber">RETAINED</span>.
+                </li>
+                <li>
+                  Antes de facturar se reserva 1% + 1 sat; fee real y sobrante
+                  se registran aparte.
+                </li>
+              </ul>
+            </article>
+          </div>
+          <div
+            class="waterfall reveal"
+            style="--i: 3"
+            aria-label="Ejemplo contable de diez mil sats"
+          >
+            <div class="bar" style="--h: 15rem">
+              <small>Ingreso bruto</small><b>10.000</b><small>sats</small>
+            </div>
+            <div class="bar fee" style="--h: 6rem">
+              <small>Retenido</small><b>51</b><small>50 fee + 1 base</small>
+            </div>
+            <div class="bar fee" style="--h: 6rem">
+              <small>Reserva routing</small><b>102</b
+              ><small>por cada tramo</small>
+            </div>
+            <div class="bar dest" style="--h: 11rem">
+              <small>Destino A · 70%</small><b>6.893,3</b><small>sats</small>
+            </div>
+            <div class="bar dest" style="--h: 7.5rem">
+              <small>Destino B · 30%</small><b>2.953,7</b><small>sats</small>
+            </div>
+          </div>
+        </div>
+        <footer class="slide-foot">
+          <span>Fee máximo: 10%</span
+          ><span>Invoice destino: hasta 10 sats menor, nunca mayor</span>
+        </footer>
+      </section>
+
+      <section
+        class="slide"
+        data-title="Modelo de datos"
+        aria-label="Diapositiva 6"
+      >
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">05 · persistencia</div>
+            <h2>Modelo de datos auditable</h2>
+          </div>
+          <div class="chapter"><b>05</b>Entidades</div>
+        </header>
+        <div class="slide-body">
+          <div class="er reveal" style="--i: 1">
+            <article class="entity e-wallet">
+              <h3>RemoteWallet</h3>
+              <ul>
+                <li>id <span>PK</span></li>
+                <li>userId <span>owner</span></li>
+                <li>type / status <span>NWC · ACTIVE</span></li>
+              </ul>
+            </article>
+            <article class="entity e-action">
+              <h3>ReceiveAction</h3>
+              <ul>
+                <li>remoteWalletId <span>UNIQUE</span></li>
+                <li>enabled / enabledAt <span>gate</span></li>
+                <li>currentRevisionId <span>FK</span></li>
+              </ul>
+            </article>
+            <article class="entity e-revision">
+              <h3>ActionRevision</h3>
+              <ul>
+                <li>actionId + revision <span>UNIQUE</span></li>
+                <li>feeBps / baseFeeMsats <span>snapshot</span></li>
+                <li>createdAt <span>immutable</span></li>
+              </ul>
+            </article>
+            <article class="entity e-destination">
+              <h3>Destination</h3>
+              <ul>
+                <li>revisionId + position <span>UNIQUE</span></li>
+                <li>address <span>Lightning Address</span></li>
+                <li>allocationBps <span>Σ 10.000</span></li>
+              </ul>
+            </article>
+            <article class="entity e-receipt">
+              <h3>ForwardReceipt</h3>
+              <ul>
+                <li>walletId + sourceHash <span>UNIQUE</span></li>
+                <li>revisionId / eventKey <span>provenance</span></li>
+                <li>gross / retained / target <span>ledger</span></li>
+                <li>status / lease <span>workflow</span></li>
+              </ul>
+            </article>
+            <article class="entity e-leg">
+              <h3>ForwardLeg</h3>
+              <ul>
+                <li>receiptId + position <span>UNIQUE</span></li>
+                <li>destination / requested <span>obligation</span></li>
+                <li>forwarded / reserve / routing <span>result</span></li>
+                <li>status / retryCount <span>workflow</span></li>
+              </ul>
+            </article>
+            <article class="entity e-attempt">
+              <h3>ForwardAttempt</h3>
+              <ul>
+                <li>legId + attemptNo <span>UNIQUE</span></li>
+                <li>requestId / paymentHash <span>idempotency</span></li>
+                <li>BOLT11 / preimage / reserve <span>evidence</span></li>
+                <li>status / errors / timestamps <span>history</span></li>
+              </ul>
+            </article>
+          </div>
+        </div>
+        <footer class="slide-foot">
+          <span>Action 1:N Revision · Receipt 1:N Leg · Leg 1:N Attempt</span
+          ><span>Las revisiones nunca se reescriben</span>
+        </footer>
+      </section>
+
+      <section class="slide" data-title="Estados" aria-label="Diapositiva 7">
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">06 · state machines</div>
+            <h2>Dos máquinas de estado, una verdad económica</h2>
+          </div>
+          <div class="chapter"><b>06</b>Estados</div>
+        </header>
+        <div class="slide-body state-grid">
+          <article class="card reveal" style="--i: 1">
+            <span class="tag amber">Receipt</span>
+            <h3>Estado agregado</h3>
+            <div class="state-machine">
+              <span class="state">RECEIVED</span><span class="arrow">→</span
+              ><span class="state warn">FORWARDING</span
+              ><span class="arrow">→</span
+              ><span class="state good">COMPLETED</span>
+            </div>
+            <div class="state-machine" style="margin-top: 1rem">
+              <span class="state warn">PARTIAL</span
+              ><span class="state bad">BLOCKED</span
+              ><span class="state amber">RETAINED</span>
+            </div>
+            <p>
+              <span class="mono">PARTIAL</span> significa que al menos un tramo
+              ya fue pagado y nunca se revierte.
+              <span class="mono">BLOCKED</span> requiere evidencia o
+              intervención antes de avanzar.
+            </p>
+          </article>
+          <article class="card reveal" style="--i: 2">
+            <span class="tag green">Leg / Attempt</span>
+            <h3>Estado por destino</h3>
+            <div class="state-machine">
+              <span class="state">READY</span><span class="arrow">→</span
+              ><span class="state warn">PENDING</span
+              ><span class="arrow">→</span
+              ><span class="state good">SUCCEEDED</span>
+            </div>
+            <div class="state-machine" style="margin-top: 1rem">
+              <span class="state bad">UNKNOWN</span
+              ><span class="state bad">REJECTED</span
+              ><span class="state warn">EXPIRED</span
+              ><span class="state">SUPERSEDED</span>
+            </div>
+            <p>
+              Solo <span class="mono">READY / REJECTED / EXPIRED</span> son
+              adelantables por retry. Un resultado incierto jamás dispara otro
+              pago.
+            </p>
+          </article>
+        </div>
+        <footer class="slide-foot">
+          <span>Terminal no significa siempre éxito</span
+          ><span>La UI deriva el estado desde evidencia persistida</span>
+        </footer>
+      </section>
+
+      <section
+        class="slide"
+        data-title="Concurrencia"
+        aria-label="Diapositiva 8"
+      >
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">07 · safety</div>
+            <h2>El pago ocurre una sola vez</h2>
+          </div>
+          <div class="chapter"><b>07</b>Concurrencia</div>
+        </header>
+        <div class="slide-body">
+          <div class="rail reveal" style="--i: 1">
+            <div class="rail-item">
+              <div class="rail-dot">01</div>
+              <b>Claim</b><small>Lease corta con FOR UPDATE SKIP LOCKED</small>
+            </div>
+            <div class="rail-item">
+              <div class="rail-dot">02</div>
+              <b>Resolve</b
+              ><small>LNURL seguro, SSRF guard y tolerancia de monto</small>
+            </div>
+            <div class="rail-item">
+              <div class="rail-dot">03</div>
+              <b>Persist</b
+              ><small>Attempt + payment hash antes de llamar NWC</small>
+            </div>
+            <div class="rail-item">
+              <div class="rail-dot">04</div>
+              <b>Pay</b><small>Un leg por vez dentro del mismo receipt</small>
+            </div>
+            <div class="rail-item">
+              <div class="rail-dot">05</div>
+              <b>Prove</b
+              ><small>Journal, payment_sent o lookup resuelven resultado</small>
+            </div>
+          </div>
+          <div class="grid-3">
+            <article class="card green reveal" style="--i: 2">
+              <h4>Workers concurrentes</h4>
+              <p>
+                Dos workers no reclaman el mismo receipt. Otros receipts sí
+                pueden progresar en paralelo.
+              </p>
+            </article>
+            <article class="card hot reveal" style="--i: 3">
+              <h4>Ambigüedad segura</h4>
+              <p>
+                Después de timeout, <span class="mono">UNKNOWN</span> congela el
+                tramo: primero se demuestra el resultado.
+              </p>
+            </article>
+            <article class="card reveal" style="--i: 4">
+              <h4>Ownership global</h4>
+              <p>
+                Triggers impiden que una factura destino pertenezca a dos legs o
+                a ambos motores de proxy.
+              </p>
+            </article>
+          </div>
+          <div class="code-line reveal" style="--i: 5">
+            requestId = sha256(walletId | destinationPaymentHash | legId |
+            attemptNo)
+          </div>
+        </div>
+        <footer class="slide-foot">
+          <span>Persist before pay</span><span>UNKNOWN ≠ retryable</span>
+        </footer>
+      </section>
+
+      <section
+        class="slide"
+        data-title="Recuperación"
+        aria-label="Diapositiva 9"
+      >
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">08 · failure handling</div>
+            <h2>Los fallos se convierten en evidencia</h2>
+          </div>
+          <div class="chapter"><b>08</b>Recovery</div>
+        </header>
+        <div class="slide-body">
+          <table class="reveal" style="--i: 1">
+            <thead>
+              <tr>
+                <th>Situación</th>
+                <th>Respuesta</th>
+                <th>Garantía</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Evento duplicado</td>
+                <td>
+                  Conflict-safe insert por
+                  <span class="mono">walletId + paymentHash</span>.
+                </td>
+                <td>No duplica receipt ni saldo.</td>
+              </tr>
+              <tr>
+                <td>Importe ausente</td>
+                <td>
+                  Crea registro bloqueado y recupera con
+                  <span class="mono">lookup_invoice</span>.
+                </td>
+                <td>El ingreso no desaparece.</td>
+              </tr>
+              <tr>
+                <td>Invoice hasta 10 sats menor</td>
+                <td>
+                  Se acepta; la diferencia queda como
+                  <span class="mono">shortfallMsats</span>.
+                </td>
+                <td>Nunca paga más de lo reservado.</td>
+              </tr>
+              <tr>
+                <td>Timeout después de pagar</td>
+                <td>
+                  Attempt pasa a UNKNOWN y espera journal / notification /
+                  lookup.
+                </td>
+                <td>No hay double spend por retry ciego.</td>
+              </tr>
+              <tr>
+                <td>Éxito parcial</td>
+                <td>
+                  Conserva legs exitosos; reintenta únicamente obligaciones no
+                  pagadas.
+                </td>
+                <td>Nunca revierte un pago final.</td>
+              </tr>
+              <tr>
+                <td>Reconfiguración</td>
+                <td>
+                  Exige pausa, cero intentos inciertos y supersede legs no
+                  pagados.
+                </td>
+                <td>La nueva revisión respeta lo ya enviado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <footer class="slide-foot">
+          <span>Retries automáticos cada 10 minutos</span
+          ><span>Retry manual solo adelanta nextRetryAt seguro</span>
+        </footer>
+      </section>
+
+      <section
+        class="slide"
+        data-title="APIs y SSE"
+        aria-label="Diapositiva 10"
+      >
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">09 · interface</div>
+            <h2>API owner-scoped + actividad en tiempo real</h2>
+          </div>
+          <div class="chapter"><b>09</b>Contratos</div>
+        </header>
+        <div class="slide-body grid-2">
+          <div class="api-list">
+            <div class="api reveal" style="--i: 1">
+              <span class="method">GET</span
+              ><span>/remote-wallets/{id}/receive-action</span
+              ><small>leer config</small>
+            </div>
+            <div class="api reveal" style="--i: 2">
+              <span class="method">PUT</span
+              ><span>/remote-wallets/{id}/receive-action</span
+              ><small>crear revisión</small>
+            </div>
+            <div class="api reveal" style="--i: 3">
+              <span class="method">PATCH</span
+              ><span>/remote-wallets/{id}/receive-action</span
+              ><small>pausar / reanudar</small>
+            </div>
+            <div class="api reveal" style="--i: 4">
+              <span class="method">GET</span
+              ><span>/remote-wallets/{id}/forwarding-receipts</span
+              ><small>cursor + filtros</small>
+            </div>
+            <div class="api reveal" style="--i: 5">
+              <span class="method">GET</span
+              ><span>…/forwarding-receipts/{receiptId}</span
+              ><small>auditoría</small>
+            </div>
+            <div class="api reveal" style="--i: 6">
+              <span class="method">POST</span
+              ><span>…/forwarding-receipts/{receiptId}/retry</span
+              ><small>legs opcionales</small>
+            </div>
+          </div>
+          <div>
+            <article class="card green reveal" style="--i: 2">
+              <span class="tag green">SSE</span>
+              <h3>remote-wallet-forwarding:updated</h3>
+              <p>
+                Se emite en ingresos, attempts, retries, cambios de
+                configuración y estados terminales.
+              </p>
+              <p>
+                El evento no transporta datos: solo invalida queries
+                owner-scoped. Así ningún cliente recibe información de otro
+                usuario.
+              </p>
+            </article>
+            <article class="card reveal" style="--i: 3">
+              <h4>Superficie compartida</h4>
+              <p>
+                Los schemas viven en <span class="mono">packages/shared</span>;
+                OpenAPI y snapshot documentan los contratos usados por wallet y
+                administración.
+              </p>
+            </article>
+          </div>
+        </div>
+        <footer class="slide-foot">
+          <span>404 para ownership ajeno</span
+          ><span>Refetch inmediato, sin botón Refresh</span>
+        </footer>
+      </section>
+
+      <section
+        class="slide"
+        data-title="Auditoría UI"
+        aria-label="Diapositiva 11"
+      >
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">10 · experience</div>
+            <h2>Operable sin mirar la base</h2>
+          </div>
+          <div class="chapter"><b>10</b>UI</div>
+        </header>
+        <div class="slide-body grid-2">
+          <div class="tabs-demo reveal" style="--i: 1">
+            <div class="tabs-bar">
+              <span class="tab active">Overview</span
+              ><span class="tab">Payments received</span
+              ><span class="tab">Activity</span>
+            </div>
+            <div class="tabs-content">
+              <div class="mini-balance">
+                <span class="kicker">Pending balance</span><b>9.949 sats</b
+                ><span class="tag amber">1 resolving</span>
+              </div>
+              <div>
+                <div class="activity-row">
+                  <i></i
+                  ><span><b>Payment received</b><br />10.000 sats gross</span
+                  ><span>ahora</span>
+                </div>
+                <div class="activity-row">
+                  <i></i
+                  ><span><b>Destination paid</b><br />alice@example.com</span
+                  ><span>6.964,3</span>
+                </div>
+                <div class="activity-row">
+                  <i style="background: var(--amber)"></i
+                  ><span><b>Retry scheduled</b><br />bob@example.com</span
+                  ><span>10m</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="checklist reveal" style="--i: 2">
+            <div class="check">
+              <span
+                ><b class="accent">Overview</b><br />Balance, fee, destinos,
+                pausa y saldo pendiente.</span
+              >
+            </div>
+            <div class="check">
+              <span
+                ><b class="accent">Payments received</b><br />Bruto, retenido,
+                neto, enviado y estado.</span
+              >
+            </div>
+            <div class="check">
+              <span
+                ><b class="accent">Activity</b><br />Timeline de legs e intentos
+                actualizado por SSE.</span
+              >
+            </div>
+            <div class="check">
+              <span
+                ><b class="accent">Receipt detail</b><br />Revisión, BOLT11,
+                request IDs, hashes, preimages, routing fees y errores.</span
+              >
+            </div>
+          </div>
+        </div>
+        <footer class="slide-foot">
+          <span>Responsive · wallet y admin comparten panel</span
+          ><span>El retry visible respeta seguridad backend</span>
+        </footer>
+      </section>
+
+      <section class="slide" data-title="Cierre" aria-label="Diapositiva 12">
+        <header class="slide-head reveal" style="--i: 0">
+          <div>
+            <div class="kicker">11 · resultado</div>
+            <h2>Una automatización financiera con memoria</h2>
+          </div>
+          <div class="chapter"><b>11</b>Cierre</div>
+        </header>
+        <div class="slide-body">
+          <div class="grid-3">
+            <article class="card green reveal" style="--i: 1">
+              <span class="tag green">Producto</span>
+              <h3>Proxy para todos</h3>
+              <p>
+                Cualquier usuario autenticado transforma su RemoteWallet en un
+                proxy 1→N con reglas explícitas.
+              </p>
+            </article>
+            <article class="card hot reveal" style="--i: 2">
+              <span class="tag amber">Contabilidad</span>
+              <h3>Saldo explicable</h3>
+              <p>
+                Ingreso, fee, reserva, shortfall, routing y cada destino quedan
+                separados y reconciliables en msats.
+              </p>
+            </article>
+            <article class="card reveal" style="--i: 3">
+              <span class="tag">Operación</span>
+              <h3>Retry sin apuestas</h3>
+              <p>
+                Leases, journal y estados inciertos convierten carreras y caídas
+                en un flujo recuperable.
+              </p>
+            </article>
+          </div>
+          <div class="signal-card reveal" style="--i: 4; margin-top: 2rem">
+            <div class="signal">IDEA CENTRAL</div>
+            <div
+              style="
+                font-family: var(--display);
+                font-size: clamp(1.7rem, 3.2vw, 3.5rem);
+                line-height: 1.08;
+              "
+            >
+              No solo reenviamos sats.<br /><span class="amber"
+                >Conservamos la evidencia de por qué, cuánto y cómo.</span
+              >
+            </div>
+          </div>
+        </div>
+        <footer class="slide-foot">
+          <span>LaWallet NWC</span
+          ><span>RemoteWallet receive forwarding · V1</span>
+        </footer>
+      </section>
+    </main>
+
+    <button class="help" id="helpButton" aria-label="Mostrar atajos de teclado">
+      ? atajos
+    </button>
+    <nav class="nav" aria-label="Navegación de diapositivas">
+      <button id="prevButton" type="button" aria-label="Diapositiva anterior">
+        ←
+      </button>
+      <span class="counter" id="counter">01 / 12</span>
+      <button id="nextButton" type="button" aria-label="Diapositiva siguiente">
+        →
+      </button>
+      <button
+        id="fullscreenButton"
+        type="button"
+        aria-label="Pantalla completa"
+      >
+        ⛶
+      </button>
+    </nav>
+    <div class="progress" aria-hidden="true">
+      <span id="progressBar"></span>
+    </div>
+
+    <dialog id="helpDialog">
+      <h2>Atajos</h2>
+      <p>
+        <kbd>→</kbd><kbd>Space</kbd> siguiente<br /><kbd>←</kbd>
+        anterior<br /><kbd>Home</kbd> primera<br /><kbd>End</kbd>
+        última<br /><kbd>F</kbd> pantalla completa<br /><kbd>?</kbd> esta ayuda
+      </p>
+      <button id="closeHelp" type="button">Cerrar</button>
+    </dialog>
+
+    <script>
+      const slides = [...document.querySelectorAll('.slide')]
+      const counter = document.querySelector('#counter')
+      const progress = document.querySelector('#progressBar')
+      const previous = document.querySelector('#prevButton')
+      const next = document.querySelector('#nextButton')
+      const fullscreen = document.querySelector('#fullscreenButton')
+      const help = document.querySelector('#helpDialog')
+      let current = Math.max(
+        0,
+        Math.min(slides.length - 1, Number(location.hash.slice(1)) - 1 || 0)
+      )
+
+      function render() {
+        slides.forEach((slide, index) => {
+          const active = index === current
+          slide.classList.toggle('active', active)
+          slide.setAttribute('aria-hidden', String(!active))
+        })
+        counter.textContent = `${String(current + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`
+        progress.style.width = `${((current + 1) / slides.length) * 100}%`
+        previous.disabled = current === 0
+        next.disabled = current === slides.length - 1
+        document.title = `${slides[current].dataset.title} — RemoteWallet Proxy`
+        history.replaceState(null, '', `#${current + 1}`)
+      }
+
+      function go(delta) {
+        current = Math.max(0, Math.min(slides.length - 1, current + delta))
+        render()
+      }
+
+      previous.addEventListener('click', () => go(-1))
+      next.addEventListener('click', () => go(1))
+      fullscreen.addEventListener('click', () => {
+        if (document.fullscreenElement) document.exitFullscreen()
+        else document.documentElement.requestFullscreen()
+      })
+      document
+        .querySelector('#helpButton')
+        .addEventListener('click', () => help.showModal())
+      document
+        .querySelector('#closeHelp')
+        .addEventListener('click', () => help.close())
+
+      document.addEventListener('keydown', event => {
+        if (help.open && event.key !== 'Escape') return
+        if (['ArrowRight', 'PageDown', ' '].includes(event.key)) {
+          event.preventDefault()
+          go(1)
+        } else if (['ArrowLeft', 'PageUp'].includes(event.key)) {
+          event.preventDefault()
+          go(-1)
+        } else if (event.key === 'Home') {
+          current = 0
+          render()
+        } else if (event.key === 'End') {
+          current = slides.length - 1
+          render()
+        } else if (event.key.toLowerCase() === 'f') {
+          fullscreen.click()
+        } else if (event.key === '?') {
+          help.showModal()
+        }
+      })
+
+      let touchStart = 0
+      document.addEventListener(
+        'touchstart',
+        event => {
+          touchStart = event.changedTouches[0].clientX
+        },
+        { passive: true }
+      )
+      document.addEventListener(
+        'touchend',
+        event => {
+          const delta = event.changedTouches[0].clientX - touchStart
+          if (Math.abs(delta) > 60) go(delta < 0 ? 1 : -1)
+        },
+        { passive: true }
+      )
+
+      render()
+    </script>
+  </body>
+</html>

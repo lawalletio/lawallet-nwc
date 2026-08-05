@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { ChevronLeft, RefreshCw, Star, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
+import { CreateProxyWalletDialog } from '@/components/wallet/create-proxy-wallet-dialog'
 import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import {
   useRemoteWalletMutations,
@@ -103,7 +105,11 @@ export function RemoteWalletsScreen() {
           <EmptyState onCreated={refetch} />
         ) : (
           <>
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              <CreateProxyWalletDialog
+                wallets={sortedWallets}
+                onChanged={refetch}
+              />
               <CreateRemoteWalletDialog onCreated={refetch} />
             </div>
             <section
@@ -159,7 +165,10 @@ function WalletRow({
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground">
           <Wallet className="size-5" />
         </span>
-        <div className="min-w-0 flex-1">
+        <Link
+          href={`/wallet/settings/remote-wallets/${wallet.id}`}
+          className="min-w-0 flex-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <h2 className="truncate text-base font-semibold text-foreground">
             {wallet.name}
           </h2>
@@ -171,7 +180,7 @@ function WalletRow({
               <Badge variant="secondary">LNCurl</Badge>
             </div>
           )}
-        </div>
+        </Link>
         <div className="flex shrink-0 items-center gap-2">
           {canSetPrimary && (
             <Button
@@ -214,14 +223,17 @@ function WalletRow({
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex min-w-0 items-start justify-between gap-3">
-            <div className="min-w-0">
+            <Link
+              href={`/wallet/settings/remote-wallets/${wallet.id}`}
+              className="min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <h2 className="truncate text-base font-semibold text-foreground">
                 {wallet.name}
               </h2>
               <p className="text-xs text-muted-foreground">
                 {wallet.type} · Updated {formatDate(wallet.updatedAt)}
               </p>
-            </div>
+            </Link>
             <Switch
               checked={active}
               disabled={statusToggleDisabled}

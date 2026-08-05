@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type pg from 'pg'
 import type { Logger } from 'pino'
-import { loadActiveNwcWallets, waitForSchema } from '../src/db'
+import {
+  isValidConnectionString,
+  loadActiveNwcWallets,
+  waitForSchema
+} from '../src/db'
 import type { ListenerEnv } from '../src/env'
 import { encryptRemoteWalletEnvelope } from '../../web/lib/wallet/remote-wallet-vault-core'
 
@@ -110,5 +114,21 @@ describe('loadActiveNwcWallets', () => {
         connectionString: NWC_URI
       }
     ])
+  })
+})
+
+describe('isValidConnectionString', () => {
+  it('requires valid keys and at least one ws(s) relay', () => {
+    expect(isValidConnectionString(NWC_URI)).toBe(true)
+    expect(
+      isValidConnectionString(
+        `nostr+walletconnect://${'a'.repeat(32)} ${'b'.repeat(32)}?relay=wss%3A%2F%2Frelay.example&secret=${'c'.repeat(64)}`
+      )
+    ).toBe(false)
+    expect(
+      isValidConnectionString(
+        `nostr+walletconnect://${'a'.repeat(64)}?relay=https%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`
+      )
+    ).toBe(false)
   })
 })

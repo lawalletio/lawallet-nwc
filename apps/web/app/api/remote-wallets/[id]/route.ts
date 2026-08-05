@@ -17,6 +17,7 @@ import {
   bindPrimaryAddressToWallet,
   clearPrimaryWalletLinkToWallet
 } from '@/lib/wallet/primary-wallet'
+import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -97,7 +98,8 @@ export const GET = withErrorHandling(
     const { id } = validateParams(await params, idParam)
     const wallet = await loadOwnedWallet(id, userId)
 
-    return NextResponse.json(toDto(wallet))
+    const receiveCapabilities = await getZapReceiptCapability()
+    return NextResponse.json({ ...toDto(wallet), receiveCapabilities })
   }
 )
 
@@ -145,6 +147,9 @@ export const PATCH = withErrorHandling(
 
     try {
       const updated = await prisma.$transaction(async tx => {
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(hashtextextended(${id}, 0))
+        `
         if (body.isDefault === true) {
           const primaryAddress = await tx.lightningAddress.findFirst({
             where: { userId, isPrimary: true },
@@ -170,6 +175,16 @@ export const PATCH = withErrorHandling(
 
         if (body.status === 'REVOKED' || body.status === 'DEAD') {
           await clearPrimaryWalletLinkToWallet(userId, id, tx)
+        }
+
+        if (body.status && body.status !== 'ACTIVE') {
+          await tx.remoteWalletReceiveAction.updateMany({
+            where: { remoteWalletId: id },
+            data: { enabled: false, pausedAt: new Date() }
+          })
+        }
+
+        if (body.status === 'REVOKED' || body.status === 'DEAD') {
           return tx.remoteWallet.findUniqueOrThrow({ where: { id } })
         }
 
@@ -179,6 +194,12 @@ export const PATCH = withErrorHandling(
       // Status/name flips change what the listener dashboard shows — nudge
       // it to refetch (the listener reconciles via the Postgres trigger).
       eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+      if (body.status && body.status !== 'ACTIVE') {
+        eventBus.emit({
+          type: 'remote-wallet-forwarding:updated',
+          timestamp: Date.now()
+        })
+      }
       if (
         body.isDefault === true ||
         body.status === 'REVOKED' ||
@@ -245,25 +266,55 @@ export const DELETE = withErrorHandling(
           'This wallet has an unresolved card payment and cannot be removed yet'
         )
       }
+      const unresolvedForwarding =
+        await prisma.remoteWalletForwardReceipt.findFirst({
+          where: {
+            walletId: id
+          },
+          select: { id: true }
+        })
+      if (unresolvedForwarding) {
+        throw new ConflictError(
+          'This wallet has forwarding audit records and cannot be permanently removed'
+        )
+      }
       await prisma.$transaction(async tx => {
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(hashtextextended(${id}, 0))
+        `
         await clearPrimaryWalletLinkToWallet(userId, id, tx)
         await tx.remoteWallet.delete({ where: { id } })
       })
       eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+      eventBus.emit({
+        type: 'remote-wallet-forwarding:updated',
+        timestamp: Date.now()
+      })
       eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
       eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
       return new NextResponse(null, { status: 204 })
     }
 
     await prisma.$transaction(async tx => {
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtextextended(${id}, 0))
+      `
       await tx.remoteWallet.update({
         where: { id },
         data: { status: 'REVOKED', isDefault: false }
+      })
+      await tx.remoteWalletReceiveAction.updateMany({
+        where: { remoteWalletId: id },
+        data: { enabled: false, pausedAt: new Date() }
       })
       await clearPrimaryWalletLinkToWallet(userId, id, tx)
     })
 
     eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+    eventBus.emit({
+      type: 'remote-wallet-forwarding:updated',
+      timestamp: Date.now()
+    })
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
     eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
     return new NextResponse(null, { status: 204 })

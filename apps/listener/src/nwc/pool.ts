@@ -473,10 +473,23 @@ export class NwcPool {
       conn.lastErrorAt = new Date()
       conn.lastError = error.message
       this.teardownClient(conn)
-      log.warn(
-        { err: error, walletId: conn.wallet.id, attempt: conn.retryAttempt },
-        'pool.wallet_connect_failed'
-      )
+      if (conn.retryAttempt === 0) {
+        log.warn(
+          { err: error, walletId: conn.wallet.id, attempt: conn.retryAttempt },
+          'pool.wallet_connect_failed'
+        )
+      } else if (isPowerOfTwo(conn.retryAttempt)) {
+        // Keep long-running outages observable without formatting the same
+        // source-mapped stack every minute for every disconnected wallet.
+        log.warn(
+          {
+            error: error.message,
+            walletId: conn.wallet.id,
+            attempt: conn.retryAttempt
+          },
+          'pool.wallet_connect_retrying'
+        )
+      }
       if (!conn.errorNotified) {
         conn.errorNotified = true
         this.deps.onWalletError?.(conn.wallet, error)
@@ -819,6 +832,10 @@ function normalizeRelayUrl(url: string): string {
   } catch {
     return url
   }
+}
+
+function isPowerOfTwo(value: number): boolean {
+  return value > 0 && (value & (value - 1)) === 0
 }
 
 function isThenable(v: unknown): v is Promise<unknown> {

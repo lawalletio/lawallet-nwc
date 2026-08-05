@@ -22,6 +22,22 @@ export interface UseApiResult<T> {
  * Maps an API path to its corresponding SSE event type for auto-refresh.
  */
 function getEventTypeForPath(path: string): SSEEventType | null {
+  if (path === '/api/remote-wallets/forwarding-map')
+    return 'remote-wallet-forwarding:updated'
+  if (
+    /^\/api\/remote-wallets\/[^/]+\/(receive-action|forwarding-receipts|forwarding-activity)/.test(
+      path
+    )
+  )
+    return 'remote-wallet-forwarding:updated'
+  if (/^\/api\/remote-wallets\/[^/]+\/payments\//.test(path))
+    return 'invoices:updated'
+  if (
+    /^\/api\/remote-wallets\/[^/]+\/(notifications|notification-deliveries)/.test(
+      path
+    )
+  )
+    return 'remote-wallet-notifications:updated'
   // Listener dashboard refreshes when the webhook route emits
   // `listener:updated` (new NWC connection events / errors).
   if (path.startsWith('/api/admin/listener')) return 'listener:updated'

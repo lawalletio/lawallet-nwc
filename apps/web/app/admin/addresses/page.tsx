@@ -346,12 +346,20 @@ export default function AdminAddressesPage() {
                       </TableCell>
                       {adminView && (
                         <TableCell>
-                          <span
-                            className="font-mono text-xs text-muted-foreground"
-                            title={'pubkey' in addr ? addr.pubkey : undefined}
-                          >
-                            {'pubkey' in addr ? truncateNpub(addr.pubkey) : '—'}
-                          </span>
+                          {'pubkey' in addr ? (
+                            <Link
+                              href={`/admin/users/${encodeURIComponent(addr.pubkey)}`}
+                              className="font-mono text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              title={`View ${truncateNpub(addr.pubkey)} user profile`}
+                              aria-label={`View user profile for ${truncateNpub(addr.pubkey)}`}
+                            >
+                              {truncateNpub(addr.pubkey)}
+                            </Link>
+                          ) : (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              —
+                            </span>
+                          )}
                         </TableCell>
                       )}
                       <TableCell>

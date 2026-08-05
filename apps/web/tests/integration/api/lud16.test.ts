@@ -4,6 +4,10 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createLightningAddressFixture } from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 
+const { createProxyPayRequestMock } = vi.hoisted(() => ({
+  createProxyPayRequestMock: vi.fn()
+}))
+
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
@@ -31,6 +35,10 @@ vi.mock('@/lib/nostr/lud16-avatar', () => ({
 
 vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }
+}))
+
+vi.mock('@/lib/proxy/pay-request', () => ({
+  createProxyPayRequest: createProxyPayRequestMock
 }))
 
 // LNCurl re-provisioning is exercised in dedicated suites; here we stub it so
@@ -74,13 +82,20 @@ vi.mock('light-bolt11-decoder', () => ({
   })
 }))
 
-import { GET as Lud16Get } from '@/app/api/lud16/[username]/route'
+import {
+  GET as Lud16Get,
+  OPTIONS as Lud16Options
+} from '@/app/api/lud16/[username]/route'
 import { getLud16AvatarMetadataEntry } from '@/lib/nostr/lud16-avatar'
-import { GET as Lud16CbGet } from '@/app/api/lud16/[username]/cb/route'
+import {
+  GET as Lud16CbGet,
+  OPTIONS as Lud16CbOptions
+} from '@/app/api/lud16/[username]/cb/route'
 import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 import { getSettings } from '@/lib/settings'
 import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
+import { DEV_ADMIN_PUBKEY, DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
 
 function nwcUri(walletKey: string, secret: string, relay: string): string {
   return `nostr+walletconnect://${walletKey.repeat(64)}?relay=${encodeURIComponent(`wss://${relay}`)}&secret=${secret.repeat(64)}`
@@ -126,6 +141,12 @@ beforeEach(() => {
     domain: 'test.com',
     endpoint: 'https://app.test.com'
   })
+  createProxyPayRequestMock.mockResolvedValue({
+    invoiceId: 'proxy-invoice-1',
+    proxyPaymentId: 'proxy-payment-1',
+    bolt11: 'lnbc100n1proxy',
+    paymentHash: 'b'.repeat(64)
+  })
   // The driver caches one NWCClient per connection string; clear it so each
   // test's `nwcCtorMock` assertions see a fresh constructor call rather than
   // a cache hit from a prior test.
@@ -134,6 +155,16 @@ beforeEach(() => {
 })
 
 describe('GET /api/lud16/[username]', () => {
+  it('allows cross-origin discovery and callback preflights', () => {
+    for (const response of [Lud16Options(), Lud16CbOptions()]) {
+      expect(response.status).toBe(204)
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+      expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+        'GET'
+      )
+    }
+  })
+
   it('returns a verification pay request without a real address', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'example.com',
@@ -182,6 +213,7 @@ describe('GET /api/lud16/[username]', () => {
     expect(body.minSendable).toBe(1000)
     expect(body.maxSendable).toBe(1000000000)
     expect(body.commentAllowed).toBe(200)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
   })
 
   it('embeds the cached Nostr avatar as a base64 image in the metadata', async () => {
@@ -225,6 +257,7 @@ describe('GET /api/lud16/[username]', () => {
     )
 
     expect(res.status).toBe(404)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
   })
 
   it('returns 404 when user has no NWC configured', async () => {
@@ -438,12 +471,48 @@ describe('GET /api/lud16/[username]/cb', () => {
     expect(body.verify).toBe(
       `https://app.test.com/api/lud16/alice/verify/${'a'.repeat(64)}`
     )
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
     // A fresh invoice must announce itself on the bus so any connected
     // dashboard (address detail / admin home / invoices feed) refetches
     // without a manual reload.
     expect(eventBus.emit).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'invoices:updated' })
     )
+  })
+
+  it('normalizes the account identity to hex for a proxied NIP-57 zap', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'proxy',
+      mode: 'PROXY_ALIAS',
+      redirect: 'bob@destination.example',
+      remoteWallet: null,
+      user: {
+        id: DEV_ADMIN_USER_ID,
+        pubkey: DEV_ADMIN_USER_ID,
+        nostrIdentities: [{ pubkey: DEV_ADMIN_USER_ID }]
+      }
+    } as any)
+
+    try {
+      const req = createNextRequest('/api/lud16/proxy/cb', {
+        searchParams: {
+          amount: '100000',
+          nostr: JSON.stringify({ kind: 9734 })
+        }
+      })
+      const res = await Lud16CbGet(
+        req,
+        createParamsPromise({ username: 'proxy' })
+      )
+
+      expect(res.status).toBe(200)
+      expect(createProxyPayRequestMock).toHaveBeenCalledWith(
+        expect.objectContaining({ recipientPubkey: DEV_ADMIN_PUBKEY })
+      )
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('persists invoice to DB with LUD16_PAYMENT purpose', async () => {

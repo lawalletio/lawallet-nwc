@@ -30,7 +30,10 @@ vi.mock('@getalby/sdk', () => ({
   }))
 }))
 
-import { GET } from '@/app/api/lud16/[username]/verify/[paymentHash]/route'
+import {
+  GET,
+  OPTIONS
+} from '@/app/api/lud16/[username]/verify/[paymentHash]/route'
 
 const VALID_HASH = 'a'.repeat(64)
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000)
@@ -80,6 +83,14 @@ beforeEach(() => {
 })
 
 describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
+  it('allows cross-origin LUD-21 verification preflights', () => {
+    const res = OPTIONS()
+
+    expect(res.status).toBe(204)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('GET')
+  })
+
   it('rejects invalid payment hash format', async () => {
     const req = createNextRequest('/api/lud16/alice/verify/short')
     const res = await GET(
@@ -90,6 +101,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
 
     expect(body.status).toBe('ERROR')
     expect(body.reason).toContain('Invalid')
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
     expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled()
   })
 

@@ -2,6 +2,7 @@ import { finalizeEvent, getPublicKey, verifyEvent } from 'nostr-tools/pure'
 import { nip19, SimplePool } from 'nostr-tools'
 import type { Event } from 'nostr-tools'
 import { bech32 } from 'bech32'
+import { ValidationError } from '@/types/server/errors'
 
 const HEX_64 = /^[0-9a-f]{64}$/i
 const MAX_ZAP_SKEW_SECONDS = 10 * 60
@@ -37,7 +38,7 @@ export function validateZapRequest(input: {
   try {
     event = JSON.parse(input.raw) as Event
   } catch {
-    throw new Error('Zap request is not valid JSON')
+    throw new ValidationError('Zap request is not valid JSON')
   }
   if (
     event.kind !== 9734 ||
@@ -46,21 +47,27 @@ export function validateZapRequest(input: {
       (input.nowSeconds ?? Math.floor(Date.now() / 1000)) - event.created_at
     ) > MAX_ZAP_SKEW_SECONDS
   ) {
-    throw new Error('Zap request signature, kind, or timestamp is invalid')
+    throw new ValidationError(
+      'Zap request signature, kind, or timestamp is invalid'
+    )
   }
   const pTags = event.tags.filter(tag => tag[0] === 'p')
   if (
     pTags.length !== 1 ||
     pTags[0][1]?.toLowerCase() !== input.recipientPubkey.toLowerCase()
   ) {
-    throw new Error('Zap request recipient does not match this address')
+    throw new ValidationError(
+      'Zap request recipient does not match this address'
+    )
   }
   const amountTag = event.tags.find(tag => tag[0] === 'amount')?.[1]
   if (
     amountTag !== undefined &&
     (!/^\d+$/.test(amountTag) || Number(amountTag) !== input.amountMsats)
   ) {
-    throw new Error('Zap request amount does not match callback amount')
+    throw new ValidationError(
+      'Zap request amount does not match callback amount'
+    )
   }
   const lnurlTags = event.tags.filter(tag => tag[0] === 'lnurl')
   if (
@@ -68,7 +75,7 @@ export function validateZapRequest(input: {
     !lnurlTags[0][1] ||
     decodeLnurl(lnurlTags[0][1]) !== input.expectedLnurl
   ) {
-    throw new Error('Zap request LNURL does not match this address')
+    throw new ValidationError('Zap request LNURL does not match this address')
   }
   const relays = [
     ...new Set(
@@ -80,14 +87,27 @@ export function validateZapRequest(input: {
     )
   ]
   if (relays.length === 0) {
-    throw new Error('Zap request must include at least one relay')
+    throw new ValidationError('Zap request must include at least one relay')
   }
   // The raw string is the exact value committed into description_hash and
   // copied into the receipt's description tag.
   return { event, canonicalJson: input.raw, relays }
 }
 
-export async function publishZapReceipt(input: {
+export interface PublishedZapReceipt {
+  event: Event
+  json: string
+}
+
+/**
+ * Sign a deterministic NIP-57 kind:9735 receipt.
+ *
+ * Keeping creation separate from relay publication lets payment audit records
+ * retain the exact event that was attempted. With a persisted settlement time
+ * the same receipt id is produced after a crash or relay timeout, so a retry
+ * cannot create a second zap receipt for the same payment.
+ */
+export function createZapReceipt(input: {
   zapRequest: Event
   zapRequestJson: string
   payerInvoice: string
@@ -95,19 +115,11 @@ export async function publishZapReceipt(input: {
   privateKeyHex: string
   /** Persisted forwarding time keeps the receipt event id stable on retries. */
   createdAtSeconds: number
-}): Promise<string> {
-  const relays =
-    input.zapRequest.tags
-      .find(tag => tag[0] === 'relays')
-      ?.slice(1)
-      .filter(isRelayUrl)
-      .slice(0, 8) ?? []
-  if (relays.length === 0) throw new Error('Zap request has no publish relays')
-
+}): Event {
   const copiedTags = input.zapRequest.tags.filter(tag =>
     ['e', 'p', 'a'].includes(tag[0])
   )
-  const event = finalizeEvent(
+  return finalizeEvent(
     {
       kind: 9735,
       created_at: input.createdAtSeconds,
@@ -121,6 +133,25 @@ export async function publishZapReceipt(input: {
     },
     Buffer.from(input.privateKeyHex, 'hex')
   )
+}
+
+export async function publishZapReceipt(input: {
+  zapRequest: Event
+  zapRequestJson: string
+  payerInvoice: string
+  payerPreimage?: string | null
+  privateKeyHex: string
+  createdAtSeconds: number
+}): Promise<PublishedZapReceipt> {
+  const relays =
+    input.zapRequest.tags
+      .find(tag => tag[0] === 'relays')
+      ?.slice(1)
+      .filter(isRelayUrl)
+      .slice(0, 8) ?? []
+  if (relays.length === 0) throw new Error('Zap request has no publish relays')
+
+  const event = createZapReceipt(input)
 
   const pool = new SimplePool()
   let timeout: ReturnType<typeof setTimeout> | null = null
@@ -139,7 +170,7 @@ export async function publishZapReceipt(input: {
     if (timeout) clearTimeout(timeout)
     pool.close(relays)
   }
-  return event.id
+  return { event, json: JSON.stringify(event) }
 }
 
 function decodeLnurl(value: string): string | null {

@@ -138,6 +138,64 @@ enum ProxyForwardAttemptStatus {
   EXPIRED
 }
 
+enum RemoteWalletReceiveActionType {
+  FORWARD
+}
+
+enum RemoteWalletForwardReceiptStatus {
+  RECEIVED
+  FORWARDING
+  PARTIAL
+  BLOCKED
+  COMPLETED
+  RETAINED
+}
+
+enum RemoteWalletForwardLegStatus {
+  READY
+  PENDING
+  UNKNOWN
+  REJECTED
+  SUCCEEDED
+  EXPIRED
+  SUPERSEDED
+}
+
+enum RemoteWalletForwardAttemptStatus {
+  PENDING
+  UNKNOWN
+  REJECTED
+  SUCCEEDED
+  EXPIRED
+}
+
+enum RemoteWalletNotificationChannel {
+  WEBHOOK
+  NOSTR
+}
+
+enum RemoteWalletNotificationAction {
+  RECEIVED
+  FORWARDED
+}
+
+enum RemoteWalletNotificationDeliveryStatus {
+  READY
+  PENDING
+  UNKNOWN
+  REJECTED
+  SUCCEEDED
+  EXPIRED
+}
+
+enum RemoteWalletNotificationAttemptStatus {
+  PENDING
+  UNKNOWN
+  REJECTED
+  SUCCEEDED
+  EXPIRED
+}
+
 /// The ceremony a WebAuthnChallenge was minted for. REGISTER = new-account
 /// signup (unauthenticated), LINK = add a credential to an existing account,
 /// LOGIN = discoverable-credential authentication, EXPORT = step-up assertion
@@ -150,32 +208,34 @@ enum WebAuthnFlow {
 }
 
 model User {
-  id                 String              @id
-  pubkey             String              @unique
-  createdAt          DateTime            @default(now())
-  cardDesigns        CardDesign[]
-  ntag424s           Ntag424[]
-  lightningAddresses LightningAddress[]
-  remoteWallets      RemoteWallet[]
-  cards              Card[]
-  invoices           Invoice[]
-  albySubAccount     AlbySubAccount?
-  albyEnabled        Boolean             @default(false)
-  role               UserRole            @default(USER)
-  activityLogs       ActivityLog[]
+  id                                 String                             @id
+  pubkey                             String                             @unique
+  createdAt                          DateTime                           @default(now())
+  cardDesigns                        CardDesign[]
+  ntag424s                           Ntag424[]
+  lightningAddresses                 LightningAddress[]
+  remoteWallets                      RemoteWallet[]
+  remoteWalletNotificationDeliveries RemoteWalletNotificationDelivery[]
+  cards                              Card[]
+  invoices                           Invoice[]
+  albySubAccount                     AlbySubAccount?
+  albyEnabled                        Boolean                            @default(false)
+  role                               UserRole                           @default(USER)
+  activityLogs                       ActivityLog[]
   /// The user's preferred Nostr relays (NIP-65-style), as a JSON-stringified
   /// `string[]` of `wss://` URLs. Null/absent means the user hasn't picked any
   /// and consumers fall back to the operator's configured relay list. Owner-
   /// editable via `PUT /api/users/[userId]/relays`, or auto-populated from the
   /// user's NIP-65 (kind:10002) relay list — see `lib/nostr/relay-list.ts`.
-  relays             String?
+  relays                             String?
   /// When `relays` was last set (manual save) or refreshed from NIP-65. Drives
   /// the server-side relay-list cache TTL so nostr.json doesn't re-query relays
   /// on every request.
-  relaysUpdatedAt    DateTime?
-  passkeyCredentials PasskeyCredential[]
-  managedNostrKey    ManagedNostrKey?
-  nostrIdentities    NostrIdentity[]
+  relaysUpdatedAt                    DateTime?
+  passkeyCredentials                 PasskeyCredential[]
+  managedNostrKey                    ManagedNostrKey?
+  nostrIdentities                    NostrIdentity[]
+  walletForwardReceipts              RemoteWalletForwardReceipt[]
 
   @@index([role])
 }
@@ -341,13 +401,254 @@ model RemoteWallet {
   /// DEAD). Null for every other wallet. Drives the "graveyard" death stats.
   diedAt               DateTime?
 
-  lightningAddresses LightningAddress[]
-  cards              Card[]
+  lightningAddresses     LightningAddress[]
+  cards                  Card[]
+  receiveAction          RemoteWalletReceiveAction?
+  forwardReceipts        RemoteWalletForwardReceipt[]
+  notifications          RemoteWalletNotification[]
+  notificationDeliveries RemoteWalletNotificationDelivery[]
+  invoices               Invoice[]
 
   @@unique([userId, name])
   @@index([userId])
   @@index([type])
   @@index([status])
+}
+
+/// An owner-configured outbound notification attached to one RemoteWallet.
+/// Channel-specific settings are nullable and guarded by database checks in
+/// the additive migration plus the shared request schemas.
+model RemoteWalletNotification {
+  id             String                             @id @default(cuid())
+  remoteWalletId String
+  remoteWallet   RemoteWallet                       @relation(fields: [remoteWalletId], references: [id], onDelete: Cascade)
+  name           String
+  channel        RemoteWalletNotificationChannel
+  action         RemoteWalletNotificationAction
+  enabled        Boolean                            @default(true)
+  pausedAt       DateTime?
+  webhookUrl     String?
+  nostrKind      Int?
+  nostrRecipient String?
+  nostrRelays    Json?
+  nostrContent   String?
+  nip44          Boolean                            @default(false)
+  deliveries     RemoteWalletNotificationDelivery[]
+  createdAt      DateTime                           @default(now())
+  updatedAt      DateTime                           @updatedAt
+
+  @@index([remoteWalletId, createdAt])
+  @@index([remoteWalletId, action, enabled])
+}
+
+/// Idempotent journal entry for one notification and one wallet event. The
+/// unique key makes listener replays and concurrent enqueue calls harmless.
+model RemoteWalletNotificationDelivery {
+  id             String                                 @id @default(cuid())
+  notificationId String
+  notification   RemoteWalletNotification               @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  walletId       String
+  wallet         RemoteWallet                           @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventKey       String
+  action         RemoteWalletNotificationAction
+  payload        Json
+  status         RemoteWalletNotificationDeliveryStatus @default(READY)
+  attemptCount   Int                                    @default(0)
+  lastError      String?
+  nextRetryAt    DateTime                               @default(now())
+  leaseOwner     String?
+  leaseExpiresAt DateTime?
+  completedAt    DateTime?
+  attempts       RemoteWalletNotificationAttempt[]
+  createdAt      DateTime                               @default(now())
+  updatedAt      DateTime                               @updatedAt
+
+  @@unique([notificationId, eventKey])
+  @@index([walletId, createdAt])
+  @@index([userId, createdAt])
+  @@index([status, nextRetryAt])
+  @@index([leaseExpiresAt])
+}
+
+/// One persisted outbound attempt. It exists before network I/O starts, and
+/// requestId is reused as the webhook idempotency key / Nostr event seed.
+model RemoteWalletNotificationAttempt {
+  id             String                                @id @default(cuid())
+  deliveryId     String
+  delivery       RemoteWalletNotificationDelivery      @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  attemptNo      Int
+  requestId      String                                @unique
+  status         RemoteWalletNotificationAttemptStatus @default(PENDING)
+  responseStatus Int?
+  responseBody   String?
+  nostrEventId   String?
+  errorCode      String?
+  errorMessage   String?
+  createdAt      DateTime                              @default(now())
+  resolvedAt     DateTime?
+
+  @@unique([deliveryId, attemptNo])
+  @@index([deliveryId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// User-owned automation attached to a RemoteWallet. V1 exposes FORWARD,
+/// while the discriminator keeps the receive-action surface extensible.
+model RemoteWalletReceiveAction {
+  id                String                              @id @default(cuid())
+  remoteWalletId    String                              @unique
+  remoteWallet      RemoteWallet                        @relation(fields: [remoteWalletId], references: [id], onDelete: Cascade)
+  type              RemoteWalletReceiveActionType       @default(FORWARD)
+  enabled           Boolean                             @default(false)
+  enabledAt         DateTime?
+  pausedAt          DateTime?
+  leaseOwner        String?
+  leaseExpiresAt    DateTime?
+  currentRevisionId String?                             @unique
+  currentRevision   RemoteWalletReceiveActionRevision?  @relation("CurrentReceiveActionRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+  revisions         RemoteWalletReceiveActionRevision[] @relation("ReceiveActionRevisions")
+  receipts          RemoteWalletForwardReceipt[]
+  createdAt         DateTime                            @default(now())
+  updatedAt         DateTime                            @updatedAt
+
+  @@index([enabled, enabledAt])
+  @@index([leaseExpiresAt])
+}
+
+/// Immutable forwarding configuration. Receipts and attempts retain their
+/// snapshots even after a later revision becomes current.
+model RemoteWalletReceiveActionRevision {
+  id               String                           @id @default(cuid())
+  actionId         String
+  action           RemoteWalletReceiveAction        @relation("ReceiveActionRevisions", fields: [actionId], references: [id], onDelete: Cascade)
+  currentForAction RemoteWalletReceiveAction?       @relation("CurrentReceiveActionRevision")
+  revision         Int
+  feeBps           Int                              @default(50)
+  baseFeeMsats     BigInt                           @default(1000)
+  destinations     RemoteWalletForwardDestination[]
+  receipts         RemoteWalletForwardReceipt[]
+  createdAt        DateTime                         @default(now())
+
+  @@unique([actionId, revision])
+  @@index([actionId, createdAt])
+}
+
+model RemoteWalletForwardDestination {
+  id            String                            @id @default(cuid())
+  revisionId    String
+  revision      RemoteWalletReceiveActionRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  position      Int
+  address       String
+  allocationBps Int
+  createdAt     DateTime                          @default(now())
+
+  @@unique([revisionId, position])
+  @@unique([revisionId, address])
+  @@index([revisionId])
+}
+
+/// Durable record of one settled incoming payment and its forwarding plan.
+model RemoteWalletForwardReceipt {
+  id                        String                            @id @default(cuid())
+  actionId                  String
+  action                    RemoteWalletReceiveAction         @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  revisionId                String
+  revision                  RemoteWalletReceiveActionRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  walletId                  String
+  wallet                    RemoteWallet                      @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId                    String
+  user                      User                              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventKey                  String                            @unique
+  sourcePaymentHash         String
+  sourceInvoice             String?
+  grossAmountMsats          BigInt
+  retainedFeeMsats          BigInt
+  targetAmountMsats         BigInt
+  forwardedAmountMsats      BigInt                            @default(0)
+  routingFeeMsats           BigInt                            @default(0)
+  routingReserveMsats       BigInt                            @default(0)
+  unusedRoutingReserveMsats BigInt                            @default(0)
+  routingFeeOverageMsats    BigInt                            @default(0)
+  shortfallMsats            BigInt                            @default(0)
+  configRevision            Int
+  status                    RemoteWalletForwardReceiptStatus  @default(RECEIVED)
+  recovered                 Boolean                           @default(false)
+  sourceSettledAt           DateTime
+  lastError                 String?
+  nextRetryAt               DateTime                          @default(now())
+  leaseOwner                String?
+  leaseExpiresAt            DateTime?
+  completedAt               DateTime?
+  createdAt                 DateTime                          @default(now())
+  updatedAt                 DateTime                          @updatedAt
+  legs                      RemoteWalletForwardLeg[]
+
+  @@unique([walletId, sourcePaymentHash])
+  @@index([userId, createdAt])
+  @@index([walletId, createdAt])
+  @@index([status, nextRetryAt])
+  @@index([leaseExpiresAt])
+}
+
+model RemoteWalletForwardLeg {
+  id                        String                       @id @default(cuid())
+  receiptId                 String
+  receipt                   RemoteWalletForwardReceipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  position                  Int
+  destination               String
+  allocationBps             Int
+  requestedAmountMsats      BigInt
+  forwardedAmountMsats      BigInt?
+  routingFeeMsats           BigInt?
+  routingReserveMsats       BigInt                       @default(0)
+  unusedRoutingReserveMsats BigInt                       @default(0)
+  routingFeeOverageMsats    BigInt                       @default(0)
+  destinationShortfallMsats BigInt                       @default(0)
+  status                    RemoteWalletForwardLegStatus @default(READY)
+  retryCount                Int                          @default(0)
+  nextRetryAt               DateTime                     @default(now())
+  lastError                 String?
+  supersededAt              DateTime?
+  completedAt               DateTime?
+  createdAt                 DateTime                     @default(now())
+  updatedAt                 DateTime                     @updatedAt
+  attempts                  RemoteWalletForwardAttempt[]
+  batchAnchorId             String?
+  batchAnchor               RemoteWalletForwardLeg?      @relation("RemoteWalletForwardLegBatch", fields: [batchAnchorId], references: [id], onDelete: SetNull)
+  batchMembers              RemoteWalletForwardLeg[]     @relation("RemoteWalletForwardLegBatch")
+
+  @@unique([receiptId, position])
+  @@index([receiptId, status])
+  @@index([status, nextRetryAt])
+  @@index([batchAnchorId, status])
+}
+
+model RemoteWalletForwardAttempt {
+  id                  String                           @id @default(cuid())
+  legId               String
+  leg                 RemoteWalletForwardLeg           @relation(fields: [legId], references: [id], onDelete: Cascade)
+  attemptNo           Int
+  bolt11              String
+  paymentHash         String
+  amountMsats         BigInt
+  expiresAt           DateTime
+  requestId           String                           @unique
+  status              RemoteWalletForwardAttemptStatus @default(PENDING)
+  preimage            String?
+  routingFeeMsats     BigInt?
+  routingReserveMsats BigInt                           @default(0)
+  errorCode           String?
+  errorMessage        String?
+  createdAt           DateTime                         @default(now())
+  updatedAt           DateTime                         @updatedAt
+  resolvedAt          DateTime?
+
+  @@unique([legId, attemptNo])
+  @@index([legId, createdAt])
+  @@index([paymentHash])
+  @@index([status, updatedAt])
 }
 
 /// A physical card. At most one MASTER card may exist per holder — enforced by
@@ -478,26 +779,46 @@ model Settings {
 }
 
 model Invoice {
-  id           String         @id @default(uuid())
-  bolt11       String
-  paymentHash  String         @unique
-  amountSats   Int
+  id                       String         @id @default(uuid())
+  bolt11                   String
+  paymentHash              String         @unique
+  amountSats               Int
   /// Exact amount for msat-denominated proxy invoices. Null on legacy rows.
-  amountMsats  BigInt?
-  description  String
-  purpose      InvoicePurpose
-  metadata     Json?
-  status       InvoiceStatus  @default(PENDING)
-  preimage     String?
-  userId       String?
-  user         User?          @relation(fields: [userId], references: [id])
-  expiresAt    DateTime
-  paidAt       DateTime?
-  createdAt    DateTime       @default(now())
-  proxyPayment ProxyPayment?
+  amountMsats              BigInt?
+  description              String
+  purpose                  InvoicePurpose
+  metadata                 Json?
+  status                   InvoiceStatus  @default(PENDING)
+  preimage                 String?
+  userId                   String?
+  user                     User?          @relation(fields: [userId], references: [id])
+  /// The exact wallet that minted this LUD-16 invoice. Keeping this link
+  /// makes LUD-21/NIP-57 audit data owner-scoped even when an address is later
+  /// rebound to a different RemoteWallet.
+  remoteWalletId           String?
+  remoteWallet             RemoteWallet?  @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
+  /// The canonical NIP-57 kind:9734 request committed into this invoice's
+  /// description hash. Null for ordinary LUD-16 invoices.
+  zapRequest               Json?
+  zapRequestJson           String?
+  /// The signed kind:9735 receipt retained for the wallet's payment audit.
+  zapReceipt               Json?
+  zapReceiptJson           String?
+  zapReceiptEventId        String?
+  zapReceiptPublishedAt    DateTime?
+  zapReceiptError          String?
+  zapReceiptLeaseOwner     String?
+  zapReceiptLeaseExpiresAt DateTime?
+  zapReceiptNextRetryAt    DateTime?
+  expiresAt                DateTime
+  paidAt                   DateTime?
+  createdAt                DateTime       @default(now())
+  proxyPayment             ProxyPayment?
 
   @@index([userId])
+  @@index([remoteWalletId])
   @@index([status])
+  @@index([status, zapReceiptNextRetryAt])
   @@index([purpose, status])
 }
 

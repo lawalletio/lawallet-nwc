@@ -122,6 +122,13 @@ read-only `lookup_invoice` calls can move `pending`/`unknown` to `succeeded`
 after verifying `sha256(preimage) === paymentHash`. Terminal rows are pruned
 after `EVENT_RETENTION_DAYS`; unresolved `unknown` rows are retained.
 
+RemoteWallet receive actions use the same journal and safety boundary with
+`requestId = sha256(walletId|paymentHash|legId|attemptNo)`. The webhook
+durably records the source receipt before acknowledging the listener event,
+and both the immediate webhook wake-up and the existing startup/10-minute
+reconciler call the RemoteWallet forwarding worker. See
+[RemoteWallet receive forwarding](./REMOTE-WALLET-FORWARDING.md).
+
 ## Connection readiness
 
 Creating a subscription is not enough to serve a low-latency payment. Each

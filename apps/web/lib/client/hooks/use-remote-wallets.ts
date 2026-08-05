@@ -27,6 +27,13 @@ export interface RemoteWalletData {
   provider: 'lncurl' | null
   /** For LNCurl wallets, the server that minted it (the tag links here); null otherwise. */
   lncurlServerUrl: string | null
+  /** Present on the wallet detail endpoint; no secrets are included. */
+  receiveCapabilities?: {
+    lud21: true
+    nip57: boolean
+    receiptPubkey: string | null
+    reason: string | null
+  }
 }
 
 /** Optional filters. Mirrors `remoteWalletListQuerySchema`. */

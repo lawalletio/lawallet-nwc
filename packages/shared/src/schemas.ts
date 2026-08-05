@@ -543,6 +543,127 @@ export const remoteWalletListQuerySchema = z.object({
   type: remoteWalletType.optional()
 })
 
+export const remoteWalletForwardDestinationSchema = z.object({
+  address: z.string().trim().min(3).max(320),
+  allocationBps: z.number().int().min(1).max(10_000)
+})
+
+export const remoteWalletReceiveActionConfigSchema = z.object({
+  feeBps: z.number().int().min(0).max(1_000).optional(),
+  baseFeeSats: z.number().int().nonnegative().safe().optional(),
+  enabled: z.boolean().optional(),
+  destinations: z.array(remoteWalletForwardDestinationSchema).min(1).max(20)
+})
+
+export const remoteWalletReceiveActionToggleSchema = z.object({
+  enabled: z.boolean()
+})
+
+export const remoteWalletForwardReceiptStatusSchema = z.enum([
+  'RECEIVED',
+  'FORWARDING',
+  'PARTIAL',
+  'BLOCKED',
+  'COMPLETED',
+  'RETAINED'
+])
+
+export const remoteWalletForwardReceiptListQuerySchema = z.object({
+  cursor: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  status: remoteWalletForwardReceiptStatusSchema.optional()
+})
+
+export const remoteWalletForwardActivityListQuerySchema = z.object({
+  cursor: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(30)
+})
+
+export const remoteWalletForwardReceiptParamsSchema = z.object({
+  id: z.string().min(1),
+  receiptId: z.string().min(1)
+})
+
+export const remoteWalletForwardRetrySchema = z.object({
+  legIds: z.array(z.string().min(1)).max(20).optional()
+})
+
+// ── Remote wallet notifications ────────────────────────────────────────────
+
+export const remoteWalletNotificationActionSchema = z.enum([
+  'RECEIVED',
+  'FORWARDED'
+])
+
+const remoteWalletNotificationNameSchema = z.string().trim().min(1).max(80)
+const remoteWalletNotificationRelaySchema = z
+  .string()
+  .trim()
+  .max(512)
+  .refine(value => {
+    try {
+      const url = new URL(value)
+      return (
+        (url.protocol === 'wss:' || url.protocol === 'ws:') &&
+        url.hostname.length > 0
+      )
+    } catch {
+      return false
+    }
+  }, 'Relay must use ws:// or wss://')
+
+export const createRemoteWalletNotificationSchema = z.discriminatedUnion(
+  'channel',
+  [
+    z.object({
+      name: remoteWalletNotificationNameSchema,
+      channel: z.literal('WEBHOOK'),
+      action: remoteWalletNotificationActionSchema,
+      webhookUrl: z
+        .string()
+        .trim()
+        .url()
+        .max(2048)
+        .refine(value => {
+          try {
+            return new URL(value).protocol === 'https:'
+          } catch {
+            return false
+          }
+        }, 'Webhook URL must use HTTPS')
+    }),
+    z.object({
+      name: remoteWalletNotificationNameSchema,
+      channel: z.literal('NOSTR'),
+      action: remoteWalletNotificationActionSchema,
+      kind: z.number().int().min(0).max(2_147_483_647),
+      pTag: z.string().trim().min(1).max(128),
+      relays: z.array(remoteWalletNotificationRelaySchema).min(1).max(12),
+      content: z.string().max(16_384).default('{{payload}}'),
+      nip44: z.boolean().default(false)
+    })
+  ]
+)
+
+export const remoteWalletNotificationToggleSchema = z.object({
+  enabled: z.boolean()
+})
+
+export const remoteWalletNotificationListQuerySchema = z.object({
+  cursor: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(30)
+})
+
+export const remoteWalletNotificationParamsSchema = z.object({
+  id: z.string().min(1),
+  notificationId: z.string().min(1)
+})
+
+export const remoteWalletNotificationDeliveryParamsSchema = z.object({
+  id: z.string().min(1),
+  deliveryId: z.string().min(1)
+})
+
 // ── JWT ─────────────────────────────────────────────────────────────────────
 
 export const jwtRequestSchema = z.object({

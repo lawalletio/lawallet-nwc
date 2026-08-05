@@ -35,6 +35,10 @@ import {
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { Spinner } from '@/components/ui/spinner'
 import { truncateHex } from '@/lib/client/format'
+import {
+  useRemoteWalletForwardingMap,
+  type RemoteWalletForwardingMapAction
+} from '@/lib/client/hooks/use-remote-wallet-forwarding'
 import { nodeTypes, NODE_LAYOUT } from './nodes'
 import { HoverProvider, type HighlightSet } from './hover-context'
 import { HighlightEdge } from './highlight-edge'
@@ -47,11 +51,14 @@ import {
   getPrimaryWallet,
   withDerivedPrimaryWalletFlags
 } from './primary-wallet'
+import { indexProxyDestinations } from './proxy-destinations'
 
 /** Stable id helpers — used by both nodes and edges so they always agree. */
 const walletNodeId = (id: string) => `wallet:${id}`
 const addressNodeId = (username: string) => `la:${username}`
 const cardNodeId = (id: string) => `card:${id}`
+const destinationNodeId = (address: string) =>
+  `destination:${encodeURIComponent(address)}`
 
 /** Inverse helpers — extract the model id from a node id, or null if the prefix doesn't match. */
 const usernameFromNodeId = (
@@ -117,8 +124,11 @@ function ConnectionMapInner() {
   // logged-in account, so even an admin sees just their own here (and there's
   // no client-side pubkey matching that could hide a freshly paired card).
   const { data: cards, loading: cardsLoading } = useMyCards()
+  const { data: forwardingMap, loading: forwardingLoading } =
+    useRemoteWalletForwardingMap()
 
-  const loading = walletsLoading || addressesLoading || cardsLoading
+  const loading =
+    walletsLoading || addressesLoading || cardsLoading || forwardingLoading
   const domain = settings?.domain || 'your-domain'
   // When the user has no wallets, offer a one-tap LNCurl wallet (ghost node)
   // — but only if the operator enabled the integration.
@@ -173,11 +183,20 @@ function ConnectionMapInner() {
         wallets: walletList,
         addresses,
         cards,
+        forwardingActions: forwardingMap?.actions ?? null,
         defaultWallet,
         domain,
         lncurlEnabled
       }),
-    [walletList, addresses, cards, defaultWallet, domain, lncurlEnabled]
+    [
+      walletList,
+      addresses,
+      cards,
+      forwardingMap?.actions,
+      defaultWallet,
+      domain,
+      lncurlEnabled
+    ]
   )
 
   // ReactFlow needs to OWN the node/edge state (via these hooks) rather than
@@ -224,13 +243,15 @@ function ConnectionMapInner() {
   // The edge directly under the cursor (vs. merely highlighted as part
   // of a hovered node's component) — drives the per-edge tooltip.
   const activeEdgeId = hovered?.kind === 'edge' ? hovered.id : null
+  const walletDestinationFocus =
+    hovered?.kind === 'node' && hovered.id.startsWith('wallet:')
 
   // Memoise the context value so consumers only re-render when `highlight`
   // or `activeEdgeId` actually changes — not on every render of this
   // component (e.g. while `isPanning` flips during a drag).
   const hoverValue = useMemo(
-    () => ({ highlight, activeEdgeId }),
-    [highlight, activeEdgeId]
+    () => ({ highlight, activeEdgeId, walletDestinationFocus }),
+    [highlight, activeEdgeId, walletDestinationFocus]
   )
 
   // ── Lightning Address ↔ Wallet rebinding ─────────────────────────────────
@@ -581,6 +602,7 @@ interface BuildGraphInput {
   wallets: RemoteWalletData[] | null
   addresses: WalletAddress[] | null
   cards: CardData[] | null
+  forwardingActions: RemoteWalletForwardingMapAction[] | null
   defaultWallet: RemoteWalletData | null
   domain: string
   /** When the wallet column is empty, render a ghost LNCurl create-CTA node. */
@@ -606,10 +628,11 @@ interface BuiltGraph {
  *   - LA edge:   LA     `out`    (right) → Wallet `from-la` (left)
  *   - Card edge: Wallet `to-card`(right) → Card   `in`      (left)
  */
-function buildGraph({
+export function buildGraph({
   wallets,
   addresses,
   cards,
+  forwardingActions,
   defaultWallet,
   domain,
   lncurlEnabled
@@ -617,6 +640,10 @@ function buildGraph({
   const { addressX, walletX, cardX, rowGap, cardRowGap, topY } = NODE_LAYOUT
   const nodes: Node[] = []
   const edges: Edge[] = []
+  const proxyActionByWallet = new Map(
+    (forwardingActions ?? []).map(action => [action.walletId, action])
+  )
+  const proxyDestinations = indexProxyDestinations(addresses, forwardingActions)
 
   // ── Column 1 (left): Lightning Addresses ────────────────────────────────
   let y = topY
@@ -659,6 +686,7 @@ function buildGraph({
     })
     y += rowGap
     for (const w of wallets) {
+      const proxyAction = proxyActionByWallet.get(w.id)
       nodes.push({
         id: walletNodeId(w.id),
         type: 'remote-wallet',
@@ -671,7 +699,9 @@ function buildGraph({
           name: w.name,
           type: w.type,
           status: w.status,
-          isDefault: w.isDefault
+          isDefault: w.isDefault,
+          isProxy: Boolean(proxyAction),
+          proxyEnabled: proxyAction?.enabled ?? false
         }
       })
       y += rowGap
@@ -738,6 +768,38 @@ function buildGraph({
         }
       })
       y += cardRowGap
+    }
+  }
+
+  // ── Column 3b (below Cards): Proxied destinations ─────────────────────
+  // This section exists only when at least one Lightning Address proxy or
+  // RemoteWallet forwarding plan uses a destination. Addresses are
+  // deduplicated by `indexProxyDestinations`, so shared routes render once.
+  if (proxyDestinations.length > 0) {
+    y = cards && cards.length > 0 ? y + 24 : topY
+    nodes.push({
+      id: 'header:proxy-destinations',
+      type: 'header',
+      position: { x: cardX, y },
+      data: { label: 'Proxied destinations' },
+      draggable: false,
+      selectable: false
+    })
+    y += rowGap
+    for (const destination of proxyDestinations) {
+      nodes.push({
+        id: destinationNodeId(destination.address),
+        type: 'proxy-destination',
+        position: { x: cardX, y },
+        data: {
+          address: destination.address,
+          sourceCount:
+            destination.lightningAddressUsernames.length +
+            destination.walletIds.length
+        },
+        draggable: false
+      })
+      y += rowGap
     }
   }
 
@@ -823,6 +885,45 @@ function buildGraph({
     })
   }
 
+  // Proxy routes are read-only graph edges. A global address proxy flows
+  // directly from its Lightning Address; a user-owned forwarding plan flows
+  // from its RemoteWallet. Both converge on the same deduplicated destination.
+  for (const destination of proxyDestinations) {
+    const target = destinationNodeId(destination.address)
+    for (const username of destination.lightningAddressUsernames) {
+      edges.push({
+        id: `e:proxy-address:${username}->${encodeURIComponent(destination.address)}`,
+        type: 'highlight',
+        source: addressNodeId(username),
+        sourceHandle: 'out',
+        target,
+        targetHandle: 'in',
+        reconnectable: false,
+        data: {
+          tooltipTitle: 'DEFERRED PROXY',
+          tooltipHint: `Forwards to ${destination.address}`
+        },
+        style: { stroke: 'oklch(0.75 0.17 65)', strokeWidth: 1.5 }
+      })
+    }
+    for (const walletId of destination.walletIds) {
+      edges.push({
+        id: `e:proxy-wallet:${walletId}->${encodeURIComponent(destination.address)}`,
+        type: 'highlight',
+        source: walletNodeId(walletId),
+        sourceHandle: 'to-card',
+        target,
+        targetHandle: 'in',
+        reconnectable: false,
+        data: {
+          tooltipTitle: 'WALLET FORWARDING',
+          tooltipHint: `Distributes receipts to ${destination.address}`
+        },
+        style: { stroke: 'oklch(0.75 0.17 65)', strokeWidth: 1.5 }
+      })
+    }
+  }
+
   return { nodes, edges }
 }
 
@@ -840,7 +941,7 @@ function buildGraph({
  * we re-scan all edges per frontier pop instead of pre-building an
  * adjacency map — easier to follow and not a perf concern.
  */
-function computeHighlight(
+export function computeHighlight(
   hovered: { kind: 'node' | 'edge'; id: string } | null,
   edges: Edge[]
 ): HighlightSet | null {
@@ -849,6 +950,26 @@ function computeHighlight(
   const keptNodes = new Set<string>()
   const keptEdges = new Set<string>()
   const frontier: string[] = []
+  const walletDestinationFocus =
+    hovered.kind === 'node' && hovered.id.startsWith('wallet:')
+
+  // A destination can be shared by several forwarding plans, while each of
+  // those wallets can also point at other destinations. A generic connected-
+  // component walk would therefore leak through wallet -> other destination
+  // -> other wallet and make unrelated routes look active. For destination
+  // hover, follow only the proxy edges that terminate at the selected node.
+  // This gives the operator the exact reverse route: destination <- every
+  // RemoteWallet / Lightning Address that actually forwards to it.
+  if (hovered.kind === 'node' && hovered.id.startsWith('destination:')) {
+    keptNodes.add(hovered.id)
+    for (const edge of edges) {
+      if (edge.target !== hovered.id || !edge.id.startsWith('e:proxy-'))
+        continue
+      keptEdges.add(edge.id)
+      keptNodes.add(edge.source)
+    }
+    return { nodes: keptNodes, edges: keptEdges }
+  }
 
   // Seed the BFS depending on what's hovered.
   if (hovered.kind === 'node') {
@@ -869,6 +990,10 @@ function computeHighlight(
   // its own expansion. Stops naturally when nothing new is discovered.
   while (frontier.length > 0) {
     const node = frontier.shift() as string
+    // A destination is the end of a wallet forwarding route. Do not traverse
+    // through a shared destination into other wallets while focusing one
+    // RemoteWallet, otherwise unrelated plans become part of the highlight.
+    if (walletDestinationFocus && node.startsWith('destination:')) continue
     for (const e of edges) {
       if (e.source !== node && e.target !== node) continue
       if (keptEdges.has(e.id)) continue

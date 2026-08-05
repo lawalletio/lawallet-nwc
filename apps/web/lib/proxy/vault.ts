@@ -21,7 +21,7 @@ export class ProxyVaultDecryptError extends Error {
 }
 
 export function isProxyVaultConfigured(): boolean {
-  return getConfig(false).nwcVault.enabled
+  return Boolean(getConfig(false).nwcVault?.enabled)
 }
 
 function deriveKey(secret: string, salt: Buffer): Buffer {

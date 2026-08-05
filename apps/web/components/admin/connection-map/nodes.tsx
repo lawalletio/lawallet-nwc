@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { AtSign, Plus, Star, Wallet } from 'lucide-react'
+import { AtSign, MapPin, Plus, Star, Wallet, Waypoints } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -69,6 +69,13 @@ interface RemoteWalletNodeData {
   type: string
   status: string
   isDefault: boolean
+  isProxy: boolean
+  proxyEnabled: boolean
+}
+
+interface ProxyDestinationNodeData {
+  address: string
+  sourceCount: number
 }
 
 function useDimmed(id: string): boolean {
@@ -208,6 +215,19 @@ export function RemoteWalletNode({ id, data }: NodeProps) {
               aria-label="Primary"
             />
           )}
+          {d.isProxy && (
+            <Waypoints
+              className={cn(
+                'size-3 shrink-0',
+                d.proxyEnabled ? 'text-emerald-400' : 'text-amber-400'
+              )}
+              aria-label={
+                d.proxyEnabled
+                  ? 'Forwarding proxy active'
+                  : 'Forwarding proxy paused'
+              }
+            />
+          )}
         </span>
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
           {d.type} · {d.status.toLowerCase()}
@@ -225,6 +245,41 @@ export function RemoteWalletNode({ id, data }: NodeProps) {
         position={Position.Right}
         className="!size-2 !bg-sky-400"
       />
+    </div>
+  )
+}
+
+/** Read-only target shared by address proxies and wallet forwarding plans. */
+export function ProxyDestinationNode({ id, data }: NodeProps) {
+  const d = data as unknown as ProxyDestinationNodeData
+  const { highlight, walletDestinationFocus } = useHover()
+  const dimmed = !!highlight && !highlight.nodes.has(id)
+  const hidden = walletDestinationFocus && dimmed
+  return (
+    <div
+      className={cn(
+        shellClasses(dimmed),
+        'border-orange-500/30 bg-orange-500/[0.04]',
+        hidden && 'pointer-events-none opacity-0'
+      )}
+      style={{ width: NODE_WIDTH }}
+    >
+      <Handle
+        id="in"
+        type="target"
+        position={Position.Left}
+        isConnectable={false}
+        className="!size-2 !bg-orange-400"
+      />
+      <MapPin className="size-4 shrink-0 text-orange-400" aria-hidden />
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate font-mono text-xs font-medium">
+          {d.address}
+        </span>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          {d.sourceCount} {d.sourceCount === 1 ? 'proxy route' : 'proxy routes'}
+        </span>
+      </div>
     </div>
   )
 }
@@ -296,6 +351,7 @@ export const nodeTypes = {
   'lightning-address': LightningAddressNode,
   card: CardNode,
   'remote-wallet': RemoteWalletNode,
+  'proxy-destination': ProxyDestinationNode,
   'ghost-wallet': GhostWalletNode,
   header: ColumnHeaderNode
 }

@@ -59,6 +59,13 @@ export interface WalletAddressDetail {
   isOwner?: boolean
   /** Hex pubkey of the address owner. Present alongside `isOwner`. */
   ownerPubkey?: string
+  /** Capabilities currently exposed by this address's public LUD-16 endpoint. */
+  receiveProtocols?: {
+    lud21: boolean
+    nip57: boolean
+    source: 'proxy' | 'wallet' | 'unavailable'
+    reason: string | null
+  }
 }
 
 export type AddressInvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED'

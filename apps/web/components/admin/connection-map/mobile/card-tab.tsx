@@ -92,47 +92,54 @@ export function CardTab({ cards, wallets, onOpenDetail }: Props) {
             truncateHex(card.id)
           return (
             <li key={card.id}>
-              <button
-                type="button"
-                onClick={() => onOpenDetail(card.id)}
-                className="flex w-full items-center gap-3 rounded-lg border border-border bg-card px-3 py-3 text-left transition-colors hover:bg-muted/40"
-              >
-                {card.design?.image ? (
-                  <img
-                    src={card.design.image}
-                    alt={card.design.description ?? 'Card design'}
-                    className="h-8 w-12 shrink-0 rounded-sm border border-border object-cover"
-                  />
-                ) : (
-                  <span className="flex h-8 w-12 shrink-0 items-center justify-center rounded-sm border border-border bg-muted">
-                    <CreditCard className="size-4 text-sky-400" />
-                  </span>
-                )}
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm font-medium">{title}</span>
-                  <Badge
-                    variant={
-                      card.blocked
-                        ? 'destructive'
+              <div className="flex w-full items-center rounded-lg border border-border bg-card transition-colors hover:bg-muted/40">
+                <button
+                  type="button"
+                  aria-label={`Open ${title} details`}
+                  onClick={() => onOpenDetail(card.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-l-lg px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  {card.design?.image ? (
+                    <img
+                      src={card.design.image}
+                      alt={card.design.description ?? 'Card design'}
+                      className="h-8 w-12 shrink-0 rounded-sm border border-border object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-8 w-12 shrink-0 items-center justify-center rounded-sm border border-border bg-muted">
+                      <CreditCard className="size-4 text-sky-400" />
+                    </span>
+                  )}
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-medium">
+                      {title}
+                    </span>
+                    <Badge
+                      variant={
+                        card.blocked
+                          ? 'destructive'
+                          : card.lightningAddress
+                            ? 'default'
+                            : 'secondary'
+                      }
+                      className="mt-0.5 w-fit text-[10px] font-normal"
+                    >
+                      {card.blocked
+                        ? 'Blocked'
                         : card.lightningAddress
-                          ? 'default'
-                          : 'secondary'
-                    }
-                    className="mt-0.5 w-fit text-[10px] font-normal"
-                  >
-                    {card.blocked
-                      ? 'Blocked'
-                      : card.lightningAddress
-                        ? 'Paired'
-                        : 'Unpaired'}
-                  </Badge>
+                          ? 'Paired'
+                          : 'Unpaired'}
+                    </Badge>
+                  </div>
+                </button>
+                <div className="shrink-0 pr-3">
+                  <BindingChip
+                    label={chip.label}
+                    tone={chip.tone}
+                    onClick={() => setPicker(card)}
+                  />
                 </div>
-                <BindingChip
-                  label={chip.label}
-                  tone={chip.tone}
-                  onClick={() => setPicker(card)}
-                />
-              </button>
+              </div>
             </li>
           )
         })}

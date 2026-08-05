@@ -43,21 +43,34 @@ describe('idempotent payment HTTP API', () => {
     )
   })
 
-  function start(payments: {
-    submit: ReturnType<typeof vi.fn>
-    status: ReturnType<typeof vi.fn>
-  }) {
+  function start(
+    payments: {
+      submit: ReturnType<typeof vi.fn>
+      status: ReturnType<typeof vi.fn>
+    },
+    options: {
+      pgPool?: pg.Pool
+      healthDbTimeoutMs?: number
+      statusDbTimeoutMs?: number
+    } = {}
+  ) {
     const server = createHttpServer({
       env,
       log: pino({ level: 'silent' }),
       metrics: freshMetrics(),
-      pgPool: {
-        query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 })
-      } as unknown as pg.Pool,
+      pgPool:
+        options.pgPool ??
+        ({
+          query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 })
+        } as unknown as pg.Pool),
       nwcPool: {
-        readinessSummary: vi.fn(() => ({ total: 2, ready: 1, notReady: 1 }))
+        readinessSummary: vi.fn(() => ({ total: 2, ready: 1, notReady: 1 })),
+        relaySummary: vi.fn(() => []),
+        snapshot: vi.fn(() => [])
       } as unknown as NwcPool,
-      nwcPayments: payments
+      nwcPayments: payments,
+      healthDbTimeoutMs: options.healthDbTimeoutMs,
+      statusDbTimeoutMs: options.statusDbTimeoutMs
     })
     servers.push(server)
     return new Promise<string>((resolve, reject) => {
@@ -128,6 +141,37 @@ describe('idempotent payment HTTP API', () => {
       capabilities: ['nwc_payments_v1'],
       wallets: { total: 2, ready: 1, notReady: 1 }
     })
+  })
+
+  it('keeps health responsive when the database probe stalls', async () => {
+    const origin = await start(payments, {
+      pgPool: {
+        query: vi.fn(() => new Promise(() => undefined))
+      } as unknown as pg.Pool,
+      healthDbTimeoutMs: 5
+    })
+
+    const response = await fetch(`${origin}/health`)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ status: 'ok', db: false })
+  })
+
+  it('degrades status instead of hanging when its event query stalls', async () => {
+    const origin = await start(payments, {
+      pgPool: {
+        query: vi.fn(() => new Promise(() => undefined))
+      } as unknown as pg.Pool,
+      statusDbTimeoutMs: 5
+    })
+
+    const response = await fetch(`${origin}/status`, {
+      headers: { authorization: `Bearer ${REQUEST_SECRET}` }
+    })
+    const body = (await response.json()) as { degraded?: string[] }
+
+    expect(response.status).toBe(200)
+    expect(body.degraded).toContain('recentEvents')
   })
 
   it('returns 202 after the long-poll budget without cancelling the operation', async () => {
