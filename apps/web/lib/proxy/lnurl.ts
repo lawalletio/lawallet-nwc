@@ -8,7 +8,9 @@ import {
   parseExactPaymentInvoice
 } from '@/lib/invoice-utils'
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
+import { resolveApiUrl } from '@/lib/public-url'
 import { isDestinationInvoiceAmountAcceptable } from './money'
+import { resolveLocalDestination } from './local-destination'
 
 const MAX_RESPONSE_BYTES = 64 * 1024
 const FETCH_TIMEOUT_MS = 7000
@@ -60,6 +62,43 @@ export async function fetchDestinationMetadata(
 ): Promise<ProxyLnurlMetadata> {
   const parsed = parseLightningAddress(address)
   if (!parsed) throw new Error('Destination Lightning Address is invalid')
+  // A destination on this instance is served by us, so it is fetched from the
+  // origin this process actually answers on rather than the address' public
+  // host — which may be unroutable from here, and is deliberately refused by
+  // `safeHttpsGet` (HTTPS-only, no loopback). Loop safety is handled by the
+  // hop counter and cycle detection, not by refusing to resolve.
+  return (await fetchPayRequest(address, options)).metadata
+}
+
+/**
+ * Same guarded fetch, but hands back the destination's payRequest exactly as it
+ * was served. ALIAS mode proxies the document verbatim, and
+ * {@link ProxyLnurlMetadata} would strip everything it does not model — most
+ * importantly LUD-21's `verify` URL.
+ */
+export async function fetchDestinationPayRequest(
+  address: string,
+  options: { blockedHosts?: string[] } = {}
+): Promise<unknown> {
+  return (await fetchPayRequest(address, options)).raw
+}
+
+async function fetchPayRequest(
+  address: string,
+  options: { blockedHosts?: string[] }
+): Promise<{ metadata: ProxyLnurlMetadata; raw: unknown }> {
+  const parsed = parseLightningAddress(address)
+  if (!parsed) throw new Error('Destination Lightning Address is invalid')
+  const local = await resolveLocalDestination(address)
+  if (local) {
+    return fetchMetadataUrl(
+      new URL(
+        `${local.origin}/api/lud16/${encodeURIComponent(local.username)}`
+      ),
+      [],
+      true
+    )
+  }
   return fetchMetadataUrl(
     new URL(
       `https://${parsed.host}/.well-known/lnurlp/${encodeURIComponent(parsed.user)}`
@@ -70,11 +109,12 @@ export async function fetchDestinationMetadata(
 
 async function fetchMetadataUrl(
   initialUrl: URL,
-  blockedHosts: string[]
-): Promise<ProxyLnurlMetadata> {
+  blockedHosts: string[],
+  local = false
+): Promise<{ metadata: ProxyLnurlMetadata; raw: unknown }> {
   let url = initialUrl
   for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect++) {
-    const response = await safeHttpsGet(url, blockedHosts)
+    const response = await safeGet(url, blockedHosts, local)
     if (response.status >= 300 && response.status < 400) {
       const location = firstHeader(response.headers.location)
       if (!location || redirect === MAX_REDIRECTS) {
@@ -86,9 +126,8 @@ async function fetchMetadataUrl(
     if (response.status < 200 || response.status >= 300) {
       throw new Error(`Destination LNURL returned HTTP ${response.status}`)
     }
-    const parsed = payMetadataSchema.safeParse(
-      parseJson(response.body, 'Destination returned invalid JSON')
-    )
+    const raw = parseJson(response.body, 'Destination returned invalid JSON')
+    const parsed = payMetadataSchema.safeParse(raw)
     if (!parsed.success || parsed.data.status === 'ERROR') {
       throw new Error(
         parsed.success
@@ -99,8 +138,10 @@ async function fetchMetadataUrl(
     if (parsed.data.maxSendable < parsed.data.minSendable) {
       throw new Error('Destination LNURL amount range is invalid')
     }
-    await resolveSafeAddress(new URL(parsed.data.callback), blockedHosts)
-    return parsed.data
+    if (!local) {
+      await resolveSafeAddress(new URL(parsed.data.callback), blockedHosts)
+    }
+    return { metadata: parsed.data, raw }
   }
   throw new Error('Destination LNURL could not be resolved')
 }
@@ -125,7 +166,11 @@ export async function requestDestinationInvoice(input: {
     )
   }
 
-  const response = await safeHttpsGet(callback, input.blockedHosts ?? [])
+  // Derived rather than passed in, so every existing call site keeps working:
+  // only a local metadata fetch can yield a callback on our own origin, because
+  // `resolveSafeAddress` rejects a *remote* callback that points back at us.
+  const local = callback.origin === new URL(await resolveApiUrl()).origin
+  const response = await safeGet(callback, input.blockedHosts ?? [], local)
   if (response.status >= 300 && response.status < 400) {
     throw new Error('Destination callback must not redirect')
   }
@@ -222,6 +267,45 @@ async function resolveSafeAddress(
     throw new Error('Destination LNURL resolves to a private network')
   }
   return addresses[0]
+}
+
+/**
+ * Remote destinations keep the full SSRF treatment. A destination on this
+ * instance is fetched over loopback instead: the URL is built from
+ * `resolveApiUrl()` (never from user input), and the guarded path would reject
+ * it outright for being plain HTTP and/or private — which is exactly what it is
+ * supposed to do for anything that is not us.
+ */
+async function safeGet(
+  url: URL,
+  blockedHosts: string[],
+  local: boolean
+): Promise<SafeResponse> {
+  if (!local) return safeHttpsGet(url, blockedHosts)
+
+  const expected = new URL(await resolveApiUrl()).origin
+  if (url.origin !== expected) {
+    throw new Error('Local destination LNURL left this instance')
+  }
+  const response = await fetch(url, {
+    headers: {
+      accept: 'application/json',
+      'user-agent': 'LaWallet-LUD16-Proxy/1'
+    },
+    redirect: 'error',
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  })
+  const buffer = new Uint8Array(await response.arrayBuffer())
+  if (buffer.byteLength > MAX_RESPONSE_BYTES) {
+    throw new Error('Destination LNURL response is too large')
+  }
+  return {
+    status: response.status,
+    headers: Object.fromEntries(
+      response.headers.entries()
+    ) as IncomingHttpHeaders,
+    body: buffer
+  }
 }
 
 async function safeHttpsGet(

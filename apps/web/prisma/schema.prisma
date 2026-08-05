@@ -938,6 +938,25 @@ model ProxyForwardAttempt {
   @@index([status, updatedAt])
 }
 
+/// Depth marker for a payment this instance forwarded to one of its OWN
+/// Lightning Addresses. Forwarding to a local address is allowed, which means
+/// the destination can forward again — so every local hop stamps the invoice it
+/// is about to pay with `parentDepth + 1`. When that payment later arrives, the
+/// receiving side looks itself up here and refuses to forward past
+/// `MAX_FORWARD_HOPS`, which is what stops a cycle from running forever.
+///
+/// Keyed by payment hash rather than carried in the request, so it cannot be
+/// spoofed by a caller and works for both the global proxy and RemoteWallet
+/// forwarding — a ring that crosses the two subsystems is still caught.
+model ForwardingHop {
+  id          String   @id @default(cuid())
+  paymentHash String   @unique
+  depth       Int
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model ActivityLog {
   id        String           @id @default(cuid())
   createdAt DateTime         @default(now())

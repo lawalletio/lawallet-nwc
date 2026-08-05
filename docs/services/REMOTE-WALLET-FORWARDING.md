@@ -83,6 +83,32 @@ requests a fresh, lower invoice and doubles the previous routing reserve. A
 `PENDING` or `UNKNOWN` result never changes the reserve or creates another
 payment.
 
+## Forwarding to an address on this instance
+
+A destination may be a Lightning Address hosted here. It is resolved internally
+against the instance's own API origin instead of being fetched over the public
+internet, so it works even when the public host is not reachable from the
+server (a development instance answers on `http://localhost:<port>`, which the
+outbound fetcher deliberately refuses).
+
+Because a local destination can forward again, two independent guards keep a
+payment from circling:
+
+- **Config time.** Saving a destination walks the forwarding graph — deferred
+  proxy redirects, the address-to-wallet binding, and wallet forward
+  destinations — and refuses anything that leads back to the source. The walk
+  runs on every route that writes a destination, so no single edit can complete
+  a ring. `ALIAS` redirects are not part of the walk: they hand the payer the
+  destination's own payRequest, so no funds pass through us.
+- **Run time.** Each local hop stamps the invoice it is about to pay with
+  `parent + 1`. The paying side reads that depth first and stops at
+  `MAX_FORWARD_HOPS` (3), before minting anything. This is what covers the
+  cases config-time detection cannot see: two concurrent edits racing a cycle
+  into existence, or a restored backup.
+
+A blocked chain leaves the funds in the source wallet and reports the hop limit
+on the leg; nothing is lost.
+
 ## Owner API and live UI
 
 - `GET|PUT|PATCH /api/remote-wallets/{id}/receive-action`

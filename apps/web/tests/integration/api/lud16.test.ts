@@ -37,6 +37,17 @@ vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }
 }))
 
+const { fetchDestinationPayRequest, fetchDestinationMetadata } = vi.hoisted(
+  () => ({
+    fetchDestinationPayRequest: vi.fn(),
+    fetchDestinationMetadata: vi.fn()
+  })
+)
+vi.mock('@/lib/proxy/lnurl', () => ({
+  fetchDestinationPayRequest,
+  fetchDestinationMetadata
+}))
+
 vi.mock('@/lib/proxy/pay-request', () => ({
   createProxyPayRequest: createProxyPayRequestMock
 }))
@@ -379,31 +390,18 @@ describe('GET /api/lud16/[username]', () => {
       maxSendable: 1000000,
       metadata: '[["text/plain","Bob"]]'
     }
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify(remoteBody), {
-        status: 200,
-        headers: { 'content-type': 'application/json' }
-      })
-    )
+    fetchDestinationPayRequest.mockResolvedValueOnce(remoteBody)
 
-    try {
-      const req = createNextRequest('/api/lud16/alice')
-      const res = await Lud16Get(
-        req,
-        createParamsPromise({ username: 'alice' })
-      )
+    const req = createNextRequest('/api/lud16/alice')
+    const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
 
-      expect(res.status).toBe(200)
-      expect(fetchMock).toHaveBeenCalledWith(
-        'https://other.com/.well-known/lnurlp/bob',
-        expect.objectContaining({ headers: expect.any(Object) })
-      )
-      const body: any = await res.json()
-      expect(body.callback).toBe('https://other.com/lnurlp/bob/cb')
-      expect(body.tag).toBe('payRequest')
-    } finally {
-      fetchMock.mockRestore()
-    }
+    expect(res.status).toBe(200)
+    // Goes through the guarded fetcher (HTTPS-only, SSRF-checked), not a bare
+    // global fetch, and the document is proxied verbatim.
+    expect(fetchDestinationPayRequest).toHaveBeenCalledWith('bob@other.com')
+    const body: any = await res.json()
+    expect(body.callback).toBe('https://other.com/lnurlp/bob/cb')
+    expect(body.tag).toBe('payRequest')
   })
 
   it('returns 404 when the ALIAS remote LUD-16 fetch fails', async () => {
@@ -415,20 +413,13 @@ describe('GET /api/lud16/[username]', () => {
       remoteWallet: null,
       user: { id: 'user-1', remoteWallets: [] }
     } as any)
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response('nope', { status: 503 }))
+    fetchDestinationPayRequest.mockRejectedValueOnce(
+      new Error('Destination LNURL returned HTTP 503')
+    )
 
-    try {
-      const req = createNextRequest('/api/lud16/alice')
-      const res = await Lud16Get(
-        req,
-        createParamsPromise({ username: 'alice' })
-      )
-      expect(res.status).toBe(404)
-    } finally {
-      fetchMock.mockRestore()
-    }
+    const req = createNextRequest('/api/lud16/alice')
+    const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
+    expect(res.status).toBe(404)
   })
 })
 

@@ -24,7 +24,11 @@ import {
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { getActiveProxyConfig } from '@/lib/proxy/config'
 import { getListenerConfig } from '@/lib/listener-config'
-import { fetchDestinationMetadata } from '@/lib/proxy/lnurl'
+import {
+  fetchDestinationMetadata,
+  fetchDestinationPayRequest
+} from '@/lib/proxy/lnurl'
+import { resolveLocalDestination } from '@/lib/proxy/local-destination'
 import { grossRangeForDestination } from '@/lib/proxy/money'
 import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 import {
@@ -33,8 +37,40 @@ import {
   withPublicReadCors
 } from '@/lib/public-cors'
 
-/** Abort the remote LUD-16 fetch for ALIAS mode after this many ms. */
-const ALIAS_FETCH_TIMEOUT_MS = 5000
+/**
+ * Follows an ALIAS chain while it stays on this instance and returns the first
+ * address that must actually be fetched. Returns null when the chain is
+ * malformed or loops back on itself.
+ *
+ * ALIAS moves no money — it hands the payer the destination's own payRequest —
+ * so a local alias cycle is a request amplifier rather than a payment loop.
+ * That is why it is bounded here rather than by the forwarding hop counter.
+ */
+async function followLocalAliases(
+  redirect: string,
+  from: string
+): Promise<string | null> {
+  let address = redirect
+  const seen = new Set<string>([from])
+  for (;;) {
+    if (!parseLightningAddress(address)) return null
+    const local = await resolveLocalDestination(address)
+    if (!local) return address // leaves this instance — fetch it for real
+    if (seen.has(local.username)) return null // a -> b -> a
+    seen.add(local.username)
+
+    const next = await prisma.lightningAddress.findUnique({
+      where: { username: local.username },
+      select: { mode: true, redirect: true }
+    })
+    // Anything that is not another local alias is served by us directly, so
+    // the caller fetches it once over loopback and the walk is finished.
+    if (!next || next.mode !== 'ALIAS' || !next.redirect?.trim()) {
+      return address
+    }
+    address = next.redirect.trim()
+  }
+}
 
 export const OPTIONS = publicReadOptions
 
@@ -150,49 +186,28 @@ export const GET = withErrorHandling(
       // route is never hit for alias addresses. Proxying (vs. HTTP redirect)
       // is the most compatible with wallets that don't follow 3xx on JSON.
       if (route.kind === 'alias') {
-        const parsed = parseLightningAddress(route.redirect)
-        if (!parsed) {
-          logger.warn(
-            { username, redirect: route.redirect },
-            'LUD16 alias redirect malformed'
-          )
-          throw new NotFoundError('Alias target is invalid')
-        }
+        // An alias pointing at another LOCAL alias used to be proxied over HTTP
+        // back into this same route, so `a -> b -> a` recursed until the 5s
+        // timeout unwound, pinning one request per level — reachable by anyone
+        // who knew the address. Local hops are followed in the database with a
+        // visited set instead, so only the final off-instance hop is fetched.
+        const target = await followLocalAliases(route.redirect, username)
+        if (!target) throw new NotFoundError('Alias target is invalid')
 
-        const remoteUrl = `https://${parsed.host}/.well-known/lnurlp/${parsed.user}`
-        const controller = new AbortController()
-        const timer = setTimeout(
-          () => controller.abort(),
-          ALIAS_FETCH_TIMEOUT_MS
-        )
         try {
-          const remote = await fetch(remoteUrl, {
-            signal: controller.signal,
-            headers: { Accept: 'application/json' }
-          })
-          if (!remote.ok) {
-            logger.warn(
-              { username, remoteUrl, status: remote.status },
-              'LUD16 alias fetch returned non-2xx'
-            )
-            throw new NotFoundError('Alias target not reachable')
-          }
-          const body = (await remote.json()) as LUD06Response
-          logger.info({ username, remoteUrl }, 'LUD16 alias proxied')
-          return NextResponse.json(body)
+          const body = await fetchDestinationPayRequest(target)
+          logger.info({ username, target }, 'LUD16 alias proxied')
+          return NextResponse.json(body as LUD06Response)
         } catch (err) {
-          if (err instanceof NotFoundError) throw err
           logger.warn(
             {
               username,
-              remoteUrl,
+              target,
               error: err instanceof Error ? err.message : String(err)
             },
             'LUD16 alias fetch failed'
           )
           throw new NotFoundError('Alias target not reachable')
-        } finally {
-          clearTimeout(timer)
         }
       }
 
@@ -209,16 +224,12 @@ export const GET = withErrorHandling(
           resolvePublicEndpoint(req),
           resolveApiUrl(req)
         ])
+        // Kept for the *remote* SSRF checks and snapshotted onto the payment.
+        // A destination on this instance no longer reaches those checks:
+        // `fetchDestinationMetadata` serves it over loopback instead, and loops
+        // are handled by cycle detection plus the forwarding hop counter.
         const blockedHosts = [host, new URL(apiUrl).hostname]
-        if (
-          !parsed ||
-          blockedHosts.some(
-            blocked =>
-              new URL(
-                blocked.includes('://') ? blocked : `https://${blocked}`
-              ).hostname.toLowerCase() === parsed.host.toLowerCase()
-          )
-        ) {
+        if (!parsed) {
           throw new NotFoundError('Proxy target is invalid')
         }
         let remote

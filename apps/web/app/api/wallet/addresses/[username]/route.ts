@@ -29,7 +29,10 @@ import {
 } from '@/lib/wallet/primary-wallet'
 import { getActiveProxyConfig, isProxyEnabled } from '@/lib/proxy/config'
 import { getListenerConfig } from '@/lib/listener-config'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import {
+  assertNoForwardingCycle,
+  forwardingGraphNodes
+} from '@/lib/proxy/forwarding-graph'
 import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 
 export const dynamic = 'force-dynamic'
@@ -288,17 +291,18 @@ export const PUT = withErrorHandling(
             'Deferred proxy mode requires an enabled listener and configured proxy wallet'
           )
         }
-        const target = parseLightningAddress(body.redirect)
-        const endpoint = await resolvePublicEndpoint(request)
-        if (
-          target &&
-          new URL(endpoint.url).hostname.toLowerCase() ===
-            target.host.toLowerCase()
-        ) {
+        // A malformed address used to skip the check entirely and get stored.
+        if (!parseLightningAddress(body.redirect)) {
           throw new ValidationError(
-            'Deferred proxy destination cannot point to this LaWallet instance'
+            `Invalid Lightning Address: ${body.redirect}`
           )
         }
+        // Forwarding to an address on this instance is supported; forwarding
+        // into a ring that comes back here is not.
+        await assertNoForwardingCycle(
+          forwardingGraphNodes.address(username),
+          body.redirect
+        )
       }
       redirect = body.redirect
     } else if (body.mode === 'CUSTOM_NWC') {

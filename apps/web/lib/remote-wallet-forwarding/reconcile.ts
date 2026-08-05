@@ -15,6 +15,13 @@ import {
 } from '@/lib/proxy/lnurl'
 import { isDestinationInvoiceAmountAcceptable } from '@/lib/proxy/money'
 import { localBlockedHosts } from '@/lib/proxy/local-hosts'
+import { resolveLocalDestination } from '@/lib/proxy/local-destination'
+import {
+  FORWARD_HOP_LIMIT_ERROR,
+  getForwardDepth,
+  isForwardDepthExhausted,
+  recordForwardHop
+} from '@/lib/proxy/forward-hops'
 import {
   getListenerNwcPayment,
   listenerNwcPayment,
@@ -537,6 +544,19 @@ async function reconcileLeg(
           expiresAt: latest.expiresAt
         }
       : null
+  // Forwarding to an address on this instance is allowed, so the money we send
+  // can come back to us as another forwardable payment. Cut the chain before
+  // minting a new invoice, not after, so a cycle costs nothing.
+  const local = await resolveLocalDestination(leg.destination)
+  const depth = await getForwardDepth(receipt.sourcePaymentHash)
+  if (local && isForwardDepthExhausted(depth)) {
+    await rejectPendingBatch(
+      batch.members.map(member => member.id),
+      FORWARD_HOP_LIMIT_ERROR
+    )
+    return
+  }
+
   if (!invoice) {
     const blockedHosts = await localBlockedHosts()
     const metadata = await fetchDestinationMetadata(leg.destination, {
@@ -559,6 +579,7 @@ async function reconcileLeg(
       amountMsats: requested,
       blockedHosts
     })
+    if (local) await recordForwardHop(invoice.paymentHash, depth + 1)
   }
 
   const attemptNo = lastAttemptNo + 1

@@ -13,6 +13,13 @@ import {
 } from '@/lib/wallet/drivers/listener-transport'
 import { preimageMatchesPaymentHash } from '@/lib/card-payments/lifecycle'
 import { getProxySettlementConfig } from './config'
+import { resolveLocalDestination } from './local-destination'
+import {
+  FORWARD_HOP_LIMIT_ERROR,
+  getForwardDepth,
+  isForwardDepthExhausted,
+  recordForwardHop
+} from './forward-hops'
 import {
   PROXY_BATCH_SIZE,
   PROXY_LEASE_MS,
@@ -253,6 +260,13 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
       expiresAt: reusable.expiresAt
     }
   } else {
+    // A destination on this instance can forward the money onward, so the same
+    // payment could reach us again. Stop before minting another invoice.
+    const local = await resolveLocalDestination(current.destination)
+    const depth = await getForwardDepth(current.invoice.paymentHash)
+    if (local && isForwardDepthExhausted(depth)) {
+      throw new Error(FORWARD_HOP_LIMIT_ERROR)
+    }
     // This is deliberately the first point at which the destination callback
     // is called: the payer-facing source invoice is already confirmed paid.
     const metadata = await fetchDestinationMetadata(current.destination, {
@@ -271,6 +285,7 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
       comment: current.comment,
       blockedHosts: current.blockedHosts
     })
+    if (local) await recordForwardHop(invoice.paymentHash, depth + 1)
   }
 
   const attemptNo = (latest?.attemptNo ?? 0) + 1
