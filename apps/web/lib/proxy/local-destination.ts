@@ -1,6 +1,30 @@
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
-import { resolveApiUrl } from '@/lib/public-url'
+import { resolvePublicEndpoint } from '@/lib/public-url'
+import { getSettings } from '@/lib/settings'
 import { localBlockedHosts } from './local-hosts'
+
+/**
+ * Origin to use when this instance calls its own LUD-16 endpoints.
+ *
+ * `resolveApiUrl()` is not usable here: with no `endpoint` setting it reads the
+ * request's Host header, and falls back to `localhost:3000` when there is no
+ * request at all — which is exactly the case in the forwarding reconciler, a
+ * background job. That fallback points at nothing and fails the forward.
+ */
+export async function resolveSelfOrigin(): Promise<string> {
+  const { endpoint } = await getSettings(['endpoint'], { cache: 'hot' })
+  const configured = endpoint?.trim()
+  if (configured) {
+    return new URL(
+      /^https?:\/\//i.test(configured) ? configured : `https://${configured}`
+    ).origin
+  }
+  // Self-hosted and development: talk to the port this process listens on
+  // rather than a public hostname that may not resolve back to this machine.
+  const port = process.env.PORT?.trim()
+  if (port) return `http://127.0.0.1:${port}`
+  return new URL((await resolvePublicEndpoint()).url).origin
+}
 
 export interface LocalDestination {
   username: string
@@ -31,7 +55,7 @@ export async function resolveLocalDestination(
   const host = parsed.host.toLowerCase()
   const isLocal = blocked.some(entry => normalizeHost(entry) === host)
   if (!isLocal) return null
-  return { username: parsed.user, origin: new URL(await resolveApiUrl()).origin }
+  return { username: parsed.user, origin: await resolveSelfOrigin() }
 }
 
 /**

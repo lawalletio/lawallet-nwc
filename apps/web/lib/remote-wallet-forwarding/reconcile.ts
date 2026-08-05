@@ -548,7 +548,10 @@ async function reconcileLeg(
   // can come back to us as another forwardable payment. Cut the chain before
   // minting a new invoice, not after, so a cycle costs nothing.
   const local = await resolveLocalDestination(leg.destination)
-  const depth = await getForwardDepth(receipt.sourcePaymentHash)
+  // Only a local hop is ever stamped, and only a local destination can send the
+  // money back to us — so a forward that leaves the instance never pays for the
+  // lookup.
+  const depth = local ? await getForwardDepth(receipt.sourcePaymentHash) : 0
   if (local && isForwardDepthExhausted(depth)) {
     await rejectPendingBatch(
       batch.members.map(member => member.id),

@@ -8,9 +8,11 @@ import {
   parseExactPaymentInvoice
 } from '@/lib/invoice-utils'
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
-import { resolveApiUrl } from '@/lib/public-url'
 import { isDestinationInvoiceAmountAcceptable } from './money'
-import { resolveLocalDestination } from './local-destination'
+import {
+  resolveLocalDestination,
+  resolveSelfOrigin
+} from './local-destination'
 
 const MAX_RESPONSE_BYTES = 64 * 1024
 const FETCH_TIMEOUT_MS = 7000
@@ -60,13 +62,6 @@ export async function fetchDestinationMetadata(
   address: string,
   options: { blockedHosts?: string[] } = {}
 ): Promise<ProxyLnurlMetadata> {
-  const parsed = parseLightningAddress(address)
-  if (!parsed) throw new Error('Destination Lightning Address is invalid')
-  // A destination on this instance is served by us, so it is fetched from the
-  // origin this process actually answers on rather than the address' public
-  // host — which may be unroutable from here, and is deliberately refused by
-  // `safeHttpsGet` (HTTPS-only, no loopback). Loop safety is handled by the
-  // hop counter and cycle detection, not by refusing to resolve.
   return (await fetchPayRequest(address, options)).metadata
 }
 
@@ -89,6 +84,11 @@ async function fetchPayRequest(
 ): Promise<{ metadata: ProxyLnurlMetadata; raw: unknown }> {
   const parsed = parseLightningAddress(address)
   if (!parsed) throw new Error('Destination Lightning Address is invalid')
+  // A destination on this instance is served by us, so it is fetched from the
+  // origin this process actually answers on rather than the address' public
+  // host — which may be unroutable from here, and is deliberately refused by
+  // `safeHttpsGet` (HTTPS-only, no loopback). Loop safety is handled by the hop
+  // counter and cycle detection, not by refusing to resolve.
   const local = await resolveLocalDestination(address)
   if (local) {
     return fetchMetadataUrl(
@@ -169,7 +169,7 @@ export async function requestDestinationInvoice(input: {
   // Derived rather than passed in, so every existing call site keeps working:
   // only a local metadata fetch can yield a callback on our own origin, because
   // `resolveSafeAddress` rejects a *remote* callback that points back at us.
-  const local = callback.origin === new URL(await resolveApiUrl()).origin
+  const local = callback.origin === (await resolveSelfOrigin())
   const response = await safeGet(callback, input.blockedHosts ?? [], local)
   if (response.status >= 300 && response.status < 400) {
     throw new Error('Destination callback must not redirect')
@@ -272,7 +272,7 @@ async function resolveSafeAddress(
 /**
  * Remote destinations keep the full SSRF treatment. A destination on this
  * instance is fetched over loopback instead: the URL is built from
- * `resolveApiUrl()` (never from user input), and the guarded path would reject
+ * `resolveSelfOrigin()` (never from user input), and the guarded path would reject
  * it outright for being plain HTTP and/or private — which is exactly what it is
  * supposed to do for anything that is not us.
  */
@@ -283,7 +283,7 @@ async function safeGet(
 ): Promise<SafeResponse> {
   if (!local) return safeHttpsGet(url, blockedHosts)
 
-  const expected = new URL(await resolveApiUrl()).origin
+  const expected = await resolveSelfOrigin()
   if (url.origin !== expected) {
     throw new Error('Local destination LNURL left this instance')
   }

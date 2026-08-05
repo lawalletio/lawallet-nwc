@@ -263,7 +263,9 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
     // A destination on this instance can forward the money onward, so the same
     // payment could reach us again. Stop before minting another invoice.
     const local = await resolveLocalDestination(current.destination)
-    const depth = await getForwardDepth(current.invoice.paymentHash)
+    // See the RemoteWallet reconciler: a destination on another service cannot
+    // route the payment back here, so it never needs the depth lookup.
+    const depth = local ? await getForwardDepth(current.invoice.paymentHash) : 0
     if (local && isForwardDepthExhausted(depth)) {
       throw new Error(FORWARD_HOP_LIMIT_ERROR)
     }

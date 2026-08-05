@@ -11,6 +11,12 @@ vi.mock('@/lib/public-url', () => ({
   })),
   resolveApiUrl: vi.fn(async () => 'https://app.example.com')
 }))
+// The forwarding reconciler is a background job: no request to read a Host
+// header from. `endpoint` unset here is the self-hosted default, and is what
+// made the first cut of this fetch the unreachable `localhost:3000`.
+vi.mock('@/lib/settings', () => ({
+  getSettings: vi.fn(async () => ({ endpoint: '' }))
+}))
 
 import {
   assertNoForwardingCycle,
@@ -48,6 +54,7 @@ function wallets(rows: Record<string, string[]>) {
 }
 
 beforeEach(() => {
+  process.env.PORT = '3584'
   resetPrismaMock()
   addresses({})
   wallets({})
@@ -57,7 +64,7 @@ describe('local destination detection', () => {
   it('recognises both the public host and the api host as local', async () => {
     expect(await resolveLocalDestination('mita1@pay.example.com')).toEqual({
       username: 'mita1',
-      origin: 'https://app.example.com'
+      origin: 'http://127.0.0.1:3584'
     })
     expect(await resolveLocalDestination('mita1@app.example.com')).not.toBeNull()
   })
@@ -175,12 +182,12 @@ describe('local destination transport', () => {
   const payRequest = {
     status: 'OK',
     tag: 'payRequest',
-    callback: 'https://app.example.com/api/lud16/mita1/cb',
+    callback: 'http://127.0.0.1:3584/api/lud16/mita1/cb',
     minSendable: 1000,
     maxSendable: 100_000_000,
     metadata: '[["text/identifier","mita1@pay.example.com"]]',
     // LUD-21: must survive a verbatim passthrough.
-    verify: 'https://app.example.com/api/lud16/mita1/verify'
+    verify: 'http://127.0.0.1:3584/api/lud16/mita1/verify'
   }
 
   it('resolves a local destination over our own origin, not its public host', async () => {
@@ -200,7 +207,7 @@ describe('local destination transport', () => {
       )
       expect(metadata.callback).toBe(payRequest.callback)
       const requested = String(vi.mocked(fetchMock).mock.calls[0]?.[0])
-      expect(requested).toBe('https://app.example.com/api/lud16/mita1')
+      expect(requested).toBe('http://127.0.0.1:3584/api/lud16/mita1')
     } finally {
       fetchMock.mockRestore()
     }
