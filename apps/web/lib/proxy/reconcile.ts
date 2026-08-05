@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { ProxyForwardAttempt, ProxyPayment } from '@/lib/generated/prisma'
 import type { Event } from 'nostr-tools'
 import { eventBus } from '@/lib/events/event-bus'
+import { errorMessage } from '@/lib/error-message'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getListenerConfig } from '@/lib/listener-config'
@@ -707,10 +708,6 @@ async function releaseWithError(
       nextRetryAt: new Date(Date.now() + PROXY_RETRY_INTERVAL_MS)
     }
   })
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 function emitProxyActivityUpdated(): void {

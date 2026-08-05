@@ -36,11 +36,11 @@ describe('remote wallet forwarding money', () => {
     })
   })
 
-  it('increases the reserve deterministically after a terminal rejection', () => {
-    expect(calculateRoutingReserve(BigInt(9_949_000), 2)).toEqual({
-      requestedAmountMsats: BigInt(9_949_000),
-      routingReserveMsats: BigInt(202_000),
-      invoiceAmountMsats: BigInt(9_747_000)
+  it('never reserves more than the amount being forwarded', () => {
+    expect(calculateRoutingReserve(BigInt(500))).toEqual({
+      requestedAmountMsats: BigInt(500),
+      routingReserveMsats: BigInt(500),
+      invoiceAmountMsats: BigInt(0)
     })
   })
 

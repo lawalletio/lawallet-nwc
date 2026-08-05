@@ -1,15 +1,14 @@
 import { lookup } from 'node:dns/promises'
 import { request as httpsRequest } from 'node:https'
-import { isIP, type LookupFunction } from 'node:net'
-import { isPrivateNetworkAddress } from '@/lib/proxy/lnurl'
+import { isIP } from 'node:net'
+import {
+  createPinnedLookup,
+  isPrivateNetworkAddress,
+  type SafeAddress
+} from '@/lib/proxy/lnurl'
 
 const TIMEOUT_MS = 10_000
 const MAX_RESPONSE_BYTES = 32 * 1024
-
-interface SafeAddress {
-  address: string
-  family: 4 | 6
-}
 
 export interface WebhookResponse {
   status: number
@@ -100,14 +99,4 @@ async function resolveSafeAddress(hostname: string): Promise<SafeAddress> {
     throw new Error('Webhook URL resolves to a private network')
   }
   return addresses[0]
-}
-
-function createPinnedLookup(pinned: SafeAddress): LookupFunction {
-  return (_hostname, options, callback) => {
-    if (options.all) {
-      callback(null, [pinned])
-      return
-    }
-    callback(null, pinned.address, pinned.family)
-  }
 }

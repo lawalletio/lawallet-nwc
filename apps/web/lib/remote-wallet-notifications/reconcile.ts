@@ -1,12 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { errorMessage } from '@/lib/error-message'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import { publishNotificationNostrEvent } from './nostr'
 import { emitNotificationsUpdated } from './service'
 import { postNotificationWebhook } from './webhook'
 
-const LEASE_MS = 5 * 60 * 1000
-const RETRY_MS = 10 * 60 * 1000
+import {
+  PROXY_LEASE_MS as LEASE_MS,
+  PROXY_RETRY_INTERVAL_MS as RETRY_MS
+} from '@/lib/proxy/constants'
+
 const MAX_ATTEMPTS = 8
 const BATCH_SIZE = 20
 
@@ -356,8 +360,4 @@ function isSafePreflightFailure(message: string): boolean {
   return /(must use HTTPS|must not contain credentials|resolves to a private network|getaddrinfo ENOTFOUND)/i.test(
     message
   )
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

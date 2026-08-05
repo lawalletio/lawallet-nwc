@@ -171,6 +171,11 @@ beforeEach(() => {
   vi.mocked(prismaMock.remoteWalletForwardLeg.findFirst).mockResolvedValue({
     id: 'leg-1'
   } as never)
+  // reconcileOne re-reads each leg before dispatching so a leg already settled
+  // by an earlier batch in the same pass is skipped.
+  vi.mocked(prismaMock.remoteWalletForwardLeg.findUnique).mockResolvedValue({
+    status: 'READY'
+  } as never)
   vi.mocked(prismaMock.remoteWalletForwardAttempt.create).mockResolvedValue(
     attempt({ status: 'PENDING' }) as never
   )
@@ -848,5 +853,121 @@ describe('remote wallet forwarding reconciler', () => {
         data: expect.objectContaining({ status: 'RETAINED' })
       })
     )
+  })
+})
+
+describe('remote wallet forwarding safety', () => {
+  it('carries an unused routing reserve forward as a residual leg', async () => {
+    listenerNwcPayment.mockResolvedValue({
+      ok: true,
+      status: 'succeeded',
+      preimage,
+      feesPaidMsats: 25
+    })
+    vi.mocked(prismaMock.remoteWalletForwardLeg.findFirst).mockResolvedValue(
+      null as never
+    )
+
+    await reconcileRemoteWalletForwarding({ workerId: 'worker-1' })
+
+    expect(prismaMock.remoteWalletForwardLeg.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          destination: 'alice@destination.example',
+          requestedAmountMsats: BigInt(1_975),
+          residual: true
+        })
+      })
+    )
+  })
+
+  it('adds the residual to an existing open carry instead of creating another', async () => {
+    listenerNwcPayment.mockResolvedValue({
+      ok: true,
+      status: 'succeeded',
+      preimage,
+      feesPaidMsats: 25
+    })
+    vi.mocked(prismaMock.remoteWalletForwardLeg.findFirst).mockResolvedValue(
+      leg({
+        id: 'carry-1',
+        residual: true,
+        status: 'READY',
+        requestedAmountMsats: BigInt(500)
+      }) as never
+    )
+
+    await reconcileRemoteWalletForwarding({ workerId: 'worker-1' })
+
+    expect(prismaMock.remoteWalletForwardLeg.create).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWalletForwardLeg.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'carry-1' },
+        data: expect.objectContaining({
+          requestedAmountMsats: BigInt(2_475)
+        })
+      })
+    )
+  })
+
+  it('never fails a receipt whose destination was already paid when the batch drifted', async () => {
+    // The settled attempt covers less than the members now claim, which used to
+    // throw and re-block the receipt forever with the money already gone.
+    vi.mocked(
+      prismaMock.remoteWalletForwardReceipt.findUnique
+    ).mockResolvedValue(
+      receipt({
+        legs: [leg({ status: 'PENDING', attempts: [attempt({ status: 'SUCCEEDED', preimage })] })]
+      }) as never
+    )
+    vi.mocked(prismaMock.remoteWalletForwardLeg.findMany).mockResolvedValue([
+      leg({ status: 'PENDING', requestedAmountMsats: BigInt(500_000) })
+    ] as never)
+
+    const result = await reconcileRemoteWalletForwarding({
+      workerId: 'worker-1'
+    })
+
+    expect(result.failed).toBe(0)
+    expect(prismaMock.remoteWalletForwardLeg.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'SUCCEEDED' })
+      })
+    )
+  })
+
+  it('completes instead of paying twice when a rejected attempt actually settled', async () => {
+    vi.mocked(
+      prismaMock.remoteWalletForwardReceipt.findUnique
+    ).mockResolvedValue(
+      receipt({
+        legs: [
+          leg({
+            status: 'REJECTED',
+            attempts: [
+              attempt({ status: 'REJECTED', errorCode: 'payment_failed' })
+            ]
+          })
+        ]
+      }) as never
+    )
+    vi.mocked(
+      prismaMock.remoteWalletForwardAttempt.findUnique
+    ).mockResolvedValue(
+      attempt({ status: 'SUCCEEDED', preimage, routingFeeMsats: BigInt(25) }) as never
+    )
+    listenerNwcRequest.mockResolvedValue({
+      state: 'settled',
+      preimage,
+      fees_paid: 25
+    })
+
+    const result = await reconcileRemoteWalletForwarding({
+      workerId: 'worker-1'
+    })
+
+    expect(result.failed).toBe(0)
+    expect(requestDestinationInvoice).not.toHaveBeenCalled()
+    expect(listenerNwcPayment).not.toHaveBeenCalled()
   })
 })

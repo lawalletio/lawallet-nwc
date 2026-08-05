@@ -607,6 +607,9 @@ model RemoteWalletForwardLeg {
   routingFeeOverageMsats    BigInt                       @default(0)
   destinationShortfallMsats BigInt                       @default(0)
   status                    RemoteWalletForwardLegStatus @default(READY)
+  // Carries an unused routing reserve forward as pending balance. Residual legs
+  // owe the destination real money but never gate receipt completion.
+  residual                  Boolean                      @default(false)
   retryCount                Int                          @default(0)
   nextRetryAt               DateTime                     @default(now())
   lastError                 String?

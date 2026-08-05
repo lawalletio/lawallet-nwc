@@ -172,7 +172,7 @@ export async function requestDestinationInvoice(input: {
   }
 }
 
-interface SafeAddress {
+export interface SafeAddress {
   address: string
   family: 4 | 6
 }

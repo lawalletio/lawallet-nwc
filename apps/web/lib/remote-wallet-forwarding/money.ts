@@ -1,4 +1,5 @@
 import { MAX_PROXY_FEE_BPS } from '@/lib/proxy/constants'
+import { ceilDivide } from '@/lib/proxy/money'
 
 export const DEFAULT_REMOTE_WALLET_FORWARD_FEE_BPS = 50
 export const DEFAULT_REMOTE_WALLET_FORWARD_BASE_FEE_SATS = 1
@@ -66,28 +67,23 @@ export function calculateForwardingAmounts(
 /**
  * Keep a deterministic routing allowance in the source wallet before asking
  * the destination for an invoice. The percentage component is rounded up to
- * a whole satoshi, then the one-sat base is added. A terminal insufficient
- * balance rejection may increase `multiplier`; ambiguous outcomes never do.
+ * a whole satoshi, then the one-sat base is added. Escalation after a terminal
+ * insufficient balance rejection is handled by the reconciler.
  */
 export function calculateRoutingReserve(
-  requestedAmountMsats: bigint,
-  multiplier = 1
+  requestedAmountMsats: bigint
 ): RoutingReserveAmounts {
   if (requestedAmountMsats <= BigInt(0)) {
     throw new TypeError('requestedAmountMsats must be positive')
-  }
-  if (!Number.isSafeInteger(multiplier) || multiplier < 1) {
-    throw new TypeError('multiplier must be a positive integer')
   }
 
   const percentageSats = ceilDivide(
     requestedAmountMsats * BigInt(REMOTE_WALLET_ROUTING_RESERVE_BPS),
     BigInt(TOTAL_ALLOCATION_BPS) * MSATS_PER_SAT
   )
-  const baseReserveMsats =
+  const requestedReserve =
     (percentageSats + BigInt(REMOTE_WALLET_ROUTING_RESERVE_BASE_SATS)) *
     MSATS_PER_SAT
-  const requestedReserve = baseReserveMsats * BigInt(multiplier)
   const routingReserveMsats =
     requestedReserve >= requestedAmountMsats
       ? requestedAmountMsats
@@ -98,6 +94,46 @@ export function calculateRoutingReserve(
     routingReserveMsats,
     invoiceAmountMsats: requestedAmountMsats - routingReserveMsats
   }
+}
+
+/**
+ * Largest-remainder apportionment. Shares always sum back to `total`, ties
+ * break on the caller's ordering, and no step touches floating point.
+ */
+export function largestRemainderShares(
+  total: bigint,
+  weights: bigint[]
+): bigint[] {
+  const shares = weights.map(() => BigInt(0))
+  if (total === BigInt(0) || weights.length === 0) return shares
+  const weightTotal = weights.reduce((sum, weight) => sum + weight, BigInt(0))
+  if (weightTotal <= BigInt(0)) {
+    throw new TypeError('Allocation weights must sum to a positive value')
+  }
+  const ranked = weights.map((weight, index) => {
+    const numerator = total * weight
+    shares[index] = numerator / weightTotal
+    return { index, remainder: numerator % weightTotal }
+  })
+  let distributed = shares.reduce((sum, share) => sum + share, BigInt(0))
+  ranked.sort((a, b) =>
+    a.remainder === b.remainder
+      ? a.index - b.index
+      : a.remainder > b.remainder
+        ? -1
+        : 1
+  )
+  // Flooring loses at most weights.length - 1 msats, so one pass always closes
+  // the gap.
+  for (const row of ranked) {
+    if (distributed >= total) break
+    shares[row.index] += BigInt(1)
+    distributed += BigInt(1)
+  }
+  if (distributed !== total) {
+    throw new Error('Allocation did not preserve the total amount')
+  }
+  return shares
 }
 
 /**
@@ -113,34 +149,16 @@ export function allocateForwardingAmounts(
     throw new TypeError('targetAmountMsats must be nonnegative')
   }
 
-  const rows = destinations.map((destination, position) => {
-    const numerator = targetAmountMsats * BigInt(destination.allocationBps)
-    return {
-      position,
-      address: destination.address,
-      allocationBps: destination.allocationBps,
-      amountMsats: numerator / BigInt(TOTAL_ALLOCATION_BPS),
-      remainder: numerator % BigInt(TOTAL_ALLOCATION_BPS)
-    }
-  })
-
-  let distributed = rows.reduce((sum, row) => sum + row.amountMsats, BigInt(0))
-  let remainder = targetAmountMsats - distributed
-  const ranked = [...rows].sort((a, b) => {
-    if (a.remainder === b.remainder) return a.position - b.position
-    return a.remainder > b.remainder ? -1 : 1
-  })
-  for (const row of ranked) {
-    if (remainder === BigInt(0)) break
-    row.amountMsats += BigInt(1)
-    distributed += BigInt(1)
-    remainder -= BigInt(1)
-  }
-
-  if (distributed !== targetAmountMsats) {
-    throw new Error('Forwarding allocation did not preserve the target amount')
-  }
-  return rows.map(({ remainder: _remainder, ...row }) => row)
+  const shares = largestRemainderShares(
+    targetAmountMsats,
+    destinations.map(destination => BigInt(destination.allocationBps))
+  )
+  return destinations.map((destination, position) => ({
+    position,
+    address: destination.address,
+    allocationBps: destination.allocationBps,
+    amountMsats: shares[position]
+  }))
 }
 
 export function validateDestinations(
@@ -169,8 +187,4 @@ export function validateDestinations(
   if (total !== TOTAL_ALLOCATION_BPS) {
     throw new TypeError('Forwarding allocations must total 10000 bps')
   }
-}
-
-function ceilDivide(numerator: bigint, denominator: bigint): bigint {
-  return (numerator + denominator - BigInt(1)) / denominator
 }

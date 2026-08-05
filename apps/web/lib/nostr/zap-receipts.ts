@@ -38,13 +38,7 @@ export async function getZapReceiptSigner(): Promise<ZapReceiptSigner | null> {
     where: { id: PROXY_CONFIG_ID },
     select: { id: true, receiptNsecCiphertext: true, receiptPubkey: true }
   })
-  if (
-    !config?.receiptNsecCiphertext ||
-    !config.receiptPubkey ||
-    !isProxyVaultConfigured()
-  ) {
-    return null
-  }
+  if (!config?.receiptNsecCiphertext || !config.receiptPubkey) return null
   try {
     return {
       privateKeyHex: decryptProxySecret(

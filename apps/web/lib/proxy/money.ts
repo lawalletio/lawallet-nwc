@@ -100,7 +100,7 @@ export function grossRangeForDestination(
   return { minSendable, maxSendable: firstAboveMax - 1 }
 }
 
-function ceilDivide(numerator: bigint, denominator: bigint): bigint {
+export function ceilDivide(numerator: bigint, denominator: bigint): bigint {
   return (numerator + denominator - BigInt(1)) / denominator
 }
 

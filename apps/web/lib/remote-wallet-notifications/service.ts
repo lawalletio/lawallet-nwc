@@ -266,23 +266,54 @@ export async function enqueueForwardedReceiptNotifications(
 ): Promise<string[]> {
   const receipt = await prisma.remoteWalletForwardReceipt.findUnique({
     where: { id: receiptId },
-    include: {
-      revision: {
-        include: { destinations: { orderBy: { position: 'asc' } } }
-      },
-      legs: {
-        include: { attempts: { orderBy: { attemptNo: 'asc' } } },
-        orderBy: { position: 'asc' }
-      }
-    }
+    include: { legs: { orderBy: { position: 'asc' } } }
   })
   if (!receipt || receipt.status !== 'COMPLETED') return []
   return enqueueRemoteWalletNotificationEvent({
     walletId: receipt.walletId,
     action: 'FORWARDED',
     eventKey: `forwarded:${receipt.id}`,
-    payload: receipt
+    payload: forwardedReceiptPayload(receipt)
   })
+}
+
+/**
+ * Deliveries land on endpoints and relays the wallet owner configured, and a
+ * Nostr channel may publish them unencrypted. Ship an explicit allow-list —
+ * never the raw row, which carries destination bolt11s, preimages and internal
+ * request ids on `legs[].attempts[]`.
+ */
+function forwardedReceiptPayload(
+  receipt: Prisma.RemoteWalletForwardReceiptGetPayload<{
+    include: { legs: true }
+  }>
+) {
+  return {
+    id: receipt.id,
+    eventKey: receipt.eventKey,
+    status: receipt.status,
+    sourcePaymentHash: receipt.sourcePaymentHash,
+    grossAmountMsats: receipt.grossAmountMsats,
+    retainedFeeMsats: receipt.retainedFeeMsats,
+    targetAmountMsats: receipt.targetAmountMsats,
+    forwardedAmountMsats: receipt.forwardedAmountMsats,
+    routingFeeMsats: receipt.routingFeeMsats,
+    shortfallMsats: receipt.shortfallMsats,
+    configRevision: receipt.configRevision,
+    sourceSettledAt: receipt.sourceSettledAt,
+    completedAt: receipt.completedAt,
+    legs: receipt.legs.map(leg => ({
+      position: leg.position,
+      destination: leg.destination,
+      allocationBps: leg.allocationBps,
+      requestedAmountMsats: leg.requestedAmountMsats,
+      forwardedAmountMsats: leg.forwardedAmountMsats,
+      routingFeeMsats: leg.routingFeeMsats,
+      residual: leg.residual,
+      status: leg.status,
+      completedAt: leg.completedAt
+    }))
+  }
 }
 
 export function emitNotificationsUpdated(): void {

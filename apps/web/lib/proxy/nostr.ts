@@ -107,7 +107,7 @@ export interface PublishedZapReceipt {
  * the same receipt id is produced after a crash or relay timeout, so a retry
  * cannot create a second zap receipt for the same payment.
  */
-export function createZapReceipt(input: {
+function createZapReceipt(input: {
   zapRequest: Event
   zapRequestJson: string
   payerInvoice: string

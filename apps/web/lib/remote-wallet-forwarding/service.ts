@@ -1,4 +1,4 @@
-import type { Prisma, RemoteWallet } from '@/lib/generated/prisma'
+import type { RemoteWallet } from '@/lib/generated/prisma'
 import { eventBus } from '@/lib/events/event-bus'
 import { parseExactPaymentInvoice } from '@/lib/invoice-utils'
 import { prisma } from '@/lib/prisma'
@@ -60,7 +60,7 @@ export async function loadOwnedRemoteWallet(
   return wallet
 }
 
-export function remoteWalletForwardingEligibility(wallet: RemoteWallet): {
+function remoteWalletForwardingEligibility(wallet: RemoteWallet): {
   eligible: boolean
   reason: string | null
 } {
@@ -105,6 +105,20 @@ export async function getReceiveActionDto(walletId: string, userId: string) {
         }
       })
     : []
+  // Residual legs park an unused routing reserve on a receipt that has already
+  // completed. They are still owed to the destination, so they count as pending.
+  const carriedLegs = action
+    ? await prisma.remoteWalletForwardLeg.findMany({
+        where: {
+          receipt: {
+            actionId: action.id,
+            status: { notIn: [...OPEN_RECEIPT_STATUSES] }
+          },
+          status: { notIn: ['SUCCEEDED', 'SUPERSEDED'] }
+        },
+        select: { requestedAmountMsats: true }
+      })
+    : []
   const pendingAmount = pendingReceipts.reduce(
     (receiptSum, receipt) =>
       receiptSum +
@@ -114,7 +128,7 @@ export async function getReceiveActionDto(walletId: string, userId: string) {
             BigInt(0)
           )
         : receipt.targetAmountMsats),
-    BigInt(0)
+    carriedLegs.reduce((sum, leg) => sum + leg.requestedAmountMsats, BigInt(0))
   )
   const eligibility = remoteWalletForwardingEligibility(wallet)
 
@@ -133,9 +147,9 @@ export async function getReceiveActionDto(walletId: string, userId: string) {
       ? {
           number: action.currentRevision.revision,
           feeBps: action.currentRevision.feeBps,
-          baseFeeSats: Number(
-            action.currentRevision.baseFeeMsats / BigInt(1000)
-          ),
+          // Configured in whole sats, so this never loses precision; dividing
+          // after the Number cast keeps a sub-sat legacy value visible.
+          baseFeeSats: Number(action.currentRevision.baseFeeMsats) / 1000,
           destinations: action.currentRevision.destinations.map(
             destination => ({
               address: destination.address,
@@ -213,7 +227,15 @@ export async function putReceiveAction(
       const uncertain = await tx.remoteWalletForwardAttempt.count({
         where: {
           leg: { receipt: { actionId } },
-          status: { in: ['PENDING', 'UNKNOWN'] }
+          OR: [
+            { status: { in: ['PENDING', 'UNKNOWN'] } },
+            // A settled attempt whose batch has not been credited yet would
+            // lose its payment if we superseded those legs now.
+            {
+              status: 'SUCCEEDED',
+              leg: { status: { notIn: ['SUCCEEDED', 'SUPERSEDED'] } }
+            }
+          ]
         }
       })
       if (uncertain > 0) {
@@ -544,5 +566,3 @@ function isUniqueConstraint(error: unknown): boolean {
 function activationTime(): Date {
   return new Date(Math.floor(Date.now() / 1000) * 1000)
 }
-
-export type ForwardingTransaction = Prisma.TransactionClient

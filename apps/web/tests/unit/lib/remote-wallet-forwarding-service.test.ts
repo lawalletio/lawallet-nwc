@@ -51,6 +51,8 @@ beforeEach(() => {
   vi.mocked(prismaMock.remoteWalletForwardReceipt.create).mockResolvedValue({
     id: 'receipt-1'
   } as never)
+  // Residual legs parked on already-completed receipts still count as pending.
+  vi.mocked(prismaMock.remoteWalletForwardLeg.findMany).mockResolvedValue([])
 })
 
 describe('captureForwardingReceipt', () => {

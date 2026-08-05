@@ -6,6 +6,7 @@ import type {
 } from '@/lib/generated/prisma'
 import { preimageMatchesPaymentHash } from '@/lib/card-payments/lifecycle'
 import { getListenerConfig } from '@/lib/listener-config'
+import { errorMessage } from '@/lib/error-message'
 import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
 import {
@@ -25,15 +26,20 @@ import {
   allocateForwardingAmounts,
   calculateForwardingAmounts,
   calculateRoutingReserve,
-  FORWARDING_AMOUNT_TOO_SMALL_ERROR
+  FORWARDING_AMOUNT_TOO_SMALL_ERROR,
+  largestRemainderShares
 } from './money'
 import { emitForwardingUpdated } from './service'
 import { enqueueForwardedReceiptNotifications } from '@/lib/remote-wallet-notifications/service'
 import { reconcileRemoteWalletNotifications } from '@/lib/remote-wallet-notifications/reconcile'
+import {
+  PROXY_BATCH_SIZE as BATCH_SIZE,
+  PROXY_LEASE_MS as LEASE_MS,
+  PROXY_RETRY_INTERVAL_MS as RETRY_MS
+} from '@/lib/proxy/constants'
 
-const LEASE_MS = 5 * 60 * 1000
-const RETRY_MS = 10 * 60 * 1000
-const BATCH_SIZE = 10
+const INSUFFICIENT_BALANCE_ERROR =
+  'The source wallet does not have enough balance to cover this forward and its routing fee.'
 
 type ReceiptWithRelations = RemoteWalletForwardReceipt & {
   action: { id: string; enabled: boolean }
@@ -79,7 +85,7 @@ export async function reconcileRemoteWalletForwarding(
       if (await reconcileOne(id, workerId)) completed++
     } catch (error) {
       failed++
-      const message = errorMessage(error)
+      const message = errorMessage(error, 'Forwarding failed')
       logger.error(
         { err: error, remoteWalletForwardReceiptId: id },
         'remote_wallet_forwarding.reconcile_failed'
@@ -212,7 +218,9 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
       await release(receipt.id, workerId, 'BLOCKED', receipt.lastError)
       return false
     }
-    receipt = (await loadReceipt(id))!
+    const reloaded = await loadReceipt(id)
+    if (!reloaded) return false
+    receipt = reloaded
     if (receipt.status === 'RETAINED') {
       await prisma.remoteWalletForwardReceipt.updateMany({
         where: { id: receipt.id, leaseOwner: workerId },
@@ -223,7 +231,9 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
   }
 
   await materializePendingLegs(receipt.actionId)
-  receipt = (await loadReceipt(id))!
+  const materialized = await loadReceipt(id)
+  if (!materialized) return false
+  receipt = materialized
 
   for (const leg of receipt.legs.sort((a, b) => a.position - b.position)) {
     if (leg.status === 'SUCCEEDED' || leg.status === 'SUPERSEDED') continue
@@ -239,6 +249,20 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
         'Forwarding is paused'
       )
       return false
+    }
+    // An earlier leg in this loop may have settled this one as part of its
+    // batch. Re-reading avoids minting a second destination invoice for money
+    // that has already been forwarded.
+    const current = await prisma.remoteWalletForwardLeg.findUnique({
+      where: { id: leg.id },
+      select: { status: true }
+    })
+    if (
+      !current ||
+      current.status === 'SUCCEEDED' ||
+      current.status === 'SUPERSEDED'
+    ) {
+      continue
     }
     await reconcileLeg(receipt, leg)
   }
@@ -372,6 +396,12 @@ async function recoverMissingAmount(
       }
     })
     if (updated.count === 0 || amounts.targetAmountMsats === BigInt(0)) return
+    // materializePendingLegs may have raced us onto the same receipt; creating
+    // a second set would collide on (receiptId, position).
+    const existing = await tx.remoteWalletForwardLeg.count({
+      where: { receiptId: receipt.id }
+    })
+    if (existing > 0) return
     await tx.remoteWalletForwardLeg.createMany({
       data: allocations
         .filter(allocation => allocation.amountMsats > BigInt(0))
@@ -452,18 +482,46 @@ async function reconcileLeg(
   latest = await hydrateRejectedWalletError(latest)
   batch = await loadForwardingBatch(receipt, leg, true)
 
+  // A wallet can report a failure for a payment whose HTLC actually settled.
+  // Paying again would send the destination the same money twice, so prove the
+  // rejection before building another attempt.
+  if (latest?.status === 'REJECTED') {
+    const settled = await settleIfPaidDespiteRejection(receipt, latest)
+    if (settled) {
+      await completeBatch(receipt.id, batch.anchorId, settled)
+      return
+    }
+  }
+
   const insufficientBalance = isInsufficientBalance(latest)
   const requestedAmountMsats = batch.members.reduce(
     (sum, member) => sum + member.requestedAmountMsats,
     BigInt(0)
   )
-  let routingReserveMsats = nextRoutingReserve(
+  if (requestedAmountMsats <= BigInt(0)) {
+    logger.warn(
+      { batchAnchorId: batch.anchorId, remoteWalletForwardLegId: leg.id },
+      'remote_wallet_forwarding.batch_has_no_amount'
+    )
+    await blockUntilMorePendingFunds([
+      leg.id,
+      ...batch.members.map(member => member.id)
+    ])
+    return
+  }
+  const routingReserveMsats = nextRoutingReserve(
     requestedAmountMsats,
     insufficientBalance ? latest : null
   )
   const invoiceAmountMsats = requestedAmountMsats - routingReserveMsats
   if (invoiceAmountMsats <= BigInt(0)) {
-    await blockUntilMorePendingFunds(batch.members.map(member => member.id))
+    // The escalated reserve swallowed the whole amount, which only happens
+    // after repeated insufficient-balance rejections. Say so instead of
+    // blaming the payment size.
+    await blockUntilMorePendingFunds(
+      batch.members.map(member => member.id),
+      insufficientBalance ? INSUFFICIENT_BALANCE_ERROR : undefined
+    )
     return
   }
 
@@ -567,15 +625,12 @@ async function reconcileLeg(
           requestId
         }
       })
-      const reserveShares = allocateByWeight(
+      const reserveShares = largestRemainderShares(
         routingReserveMsats,
-        eligibleLegs.map(candidate => ({
-          id: candidate.id,
-          weight: candidate.requestedAmountMsats
-        }))
+        eligibleLegs.map(candidate => candidate.requestedAmountMsats)
       )
       const nextRetryAt = new Date(Date.now() + RETRY_MS)
-      for (const candidate of eligibleLegs) {
+      for (const [index, candidate] of eligibleLegs.entries()) {
         await tx.remoteWalletForwardLeg.updateMany({
           where: {
             id: candidate.id,
@@ -583,7 +638,7 @@ async function reconcileLeg(
             status: 'PENDING'
           },
           data: {
-            routingReserveMsats: reserveShares.get(candidate.id) ?? BigInt(0),
+            routingReserveMsats: reserveShares[index],
             nextRetryAt
           }
         })
@@ -598,7 +653,24 @@ async function reconcileLeg(
     )
     return
   }
-  if (!attempt) return
+  if (!attempt) {
+    // The action lease or the eligible-leg set changed under us after the
+    // destination already minted an invoice. Back off so a hot loop cannot
+    // mint one per pass.
+    logger.warn(
+      {
+        batchAnchorId: batch.anchorId,
+        remoteWalletForwardLegId: leg.id,
+        paymentHash: invoice.paymentHash
+      },
+      'remote_wallet_forwarding.attempt_not_persisted'
+    )
+    await prisma.remoteWalletForwardLeg.updateMany({
+      where: { id: { in: batch.members.map(member => member.id) } },
+      data: { nextRetryAt: new Date(Date.now() + RETRY_MS) }
+    })
+    return
+  }
   emitForwardingUpdated()
 
   const bridge = await getListenerConfig()
@@ -700,7 +772,10 @@ async function loadForwardingBatch(
   return { anchorId, members, latest }
 }
 
-async function blockUntilMorePendingFunds(ids: string[]): Promise<void> {
+async function blockUntilMorePendingFunds(
+  ids: string[],
+  reason: string = FORWARDING_AMOUNT_TOO_SMALL_ERROR
+): Promise<void> {
   const nextRetryAt = new Date(Date.now() + RETRY_MS)
   await prisma.$transaction(async tx => {
     await tx.remoteWalletForwardLeg.updateMany({
@@ -709,18 +784,18 @@ async function blockUntilMorePendingFunds(ids: string[]): Promise<void> {
         status: 'READY',
         batchAnchorId: null,
         routingReserveMsats: BigInt(0),
-        lastError: FORWARDING_AMOUNT_TOO_SMALL_ERROR,
+        lastError: reason,
         nextRetryAt
       }
     })
     await tx.remoteWalletForwardReceipt.updateMany({
       where: {
         status: { in: ['RECEIVED', 'FORWARDING', 'PARTIAL', 'BLOCKED'] },
-        legs: { some: { id: { in: ids } } }
+        legs: { some: { id: { in: ids }, residual: false } }
       },
       data: {
         status: 'BLOCKED',
-        lastError: FORWARDING_AMOUNT_TOO_SMALL_ERROR,
+        lastError: reason,
         nextRetryAt
       }
     })
@@ -837,6 +912,51 @@ async function resolveExpiredAttempt(
   return 'RETRY'
 }
 
+/**
+ * Ask the source wallet whether a rejected attempt actually settled. Returns
+ * the settled attempt when it did, so the caller completes the batch instead
+ * of paying the destination a second time.
+ */
+async function settleIfPaidDespiteRejection(
+  receipt: ReceiptWithRelations,
+  attempt: RemoteWalletForwardAttempt
+): Promise<RemoteWalletForwardAttempt | null> {
+  const bridge = await getListenerConfig()
+  try {
+    const tx = await listenerNwcRequest<{
+      state?: string
+      preimage?: string
+      fees_paid?: number
+    }>(bridge, {
+      connectionString: walletConfig(receipt).connectionString,
+      method: 'lookup_invoice',
+      params: { payment_hash: attempt.paymentHash }
+    })
+    if (
+      tx.state !== 'settled' ||
+      !tx.preimage ||
+      !preimageMatchesPaymentHash(tx.preimage, attempt.paymentHash)
+    ) {
+      return null
+    }
+    logger.warn(
+      {
+        remoteWalletForwardAttemptId: attempt.id,
+        paymentHash: attempt.paymentHash
+      },
+      'remote_wallet_forwarding.rejected_attempt_actually_settled'
+    )
+    await settleAttempt(attempt, tx.preimage, tx.fees_paid ?? 0)
+    return prisma.remoteWalletForwardAttempt.findUnique({
+      where: { id: attempt.id }
+    })
+  } catch {
+    // The destination invoice is unknown to the wallet, or the bridge is down.
+    // Treat the rejection as genuine and let the normal retry path run.
+    return null
+  }
+}
+
 async function settleAttempt(
   attempt: Pick<RemoteWalletForwardAttempt, 'id' | 'paymentHash'>,
   preimage: string,
@@ -848,7 +968,7 @@ async function settleAttempt(
   await prisma.remoteWalletForwardAttempt.updateMany({
     where: {
       id: attempt.id,
-      status: { in: ['PENDING', 'UNKNOWN', 'REJECTED'] }
+      status: { in: ['PENDING', 'UNKNOWN', 'REJECTED', 'EXPIRED'] }
     },
     data: {
       status: 'SUCCEEDED',
@@ -877,6 +997,30 @@ async function completeBatch(
     where: { batchAnchorId: anchorId, status: { not: 'SUPERSEDED' } },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }]
   })
+  // The destination has already been paid by the time this runs, so nothing
+  // here may throw: an exception would mark the receipt BLOCKED and re-enter
+  // this function forever while the money is gone.
+  if (members.length === 0) {
+    logger.error(
+      { batchAnchorId: anchorId, paymentHash: attempt.paymentHash },
+      'remote_wallet_forwarding.completed_batch_without_members'
+    )
+    return
+  }
+  if (
+    !attempt.preimage ||
+    !preimageMatchesPaymentHash(attempt.preimage, attempt.paymentHash)
+  ) {
+    logger.error(
+      { batchAnchorId: anchorId, paymentHash: attempt.paymentHash },
+      'remote_wallet_forwarding.settled_attempt_preimage_invalid'
+    )
+    await rejectPendingBatch(
+      members.map(member => member.id),
+      'Forwarding settlement could not be proven; contact support before retrying'
+    )
+    return
+  }
   const requestedAmountMsats = members.reduce(
     (sum, member) => sum + member.requestedAmountMsats,
     BigInt(0)
@@ -884,44 +1028,54 @@ async function completeBatch(
   const plannedInvoiceAmount =
     requestedAmountMsats - attempt.routingReserveMsats
   if (
-    members.length === 0 ||
-    !attempt.preimage ||
-    !preimageMatchesPaymentHash(attempt.preimage, attempt.paymentHash) ||
     !isDestinationInvoiceAmountAcceptable(
       plannedInvoiceAmount,
       attempt.amountMsats
     )
   ) {
-    throw new Error('Forwarding completion invariants are not satisfied')
+    // Batch membership changed after the attempt was created. The paid amount
+    // is authoritative; distribute it over the members that exist now.
+    logger.warn(
+      {
+        batchAnchorId: anchorId,
+        paymentHash: attempt.paymentHash,
+        plannedInvoiceAmount: plannedInvoiceAmount.toString(),
+        paidAmountMsats: attempt.amountMsats.toString()
+      },
+      'remote_wallet_forwarding.batch_membership_drifted'
+    )
   }
   const routingFee = attempt.routingFeeMsats ?? BigInt(0)
-  const reserveShares = allocateByWeight(
+  const weights = members.map(member => member.requestedAmountMsats)
+  const reserveShares = largestRemainderShares(
     attempt.routingReserveMsats,
-    members.map(member => ({
-      id: member.id,
-      weight: member.requestedAmountMsats
-    }))
+    weights
   )
-  const plannedShares = members.map(member => ({
-    id: member.id,
-    weight:
-      member.requestedAmountMsats - (reserveShares.get(member.id) ?? BigInt(0))
-  }))
-  const forwardedShares = allocateByWeight(attempt.amountMsats, plannedShares)
-  const feeShares = allocateByWeight(
-    routingFee,
-    members.map(member => ({
-      id: member.id,
-      weight: member.requestedAmountMsats
-    }))
+  const forwardedShares = largestRemainderShares(
+    attempt.amountMsats,
+    members.map((member, index) => member.requestedAmountMsats - reserveShares[index])
   )
+  const feeShares = largestRemainderShares(routingFee, weights)
   const completedAt = new Date()
+  const residuals: Array<{
+    receiptId: string
+    destination: string
+    amountMsats: bigint
+  }> = []
   await prisma.$transaction(
-    members.map(member => {
-      const reserve = reserveShares.get(member.id) ?? BigInt(0)
-      const fee = feeShares.get(member.id) ?? BigInt(0)
-      const forwarded = forwardedShares.get(member.id) ?? BigInt(0)
+    members.map((member, index) => {
+      const reserve = reserveShares[index]
+      const fee = feeShares[index]
+      const forwarded = forwardedShares[index]
       const planned = member.requestedAmountMsats - reserve
+      const unused = reserve > fee ? reserve - fee : BigInt(0)
+      if (unused > BigInt(0) && !member.residual) {
+        residuals.push({
+          receiptId: member.receiptId,
+          destination: member.destination,
+          amountMsats: unused
+        })
+      }
       return prisma.remoteWalletForwardLeg.updateMany({
         where: { id: member.id, status: { not: 'SUCCEEDED' } },
         data: {
@@ -929,7 +1083,7 @@ async function completeBatch(
           forwardedAmountMsats: forwarded,
           routingFeeMsats: fee,
           routingReserveMsats: reserve,
-          unusedRoutingReserveMsats: reserve > fee ? reserve - fee : BigInt(0),
+          unusedRoutingReserveMsats: unused,
           routingFeeOverageMsats: fee > reserve ? fee - reserve : BigInt(0),
           destinationShortfallMsats: planned - forwarded,
           lastError: null,
@@ -938,7 +1092,86 @@ async function completeBatch(
       })
     })
   )
+  await carryUnusedReserve(anchorId, residuals)
   await refreshCompletedBatchReceipts(anchorId, currentReceiptId)
+}
+
+/**
+ * An unused routing reserve is money the destination is still owed. Park it on
+ * a residual leg so the next batch to the same destination picks it up instead
+ * of leaving it stranded in the source wallet.
+ */
+async function carryUnusedReserve(
+  anchorId: string,
+  residuals: Array<{
+    receiptId: string
+    destination: string
+    amountMsats: bigint
+  }>
+): Promise<void> {
+  if (residuals.length === 0) return
+  const byDestination = new Map<string, { receiptId: string; total: bigint }>()
+  for (const residual of residuals) {
+    const current = byDestination.get(residual.destination)
+    byDestination.set(residual.destination, {
+      receiptId: current?.receiptId ?? residual.receiptId,
+      total: (current?.total ?? BigInt(0)) + residual.amountMsats
+    })
+  }
+  for (const [destination, { receiptId, total }] of byDestination) {
+    try {
+      await prisma.$transaction(async tx => {
+        const receipt = await tx.remoteWalletForwardReceipt.findUnique({
+          where: { id: receiptId },
+          select: { actionId: true }
+        })
+        if (!receipt) return
+        // One open residual leg per destination keeps the carry bounded no
+        // matter how many forwards run.
+        const open = await tx.remoteWalletForwardLeg.findFirst({
+          where: {
+            destination,
+            residual: true,
+            status: 'READY',
+            receipt: { actionId: receipt.actionId }
+          },
+          orderBy: { createdAt: 'asc' }
+        })
+        if (open) {
+          await tx.remoteWalletForwardLeg.update({
+            where: { id: open.id },
+            data: {
+              requestedAmountMsats: open.requestedAmountMsats + total,
+              nextRetryAt: new Date()
+            }
+          })
+          return
+        }
+        const last = await tx.remoteWalletForwardLeg.findFirst({
+          where: { receiptId },
+          orderBy: { position: 'desc' },
+          select: { position: true }
+        })
+        await tx.remoteWalletForwardLeg.create({
+          data: {
+            receiptId,
+            position: (last?.position ?? -1) + 1,
+            destination,
+            allocationBps: 0,
+            requestedAmountMsats: total,
+            residual: true,
+            lastError: FORWARDING_AMOUNT_TOO_SMALL_ERROR
+          }
+        })
+      })
+    } catch (error) {
+      // Losing the carry must never undo a settled forwarding batch.
+      logger.warn(
+        { err: error, batchAnchorId: anchorId, destination },
+        'remote_wallet_forwarding.residual_carry_failed'
+      )
+    }
+  }
 }
 
 async function refreshCompletedBatchReceipts(
@@ -954,41 +1187,6 @@ async function refreshCompletedBatchReceipts(
     if (receiptId === currentReceiptId) continue
     await finalizeReceipt(receiptId, null, null)
   }
-}
-
-function allocateByWeight(
-  total: bigint,
-  rows: Array<{ id: string; weight: bigint }>
-): Map<string, bigint> {
-  const result = new Map(rows.map(row => [row.id, BigInt(0)]))
-  if (total === BigInt(0) || rows.length === 0) return result
-  const weightTotal = rows.reduce((sum, row) => sum + row.weight, BigInt(0))
-  if (weightTotal <= BigInt(0)) {
-    throw new Error('Forwarding batch has no allocatable weight')
-  }
-  const shares = rows.map((row, index) => {
-    const numerator = total * row.weight
-    return {
-      ...row,
-      index,
-      amount: numerator / weightTotal,
-      remainder: numerator % weightTotal
-    }
-  })
-  let distributed = shares.reduce((sum, share) => sum + share.amount, BigInt(0))
-  shares.sort((a, b) =>
-    a.remainder === b.remainder
-      ? a.index - b.index
-      : a.remainder > b.remainder
-        ? -1
-        : 1
-  )
-  for (let index = 0; distributed < total; index++) {
-    shares[index % shares.length].amount += BigInt(1)
-    distributed += BigInt(1)
-  }
-  for (const share of shares) result.set(share.id, share.amount)
-  return result
 }
 
 async function finalizeReceipt(
@@ -1024,11 +1222,16 @@ async function finalizeReceipt(
     (sum, leg) => sum + leg.destinationShortfallMsats,
     BigInt(0)
   )
-  const complete = legs.length > 0 && succeeded.length === legs.length
+  // Residual legs carry an unused reserve forward; they owe the destination
+  // real money but must not hold the originating receipt open forever.
+  const settlementLegs = legs.filter(leg => !leg.residual)
+  const complete =
+    settlementLegs.length > 0 &&
+    settlementLegs.every(leg => leg.status === 'SUCCEEDED')
   const inFlight = legs.some(
     leg => leg.status === 'PENDING' || leg.status === 'UNKNOWN'
   )
-  const waiting = legs.some(leg => leg.status === 'READY')
+  const waiting = settlementLegs.some(leg => leg.status === 'READY')
   const status = complete
     ? 'COMPLETED'
     : succeeded.length > 0
@@ -1038,10 +1241,10 @@ async function finalizeReceipt(
         : 'BLOCKED'
   const lastError = complete
     ? null
-    : (firstLegError(legs) ??
+    : (firstLegError(settlementLegs) ??
       (waiting
         ? FORWARDING_AMOUNT_TOO_SMALL_ERROR
-        : legs.length === 0
+        : settlementLegs.length === 0
           ? (receiptLastError ?? FORWARDING_AMOUNT_TOO_SMALL_ERROR)
           : null))
   const updated = await prisma.remoteWalletForwardReceipt.updateMany({
@@ -1066,6 +1269,14 @@ async function finalizeReceipt(
       leaseExpiresAt: null
     }
   })
+  if (updated.count === 0) {
+    // Another worker holds the lease; it will finalize on its own pass. Logged
+    // because a persistent stream of these means leases are not being released.
+    logger.debug(
+      { remoteWalletForwardReceiptId: id, workerId },
+      'remote_wallet_forwarding.finalize_skipped_leased'
+    )
+  }
   if (complete && updated.count > 0) {
     const deliveryIds = await enqueueForwardedReceiptNotifications(id)
     if (deliveryIds.length > 0) {
@@ -1159,18 +1370,27 @@ async function hydrateRejectedWalletError(
   }
 }
 
+const INSUFFICIENT_BALANCE_PHRASES = [
+  'insufficient balance',
+  'insufficient funds',
+  'not enough balance',
+  'not enough funds',
+  'balance too low'
+]
+
 function isInsufficientBalance(
   attempt: Pick<
     RemoteWalletForwardAttempt,
     'status' | 'errorCode' | 'errorMessage'
   > | null
 ): boolean {
-  return (
-    attempt?.status === 'REJECTED' &&
-    (attempt.errorCode?.toUpperCase() === 'INSUFFICIENT_BALANCE' ||
-      attempt.errorMessage?.toLowerCase().includes('insufficient balance') ===
-        true)
-  )
+  if (attempt?.status !== 'REJECTED') return false
+  if (attempt.errorCode?.toUpperCase().replaceAll(' ', '_') ===
+    'INSUFFICIENT_BALANCE') {
+    return true
+  }
+  const message = attempt.errorMessage?.toLowerCase() ?? ''
+  return INSUFFICIENT_BALANCE_PHRASES.some(phrase => message.includes(phrase))
 }
 
 function nextRoutingReserve(
@@ -1218,10 +1438,6 @@ async function localBlockedHosts(): Promise<string[]> {
 
 function firstLegError(legs: RemoteWalletForwardLeg[]): string | null {
   return legs.find(leg => leg.lastError)?.lastError ?? null
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Forwarding failed'
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
