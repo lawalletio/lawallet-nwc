@@ -53,6 +53,7 @@ export function AddressReceiveProtocols({
         <div className="divide-y divide-border/60">
           <ProtocolRow
             enabled={protocols.lud16 ?? null}
+            protocolKey="lud16"
             icon={<Zap className="size-4" />}
             title="LUD-16 address"
             detail={
@@ -65,6 +66,7 @@ export function AddressReceiveProtocols({
           />
           <ProtocolRow
             enabled={protocols.nip05 ?? null}
+            protocolKey="nip05"
             icon={<AtSign className="size-4" />}
             title="NIP-05 identifier"
             detail={
@@ -75,6 +77,7 @@ export function AddressReceiveProtocols({
           />
           <ProtocolRow
             enabled={protocols.lud12 ?? null}
+            protocolKey="lud12"
             icon={<MessageSquare className="size-4" />}
             title="LUD-12 comments"
             detail={
@@ -89,6 +92,7 @@ export function AddressReceiveProtocols({
         <div className="divide-y divide-border/60">
           <ProtocolRow
             enabled={protocols.lud21 ?? null}
+            protocolKey="lud21"
             icon={<ShieldCheck className="size-4" />}
             title="LUD-21 verification"
             detail={
@@ -103,6 +107,7 @@ export function AddressReceiveProtocols({
           />
           <ProtocolRow
             enabled={protocols.nip57 ?? null}
+            protocolKey="nip57"
             icon={<Radio className="size-4" />}
             title="NIP-57 zaps"
             detail={
