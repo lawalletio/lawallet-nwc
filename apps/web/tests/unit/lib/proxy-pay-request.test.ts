@@ -85,7 +85,6 @@ describe('createProxyPayRequest', () => {
     const result = await createProxyPayRequest({
       username: 'alice',
       userId: 'user-1',
-      recipientPubkey: 'd'.repeat(64),
       destination: 'bob@destination.example',
       blockedHosts: ['lawallet.example'],
       amountMsats: 100_000,

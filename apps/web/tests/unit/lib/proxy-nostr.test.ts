@@ -37,7 +37,6 @@ function validate(overrides: { amount?: string; lnurl?: string | null } = {}) {
   return validateZapRequest({
     raw: JSON.stringify(zapRequest(overrides)),
     amountMsats: 100_000,
-    recipientPubkey: recipientKey,
     nowSeconds: 1_700_000_000
   })
 }
@@ -49,7 +48,6 @@ describe('proxy NIP-57 validation', () => {
     const result = validateZapRequest({
       raw,
       amountMsats: 100_000,
-      recipientPubkey: recipientKey,
       nowSeconds: 1_700_000_000
     })
     expect(result.canonicalJson).toBe(raw)
@@ -77,28 +75,34 @@ describe('proxy NIP-57 validation', () => {
     }
   })
 
-  it('still pins the recipient — that is what the receipt credits', () => {
-    const foreign = finalizeEvent(
-      {
-        kind: 9734,
-        created_at: 1_700_000_000,
-        content: 'hello',
-        tags: [
-          ['p', 'cd'.repeat(32)],
-          ['amount', '100000'],
-          ['relays', 'wss://relay.example']
-        ]
-      },
-      senderKey
-    )
-    expect(() =>
+  // NIP-57 does not tie `p` to the address owner, so any well-formed pubkey is
+  // accepted and copied through to the receipt.
+  it('accepts a p tag for any profile, but requires it to be well formed', () => {
+    const withP = (pubkey: string) =>
+      JSON.stringify(
+        finalizeEvent(
+          {
+            kind: 9734,
+            created_at: 1_700_000_000,
+            content: 'hello',
+            tags: [
+              ['p', pubkey],
+              ['amount', '100000'],
+              ['relays', 'wss://relay.example']
+            ]
+          },
+          senderKey
+        )
+      )
+    const run = (pubkey: string) =>
       validateZapRequest({
-        raw: JSON.stringify(foreign),
+        raw: withP(pubkey),
         amountMsats: 100_000,
-        recipientPubkey: recipientKey,
         nowSeconds: 1_700_000_000
       })
-    ).toThrow(/recipient/)
+
+    expect(run('cd'.repeat(32)).event.kind).toBe(9734)
+    expect(() => run('not-a-pubkey')).toThrow(/p tag/)
   })
 
   it('derives the advertised receipt pubkey from the signer', () => {

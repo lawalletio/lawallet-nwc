@@ -39,7 +39,6 @@ import {
 import { createProxyPayRequest } from '@/lib/proxy/pay-request'
 import { validateZapRequest } from '@/lib/proxy/nostr'
 import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
-import { resolveAccountPubkey } from '@/lib/nostr/account-pubkey'
 import {
   PUBLIC_READ_CORS_HEADERS,
   publicReadOptions,
@@ -96,15 +95,6 @@ export const GET = withErrorHandling(
         throw new NotFoundError('Lightning address not found')
       }
 
-      const zapRecipient = nostr
-        ? resolveAccountPubkey(lightningAddress.user)
-        : null
-      if (nostr && !zapRecipient) {
-        throw new ServiceUnavailableError(
-          'The address does not have a valid Nostr recipient identity'
-        )
-      }
-
       const primaryWallet = await getPrimaryRemoteWalletForUser(
         lightningAddress.user.id
       )
@@ -128,7 +118,6 @@ export const GET = withErrorHandling(
         const created = await createProxyPayRequest({
           username,
           userId: lightningAddress.user.id,
-          recipientPubkey: zapRecipient!.pubkey,
           destination: route.redirect,
           blockedHosts: [publicEndpoint.host, new URL(apiUrl).hostname],
           amountMsats,
@@ -262,13 +251,8 @@ export const GET = withErrorHandling(
           zapCapability?.reason ?? 'NIP-57 zap receipts are unavailable'
         )
       }
-      const publicEndpoint = nostr ? await resolvePublicEndpoint(req) : null
       const zap = nostr
-        ? validateZapRequest({
-            raw: nostr,
-            amountMsats,
-            recipientPubkey: zapRecipient!.pubkey
-          })
+        ? validateZapRequest({ raw: nostr, amountMsats })
         : null
       const descriptionHash = zap
         ? createHash('sha256').update(zap.canonicalJson).digest('hex')

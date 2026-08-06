@@ -106,7 +106,7 @@ import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 import { getSettings } from '@/lib/settings'
 import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
-import { DEV_ADMIN_PUBKEY, DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
+import { DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
 
 function nwcUri(walletKey: string, secret: string, relay: string): string {
   return `nostr+walletconnect://${walletKey.repeat(64)}?relay=${encodeURIComponent(`wss://${relay}`)}&secret=${secret.repeat(64)}`
@@ -471,8 +471,12 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
   })
 
-  it('normalizes the account identity to hex for a proxied NIP-57 zap', async () => {
-    vi.stubEnv('NODE_ENV', 'development')
+  // The zap callback used to resolve the account's Nostr identity and reject
+  // the zap when it could not be normalized. NIP-57 does not tie the `p` tag to
+  // the address owner, so that resolution is gone — and an account whose stored
+  // pubkey is unusable (the illustrative `npub1xyz…` local seed) can still be
+  // zapped instead of returning 503.
+  it('accepts a proxied NIP-57 zap without resolving the account identity', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'proxy',
       mode: 'PROXY_ALIAS',
@@ -485,25 +489,18 @@ describe('GET /api/lud16/[username]/cb', () => {
       }
     } as any)
 
-    try {
-      const req = createNextRequest('/api/lud16/proxy/cb', {
-        searchParams: {
-          amount: '100000',
-          nostr: JSON.stringify({ kind: 9734 })
-        }
-      })
-      const res = await Lud16CbGet(
-        req,
-        createParamsPromise({ username: 'proxy' })
-      )
+    const req = createNextRequest('/api/lud16/proxy/cb', {
+      searchParams: {
+        amount: '100000',
+        nostr: JSON.stringify({ kind: 9734 })
+      }
+    })
+    const res = await Lud16CbGet(req, createParamsPromise({ username: 'proxy' }))
 
-      expect(res.status).toBe(200)
-      expect(createProxyPayRequestMock).toHaveBeenCalledWith(
-        expect.objectContaining({ recipientPubkey: DEV_ADMIN_PUBKEY })
-      )
-    } finally {
-      vi.unstubAllEnvs()
-    }
+    expect(res.status).toBe(200)
+    expect(createProxyPayRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'proxy', amountMsats: 100_000 })
+    )
   })
 
   it('persists invoice to DB with LUD16_PAYMENT purpose', async () => {

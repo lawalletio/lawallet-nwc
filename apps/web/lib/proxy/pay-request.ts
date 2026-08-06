@@ -13,7 +13,6 @@ import { validateZapRequest } from './nostr'
 export async function createProxyPayRequest(input: {
   username: string
   userId: string
-  recipientPubkey: string
   destination: string
   blockedHosts: string[]
   amountMsats: number
@@ -54,8 +53,7 @@ export async function createProxyPayRequest(input: {
   const zap = input.zapRequestJson
     ? validateZapRequest({
         raw: input.zapRequestJson,
-        amountMsats: input.amountMsats,
-        recipientPubkey: input.recipientPubkey
+        amountMsats: input.amountMsats
       })
     : null
   if (zap && !config.receiptPrivateKey) {

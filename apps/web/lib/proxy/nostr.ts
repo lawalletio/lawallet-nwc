@@ -29,7 +29,6 @@ export interface ValidZapRequest {
 export function validateZapRequest(input: {
   raw: string
   amountMsats: number
-  recipientPubkey: string
   nowSeconds?: number
 }): ValidZapRequest {
   let event: Event
@@ -49,13 +48,16 @@ export function validateZapRequest(input: {
       'Zap request signature, kind, or timestamp is invalid'
     )
   }
+  // NIP-57 requires exactly one `p` tag and nothing more: it is the profile the
+  // zap is attributed to, which is not required to be the address owner's
+  // NIP-05 identity. An account can hold several identities, an address can be
+  // shared, and a zap can be sent on someone's behalf — so comparing `p`
+  // against one resolved pubkey rejected legitimate zaps. It is still required
+  // to be a well-formed pubkey, because it is copied into the signed receipt.
   const pTags = event.tags.filter(tag => tag[0] === 'p')
-  if (
-    pTags.length !== 1 ||
-    pTags[0][1]?.toLowerCase() !== input.recipientPubkey.toLowerCase()
-  ) {
+  if (pTags.length !== 1 || !HEX_64.test(pTags[0][1] ?? '')) {
     throw new ValidationError(
-      'Zap request recipient does not match this address'
+      'Zap request must have exactly one p tag with a valid public key'
     )
   }
   const amountTag = event.tags.find(tag => tag[0] === 'amount')?.[1]
@@ -67,15 +69,14 @@ export function validateZapRequest(input: {
       'Zap request amount does not match callback amount'
     )
   }
-  // The `lnurl` tag is deliberately not validated. It is optional in NIP-57,
-  // clients disagree on the encoding (bech32, the LNURL-pay URL, or the bare
-  // Lightning Address), and one address is legitimately reachable at several
-  // origins — a local port, the public domain, a tunnel — so there is no single
-  // correct value to compare against. It carries no authority either: the
-  // invoice is minted on this address' own wallet and the recipient is fixed by
-  // the `p` tag below, so a wrong `lnurl` cannot misdirect funds or credit.
-  // The tag is still preserved verbatim in the stored request, which is what
-  // the receipt's description commits to.
+  // The `lnurl` tag is deliberately not validated either. It is optional in
+  // NIP-57, clients disagree on the encoding (bech32, the LNURL-pay URL, or the
+  // bare Lightning Address), and one address is legitimately reachable at
+  // several origins — a local port, the public domain, a tunnel — so there is
+  // no single correct value to compare against. Nothing here decides where the
+  // money goes: the invoice is always minted on this address' own wallet.
+  // Every tag is preserved verbatim in the stored request, which is what the
+  // receipt's description commits to.
   const relays = [
     ...new Set(
       event.tags
