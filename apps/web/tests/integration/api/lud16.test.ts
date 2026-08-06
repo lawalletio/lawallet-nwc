@@ -227,6 +227,31 @@ describe('GET /api/lud16/[username]', () => {
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
   })
 
+  it('labels text/identifier with the address domain, not the API endpoint host', async () => {
+    // Regression: domain and endpoint point at different hosts (the API
+    // gateway case) — text/identifier must say the domain, not the endpoint.
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'looker',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      nwcConnection: null,
+      remoteWallet: DEFAULT_WALLET,
+      user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'lawallet.io',
+      endpoint: 'https://beta.lawallet.io'
+    })
+
+    const req = createNextRequest('/api/lud16/looker')
+    const res = await Lud16Get(req, createParamsPromise({ username: 'looker' }))
+    const body: any = await assertResponse(res, 200)
+
+    const metadata = JSON.parse(body.metadata)
+    expect(metadata).toContainEqual(['text/identifier', 'looker@lawallet.io'])
+    expect(body.callback).toContain('https://beta.lawallet.io')
+  })
+
   it('embeds the cached Nostr avatar as a base64 image in the metadata', async () => {
     vi.mocked(getLud16AvatarMetadataEntry).mockResolvedValue([
       'image/png;base64',
@@ -495,7 +520,10 @@ describe('GET /api/lud16/[username]/cb', () => {
         nostr: JSON.stringify({ kind: 9734 })
       }
     })
-    const res = await Lud16CbGet(req, createParamsPromise({ username: 'proxy' }))
+    const res = await Lud16CbGet(
+      req,
+      createParamsPromise({ username: 'proxy' })
+    )
 
     expect(res.status).toBe(200)
     expect(createProxyPayRequestMock).toHaveBeenCalledWith(

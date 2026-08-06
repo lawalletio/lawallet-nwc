@@ -9,7 +9,8 @@ vi.mock('@/lib/public-url', () => ({
     host: 'pay.example.com',
     url: 'https://pay.example.com'
   })),
-  resolveApiUrl: vi.fn(async () => 'https://app.example.com')
+  resolveApiUrl: vi.fn(async () => 'https://app.example.com'),
+  resolveAddressDomain: vi.fn(async () => 'pay.example.com')
 }))
 // The forwarding reconciler is a background job: no request to read a Host
 // header from. `endpoint` unset here is the self-hosted default, and is what

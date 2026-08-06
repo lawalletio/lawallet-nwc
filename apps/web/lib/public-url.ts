@@ -6,7 +6,10 @@ import {
 } from '@/lib/public-url-utils'
 
 export interface PublicEndpoint {
-  /** The full hostname used in lightning addresses (e.g. `app.example.com` or `example.com`). */
+  /**
+   * The full hostname this instance is published under (e.g. `app.example.com`).
+   * NOT the lightning-address domain — use {@link resolveAddressDomain} for that.
+   */
   host: string
   /** The full URL used for LNURL callbacks (e.g. `https://app.example.com`). */
   url: string
@@ -49,6 +52,40 @@ export async function resolvePublicEndpoint(request?: {
 
   const headerHost = request?.headers.get('host') || 'localhost:3000'
   return { host: headerHost, url: buildPublicUrl(headerHost) }
+}
+
+/**
+ * Resolves the hostname that labels lightning addresses (`username@<host>`).
+ *
+ * The mirror of {@link resolveApiUrl}: that one is where the instance is
+ * *reachable*, this one is what the address is *called*. They differ whenever
+ * the API lives on its own host — `endpoint=https://beta.lacrypta.ar` while
+ * `domain=lacrypta.ar` — so LUD-16 metadata must never label an address with
+ * the endpoint host.
+ *
+ * Priority:
+ * 1. Legacy `subdomain` + `domain` → `subdomain.domain`.
+ * 2. `domain` only.
+ * 3. `endpoint` host (instances that never configured a separate domain).
+ * 4. Request `host` header, then the request URL's host (fallback for local/dev).
+ */
+export async function resolveAddressDomain(request?: {
+  headers: { get: (k: string) => string | null }
+  url?: string
+}): Promise<string> {
+  const settings = await getSettings(['domain', 'endpoint', 'subdomain'], {
+    cache: 'hot'
+  })
+
+  const host = buildPublicHost(settings.domain, settings.subdomain)
+  if (host) return host
+
+  return (
+    parseEndpoint(settings.endpoint)?.host ||
+    request?.headers.get('host') ||
+    (request?.url && new URL(request.url).host) ||
+    'localhost:3000'
+  )
 }
 
 /**

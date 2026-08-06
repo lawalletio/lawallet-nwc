@@ -36,7 +36,8 @@ vi.mock('@/lib/public-url', () => ({
     host: 'wallet.example',
     url: 'https://wallet.example'
   })),
-  resolveApiUrl: vi.fn(async () => 'https://wallet.example')
+  resolveApiUrl: vi.fn(async () => 'https://wallet.example'),
+  resolveAddressDomain: vi.fn(async () => 'wallet.example')
 }))
 vi.mock('@/lib/wallet/remote-wallet-vault', () => ({
   decryptRemoteWalletConfig: vi.fn(() => ({
