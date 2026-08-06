@@ -131,7 +131,6 @@ export const GET = withErrorHandling(
           recipientPubkey: zapRecipient!.pubkey,
           destination: route.redirect,
           blockedHosts: [publicEndpoint.host, new URL(apiUrl).hostname],
-          expectedZapLnurl: `${publicEndpoint.url}/.well-known/lnurlp/${encodeURIComponent(username)}`,
           amountMsats,
           comment: sanitizedComment,
           zapRequestJson: nostr
@@ -268,8 +267,7 @@ export const GET = withErrorHandling(
         ? validateZapRequest({
             raw: nostr,
             amountMsats,
-            recipientPubkey: zapRecipient!.pubkey,
-            expectedLnurl: `${publicEndpoint!.url}/.well-known/lnurlp/${encodeURIComponent(username)}`
+            recipientPubkey: zapRecipient!.pubkey
           })
         : null
       const descriptionHash = zap

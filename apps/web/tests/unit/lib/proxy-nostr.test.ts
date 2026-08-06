@@ -32,79 +32,73 @@ function zapRequest(
   )
 }
 
-/** Runs validation with the fixture's recipient/amount/LNURL expectations. */
+/** Runs validation with the fixture's recipient and amount expectations. */
 function validate(overrides: { amount?: string; lnurl?: string | null } = {}) {
   return validateZapRequest({
     raw: JSON.stringify(zapRequest(overrides)),
     amountMsats: 100_000,
     recipientPubkey: recipientKey,
-    expectedLnurl: lnurlUrl,
     nowSeconds: 1_700_000_000
   })
 }
 
 describe('proxy NIP-57 validation', () => {
-  it('accepts a valid signed zap request for this recipient, amount, and LNURL', () => {
+  it('accepts a valid signed zap request for this recipient and amount', () => {
     const event = zapRequest()
     const raw = JSON.stringify(event)
     const result = validateZapRequest({
       raw,
       amountMsats: 100_000,
       recipientPubkey: recipientKey,
-      expectedLnurl: lnurlUrl,
       nowSeconds: 1_700_000_000
     })
     expect(result.canonicalJson).toBe(raw)
     expect(result.relays).toEqual(['wss://relay.example'])
   })
 
-  it('rejects a zap request for a different amount or LNURL', () => {
-    expect(() =>
-      validateZapRequest({
-        raw: JSON.stringify(zapRequest({ amount: '99999' })),
-        amountMsats: 100_000,
-        recipientPubkey: recipientKey,
-        expectedLnurl: lnurlUrl,
-        nowSeconds: 1_700_000_000
-      })
-    ).toThrow(/amount/)
-
-    expect(() =>
-      validateZapRequest({
-        raw: JSON.stringify(zapRequest({ lnurl: encodedLnurl.slice(0, -1) })),
-        amountMsats: 100_000,
-        recipientPubkey: recipientKey,
-        expectedLnurl: lnurlUrl,
-        nowSeconds: 1_700_000_000
-      })
-    ).toThrow(/LNURL/)
+  it('rejects a zap request for a different amount', () => {
+    expect(() => validate({ amount: '99999' })).toThrow(/amount/)
   })
 
-  // NIP-57 lists `lnurl` as MAY, and the clients that do send it disagree on
-  // the encoding. Requiring bech32 rejected zaps that are perfectly valid.
-  it('accepts the LNURL as a plain URL, a Lightning Address, or omitted', () => {
-    expect(validate({ lnurl: null }).event.kind).toBe(9734)
-    expect(validate({ lnurl: lnurlUrl }).event.kind).toBe(9734)
-    expect(validate({ lnurl: 'alice@pay.example' }).event.kind).toBe(9734)
+  // The `lnurl` tag is informational: optional in NIP-57, spelled
+  // inconsistently by clients, and one address is reachable at several origins.
+  // It never decides where funds go, so it is accepted in any shape.
+  it('accepts any lnurl tag, or none at all', () => {
+    for (const lnurl of [
+      null,
+      encodedLnurl,
+      lnurlUrl,
+      'alice@pay.example',
+      'http://localhost:3584/.well-known/lnurlp/alice',
+      'https://evil.example/.well-known/lnurlp/bob',
+      'not-a-url'
+    ]) {
+      expect(validate({ lnurl }).event.kind).toBe(9734)
+    }
   })
 
-  it('ignores casing and a trailing slash in the LNURL', () => {
-    expect(
-      validate({ lnurl: 'https://PAY.EXAMPLE/.well-known/lnurlp/alice/' }).event
-        .kind
-    ).toBe(9734)
-  })
-
-  it('still rejects an LNURL for another address or another host', () => {
-    expect(() =>
-      validate({ lnurl: 'https://pay.example/.well-known/lnurlp/bob' })
-    ).toThrow(/LNURL does not match/)
-    expect(() => validate({ lnurl: 'bob@pay.example' })).toThrow(
-      /LNURL does not match/
+  it('still pins the recipient — that is what the receipt credits', () => {
+    const foreign = finalizeEvent(
+      {
+        kind: 9734,
+        created_at: 1_700_000_000,
+        content: 'hello',
+        tags: [
+          ['p', 'cd'.repeat(32)],
+          ['amount', '100000'],
+          ['relays', 'wss://relay.example']
+        ]
+      },
+      senderKey
     )
     expect(() =>
-      validate({ lnurl: 'https://evil.example/.well-known/lnurlp/alice' })
-    ).toThrow(/LNURL does not match/)
+      validateZapRequest({
+        raw: JSON.stringify(foreign),
+        amountMsats: 100_000,
+        recipientPubkey: recipientKey,
+        nowSeconds: 1_700_000_000
+      })
+    ).toThrow(/recipient/)
   })
 
   it('derives the advertised receipt pubkey from the signer', () => {
