@@ -22,6 +22,22 @@ export interface UseApiResult<T> {
  * Maps an API path to its corresponding SSE event type for auto-refresh.
  */
 function getEventTypeForPath(path: string): SSEEventType | null {
+  if (path === '/api/remote-wallets/forwarding-map')
+    return 'remote-wallet-forwarding:updated'
+  if (
+    /^\/api\/remote-wallets\/[^/]+\/(receive-action|forwarding-receipts|forwarding-activity)/.test(
+      path
+    )
+  )
+    return 'remote-wallet-forwarding:updated'
+  if (/^\/api\/remote-wallets\/[^/]+\/payments\//.test(path))
+    return 'invoices:updated'
+  if (
+    /^\/api\/remote-wallets\/[^/]+\/(notifications|notification-deliveries)/.test(
+      path
+    )
+  )
+    return 'remote-wallet-notifications:updated'
   // Listener dashboard refreshes when the webhook route emits
   // `listener:updated` (new NWC connection events / errors).
   if (path.startsWith('/api/admin/listener')) return 'listener:updated'
@@ -158,7 +174,16 @@ export function clearApiCache() {
  * stale cached data for one frame before the SSE-driven refetch swaps it.
  */
 export function invalidateApiPath(path: string) {
-  apiCache.delete(path)
+  // Paginated and filtered readers cache under the path *with* its query
+  // string, so an exact-key delete would silently miss every one of them.
+  for (const key of [...apiCache.keys()]) {
+    if (matchesInvalidatedPath(key, path)) apiCache.delete(key)
+  }
+  for (const key of [...apiInvalidationVersions.keys()]) {
+    if (matchesInvalidatedPath(key, path)) {
+      apiInvalidationVersions.set(key, getInvalidationVersion(key) + 1)
+    }
+  }
   clearInflightForPath(path)
   apiInvalidationVersions.set(path, getInvalidationVersion(path) + 1)
   if (typeof window !== 'undefined') {
@@ -166,6 +191,18 @@ export function invalidateApiPath(path: string) {
       new CustomEvent(API_CACHE_INVALIDATED_EVENT, { detail: { path } })
     )
   }
+}
+
+/**
+ * True when `candidate` is the invalidated path itself or the same path
+ * carrying a query string. The `?` boundary keeps `/api/cards` from
+ * invalidating `/api/card-designs`.
+ */
+export function matchesInvalidatedPath(
+  candidate: string,
+  invalidated: string
+): boolean {
+  return candidate === invalidated || candidate.startsWith(`${invalidated}?`)
 }
 
 /**
@@ -310,10 +347,14 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
   useEffect(() => {
     if (!path || typeof window === 'undefined') return
 
+    const currentPath = path
     function handleInvalidation(event: Event) {
       const invalidatedPath = (event as CustomEvent<{ path?: string }>).detail
         ?.path
-      if (invalidatedPath === path) {
+      if (
+        invalidatedPath &&
+        matchesInvalidatedPath(currentPath, invalidatedPath)
+      ) {
         void fetchData({ force: true })
       }
     }
@@ -347,11 +388,16 @@ export function useApi<T>(path: string | null): UseApiResult<T> {
 
 /**
  * Hook for performing mutations (POST, PUT, PATCH, DELETE) with loading/error state.
+ *
+ * Pass `invalidates` to drop cached reads the mutation invalidates. Every path
+ * given also covers its query-string variants, so a paginated list refreshes
+ * without the caller enumerating cursors.
  */
-export function useMutation<TInput, TOutput = void>() {
+export function useMutation<TInput, TOutput = void>(invalidates?: string[]) {
   const { apiClient } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const invalidateKey = invalidates?.join('\n') ?? ''
 
   const mutate = useCallback(
     async (
@@ -364,6 +410,9 @@ export function useMutation<TInput, TOutput = void>() {
 
       try {
         const result = await apiClient[method]<TOutput>(path, body)
+        for (const target of invalidateKey ? invalidateKey.split('\n') : []) {
+          invalidateApiPath(target)
+        }
         return result
       } catch (err) {
         const error = err instanceof Error ? err : new Error('Unknown error')
@@ -373,8 +422,24 @@ export function useMutation<TInput, TOutput = void>() {
         setLoading(false)
       }
     },
-    [apiClient]
+    [apiClient, invalidateKey]
   )
 
   return { mutate, loading, error }
+}
+
+/**
+ * Append defined query params to a path. Undefined values are dropped so the
+ * cache key stays stable between "no filter" and "filter cleared".
+ */
+export function withQuery(
+  path: string,
+  params: Record<string, string | number | undefined>
+): string {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') query.set(key, String(value))
+  }
+  const serialized = query.toString()
+  return serialized ? `${path}?${serialized}` : path
 }

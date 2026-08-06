@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import type { ProxyForwardAttempt, ProxyPayment } from '@/lib/generated/prisma'
 import type { Event } from 'nostr-tools'
 import { eventBus } from '@/lib/events/event-bus'
+import { errorMessage } from '@/lib/error-message'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getListenerConfig } from '@/lib/listener-config'
@@ -12,6 +13,13 @@ import {
 } from '@/lib/wallet/drivers/listener-transport'
 import { preimageMatchesPaymentHash } from '@/lib/card-payments/lifecycle'
 import { getProxySettlementConfig } from './config'
+import { resolveLocalDestination } from './local-destination'
+import {
+  FORWARD_HOP_LIMIT_ERROR,
+  getForwardDepth,
+  isForwardDepthExhausted,
+  recordForwardHop
+} from './forward-hops'
 import {
   PROXY_BATCH_SIZE,
   PROXY_LEASE_MS,
@@ -252,6 +260,15 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
       expiresAt: reusable.expiresAt
     }
   } else {
+    // A destination on this instance can forward the money onward, so the same
+    // payment could reach us again. Stop before minting another invoice.
+    const local = await resolveLocalDestination(current.destination)
+    // See the RemoteWallet reconciler: a destination on another service cannot
+    // route the payment back here, so it never needs the depth lookup.
+    const depth = local ? await getForwardDepth(current.invoice.paymentHash) : 0
+    if (local && isForwardDepthExhausted(depth)) {
+      throw new Error(FORWARD_HOP_LIMIT_ERROR)
+    }
     // This is deliberately the first point at which the destination callback
     // is called: the payer-facing source invoice is already confirmed paid.
     const metadata = await fetchDestinationMetadata(current.destination, {
@@ -270,6 +287,7 @@ async function reconcileOne(id: string, workerId: string): Promise<boolean> {
       comment: current.comment,
       blockedHosts: current.blockedHosts
     })
+    if (local) await recordForwardHop(invoice.paymentHash, depth + 1)
   }
 
   const attemptNo = (latest?.attemptNo ?? 0) + 1
@@ -651,7 +669,7 @@ async function finishForwarding(
   if (!receiptPrivateKey || !payment.zapRequestJson) {
     throw new Error('Zap receipt signer is not configured')
   }
-  const receiptEventId = await publishZapReceipt({
+  const receipt = await publishZapReceipt({
     zapRequest: payment.zapRequest as unknown as Event,
     zapRequestJson: payment.zapRequestJson,
     payerInvoice: payment.invoice.bolt11,
@@ -665,7 +683,7 @@ async function finishForwarding(
     where: { id: payment.id, leaseOwner: workerId },
     data: {
       status: 'COMPLETED',
-      receiptEventId,
+      receiptEventId: receipt.event.id,
       receiptPublishedAt: new Date(),
       leaseOwner: null,
       leaseExpiresAt: null,
@@ -707,10 +725,6 @@ async function releaseWithError(
       nextRetryAt: new Date(Date.now() + PROXY_RETRY_INTERVAL_MS)
     }
   })
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 function emitProxyActivityUpdated(): void {

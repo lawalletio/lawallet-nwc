@@ -4,6 +4,10 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createLightningAddressFixture } from '@/tests/helpers/fixtures'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 
+const { createProxyPayRequestMock } = vi.hoisted(() => ({
+  createProxyPayRequestMock: vi.fn()
+}))
+
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
 }))
@@ -31,6 +35,21 @@ vi.mock('@/lib/nostr/lud16-avatar', () => ({
 
 vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }
+}))
+
+const { fetchDestinationPayRequest, fetchDestinationMetadata } = vi.hoisted(
+  () => ({
+    fetchDestinationPayRequest: vi.fn(),
+    fetchDestinationMetadata: vi.fn()
+  })
+)
+vi.mock('@/lib/proxy/lnurl', () => ({
+  fetchDestinationPayRequest,
+  fetchDestinationMetadata
+}))
+
+vi.mock('@/lib/proxy/pay-request', () => ({
+  createProxyPayRequest: createProxyPayRequestMock
 }))
 
 // LNCurl re-provisioning is exercised in dedicated suites; here we stub it so
@@ -74,13 +93,20 @@ vi.mock('light-bolt11-decoder', () => ({
   })
 }))
 
-import { GET as Lud16Get } from '@/app/api/lud16/[username]/route'
+import {
+  GET as Lud16Get,
+  OPTIONS as Lud16Options
+} from '@/app/api/lud16/[username]/route'
 import { getLud16AvatarMetadataEntry } from '@/lib/nostr/lud16-avatar'
-import { GET as Lud16CbGet } from '@/app/api/lud16/[username]/cb/route'
+import {
+  GET as Lud16CbGet,
+  OPTIONS as Lud16CbOptions
+} from '@/app/api/lud16/[username]/cb/route'
 import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 import { getSettings } from '@/lib/settings'
 import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
+import { DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
 
 function nwcUri(walletKey: string, secret: string, relay: string): string {
   return `nostr+walletconnect://${walletKey.repeat(64)}?relay=${encodeURIComponent(`wss://${relay}`)}&secret=${secret.repeat(64)}`
@@ -90,7 +116,7 @@ const DEFAULT_NWC_URI = nwcUri('a', 'b', 'default.relay.test')
 const BOUND_NWC_URI = nwcUri('c', 'd', 'bound.relay.test')
 const DEAD_LNCURL_NWC_URI = nwcUri('e', 'f', 'dead-lncurl.relay.test')
 const FRESH_LNCURL_NWC_URI = nwcUri('f', 'e', 'fresh-lncurl.relay.test')
-/** A user's primary-address RemoteWallet — DEFAULT_NWC routes through this. */
+/** A user's primary-address RemoteWallet. */
 const DEFAULT_WALLET = {
   id: 'wallet-default',
   type: 'NWC' as const,
@@ -126,6 +152,12 @@ beforeEach(() => {
     domain: 'test.com',
     endpoint: 'https://app.test.com'
   })
+  createProxyPayRequestMock.mockResolvedValue({
+    invoiceId: 'proxy-invoice-1',
+    proxyPaymentId: 'proxy-payment-1',
+    bolt11: 'lnbc100n1proxy',
+    paymentHash: 'b'.repeat(64)
+  })
   // The driver caches one NWCClient per connection string; clear it so each
   // test's `nwcCtorMock` assertions see a fresh constructor call rather than
   // a cache hit from a prior test.
@@ -134,6 +166,16 @@ beforeEach(() => {
 })
 
 describe('GET /api/lud16/[username]', () => {
+  it('allows cross-origin discovery and callback preflights', () => {
+    for (const response of [Lud16Options(), Lud16CbOptions()]) {
+      expect(response.status).toBe(204)
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+      expect(response.headers.get('Access-Control-Allow-Methods')).toContain(
+        'GET'
+      )
+    }
+  })
+
   it('returns a verification pay request without a real address', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'example.com',
@@ -161,10 +203,10 @@ describe('GET /api/lud16/[username]', () => {
   it('returns LUD-06 pay response for valid username', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
-      remoteWallet: null,
+      remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
     vi.mocked(getSettings).mockResolvedValue({
@@ -182,6 +224,7 @@ describe('GET /api/lud16/[username]', () => {
     expect(body.minSendable).toBe(1000)
     expect(body.maxSendable).toBe(1000000000)
     expect(body.commentAllowed).toBe(200)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
   })
 
   it('embeds the cached Nostr avatar as a base64 image in the metadata', async () => {
@@ -191,10 +234,10 @@ describe('GET /api/lud16/[username]', () => {
     ])
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
-      remoteWallet: null,
+      remoteWallet: DEFAULT_WALLET,
       user: {
         id: 'user-1',
         pubkey: 'a'.repeat(64),
@@ -225,13 +268,14 @@ describe('GET /api/lud16/[username]', () => {
     )
 
     expect(res.status).toBe(404)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
   })
 
   it('returns 404 when user has no NWC configured', async () => {
     mockPrimaryAddressWallet(null)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
       remoteWallet: null,
@@ -246,11 +290,11 @@ describe('GET /api/lud16/[username]', () => {
 
   it('serves a callback (200) for a no-wallet address when LNCurl auto-recreate is on, without provisioning', async () => {
     mockPrimaryAddressWallet(null)
-    // pelo's exact case: DEFAULT_NWC, no wallet at all. Instead of 404, the
+    // pelo's exact case: no wallet at all. Instead of 404, the
     // lookup promises a callback — the wallet is minted lazily in /cb.
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'pelo',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
       remoteWallet: null,
@@ -276,10 +320,10 @@ describe('GET /api/lud16/[username]', () => {
   it('handles case-insensitive username lookup', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
-      remoteWallet: null,
+      remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
     vi.mocked(getSettings).mockResolvedValue({
@@ -346,31 +390,18 @@ describe('GET /api/lud16/[username]', () => {
       maxSendable: 1000000,
       metadata: '[["text/plain","Bob"]]'
     }
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify(remoteBody), {
-        status: 200,
-        headers: { 'content-type': 'application/json' }
-      })
-    )
+    fetchDestinationPayRequest.mockResolvedValueOnce(remoteBody)
 
-    try {
-      const req = createNextRequest('/api/lud16/alice')
-      const res = await Lud16Get(
-        req,
-        createParamsPromise({ username: 'alice' })
-      )
+    const req = createNextRequest('/api/lud16/alice')
+    const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
 
-      expect(res.status).toBe(200)
-      expect(fetchMock).toHaveBeenCalledWith(
-        'https://other.com/.well-known/lnurlp/bob',
-        expect.objectContaining({ headers: expect.any(Object) })
-      )
-      const body: any = await res.json()
-      expect(body.callback).toBe('https://other.com/lnurlp/bob/cb')
-      expect(body.tag).toBe('payRequest')
-    } finally {
-      fetchMock.mockRestore()
-    }
+    expect(res.status).toBe(200)
+    // Goes through the guarded fetcher (HTTPS-only, SSRF-checked), not a bare
+    // global fetch, and the document is proxied verbatim.
+    expect(fetchDestinationPayRequest).toHaveBeenCalledWith('bob@other.com')
+    const body: any = await res.json()
+    expect(body.callback).toBe('https://other.com/lnurlp/bob/cb')
+    expect(body.tag).toBe('payRequest')
   })
 
   it('returns 404 when the ALIAS remote LUD-16 fetch fails', async () => {
@@ -382,20 +413,13 @@ describe('GET /api/lud16/[username]', () => {
       remoteWallet: null,
       user: { id: 'user-1', remoteWallets: [] }
     } as any)
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response('nope', { status: 503 }))
+    fetchDestinationPayRequest.mockRejectedValueOnce(
+      new Error('Destination LNURL returned HTTP 503')
+    )
 
-    try {
-      const req = createNextRequest('/api/lud16/alice')
-      const res = await Lud16Get(
-        req,
-        createParamsPromise({ username: 'alice' })
-      )
-      expect(res.status).toBe(404)
-    } finally {
-      fetchMock.mockRestore()
-    }
+    const req = createNextRequest('/api/lud16/alice')
+    const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
+    expect(res.status).toBe(404)
   })
 })
 
@@ -410,10 +434,10 @@ describe('GET /api/lud16/[username]/cb', () => {
   it('creates invoice and returns payment request', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
-      remoteWallet: null,
+      remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
     vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
@@ -438,6 +462,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     expect(body.verify).toBe(
       `https://app.test.com/api/lud16/alice/verify/${'a'.repeat(64)}`
     )
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
     // A fresh invoice must announce itself on the bus so any connected
     // dashboard (address detail / admin home / invoices feed) refetches
     // without a manual reload.
@@ -446,13 +471,45 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
   })
 
+  // The zap callback used to resolve the account's Nostr identity and reject
+  // the zap when it could not be normalized. NIP-57 does not tie the `p` tag to
+  // the address owner, so that resolution is gone — and an account whose stored
+  // pubkey is unusable (the illustrative `npub1xyz…` local seed) can still be
+  // zapped instead of returning 503.
+  it('accepts a proxied NIP-57 zap without resolving the account identity', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'proxy',
+      mode: 'PROXY_ALIAS',
+      redirect: 'bob@destination.example',
+      remoteWallet: null,
+      user: {
+        id: DEV_ADMIN_USER_ID,
+        pubkey: DEV_ADMIN_USER_ID,
+        nostrIdentities: [{ pubkey: DEV_ADMIN_USER_ID }]
+      }
+    } as any)
+
+    const req = createNextRequest('/api/lud16/proxy/cb', {
+      searchParams: {
+        amount: '100000',
+        nostr: JSON.stringify({ kind: 9734 })
+      }
+    })
+    const res = await Lud16CbGet(req, createParamsPromise({ username: 'proxy' }))
+
+    expect(res.status).toBe(200)
+    expect(createProxyPayRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'proxy', amountMsats: 100_000 })
+    )
+  })
+
   it('persists invoice to DB with LUD16_PAYMENT purpose', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
-      remoteWallet: null,
+      remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
     vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
@@ -511,7 +568,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     mockPrimaryAddressWallet(null)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
       remoteWallet: null,
@@ -535,10 +592,10 @@ describe('GET /api/lud16/[username]/cb', () => {
   it('includes LUD-12 comment in invoice description and metadata', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
-      remoteWallet: null,
+      remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
     vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
@@ -572,10 +629,10 @@ describe('GET /api/lud16/[username]/cb', () => {
   it('rejects comment longer than 200 chars', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
-      remoteWallet: null,
+      remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
 
@@ -594,10 +651,10 @@ describe('GET /api/lud16/[username]/cb', () => {
   it('omits comment from description when not provided', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       nwcConnection: null,
-      remoteWallet: null,
+      remoteWallet: DEFAULT_WALLET,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
     vi.mocked(prismaMock.invoice.upsert).mockResolvedValue({
@@ -688,7 +745,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     })
   })
 
-  it("routes through the user's primary-address RemoteWallet for DEFAULT_NWC", async () => {
+  it('routes through the wallet the address is bound to', async () => {
     mockPrimaryAddressWallet({
       id: 'wallet-default',
       type: 'NWC',
@@ -697,9 +754,14 @@ describe('GET /api/lud16/[username]/cb', () => {
     } as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
-      remoteWallet: null,
+      remoteWallet: {
+        id: 'wallet-default',
+        type: 'NWC',
+        config: { connectionString: DEFAULT_NWC_URI, mode: 'RECEIVE' },
+        status: 'ACTIVE'
+      },
       nwcConnection: null,
       user: {
         id: 'user-1',
@@ -736,9 +798,9 @@ describe('GET /api/lud16/[username]/cb', () => {
   it('returns 503 when the wallet driver fails to mint', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
-      remoteWallet: null,
+      remoteWallet: DEFAULT_WALLET,
       nwcConnection: null,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
@@ -799,9 +861,9 @@ describe('GET /api/lud16/[username]/cb', () => {
     mockPrimaryAddressWallet(LNCURL_DEFAULT_WALLET as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
-      remoteWallet: null,
+      remoteWallet: LNCURL_DEFAULT_WALLET,
       nwcConnection: null,
       user: { id: 'user-1', remoteWallets: [LNCURL_DEFAULT_WALLET] }
     } as any)
@@ -859,7 +921,7 @@ describe('GET /api/lud16/[username]/cb', () => {
     // /cb mints a wallet now and invoices through it (no prior wallet to revoke).
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'pelo',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
       remoteWallet: null,
       nwcConnection: null,
@@ -906,9 +968,9 @@ describe('GET /api/lud16/[username]/cb', () => {
     mockPrimaryAddressWallet(LNCURL_DEFAULT_WALLET as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
-      remoteWallet: null,
+      remoteWallet: LNCURL_DEFAULT_WALLET,
       nwcConnection: null,
       user: { id: 'user-1', remoteWallets: [LNCURL_DEFAULT_WALLET] }
     } as any)
@@ -935,11 +997,11 @@ describe('GET /api/lud16/[username]/cb', () => {
   it('does NOT self-heal a non-LNCurl wallet → 503 (unchanged behaviour)', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
-      remoteWallet: null,
-      nwcConnection: null,
       // No provider tag → a normal NWC wallet, never auto-recreated.
+      remoteWallet: DEFAULT_WALLET,
+      nwcConnection: null,
       user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
     } as any)
     vi.mocked(getSettings).mockResolvedValue({
@@ -965,9 +1027,9 @@ describe('GET /api/lud16/[username]/cb', () => {
     mockPrimaryAddressWallet(LNCURL_DEFAULT_WALLET as any)
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       redirect: null,
-      remoteWallet: null,
+      remoteWallet: LNCURL_DEFAULT_WALLET,
       nwcConnection: null,
       user: { id: 'user-1', remoteWallets: [LNCURL_DEFAULT_WALLET] }
     } as any)

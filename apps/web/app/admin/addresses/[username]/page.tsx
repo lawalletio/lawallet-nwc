@@ -58,6 +58,7 @@ import {
 import { BalanceCard } from '@/components/wallet/balance-card'
 import { ProxyPendingBalanceCard } from '@/components/wallet/proxy-pending-balance-card'
 import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
+import { AddressReceiveProtocols } from '@/components/wallet/address-receive-protocols'
 import { ProxyAddressWorkspace } from '@/components/wallet/proxy-address-workspace'
 import { ProxyForwardingActivity } from '@/components/wallet/proxy-forwarding-activity'
 import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-wallet-dialog'
@@ -96,10 +97,6 @@ const MODE_DESCRIPTIONS: Record<
     label: 'Custom wallet',
     help: 'Receive via a specific wallet.'
   },
-  DEFAULT_NWC: {
-    label: 'Primary wallet',
-    help: 'Use the wallet linked to your primary address.'
-  }
 }
 
 const CONNECT_NEW_WALLET_VALUE = '__connect_new_wallet__'
@@ -129,6 +126,11 @@ const ALIAS_PROBE_CHECKS: Array<{
     key: 'nip57',
     label: 'NIP-57',
     description: 'Checks whether zap metadata is advertised.'
+  },
+  {
+    key: 'lud12',
+    label: 'LUD-12',
+    description: 'Checks whether payer comments are accepted.'
   }
 ]
 
@@ -151,6 +153,11 @@ function createPendingAliasProbeChecks(): Record<
       ok: false,
       status: 'pending',
       message: 'Reading zap capability metadata…'
+    },
+    lud12: {
+      ok: false,
+      status: 'pending',
+      message: 'Reading the comment allowance…'
     }
   }
 }
@@ -166,6 +173,11 @@ function createFailedAliasProbeChecks(
       message: 'Not checked because the probe failed.'
     },
     nip57: {
+      ok: false,
+      status: 'invalid',
+      message: 'Not checked because the probe failed.'
+    },
+    lud12: {
       ok: false,
       status: 'invalid',
       message: 'Not checked because the probe failed.'
@@ -188,6 +200,10 @@ function mapAliasProbeChecks(
     nip57: {
       ...result.checks.nip57,
       status: result.checks.nip57.ok ? 'valid' : 'invalid'
+    },
+    lud12: {
+      ...result.checks.lud12,
+      status: result.checks.lud12.ok ? 'valid' : 'invalid'
     }
   }
 }
@@ -234,7 +250,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
   const pendingRedirectFocusRef = useRef(false)
   const pendingWalletFocusRef = useRef(false)
 
-  const [mode, setMode] = useState<LightningAddressMode>('DEFAULT_NWC')
+  const [mode, setMode] = useState<LightningAddressMode>('IDLE')
   const [redirect, setRedirect] = useState('')
   const [remoteWalletId, setRemoteWalletId] = useState<string>('')
   // Combined busy flag held across the full save flow: mutation + refetch.
@@ -568,9 +584,8 @@ export default function AdminAddressEditPage({ params }: PageProps) {
         (() => {
           // `effectiveConnectionString` is resolved server-side by
           // `resolvePaymentRoute`, so it already handles the full fallback
-          // chain (CUSTOM_NWC link → DEFAULT_NWC primary → legacy
-          // `User.nwc` for un-migrated accounts) without duplicating the
-          // logic here. Null for IDLE / ALIAS / PROXY_ALIAS / unconfigured — the widgets
+          // chain (CUSTOM_NWC link → legacy `User.nwc` for un-migrated
+          // accounts) without duplicating the logic here. Null for IDLE / ALIAS / PROXY_ALIAS / unconfigured — the widgets
           // below render an empty state in those cases.
           const persistedMode = data.address.mode
           const defaultWallet = data.wallets.find(w => w.isDefault) ?? null
@@ -583,9 +598,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
           const modeOptions = (
             Object.keys(MODE_DESCRIPTIONS) as LightningAddressMode[]
           ).filter(
-            option =>
-              !(data.address.isPrimary && option === 'DEFAULT_NWC') &&
-              (data.deferredProxyEnabled || option !== 'PROXY_ALIAS')
+            option => data.deferredProxyEnabled || option !== 'PROXY_ALIAS'
           )
 
           const emptyReason = !isOwner
@@ -615,18 +628,29 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                 ) : (
                   <p className="max-w-md text-sm text-muted-foreground">
                     Viewing another user&rsquo;s address (read-only). Owner{' '}
-                    <span
-                      className="font-mono text-foreground"
-                      title={data.ownerPubkey}
-                    >
-                      {data.ownerPubkey
-                        ? truncateNpub(data.ownerPubkey)
-                        : 'unknown'}
-                    </span>
+                    {data.ownerPubkey ? (
+                      <Link
+                        href={`/admin/users/${encodeURIComponent(data.ownerPubkey)}`}
+                        className="font-mono text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        title={`View ${truncateNpub(data.ownerPubkey)} user profile`}
+                        aria-label={`View user profile for ${truncateNpub(data.ownerPubkey)}`}
+                      >
+                        {truncateNpub(data.ownerPubkey)}
+                      </Link>
+                    ) : (
+                      <span className="font-mono text-foreground">unknown</span>
+                    )}
                     .
                   </p>
                 )}
               </div>
+
+              <AddressReceiveProtocols
+                protocols={data.protocols?.protocols ?? {}}
+                source={data.protocols?.source ?? 'unavailable'}
+                reason={data.protocols?.reason ?? null}
+                provider={data.protocols?.provider ?? null}
+              />
 
               <ProxyAddressWorkspace
                 enabled={isOwner && persistedMode === 'PROXY_ALIAS'}
@@ -707,18 +731,6 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                                 : 'No wallet linked'}
                             </span>
                           </div>
-                        ) : persistedMode === 'DEFAULT_NWC' ? (
-                          <div className="flex items-center gap-2">
-                            <Wallet
-                              className="size-4 shrink-0 text-muted-foreground"
-                              aria-hidden
-                            />
-                            <span className="text-foreground">
-                              {defaultWallet
-                                ? `${defaultWallet.name} (primary)`
-                                : 'No primary wallet'}
-                            </span>
-                          </div>
                         ) : (
                           <span className="text-muted-foreground">
                             Address is disabled and rejects payments.
@@ -733,29 +745,57 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                       className="bg-card"
                       id="address-mode-settings"
                     >
-                      <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/40">
-                        <div className="flex flex-col gap-0.5 min-w-0">
-                          <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                            Mode
-                          </span>
-                          <span className="truncate text-sm font-medium">
-                            {MODE_DESCRIPTIONS[data.address.mode].label}
-                            {(data.address.mode === 'ALIAS' ||
-                              data.address.mode === 'PROXY_ALIAS') &&
-                              data.address.redirect && (
-                                <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
-                                  → {data.address.redirect}
+                      <div className="flex items-center gap-3 px-5 py-3">
+                        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md py-1 text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <div className="flex min-w-0 flex-col gap-0.5">
+                            <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                              Mode
+                            </span>
+                            <span className="truncate text-sm font-medium">
+                              {MODE_DESCRIPTIONS[data.address.mode].label}
+                              {(data.address.mode === 'ALIAS' ||
+                                data.address.mode === 'PROXY_ALIAS') &&
+                                data.address.redirect && (
+                                  <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+                                    → {data.address.redirect}
+                                  </span>
+                                )}
+                            </span>
+                            {data.address.mode === 'CUSTOM_NWC' &&
+                              boundWallet && (
+                                <span className="truncate text-xs text-muted-foreground">
+                                  Connected to {boundWallet.name}
                                 </span>
                               )}
-                          </span>
-                        </div>
-                        <ChevronDown
-                          className={cn(
-                            'size-4 shrink-0 text-muted-foreground transition-transform',
-                            modeOpen && 'rotate-180'
-                          )}
-                        />
-                      </CollapsibleTrigger>
+                          </div>
+                          <ChevronDown
+                            className={cn(
+                              'size-4 shrink-0 text-muted-foreground transition-transform',
+                              modeOpen && 'rotate-180'
+                            )}
+                          />
+                        </CollapsibleTrigger>
+
+                        {data.address.mode === 'CUSTOM_NWC' && boundWallet && (
+                          <Button
+                            asChild
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 gap-1.5"
+                          >
+                            <Link
+                              href={`/admin/remote-wallets/${boundWallet.id}`}
+                              aria-label={`View remote wallet ${boundWallet.name}`}
+                            >
+                              <Wallet className="size-3.5" aria-hidden />
+                              <span className="hidden sm:inline">
+                                View wallet
+                              </span>
+                              <ExternalLink className="size-3.5" aria-hidden />
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
                       <CollapsibleContent className="border-t border-border/60">
                         <form
                           onSubmit={handleModeSubmit}
@@ -905,80 +945,6 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                             </div>
                           )}
 
-                          {mode === 'DEFAULT_NWC' && (
-                            <div className="rounded-md border border-border bg-muted/30 p-3">
-                              {defaultWallet ? (
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                  <div className="flex min-w-0 items-center gap-3">
-                                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10">
-                                      <Wallet
-                                        className="size-4 text-primary"
-                                        aria-hidden
-                                      />
-                                    </span>
-                                    <div className="min-w-0">
-                                      <p className="text-sm font-medium">
-                                        Primary wallet
-                                      </p>
-                                      <Link
-                                        href={`/admin/remote-wallets#wallet-${defaultWallet.id}`}
-                                        className="block truncate text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-                                      >
-                                        {defaultWallet.name}
-                                      </Link>
-                                    </div>
-                                  </div>
-                                  <Button
-                                    asChild
-                                    variant="outline"
-                                    size="sm"
-                                    className="shrink-0 gap-1.5"
-                                  >
-                                    <Link
-                                      href={`/admin/remote-wallets#wallet-${defaultWallet.id}`}
-                                    >
-                                      View wallet
-                                      <ExternalLink
-                                        className="size-3.5"
-                                        aria-hidden
-                                      />
-                                    </Link>
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">
-                                      {data.wallets.length > 0
-                                        ? 'No primary wallet selected'
-                                        : 'No remote wallet linked'}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {data.wallets.length > 0
-                                        ? 'Bind your primary address to a wallet to use this mode.'
-                                        : 'Link a Remote Wallet before using primary wallet mode.'}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    asChild
-                                    variant="theme"
-                                    size="sm"
-                                    className="shrink-0 gap-1.5"
-                                  >
-                                    <Link href="/admin/remote-wallets">
-                                      {data.wallets.length > 0
-                                        ? 'Use for primary address'
-                                        : 'Link Remote Wallets'}
-                                      <ExternalLink
-                                        className="size-3.5"
-                                        aria-hidden
-                                      />
-                                    </Link>
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          )}
 
                           {/* Save/Cancel live inside the collapsible — once the user
                     expands Mode and makes changes, the actions are right
@@ -1017,10 +983,6 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                       </CollapsibleContent>
                     </Collapsible>
                   )}
-
-                  {isOwner && persistedMode !== 'PROXY_ALIAS' ? (
-                    <AddressInvoicesCard username={username} embedded />
-                  ) : null}
                 </div>
               </ProxyAddressWorkspace>
 
@@ -1146,7 +1108,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                             ? 'Checking'
                             : check.status === 'valid'
                               ? 'Passed'
-                              : 'Needs attention'}
+                              : 'Unsupported'}
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">

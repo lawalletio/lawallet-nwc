@@ -28,11 +28,14 @@ export interface HoverContextValue {
    * pointer, not every edge that happens to be highlighted.
    */
   activeEdgeId: string | null
+  /** A wallet hover hides unrelated proxy destinations instead of only dimming them. */
+  walletDestinationFocus: boolean
 }
 
 const HoverContext = createContext<HoverContextValue>({
   highlight: null,
-  activeEdgeId: null
+  activeEdgeId: null,
+  walletDestinationFocus: false
 })
 
 export const HoverProvider = HoverContext.Provider

@@ -11,7 +11,6 @@ export type LightningAddressMode =
   | 'ALIAS'
   | 'PROXY_ALIAS'
   | 'CUSTOM_NWC'
-  | 'DEFAULT_NWC'
 export type EffectiveNwcMode = 'NONE' | 'RECEIVE' | 'SEND_RECEIVE'
 
 export interface WalletAddress {
@@ -25,6 +24,16 @@ export interface WalletAddress {
   nwcMode: EffectiveNwcMode
   createdAt: string
   updatedAt: string
+  /** Protocols this address exposes to a payer. */
+  protocols?: {
+    protocols: Record<
+      'lud16' | 'nip05' | 'lud21' | 'nip57' | 'lud12',
+      boolean | null
+    >
+    source: 'proxy' | 'wallet' | 'alias' | 'unavailable'
+    reason: string | null
+    provider: string | null
+  }
 }
 
 export interface WalletRemoteWalletSummary {
@@ -59,6 +68,16 @@ export interface WalletAddressDetail {
   isOwner?: boolean
   /** Hex pubkey of the address owner. Present alongside `isOwner`. */
   ownerPubkey?: string
+  /** Capabilities currently exposed by this address's public LUD-16 endpoint. */
+  protocols?: {
+    protocols: Record<
+      'lud16' | 'nip05' | 'lud21' | 'nip57' | 'lud12',
+      boolean | null
+    >
+    source: 'proxy' | 'wallet' | 'alias' | 'unavailable'
+    reason: string | null
+    provider: string | null
+  }
 }
 
 export type AddressInvoiceStatus = 'PENDING' | 'PAID' | 'EXPIRED'
@@ -170,7 +189,7 @@ export interface UpdateWalletAddressInput {
   remoteWalletId?: string | null
 }
 
-export type AliasProbeCheckKey = 'lud16' | 'lud21' | 'nip57'
+export type AliasProbeCheckKey = 'lud16' | 'lud21' | 'nip57' | 'lud12'
 
 export interface AliasProbeCheckResult {
   ok: boolean

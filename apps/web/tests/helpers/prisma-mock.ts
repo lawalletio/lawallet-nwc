@@ -48,6 +48,16 @@ function createPrismaMock(): PrismaClient {
     proxyInvoiceIntent: createModelMock(),
     proxyPayment: createModelMock(),
     proxyForwardAttempt: createModelMock(),
+    forwardingHop: createModelMock(),
+    remoteWalletReceiveAction: createModelMock(),
+    remoteWalletReceiveActionRevision: createModelMock(),
+    remoteWalletForwardDestination: createModelMock(),
+    remoteWalletForwardReceipt: createModelMock(),
+    remoteWalletForwardLeg: createModelMock(),
+    remoteWalletForwardAttempt: createModelMock(),
+    remoteWalletNotification: createModelMock(),
+    remoteWalletNotificationDelivery: createModelMock(),
+    remoteWalletNotificationAttempt: createModelMock(),
     $transaction: vi.fn(fn => {
       if (typeof fn === 'function') {
         return fn(prismaMock)
@@ -55,6 +65,7 @@ function createPrismaMock(): PrismaClient {
       return Promise.all(fn)
     }),
     $queryRaw: vi.fn(),
+    $executeRaw: vi.fn(),
     $connect: vi.fn(),
     $disconnect: vi.fn()
   } as unknown as PrismaClient
@@ -96,7 +107,17 @@ export function resetPrismaMock() {
     'proxyServiceConfig',
     'proxyInvoiceIntent',
     'proxyPayment',
-    'proxyForwardAttempt'
+    'proxyForwardAttempt',
+    'forwardingHop',
+    'remoteWalletReceiveAction',
+    'remoteWalletReceiveActionRevision',
+    'remoteWalletForwardDestination',
+    'remoteWalletForwardReceipt',
+    'remoteWalletForwardLeg',
+    'remoteWalletForwardAttempt',
+    'remoteWalletNotification',
+    'remoteWalletNotificationDelivery',
+    'remoteWalletNotificationAttempt'
   ] as const
   for (const model of models) {
     const m = (prismaMock as any)[model] as Record<
@@ -111,6 +132,7 @@ export function resetPrismaMock() {
   }
   ;(prismaMock.$transaction as ReturnType<typeof vi.fn>).mockReset()
   ;(prismaMock.$queryRaw as ReturnType<typeof vi.fn>).mockReset()
+  ;(prismaMock.$executeRaw as ReturnType<typeof vi.fn>).mockReset()
   ;(prismaMock.$transaction as ReturnType<typeof vi.fn>).mockImplementation(
     (fn: any) => {
       if (typeof fn === 'function') {

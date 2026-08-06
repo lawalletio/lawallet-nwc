@@ -29,6 +29,10 @@ import {
   type RemoteWalletData
 } from '@/lib/client/hooks/use-remote-wallets'
 import { ApiClientError } from '@/lib/client/api-client'
+import {
+  CursorPagination,
+  useLocalPagination
+} from '@/components/wallet/shared/cursor-pagination'
 
 /**
  * The "graveyard" for disposable LNCurl wallets that ran out of sats and were
@@ -39,6 +43,8 @@ import { ApiClientError } from '@/lib/client/api-client'
  * Fetched separately from the live list (the API hides DEAD by default), so
  * the section only renders when there's at least one archived wallet.
  */
+const ARCHIVED_PAGE_SIZE = 10
+
 export function ArchivedWalletsSection({
   wallets,
   onChanged
@@ -46,6 +52,7 @@ export function ArchivedWalletsSection({
   wallets: RemoteWalletData[]
   onChanged: () => void
 }) {
+  const pagination = useLocalPagination(wallets, ARCHIVED_PAGE_SIZE)
   if (!wallets.length) return null
 
   return (
@@ -74,7 +81,7 @@ export function ArchivedWalletsSection({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {wallets.map(w => (
+            {pagination.items.map(w => (
               <TableRow key={w.id}>
                 <TableCell className="font-medium">
                   <span className="flex items-center gap-1.5">
@@ -98,6 +105,14 @@ export function ArchivedWalletsSection({
             ))}
           </TableBody>
         </Table>
+        <CursorPagination
+          label="archived wallets"
+          page={pagination.page}
+          hasNext={pagination.hasNext}
+          loading={false}
+          onPrevious={pagination.previous}
+          onNext={pagination.next}
+        />
       </div>
     </section>
   )

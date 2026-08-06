@@ -49,6 +49,10 @@ vi.mock('@/lib/events/event-bus', () => ({
 
 const fireAndForgetMock = vi.fn()
 const reconcileProxyPaymentsMock = vi.hoisted(() => vi.fn())
+const captureForwardingReceiptMock = vi.hoisted(() => vi.fn())
+const reconcileRemoteWalletForwardingMock = vi.hoisted(() => vi.fn())
+const enqueueRemoteWalletNotificationEventMock = vi.hoisted(() => vi.fn())
+const reconcileRemoteWalletNotificationsMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/activity-log', () => ({
   ActivityEvent: {
     NWC_PAYMENT_RECEIVED: 'nwc.payment_received',
@@ -65,6 +69,20 @@ vi.mock('@/lib/activity-log', () => ({
 }))
 vi.mock('@/lib/proxy/reconcile', () => ({
   reconcileProxyPayments: reconcileProxyPaymentsMock
+}))
+vi.mock('@/lib/remote-wallet-forwarding/service', () => ({
+  captureForwardingReceipt: captureForwardingReceiptMock,
+  emitForwardingUpdated: vi.fn()
+}))
+vi.mock('@/lib/remote-wallet-forwarding/reconcile', () => ({
+  reconcileRemoteWalletForwarding: reconcileRemoteWalletForwardingMock
+}))
+vi.mock('@/lib/remote-wallet-notifications/service', () => ({
+  enqueueRemoteWalletNotificationEvent:
+    enqueueRemoteWalletNotificationEventMock
+}))
+vi.mock('@/lib/remote-wallet-notifications/reconcile', () => ({
+  reconcileRemoteWalletNotifications: reconcileRemoteWalletNotificationsMock
 }))
 
 import { POST } from '@/app/api/webhooks/nwc/route'
@@ -147,6 +165,18 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   configState.secret = SECRET
+  captureForwardingReceiptMock.mockResolvedValue(null)
+  enqueueRemoteWalletNotificationEventMock.mockResolvedValue([])
+  reconcileRemoteWalletForwardingMock.mockResolvedValue({
+    claimed: 0,
+    completed: 0,
+    failed: 0
+  })
+  reconcileRemoteWalletNotificationsMock.mockResolvedValue({
+    claimed: 0,
+    succeeded: 0,
+    failed: 0
+  })
 })
 
 describe('POST /api/webhooks/nwc', () => {
@@ -234,6 +264,35 @@ describe('POST /api/webhooks/nwc', () => {
     ).toEqual(
       expect.objectContaining({ remoteWalletId: 'wallet-1', recovered: false })
     )
+  })
+
+  it('does not settle an invoice from a different RemoteWallet', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...pendingInvoice,
+      remoteWalletId: 'wallet-other'
+    } as never)
+
+    const res = await POST(signedRequest(paymentReceived))
+
+    await assertResponse(res, 200)
+    expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+  })
+
+  it('durably captures wallet forwarding before returning and wakes its reconciler', async () => {
+    captureForwardingReceiptMock.mockResolvedValue('forward-receipt-1')
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(null)
+
+    const res = await POST(signedRequest(paymentReceived))
+    const body = (await assertResponse(res, 200)) as {
+      received: boolean
+      forwardingReceiptIds: string[]
+    }
+
+    expect(captureForwardingReceiptMock).toHaveBeenCalledWith(paymentReceived)
+    expect(body.forwardingReceiptIds).toEqual(['forward-receipt-1'])
+    expect(reconcileRemoteWalletForwardingMock).toHaveBeenCalledWith({
+      ids: ['forward-receipt-1']
+    })
   })
 
   it('flags recovered events in the activity metadata', async () => {

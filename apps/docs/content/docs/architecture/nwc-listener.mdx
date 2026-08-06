@@ -34,6 +34,10 @@ received.
   `listener.nwc_requests` before NWC dispatch. Repeated callbacks join the
   original operation, while notifications and `lookup_invoice` reconcile
   late/ambiguous outcomes without republishing.
+- **RemoteWallet forwarding journal** — personal receive-forwarding legs use
+  the same durable request journal and deterministic request IDs. The webhook
+  records the source receipt before acknowledgement; the immediate wake-up and
+  ten-minute scheduler drive the owner-scoped forwarding reconciler.
 - **Missed-event recovery** — a persisted per-wallet cursor anchors a hybrid
   catch-up after downtime: the wallet's own `list_transactions` ledger
   (primary, relay-independent) plus a best-effort relay replay, both feeding

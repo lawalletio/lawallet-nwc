@@ -14,7 +14,7 @@ const TAG = 'Wallet'
 const walletAddressSchema = z
   .object({
     username: z.string(),
-    mode: z.enum(['IDLE', 'ALIAS', 'CUSTOM_NWC', 'DEFAULT_NWC']),
+    mode: z.enum(['IDLE', 'ALIAS', 'CUSTOM_NWC']),
     redirect: z.string().nullable().optional(),
     remoteWalletId: z.string().nullable().optional(),
     isPrimary: z.boolean().optional()

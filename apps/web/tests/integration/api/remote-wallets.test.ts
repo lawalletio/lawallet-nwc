@@ -52,6 +52,7 @@ import {
   PATCH as patchHandler,
   DELETE as deleteHandler
 } from '@/app/api/remote-wallets/[id]/route'
+import { GET as forwardingMapHandler } from '@/app/api/remote-wallets/forwarding-map/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 
 const USER_PUBKEY = 'a'.repeat(64)
@@ -248,6 +249,48 @@ describe('GET /api/remote-wallets', () => {
     mockUnauthenticated()
     const res = await listHandler(createNextRequest('/api/remote-wallets'))
     expect(res.status).toBe(401)
+  })
+})
+
+describe('GET /api/remote-wallets/forwarding-map', () => {
+  it('returns only the caller-owned forwarding projection', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(prismaMock.remoteWalletReceiveAction.findMany).mockResolvedValue([
+      {
+        remoteWalletId: 'wallet-1',
+        enabled: true,
+        currentRevision: {
+          destinations: [
+            { address: 'alice@example.com', allocationBps: 10_000 }
+          ]
+        }
+      }
+    ] as never)
+
+    const response = await forwardingMapHandler(
+      createNextRequest('/api/remote-wallets/forwarding-map')
+    )
+    const body = (await assertResponse(response, 200)) as {
+      actions: unknown[]
+    }
+
+    expect(body.actions).toEqual([
+      {
+        walletId: 'wallet-1',
+        enabled: true,
+        destinations: [{ address: 'alice@example.com', allocationBps: 10_000 }]
+      }
+    ])
+    expect(prismaMock.remoteWalletReceiveAction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          remoteWallet: { userId: user.id },
+          currentRevisionId: { not: null }
+        }
+      })
+    )
   })
 })
 

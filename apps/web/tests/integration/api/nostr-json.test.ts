@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { nip19 } from 'nostr-tools'
 import { createNextRequest } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 
@@ -23,6 +24,7 @@ vi.mock('@/lib/nostr/relay-list', () => ({
 
 import { GET, OPTIONS } from '@/app/.well-known/nostr.json/route'
 import { DEFAULT_NOSTR_RELAYS } from '@/lib/nostr/profile'
+import { DEV_ADMIN_PUBKEY, DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
 import { getSettings } from '@/lib/settings'
 import { resolveUserRelays } from '@/lib/nostr/relay-list'
 
@@ -40,7 +42,13 @@ function url(name?: string, param: 'name' | 'username' = 'name') {
 function mockAddress(username = 'alice', pubkey = PK_ALICE) {
   vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
     username,
-    user: { id: 'u1', pubkey, relays: null, relaysUpdatedAt: null }
+    user: {
+      id: 'u1',
+      pubkey,
+      relays: null,
+      relaysUpdatedAt: null,
+      nostrIdentities: []
+    }
   } as any)
 }
 
@@ -51,6 +59,10 @@ beforeEach(() => {
   // Default: user has no relays → route falls back to the operator list.
   resolveUserRelaysMock.mockReset()
   resolveUserRelaysMock.mockResolvedValue([])
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe('GET /.well-known/nostr.json', () => {
@@ -74,6 +86,86 @@ describe('GET /.well-known/nostr.json', () => {
     expect(prismaMock.lightningAddress.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { username: 'alice' } })
     )
+  })
+
+  it('returns the proxy address owner account pubkey in hex', async () => {
+    mockAddress('proxy', DEV_ADMIN_PUBKEY)
+
+    const res = await GET(createNextRequest(url('proxy')) as any)
+    const body = await res.json()
+
+    expect(body.names).toEqual({ proxy: DEV_ADMIN_PUBKEY })
+    expect(body.relays).toHaveProperty(DEV_ADMIN_PUBKEY)
+  })
+
+  it('prefers the account primary identity over a stale user mirror', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'proxy',
+      user: {
+        id: 'u1',
+        pubkey: 'npub1stale-invalid',
+        relays: null,
+        relaysUpdatedAt: null,
+        nostrIdentities: [{ pubkey: PK_ALICE }]
+      }
+    } as any)
+
+    const res = await GET(createNextRequest(url('proxy')) as any)
+    const body = await res.json()
+
+    expect(body.names).toEqual({ proxy: PK_ALICE })
+  })
+
+  it('supports the legacy local admin seed without mutating auth data', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'proxy',
+      user: {
+        id: DEV_ADMIN_USER_ID,
+        pubkey: DEV_ADMIN_USER_ID,
+        relays: null,
+        relaysUpdatedAt: null,
+        nostrIdentities: [{ pubkey: DEV_ADMIN_USER_ID }]
+      }
+    } as any)
+
+    const res = await GET(createNextRequest(url('proxy')) as any)
+    const body = await res.json()
+
+    expect(body.names).toEqual({ proxy: DEV_ADMIN_PUBKEY })
+  })
+
+  it('decodes stored npubs to lowercase hex for NIP-05', async () => {
+    const npub = nip19.npubEncode(PK_ALICE)
+    mockAddress('alice', npub)
+    resolveUserRelaysMock.mockResolvedValue(['wss://relay.one'])
+
+    const res = await GET(createNextRequest(url('alice')) as any)
+    const body = await res.json()
+
+    expect(body).toEqual({
+      names: { alice: PK_ALICE },
+      relays: { [PK_ALICE]: ['wss://relay.one'] }
+    })
+  })
+
+  it('normalizes uppercase hex pubkeys to lowercase', async () => {
+    mockAddress('alice', PK_ALICE.toUpperCase())
+
+    const res = await GET(createNextRequest(url('alice')) as any)
+    const body = await res.json()
+
+    expect(body.names).toEqual({ alice: PK_ALICE })
+  })
+
+  it('does not publish malformed public keys', async () => {
+    mockAddress('alice', 'npub1not-valid')
+
+    const res = await GET(createNextRequest(url('alice')) as any)
+    const body = await res.json()
+
+    expect(body).toEqual({ names: {}, relays: {} })
+    expect(resolveUserRelaysMock).not.toHaveBeenCalled()
   })
 
   it('prefers the user’s own relay list over the operator default', async () => {
@@ -176,6 +268,19 @@ describe('GET /.well-known/nostr.json', () => {
       select: { receiptPubkey: true }
     })
     expect(prismaMock.lightningAddress.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('decodes an npub receipt signer before exposing root NIP-05', async () => {
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+      receiptPubkey: nip19.npubEncode(PK_RECEIPT)
+    } as any)
+    getSettingsMock.mockResolvedValue({})
+
+    const res = await GET(createNextRequest(url('_')) as any)
+    const body = await res.json()
+
+    expect(body.names).toEqual({ _: PK_RECEIPT })
+    expect(body.relays).toHaveProperty(PK_RECEIPT)
   })
 
   it('returns empty maps for "_" when no receipt signer exists', async () => {

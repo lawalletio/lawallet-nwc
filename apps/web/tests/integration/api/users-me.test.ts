@@ -62,7 +62,7 @@ describe('GET /api/users/me', () => {
         {
           username: 'alice',
           isPrimary: true,
-          mode: 'DEFAULT_NWC',
+          mode: 'CUSTOM_NWC',
           redirect: null,
           nwcConnectionId: null,
           nwcConnection: null
@@ -127,7 +127,7 @@ describe('GET /api/users/me', () => {
         {
           username: 'alice',
           isPrimary: true,
-          mode: 'DEFAULT_NWC',
+          mode: 'CUSTOM_NWC',
           redirect: null,
           remoteWalletId: null,
           remoteWallet: null
@@ -229,7 +229,7 @@ describe('GET /api/users/me', () => {
     }
   }
 
-  it('legacy DEFAULT_NWC primary address has no derived primary wallet', async () => {
+  it('legacy CUSTOM_NWC primary address has no derived primary wallet', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
@@ -237,7 +237,7 @@ describe('GET /api/users/me', () => {
         {
           username: 'alice',
           isPrimary: true,
-          mode: 'DEFAULT_NWC',
+          mode: 'CUSTOM_NWC',
           redirect: null,
           remoteWalletId: null,
           remoteWallet: null
@@ -252,13 +252,13 @@ describe('GET /api/users/me', () => {
     const res = await GET(createNextRequest('/api/users/me'))
     const body: any = await assertResponse(res, 200)
 
-    expect(body.primaryAddressMode).toBe('DEFAULT_NWC')
+    expect(body.primaryAddressMode).toBe('CUSTOM_NWC')
     expect(body.primaryUsername).toBe('alice')
     expect(body.primaryRedirect).toBeNull()
     expect(body.effectiveNwcString).toBeNull()
   })
 
-  it('DEFAULT_NWC primary with no primary-address wallet: effectiveNwcString is null', async () => {
+  it('CUSTOM_NWC primary with no primary-address wallet: effectiveNwcString is null', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
@@ -266,7 +266,7 @@ describe('GET /api/users/me', () => {
         {
           username: 'alice',
           isPrimary: true,
-          mode: 'DEFAULT_NWC',
+          mode: 'CUSTOM_NWC',
           redirect: null,
           remoteWalletId: null,
           remoteWallet: null

@@ -5,6 +5,7 @@
     "lawallet-web",
     "nwc-listener",
     "nwc-proxy",
+    "remote-wallet-forwarding",
     "roles-and-permissions"
   ]
 }

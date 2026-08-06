@@ -3,9 +3,18 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Copy, Forward, MoreHorizontal, Plus, Star } from 'lucide-react'
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Copy,
+  Forward,
+  MoreHorizontal,
+  Plus,
+  Star
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
+import { ProtocolChips } from '@/components/wallet/shared/protocol-chips'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -49,8 +58,29 @@ import { cn } from '@/lib/utils'
 
 const NWC_LABEL: Record<WalletAddress['nwcMode'], string> = {
   NONE: 'None',
-  RECEIVE: 'Receive',
-  SEND_RECEIVE: 'Send and Receive'
+  RECEIVE: 'Receive only',
+  SEND_RECEIVE: 'Send and receive'
+}
+
+/**
+ * The wallet's direction as arrows. The label stays as the accessible name and
+ * tooltip, so nothing is lost for screen readers or for anyone who does not
+ * read the icons the same way.
+ */
+function NwcCapabilityIcons({ mode }: { mode: WalletAddress['nwcMode'] }) {
+  if (mode === 'NONE') return null
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-muted-foreground"
+      title={NWC_LABEL[mode]}
+      aria-label={NWC_LABEL[mode]}
+    >
+      <ArrowDownLeft className="size-3.5 text-emerald-500" aria-hidden />
+      {mode === 'SEND_RECEIVE' && (
+        <ArrowUpRight className="size-3.5" aria-hidden />
+      )}
+    </span>
+  )
 }
 
 /**
@@ -62,8 +92,7 @@ const MODE_LABEL: Record<WalletAddress['mode'], string> = {
   IDLE: 'Idle',
   ALIAS: 'Alias',
   PROXY_ALIAS: 'Deferred proxy',
-  CUSTOM_NWC: 'Custom NWC',
-  DEFAULT_NWC: 'Default NWC'
+  CUSTOM_NWC: 'NWC'
 }
 
 /**
@@ -239,6 +268,7 @@ export default function AdminAddressesPage() {
                   <TableHead>Address</TableHead>
                   {adminView && <TableHead>Owner</TableHead>}
                   <TableHead>Mode</TableHead>
+                  <TableHead>Protocols</TableHead>
                   <TableHead className="w-12 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -346,12 +376,20 @@ export default function AdminAddressesPage() {
                       </TableCell>
                       {adminView && (
                         <TableCell>
-                          <span
-                            className="font-mono text-xs text-muted-foreground"
-                            title={'pubkey' in addr ? addr.pubkey : undefined}
-                          >
-                            {'pubkey' in addr ? truncateNpub(addr.pubkey) : '—'}
-                          </span>
+                          {'pubkey' in addr ? (
+                            <Link
+                              href={`/admin/users/${encodeURIComponent(addr.pubkey)}`}
+                              className="font-mono text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                              title={`View ${truncateNpub(addr.pubkey)} user profile`}
+                              aria-label={`View user profile for ${truncateNpub(addr.pubkey)}`}
+                            >
+                              {truncateNpub(addr.pubkey)}
+                            </Link>
+                          ) : (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              —
+                            </span>
+                          )}
                         </TableCell>
                       )}
                       <TableCell>
@@ -391,8 +429,7 @@ export default function AdminAddressesPage() {
                             <Badge
                               variant={
                                 addr.mode === 'IDLE' ||
-                                ((addr.mode === 'CUSTOM_NWC' ||
-                                  addr.mode === 'DEFAULT_NWC') &&
+                                (addr.mode === 'CUSTOM_NWC' &&
                                   addr.nwcMode === 'NONE')
                                   ? 'outline'
                                   : 'default'
@@ -411,14 +448,15 @@ export default function AdminAddressesPage() {
                             we actually resolved one. A "None" sub-line
                             under the badge duplicated the outline badge's
                             own muted styling and wasted a row of height. */}
-                          {(addr.mode === 'CUSTOM_NWC' ||
-                            addr.mode === 'DEFAULT_NWC') &&
-                            addr.nwcMode !== 'NONE' && (
-                              <span className="text-xs text-muted-foreground">
-                                {NWC_LABEL[addr.nwcMode]}
-                              </span>
-                            )}
+                          {addr.mode === 'CUSTOM_NWC' && (
+                            <NwcCapabilityIcons mode={addr.nwcMode} />
+                          )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <ProtocolChips
+                          protocols={addr.protocols?.protocols ?? {}}
+                        />
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

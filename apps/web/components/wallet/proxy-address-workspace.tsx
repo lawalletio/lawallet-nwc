@@ -14,8 +14,10 @@ interface ProxyAddressWorkspaceProps {
 
 /**
  * Adds the operational tab rail only for configured deferred-proxy addresses.
- * Other address modes retain their established balance → settings → invoices
- * flow, which keeps this feature isolated to the mode that needs debugging.
+ * Other address modes use the same clear hierarchy: choose the mode first,
+ * inspect the resulting balance second, then review invoices in their own
+ * card. Keeping those surfaces separate prevents the mode selector from
+ * looking like part of invoice history.
  */
 export function ProxyAddressWorkspace({
   enabled,
@@ -27,8 +29,9 @@ export function ProxyAddressWorkspace({
   if (!enabled) {
     return (
       <>
-        {balance}
         {children}
+        {balance}
+        {payments}
       </>
     )
   }

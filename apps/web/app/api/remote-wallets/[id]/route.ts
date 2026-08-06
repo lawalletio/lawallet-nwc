@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
-import { resolveAccountId } from '@/lib/auth/account'
+import { requireUserId } from '@/lib/auth/account'
+import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
@@ -17,6 +18,7 @@ import {
   bindPrimaryAddressToWallet,
   clearPrimaryWalletLinkToWallet
 } from '@/lib/wallet/primary-wallet'
+import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -60,30 +62,6 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
   }
 }
 
-async function resolveUserId(pubkey: string): Promise<string> {
-  const userId = await resolveAccountId(pubkey)
-  if (!userId) throw new NotFoundError('User not found')
-  return userId
-}
-
-/**
- * Load a wallet **scoped to the caller**. Returns 404 — not 403 — when the
- * wallet exists but belongs to someone else, so we don't leak the existence
- * of other users' wallet IDs to a casual probe.
- */
-async function loadOwnedWallet(
-  walletId: string,
-  userId: string
-): Promise<RemoteWallet> {
-  const wallet = await prisma.remoteWallet.findUnique({
-    where: { id: walletId }
-  })
-  if (!wallet || wallet.userId !== userId) {
-    throw new NotFoundError('Wallet not found')
-  }
-  return wallet
-}
-
 /**
  * `GET /api/remote-wallets/[id]` — fetch a single wallet by id, scoped to
  * the caller. `config` is intentionally omitted from the response; the
@@ -91,13 +69,13 @@ async function loadOwnedWallet(
  */
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const auth = await authenticate(request)
-    const userId = await resolveUserId(auth.pubkey)
+    const userId = await requireUserId(request)
 
     const { id } = validateParams(await params, idParam)
-    const wallet = await loadOwnedWallet(id, userId)
+    const wallet = await loadOwnedRemoteWallet(id, userId)
 
-    return NextResponse.json(toDto(wallet))
+    const receiveCapabilities = await getZapReceiptCapability()
+    return NextResponse.json({ ...toDto(wallet), receiveCapabilities })
   }
 )
 
@@ -118,14 +96,13 @@ export const PATCH = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await checkRequestLimits(request, 'json')
 
-    const auth = await authenticate(request)
-    const userId = await resolveUserId(auth.pubkey)
+    const userId = await requireUserId(request)
 
     const { id } = validateParams(await params, idParam)
     const body = await validateBody(request, updateRemoteWalletSchema)
 
     // Ownership check up front so a 404 fires before any writes.
-    const wallet = await loadOwnedWallet(id, userId)
+    const wallet = await loadOwnedRemoteWallet(id, userId)
     if (body.isDefault === false) {
       throw new ValidationError(
         'RemoteWallet.isDefault is derived from the primary lightning address'
@@ -145,6 +122,9 @@ export const PATCH = withErrorHandling(
 
     try {
       const updated = await prisma.$transaction(async tx => {
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(hashtextextended(${id}, 0))
+        `
         if (body.isDefault === true) {
           const primaryAddress = await tx.lightningAddress.findFirst({
             where: { userId, isPrimary: true },
@@ -170,6 +150,16 @@ export const PATCH = withErrorHandling(
 
         if (body.status === 'REVOKED' || body.status === 'DEAD') {
           await clearPrimaryWalletLinkToWallet(userId, id, tx)
+        }
+
+        if (body.status && body.status !== 'ACTIVE') {
+          await tx.remoteWalletReceiveAction.updateMany({
+            where: { remoteWalletId: id },
+            data: { enabled: false, pausedAt: new Date() }
+          })
+        }
+
+        if (body.status === 'REVOKED' || body.status === 'DEAD') {
           return tx.remoteWallet.findUniqueOrThrow({ where: { id } })
         }
 
@@ -179,6 +169,12 @@ export const PATCH = withErrorHandling(
       // Status/name flips change what the listener dashboard shows — nudge
       // it to refetch (the listener reconciles via the Postgres trigger).
       eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+      if (body.status && body.status !== 'ACTIVE') {
+        eventBus.emit({
+          type: 'remote-wallet-forwarding:updated',
+          timestamp: Date.now()
+        })
+      }
       if (
         body.isDefault === true ||
         body.status === 'REVOKED' ||
@@ -218,11 +214,10 @@ export const PATCH = withErrorHandling(
  */
 export const DELETE = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const auth = await authenticate(request)
-    const userId = await resolveUserId(auth.pubkey)
+    const userId = await requireUserId(request)
 
     const { id } = validateParams(await params, idParam)
-    const wallet = await loadOwnedWallet(id, userId)
+    const wallet = await loadOwnedRemoteWallet(id, userId)
 
     const permanent =
       new URL(request.url).searchParams.get('permanent') === 'true'
@@ -245,25 +240,55 @@ export const DELETE = withErrorHandling(
           'This wallet has an unresolved card payment and cannot be removed yet'
         )
       }
+      const unresolvedForwarding =
+        await prisma.remoteWalletForwardReceipt.findFirst({
+          where: {
+            walletId: id
+          },
+          select: { id: true }
+        })
+      if (unresolvedForwarding) {
+        throw new ConflictError(
+          'This wallet has forwarding audit records and cannot be permanently removed'
+        )
+      }
       await prisma.$transaction(async tx => {
+        await tx.$executeRaw`
+          SELECT pg_advisory_xact_lock(hashtextextended(${id}, 0))
+        `
         await clearPrimaryWalletLinkToWallet(userId, id, tx)
         await tx.remoteWallet.delete({ where: { id } })
       })
       eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+      eventBus.emit({
+        type: 'remote-wallet-forwarding:updated',
+        timestamp: Date.now()
+      })
       eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
       eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
       return new NextResponse(null, { status: 204 })
     }
 
     await prisma.$transaction(async tx => {
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(hashtextextended(${id}, 0))
+      `
       await tx.remoteWallet.update({
         where: { id },
         data: { status: 'REVOKED', isDefault: false }
+      })
+      await tx.remoteWalletReceiveAction.updateMany({
+        where: { remoteWalletId: id },
+        data: { enabled: false, pausedAt: new Date() }
       })
       await clearPrimaryWalletLinkToWallet(userId, id, tx)
     })
 
     eventBus.emit({ type: 'listener:updated', timestamp: Date.now() })
+    eventBus.emit({
+      type: 'remote-wallet-forwarding:updated',
+      timestamp: Date.now()
+    })
     eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
     eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
     return new NextResponse(null, { status: 204 })

@@ -30,6 +30,14 @@ import {
   succeedCardPaymentAttempt
 } from '@/lib/card-payments/lifecycle'
 import { reconcileProxyPayments } from '@/lib/proxy/reconcile'
+import {
+  captureForwardingReceipt,
+  emitForwardingUpdated
+} from '@/lib/remote-wallet-forwarding/service'
+import { reconcileRemoteWalletForwarding } from '@/lib/remote-wallet-forwarding/reconcile'
+import { publishInvoiceZapReceipt } from '@/lib/nostr/zap-receipts'
+import { enqueueRemoteWalletNotificationEvent } from '@/lib/remote-wallet-notifications/service'
+import { reconcileRemoteWalletNotifications } from '@/lib/remote-wallet-notifications/reconcile'
 
 /**
  * Internal machine-to-machine webhook from the NWC listener service
@@ -99,15 +107,29 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
 
   const settlementIds: string[] = []
+  const forwardingReceiptIds: string[] = []
+  const notificationDeliveryIds: string[] = []
   switch (event.type) {
     case 'payment_received':
       {
+        notificationDeliveryIds.push(
+          ...(await enqueueRemoteWalletNotificationEvent({
+            walletId: event.walletId,
+            action: 'RECEIVED',
+            eventKey: event.eventKey,
+            payload: event
+          }))
+        )
+        const receiptId = await captureForwardingReceipt(event)
+        if (receiptId) forwardingReceiptIds.push(receiptId)
         const id = await handlePaymentReceived(event)
         if (id) settlementIds.push(id)
       }
       break
     case 'payment_sent':
       {
+        const receiptId = await handleRemoteWalletForwardPaymentSent(event)
+        if (receiptId) forwardingReceiptIds.push(receiptId)
         const id = await handlePaymentSent(event)
         if (id) settlementIds.push(id)
       }
@@ -137,17 +159,77 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       await reconcileProxyPayments({ ids: settlementIds })
     })
   }
+  if (forwardingReceiptIds.length > 0) {
+    after(async () => {
+      await reconcileRemoteWalletForwarding({ ids: forwardingReceiptIds })
+    })
+  }
+  if (notificationDeliveryIds.length > 0) {
+    after(async () => {
+      await reconcileRemoteWalletNotifications({ ids: notificationDeliveryIds })
+    })
+  }
 
   // Object shape (not a bare boolean) so the planned "web returns Nostr
   // events for the listener to publish" extension isn't a breaking change.
   return NextResponse.json({
     received: true,
-    ...(settlementIds.length > 0 ? { settlementIds } : {})
+    ...(settlementIds.length > 0 ? { settlementIds } : {}),
+    ...(forwardingReceiptIds.length > 0 ? { forwardingReceiptIds } : {}),
+    ...(notificationDeliveryIds.length > 0 ? { notificationDeliveryIds } : {})
   })
 })
 
 type PaymentEvent = Extract<NwcWebhookPayload, { type: 'payment_received' }>
 type PaymentSentEvent = Extract<NwcWebhookPayload, { type: 'payment_sent' }>
+
+async function handleRemoteWalletForwardPaymentSent(
+  event: PaymentSentEvent
+): Promise<string | null> {
+  if (!event.payment.preimage) return null
+  const paymentHash = event.payment.paymentHash.toLowerCase()
+  const attempt = await prisma.remoteWalletForwardAttempt.findFirst({
+    where: {
+      paymentHash,
+      status: { in: ['PENDING', 'UNKNOWN', 'REJECTED', 'EXPIRED'] },
+      leg: { receipt: { walletId: event.walletId } }
+    },
+    include: { leg: { select: { receiptId: true } } },
+    orderBy: { createdAt: 'desc' }
+  })
+  if (!attempt) return null
+  if (!preimageMatchesPaymentHash(event.payment.preimage, paymentHash)) {
+    logger.error(
+      { paymentHash, attemptId: attempt.id, walletId: event.walletId },
+      'nwc.remote_wallet_forward_preimage_mismatch'
+    )
+    return null
+  }
+  const transitioned = await prisma.$transaction(async tx => {
+    const updated = await tx.remoteWalletForwardAttempt.updateMany({
+      where: {
+        id: attempt.id,
+        status: { in: ['PENDING', 'UNKNOWN', 'REJECTED', 'EXPIRED'] }
+      },
+      data: {
+        status: 'SUCCEEDED',
+        preimage: event.payment.preimage!.toLowerCase(),
+        routingFeeMsats: BigInt(event.payment.feesPaidMsats ?? 0),
+        errorCode: null,
+        errorMessage: null,
+        resolvedAt: new Date()
+      }
+    })
+    if (updated.count === 0) return false
+    await tx.remoteWalletForwardReceipt.update({
+      where: { id: attempt.leg.receiptId },
+      data: { nextRetryAt: new Date(), lastError: null }
+    })
+    return true
+  })
+  if (transitioned) emitForwardingUpdated()
+  return transitioned ? attempt.leg.receiptId : null
+}
 
 async function handlePaymentSent(
   event: PaymentSentEvent
@@ -306,6 +388,25 @@ async function handlePaymentReceived(
     : new Date()
   const preimage = event.payment.preimage ?? null
 
+  // New LUD-16 rows retain the issuing RemoteWallet. A listener event from a
+  // different wallet must never settle it or publish its zap receipt; legacy
+  // invoices without this link keep their established compatibility path.
+  if (
+    !invoice.proxyPayment &&
+    invoice.remoteWalletId &&
+    invoice.remoteWalletId !== event.walletId
+  ) {
+    logger.warn(
+      {
+        paymentHash,
+        invoiceWalletId: invoice.remoteWalletId,
+        eventWalletId: event.walletId
+      },
+      'nwc.webhook_invoice_wallet_mismatch'
+    )
+    return null
+  }
+
   if (invoice.proxyPayment) {
     const proxyPayment = invoice.proxyPayment
     const proxyConfig = await prisma.proxyServiceConfig.findUnique({
@@ -374,6 +475,12 @@ async function handlePaymentReceived(
     'nwc.webhook_invoice_paid'
   )
   eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
+  if (!invoice.proxyPayment && invoice.zapRequest) {
+    // The listener is the authoritative receive signal for NIP-57. This work
+    // is deliberately detached from the HMAC response; retries use a durable
+    // invoice lease and never block acknowledgement of the payment event.
+    after(() => publishInvoiceZapReceipt(invoice.id))
+  }
   logActivity.fireAndForget({
     category: 'INVOICE',
     event: ActivityEvent.INVOICE_PAID,

@@ -48,8 +48,6 @@ export interface ResolveWalletRouteInput {
   redirect: string | null
   /** RemoteWallet bound directly to the address (CUSTOM_NWC). */
   remoteWallet: RemoteWalletRef | null
-  /** The wallet linked through the user's primary Lightning Address. */
-  defaultRemoteWallet: RemoteWalletRef | null
 }
 
 function walletRoute(wallet: RemoteWalletRef): WalletRoute {
@@ -74,8 +72,6 @@ function walletRoute(wallet: RemoteWalletRef): WalletRoute {
  *   - `CUSTOM_NWC`  → the address's bound `remoteWallet` when ACTIVE; a
  *                     non-ACTIVE (or absent) binding is `unconfigured` — an
  *                     explicit binding must never silently reroute.
- *   - `DEFAULT_NWC` → the primary-address `remoteWallet` when ACTIVE, else
- *                     unconfigured.
  *
  * The GET (metadata) and GET /cb (callback) LUD-16 routes both call this so
  * they stay in lockstep.
@@ -97,10 +93,6 @@ export function resolveWalletRoute(
     case 'CUSTOM_NWC':
       return input.remoteWallet
         ? walletRoute(input.remoteWallet)
-        : { kind: 'unconfigured' }
-    case 'DEFAULT_NWC':
-      return input.defaultRemoteWallet
-        ? walletRoute(input.defaultRemoteWallet)
         : { kind: 'unconfigured' }
   }
 }
@@ -133,8 +125,9 @@ export interface ResolveCardWalletInput {
  *   2. Otherwise (no explicit binding) the owner's primary-address RemoteWallet
  *      when ACTIVE.
  *
- * Symmetric with `resolveWalletRoute`'s CUSTOM/DEFAULT handling so card and
- * address routing share the same safety rules.
+ * Unlike an address — which must name its wallet explicitly — a card may fall
+ * back to the owner's primary-address wallet, because a card is bound to the
+ * holder rather than to one address.
  */
 export function resolveCardWallet(
   input: ResolveCardWalletInput

@@ -437,8 +437,7 @@
           "IDLE",
           "ALIAS",
           "PROXY_ALIAS",
-          "CUSTOM_NWC",
-          "DEFAULT_NWC"
+          "CUSTOM_NWC"
         ]
       },
       "WalletAddressCreateRequest": {
@@ -456,8 +455,7 @@
               "IDLE",
               "ALIAS",
               "PROXY_ALIAS",
-              "CUSTOM_NWC",
-              "DEFAULT_NWC"
+              "CUSTOM_NWC"
             ]
           }
         },
@@ -474,8 +472,7 @@
               "IDLE",
               "ALIAS",
               "PROXY_ALIAS",
-              "CUSTOM_NWC",
-              "DEFAULT_NWC"
+              "CUSTOM_NWC"
             ]
           },
           "redirect": {
@@ -729,6 +726,307 @@
             ]
           }
         }
+      },
+      "RemoteWalletReceiveActionConfigRequest": {
+        "type": "object",
+        "properties": {
+          "feeBps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "baseFeeSats": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "destinations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "address": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 320
+                },
+                "allocationBps": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000
+                }
+              },
+              "required": [
+                "address",
+                "allocationBps"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "destinations"
+        ]
+      },
+      "RemoteWalletReceiveActionToggleRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "RemoteWalletForwardReceiptListQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "FORWARDING",
+              "PARTIAL",
+              "BLOCKED",
+              "COMPLETED",
+              "RETAINED"
+            ]
+          }
+        }
+      },
+      "RemoteWalletForwardActivityListQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          }
+        }
+      },
+      "RemoteWalletForwardReceiptParams": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "receiptId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "receiptId"
+        ]
+      },
+      "RemoteWalletForwardRetryRequest": {
+        "type": "object",
+        "properties": {
+          "legIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 20
+          }
+        }
+      },
+      "RemoteWalletNotificationCreateRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "WEBHOOK"
+                ]
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "RECEIVED",
+                  "FORWARDED"
+                ]
+              },
+              "webhookUrl": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri"
+              }
+            },
+            "required": [
+              "name",
+              "channel",
+              "action",
+              "webhookUrl"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "NOSTR"
+                ]
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "RECEIVED",
+                  "FORWARDED"
+                ]
+              },
+              "kind": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              "pTag": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "relays": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                "minItems": 1,
+                "maxItems": 12
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 16384,
+                "default": "{{payload}}"
+              },
+              "nip44": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "name",
+              "channel",
+              "action",
+              "kind",
+              "pTag",
+              "relays"
+            ]
+          }
+        ]
+      },
+      "RemoteWalletNotificationListQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          }
+        }
+      },
+      "RemoteWalletNotificationParams": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "notificationId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "notificationId"
+        ]
+      },
+      "RemoteWalletNotificationToggleRequest": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "RemoteWalletNotificationDeliveryParams": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "deliveryId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "deliveryId"
+        ]
+      },
+      "RemoteWalletPaymentParams": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "paymentHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "id",
+          "paymentHash"
+        ]
       },
       "InvoiceCreateRequest": {
         "type": "object",
@@ -7439,8 +7737,7 @@
                             "enum": [
                               "IDLE",
                               "ALIAS",
-                              "CUSTOM_NWC",
-                              "DEFAULT_NWC"
+                              "CUSTOM_NWC"
                             ]
                           },
                           "redirect": {
@@ -7556,8 +7853,7 @@
                       "enum": [
                         "IDLE",
                         "ALIAS",
-                        "CUSTOM_NWC",
-                        "DEFAULT_NWC"
+                        "CUSTOM_NWC"
                       ]
                     },
                     "redirect": {
@@ -8586,8 +8882,7 @@
                       "enum": [
                         "IDLE",
                         "ALIAS",
-                        "CUSTOM_NWC",
-                        "DEFAULT_NWC"
+                        "CUSTOM_NWC"
                       ]
                     },
                     "redirect": {
@@ -8720,8 +9015,7 @@
                       "enum": [
                         "IDLE",
                         "ALIAS",
-                        "CUSTOM_NWC",
-                        "DEFAULT_NWC"
+                        "CUSTOM_NWC"
                       ]
                     },
                     "redirect": {
@@ -11202,6 +11496,3878 @@
           },
           "409": {
             "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/receive-action": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Get the caller’s receive-forwarding action for a remote wallet.",
+        "operationId": "remoteWallets.receiveAction.get",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receive action.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "walletId": {
+                      "type": "string"
+                    },
+                    "eligible": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "enabledAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "pausedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "pendingReceipts": {
+                      "type": "integer"
+                    },
+                    "pendingAmountMsats": {
+                      "type": "integer"
+                    },
+                    "attemptInProgress": {
+                      "type": "boolean"
+                    },
+                    "routingReserveBps": {
+                      "type": "integer"
+                    },
+                    "routingReserveBaseSats": {
+                      "type": "integer"
+                    },
+                    "revision": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "number": {
+                          "type": "integer"
+                        },
+                        "feeBps": {
+                          "type": "integer"
+                        },
+                        "baseFeeSats": {
+                          "type": "number"
+                        },
+                        "destinations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "address": {
+                                "type": "string"
+                              },
+                              "allocationBps": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "address",
+                              "allocationBps"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "number",
+                        "feeBps",
+                        "baseFeeSats",
+                        "destinations"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "walletId",
+                    "eligible",
+                    "reason",
+                    "configured",
+                    "enabled",
+                    "enabledAt",
+                    "pausedAt",
+                    "pendingReceipts",
+                    "pendingAmountMsats",
+                    "attemptInProgress",
+                    "routingReserveBps",
+                    "routingReserveBaseSats",
+                    "revision"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Create or atomically revise a receive-forwarding action.",
+        "operationId": "remoteWallets.receiveAction.configure",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteWalletReceiveActionConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Receive action configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "walletId": {
+                      "type": "string"
+                    },
+                    "eligible": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "enabledAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "pausedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "pendingReceipts": {
+                      "type": "integer"
+                    },
+                    "pendingAmountMsats": {
+                      "type": "integer"
+                    },
+                    "attemptInProgress": {
+                      "type": "boolean"
+                    },
+                    "routingReserveBps": {
+                      "type": "integer"
+                    },
+                    "routingReserveBaseSats": {
+                      "type": "integer"
+                    },
+                    "revision": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "number": {
+                          "type": "integer"
+                        },
+                        "feeBps": {
+                          "type": "integer"
+                        },
+                        "baseFeeSats": {
+                          "type": "number"
+                        },
+                        "destinations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "address": {
+                                "type": "string"
+                              },
+                              "allocationBps": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "address",
+                              "allocationBps"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "number",
+                        "feeBps",
+                        "baseFeeSats",
+                        "destinations"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "walletId",
+                    "eligible",
+                    "reason",
+                    "configured",
+                    "enabled",
+                    "enabledAt",
+                    "pausedAt",
+                    "pendingReceipts",
+                    "pendingAmountMsats",
+                    "attemptInProgress",
+                    "routingReserveBps",
+                    "routingReserveBaseSats",
+                    "revision"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Pause or resume a receive-forwarding action.",
+        "operationId": "remoteWallets.receiveAction.toggle",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteWalletReceiveActionToggleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Receive action updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "walletId": {
+                      "type": "string"
+                    },
+                    "eligible": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "enabledAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "pausedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "pendingReceipts": {
+                      "type": "integer"
+                    },
+                    "pendingAmountMsats": {
+                      "type": "integer"
+                    },
+                    "attemptInProgress": {
+                      "type": "boolean"
+                    },
+                    "routingReserveBps": {
+                      "type": "integer"
+                    },
+                    "routingReserveBaseSats": {
+                      "type": "integer"
+                    },
+                    "revision": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "number": {
+                          "type": "integer"
+                        },
+                        "feeBps": {
+                          "type": "integer"
+                        },
+                        "baseFeeSats": {
+                          "type": "number"
+                        },
+                        "destinations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "address": {
+                                "type": "string"
+                              },
+                              "allocationBps": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "address",
+                              "allocationBps"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "number",
+                        "feeBps",
+                        "baseFeeSats",
+                        "destinations"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "walletId",
+                    "eligible",
+                    "reason",
+                    "configured",
+                    "enabled",
+                    "enabledAt",
+                    "pausedAt",
+                    "pendingReceipts",
+                    "pendingAmountMsats",
+                    "attemptInProgress",
+                    "routingReserveBps",
+                    "routingReserveBaseSats",
+                    "revision"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/forwarding-activity": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "List forwarding attempts and retries for the caller’s wallet.",
+        "operationId": "remoteWallets.forwardingActivity.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forwarding activity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "activity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "receiptId": {
+                            "type": "string"
+                          },
+                          "legId": {
+                            "type": "string"
+                          },
+                          "destination": {
+                            "type": "string"
+                          },
+                          "attemptNo": {
+                            "type": "integer"
+                          },
+                          "amountMsats": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "UNKNOWN",
+                              "REJECTED",
+                              "SUCCEEDED",
+                              "EXPIRED"
+                            ]
+                          },
+                          "errorMessage": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "receiptId",
+                          "legId",
+                          "destination",
+                          "attemptNo",
+                          "amountMsats",
+                          "status",
+                          "errorMessage",
+                          "createdAt"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "activity",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/receive-action/force": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Make every open receipt eligible now and wake the lease-protected forwarding worker.",
+        "operationId": "remoteWallets.receiveAction.force",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Forwarding run accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "forwardingReceipts": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "accepted",
+                    "forwardingReceipts"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/forwarding-receipts": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "List forwarding receipts for the caller’s wallet.",
+        "operationId": "remoteWallets.forwardingReceipts.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RECEIVED",
+                "FORWARDING",
+                "PARTIAL",
+                "BLOCKED",
+                "COMPLETED",
+                "RETAINED"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forwarding receipts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "receipts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "walletId": {
+                            "type": "string"
+                          },
+                          "eventKey": {
+                            "type": "string"
+                          },
+                          "sourcePaymentHash": {
+                            "type": "string"
+                          },
+                          "sourceInvoice": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "grossAmountMsats": {
+                            "type": "integer"
+                          },
+                          "retainedFeeMsats": {
+                            "type": "integer"
+                          },
+                          "targetAmountMsats": {
+                            "type": "integer"
+                          },
+                          "forwardedAmountMsats": {
+                            "type": "integer"
+                          },
+                          "routingFeeMsats": {
+                            "type": "integer"
+                          },
+                          "routingReserveMsats": {
+                            "type": "integer"
+                          },
+                          "unusedRoutingReserveMsats": {
+                            "type": "integer"
+                          },
+                          "routingFeeOverageMsats": {
+                            "type": "integer"
+                          },
+                          "shortfallMsats": {
+                            "type": "integer"
+                          },
+                          "configRevision": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "RECEIVED",
+                              "FORWARDING",
+                              "PARTIAL",
+                              "BLOCKED",
+                              "COMPLETED",
+                              "RETAINED"
+                            ]
+                          },
+                          "recovered": {
+                            "type": "boolean"
+                          },
+                          "sourceSettledAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "lastError": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nextRetryAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "completedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "revision": {
+                            "type": "object",
+                            "properties": {
+                              "feeBps": {
+                                "type": "integer"
+                              },
+                              "baseFeeSats": {
+                                "type": "integer"
+                              },
+                              "destinations": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "address": {
+                                      "type": "string"
+                                    },
+                                    "allocationBps": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "address",
+                                    "allocationBps"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "feeBps",
+                              "baseFeeSats",
+                              "destinations"
+                            ]
+                          },
+                          "legs": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "position": {
+                                  "type": "integer"
+                                },
+                                "destination": {
+                                  "type": "string"
+                                },
+                                "allocationBps": {
+                                  "type": "integer"
+                                },
+                                "requestedAmountMsats": {
+                                  "type": "integer"
+                                },
+                                "forwardedAmountMsats": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ]
+                                },
+                                "routingFeeMsats": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ]
+                                },
+                                "routingReserveMsats": {
+                                  "type": "integer"
+                                },
+                                "unusedRoutingReserveMsats": {
+                                  "type": "integer"
+                                },
+                                "routingFeeOverageMsats": {
+                                  "type": "integer"
+                                },
+                                "destinationShortfallMsats": {
+                                  "type": "integer"
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "READY",
+                                    "PENDING",
+                                    "UNKNOWN",
+                                    "REJECTED",
+                                    "SUCCEEDED",
+                                    "EXPIRED",
+                                    "SUPERSEDED"
+                                  ]
+                                },
+                                "retryCount": {
+                                  "type": "integer"
+                                },
+                                "nextRetryAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "lastError": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "format": "date-time"
+                                },
+                                "attempts": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "attemptNo": {
+                                        "type": "integer"
+                                      },
+                                      "bolt11": {
+                                        "type": "string"
+                                      },
+                                      "paymentHash": {
+                                        "type": "string"
+                                      },
+                                      "amountMsats": {
+                                        "type": "integer"
+                                      },
+                                      "requestId": {
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "PENDING",
+                                          "UNKNOWN",
+                                          "REJECTED",
+                                          "SUCCEEDED",
+                                          "EXPIRED"
+                                        ]
+                                      },
+                                      "preimage": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "routingFeeMsats": {
+                                        "type": [
+                                          "integer",
+                                          "null"
+                                        ]
+                                      },
+                                      "routingReserveMsats": {
+                                        "type": "integer"
+                                      },
+                                      "errorCode": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "errorMessage": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "expiresAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      "createdAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      "resolvedAt": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ],
+                                        "format": "date-time"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "attemptNo",
+                                      "bolt11",
+                                      "paymentHash",
+                                      "amountMsats",
+                                      "requestId",
+                                      "status",
+                                      "preimage",
+                                      "routingFeeMsats",
+                                      "routingReserveMsats",
+                                      "errorCode",
+                                      "errorMessage",
+                                      "expiresAt",
+                                      "createdAt",
+                                      "resolvedAt"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "position",
+                                "destination",
+                                "allocationBps",
+                                "requestedAmountMsats",
+                                "forwardedAmountMsats",
+                                "routingFeeMsats",
+                                "routingReserveMsats",
+                                "unusedRoutingReserveMsats",
+                                "routingFeeOverageMsats",
+                                "destinationShortfallMsats",
+                                "status",
+                                "retryCount",
+                                "nextRetryAt",
+                                "lastError",
+                                "createdAt",
+                                "completedAt"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "walletId",
+                          "eventKey",
+                          "sourcePaymentHash",
+                          "sourceInvoice",
+                          "grossAmountMsats",
+                          "retainedFeeMsats",
+                          "targetAmountMsats",
+                          "forwardedAmountMsats",
+                          "routingFeeMsats",
+                          "routingReserveMsats",
+                          "unusedRoutingReserveMsats",
+                          "routingFeeOverageMsats",
+                          "shortfallMsats",
+                          "configRevision",
+                          "status",
+                          "recovered",
+                          "sourceSettledAt",
+                          "lastError",
+                          "nextRetryAt",
+                          "completedAt",
+                          "createdAt",
+                          "updatedAt",
+                          "legs"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "receipts",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/forwarding-receipts/{receiptId}": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Get a forwarding receipt with every leg and attempt.",
+        "operationId": "remoteWallets.forwardingReceipts.get",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "receiptId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forwarding receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "walletId": {
+                      "type": "string"
+                    },
+                    "eventKey": {
+                      "type": "string"
+                    },
+                    "sourcePaymentHash": {
+                      "type": "string"
+                    },
+                    "sourceInvoice": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "grossAmountMsats": {
+                      "type": "integer"
+                    },
+                    "retainedFeeMsats": {
+                      "type": "integer"
+                    },
+                    "targetAmountMsats": {
+                      "type": "integer"
+                    },
+                    "forwardedAmountMsats": {
+                      "type": "integer"
+                    },
+                    "routingFeeMsats": {
+                      "type": "integer"
+                    },
+                    "routingReserveMsats": {
+                      "type": "integer"
+                    },
+                    "unusedRoutingReserveMsats": {
+                      "type": "integer"
+                    },
+                    "routingFeeOverageMsats": {
+                      "type": "integer"
+                    },
+                    "shortfallMsats": {
+                      "type": "integer"
+                    },
+                    "configRevision": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "RECEIVED",
+                        "FORWARDING",
+                        "PARTIAL",
+                        "BLOCKED",
+                        "COMPLETED",
+                        "RETAINED"
+                      ]
+                    },
+                    "recovered": {
+                      "type": "boolean"
+                    },
+                    "sourceSettledAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "lastError": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "nextRetryAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "completedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "revision": {
+                      "type": "object",
+                      "properties": {
+                        "feeBps": {
+                          "type": "integer"
+                        },
+                        "baseFeeSats": {
+                          "type": "integer"
+                        },
+                        "destinations": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "address": {
+                                "type": "string"
+                              },
+                              "allocationBps": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "address",
+                              "allocationBps"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "feeBps",
+                        "baseFeeSats",
+                        "destinations"
+                      ]
+                    },
+                    "legs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "position": {
+                            "type": "integer"
+                          },
+                          "destination": {
+                            "type": "string"
+                          },
+                          "allocationBps": {
+                            "type": "integer"
+                          },
+                          "requestedAmountMsats": {
+                            "type": "integer"
+                          },
+                          "forwardedAmountMsats": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "routingFeeMsats": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "routingReserveMsats": {
+                            "type": "integer"
+                          },
+                          "unusedRoutingReserveMsats": {
+                            "type": "integer"
+                          },
+                          "routingFeeOverageMsats": {
+                            "type": "integer"
+                          },
+                          "destinationShortfallMsats": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "READY",
+                              "PENDING",
+                              "UNKNOWN",
+                              "REJECTED",
+                              "SUCCEEDED",
+                              "EXPIRED",
+                              "SUPERSEDED"
+                            ]
+                          },
+                          "retryCount": {
+                            "type": "integer"
+                          },
+                          "nextRetryAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "lastError": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "completedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "attempts": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "attemptNo": {
+                                  "type": "integer"
+                                },
+                                "bolt11": {
+                                  "type": "string"
+                                },
+                                "paymentHash": {
+                                  "type": "string"
+                                },
+                                "amountMsats": {
+                                  "type": "integer"
+                                },
+                                "requestId": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "PENDING",
+                                    "UNKNOWN",
+                                    "REJECTED",
+                                    "SUCCEEDED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "preimage": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "routingFeeMsats": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ]
+                                },
+                                "routingReserveMsats": {
+                                  "type": "integer"
+                                },
+                                "errorCode": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "errorMessage": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "expiresAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "resolvedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "attemptNo",
+                                "bolt11",
+                                "paymentHash",
+                                "amountMsats",
+                                "requestId",
+                                "status",
+                                "preimage",
+                                "routingFeeMsats",
+                                "routingReserveMsats",
+                                "errorCode",
+                                "errorMessage",
+                                "expiresAt",
+                                "createdAt",
+                                "resolvedAt"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "position",
+                          "destination",
+                          "allocationBps",
+                          "requestedAmountMsats",
+                          "forwardedAmountMsats",
+                          "routingFeeMsats",
+                          "routingReserveMsats",
+                          "unusedRoutingReserveMsats",
+                          "routingFeeOverageMsats",
+                          "destinationShortfallMsats",
+                          "status",
+                          "retryCount",
+                          "nextRetryAt",
+                          "lastError",
+                          "createdAt",
+                          "completedAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "walletId",
+                    "eventKey",
+                    "sourcePaymentHash",
+                    "sourceInvoice",
+                    "grossAmountMsats",
+                    "retainedFeeMsats",
+                    "targetAmountMsats",
+                    "forwardedAmountMsats",
+                    "routingFeeMsats",
+                    "routingReserveMsats",
+                    "unusedRoutingReserveMsats",
+                    "routingFeeOverageMsats",
+                    "shortfallMsats",
+                    "configRevision",
+                    "status",
+                    "recovered",
+                    "sourceSettledAt",
+                    "lastError",
+                    "nextRetryAt",
+                    "completedAt",
+                    "createdAt",
+                    "updatedAt",
+                    "legs"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/forwarding-receipts/{receiptId}/retry": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Retry all safely retryable legs or a selected subset.",
+        "operationId": "remoteWallets.forwardingReceipts.retry",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "receiptId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteWalletForwardRetryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Retry accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "retryingLegs": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "accepted",
+                    "retryingLegs"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/notifications": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "List the caller’s outbound RemoteWallet notification channels.",
+        "operationId": "remoteWallets.notifications.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification channels and recent deliveries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "channel": {
+                            "type": "string",
+                            "enum": [
+                              "WEBHOOK",
+                              "NOSTR"
+                            ]
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "RECEIVED",
+                              "FORWARDED"
+                            ]
+                          },
+                          "pausedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "webhookUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nostrKind": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "nostrRecipient": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nostrRelays": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "nostrContent": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nip44": {
+                            "type": "boolean"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "deliveries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "notificationId": {
+                                  "type": "string"
+                                },
+                                "notification": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "channel": {
+                                      "type": "string",
+                                      "enum": [
+                                        "WEBHOOK",
+                                        "NOSTR"
+                                      ]
+                                    },
+                                    "enabled": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "channel",
+                                    "enabled"
+                                  ]
+                                },
+                                "eventKey": {
+                                  "type": "string"
+                                },
+                                "action": {
+                                  "type": "string",
+                                  "enum": [
+                                    "RECEIVED",
+                                    "FORWARDED"
+                                  ]
+                                },
+                                "payload": {},
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "READY",
+                                    "PENDING",
+                                    "UNKNOWN",
+                                    "REJECTED",
+                                    "SUCCEEDED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "attemptCount": {
+                                  "type": "integer"
+                                },
+                                "lastError": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "nextRetryAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "format": "date-time"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "updatedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "attempts": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "attemptNo": {
+                                        "type": "integer"
+                                      },
+                                      "requestId": {
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "PENDING",
+                                          "UNKNOWN",
+                                          "REJECTED",
+                                          "SUCCEEDED",
+                                          "EXPIRED"
+                                        ]
+                                      },
+                                      "responseStatus": {
+                                        "type": [
+                                          "integer",
+                                          "null"
+                                        ]
+                                      },
+                                      "responseBody": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "nostrEventId": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "errorCode": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "errorMessage": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "createdAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      "resolvedAt": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ],
+                                        "format": "date-time"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "attemptNo",
+                                      "requestId",
+                                      "status",
+                                      "responseStatus",
+                                      "responseBody",
+                                      "nostrEventId",
+                                      "errorCode",
+                                      "errorMessage",
+                                      "createdAt",
+                                      "resolvedAt"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "notificationId",
+                                "notification",
+                                "eventKey",
+                                "action",
+                                "status",
+                                "attemptCount",
+                                "lastError",
+                                "nextRetryAt",
+                                "completedAt",
+                                "createdAt",
+                                "updatedAt",
+                                "attempts"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "channel",
+                          "enabled",
+                          "action",
+                          "pausedAt",
+                          "webhookUrl",
+                          "nostrKind",
+                          "nostrRecipient",
+                          "nostrRelays",
+                          "nostrContent",
+                          "nip44",
+                          "createdAt",
+                          "updatedAt",
+                          "deliveries"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "notifications"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Create a webhook or Nostr notification channel for the caller’s wallet.",
+        "operationId": "remoteWallets.notifications.create",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteWalletNotificationCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Notification channel created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "channel": {
+                            "type": "string",
+                            "enum": [
+                              "WEBHOOK",
+                              "NOSTR"
+                            ]
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "RECEIVED",
+                              "FORWARDED"
+                            ]
+                          },
+                          "pausedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "webhookUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nostrKind": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "nostrRecipient": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nostrRelays": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "nostrContent": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nip44": {
+                            "type": "boolean"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "deliveries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "notificationId": {
+                                  "type": "string"
+                                },
+                                "notification": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "channel": {
+                                      "type": "string",
+                                      "enum": [
+                                        "WEBHOOK",
+                                        "NOSTR"
+                                      ]
+                                    },
+                                    "enabled": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "channel",
+                                    "enabled"
+                                  ]
+                                },
+                                "eventKey": {
+                                  "type": "string"
+                                },
+                                "action": {
+                                  "type": "string",
+                                  "enum": [
+                                    "RECEIVED",
+                                    "FORWARDED"
+                                  ]
+                                },
+                                "payload": {},
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "READY",
+                                    "PENDING",
+                                    "UNKNOWN",
+                                    "REJECTED",
+                                    "SUCCEEDED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "attemptCount": {
+                                  "type": "integer"
+                                },
+                                "lastError": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "nextRetryAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "format": "date-time"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "updatedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "attempts": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "attemptNo": {
+                                        "type": "integer"
+                                      },
+                                      "requestId": {
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "PENDING",
+                                          "UNKNOWN",
+                                          "REJECTED",
+                                          "SUCCEEDED",
+                                          "EXPIRED"
+                                        ]
+                                      },
+                                      "responseStatus": {
+                                        "type": [
+                                          "integer",
+                                          "null"
+                                        ]
+                                      },
+                                      "responseBody": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "nostrEventId": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "errorCode": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "errorMessage": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "createdAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      "resolvedAt": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ],
+                                        "format": "date-time"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "attemptNo",
+                                      "requestId",
+                                      "status",
+                                      "responseStatus",
+                                      "responseBody",
+                                      "nostrEventId",
+                                      "errorCode",
+                                      "errorMessage",
+                                      "createdAt",
+                                      "resolvedAt"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "notificationId",
+                                "notification",
+                                "eventKey",
+                                "action",
+                                "status",
+                                "attemptCount",
+                                "lastError",
+                                "nextRetryAt",
+                                "completedAt",
+                                "createdAt",
+                                "updatedAt",
+                                "attempts"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "channel",
+                          "enabled",
+                          "action",
+                          "pausedAt",
+                          "webhookUrl",
+                          "nostrKind",
+                          "nostrRecipient",
+                          "nostrRelays",
+                          "nostrContent",
+                          "nip44",
+                          "createdAt",
+                          "updatedAt",
+                          "deliveries"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "notifications"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/notifications/{notificationId}": {
+      "patch": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Pause or resume an outbound RemoteWallet notification channel.",
+        "operationId": "remoteWallets.notifications.toggle",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "notificationId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteWalletNotificationToggleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Notification channel updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "channel": {
+                            "type": "string",
+                            "enum": [
+                              "WEBHOOK",
+                              "NOSTR"
+                            ]
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "RECEIVED",
+                              "FORWARDED"
+                            ]
+                          },
+                          "pausedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "webhookUrl": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nostrKind": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "nostrRecipient": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nostrRelays": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "nostrContent": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nip44": {
+                            "type": "boolean"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "deliveries": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "notificationId": {
+                                  "type": "string"
+                                },
+                                "notification": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "channel": {
+                                      "type": "string",
+                                      "enum": [
+                                        "WEBHOOK",
+                                        "NOSTR"
+                                      ]
+                                    },
+                                    "enabled": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "channel",
+                                    "enabled"
+                                  ]
+                                },
+                                "eventKey": {
+                                  "type": "string"
+                                },
+                                "action": {
+                                  "type": "string",
+                                  "enum": [
+                                    "RECEIVED",
+                                    "FORWARDED"
+                                  ]
+                                },
+                                "payload": {},
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "READY",
+                                    "PENDING",
+                                    "UNKNOWN",
+                                    "REJECTED",
+                                    "SUCCEEDED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "attemptCount": {
+                                  "type": "integer"
+                                },
+                                "lastError": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "nextRetryAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "completedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "format": "date-time"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "updatedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "attempts": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "attemptNo": {
+                                        "type": "integer"
+                                      },
+                                      "requestId": {
+                                        "type": "string"
+                                      },
+                                      "status": {
+                                        "type": "string",
+                                        "enum": [
+                                          "PENDING",
+                                          "UNKNOWN",
+                                          "REJECTED",
+                                          "SUCCEEDED",
+                                          "EXPIRED"
+                                        ]
+                                      },
+                                      "responseStatus": {
+                                        "type": [
+                                          "integer",
+                                          "null"
+                                        ]
+                                      },
+                                      "responseBody": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "nostrEventId": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "errorCode": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "errorMessage": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ]
+                                      },
+                                      "createdAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      "resolvedAt": {
+                                        "type": [
+                                          "string",
+                                          "null"
+                                        ],
+                                        "format": "date-time"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "attemptNo",
+                                      "requestId",
+                                      "status",
+                                      "responseStatus",
+                                      "responseBody",
+                                      "nostrEventId",
+                                      "errorCode",
+                                      "errorMessage",
+                                      "createdAt",
+                                      "resolvedAt"
+                                    ]
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "notificationId",
+                                "notification",
+                                "eventKey",
+                                "action",
+                                "status",
+                                "attemptCount",
+                                "lastError",
+                                "nextRetryAt",
+                                "completedAt",
+                                "createdAt",
+                                "updatedAt",
+                                "attempts"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "channel",
+                          "enabled",
+                          "action",
+                          "pausedAt",
+                          "webhookUrl",
+                          "nostrKind",
+                          "nostrRecipient",
+                          "nostrRelays",
+                          "nostrContent",
+                          "nip44",
+                          "createdAt",
+                          "updatedAt",
+                          "deliveries"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "notifications"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/notification-deliveries": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "List persisted notification deliveries and attempts for the caller’s wallet.",
+        "operationId": "remoteWallets.notificationDeliveries.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification delivery journal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deliveries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "notificationId": {
+                            "type": "string"
+                          },
+                          "notification": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "channel": {
+                                "type": "string",
+                                "enum": [
+                                  "WEBHOOK",
+                                  "NOSTR"
+                                ]
+                              },
+                              "enabled": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "channel",
+                              "enabled"
+                            ]
+                          },
+                          "eventKey": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "RECEIVED",
+                              "FORWARDED"
+                            ]
+                          },
+                          "payload": {},
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "READY",
+                              "PENDING",
+                              "UNKNOWN",
+                              "REJECTED",
+                              "SUCCEEDED",
+                              "EXPIRED"
+                            ]
+                          },
+                          "attemptCount": {
+                            "type": "integer"
+                          },
+                          "lastError": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "nextRetryAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "completedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "attempts": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "attemptNo": {
+                                  "type": "integer"
+                                },
+                                "requestId": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "PENDING",
+                                    "UNKNOWN",
+                                    "REJECTED",
+                                    "SUCCEEDED",
+                                    "EXPIRED"
+                                  ]
+                                },
+                                "responseStatus": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ]
+                                },
+                                "responseBody": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "nostrEventId": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "errorCode": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "errorMessage": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "resolvedAt": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "attemptNo",
+                                "requestId",
+                                "status",
+                                "responseStatus",
+                                "responseBody",
+                                "nostrEventId",
+                                "errorCode",
+                                "errorMessage",
+                                "createdAt",
+                                "resolvedAt"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "notificationId",
+                          "notification",
+                          "eventKey",
+                          "action",
+                          "status",
+                          "attemptCount",
+                          "lastError",
+                          "nextRetryAt",
+                          "completedAt",
+                          "createdAt",
+                          "updatedAt",
+                          "attempts"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "deliveries",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/notification-deliveries/{deliveryId}/retry": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Retry a safely retryable outbound notification delivery.",
+        "operationId": "remoteWallets.notificationDeliveries.retry",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "deliveryId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Retry accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accepted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/{id}/payments/{paymentHash}": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "Read the NIP-57 zap request and receipt audit for an owned wallet payment.",
+        "operationId": "remoteWallets.payments.zapAudit",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "required": true,
+            "name": "paymentHash",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Zap audit envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "zap": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "request": {
+                          "type": "string"
+                        },
+                        "requestJson": {},
+                        "receipt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "receiptJson": {},
+                        "receiptEventId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "receiptPublishedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "error": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "nextRetryAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "request",
+                        "receipt",
+                        "receiptEventId",
+                        "receiptPublishedAt",
+                        "error",
+                        "nextRetryAt"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "zap"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/remote-wallets/forwarding-map": {
+      "get": {
+        "x-required-role": "USER",
+        "tags": [
+          "Remote Wallets"
+        ],
+        "summary": "List the caller’s current RemoteWallet forwarding destinations.",
+        "operationId": "remoteWallets.forwardingMap.list",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forwarding map projection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "walletId": {
+                            "type": "string"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "destinations": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "address": {
+                                  "type": "string"
+                                },
+                                "allocationBps": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "address",
+                                "allocationBps"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "walletId",
+                          "enabled",
+                          "destinations"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "actions"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
             "content": {
               "application/json": {
                 "schema": {

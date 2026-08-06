@@ -16,6 +16,9 @@ export interface DesiredWallet {
   connectionString: string
 }
 
+const hexKey = /^[0-9a-f]{64}$/i
+const bech32NostrKey = /^(?:npub|nsec)1[023456789acdefghjklmnpqrstuvwxyz]{58}$/i
+
 export function createPgPool(env: ListenerEnv, log: Logger): pg.Pool {
   const pool = new pg.Pool({ connectionString: env.DATABASE_URL, max: 5 })
   // node-postgres emits 'error' on the Pool when an IDLE backend connection
@@ -65,11 +68,36 @@ export async function waitForSchema(pool: pg.Pool, log: Logger): Promise<void> {
 }
 
 export function isValidConnectionString(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    (value.startsWith('nostr+walletconnect://') ||
-      value.startsWith('nostrwalletconnect://'))
-  )
+  if (typeof value !== 'string') return false
+  try {
+    if (!/^(?:nostr\+walletconnect|nostrwalletconnect):\/\//i.test(value)) {
+      return false
+    }
+    const normalized = value.replace(
+      /^(?:nostr\+walletconnect|nostrwalletconnect):\/\//i,
+      'https://'
+    )
+    const url = new URL(normalized)
+    const walletPubkey = url.hostname
+    const secret = url.searchParams.get('secret') ?? ''
+    const relays = url.searchParams.getAll('relay')
+    if (
+      !(hexKey.test(walletPubkey) || bech32NostrKey.test(walletPubkey)) ||
+      !(hexKey.test(secret) || bech32NostrKey.test(secret)) ||
+      relays.length === 0
+    ) {
+      return false
+    }
+    return relays.every(relay => {
+      const relayUrl = new URL(relay)
+      return (
+        (relayUrl.protocol === 'wss:' || relayUrl.protocol === 'ws:') &&
+        relayUrl.hostname.length > 0
+      )
+    })
+  } catch {
+    return false
+  }
 }
 
 interface WalletRow {

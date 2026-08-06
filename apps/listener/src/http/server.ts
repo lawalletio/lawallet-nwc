@@ -17,6 +17,8 @@ import { recentEventsSafe } from '../store'
 import { verifyBearer } from './auth'
 
 const MAX_BODY_BYTES = 64 * 1024
+const DEFAULT_HEALTH_DB_TIMEOUT_MS = 750
+const DEFAULT_STATUS_DB_TIMEOUT_MS = 2_000
 
 const STATUS_BY_CODE: Record<NwcProxyErrorCode, number> = {
   validation_error: 400,
@@ -35,6 +37,8 @@ export interface HttpServerDeps {
   nwcPool: NwcPool
   /** Injectable for route tests; production gets the durable implementation. */
   nwcPayments?: Pick<NwcPaymentService, 'submit' | 'status'>
+  healthDbTimeoutMs?: number
+  statusDbTimeoutMs?: number
 }
 
 export function createHttpServer(deps: HttpServerDeps): http.Server {
@@ -72,12 +76,14 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
     const path = (req.url ?? '/').split('?')[0]
 
     if (req.method === 'GET' && path === '/health') {
-      let db = true
-      try {
-        await pgPool.query('SELECT 1')
-      } catch {
-        db = false
-      }
+      const db = await withDeadline(
+        pgPool.query('SELECT 1').then(
+          () => true,
+          () => false
+        ),
+        deps.healthDbTimeoutMs ?? DEFAULT_HEALTH_DB_TIMEOUT_MS,
+        false
+      )
       // db flag is informational — the process being alive is the check
       sendJson(res, 200, { status: 'ok', db })
       return
@@ -129,7 +135,14 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
         degraded.push('connections')
       }
 
-      const { events, error: eventsError } = await recentEventsSafe(pgPool, 50)
+      const { events, error: eventsError } = await withDeadline(
+        recentEventsSafe(pgPool, 50),
+        deps.statusDbTimeoutMs ?? DEFAULT_STATUS_DB_TIMEOUT_MS,
+        {
+          events: [],
+          error: new Error('Recent events query timed out')
+        }
+      )
       if (eventsError) {
         log.warn({ err: eventsError }, 'status.recent_events_failed')
         degraded.push('recentEvents')
@@ -319,6 +332,23 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
     }
 
     sendJson(res, 404, { error: 'not_found' })
+  }
+}
+
+async function withDeadline<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  fallback: T
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const timeout = new Promise<T>(resolve => {
+    timer = setTimeout(() => resolve(fallback), timeoutMs)
+    timer.unref()
+  })
+  try {
+    return await Promise.race([operation, timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
 

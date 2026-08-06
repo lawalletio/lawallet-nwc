@@ -5,7 +5,6 @@ export type WalletAddressMode =
   | 'ALIAS'
   | 'PROXY_ALIAS'
   | 'CUSTOM_NWC'
-  | 'DEFAULT_NWC'
 export type EffectiveNwcMode = 'NONE' | 'RECEIVE' | 'SEND_RECEIVE'
 
 export interface WalletAddressDto {
@@ -43,7 +42,6 @@ function walletCapability(wallet: RemoteWallet | null): EffectiveNwcMode {
  *
  *   IDLE / ALIAS   → NONE  (the address never produces invoices via a wallet)
  *   CUSTOM_NWC     → the bound RemoteWallet's capability, or NONE if absent
- *   DEFAULT_NWC    → the user's primary-address RemoteWallet capability, or NONE
  *
  * Centralised here so list, detail and create routes stay consistent and the
  * client never has to guess.
@@ -59,8 +57,6 @@ export function deriveEffectiveNwcMode(
       return 'NONE'
     case 'CUSTOM_NWC':
       return walletCapability(address.remoteWallet)
-    case 'DEFAULT_NWC':
-      return walletCapability(defaultWallet)
   }
 }
 

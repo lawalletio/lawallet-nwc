@@ -31,9 +31,17 @@ export function isImpersonating(): boolean {
  * (e.g. `window.location.href = '/wallet'`) so the AuthProvider rehydrates.
  */
 export async function startImpersonation(pubkey: string): Promise<void> {
+  const currentToken = localStorage.getItem(JWT_KEY)
+  if (!currentToken) {
+    throw new Error('An admin session is required to impersonate')
+  }
+
   const res = await fetch('/api/dev/impersonate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${currentToken}`,
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({ pubkey })
   })
   if (!res.ok) throw new Error(`impersonate failed (${res.status})`)

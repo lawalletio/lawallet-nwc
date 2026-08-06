@@ -38,7 +38,18 @@ import {
   proxyForwardingCommandParams,
   proxyForwardingCommandSchema,
   probeAliasAddressSchema,
+  remoteWalletForwardActivityListQuerySchema,
+  remoteWalletForwardReceiptListQuerySchema,
+  remoteWalletForwardReceiptParamsSchema,
+  remoteWalletForwardRetrySchema,
   remoteWalletListQuerySchema,
+  createRemoteWalletNotificationSchema,
+  remoteWalletNotificationDeliveryParamsSchema,
+  remoteWalletNotificationListQuerySchema,
+  remoteWalletNotificationParamsSchema,
+  remoteWalletNotificationToggleSchema,
+  remoteWalletReceiveActionConfigSchema,
+  remoteWalletReceiveActionToggleSchema,
   scanCardQuerySchema,
   settingsBodySchema,
   updateCardDesignSchema,
@@ -223,6 +234,57 @@ export const schemas = {
   RemoteWalletListQuery: registry.register(
     'RemoteWalletListQuery',
     remoteWalletListQuerySchema
+  ),
+  RemoteWalletReceiveActionConfigRequest: registry.register(
+    'RemoteWalletReceiveActionConfigRequest',
+    remoteWalletReceiveActionConfigSchema
+  ),
+  RemoteWalletReceiveActionToggleRequest: registry.register(
+    'RemoteWalletReceiveActionToggleRequest',
+    remoteWalletReceiveActionToggleSchema
+  ),
+  RemoteWalletForwardReceiptListQuery: registry.register(
+    'RemoteWalletForwardReceiptListQuery',
+    remoteWalletForwardReceiptListQuerySchema
+  ),
+  RemoteWalletForwardActivityListQuery: registry.register(
+    'RemoteWalletForwardActivityListQuery',
+    remoteWalletForwardActivityListQuerySchema
+  ),
+  RemoteWalletForwardReceiptParams: registry.register(
+    'RemoteWalletForwardReceiptParams',
+    remoteWalletForwardReceiptParamsSchema
+  ),
+  RemoteWalletForwardRetryRequest: registry.register(
+    'RemoteWalletForwardRetryRequest',
+    remoteWalletForwardRetrySchema
+  ),
+  RemoteWalletNotificationCreateRequest: registry.register(
+    'RemoteWalletNotificationCreateRequest',
+    createRemoteWalletNotificationSchema
+  ),
+  RemoteWalletNotificationListQuery: registry.register(
+    'RemoteWalletNotificationListQuery',
+    remoteWalletNotificationListQuerySchema
+  ),
+  RemoteWalletNotificationParams: registry.register(
+    'RemoteWalletNotificationParams',
+    remoteWalletNotificationParamsSchema
+  ),
+  RemoteWalletNotificationToggleRequest: registry.register(
+    'RemoteWalletNotificationToggleRequest',
+    remoteWalletNotificationToggleSchema
+  ),
+  RemoteWalletNotificationDeliveryParams: registry.register(
+    'RemoteWalletNotificationDeliveryParams',
+    remoteWalletNotificationDeliveryParamsSchema
+  ),
+  RemoteWalletPaymentParams: registry.register(
+    'RemoteWalletPaymentParams',
+    z.object({
+      id: z.string().min(1),
+      paymentHash: z.string().regex(/^[0-9a-f]{64}$/i)
+    })
   ),
 
   // ── Invoices ──────────────────────────────────────────────────────────

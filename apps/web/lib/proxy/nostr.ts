@@ -1,7 +1,7 @@
 import { finalizeEvent, getPublicKey, verifyEvent } from 'nostr-tools/pure'
 import { nip19, SimplePool } from 'nostr-tools'
 import type { Event } from 'nostr-tools'
-import { bech32 } from 'bech32'
+import { ValidationError } from '@/types/server/errors'
 
 const HEX_64 = /^[0-9a-f]{64}$/i
 const MAX_ZAP_SKEW_SECONDS = 10 * 60
@@ -29,15 +29,13 @@ export interface ValidZapRequest {
 export function validateZapRequest(input: {
   raw: string
   amountMsats: number
-  recipientPubkey: string
-  expectedLnurl: string
   nowSeconds?: number
 }): ValidZapRequest {
   let event: Event
   try {
     event = JSON.parse(input.raw) as Event
   } catch {
-    throw new Error('Zap request is not valid JSON')
+    throw new ValidationError('Zap request is not valid JSON')
   }
   if (
     event.kind !== 9734 ||
@@ -46,30 +44,39 @@ export function validateZapRequest(input: {
       (input.nowSeconds ?? Math.floor(Date.now() / 1000)) - event.created_at
     ) > MAX_ZAP_SKEW_SECONDS
   ) {
-    throw new Error('Zap request signature, kind, or timestamp is invalid')
+    throw new ValidationError(
+      'Zap request signature, kind, or timestamp is invalid'
+    )
   }
+  // NIP-57 requires exactly one `p` tag and nothing more: it is the profile the
+  // zap is attributed to, which is not required to be the address owner's
+  // NIP-05 identity. An account can hold several identities, an address can be
+  // shared, and a zap can be sent on someone's behalf — so comparing `p`
+  // against one resolved pubkey rejected legitimate zaps. It is still required
+  // to be a well-formed pubkey, because it is copied into the signed receipt.
   const pTags = event.tags.filter(tag => tag[0] === 'p')
-  if (
-    pTags.length !== 1 ||
-    pTags[0][1]?.toLowerCase() !== input.recipientPubkey.toLowerCase()
-  ) {
-    throw new Error('Zap request recipient does not match this address')
+  if (pTags.length !== 1 || !HEX_64.test(pTags[0][1] ?? '')) {
+    throw new ValidationError(
+      'Zap request must have exactly one p tag with a valid public key'
+    )
   }
   const amountTag = event.tags.find(tag => tag[0] === 'amount')?.[1]
   if (
     amountTag !== undefined &&
     (!/^\d+$/.test(amountTag) || Number(amountTag) !== input.amountMsats)
   ) {
-    throw new Error('Zap request amount does not match callback amount')
+    throw new ValidationError(
+      'Zap request amount does not match callback amount'
+    )
   }
-  const lnurlTags = event.tags.filter(tag => tag[0] === 'lnurl')
-  if (
-    lnurlTags.length !== 1 ||
-    !lnurlTags[0][1] ||
-    decodeLnurl(lnurlTags[0][1]) !== input.expectedLnurl
-  ) {
-    throw new Error('Zap request LNURL does not match this address')
-  }
+  // The `lnurl` tag is deliberately not validated either. It is optional in
+  // NIP-57, clients disagree on the encoding (bech32, the LNURL-pay URL, or the
+  // bare Lightning Address), and one address is legitimately reachable at
+  // several origins — a local port, the public domain, a tunnel — so there is
+  // no single correct value to compare against. Nothing here decides where the
+  // money goes: the invoice is always minted on this address' own wallet.
+  // Every tag is preserved verbatim in the stored request, which is what the
+  // receipt's description commits to.
   const relays = [
     ...new Set(
       event.tags
@@ -80,14 +87,27 @@ export function validateZapRequest(input: {
     )
   ]
   if (relays.length === 0) {
-    throw new Error('Zap request must include at least one relay')
+    throw new ValidationError('Zap request must include at least one relay')
   }
   // The raw string is the exact value committed into description_hash and
   // copied into the receipt's description tag.
   return { event, canonicalJson: input.raw, relays }
 }
 
-export async function publishZapReceipt(input: {
+export interface PublishedZapReceipt {
+  event: Event
+  json: string
+}
+
+/**
+ * Sign a deterministic NIP-57 kind:9735 receipt.
+ *
+ * Keeping creation separate from relay publication lets payment audit records
+ * retain the exact event that was attempted. With a persisted settlement time
+ * the same receipt id is produced after a crash or relay timeout, so a retry
+ * cannot create a second zap receipt for the same payment.
+ */
+function createZapReceipt(input: {
   zapRequest: Event
   zapRequestJson: string
   payerInvoice: string
@@ -95,19 +115,11 @@ export async function publishZapReceipt(input: {
   privateKeyHex: string
   /** Persisted forwarding time keeps the receipt event id stable on retries. */
   createdAtSeconds: number
-}): Promise<string> {
-  const relays =
-    input.zapRequest.tags
-      .find(tag => tag[0] === 'relays')
-      ?.slice(1)
-      .filter(isRelayUrl)
-      .slice(0, 8) ?? []
-  if (relays.length === 0) throw new Error('Zap request has no publish relays')
-
+}): Event {
   const copiedTags = input.zapRequest.tags.filter(tag =>
     ['e', 'p', 'a'].includes(tag[0])
   )
-  const event = finalizeEvent(
+  return finalizeEvent(
     {
       kind: 9735,
       created_at: input.createdAtSeconds,
@@ -121,6 +133,25 @@ export async function publishZapReceipt(input: {
     },
     Buffer.from(input.privateKeyHex, 'hex')
   )
+}
+
+export async function publishZapReceipt(input: {
+  zapRequest: Event
+  zapRequestJson: string
+  payerInvoice: string
+  payerPreimage?: string | null
+  privateKeyHex: string
+  createdAtSeconds: number
+}): Promise<PublishedZapReceipt> {
+  const relays =
+    input.zapRequest.tags
+      .find(tag => tag[0] === 'relays')
+      ?.slice(1)
+      .filter(isRelayUrl)
+      .slice(0, 8) ?? []
+  if (relays.length === 0) throw new Error('Zap request has no publish relays')
+
+  const event = createZapReceipt(input)
 
   const pool = new SimplePool()
   let timeout: ReturnType<typeof setTimeout> | null = null
@@ -139,20 +170,9 @@ export async function publishZapReceipt(input: {
     if (timeout) clearTimeout(timeout)
     pool.close(relays)
   }
-  return event.id
+  return { event, json: JSON.stringify(event) }
 }
 
-function decodeLnurl(value: string): string | null {
-  try {
-    const decoded = bech32.decode(value.toLowerCase(), 2048)
-    if (decoded.prefix !== 'lnurl') return null
-    return new TextDecoder().decode(
-      Uint8Array.from(bech32.fromWords(decoded.words))
-    )
-  } catch {
-    return null
-  }
-}
 
 function isRelayUrl(value: string): boolean {
   try {

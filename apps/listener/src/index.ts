@@ -34,6 +34,7 @@ import {
 } from './store'
 import { WebhookDispatcher } from './webhook'
 import { requestProxyReconcile } from './proxy-reconcile'
+import { createProcessErrorReporter } from './process-errors'
 
 async function main(): Promise<void> {
   // @getalby/sdk's relay layer needs the global WebSocket (Node >= 22).
@@ -55,15 +56,13 @@ async function main(): Promise<void> {
   // durable state lives in Postgres and whose relay connections auto-reconnect,
   // so dropping every live connection on one stray async error is worse than
   // continuing. (The /health endpoint still exposes real trouble.)
-  process.on('unhandledRejection', reason => {
-    log.error(
-      { err: reason instanceof Error ? reason : new Error(String(reason)) },
-      'process.unhandled_rejection'
-    )
-  })
-  process.on('uncaughtException', err => {
-    log.error({ err }, 'process.uncaught_exception')
-  })
+  const reportProcessError = createProcessErrorReporter(log)
+  process.on('unhandledRejection', reason =>
+    reportProcessError('unhandled_rejection', reason)
+  )
+  process.on('uncaughtException', err =>
+    reportProcessError('uncaught_exception', err)
+  )
 
   const pgPool = createPgPool(env, createLogger({ module: 'db' }))
   await waitForDb(pgPool, log)

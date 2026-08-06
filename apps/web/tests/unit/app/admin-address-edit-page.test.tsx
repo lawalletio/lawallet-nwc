@@ -5,7 +5,14 @@ import userEvent from '@testing-library/user-event'
 
 const mocks = vi.hoisted(() => ({
   deferredProxyEnabled: false,
-  addressMode: 'DEFAULT_NWC',
+  addressMode: 'CUSTOM_NWC',
+  wallets: [] as Array<{
+    id: string
+    name: string
+    type: 'NWC'
+    status: 'ACTIVE'
+    isDefault: boolean
+  }>,
   push: vi.fn(),
   refetch: vi.fn()
 }))
@@ -71,13 +78,16 @@ vi.mock('@/lib/client/hooks/use-wallet-addresses', () => ({
         mode: mocks.addressMode,
         redirect:
           mocks.addressMode === 'PROXY_ALIAS' ? 'bob@example.com' : null,
-        remoteWalletId: null,
+        remoteWalletId:
+          mocks.addressMode === 'CUSTOM_NWC'
+            ? (mocks.wallets[0]?.id ?? null)
+            : null,
         isPrimary: false,
         nwcMode: 'NONE',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'
       },
-      wallets: [],
+      wallets: mocks.wallets,
       effectiveConnectionString: null,
       deferredProxyEnabled: mocks.deferredProxyEnabled,
       isOwner: true,
@@ -118,7 +128,8 @@ async function openModePicker() {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.deferredProxyEnabled = false
-  mocks.addressMode = 'DEFAULT_NWC'
+  mocks.addressMode = 'CUSTOM_NWC'
+  mocks.wallets = []
   mocks.refetch.mockResolvedValue(undefined)
 })
 
@@ -182,5 +193,25 @@ describe('/admin/addresses/[username]', () => {
     expect(
       screen.queryByRole('tablist', { name: 'Proxy address sections' })
     ).not.toBeInTheDocument()
+  })
+
+  it('links a custom-wallet address directly to its remote wallet', async () => {
+    mocks.addressMode = 'CUSTOM_NWC'
+    mocks.wallets = [
+      {
+        id: 'wallet-1',
+        name: 'Treasury wallet',
+        type: 'NWC',
+        status: 'ACTIVE',
+        isDefault: false
+      }
+    ]
+
+    await renderPage()
+
+    expect(screen.getByText('Connected to Treasury wallet')).toBeVisible()
+    expect(
+      screen.getByRole('link', { name: 'View wallet' })
+    ).toHaveAttribute('href', '/admin/remote-wallets/wallet-1')
   })
 })

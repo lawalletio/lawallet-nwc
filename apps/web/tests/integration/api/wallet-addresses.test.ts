@@ -67,7 +67,7 @@ function makeAddress(overrides: Partial<any> = {}) {
   return {
     username: 'alice',
     userId: 'user-1',
-    mode: 'DEFAULT_NWC',
+    mode: 'CUSTOM_NWC',
     redirect: null,
     remoteWalletId: null,
     isPrimary: true,
@@ -129,8 +129,14 @@ describe('GET /api/wallet/addresses', () => {
           remoteWalletId: 'conn-primary',
           remoteWallet: primaryConn
         }),
-        // DEFAULT_NWC -> inherits the primary address wallet's mode.
-        makeAddress({ username: 'bob', isPrimary: false, mode: 'DEFAULT_NWC' }),
+        // CUSTOM_NWC -> derives from the wallet it is bound to.
+        makeAddress({
+          username: 'bob',
+          isPrimary: false,
+          mode: 'CUSTOM_NWC',
+          remoteWalletId: 'conn-primary',
+          remoteWallet: primaryConn
+        }),
         // ALIAS -> NONE regardless of connections
         makeAddress({
           username: 'carol',
@@ -153,7 +159,7 @@ describe('GET /api/wallet/addresses', () => {
     })
     expect(body[1]).toMatchObject({
       username: 'bob',
-      mode: 'DEFAULT_NWC',
+      mode: 'CUSTOM_NWC',
       nwcMode: 'SEND_RECEIVE'
     })
     expect(body[2]).toMatchObject({
@@ -169,13 +175,13 @@ describe('GET /api/wallet/addresses', () => {
     })
   })
 
-  it('falls back to NONE when DEFAULT_NWC user has no primary connection', async () => {
+  it('falls back to NONE when CUSTOM_NWC user has no primary connection', async () => {
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
       id: 'user-1',
       lightningAddresses: [
         makeAddress({ username: 'alice', isPrimary: true, mode: 'IDLE' }),
-        makeAddress({ username: 'bob', isPrimary: false, mode: 'DEFAULT_NWC' })
+        makeAddress({ username: 'bob', isPrimary: false, mode: 'CUSTOM_NWC' })
       ]
     } as any)
 
@@ -540,7 +546,7 @@ describe('GET /api/wallet/addresses/[username]', () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(
       makeAddress({
         userId: 'user-1',
-        mode: 'DEFAULT_NWC',
+        mode: 'CUSTOM_NWC',
         user: { pubkey: mockPubkey }
       }) as any
     )
@@ -674,7 +680,7 @@ describe('PUT /api/wallet/addresses/[username]', () => {
     expect(body.remoteWalletId).toBe('conn-1')
   })
 
-  it('clears redirect + remoteWalletId when switching to IDLE/DEFAULT_NWC', async () => {
+  it('clears redirect + remoteWalletId when switching to IDLE/CUSTOM_NWC', async () => {
     await DetailPut(
       createNextRequest('/api/wallet/addresses/alice', {
         method: 'PUT',
@@ -688,7 +694,13 @@ describe('PUT /api/wallet/addresses/[username]', () => {
     )
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { mode: 'IDLE', redirect: null, remoteWalletId: null }
+        // Switching away from ALIAS also drops the stored probe: it described
+        // a destination this address no longer forwards to.
+        data: expect.objectContaining({
+          mode: 'IDLE',
+          redirect: null,
+          remoteWalletId: null
+        })
       })
     )
   })
@@ -773,12 +785,8 @@ describe('DELETE /api/wallet/addresses/[username]', () => {
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { username: 'bob' },
-        data: {
-          isPrimary: true,
-          mode: 'IDLE',
-          redirect: null,
-          remoteWalletId: null
-        }
+        // Promotion only moves the flag now; the address keeps its own binding.
+        data: { isPrimary: true }
       })
     )
   })
@@ -874,7 +882,7 @@ describe('POST /api/wallet/addresses/[username]/primary', () => {
     )
   })
 
-  it('normalizes a promoted DEFAULT_NWC address to CUSTOM_NWC with the current primary wallet', async () => {
+  it('promotion only moves the primary flag — the binding is already explicit', async () => {
     mockAuth()
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
       id: 'user-1'
@@ -883,7 +891,7 @@ describe('POST /api/wallet/addresses/[username]/primary', () => {
       makeAddress({
         username: 'bob',
         isPrimary: false,
-        mode: 'DEFAULT_NWC'
+        mode: 'CUSTOM_NWC'
       }) as any
     )
     vi.mocked(prismaMock.lightningAddress.findFirst)
@@ -910,12 +918,7 @@ describe('POST /api/wallet/addresses/[username]/primary', () => {
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { username: 'bob' },
-        data: {
-          isPrimary: true,
-          mode: 'CUSTOM_NWC',
-          redirect: null,
-          remoteWalletId: 'wallet-primary'
-        }
+        data: { isPrimary: true }
       })
     )
     expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith({

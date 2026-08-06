@@ -28,8 +28,6 @@ function chipFor(
     const w = wallets.find(w => w.id === addr.remoteWalletId)
     return { label: w?.name ?? 'Unknown wallet', tone: 'bound' }
   }
-  if (addr.mode === 'DEFAULT_NWC')
-    return { label: 'Primary wallet', tone: 'default' }
   if (addr.mode === 'ALIAS') return { label: 'Alias', tone: 'none' }
   if (addr.mode === 'PROXY_ALIAS')
     return { label: 'Deferred proxy', tone: 'none' }
@@ -41,8 +39,7 @@ function chipFor(
  * mode badge + tappable bound-wallet chip. Tapping the chip opens a
  * bottom-sheet picker that rebinds via the same
  * `PUT /api/wallet/addresses/:username` the desktop canvas uses
- * (CUSTOM_NWC / DEFAULT_NWC / IDLE). Primary addresses hide DEFAULT_NWC
- * because the primary wallet is derived from their CUSTOM_NWC binding.
+ * (CUSTOM_NWC / IDLE).
  * Tapping the row body opens the
  * shared detail dialog.
  */
@@ -64,8 +61,6 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
           mode: 'CUSTOM_NWC',
           remoteWalletId: choice.walletId
         })
-      } else if (choice.kind === 'default') {
-        await updateAddress(addr.username, { mode: 'DEFAULT_NWC' })
       } else {
         await updateAddress(addr.username, { mode: 'IDLE' })
       }
@@ -89,18 +84,6 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
           tone: 'wallet' as const,
           onSelect: () => rebind(picker, { kind: 'wallet', walletId: w.id })
         })),
-        ...(picker.isPrimary
-          ? []
-          : [
-              {
-                key: '__default__',
-                label: 'Primary wallet',
-                sublabel: 'Route through your primary address wallet',
-                active: picker.mode === 'DEFAULT_NWC',
-                tone: 'default' as const,
-                onSelect: () => rebind(picker, { kind: 'default' })
-              }
-            ]),
         {
           key: '__idle__',
           label: 'Disconnect',
@@ -127,35 +110,40 @@ export function AddressTab({ addresses, wallets, onOpenDetail }: Props) {
           const chip = chipFor(addr, wallets)
           return (
             <li key={addr.username}>
-              <button
-                type="button"
-                onClick={() => onOpenDetail(addr.username)}
-                className="flex w-full items-center gap-3 rounded-lg border border-border bg-card px-3 py-3 text-left transition-colors hover:bg-muted/40"
-              >
-                <AtSign className="size-4 shrink-0 text-emerald-400" />
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="flex items-center gap-1 truncate text-sm font-medium">
-                    <span className="truncate">{addr.username}</span>
-                    {addr.isPrimary && (
-                      <Star
-                        className="size-3 shrink-0 fill-amber-400 text-amber-400"
-                        aria-label="Primary"
-                      />
-                    )}
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className="mt-0.5 w-fit text-[10px] font-normal"
-                  >
-                    {addr.mode}
-                  </Badge>
+              <div className="flex w-full items-center rounded-lg border border-border bg-card transition-colors hover:bg-muted/40">
+                <button
+                  type="button"
+                  aria-label={`Open ${addr.username} details`}
+                  onClick={() => onOpenDetail(addr.username)}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-l-lg px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <AtSign className="size-4 shrink-0 text-emerald-400" />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex items-center gap-1 truncate text-sm font-medium">
+                      <span className="truncate">{addr.username}</span>
+                      {addr.isPrimary && (
+                        <Star
+                          className="size-3 shrink-0 fill-amber-400 text-amber-400"
+                          aria-label="Primary"
+                        />
+                      )}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className="mt-0.5 w-fit text-[10px] font-normal"
+                    >
+                      {addr.mode}
+                    </Badge>
+                  </div>
+                </button>
+                <div className="shrink-0 pr-3">
+                  <BindingChip
+                    label={chip.label}
+                    tone={chip.tone}
+                    onClick={() => setPicker(addr)}
+                  />
                 </div>
-                <BindingChip
-                  label={chip.label}
-                  tone={chip.tone}
-                  onClick={() => setPicker(addr)}
-                />
-              </button>
+              </div>
             </li>
           )
         })}

@@ -5,11 +5,7 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError, InternalServerError } from '@/types/server/errors'
 import { Role, getRolePermissions } from '@/lib/auth/permissions'
 import { logger } from '@/lib/logger'
-
-// Seeded admin identity (apps/web/mocks/user.ts user[0]); the e2e auth fixture
-// mints sessions for the same pubkey.
-const DEV_ADMIN_PUBKEY =
-  'npub1xyz123abc456def789ghi012jkl345mno678pqr901stu234vwx567yz890'
+import { DEV_ADMIN_PUBKEY, DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
 
 /**
  * `POST /api/dev/login` — mint an ADMIN session JWT without the NIP-98 signing
@@ -33,7 +29,7 @@ export const POST = withErrorHandling(async (_request: Request) => {
 
   const token = createJwtToken(
     {
-      userId: DEV_ADMIN_PUBKEY,
+      userId: DEV_ADMIN_USER_ID,
       pubkey: DEV_ADMIN_PUBKEY,
       role: Role.ADMIN,
       permissions: getRolePermissions(Role.ADMIN)

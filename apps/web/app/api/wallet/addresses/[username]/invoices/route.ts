@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { invoiceComment } from '@/lib/invoice-comment'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { AuthenticationError, NotFoundError } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
@@ -187,7 +188,7 @@ export const GET = withErrorHandling(
         bolt11: inv.bolt11,
         description: inv.description,
         status: inv.status,
-        comment: typeof meta.comment === 'string' ? meta.comment : null,
+        comment: invoiceComment(meta),
         paymentHash: inv.paymentHash,
         createdAt: inv.createdAt.toISOString(),
         paidAt: inv.paidAt?.toISOString() ?? null,

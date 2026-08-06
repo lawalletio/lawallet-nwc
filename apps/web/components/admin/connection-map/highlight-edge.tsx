@@ -34,6 +34,7 @@ interface HighlightEdgeData {
 export function HighlightEdge({
   id,
   data,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -43,9 +44,11 @@ export function HighlightEdge({
   style,
   markerEnd
 }: EdgeProps) {
-  const { highlight, activeEdgeId } = useHover()
+  const { highlight, activeEdgeId, walletDestinationFocus } = useHover()
   const active = !highlight || highlight.edges.has(id)
   const showTooltip = activeEdgeId === id
+  const hideUnrelatedDestinationEdge =
+    walletDestinationFocus && !active && target.startsWith('destination:')
 
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
@@ -65,7 +68,7 @@ export function HighlightEdge({
         path={path}
         style={{
           ...style,
-          opacity: active ? 1 : 0.15,
+          opacity: hideUnrelatedDestinationEdge ? 0 : active ? 1 : 0.15,
           // Slightly thicker when an active highlight is in play, so the
           // currently-relevant binding pops without the resting state
           // changing thickness.

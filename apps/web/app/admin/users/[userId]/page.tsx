@@ -46,6 +46,7 @@ import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useNostrProfile } from '@/lib/client/nostr-profile'
 import { EditProfileDialog } from '@/components/admin/edit-profile-dialog'
 import { RelayEditorDialog } from '@/components/admin/relay-editor-dialog'
+import { ImpersonateUserButton } from '@/components/admin/impersonate-user-button'
 import { useAuth } from '@/components/admin/auth-context'
 import {
   truncateNpub,
@@ -73,8 +74,7 @@ const MODE_LABEL: Record<WalletAddress['mode'], string> = {
   IDLE: 'Idle',
   ALIAS: 'Alias',
   PROXY_ALIAS: 'Deferred proxy',
-  CUSTOM_NWC: 'Custom NWC',
-  DEFAULT_NWC: 'Default NWC'
+  CUSTOM_NWC: 'Custom NWC'
 }
 
 /**
@@ -296,6 +296,9 @@ export default function UserDetailPage({
                       <Pencil className="size-3.5" />
                       Edit profile
                     </Button>
+                  )}
+                  {isAdmin && !isSelf && (
+                    <ImpersonateUserButton pubkey={user.pubkey} showLabel />
                   )}
                   {isSelf ? (
                     <button

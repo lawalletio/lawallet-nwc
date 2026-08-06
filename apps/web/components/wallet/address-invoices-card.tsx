@@ -23,8 +23,6 @@ import { AddressInvoiceDetailsDialog } from './address-invoice-details-dialog'
 export interface AddressInvoicesCardProps {
   /** Username of the lightning address whose invoices we're listing. */
   username: string
-  /** Render inside a shared settings/activity shell without another border. */
-  embedded?: boolean
 }
 
 /**
@@ -40,10 +38,7 @@ export interface AddressInvoicesCardProps {
  * maps this path to that event type), so a payment landing on the wallet
  * flips the row from PENDING → PAID without a manual refresh.
  */
-export function AddressInvoicesCard({
-  username,
-  embedded = false
-}: AddressInvoicesCardProps) {
+export function AddressInvoicesCard({ username }: AddressInvoicesCardProps) {
   const { data, loading, error, refetch } = useAddressInvoices(username)
   const invoices = data?.invoices ?? []
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(
@@ -55,14 +50,7 @@ export function AddressInvoicesCard({
 
   return (
     <>
-      <div
-        className={cn(
-          'bg-card',
-          embedded
-            ? 'border-t border-border/60'
-            : 'rounded-xl border border-border'
-        )}
-      >
+      <div className="rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border/60 px-5 py-3">
           <h3 className="text-sm font-medium">Recent invoices</h3>
           <button

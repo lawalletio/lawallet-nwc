@@ -17,7 +17,10 @@ import {
   proxyForwardingCommandSchema
 } from '@/lib/validation/schemas'
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
-import { resolvePublicEndpoint } from '@/lib/public-url'
+import {
+  assertNoForwardingCycle,
+  forwardingGraphNodes
+} from '@/lib/proxy/forwarding-graph'
 import { fetchDestinationMetadata } from '@/lib/proxy/lnurl'
 import { reconcileProxyPayments } from '@/lib/proxy/reconcile'
 import { PROXY_RETRY_INTERVAL_MS } from '@/lib/proxy/constants'
@@ -94,15 +97,12 @@ export const POST = withErrorHandling(
         throw new ConflictError('This payment has already been forwarded')
       }
 
-      const endpoint = await resolvePublicEndpoint(request)
-      if (
-        new URL(endpoint.url).hostname.toLowerCase() ===
-        parsed.host.toLowerCase()
-      ) {
-        throw new ValidationError(
-          'Forwarding destination cannot point to this LaWallet instance'
-        )
-      }
+      // Redirecting a stuck payment at an address on this instance is allowed;
+      // redirecting it into a ring that returns here is not.
+      await assertNoForwardingCycle(
+        forwardingGraphNodes.address(username),
+        command.destination
+      )
 
       const metadata = await fetchDestinationMetadata(command.destination, {
         blockedHosts: payment.blockedHosts

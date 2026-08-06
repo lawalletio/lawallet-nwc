@@ -27,6 +27,10 @@ import { CreateRemoteWalletDialog } from '@/components/admin/create-remote-walle
 import { RemoteWalletRowActions } from '@/components/admin/remote-wallet-row-actions'
 import { ArchivedWalletsSection } from '@/components/admin/archived-wallets-section'
 import {
+  CursorPagination,
+  useLocalPagination
+} from '@/components/wallet/shared/cursor-pagination'
+import {
   useRemoteWallets,
   useRemoteWalletBalance,
   useRemoteWalletMutations,
@@ -151,6 +155,8 @@ const STATUS_VARIANT: Record<
   DEAD: 'destructive'
 }
 
+const WALLETS_PAGE_SIZE = 10
+
 function WalletsTable({
   wallets,
   onChanged
@@ -158,6 +164,7 @@ function WalletsTable({
   wallets: RemoteWalletData[]
   onChanged: () => void
 }) {
+  const pagination = useLocalPagination(wallets, WALLETS_PAGE_SIZE)
   return (
     <div className="rounded-md border">
       <Table>
@@ -176,7 +183,7 @@ function WalletsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {wallets.map(w => (
+          {pagination.items.map(w => (
             <TableRow
               key={w.id}
               id={`wallet-${w.id}`}
@@ -224,6 +231,14 @@ function WalletsTable({
           ))}
         </TableBody>
       </Table>
+      <CursorPagination
+        label="wallets"
+        page={pagination.page}
+        hasNext={pagination.hasNext}
+        loading={false}
+        onPrevious={pagination.previous}
+        onNext={pagination.next}
+      />
     </div>
   )
 }

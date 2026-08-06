@@ -16,6 +16,12 @@ import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getProxySettlementConfig } from '@/lib/proxy/config'
 import { preimageMatchesPaymentHash } from '@/lib/card-payments/lifecycle'
 import { reconcileProxyPayments } from '@/lib/proxy/reconcile'
+import { publishInvoiceZapReceipt } from '@/lib/nostr/zap-receipts'
+import {
+  PUBLIC_READ_CORS_HEADERS,
+  publicReadOptions,
+  withPublicReadCors
+} from '@/lib/public-cors'
 
 /**
  * LUD-21 (LNURL verify) endpoint.
@@ -30,233 +36,252 @@ import { reconcileProxyPayments } from '@/lib/proxy/reconcile'
  * Response (error):
  *   { status: "ERROR", reason: string }
  */
+export const OPTIONS = publicReadOptions
+
 export const GET = withErrorHandling(
-  async (
-    _req: NextRequest,
-    {
-      params
-    }: {
-      params: Promise<{ username: string; paymentHash: string }>
-    }
-  ) => {
-    const { username: rawUsername, paymentHash: rawHash } = await params
-    const username = rawUsername.trim().toLowerCase()
-    const paymentHash = rawHash.trim().toLowerCase()
-
-    if (!/^[a-f0-9]{64}$/.test(paymentHash)) {
-      const error: LUD21VerifyError = {
-        status: 'ERROR',
-        reason: 'Invalid payment hash'
+  withPublicReadCors(
+    async (
+      _req: NextRequest,
+      {
+        params
+      }: {
+        params: Promise<{ username: string; paymentHash: string }>
       }
-      return NextResponse.json(error, { status: 400 })
-    }
+    ) => {
+      const { username: rawUsername, paymentHash: rawHash } = await params
+      const username = rawUsername.trim().toLowerCase()
+      const paymentHash = rawHash.trim().toLowerCase()
 
-    // Find the stored invoice. We need to confirm the payment hash actually
-    // belongs to the lightning address being queried — pull the user's
-    // addresses scoped to the matching username (cheap by-PK lookup).
-    const invoice = await prisma.invoice.findUnique({
-      where: { paymentHash },
-      include: {
-        proxyPayment: {
-          select: { id: true, status: true }
-        },
-        user: {
-          select: {
-            id: true,
-            lightningAddresses: {
-              where: { username },
-              include: {
-                remoteWallet: {
-                  select: { id: true, type: true, config: true, status: true }
-                }
-              },
-              take: 1
+      if (!/^[a-f0-9]{64}$/.test(paymentHash)) {
+        const error: LUD21VerifyError = {
+          status: 'ERROR',
+          reason: 'Invalid payment hash'
+        }
+        return NextResponse.json(error, { status: 400 })
+      }
+
+      // Find the stored invoice. We need to confirm the payment hash actually
+      // belongs to the lightning address being queried — pull the user's
+      // addresses scoped to the matching username (cheap by-PK lookup).
+      const invoice = await prisma.invoice.findUnique({
+        where: { paymentHash },
+        include: {
+          proxyPayment: {
+            select: { id: true, status: true }
+          },
+          remoteWallet: {
+            select: { id: true, type: true, config: true, status: true }
+          },
+          user: {
+            select: {
+              id: true,
+              lightningAddresses: {
+                where: { username },
+                include: {
+                  remoteWallet: {
+                    select: { id: true, type: true, config: true, status: true }
+                  }
+                },
+                take: 1
+              }
             }
           }
         }
+      })
+
+      if (!invoice || !invoice.user) {
+        throw new NotFoundError('Invoice not found')
       }
-    })
 
-    if (!invoice || !invoice.user) {
-      throw new NotFoundError('Invoice not found')
-    }
-
-    // Ensure the payment hash belongs to this username (prevent cross-user lookups)
-    if (invoice.user.lightningAddresses[0]?.username !== username) {
-      throw new NotFoundError('Invoice not found for this username')
-    }
-
-    // The authenticated listener can confirm settlement even when a wallet
-    // notification omits the optional preimage. LUD-21's preimage is nullable,
-    // so the persisted source status remains authoritative in either case.
-    if (invoice.status === 'PAID') {
-      const response: LUD21VerifySuccess = {
-        status: 'OK',
-        settled: true,
-        preimage: invoice.preimage ?? null,
-        pr: invoice.bolt11
+      // Ensure the payment hash belongs to this username (prevent cross-user lookups)
+      if (invoice.user.lightningAddresses[0]?.username !== username) {
+        throw new NotFoundError('Invoice not found for this username')
       }
-      return NextResponse.json(response)
-    }
 
-    // If expired, report as not settled (still returns pr for client to know)
-    if (invoice.expiresAt < new Date()) {
-      const response: LUD21VerifySuccess = {
-        status: 'OK',
-        settled: false,
-        preimage: null,
-        pr: invoice.bolt11
+      // The authenticated listener can confirm settlement even when a wallet
+      // notification omits the optional preimage. LUD-21's preimage is nullable,
+      // so the persisted source status remains authoritative in either case.
+      if (invoice.status === 'PAID') {
+        if (!invoice.proxyPayment && invoice.zapRequest) {
+          after(() => publishInvoiceZapReceipt(invoice.id))
+        }
+        const response: LUD21VerifySuccess = {
+          status: 'OK',
+          settled: true,
+          preimage: invoice.preimage ?? null,
+          pr: invoice.bolt11
+        }
+        return NextResponse.json(response)
       }
-      return NextResponse.json(response)
-    }
 
-    // Query the wallet that this Lightning Address resolves through to check
-    // current status. DEFAULT_NWC resolves through the wallet linked to the
-    // account primary address.
-    const address = invoice.user.lightningAddresses[0]
-    const primaryWallet = await getPrimaryRemoteWalletForUser(invoice.user.id)
-    const route =
-      address && 'mode' in address
-        ? resolveWalletRoute({
-            mode: address.mode,
-            redirect: address.redirect ?? null,
-            remoteWallet: address.remoteWallet ?? null,
-            defaultRemoteWallet: primaryWallet
-          })
-        : { kind: 'unconfigured' as const }
-    const proxyConfig = invoice.proxyPayment
-      ? await getProxySettlementConfig()
-      : null
-    const walletConn = invoice.proxyPayment
-      ? (proxyConfig?.connectionString ?? null)
-      : route.kind === 'wallet'
-        ? ((route.config as { connectionString?: string } | null)
-            ?.connectionString ?? null)
+      // If expired, report as not settled (still returns pr for client to know)
+      if (invoice.expiresAt < new Date()) {
+        const response: LUD21VerifySuccess = {
+          status: 'OK',
+          settled: false,
+          preimage: null,
+          pr: invoice.bolt11
+        }
+        return NextResponse.json(response)
+      }
+
+      // Query the wallet that this Lightning Address resolves through to check
+      // current status. DEFAULT_NWC resolves through the wallet linked to the
+      // account primary address.
+      const address = invoice.user.lightningAddresses[0]
+      const primaryWallet = await getPrimaryRemoteWalletForUser(invoice.user.id)
+      const route = invoice.remoteWallet
+        ? {
+            kind: 'wallet' as const,
+            walletId: invoice.remoteWallet.id,
+            type: invoice.remoteWallet.type,
+            config: invoice.remoteWallet.config
+          }
+        : address && 'mode' in address
+          ? resolveWalletRoute({
+              mode: address.mode,
+              redirect: address.redirect ?? null,
+              remoteWallet: address.remoteWallet ?? null
+            })
+          : { kind: 'unconfigured' as const }
+      const proxyConfig = invoice.proxyPayment
+        ? await getProxySettlementConfig()
         : null
-    if (!walletConn) {
-      const response: LUD21VerifySuccess = {
-        status: 'OK',
-        settled: false,
-        preimage: null,
-        pr: invoice.bolt11
+      const walletConn = invoice.proxyPayment
+        ? (proxyConfig?.connectionString ?? null)
+        : route.kind === 'wallet'
+          ? ((route.config as { connectionString?: string } | null)
+              ?.connectionString ?? null)
+          : null
+      if (!walletConn) {
+        const response: LUD21VerifySuccess = {
+          status: 'OK',
+          settled: false,
+          preimage: null,
+          pr: invoice.bolt11
+        }
+        return NextResponse.json(response)
       }
-      return NextResponse.json(response)
-    }
 
-    let nwcClient: NWCClient | null = null
-    try {
-      nwcClient = new NWCClient({ nostrWalletConnectUrl: walletConn })
-      const tx = await nwcClient.lookupInvoice({ payment_hash: paymentHash })
+      let nwcClient: NWCClient | null = null
+      try {
+        nwcClient = new NWCClient({ nostrWalletConnectUrl: walletConn })
+        const tx = await nwcClient.lookupInvoice({ payment_hash: paymentHash })
 
-      const settled =
-        tx.state === 'settled' &&
-        !!tx.preimage &&
-        (!invoice.proxyPayment ||
-          preimageMatchesPaymentHash(tx.preimage, paymentHash))
-      const preimage = settled ? tx.preimage : null
+        const settled =
+          tx.state === 'settled' &&
+          !!tx.preimage &&
+          (!invoice.proxyPayment ||
+            preimageMatchesPaymentHash(tx.preimage, paymentHash))
+        const preimage = settled ? tx.preimage : null
 
-      // Persist settled state so subsequent calls avoid the NWC round-trip
-      if (settled && preimage) {
-        const paidAt = new Date(
-          tx.settled_at ? tx.settled_at * 1000 : Date.now()
-        )
-        if (invoice.proxyPayment) {
-          await prisma.$transaction(async database => {
-            await database.invoice.update({
+        // Persist settled state so subsequent calls avoid the NWC round-trip
+        if (settled && preimage) {
+          const paidAt = new Date(
+            tx.settled_at ? tx.settled_at * 1000 : Date.now()
+          )
+          if (invoice.proxyPayment) {
+            await prisma.$transaction(async database => {
+              await database.invoice.update({
+                where: { paymentHash },
+                data: { status: 'PAID', preimage, paidAt }
+              })
+              await database.proxyPayment.update({
+                where: { id: invoice.proxyPayment!.id },
+                data: {
+                  sourcePaidAt: paidAt,
+                  sourcePreimage: preimage,
+                  nextRetryAt: new Date(),
+                  lastError: null
+                }
+              })
+              await database.proxyPayment.updateMany({
+                where: {
+                  id: invoice.proxyPayment!.id,
+                  status: { in: ['PENDING_INBOUND', 'BLOCKED'] }
+                },
+                data: { status: 'READY_TO_FORWARD' }
+              })
+            })
+            after(async () => {
+              await reconcileProxyPayments({ ids: [invoice.proxyPayment!.id] })
+            })
+          } else {
+            await prisma.invoice.update({
               where: { paymentHash },
               data: { status: 'PAID', preimage, paidAt }
             })
-            await database.proxyPayment.update({
-              where: { id: invoice.proxyPayment!.id },
-              data: {
-                sourcePaidAt: paidAt,
-                sourcePreimage: preimage,
-                nextRetryAt: new Date(),
-                lastError: null
-              }
-            })
-            await database.proxyPayment.updateMany({
-              where: {
-                id: invoice.proxyPayment!.id,
-                status: { in: ['PENDING_INBOUND', 'BLOCKED'] }
-              },
-              data: { status: 'READY_TO_FORWARD' }
-            })
-          })
-          after(async () => {
-            await reconcileProxyPayments({ ids: [invoice.proxyPayment!.id] })
-          })
-        } else {
-          await prisma.invoice.update({
-            where: { paymentHash },
-            data: { status: 'PAID', preimage, paidAt }
-          })
-        }
-        // Broadcast the PENDING → PAID flip so the owner's address invoice
-        // feed flips without requiring a manual refresh. Only emit on the
-        // transition (we're already inside the `status !== 'PAID'` guard)
-        // to avoid spamming the bus on every verify poll of a settled tx.
-        eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
-        logActivity.fireAndForget({
-          category: 'INVOICE',
-          event: ActivityEvent.INVOICE_PAID,
-          message: `Invoice paid via LUD-21 verify (${invoice.amountSats} sats)`,
-          userId: invoice.user.id,
-          metadata: {
-            ...invoiceLogMetadata({
-              ...invoice,
-              status: 'PAID',
-              preimage,
-              paidAt
-            }),
-            source: 'lud21_verify'
           }
-        })
-      }
+          // Broadcast the PENDING → PAID flip so the owner's address invoice
+          // feed flips without requiring a manual refresh. Only emit on the
+          // transition (we're already inside the `status !== 'PAID'` guard)
+          // to avoid spamming the bus on every verify poll of a settled tx.
+          eventBus.emit({ type: 'invoices:updated', timestamp: Date.now() })
+          logActivity.fireAndForget({
+            category: 'INVOICE',
+            event: ActivityEvent.INVOICE_PAID,
+            message: `Invoice paid via LUD-21 verify (${invoice.amountSats} sats)`,
+            userId: invoice.user.id,
+            metadata: {
+              ...invoiceLogMetadata({
+                ...invoice,
+                status: 'PAID',
+                preimage,
+                paidAt
+              }),
+              source: 'lud21_verify'
+            }
+          })
+          if (!invoice.proxyPayment && invoice.zapRequest) {
+            after(() => publishInvoiceZapReceipt(invoice.id))
+          }
+        }
 
-      const response: LUD21VerifySuccess = {
-        status: 'OK',
-        settled,
-        preimage,
-        pr: invoice.bolt11
-      }
-      return NextResponse.json(response)
-    } catch (error) {
-      logger.warn(
-        {
-          paymentHash,
-          error: error instanceof Error ? error.message : String(error)
-        },
-        'NWC lookup_invoice failed'
-      )
-      const msg = error instanceof Error ? error.message : String(error)
-      const isTimeout = /timeout|timed out|timed-out/i.test(msg)
-      logActivity.fireAndForget({
-        category: 'NWC',
-        event: isTimeout
-          ? ActivityEvent.NWC_RELAY_TIMEOUT
-          : ActivityEvent.NWC_CONNECTION_ERROR,
-        level: 'WARN',
-        message: isTimeout
-          ? 'NWC relay timed out during invoice lookup'
-          : 'NWC lookup_invoice failed',
-        userId: invoice.user.id,
-        metadata: { paymentHash, error: msg }
-      })
-      // On NWC failure, return unsettled (client can retry later)
-      const response: LUD21VerifySuccess = {
-        status: 'OK',
-        settled: false,
-        preimage: null,
-        pr: invoice.bolt11
-      }
-      return NextResponse.json(response)
-    } finally {
-      try {
-        nwcClient?.close()
-      } catch {
-        // ignore close errors
+        const response: LUD21VerifySuccess = {
+          status: 'OK',
+          settled,
+          preimage,
+          pr: invoice.bolt11
+        }
+        return NextResponse.json(response)
+      } catch (error) {
+        logger.warn(
+          {
+            paymentHash,
+            error: error instanceof Error ? error.message : String(error)
+          },
+          'NWC lookup_invoice failed'
+        )
+        const msg = error instanceof Error ? error.message : String(error)
+        const isTimeout = /timeout|timed out|timed-out/i.test(msg)
+        logActivity.fireAndForget({
+          category: 'NWC',
+          event: isTimeout
+            ? ActivityEvent.NWC_RELAY_TIMEOUT
+            : ActivityEvent.NWC_CONNECTION_ERROR,
+          level: 'WARN',
+          message: isTimeout
+            ? 'NWC relay timed out during invoice lookup'
+            : 'NWC lookup_invoice failed',
+          userId: invoice.user.id,
+          metadata: { paymentHash, error: msg }
+        })
+        // On NWC failure, return unsettled (client can retry later)
+        const response: LUD21VerifySuccess = {
+          status: 'OK',
+          settled: false,
+          preimage: null,
+          pr: invoice.bolt11
+        }
+        return NextResponse.json(response)
+      } finally {
+        try {
+          nwcClient?.close()
+        } catch {
+          // ignore close errors
+        }
       }
     }
-  }
+  ),
+  { headers: PUBLIC_READ_CORS_HEADERS }
 )

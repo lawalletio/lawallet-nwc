@@ -30,7 +30,10 @@ vi.mock('@getalby/sdk', () => ({
   }))
 }))
 
-import { GET } from '@/app/api/lud16/[username]/verify/[paymentHash]/route'
+import {
+  GET,
+  OPTIONS
+} from '@/app/api/lud16/[username]/verify/[paymentHash]/route'
 
 const VALID_HASH = 'a'.repeat(64)
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000)
@@ -49,9 +52,17 @@ const baseInvoice = {
     lightningAddresses: [
       {
         username: 'alice',
-        mode: 'DEFAULT_NWC',
+        mode: 'CUSTOM_NWC',
         redirect: null,
-        remoteWallet: null
+        remoteWallet: {
+          id: 'wallet-1',
+          type: 'NWC',
+          status: 'ACTIVE',
+          config: {
+            connectionString: 'nostr+walletconnect://abc',
+            mode: 'SEND_RECEIVE'
+          }
+        }
       }
     ]
   }
@@ -80,6 +91,14 @@ beforeEach(() => {
 })
 
 describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
+  it('allows cross-origin LUD-21 verification preflights', () => {
+    const res = OPTIONS()
+
+    expect(res.status).toBe(204)
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('GET')
+  })
+
   it('rejects invalid payment hash format', async () => {
     const req = createNextRequest('/api/lud16/alice/verify/short')
     const res = await GET(
@@ -90,6 +109,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
 
     expect(body.status).toBe('ERROR')
     expect(body.reason).toContain('Invalid')
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
     expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled()
   })
 
@@ -295,7 +315,18 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
   it('returns unsettled when user has no wallet configured', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      user: { ...baseInvoice.user }
+      user: {
+        ...baseInvoice.user,
+        // The address exists but names no wallet — nothing to look up against.
+        lightningAddresses: [
+          {
+            username: 'alice',
+            mode: 'CUSTOM_NWC',
+            redirect: null,
+            remoteWallet: null
+          }
+        ]
+      }
     } as any)
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
 
