@@ -29,6 +29,32 @@ export function useCursorPagination() {
   }
 }
 
+/**
+ * Paging over a list already held in memory.
+ *
+ * The page index is clamped against the current length rather than merely
+ * being read through a `Math.min` at render: a list that shrinks under a
+ * stale index otherwise leaves the Previous button looking dead for as many
+ * clicks as the list lost pages.
+ */
+export function useLocalPagination<T>(items: T[], pageSize: number) {
+  const [page, setPage] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize))
+  const current = Math.min(page, pageCount - 1)
+  if (current !== page) setPage(current)
+  return {
+    /** 1-based, for display. */
+    page: current + 1,
+    pageCount,
+    items: items.slice(current * pageSize, (current + 1) * pageSize),
+    hasNext: current < pageCount - 1,
+    // Functional updates: two clicks landing in the same tick would otherwise
+    // both read the same rendered index and only advance once.
+    next: () => setPage(p => Math.min(p + 1, pageCount - 1)),
+    previous: () => setPage(p => Math.max(p - 1, 0))
+  }
+}
+
 export function CursorPagination({
   label,
   page,
