@@ -64,6 +64,10 @@ import {
   type RemoteWalletZapData
 } from '@/lib/client/hooks/use-remote-wallet-forwarding'
 import type { NwcTransaction } from '@/lib/client/nwc'
+import {
+  mergeReceivedPayments,
+  type ReceivedPaymentRow
+} from '@/lib/client/received-payments'
 import { cn } from '@/lib/utils'
 
 const FORWARDING_PAGE_SIZE = 5
@@ -110,8 +114,18 @@ export function RemoteWalletForwardingPanel({
     receipts.data?.receipts.find(receipt => receipt.id === selectedReceiptId) ??
     null
   const receivedPayments = useMemo(
-    () => mergeReceivedPayments(transactions, receipts.data?.receipts ?? []),
-    [transactions, receipts.data?.receipts]
+    () =>
+      mergeReceivedPayments(
+        transactions,
+        receipts.data?.receipts ?? [],
+        action.data
+          ? {
+              enabled: action.data.enabled,
+              enabledAt: action.data.enabledAt
+            }
+          : null
+      ),
+    [transactions, receipts.data?.receipts, action.data]
   )
   const paymentsPageCount = Math.max(
     1,
@@ -488,51 +502,6 @@ function Metric({
   )
 }
 
-type ReceivedPaymentRow = {
-  key: string
-  timestamp: number
-  transaction: NwcTransaction | null
-  receipt: ForwardReceiptData | null
-}
-
-function mergeReceivedPayments(
-  transactions: NwcTransaction[],
-  receipts: ForwardReceiptData[]
-): ReceivedPaymentRow[] {
-  const incoming = transactions.filter(
-    transaction => transaction.type === 'incoming'
-  )
-  const receiptByHash = new Map(
-    receipts.map(receipt => [receipt.sourcePaymentHash.toLowerCase(), receipt])
-  )
-  const matchedReceiptIds = new Set<string>()
-  const rows: ReceivedPaymentRow[] = incoming.map((transaction, index) => {
-    const receipt = transaction.paymentHash
-      ? (receiptByHash.get(transaction.paymentHash.toLowerCase()) ?? null)
-      : null
-    if (receipt) matchedReceiptIds.add(receipt.id)
-    return {
-      key: transaction.paymentHash
-        ? `payment:${transaction.paymentHash.toLowerCase()}`
-        : `payment:${transaction.settledAt ?? transaction.createdAt}:${index}`,
-      timestamp: transaction.settledAt ?? transaction.createdAt,
-      transaction,
-      receipt
-    }
-  })
-
-  for (const receipt of receipts) {
-    if (matchedReceiptIds.has(receipt.id)) continue
-    rows.push({
-      key: `receipt:${receipt.id}`,
-      timestamp: Date.parse(receipt.sourceSettledAt),
-      transaction: null,
-      receipt
-    })
-  }
-
-  return rows.sort((a, b) => b.timestamp - a.timestamp)
-}
 
 function ReceivedPaymentsList({
   rows,
@@ -594,6 +563,11 @@ function ReceivedPaymentsList({
             >
               {receipt ? (
                 <ForwardingStatusIcon status={receipt.status} />
+              ) : row.awaitingForwarding ? (
+                <ForwardingStatusIcon
+                  status="AWAITING_FORWARDING"
+                  busyLabel="Waiting to be forwarded"
+                />
               ) : (
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
                   <ArrowDownLeft className="size-5" />
@@ -606,6 +580,8 @@ function ReceivedPaymentsList({
                   </span>
                   {receipt ? (
                     <ForwardingStatusBadge status={receipt.status} />
+                  ) : row.awaitingForwarding ? (
+                    <ForwardingStatusBadge status="AWAITING_FORWARDING" />
                   ) : (
                     <Badge variant="outline">regular</Badge>
                   )}
@@ -635,7 +611,9 @@ function ReceivedPaymentsList({
                 <div className="text-xs text-muted-foreground">
                   {receipt
                     ? `sent ${formatMsats(String(receipt.forwardedAmountMsats))}`
-                    : 'kept in wallet'}
+                    : row.awaitingForwarding
+                      ? 'not forwarded yet'
+                      : 'kept in wallet'}
                 </div>
               </div>
               <ArrowRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />

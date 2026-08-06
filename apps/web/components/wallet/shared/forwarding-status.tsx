@@ -26,6 +26,10 @@ const TONES: Record<string, Tone> = {
   FAILED: 'negative',
   RECEIVED: 'pending',
   FORWARDING: 'pending',
+  // Synthetic: the payment landed but its forwarding receipt has not been
+  // captured yet. Without it such a payment reads as an ordinary settled
+  // receive, which is a claim we cannot make yet.
+  AWAITING_FORWARDING: 'pending',
   PARTIAL: 'pending',
   PENDING: 'pending',
   READY: 'pending',
