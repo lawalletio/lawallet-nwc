@@ -12,7 +12,10 @@ const encodedLnurl = bech32.encode(
   2048
 )
 
-function zapRequest(overrides: { amount?: string; lnurl?: string } = {}) {
+function zapRequest(
+  overrides: { amount?: string; lnurl?: string | null } = {}
+) {
+  const lnurl = 'lnurl' in overrides ? overrides.lnurl : encodedLnurl
   return finalizeEvent(
     {
       kind: 9734,
@@ -21,12 +24,23 @@ function zapRequest(overrides: { amount?: string; lnurl?: string } = {}) {
       tags: [
         ['p', recipientKey],
         ['amount', overrides.amount ?? '100000'],
-        ['lnurl', overrides.lnurl ?? encodedLnurl],
+        ...(lnurl ? [['lnurl', lnurl]] : []),
         ['relays', 'wss://relay.example']
       ]
     },
     senderKey
   )
+}
+
+/** Runs validation with the fixture's recipient/amount/LNURL expectations. */
+function validate(overrides: { amount?: string; lnurl?: string | null } = {}) {
+  return validateZapRequest({
+    raw: JSON.stringify(zapRequest(overrides)),
+    amountMsats: 100_000,
+    recipientPubkey: recipientKey,
+    expectedLnurl: lnurlUrl,
+    nowSeconds: 1_700_000_000
+  })
 }
 
 describe('proxy NIP-57 validation', () => {
@@ -64,6 +78,33 @@ describe('proxy NIP-57 validation', () => {
         nowSeconds: 1_700_000_000
       })
     ).toThrow(/LNURL/)
+  })
+
+  // NIP-57 lists `lnurl` as MAY, and the clients that do send it disagree on
+  // the encoding. Requiring bech32 rejected zaps that are perfectly valid.
+  it('accepts the LNURL as a plain URL, a Lightning Address, or omitted', () => {
+    expect(validate({ lnurl: null }).event.kind).toBe(9734)
+    expect(validate({ lnurl: lnurlUrl }).event.kind).toBe(9734)
+    expect(validate({ lnurl: 'alice@pay.example' }).event.kind).toBe(9734)
+  })
+
+  it('ignores casing and a trailing slash in the LNURL', () => {
+    expect(
+      validate({ lnurl: 'https://PAY.EXAMPLE/.well-known/lnurlp/alice/' }).event
+        .kind
+    ).toBe(9734)
+  })
+
+  it('still rejects an LNURL for another address or another host', () => {
+    expect(() =>
+      validate({ lnurl: 'https://pay.example/.well-known/lnurlp/bob' })
+    ).toThrow(/LNURL does not match/)
+    expect(() => validate({ lnurl: 'bob@pay.example' })).toThrow(
+      /LNURL does not match/
+    )
+    expect(() =>
+      validate({ lnurl: 'https://evil.example/.well-known/lnurlp/alice' })
+    ).toThrow(/LNURL does not match/)
   })
 
   it('derives the advertised receipt pubkey from the signer', () => {

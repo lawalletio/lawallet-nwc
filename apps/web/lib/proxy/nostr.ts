@@ -69,12 +69,13 @@ export function validateZapRequest(input: {
       'Zap request amount does not match callback amount'
     )
   }
-  const lnurlTags = event.tags.filter(tag => tag[0] === 'lnurl')
-  if (
-    lnurlTags.length !== 1 ||
-    !lnurlTags[0][1] ||
-    decodeLnurl(lnurlTags[0][1]) !== input.expectedLnurl
-  ) {
+  // NIP-57 lists `lnurl` as optional ("MAY"), and clients that do send it are
+  // not consistent about the encoding: the spec says bech32, but plain
+  // LNURL-pay URLs and bare Lightning Addresses are both common in the wild.
+  // Accepting only bech32 rejected spec-compliant zaps outright, so validate
+  // the tag when present and accept any of the three spellings.
+  const lnurlTag = event.tags.find(tag => tag[0] === 'lnurl')?.[1]?.trim()
+  if (lnurlTag && !matchesExpectedLnurl(lnurlTag, input.expectedLnurl)) {
     throw new ValidationError('Zap request LNURL does not match this address')
   }
   const relays = [
@@ -171,6 +172,46 @@ export async function publishZapReceipt(input: {
     pool.close(relays)
   }
   return { event, json: JSON.stringify(event) }
+}
+
+/**
+ * True when the zap request's `lnurl` tag denotes this address, in any of the
+ * spellings clients use: a bech32 `lnurl1…`, the LNURL-pay URL itself, or the
+ * Lightning Address. The address form is derived from the expected URL, so
+ * callers do not have to pass it separately.
+ */
+function matchesExpectedLnurl(value: string, expectedLnurl: string): boolean {
+  const candidate = decodeLnurl(value) ?? value
+  if (canonicalUrl(candidate) === canonicalUrl(expectedLnurl)) return true
+
+  const expected = lightningAddressFromLnurl(expectedLnurl)
+  return expected !== null && candidate.trim().toLowerCase() === expected
+}
+
+/** `https://host/.well-known/lnurlp/user` → `user@host`. */
+function lightningAddressFromLnurl(lnurl: string): string | null {
+  try {
+    const url = new URL(lnurl)
+    const user = url.pathname.split('/.well-known/lnurlp/')[1]
+    if (!user) return null
+    return `${decodeURIComponent(user)}@${url.host}`.toLowerCase()
+  } catch {
+    return null
+  }
+}
+
+/** Compares URLs without tripping over case or a trailing slash. */
+function canonicalUrl(value: string): string {
+  try {
+    const url = new URL(value)
+    url.hash = ''
+    return `${url.protocol}//${url.host.toLowerCase()}${url.pathname.replace(
+      /\/$/,
+      ''
+    )}${url.search}`
+  } catch {
+    return value.trim().toLowerCase()
+  }
 }
 
 function decodeLnurl(value: string): string | null {
