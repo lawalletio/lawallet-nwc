@@ -60,10 +60,12 @@ export interface WalletAddressDetail {
   ownerPubkey?: string
   /** Capabilities currently exposed by this address's public LUD-16 endpoint. */
   receiveProtocols?: {
-    lud21: boolean
+    /** `null` when it cannot be known without requesting an invoice (ALIAS). */
+    lud21: boolean | null
     nip57: boolean
-    source: 'proxy' | 'wallet' | 'unavailable'
+    source: 'proxy' | 'wallet' | 'alias' | 'unavailable'
     reason: string | null
+    provider?: string | null
   }
 }
 

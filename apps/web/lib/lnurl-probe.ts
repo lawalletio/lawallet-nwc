@@ -80,7 +80,7 @@ function assertSendableRange(metadata: Lud16Metadata): void {
   }
 }
 
-function isHexPubkey(value: unknown): value is string {
+export function isHexPubkey(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{64}$/i.test(value)
 }
 

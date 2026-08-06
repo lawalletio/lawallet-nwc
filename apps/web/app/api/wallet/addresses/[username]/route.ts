@@ -34,6 +34,7 @@ import {
   forwardingGraphNodes
 } from '@/lib/proxy/forwarding-graph'
 import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
+import { fetchLud16Metadata, isHexPubkey } from '@/lib/lnurl-probe'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -83,10 +84,13 @@ function toWalletSummaryWithPrimary(
 }
 
 type AddressReceiveProtocols = {
-  lud21: boolean
+  /** `null` when it cannot be known without asking for an invoice. */
+  lud21: boolean | null
   nip57: boolean
-  source: 'proxy' | 'wallet' | 'unavailable'
+  source: 'proxy' | 'wallet' | 'alias' | 'unavailable'
   reason: string | null
+  /** The address actually serving these capabilities, for ALIAS. */
+  provider: string | null
 }
 
 /**
@@ -95,8 +99,45 @@ type AddressReceiveProtocols = {
  * report it as the provider instead of attributing it to the linked wallet.
  */
 async function getAddressReceiveProtocols(
-  mode: string
+  mode: string,
+  redirect: string | null
 ): Promise<AddressReceiveProtocols> {
+  // ALIAS hands the payer the target's own payRequest, so the capabilities on
+  // offer are the target's, not ours. Read them off its metadata — one GET, no
+  // invoice minted. LUD-21 is deliberately left unknown: nothing in a
+  // payRequest advertises it, only a callback response carries `verify`.
+  if (mode === 'ALIAS') {
+    if (!redirect) {
+      return {
+        lud21: false,
+        nip57: false,
+        source: 'unavailable',
+        reason: 'This alias has no destination yet.',
+        provider: null
+      }
+    }
+    try {
+      const metadata = await fetchLud16Metadata(redirect)
+      const nip57 =
+        metadata.allowsNostr === true && isHexPubkey(metadata.nostrPubkey)
+      return {
+        lud21: null,
+        nip57,
+        source: 'alias',
+        reason: nip57 ? null : `${redirect} does not advertise NIP-57 zaps.`,
+        provider: redirect
+      }
+    } catch {
+      return {
+        lud21: null,
+        nip57: false,
+        source: 'unavailable',
+        reason: `${redirect} could not be reached to read its capabilities.`,
+        provider: redirect
+      }
+    }
+  }
+
   if (mode === 'PROXY_ALIAS') {
     const [proxy, listener] = await Promise.all([
       getActiveProxyConfig(),
@@ -114,7 +155,8 @@ async function getAddressReceiveProtocols(
         ? nip57
           ? null
           : 'The proxy zap receipt signer is not configured.'
-        : 'Deferred proxy requires an enabled listener and proxy wallet.'
+        : 'Deferred proxy requires an enabled listener and proxy wallet.',
+      provider: null
     }
   }
 
@@ -123,7 +165,8 @@ async function getAddressReceiveProtocols(
     lud21: capability.lud21,
     nip57: capability.nip57,
     source: 'wallet',
-    reason: capability.reason
+    reason: capability.reason,
+    provider: null
   }
 }
 
@@ -178,7 +221,7 @@ export const GET = withErrorHandling(
           getPrimaryRemoteWalletForUser(address.userId),
           selectableWallets(address.userId),
           isProxyEnabled(),
-          getAddressReceiveProtocols(address.mode)
+          getAddressReceiveProtocols(address.mode, address.redirect)
         ])
       const wallets = sortWalletsWithPrimary(selectable, primaryWallet)
 
@@ -200,7 +243,7 @@ export const GET = withErrorHandling(
         getPrimaryRemoteWalletForUser(caller.id),
         selectableWallets(caller.id),
         isProxyEnabled(),
-        getAddressReceiveProtocols(address.mode)
+        getAddressReceiveProtocols(address.mode, address.redirect)
       ]
     )
     const wallets = sortWalletsWithPrimary(selectable, primaryWallet)

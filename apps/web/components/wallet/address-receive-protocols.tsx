@@ -3,10 +3,13 @@ import { Badge } from '@/components/ui/badge'
 import { ProtocolRow } from '@/components/wallet/shared/protocol-row'
 
 export interface AddressReceiveProtocolsProps {
-  lud21: boolean
+  /** `null` when it cannot be known without requesting an invoice (ALIAS). */
+  lud21: boolean | null
   nip57: boolean
-  source: 'proxy' | 'wallet' | 'unavailable'
+  source: 'proxy' | 'wallet' | 'alias' | 'unavailable'
   reason: string | null
+  /** The address serving these capabilities, when it isn't this one. */
+  provider?: string | null
 }
 
 /**
@@ -18,9 +21,14 @@ export function AddressReceiveProtocols({
   lud21,
   nip57,
   source,
-  reason
+  reason,
+  provider
 }: AddressReceiveProtocolsProps) {
   const viaProxy = source === 'proxy'
+  // An alias serves the destination's payRequest verbatim, so the payer deals
+  // with that provider directly and these capabilities are its, not ours.
+  const viaAlias = source === 'alias'
+  const by = provider ? ` by ${provider}` : ''
 
   return (
     <section className="overflow-hidden rounded-xl border border-border bg-card">
@@ -28,11 +36,17 @@ export function AddressReceiveProtocols({
         <div>
           <h2 className="text-sm font-medium">Receive protocols</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Public capabilities for this Lightning Address.
+            {viaAlias && provider
+              ? `Served by ${provider}, which this address aliases.`
+              : 'Public capabilities for this Lightning Address.'}
           </p>
         </div>
-        <Badge variant={viaProxy ? 'secondary' : 'outline'}>
-          {viaProxy ? 'Served by proxy' : 'Current status'}
+        <Badge variant={viaProxy || viaAlias ? 'secondary' : 'outline'}>
+          {viaProxy
+            ? 'Served by proxy'
+            : viaAlias
+              ? 'Served by alias'
+              : 'Current status'}
         </Badge>
       </div>
       <div className="grid divide-y divide-border/60 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
@@ -41,11 +55,13 @@ export function AddressReceiveProtocols({
           icon={<ShieldCheck className="size-4" />}
           title="LUD-21 verification"
           detail={
-            lud21
-              ? viaProxy
-                ? 'Enabled · proxy invoices expose a settlement verification URL.'
-                : 'Enabled · issued invoices expose a settlement verification URL.'
-              : 'Unavailable until this address has an active receiving route.'
+            lud21 === null
+              ? `A payRequest does not advertise LUD-21, so this can only be confirmed${by} when an invoice is issued.`
+              : lud21
+                ? viaProxy
+                  ? 'Enabled · proxy invoices expose a settlement verification URL.'
+                  : 'Enabled · issued invoices expose a settlement verification URL.'
+                : 'Unavailable until this address has an active receiving route.'
           }
         />
         <ProtocolRow
@@ -56,7 +72,9 @@ export function AddressReceiveProtocols({
             nip57
               ? viaProxy
                 ? 'Enabled · proxy receipts are signed and published after settlement.'
-                : 'Enabled · settled zap invoices publish a signed receipt.'
+                : viaAlias
+                  ? `Advertised${by} · zap receipts are signed by that provider.`
+                  : 'Enabled · settled zap invoices publish a signed receipt.'
               : (reason ??
                 'Unavailable until settlement detection and a receipt signer are ready.')
           }

@@ -7,6 +7,11 @@ import { cn } from '@/lib/utils'
  * an explanation of why it is or isn't on. Shared by the Lightning Address and
  * RemoteWallet capability panels, which describe the same protocols from two
  * different vantage points.
+ *
+ * `enabled` may be `null` for "cannot be determined" — an aliased address does
+ * not advertise LUD-21 in its payRequest, and the only way to find out is to
+ * ask its callback for an invoice. Saying "Unavailable" there would be a claim
+ * we have not checked.
  */
 export function ProtocolRow({
   icon,
@@ -17,8 +22,9 @@ export function ProtocolRow({
   icon: ReactNode
   title: string
   detail: string
-  enabled: boolean
+  enabled: boolean | null
 }) {
+  const unknown = enabled === null
   return (
     <div className="flex gap-3 px-5 py-4">
       <span
@@ -41,7 +47,7 @@ export function ProtocolRow({
                 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
             )}
           >
-            {enabled ? 'Enabled' : 'Unavailable'}
+            {unknown ? 'Not advertised' : enabled ? 'Enabled' : 'Unavailable'}
           </Badge>
         </div>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">

@@ -631,6 +631,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                 nip57={data.receiveProtocols?.nip57 ?? false}
                 source={data.receiveProtocols?.source ?? 'unavailable'}
                 reason={data.receiveProtocols?.reason ?? null}
+                provider={data.receiveProtocols?.provider ?? null}
               />
 
               <ProxyAddressWorkspace
