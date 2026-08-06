@@ -94,11 +94,15 @@ STRICT_EXTERNAL_PACKAGES=1 pnpm deploy:check
 # already exist, so a hand-written changelog is preserved.
 step "Bump version ($BUMP)"
 if [ "$DRY_RUN" = 1 ]; then
-  next="$(node -p "
-    const s=require('semver');
-    s.inc(require('$root/package.json').version, '$BUMP')
-  " 2>/dev/null || true)"
-  echo "would bump $(node -p "require('$root/package.json').version") -> ${next:-<next>}"
+  # Computed inline rather than via semver: this script runs before
+  # `pnpm install` has necessarily resolved anything at the repo root.
+  next="$(BUMP="$BUMP" node -p "
+    const [maj,min,pat] = require('$root/package.json').version.split('.').map(Number);
+    process.env.BUMP === 'major' ? [maj+1,0,0].join('.')
+      : process.env.BUMP === 'minor' ? [maj,min+1,0].join('.')
+      : [maj,min,pat+1].join('.')
+  ")"
+  echo "would bump $(node -p "require('$root/package.json').version") -> ${next}"
   echo 'dry run — stopping before any commit, tag, push or release'
   exit 0
 fi
