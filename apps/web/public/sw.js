@@ -7,9 +7,10 @@
  *    offline with its last-known state.
  *  - Static assets (Next `/_next/static`, icons, images): cache-first — these
  *    are content-hashed / immutable so a stale hit is always correct.
- *  - Wallet read APIs (GET only): stale-while-revalidate so the balance and
- *    activity render instantly from cache and refresh in the background. Never
- *    caches non-GET or auth-sensitive mutations.
+ *  - Wallet read APIs (GET only): network-first, falling back to the cached
+ *    copy only when the network is unreachable, so the wallet still renders
+ *    offline without ever replaying a body a mutation has already
+ *    invalidated. Never caches non-GET or auth-sensitive mutations.
  *
  * Bump CACHE_VERSION to invalidate old caches on deploy.
  */
@@ -160,7 +161,16 @@ self.addEventListener('fetch', event => {
     return
   }
 
-  // Wallet read APIs — stale-while-revalidate.
+  // Wallet read APIs — network-first, cache only as the offline fallback.
+  //
+  // This used to answer from the cache first. Because the service worker
+  // scope is the whole origin, that made every mutation invisible for a
+  // generation: deleting a Lightning Address and returning to
+  // /admin/addresses replayed the cached `/api/wallet/addresses` body that
+  // still listed it, and no amount of client-side invalidation could help —
+  // the staleness lives below `fetch`. `lib/client/hooks/use-api.ts` already
+  // does stale-while-revalidate in memory, with invalidation on mutation, so
+  // the copy here only needs to cover being offline.
   if (isCacheableApi(url)) {
     const requestEpoch = userDataEpoch
     event.respondWith(
@@ -180,7 +190,7 @@ self.addEventListener('fetch', event => {
             return response
           })
           .catch(() => cached || Response.error())
-        return cached || network
+        return network
       })
     )
   }
