@@ -95,6 +95,9 @@ export interface ForwardReceiptData {
   walletId: string
   eventKey: string
   sourcePaymentHash: string
+  /** LUD-12 comment the payer attached, when the payment came through one of
+   * this instance's Lightning Addresses. */
+  comment: string | null
   sourceInvoice: string | null
   grossAmountMsats: number
   retainedFeeMsats: number

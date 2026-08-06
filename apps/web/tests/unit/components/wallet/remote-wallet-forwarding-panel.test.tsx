@@ -31,6 +31,7 @@ function forwardingReceipt(
     walletId: 'wallet-1',
     eventKey: 'event-1',
     sourcePaymentHash: RECEIPT_PAYMENT_HASH,
+    comment: null,
     sourceInvoice: null,
     grossAmountMsats: 2_000,
     retainedFeeMsats: 0,
@@ -262,6 +263,87 @@ describe('RemoteWalletForwardingPanel', () => {
       'wallet-1',
       { limit: 100 }
     )
+  })
+
+  // The wallet history is polled off the relay while receipts arrive over SSE,
+  // so a payment is visible before it has been captured. Claiming "kept in
+  // wallet" there would be a settled-sounding statement about money in flight.
+  it('marks a captured-but-unreceipted payment as awaiting forwarding', async () => {
+    const settledAt = Date.parse('2026-08-03T12:00:00.000Z')
+    render(
+      <RemoteWalletForwardingPanel
+        walletId="wallet-1"
+        transactions={[
+          {
+            type: 'incoming' as const,
+            amountSats: 100,
+            feesPaidSats: 0,
+            description: 'Fresh payment',
+            paymentHash: 'no-receipt-yet',
+            preimage: null,
+            settledAt,
+            createdAt: settledAt
+          }
+        ]}
+      />
+    )
+
+    await userEvent.click(
+      screen.getByRole('tab', { name: 'Payments received' })
+    )
+    expect(screen.getByText('Awaiting forwarding')).toBeInTheDocument()
+    expect(screen.getByText('not forwarded yet')).toBeInTheDocument()
+    expect(screen.queryByText('kept in wallet')).not.toBeInTheDocument()
+  })
+
+  // A payment that landed before forwarding was switched on is never captured,
+  // so it really is an ordinary receive.
+  it('leaves a payment predating enabledAt as a regular receive', async () => {
+    const settledAt = Date.parse('2026-07-01T12:00:00.000Z')
+    render(
+      <RemoteWalletForwardingPanel
+        walletId="wallet-1"
+        transactions={[
+          {
+            type: 'incoming' as const,
+            amountSats: 100,
+            feesPaidSats: 0,
+            description: 'Old payment',
+            paymentHash: 'old-hash',
+            preimage: null,
+            settledAt,
+            createdAt: settledAt
+          }
+        ]}
+      />
+    )
+
+    await userEvent.click(
+      screen.getByRole('tab', { name: 'Payments received' })
+    )
+    expect(screen.getByText('kept in wallet')).toBeInTheDocument()
+    expect(screen.queryByText('Awaiting forwarding')).not.toBeInTheDocument()
+  })
+
+  it('shows the LUD-12 comment the payer left', async () => {
+    vi.mocked(useRemoteWalletForwardReceipts).mockReturnValue({
+      data: {
+        receipts: [
+          forwardingReceipt({ id: 'receipt-comment', comment: 'Pizza money' })
+        ],
+        nextCursor: null
+      },
+      loading: false,
+      error: null,
+      refetch: vi.fn()
+    } as never)
+    render(<RemoteWalletForwardingPanel walletId="wallet-1" />)
+
+    await userEvent.click(
+      screen.getByRole('tab', { name: 'Payments received' })
+    )
+
+    expect(screen.getByText('“Pizza money”')).toBeInTheDocument()
   })
 
   it('shows the reason for a blocked payment in the payments list', async () => {

@@ -73,7 +73,11 @@ export type ForwardReceiptRow = {
   legs: LegRow[]
 }
 
-export function forwardReceiptToDto(receipt: ForwardReceiptRow) {
+export function forwardReceiptToDto(
+  receipt: ForwardReceiptRow,
+  /** LUD-12 payer comment from the invoice that funded this receipt. */
+  comment: string | null = null
+) {
   const hasActiveLegs = receipt.legs.some(leg => leg.status !== 'SUPERSEDED')
   const lastError =
     receipt.lastError ??
@@ -88,6 +92,7 @@ export function forwardReceiptToDto(receipt: ForwardReceiptRow) {
     walletId: receipt.walletId,
     eventKey: receipt.eventKey,
     sourcePaymentHash: receipt.sourcePaymentHash,
+    comment,
     sourceInvoice: receipt.sourceInvoice,
     grossAmountMsats: Number(receipt.grossAmountMsats),
     retainedFeeMsats: Number(receipt.retainedFeeMsats),

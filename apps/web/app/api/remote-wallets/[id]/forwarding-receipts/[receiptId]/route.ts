@@ -3,6 +3,7 @@ import { remoteWalletForwardReceiptParamsSchema } from '@lawallet-nwc/shared'
 import { requireUserId } from '@/lib/auth/account'
 import { prisma } from '@/lib/prisma'
 import { forwardReceiptToDto } from '@/lib/remote-wallet-forwarding/dto'
+import { commentsByPaymentHash } from '@/lib/remote-wallet-forwarding/comments'
 import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 import { validateParams } from '@/lib/validation/middleware'
 import { NotFoundError } from '@/types/server/errors'
@@ -46,6 +47,12 @@ export const GET = withErrorHandling(
       }
     })
     if (!receipt) throw new NotFoundError('Forwarding receipt not found')
-    return NextResponse.json(forwardReceiptToDto(receipt))
+    const comments = await commentsByPaymentHash([receipt.sourcePaymentHash])
+    return NextResponse.json(
+      forwardReceiptToDto(
+        receipt,
+        comments.get(receipt.sourcePaymentHash.toLowerCase()) ?? null
+      )
+    )
   }
 )

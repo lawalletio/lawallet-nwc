@@ -586,6 +586,11 @@ function ReceivedPaymentsList({
                     <Badge variant="outline">regular</Badge>
                   )}
                 </div>
+                {receipt?.comment && (
+                  <p className="mt-1 line-clamp-2 border-l-2 border-border pl-2 text-xs italic text-muted-foreground">
+                    “{receipt.comment}”
+                  </p>
+                )}
                 <div className="mt-1 text-xs text-muted-foreground">
                   {formatDateTime(row.timestamp)}
                   {receipt
@@ -1048,6 +1053,16 @@ function ForwardReceiptDialog({
               <div className="flex gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 <AlertTriangle className="size-4 shrink-0" />
                 {receipt.lastError}
+              </div>
+            )}
+            {receipt.comment && (
+              <div className="rounded-xl border bg-background/40 p-4">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Payer comment
+                </p>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm italic">
+                  “{receipt.comment}”
+                </p>
               </div>
             )}
             <div className="grid gap-3 rounded-xl border bg-background/40 p-4 sm:grid-cols-2">

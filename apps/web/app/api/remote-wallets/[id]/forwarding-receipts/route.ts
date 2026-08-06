@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { remoteWalletForwardReceiptListQuerySchema } from '@lawallet-nwc/shared'
 import { requireUserId } from '@/lib/auth/account'
 import { prisma } from '@/lib/prisma'
+import { commentsByPaymentHash } from '@/lib/remote-wallet-forwarding/comments'
 import { forwardReceiptToDto } from '@/lib/remote-wallet-forwarding/dto'
 import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
@@ -52,8 +53,18 @@ export const GET = withErrorHandling(
     })
     const hasMore = rows.length > query.limit
     const page = hasMore ? rows.slice(0, query.limit) : rows
+    // One lookup for the whole page: the LUD-12 comment lives on the invoice
+    // that funded the receipt, keyed by the same payment hash.
+    const comments = await commentsByPaymentHash(
+      page.map(receipt => receipt.sourcePaymentHash)
+    )
     return NextResponse.json({
-      receipts: page.map(forwardReceiptToDto),
+      receipts: page.map(receipt =>
+        forwardReceiptToDto(
+          receipt,
+          comments.get(receipt.sourcePaymentHash.toLowerCase()) ?? null
+        )
+      ),
       nextCursor: hasMore ? (page.at(-1)?.id ?? null) : null
     })
   }
