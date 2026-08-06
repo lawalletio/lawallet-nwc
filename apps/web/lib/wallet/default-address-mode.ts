@@ -1,20 +1,30 @@
-import { prisma } from '@/lib/prisma'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 
+export interface DefaultAddressRouting {
+  mode: 'CUSTOM_NWC' | 'IDLE'
+  /** Set only for CUSTOM_NWC — an address always names its wallet explicitly. */
+  remoteWalletId: string | null
+}
+
 /**
- * The mode a newly created lightning address should default to when the caller
- * doesn't choose one explicitly.
+ * How a newly created Lightning Address should route when the caller doesn't
+ * choose for itself.
  *
- * Routes through the user's primary wallet (`DEFAULT_NWC`) only when their
- * primary Lightning Address is linked to an ACTIVE RemoteWallet; otherwise
- * the address stays `IDLE`
+ * Binds the user's primary-address wallet directly when it is ACTIVE, so the
+ * address works the moment it exists; otherwise the address stays `IDLE`
  * (intentionally disabled) until a wallet is connected or a redirect is set.
  * This stops a freshly registered address from silently advertising a wallet
  * that isn't there.
+ *
+ * The binding is explicit rather than implied: an address that routes "through
+ * whatever the primary wallet happens to be" used to change destination behind
+ * the owner's back whenever the primary moved.
  */
-export async function resolveDefaultAddressMode(
+export async function resolveDefaultAddressRouting(
   userId: string
-): Promise<'DEFAULT_NWC' | 'IDLE'> {
+): Promise<DefaultAddressRouting> {
   const primaryWallet = await getPrimaryRemoteWalletForUser(userId)
-  return primaryWallet?.status === 'ACTIVE' ? 'DEFAULT_NWC' : 'IDLE'
+  return primaryWallet?.status === 'ACTIVE' && primaryWallet.id
+    ? { mode: 'CUSTOM_NWC', remoteWalletId: primaryWallet.id }
+    : { mode: 'IDLE', remoteWalletId: null }
 }

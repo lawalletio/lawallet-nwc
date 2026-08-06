@@ -81,8 +81,7 @@ export const GET = withErrorHandling(async (request: Request) => {
         const route = resolveWalletRoute({
           mode: primaryAddress.mode,
           redirect: primaryAddress.redirect,
-          remoteWallet: primaryAddress.remoteWallet,
-          defaultRemoteWallet: primaryWallet
+          remoteWallet: primaryAddress.remoteWallet
         })
         return route.kind === 'wallet'
           ? ((route.config as { connectionString?: string } | null)

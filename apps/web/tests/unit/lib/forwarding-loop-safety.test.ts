@@ -76,7 +76,7 @@ describe('local destination detection', () => {
 
 describe('config-time cycle detection', () => {
   it('allows a plain local destination — the point of the feature', async () => {
-    addresses({ mita1: { mode: 'DEFAULT_NWC', redirect: null } })
+    addresses({ mita1: { mode: 'CUSTOM_NWC', redirect: null } })
     await expect(
       assertNoForwardingCycle(
         forwardingGraphNodes.wallet('wallet-1'),
@@ -111,7 +111,7 @@ describe('config-time cycle detection', () => {
         redirect: 'alice@pay.example.com',
         remoteWalletId: null
       },
-      alice: { mode: 'DEFAULT_NWC', redirect: null, remoteWalletId: null }
+      alice: { mode: 'CUSTOM_NWC', redirect: null, remoteWalletId: null }
     })
     await expect(
       assertNoForwardingCycle(

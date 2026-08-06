@@ -223,7 +223,7 @@ describe('lncurlHealTarget', () => {
   it('returns null when lncurl is disabled', () => {
     expect(
       lncurlHealTarget(
-        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null },
+        { mode: 'CUSTOM_NWC', boundWallet: null },
         { lncurl_enabled: 'false', lncurl_auto_recreate: 'true' }
       )
     ).toBeNull()
@@ -232,7 +232,7 @@ describe('lncurlHealTarget', () => {
   it('returns null when neither auto-create nor auto-recreate is on', () => {
     expect(
       lncurlHealTarget(
-        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null },
+        { mode: 'CUSTOM_NWC', boundWallet: null },
         {
           lncurl_enabled: 'true',
           lncurl_auto_create: 'false',
@@ -245,7 +245,7 @@ describe('lncurlHealTarget', () => {
   it('auto-create alone provisions a first wallet (no-wallet case)', () => {
     expect(
       lncurlHealTarget(
-        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null },
+        { mode: 'CUSTOM_NWC', boundWallet: null },
         CREATE_ONLY
       )
     ).toEqual({ previousWalletId: null })
@@ -254,25 +254,17 @@ describe('lncurlHealTarget', () => {
   it('auto-create alone does NOT recreate a dead wallet (recreation needs auto-recreate)', () => {
     expect(
       lncurlHealTarget(
-        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: deadLncurl },
+        { mode: 'CUSTOM_NWC', boundWallet: deadLncurl },
         CREATE_ONLY
       )
     ).toBeNull()
   })
 
-  it('DEFAULT_NWC with no default wallet → create fresh (previousWalletId null)', () => {
-    expect(
-      lncurlHealTarget(
-        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: null },
-        ON
-      )
-    ).toEqual({ previousWalletId: null })
-  })
 
   it('CUSTOM_NWC with no bound wallet → create fresh (previousWalletId null)', () => {
     expect(
       lncurlHealTarget(
-        { mode: 'CUSTOM_NWC', boundWallet: null, defaultWallet: activeLncurl },
+        { mode: 'CUSTOM_NWC', boundWallet: null },
         ON
       )
     ).toEqual({ previousWalletId: null })
@@ -281,7 +273,7 @@ describe('lncurlHealTarget', () => {
   it('DEFAULT_NWC with a DEAD lncurl default → recreate that wallet', () => {
     expect(
       lncurlHealTarget(
-        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: deadLncurl },
+        { mode: 'CUSTOM_NWC', boundWallet: deadLncurl },
         ON
       )
     ).toEqual({ previousWalletId: 'w-dead' })
@@ -289,39 +281,28 @@ describe('lncurlHealTarget', () => {
 
   it('never replaces a DEAD non-LNCurl wallet', () => {
     expect(
-      lncurlHealTarget(
-        { mode: 'DEFAULT_NWC', boundWallet: null, defaultWallet: deadOther },
-        ON
-      )
+      lncurlHealTarget({ mode: 'CUSTOM_NWC', boundWallet: deadOther }, ON)
     ).toBeNull()
   })
 
   it('never auto-heals IDLE or ALIAS addresses', () => {
     expect(
       lncurlHealTarget(
-        { mode: 'IDLE', boundWallet: null, defaultWallet: null },
+        { mode: 'IDLE', boundWallet: null },
         ON
       )
     ).toBeNull()
     expect(
       lncurlHealTarget(
-        { mode: 'ALIAS', boundWallet: null, defaultWallet: null },
+        { mode: 'ALIAS', boundWallet: null },
         ON
       )
     ).toBeNull()
   })
 
-  it('CUSTOM_NWC keys off the bound wallet, not the default', () => {
-    // Bound wallet is a dead lncurl; default is an unrelated active wallet.
+  it('CUSTOM_NWC keys off the wallet the address is bound to', () => {
     expect(
-      lncurlHealTarget(
-        {
-          mode: 'CUSTOM_NWC',
-          boundWallet: deadLncurl,
-          defaultWallet: activeLncurl
-        },
-        ON
-      )
+      lncurlHealTarget({ mode: 'CUSTOM_NWC', boundWallet: deadLncurl }, ON)
     ).toEqual({ previousWalletId: 'w-dead' })
   })
 })

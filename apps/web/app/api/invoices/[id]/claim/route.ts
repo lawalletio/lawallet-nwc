@@ -22,7 +22,7 @@ import {
   invoiceLogMetadata,
   logActivity
 } from '@/lib/activity-log'
-import { resolveDefaultAddressMode } from '@/lib/wallet/default-address-mode'
+import { resolveDefaultAddressRouting } from '@/lib/wallet/default-address-mode'
 import {
   findInitialPrimaryWalletCandidate,
   getPrimaryRemoteWalletForUser,
@@ -181,7 +181,7 @@ export const POST = withErrorHandling(
             username,
             userId: user.id,
             isPrimary: false,
-            mode: await resolveDefaultAddressMode(user.id)
+            ...(await resolveDefaultAddressRouting(user.id))
           }
         })
       }

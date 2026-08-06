@@ -42,7 +42,7 @@ export interface LncurlHealWalletRef {
  * Eligibility:
  *   - `lncurl_enabled` is `'true'`, AND at least one of `lncurl_auto_create` /
  *     `lncurl_auto_recreate` is on,
- *   - the address routes through a wallet (DEFAULT_NWC / CUSTOM_NWC) — never
+ *   - the address routes through a wallet (CUSTOM_NWC) — never
  *     IDLE (intentionally disabled) or ALIAS (forwards elsewhere),
  *   - then, by case:
  *       · **no wallet at all** → provision a fresh one when EITHER
@@ -62,8 +62,6 @@ export function lncurlHealTarget(
     mode: LightningAddressMode
     /** Wallet bound directly to the address (CUSTOM_NWC). */
     boundWallet: LncurlHealWalletRef | null
-    /** The wallet linked through the user's primary address (DEFAULT_NWC). */
-    defaultWallet: LncurlHealWalletRef | null
   },
   settings: LncurlAutoHealSettings
 ): { previousWalletId: string | null } | null {
@@ -72,10 +70,9 @@ export function lncurlHealTarget(
   const autoRecreate = settings.lncurl_auto_recreate === 'true'
   if (!autoCreate && !autoRecreate) return null
 
-  let relevant: LncurlHealWalletRef | null
-  if (args.mode === 'DEFAULT_NWC') relevant = args.defaultWallet
-  else if (args.mode === 'CUSTOM_NWC') relevant = args.boundWallet
-  else return null // IDLE / ALIAS never auto-heal
+  // IDLE / ALIAS / PROXY_ALIAS never auto-heal — they don't route to a wallet.
+  if (args.mode !== 'CUSTOM_NWC') return null
+  const relevant = args.boundWallet
 
   // No wallet at all → first-time provisioning. Either flag enables it.
   if (!relevant) return { previousWalletId: null }

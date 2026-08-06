@@ -50,15 +50,11 @@ export function AddressDetailBody({
   primaryWallet,
   onOpenWallet
 }: Props) {
-  // For CUSTOM_NWC the wallet is the explicitly-bound one. For DEFAULT_NWC
-  // the implicit binding is the wallet linked to the account's primary
-  // Lightning Address.
+  // An address always names its wallet explicitly.
   const boundWallet =
     address.mode === 'CUSTOM_NWC' && address.remoteWalletId
       ? wallets.find(w => w.id === address.remoteWalletId)
-      : address.mode === 'DEFAULT_NWC'
-        ? primaryWallet
-        : null
+      : null
 
   return (
     // Body-only — the parent owns the Dialog + DialogContent + Overlay,

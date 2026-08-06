@@ -42,8 +42,7 @@ export function routesThroughPrimaryWallet(
   walletId: string,
   addresses: WalletAddress[] | null | undefined
 ): boolean {
-  if (address.mode === 'CUSTOM_NWC') return address.remoteWalletId === walletId
-  if (address.mode === 'DEFAULT_NWC')
-    return getPrimaryWalletId(addresses) === walletId
-  return false
+  return (
+    address.mode === 'CUSTOM_NWC' && address.remoteWalletId === walletId
+  )
 }

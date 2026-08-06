@@ -49,26 +49,9 @@ export const POST = withErrorHandling(
     }
 
     await prisma.$transaction(async tx => {
-      const fallbackWalletId = await getPrimaryRemoteWalletIdForUser(
-        user.id,
-        tx
-      )
-      const nextData =
-        target.mode === 'DEFAULT_NWC'
-          ? fallbackWalletId
-            ? {
-                isPrimary: true,
-                mode: 'CUSTOM_NWC' as const,
-                redirect: null,
-                remoteWalletId: fallbackWalletId
-              }
-            : {
-                isPrimary: true,
-                mode: 'IDLE' as const,
-                redirect: null,
-                remoteWalletId: null
-              }
-          : { isPrimary: true }
+      // Promotion only moves the primary flag now — an address already names
+      // its own wallet, so there is no implicit routing left to rewrite.
+      const nextData = { isPrimary: true }
 
       await tx.lightningAddress.updateMany({
         where: { userId: user.id, isPrimary: true },

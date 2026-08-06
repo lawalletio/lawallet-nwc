@@ -80,7 +80,6 @@ export default function AdminDashboardPage() {
       | 'ALIAS'
       | 'PROXY_ALIAS'
       | 'CUSTOM_NWC'
-      | 'DEFAULT_NWC'
       | null
     primaryUsername: string | null
     primaryRedirect: string | null
@@ -135,7 +134,7 @@ export default function AdminDashboardPage() {
 
             {/* IDLE / ALIAS primary addresses don't use NWC — swap the
             balance-and-wallet card for a purpose-built forwarding card.
-            NwcCard stays for CUSTOM_NWC / DEFAULT_NWC (and legacy users
+            NwcCard stays for CUSTOM_NWC (and legacy users
             with no primary address mode recorded), preserving the
             "set up your NWC wallet" flow it ships. */}
             {me?.primaryAddressMode === 'IDLE' ||

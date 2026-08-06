@@ -70,7 +70,7 @@ describe('GET /api/lightning-addresses', () => {
         username: 'alice',
         createdAt: new Date('2024-01-01'),
         updatedAt: new Date('2024-01-01'),
-        mode: 'DEFAULT_NWC',
+        mode: 'CUSTOM_NWC',
         redirect: null,
         remoteWalletId: null,
         isPrimary: true,

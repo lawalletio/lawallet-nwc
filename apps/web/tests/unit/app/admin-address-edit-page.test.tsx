@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event'
 
 const mocks = vi.hoisted(() => ({
   deferredProxyEnabled: false,
-  addressMode: 'DEFAULT_NWC',
+  addressMode: 'CUSTOM_NWC',
   wallets: [] as Array<{
     id: string
     name: string
@@ -128,7 +128,7 @@ async function openModePicker() {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.deferredProxyEnabled = false
-  mocks.addressMode = 'DEFAULT_NWC'
+  mocks.addressMode = 'CUSTOM_NWC'
   mocks.wallets = []
   mocks.refetch.mockResolvedValue(undefined)
 })

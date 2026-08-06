@@ -32,7 +32,7 @@ describe('Connection Map mobile rows', () => {
         addresses={[
           {
             username: 'alice',
-            mode: 'DEFAULT_NWC',
+            mode: 'IDLE',
             redirect: null,
             remoteWalletId: null,
             isPrimary: false,
@@ -52,10 +52,6 @@ describe('Connection Map mobile rows', () => {
     )
     expect(onOpenDetail).toHaveBeenCalledOnce()
 
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Primary wallet' })
-    )
-    expect(onOpenDetail).toHaveBeenCalledOnce()
   })
 
   it('renders card detail and binding actions as sibling buttons', async () => {
@@ -91,9 +87,5 @@ describe('Connection Map mobile rows', () => {
     )
     expect(onOpenDetail).toHaveBeenCalledOnce()
 
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Primary wallet' })
-    )
-    expect(onOpenDetail).toHaveBeenCalledOnce()
   })
 })

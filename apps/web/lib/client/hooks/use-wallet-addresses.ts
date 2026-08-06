@@ -11,7 +11,6 @@ export type LightningAddressMode =
   | 'ALIAS'
   | 'PROXY_ALIAS'
   | 'CUSTOM_NWC'
-  | 'DEFAULT_NWC'
 export type EffectiveNwcMode = 'NONE' | 'RECEIVE' | 'SEND_RECEIVE'
 
 export interface WalletAddress {

@@ -62,8 +62,7 @@ const MODE_LABEL: Record<WalletAddress['mode'], string> = {
   IDLE: 'Idle',
   ALIAS: 'Alias',
   PROXY_ALIAS: 'Deferred proxy',
-  CUSTOM_NWC: 'Custom NWC',
-  DEFAULT_NWC: 'Default NWC'
+  CUSTOM_NWC: 'Custom NWC'
 }
 
 /**
@@ -399,8 +398,7 @@ export default function AdminAddressesPage() {
                             <Badge
                               variant={
                                 addr.mode === 'IDLE' ||
-                                ((addr.mode === 'CUSTOM_NWC' ||
-                                  addr.mode === 'DEFAULT_NWC') &&
+                                (addr.mode === 'CUSTOM_NWC' &&
                                   addr.nwcMode === 'NONE')
                                   ? 'outline'
                                   : 'default'
@@ -419,8 +417,7 @@ export default function AdminAddressesPage() {
                             we actually resolved one. A "None" sub-line
                             under the badge duplicated the outline badge's
                             own muted styling and wasted a row of height. */}
-                          {(addr.mode === 'CUSTOM_NWC' ||
-                            addr.mode === 'DEFAULT_NWC') &&
+                          {addr.mode === 'CUSTOM_NWC' &&
                             addr.nwcMode !== 'NONE' && (
                               <span className="text-xs text-muted-foreground">
                                 {NWC_LABEL[addr.nwcMode]}

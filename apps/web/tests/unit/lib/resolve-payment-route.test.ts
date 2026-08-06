@@ -21,8 +21,7 @@ describe('resolveWalletRoute', () => {
   const base: ResolveWalletRouteInput = {
     mode: 'IDLE',
     redirect: null,
-    remoteWallet: null,
-    defaultRemoteWallet: null
+    remoteWallet: null
   }
 
   it('returns idle for IDLE', () => {
@@ -76,38 +75,6 @@ describe('resolveWalletRoute', () => {
     })
   })
 
-  describe('DEFAULT_NWC', () => {
-    it('routes through the default RemoteWallet when ACTIVE', () => {
-      expect(
-        resolveWalletRoute({
-          ...base,
-          mode: 'DEFAULT_NWC',
-          defaultRemoteWallet: activeWallet
-        })
-      ).toEqual({
-        kind: 'wallet',
-        walletId: activeWallet.id,
-        type: 'NWC',
-        config: activeWallet.config
-      })
-    })
-
-    it('returns unconfigured when the default is DISABLED', () => {
-      expect(
-        resolveWalletRoute({
-          ...base,
-          mode: 'DEFAULT_NWC',
-          defaultRemoteWallet: { ...activeWallet, status: 'DISABLED' }
-        })
-      ).toEqual({ kind: 'unconfigured' })
-    })
-
-    it('returns unconfigured when there is no default', () => {
-      expect(resolveWalletRoute({ ...base, mode: 'DEFAULT_NWC' })).toEqual({
-        kind: 'unconfigured'
-      })
-    })
-  })
 })
 
 describe('resolveCardWallet', () => {

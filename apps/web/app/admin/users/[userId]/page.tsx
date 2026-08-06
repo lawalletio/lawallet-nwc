@@ -74,8 +74,7 @@ const MODE_LABEL: Record<WalletAddress['mode'], string> = {
   IDLE: 'Idle',
   ALIAS: 'Alias',
   PROXY_ALIAS: 'Deferred proxy',
-  CUSTOM_NWC: 'Custom NWC',
-  DEFAULT_NWC: 'Default NWC'
+  CUSTOM_NWC: 'Custom NWC'
 }
 
 /**

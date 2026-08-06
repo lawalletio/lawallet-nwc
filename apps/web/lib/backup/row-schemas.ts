@@ -21,7 +21,6 @@ const lightningAddressMode = z.enum([
   'ALIAS',
   'PROXY_ALIAS',
   'CUSTOM_NWC',
-  'DEFAULT_NWC'
 ])
 const remoteWalletType = z.enum(['NWC', 'LND', 'CLN', 'BTCPAY'])
 const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED', 'DEAD'])

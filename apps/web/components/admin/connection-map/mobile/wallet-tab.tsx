@@ -27,7 +27,7 @@ interface Props {
 /**
  * Wallets tab (mobile) — read-only. Each wallet card shows its identity
  * + live balance, then everything bound to it: Lightning Addresses
- * (CUSTOM_NWC pointing here, or DEFAULT_NWC when this wallet is linked to
+ * (CUSTOM_NWC pointing here, when this wallet is linked to
  * the primary address)
  * and Cards (explicit `remoteWalletId`). Rebinds happen from the
  * Addresses / Cards tabs, not here — tapping a wallet opens its detail
@@ -95,11 +95,6 @@ export function WalletTab({ wallets, addresses, cards, onOpenDetail }: Props) {
                       <span className="truncate text-foreground">
                         {a.username}
                       </span>
-                      {a.mode === 'DEFAULT_NWC' && (
-                        <span className="text-[10px] uppercase tracking-wider">
-                          primary
-                        </span>
-                      )}
                     </span>
                   ))}
                   {boundCards.map(c => (

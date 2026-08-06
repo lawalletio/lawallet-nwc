@@ -437,8 +437,7 @@
           "IDLE",
           "ALIAS",
           "PROXY_ALIAS",
-          "CUSTOM_NWC",
-          "DEFAULT_NWC"
+          "CUSTOM_NWC"
         ]
       },
       "WalletAddressCreateRequest": {
@@ -456,8 +455,7 @@
               "IDLE",
               "ALIAS",
               "PROXY_ALIAS",
-              "CUSTOM_NWC",
-              "DEFAULT_NWC"
+              "CUSTOM_NWC"
             ]
           }
         },
@@ -474,8 +472,7 @@
               "IDLE",
               "ALIAS",
               "PROXY_ALIAS",
-              "CUSTOM_NWC",
-              "DEFAULT_NWC"
+              "CUSTOM_NWC"
             ]
           },
           "redirect": {
@@ -7740,8 +7737,7 @@
                             "enum": [
                               "IDLE",
                               "ALIAS",
-                              "CUSTOM_NWC",
-                              "DEFAULT_NWC"
+                              "CUSTOM_NWC"
                             ]
                           },
                           "redirect": {
@@ -7857,8 +7853,7 @@
                       "enum": [
                         "IDLE",
                         "ALIAS",
-                        "CUSTOM_NWC",
-                        "DEFAULT_NWC"
+                        "CUSTOM_NWC"
                       ]
                     },
                     "redirect": {
@@ -8887,8 +8882,7 @@
                       "enum": [
                         "IDLE",
                         "ALIAS",
-                        "CUSTOM_NWC",
-                        "DEFAULT_NWC"
+                        "CUSTOM_NWC"
                       ]
                     },
                     "redirect": {
@@ -9021,8 +9015,7 @@
                       "enum": [
                         "IDLE",
                         "ALIAS",
-                        "CUSTOM_NWC",
-                        "DEFAULT_NWC"
+                        "CUSTOM_NWC"
                       ]
                     },
                     "redirect": {

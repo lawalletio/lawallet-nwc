@@ -37,7 +37,6 @@ enum LightningAddressMode {
   ALIAS // forwards to another LN address via `redirect`
   PROXY_ALIAS // receives locally, then forwards to `redirect` after settlement
   CUSTOM_NWC // uses the RemoteWallet referenced by remoteWalletId
-  DEFAULT_NWC // uses the user's default RemoteWallet
 }
 
 enum RemoteWalletType {
@@ -366,7 +365,7 @@ model LightningAddress {
   username       String               @id
   userId         String
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mode           LightningAddressMode @default(DEFAULT_NWC)
+  mode           LightningAddressMode @default(IDLE)
   redirect       String?
   remoteWalletId String?
   remoteWallet   RemoteWallet?        @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)

@@ -212,8 +212,7 @@ export const GET = withErrorHandling(
     const route = resolveWalletRoute({
       mode: address.mode,
       redirect: address.redirect,
-      remoteWallet: address.remoteWallet,
-      defaultRemoteWallet: primaryWallet
+      remoteWallet: address.remoteWallet
     })
     const effectiveConnectionString =
       route.kind === 'wallet'
@@ -243,8 +242,8 @@ export const GET = withErrorHandling(
  * shape compatible with `validateBody`):
  *   - ALIAS       → `redirect` must be present.
  *   - CUSTOM_NWC  → `remoteWalletId` must be present AND owned by caller.
- *   - IDLE / DEFAULT_NWC → both fields are cleared (set NULL) regardless of
- *                          what the client sent. DEFAULT_NWC is normalized
+ *   - IDLE → both fields are cleared (set NULL) regardless of
+ *            what the client sent. Normalized
  *                          for primary addresses so primary wallet state
  *                          always comes from a CUSTOM_NWC binding.
  */
@@ -323,14 +322,6 @@ export const PUT = withErrorHandling(
         throw new ValidationError('Unknown wallet')
       }
       remoteWalletId = wallet.id
-    } else if (body.mode === 'DEFAULT_NWC' && existing.isPrimary) {
-      const primaryWallet = await getPrimaryRemoteWalletForUser(user.id)
-      if (primaryWallet) {
-        mode = 'CUSTOM_NWC'
-        remoteWalletId = primaryWallet.id
-      } else {
-        mode = 'IDLE'
-      }
     }
 
     const updated = await prisma.$transaction(async tx => {
@@ -438,28 +429,9 @@ export const DELETE = withErrorHandling(
       await tx.lightningAddress.delete({ where: { username } })
 
       if (nextPrimary) {
-        const promoted = await tx.lightningAddress.findUnique({
-          where: { username: nextPrimary.username },
-          select: { mode: true }
-        })
         await tx.lightningAddress.update({
           where: { username: nextPrimary.username },
-          data:
-            promoted?.mode === 'DEFAULT_NWC'
-              ? fallbackWallet
-                ? {
-                    isPrimary: true,
-                    mode: 'CUSTOM_NWC',
-                    redirect: null,
-                    remoteWalletId: fallbackWallet.id
-                  }
-                : {
-                    isPrimary: true,
-                    mode: 'IDLE',
-                    redirect: null,
-                    remoteWalletId: null
-                  }
-              : { isPrimary: true }
+          data: { isPrimary: true }
         })
       }
 

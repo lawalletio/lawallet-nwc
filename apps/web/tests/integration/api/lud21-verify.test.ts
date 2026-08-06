@@ -52,9 +52,17 @@ const baseInvoice = {
     lightningAddresses: [
       {
         username: 'alice',
-        mode: 'DEFAULT_NWC',
+        mode: 'CUSTOM_NWC',
         redirect: null,
-        remoteWallet: null
+        remoteWallet: {
+          id: 'wallet-1',
+          type: 'NWC',
+          status: 'ACTIVE',
+          config: {
+            connectionString: 'nostr+walletconnect://abc',
+            mode: 'SEND_RECEIVE'
+          }
+        }
       }
     ]
   }
@@ -307,7 +315,18 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
   it('returns unsettled when user has no wallet configured', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
-      user: { ...baseInvoice.user }
+      user: {
+        ...baseInvoice.user,
+        // The address exists but names no wallet — nothing to look up against.
+        lightningAddresses: [
+          {
+            username: 'alice',
+            mode: 'CUSTOM_NWC',
+            redirect: null,
+            remoteWallet: null
+          }
+        ]
+      }
     } as any)
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
 

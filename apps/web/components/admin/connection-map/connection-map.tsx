@@ -171,7 +171,7 @@ function ConnectionMapInner() {
   const { updateAddress } = useAddressMutations()
   const { updateCard } = useCardMutations()
 
-  /** Primary-address wallet drives the implicit binding for DEFAULT_NWC addresses. */
+  /** Primary-address wallet, highlighted in the canvas. */
   const defaultWallet = useMemo(
     () => getPrimaryWallet(walletList, addresses),
     [walletList, addresses]
@@ -258,7 +258,6 @@ function ConnectionMapInner() {
   // Only LA edges are interactive here. Card edges are inert (their handle
   // is `isConnectable={false}` in nodes.tsx). The shape of an LA edge id is
   // `e:la:<username>-><walletId>` (CUSTOM_NWC) or
-  // `e:la:<username>->default:<defaultWalletId>` (DEFAULT_NWC), but we don't
   // parse the edge id — we derive `username` from `edge.source` and the
   // wallet from `edge.target` (or `newConnection.target` on reconnect),
   // which is the same data Prisma sees.
@@ -820,7 +819,6 @@ export function buildGraph({
   //
   // Address bindings:
   //   CUSTOM_NWC   → solid edge to the address's bound wallet.
-  //   DEFAULT_NWC  → dashed edge to the primary address's wallet (implicit).
   //   IDLE / ALIAS → no edge (no wallet involved).
   for (const addr of addresses ?? []) {
     if (addr.mode === 'CUSTOM_NWC' && addr.remoteWalletId) {
@@ -839,25 +837,6 @@ export function buildGraph({
         style: {
           stroke: 'oklch(0.78 0.18 162)' /* emerald */,
           strokeWidth: 1.5
-        }
-      })
-    } else if (addr.mode === 'DEFAULT_NWC' && defaultWallet) {
-      edges.push({
-        id: `e:la:${addr.username}->default:${defaultWallet.id}`,
-        type: 'highlight',
-        source: addressNodeId(addr.username),
-        sourceHandle: 'out',
-        target: walletNodeId(defaultWallet.id),
-        targetHandle: 'from-la',
-        reconnectable: 'target',
-        data: {
-          tooltipTitle: 'DEFAULT_NWC',
-          tooltipHint: 'Routes through the primary address wallet'
-        },
-        style: {
-          stroke: 'oklch(0.78 0.18 162)',
-          strokeWidth: 1.5,
-          strokeDasharray: '4 4'
         }
       })
     }

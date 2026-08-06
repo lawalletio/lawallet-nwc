@@ -280,8 +280,7 @@ export const lightningAddressModeSchema = z.enum([
   'IDLE',
   'ALIAS',
   'PROXY_ALIAS',
-  'CUSTOM_NWC',
-  'DEFAULT_NWC'
+  'CUSTOM_NWC'
 ])
 
 /** Body for POST /api/wallet/addresses (create). */
@@ -306,7 +305,7 @@ export const createWalletAddressSchema = z.object({
  *                             address ("user@host").
  *   - mode === 'CUSTOM_NWC' → `remoteWalletId` is required and must reference
  *                             a RemoteWallet owned by the caller.
- *   - mode === 'IDLE' or 'DEFAULT_NWC' → both fields are ignored / cleared.
+ *   - mode === 'IDLE'       → both fields are ignored / cleared.
  */
 export const updateWalletAddressSchema = z.object({
   mode: lightningAddressModeSchema,

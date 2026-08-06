@@ -69,8 +69,8 @@ export const GET = withErrorHandling(
           .slice(0, LUD12_MAX_COMMENT_LENGTH) || undefined
 
       // Same shape as the metadata route — pull the address's bound wallet and
-      // derive DEFAULT_NWC from the account primary address so /cb stays in
-      // lockstep with the LUD-16 lookup.
+      // Same shape as the metadata route so /cb stays in lockstep with the
+      // LUD-16 lookup.
       const lightningAddress = await prisma.lightningAddress.findUnique({
         where: { username },
         include: {
@@ -102,8 +102,7 @@ export const GET = withErrorHandling(
       const route = resolveWalletRoute({
         mode: lightningAddress.mode,
         redirect: lightningAddress.redirect,
-        remoteWallet: lightningAddress.remoteWallet,
-        defaultRemoteWallet: primaryWallet
+        remoteWallet: lightningAddress.remoteWallet
       })
 
       if (route.kind === 'proxyAlias') {
@@ -164,8 +163,7 @@ export const GET = withErrorHandling(
         const heal = lncurlHealTarget(
           {
             mode: lightningAddress.mode,
-            boundWallet: lightningAddress.remoteWallet,
-            defaultWallet: primaryWallet
+            boundWallet: lightningAddress.remoteWallet
           },
           { lncurl_enabled, lncurl_auto_create, lncurl_auto_recreate }
         )
@@ -178,16 +176,8 @@ export const GET = withErrorHandling(
               serverUrl: lncurl_server_url || undefined
             })
             let bindingChanged = heal.previousWalletId != null
-            // DEFAULT_NWC routes through the primary address's wallet. A
-            // CUSTOM_NWC address with no prior wallet to re-point needs an
-            // explicit binding to the freshly minted wallet.
-            if (lightningAddress.mode === 'DEFAULT_NWC') {
-              bindingChanged =
-                (await bindPrimaryAddressToWallet(
-                  lightningAddress.user.id,
-                  provisioned.id
-                )) != null
-            }
+            // An address with no prior wallet to re-point needs an explicit
+            // binding to the freshly minted wallet.
             if (
               lightningAddress.mode === 'CUSTOM_NWC' &&
               heal.previousWalletId == null
@@ -296,7 +286,6 @@ export const GET = withErrorHandling(
             const { lncurl_auto_recreate, lncurl_server_url } =
               await getSettings(['lncurl_auto_recreate', 'lncurl_server_url'])
             // The dead wallet is the address's bound wallet (CUSTOM_NWC) or the
-            // wallet linked through the user's primary address (DEFAULT_NWC).
             const deadWalletId =
               lightningAddress.remoteWallet?.id ?? primaryWallet?.id ?? null
 

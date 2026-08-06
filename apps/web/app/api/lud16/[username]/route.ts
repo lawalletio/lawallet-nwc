@@ -136,8 +136,7 @@ export const GET = withErrorHandling(
       const route = resolveWalletRoute({
         mode: lightningAddress.mode,
         redirect: lightningAddress.redirect,
-        remoteWallet: lightningAddress.remoteWallet,
-        defaultRemoteWallet: primaryWallet
+        remoteWallet: lightningAddress.remoteWallet
       })
 
       // IDLE (disabled by the owner) is always a dead end — no LNURL here.
@@ -162,8 +161,7 @@ export const GET = withErrorHandling(
         const heal = lncurlHealTarget(
           {
             mode: lightningAddress.mode,
-            boundWallet: lightningAddress.remoteWallet,
-            defaultWallet: primaryWallet
+            boundWallet: lightningAddress.remoteWallet
           },
           settings
         )

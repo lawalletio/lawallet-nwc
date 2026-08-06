@@ -141,8 +141,7 @@ export const GET = withErrorHandling(
           ? resolveWalletRoute({
               mode: address.mode,
               redirect: address.redirect ?? null,
-              remoteWallet: address.remoteWallet ?? null,
-              defaultRemoteWallet: primaryWallet
+              remoteWallet: address.remoteWallet ?? null
             })
           : { kind: 'unconfigured' as const }
       const proxyConfig = invoice.proxyPayment
