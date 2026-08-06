@@ -21,9 +21,10 @@
         "NODE_ENV",
         "SKIP_ENV_VALIDATION",
         "NEXT_PUBLIC_GTAG_ID",
-        "NEXT_PUBLIC_API_DOCS_URL"
+        "NEXT_PUBLIC_API_DOCS_URL",
+        "NEXT_PUBLIC_SENTRY_DSN"
       ],
-      "passThroughEnv": ["NWC_VAULT_SECRET"]
+      "passThroughEnv": ["NWC_VAULT_SECRET", "SENTRY_AUTH_TOKEN"]
     },
     "dev": {
       "cache": false,

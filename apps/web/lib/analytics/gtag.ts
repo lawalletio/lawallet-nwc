@@ -1,5 +1,10 @@
 import type { AnalyticsEventName } from './events'
 
+// Patterns for values we never want to send to a third party. Defense in
+// depth — call sites should already pass categorical params only, but if a
+// pubkey, npub, ln address, or NWC URI sneaks in, drop it here.
+import { PII_PATTERNS } from '@/lib/observability/pii'
+
 declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void
@@ -8,20 +13,6 @@ declare global {
 }
 
 export type EventParams = Record<string, string | number | boolean | undefined>
-
-// Patterns for values we never want to send to a third party. Defense in
-// depth — call sites should already pass categorical params only, but if a
-// pubkey, npub, ln address, or NWC URI sneaks in, drop it here.
-const PII_PATTERNS: RegExp[] = [
-  /^npub1[ac-hj-np-z02-9]+$/i,
-  /^nsec1[ac-hj-np-z02-9]+$/i,
-  /^nostr\+walletconnect:\/\//i,
-  /^nostr:/i,
-  /^lnbc[0-9]/i,
-  /^lnurl[0-9a-z]+$/i,
-  /^[0-9a-f]{64}$/i, // bare 64-hex (Nostr pubkey / event id)
-  /@[a-z0-9.-]+\.[a-z]{2,}$/i // anything that looks like an email / ln address
-]
 
 function looksLikePII(value: unknown): boolean {
   if (typeof value !== 'string') return false

@@ -11,6 +11,11 @@ interface ErrorBucket {
 interface ProcessErrorReporterOptions {
   windowMs?: number
   now?: () => number
+  /** Called only when the throttle admits the error (never on suppressed duplicates). */
+  onReport?: (
+    kind: 'unhandled_rejection' | 'uncaught_exception',
+    error: unknown
+  ) => void
 }
 
 interface LogThrottleOptions extends ProcessErrorReporterOptions {
@@ -69,6 +74,7 @@ export function createProcessErrorReporter(
       ? { err: normalized.error, suppressed }
       : { reason: normalized.message, suppressed }
     log.error(context, `process.${kind}`)
+    options.onReport?.(kind, reason)
   }
 }
 

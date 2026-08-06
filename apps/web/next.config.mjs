@@ -15,6 +15,7 @@ const allowedDevOrigins = [
 
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { withSentryConfig } from '@sentry/nextjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -55,4 +56,11 @@ const nextConfig = {
   }
 }
 
-export default nextConfig
+// Sourcemap upload only activates when SENTRY_AUTH_TOKEN is present in the
+// build env; without it this wrapper is inert at runtime.
+export default withSentryConfig(nextConfig, {
+  org: 'la-crypta',
+  project: 'lawallet-web',
+  silent: !process.env.CI,
+  disableLogger: true
+})

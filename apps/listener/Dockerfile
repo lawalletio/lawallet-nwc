@@ -56,4 +56,6 @@ ENV NODE_ENV=production
 EXPOSE 4100
 
 WORKDIR /app/apps/listener
-CMD ["node", "dist/index.js"]
+# --enable-source-maps: tsup emits .map files into dist (copied above) — gives
+# mapped stack traces in logs and Sentry with no CI upload step.
+CMD ["node", "--enable-source-maps", "dist/index.js"]

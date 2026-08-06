@@ -105,6 +105,18 @@ The complete list of lower-level tuning variables is documented in
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example)
 and the [listener setup guide](/docs/deploy/listener-setup).
 
+## Error monitoring (optional)
+
+Sentry integration is **entirely optional and off by default**. Self-hosters
+who do not use Sentry leave all three variables unset — nothing is collected
+and no Sentry code is activated.
+
+| Variable                 | Service        | Required when | Purpose                                                                                     |
+| ------------------------ | -------------- | ------------- | ------------------------------------------------------------------------------------------- |
+| `SENTRY_DSN`             | Web + listener | Optional      | Enables server-side error reporting to Sentry.                                              |
+| `NEXT_PUBLIC_SENTRY_DSN` | Web            | Optional      | Enables browser error reporting. Inlined at build time, so set it before building the web app. |
+| `SENTRY_AUTH_TOKEN`      | Build only     | Optional      | Used only during the build to upload sourcemaps to Sentry. Never needed at runtime.         |
+
 ## Key rotation
 
 `KEY_VAULT_SECRET_PREVIOUS` accepts comma-separated previous server-custody
