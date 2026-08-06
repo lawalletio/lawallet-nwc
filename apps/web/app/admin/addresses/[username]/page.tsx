@@ -1089,7 +1089,7 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                             ? 'Checking'
                             : check.status === 'valid'
                               ? 'Passed'
-                              : 'Needs attention'}
+                              : 'Unsupported'}
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
