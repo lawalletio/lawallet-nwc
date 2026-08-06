@@ -28,6 +28,7 @@ import { cn } from '@/lib/utils'
 
 const RECENT_PROFILE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const RECIPIENT_OPTIONS_ID = 'recipient-options'
+const MAX_RECENT_OPTIONS = 10
 
 interface UserMeResponse {
   lightningAddress: string | null
@@ -44,18 +45,12 @@ export function RecipientInput() {
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const query = value.trim().toLowerCase()
   const currentDomain = resolveCurrentLightningDomain(me?.lightningAddress)
-  const recentContacts = useMemo(() => {
-    return contacts
-      .filter(contact => {
-        if (!query) return true
-        return (
-          contact.lightningAddress.toLowerCase().includes(query) ||
-          contact.name.toLowerCase().includes(query) ||
-          (contact.displayName?.toLowerCase().includes(query) ?? false)
-        )
-      })
-      .slice(0, 5)
-  }, [contacts, query])
+  // Empty input shows the last recipients; typing replaces them with
+  // address suggestions derived from what was typed.
+  const recentContacts = useMemo(
+    () => (query ? [] : contacts.slice(0, MAX_RECENT_OPTIONS)),
+    [contacts, query]
+  )
   const suggestedAddresses = useMemo(
     () =>
       buildLightningAddressSuggestions(
@@ -83,7 +78,7 @@ export function RecipientInput() {
     activeOptionIndex >= 0 ? optionId(activeOptionIndex) : undefined
 
   useEffect(() => {
-    for (const contact of contacts.slice(0, 5)) {
+    for (const contact of contacts.slice(0, MAX_RECENT_OPTIONS)) {
       if (
         contact.profileFetchedAt &&
         Date.now() - contact.profileFetchedAt < RECENT_PROFILE_TTL_MS
@@ -249,6 +244,9 @@ export function RecipientInput() {
           aria-activedescendant={activeOptionId}
           placeholder="satoshi@lawallet.ar, lnbc…, lnurl…"
           autoFocus
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
