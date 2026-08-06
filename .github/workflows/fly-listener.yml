@@ -1,0 +1,70 @@
+name: Deploy listener (Fly.io)
+
+# Ships apps/listener to the `lawallet-listener` Fly app on every push to main
+# that can change what it runs. Everything else — web-only changes, docs — is
+# skipped, so a UI commit does not restart the relay pool for no reason.
+#
+# Manual runs are available via workflow_dispatch (Actions ▸ this workflow ▸
+# Run workflow), which is the equivalent of `pnpm deploy:fly` without a laptop.
+#
+# Requires the FLY_API_TOKEN repository secret:
+#   fly tokens create deploy --app lawallet-listener --name github-actions
+#   gh secret set FLY_API_TOKEN --repo lawalletio/lawallet-nwc
+#
+# Secrets the app needs at runtime (DATABASE_URL, LISTENER_AUTH_SECRET,
+# NWC_VAULT_SECRET, WEB_ORIGIN) are NOT set here — they live on the Fly app and
+# are provisioned by `pnpm deploy:fly`. A deploy inherits whatever is already
+# set, so this workflow never has to see them.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/listener/**'
+      # The listener bundles the shared schemas, so a change there ships in its
+      # image even though nothing under apps/listener was touched.
+      - 'packages/shared/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/fly-listener.yml'
+  workflow_dispatch:
+
+# One deploy at a time, and never cancel one midway: an interrupted `fly deploy`
+# can leave the app on a half-replaced machine.
+concurrency:
+  group: fly-listener
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # Run from the repository root: apps/listener's Dockerfile copies the
+      # root lockfile, pnpm-workspace.yaml and packages/shared, none of which
+      # exist in a context scoped to apps/listener.
+      #
+      # --ha=false matches scripts/deploy-listener-fly.sh: without it Fly adds a
+      # second "spare" machine, and two listeners on one relay pool double every
+      # webhook.
+      - name: fly deploy
+        run: fly deploy --config apps/listener/fly.toml --app lawallet-listener --ha=false
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Verify the deployed listener answers
+        run: |
+          for attempt in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://lawallet-listener.fly.dev/health || true)
+            if [ "$code" = "200" ]; then
+              echo "listener healthy (HTTP $code)"
+              exit 0
+            fi
+            echo "attempt $attempt: HTTP $code — retrying"
+            sleep 6
+          done
+          echo "listener did not report healthy after deploy"
+          exit 1
