@@ -694,7 +694,13 @@ describe('PUT /api/wallet/addresses/[username]', () => {
     )
     expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { mode: 'IDLE', redirect: null, remoteWalletId: null }
+        // Switching away from ALIAS also drops the stored probe: it described
+        // a destination this address no longer forwards to.
+        data: expect.objectContaining({
+          mode: 'IDLE',
+          redirect: null,
+          remoteWalletId: null
+        })
       })
     )
   })

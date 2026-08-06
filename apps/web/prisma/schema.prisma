@@ -370,6 +370,13 @@ model LightningAddress {
   remoteWalletId String?
   remoteWallet   RemoteWallet?        @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
   isPrimary      Boolean              @default(false)
+  /// Protocols the ALIAS target was found to support, captured when the
+  /// redirect was saved: `{ lud16, lud21, nip57, lud12, checkedAt }`.
+  ///
+  /// Persisted rather than derived on read because the address list would
+  /// otherwise fetch every alias target's payRequest on each page load, and
+  /// confirming LUD-21 means asking that target to issue an invoice.
+  aliasProtocols Json?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 

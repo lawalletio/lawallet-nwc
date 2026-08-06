@@ -22,7 +22,7 @@ import {
   parseLightningAddress,
   resolveWalletRoute
 } from '@/lib/wallet/resolve-payment-route'
-import type { RemoteWallet } from '@/lib/generated/prisma'
+import { Prisma, type RemoteWallet } from '@/lib/generated/prisma'
 import {
   getPrimaryRemoteWalletForUser,
   syncPrimaryRemoteWalletFlag
@@ -34,7 +34,12 @@ import {
   forwardingGraphNodes
 } from '@/lib/proxy/forwarding-graph'
 import { getZapReceiptCapability } from '@/lib/nostr/zap-receipts'
-import { fetchLud16Metadata, isHexPubkey } from '@/lib/lnurl-probe'
+import {
+  aliasProtocolsFromProbe,
+  resolveAddressProtocols,
+  type StoredAliasProtocols
+} from '@/lib/wallet/address-protocols'
+import { probeLightningAddressCapabilities } from '@/lib/lnurl-probe'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -83,93 +88,6 @@ function toWalletSummaryWithPrimary(
   }
 }
 
-type AddressReceiveProtocols = {
-  /** `null` when it cannot be known without asking for an invoice. */
-  lud21: boolean | null
-  nip57: boolean
-  source: 'proxy' | 'wallet' | 'alias' | 'unavailable'
-  reason: string | null
-  /** The address actually serving these capabilities, for ALIAS. */
-  provider: string | null
-}
-
-/**
- * Mirrors the public LUD-16 route's effective capability. A deferred proxy
- * owns both the LUD-21 verification path and NIP-57 receipt lifecycle, so
- * report it as the provider instead of attributing it to the linked wallet.
- */
-async function getAddressReceiveProtocols(
-  mode: string,
-  redirect: string | null
-): Promise<AddressReceiveProtocols> {
-  // ALIAS hands the payer the target's own payRequest, so the capabilities on
-  // offer are the target's, not ours. Read them off its metadata — one GET, no
-  // invoice minted. LUD-21 is deliberately left unknown: nothing in a
-  // payRequest advertises it, only a callback response carries `verify`.
-  if (mode === 'ALIAS') {
-    if (!redirect) {
-      return {
-        lud21: false,
-        nip57: false,
-        source: 'unavailable',
-        reason: 'This alias has no destination yet.',
-        provider: null
-      }
-    }
-    try {
-      const metadata = await fetchLud16Metadata(redirect)
-      const nip57 =
-        metadata.allowsNostr === true && isHexPubkey(metadata.nostrPubkey)
-      return {
-        lud21: null,
-        nip57,
-        source: 'alias',
-        reason: nip57 ? null : `${redirect} does not advertise NIP-57 zaps.`,
-        provider: redirect
-      }
-    } catch {
-      return {
-        lud21: null,
-        nip57: false,
-        source: 'unavailable',
-        reason: `${redirect} could not be reached to read its capabilities.`,
-        provider: redirect
-      }
-    }
-  }
-
-  if (mode === 'PROXY_ALIAS') {
-    const [proxy, listener] = await Promise.all([
-      getActiveProxyConfig(),
-      getListenerConfig()
-    ])
-    const ready = Boolean(proxy && listener.enabled)
-    const nip57 = Boolean(
-      ready && proxy?.receiptPrivateKey && proxy.row.receiptPubkey
-    )
-    return {
-      lud21: ready,
-      nip57,
-      source: ready ? 'proxy' : 'unavailable',
-      reason: ready
-        ? nip57
-          ? null
-          : 'The proxy zap receipt signer is not configured.'
-        : 'Deferred proxy requires an enabled listener and proxy wallet.',
-      provider: null
-    }
-  }
-
-  const capability = await getZapReceiptCapability()
-  return {
-    lud21: capability.lud21,
-    nip57: capability.nip57,
-    source: 'wallet',
-    reason: capability.reason,
-    provider: null
-  }
-}
-
 /**
  * GET /api/wallet/addresses/[username]
  *
@@ -198,7 +116,20 @@ export const GET = withErrorHandling(
 
     const address = await prisma.lightningAddress.findUnique({
       where: { username },
-      include: { remoteWallet: true, user: { select: { pubkey: true } } }
+      include: {
+        remoteWallet: true,
+        user: {
+          select: {
+            id: true,
+            pubkey: true,
+            nostrIdentities: {
+              where: { isPrimary: true },
+              select: { pubkey: true },
+              take: 1
+            }
+          }
+        }
+      }
     })
     if (!address) {
       throw new NotFoundError('Address not found')
@@ -216,12 +147,18 @@ export const GET = withErrorHandling(
       // Same 404 as a genuine miss so non-admins can't enumerate usernames.
       if (!canRead) throw new NotFoundError('Address not found')
 
-      const [primaryWallet, selectable, deferredProxyEnabled, receiveProtocols] =
+      const [primaryWallet, selectable, deferredProxyEnabled, protocols] =
         await Promise.all([
           getPrimaryRemoteWalletForUser(address.userId),
           selectableWallets(address.userId),
           isProxyEnabled(),
-          getAddressReceiveProtocols(address.mode, address.redirect)
+          resolveAddressProtocols({
+            mode: address.mode,
+            redirect: address.redirect,
+            aliasProtocols: address.aliasProtocols,
+            routable: address.remoteWallet?.status === 'ACTIVE',
+            user: address.user
+          })
         ])
       const wallets = sortWalletsWithPrimary(selectable, primaryWallet)
 
@@ -232,18 +169,24 @@ export const GET = withErrorHandling(
         // an admin viewing someone else's address.
         effectiveConnectionString: null,
         deferredProxyEnabled,
-        receiveProtocols,
+        protocols,
         isOwner: false,
         ownerPubkey: address.user.pubkey
       })
     }
 
-    const [primaryWallet, selectable, deferredProxyEnabled, receiveProtocols] = await Promise.all(
+    const [primaryWallet, selectable, deferredProxyEnabled, protocols] = await Promise.all(
       [
         getPrimaryRemoteWalletForUser(caller.id),
         selectableWallets(caller.id),
         isProxyEnabled(),
-        getAddressReceiveProtocols(address.mode, address.redirect)
+        resolveAddressProtocols({
+            mode: address.mode,
+            redirect: address.redirect,
+            aliasProtocols: address.aliasProtocols,
+            routable: address.remoteWallet?.status === 'ACTIVE',
+            user: address.user
+          })
       ]
     )
     const wallets = sortWalletsWithPrimary(selectable, primaryWallet)
@@ -268,7 +211,7 @@ export const GET = withErrorHandling(
       wallets: wallets.map(w => toWalletSummaryWithPrimary(w, primaryWallet)),
       effectiveConnectionString,
       deferredProxyEnabled,
-      receiveProtocols,
+      protocols,
       isOwner: true,
       ownerPubkey: auth.pubkey
     })
@@ -316,6 +259,9 @@ export const PUT = withErrorHandling(
     let mode = body.mode
     let redirect: string | null = null
     let remoteWalletId: string | null = null
+    // Cleared for every non-ALIAS mode: a stale probe would describe a
+    // destination this address no longer forwards to.
+    let aliasProtocols: StoredAliasProtocols | null = null
 
     if (body.mode === 'ALIAS' || body.mode === 'PROXY_ALIAS') {
       if (!body.redirect) {
@@ -347,6 +293,20 @@ export const PUT = withErrorHandling(
         )
       }
       redirect = body.redirect
+      // Probe here rather than trusting the client's pre-save preview: a direct
+      // API call skips that dialog entirely, and the stored result is what the
+      // address list reports without re-fetching every target.
+      if (body.mode === 'ALIAS') {
+        try {
+          aliasProtocols = aliasProtocolsFromProbe(
+            await probeLightningAddressCapabilities(body.redirect)
+          )
+        } catch {
+          // A probe failure must not block saving a valid alias; the address
+          // simply reports "unknown" until the next save.
+          aliasProtocols = null
+        }
+      }
     } else if (body.mode === 'CUSTOM_NWC') {
       if (!body.remoteWalletId) {
         throw new ValidationError(
@@ -370,7 +330,14 @@ export const PUT = withErrorHandling(
     const updated = await prisma.$transaction(async tx => {
       const address = await tx.lightningAddress.update({
         where: { username },
-        data: { mode, redirect, remoteWalletId },
+        data: {
+          mode,
+          redirect,
+          remoteWalletId,
+          aliasProtocols: aliasProtocols
+            ? (aliasProtocols as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull
+        },
         include: { remoteWallet: true }
       })
       if (existing.isPrimary) {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { resolveAddressProtocols } from '@/lib/wallet/address-protocols'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
@@ -25,9 +26,15 @@ export const GET = withErrorHandling(async (request: Request) => {
       remoteWallet: true,
       user: {
         select: {
+          id: true,
           pubkey: true,
-          // Pull each owner's primary address so DEFAULT_NWC rows can resolve
-          // through the wallet linked to that address without N+1 queries.
+          nostrIdentities: {
+            where: { isPrimary: true },
+            select: { pubkey: true },
+            take: 1
+          },
+          // Pull each owner's primary address so the derived NWC capability
+          // resolves without N+1 queries.
           lightningAddresses: {
             where: { isPrimary: true },
             take: 1,
@@ -39,7 +46,8 @@ export const GET = withErrorHandling(async (request: Request) => {
     orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }]
   })
 
-  const transformed = addresses.map(address => ({
+  const transformed = await Promise.all(
+    addresses.map(async address => ({
     username: address.username,
     pubkey: address.user.pubkey,
     mode: address.mode,
@@ -51,8 +59,16 @@ export const GET = withErrorHandling(async (request: Request) => {
       derivePrimaryWallet(address.user.lightningAddresses?.[0])
     ),
     createdAt: address.createdAt.toISOString(),
-    updatedAt: address.updatedAt.toISOString()
+    updatedAt: address.updatedAt.toISOString(),
+    protocols: await resolveAddressProtocols({
+      mode: address.mode,
+      redirect: address.redirect,
+      aliasProtocols: address.aliasProtocols,
+      routable: address.remoteWallet?.status === 'ACTIVE',
+      user: address.user
+    })
   }))
+  )
 
   return NextResponse.json(transformed)
 })

@@ -21,6 +21,7 @@ export interface Lud16Metadata {
   metadata?: string
   allowsNostr?: boolean
   nostrPubkey?: string
+  commentAllowed?: number
 }
 
 export interface Lud16CallbackResponse {
@@ -30,7 +31,7 @@ export interface Lud16CallbackResponse {
   reason?: string
 }
 
-export type LightningAddressProbeKey = 'lud16' | 'lud21' | 'nip57'
+export type LightningAddressProbeKey = 'lud16' | 'lud21' | 'nip57' | 'lud12'
 
 export interface LightningAddressProbeCheck {
   ok: boolean
@@ -290,11 +291,21 @@ export async function probeLightningAddressCapabilities(
       invalid(probeFailureMessage(err, 'NIP-57 support could not be confirmed'))
     )
 
-  const [lud16Result, lud21Result, nip57Result] = await Promise.all([
-    lud16,
-    lud21,
-    nip57
-  ])
+  // LUD-12 is advertised directly in the payRequest as a comment budget.
+  const lud12 = metadataPromise
+    .then(metadata => {
+      const allowed = metadata.commentAllowed ?? 0
+      if (!Number.isFinite(allowed) || allowed <= 0) {
+        throw new ValidationError('Payer comments are not accepted')
+      }
+      return ok(`Accepts payer comments up to ${allowed} characters.`)
+    })
+    .catch(err =>
+      invalid(probeFailureMessage(err, 'LUD-12 support could not be confirmed'))
+    )
+
+  const [lud16Result, lud21Result, nip57Result, lud12Result] =
+    await Promise.all([lud16, lud21, nip57, lud12])
 
   return {
     address,
@@ -302,7 +313,8 @@ export async function probeLightningAddressCapabilities(
     checks: {
       lud16: lud16Result,
       lud21: lud21Result,
-      nip57: nip57Result
+      nip57: nip57Result,
+      lud12: lud12Result
     }
   }
 }

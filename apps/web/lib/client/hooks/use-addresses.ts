@@ -18,6 +18,15 @@ export interface AddressData {
   nwcMode: EffectiveNwcMode
   createdAt: string
   updatedAt: string
+  protocols?: {
+    protocols: Record<
+      'lud16' | 'nip05' | 'lud21' | 'nip57' | 'lud12',
+      boolean | null
+    >
+    source: 'proxy' | 'wallet' | 'alias' | 'unavailable'
+    reason: string | null
+    provider: string | null
+  }
 }
 
 export interface AddressCounts {

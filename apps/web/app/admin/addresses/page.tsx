@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Copy, Forward, MoreHorizontal, Plus, Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
+import { ProtocolChips } from '@/components/wallet/shared/protocol-chips'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -238,6 +239,7 @@ export default function AdminAddressesPage() {
                   <TableHead>Address</TableHead>
                   {adminView && <TableHead>Owner</TableHead>}
                   <TableHead>Mode</TableHead>
+                  <TableHead>Protocols</TableHead>
                   <TableHead className="w-12 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -424,6 +426,11 @@ export default function AdminAddressesPage() {
                               </span>
                             )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <ProtocolChips
+                          protocols={addr.protocols?.protocols ?? {}}
+                        />
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

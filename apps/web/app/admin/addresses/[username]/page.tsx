@@ -126,6 +126,11 @@ const ALIAS_PROBE_CHECKS: Array<{
     key: 'nip57',
     label: 'NIP-57',
     description: 'Checks whether zap metadata is advertised.'
+  },
+  {
+    key: 'lud12',
+    label: 'LUD-12',
+    description: 'Checks whether payer comments are accepted.'
   }
 ]
 
@@ -148,6 +153,11 @@ function createPendingAliasProbeChecks(): Record<
       ok: false,
       status: 'pending',
       message: 'Reading zap capability metadata…'
+    },
+    lud12: {
+      ok: false,
+      status: 'pending',
+      message: 'Reading the comment allowance…'
     }
   }
 }
@@ -163,6 +173,11 @@ function createFailedAliasProbeChecks(
       message: 'Not checked because the probe failed.'
     },
     nip57: {
+      ok: false,
+      status: 'invalid',
+      message: 'Not checked because the probe failed.'
+    },
+    lud12: {
       ok: false,
       status: 'invalid',
       message: 'Not checked because the probe failed.'
@@ -185,6 +200,10 @@ function mapAliasProbeChecks(
     nip57: {
       ...result.checks.nip57,
       status: result.checks.nip57.ok ? 'valid' : 'invalid'
+    },
+    lud12: {
+      ...result.checks.lud12,
+      status: result.checks.lud12.ok ? 'valid' : 'invalid'
     }
   }
 }
@@ -627,11 +646,10 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               </div>
 
               <AddressReceiveProtocols
-                lud21={data.receiveProtocols?.lud21 ?? false}
-                nip57={data.receiveProtocols?.nip57 ?? false}
-                source={data.receiveProtocols?.source ?? 'unavailable'}
-                reason={data.receiveProtocols?.reason ?? null}
-                provider={data.receiveProtocols?.provider ?? null}
+                protocols={data.protocols?.protocols ?? {}}
+                source={data.protocols?.source ?? 'unavailable'}
+                reason={data.protocols?.reason ?? null}
+                provider={data.protocols?.provider ?? null}
               />
 
               <ProxyAddressWorkspace

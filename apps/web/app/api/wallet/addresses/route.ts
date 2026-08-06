@@ -19,6 +19,7 @@ import {
   type WalletAddressDto
 } from '@/lib/wallet/wallet-address-dto'
 import { resolveDefaultAddressRouting } from '@/lib/wallet/default-address-mode'
+import { resolveAddressProtocols } from '@/lib/wallet/address-protocols'
 import {
   derivePrimaryWallet,
   findInitialPrimaryWalletCandidate,
@@ -56,8 +57,19 @@ export const GET = withErrorHandling(async (request: Request) => {
     user.lightningAddresses.find(addr => addr.isPrimary)
   )
 
-  const dtos: WalletAddressDto[] = user.lightningAddresses.map(addr =>
-    toWalletAddressDto(addr, defaultWallet)
+  // Alias protocols come from the probe stored at save time, so listing many
+  // addresses never reaches out to their targets.
+  const dtos: WalletAddressDto[] = await Promise.all(
+    user.lightningAddresses.map(async addr => ({
+      ...toWalletAddressDto(addr, defaultWallet),
+      protocols: await resolveAddressProtocols({
+        mode: addr.mode,
+        redirect: addr.redirect,
+        aliasProtocols: addr.aliasProtocols,
+        routable: addr.remoteWallet?.status === 'ACTIVE',
+        user
+      })
+    }))
   )
   return NextResponse.json(dtos)
 })
