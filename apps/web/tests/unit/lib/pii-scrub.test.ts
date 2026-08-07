@@ -66,9 +66,9 @@ describe('scrubEvent', () => {
     const out = scrubEvent(event)
 
     expect(out.message).toBe('boom [redacted]')
-    expect(out.exception.values[0].value).toBe('key [redacted] leaked')
-    expect(out.breadcrumbs[0].message).toBe('fetched [redacted]')
-    expect(out.breadcrumbs[0].data.email).toBe('[redacted]')
-    expect(out.breadcrumbs[1].message).toBe('plain breadcrumb')
+    expect(out.exception!.values![0]!.value).toBe('key [redacted] leaked')
+    expect(out.breadcrumbs![0]!.message).toBe('fetched [redacted]')
+    expect(out.breadcrumbs![0]!.data!.email).toBe('[redacted]')
+    expect(out.breadcrumbs![1]!.message).toBe('plain breadcrumb')
   })
 })
