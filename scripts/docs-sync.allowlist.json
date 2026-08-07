@@ -18,6 +18,5 @@
   "POST /api/settings/listener-probe",
   "POST /api/admin/backup/export",
   "POST /api/admin/backup/analyze",
-  "POST /api/admin/backup/import",
-  "GET /api/debug-sentry"
+  "POST /api/admin/backup/import"
 ]
