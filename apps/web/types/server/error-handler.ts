@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
 
 import { buildErrorResponse } from './api-response'
-import { ApiError, InternalServerError, TooManyRequestsError } from './errors'
-import { withRequestLogging } from '@/lib/logger'
+import {
+  ApiError,
+  InternalServerError,
+  ServiceUnavailableError,
+  TooManyRequestsError
+} from './errors'
+import { getCurrentReqId, withRequestLogging } from '@/lib/logger'
 import { logger } from '@/lib/logger'
 import { checkMaintenance } from '@/lib/middleware/maintenance'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
@@ -99,6 +104,36 @@ export const handleApiError = (
     },
     'api.error'
   )
+
+  // Forward 5xx to Sentry when configured. withErrorHandling swallows the
+  // throw (Next's onRequestError never fires for these routes), so this is
+  // THE server capture seam. Fire-and-forget: a Sentry failure must never
+  // change the response. Maintenance 503s are expected, not errors.
+  if (
+    apiError.statusCode >= 500 &&
+    process.env.SENTRY_DSN &&
+    !(apiError instanceof ServiceUnavailableError)
+  ) {
+    try {
+      import('@sentry/nextjs')
+        .then(Sentry =>
+          // Capture the original error when available for better grouping.
+          Sentry.captureException(apiError.cause ?? apiError, {
+            tags: {
+              reqId: getCurrentReqId(),
+              code: apiError.code,
+              path:
+                request instanceof Request
+                  ? safePathname(request.url)
+                  : undefined
+            }
+          })
+        )
+        .catch(() => {})
+    } catch {
+      // ignore — observability must not affect the request path
+    }
+  }
 
   // Mirror qualifying errors into the ActivityLog audit trail.
   const statusCode = apiError.statusCode

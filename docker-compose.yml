@@ -41,6 +41,8 @@ services:
       LISTENER_URL: ${LISTENER_URL:-}
       LISTENER_AUTH_SECRET: ${LISTENER_AUTH_SECRET:-}
       LISTENER_REQUEST_AUTH_SECRET: ${LISTENER_REQUEST_AUTH_SECRET:-${LISTENER_AUTH_SECRET:-}}
+      # Optional Sentry error reporting. Leave unset to disable entirely.
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +71,8 @@ services:
       NWC_VAULT_SECRET: ${NWC_VAULT_SECRET:-}
       WEB_ORIGIN: http://web:${PORT:-2288}
       NODE_ENV: ${NODE_ENV:-production}
+      # Optional Sentry error reporting. Leave unset to disable entirely.
+      SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       postgres:
         condition: service_healthy

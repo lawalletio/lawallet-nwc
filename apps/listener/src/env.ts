@@ -176,6 +176,23 @@ const envSchema = z.object({
       'Per-probe get_info timeout — a clean timeout (relays up) is the death signal'
     ),
 
+  SENTRY_DSN: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .url('SENTRY_DSN must be a valid URL')
+      .optional()
+      .describe('Optional Sentry DSN — error reporting is disabled when unset')
+  ),
+
+  SENTRY_ENVIRONMENT: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .optional()
+      .describe('Sentry environment tag (falls back to NODE_ENV)')
+  ),
+
   DEAD_CONFIRMATION_PROBES: z
     .string()
     .default('3')

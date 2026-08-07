@@ -35,6 +35,7 @@ import {
 import { WebhookDispatcher } from './webhook'
 import { requestProxyReconcile } from './proxy-reconcile'
 import { createProcessErrorReporter } from './process-errors'
+import { captureException, flushSentry, initSentry } from './sentry'
 
 async function main(): Promise<void> {
   // @getalby/sdk's relay layer needs the global WebSocket (Node >= 22).
@@ -45,6 +46,7 @@ async function main(): Promise<void> {
     )
   }
   const env = getEnv()
+  initSentry(env)
   const logger = initLogger(env)
   patchConsole(logger)
   const log = createLogger({ module: 'main' })
@@ -56,7 +58,9 @@ async function main(): Promise<void> {
   // durable state lives in Postgres and whose relay connections auto-reconnect,
   // so dropping every live connection on one stray async error is worse than
   // continuing. (The /health endpoint still exposes real trouble.)
-  const reportProcessError = createProcessErrorReporter(log)
+  const reportProcessError = createProcessErrorReporter(log, {
+    onReport: (kind, error) => captureException(error, { tags: { kind } })
+  })
   process.on('unhandledRejection', reason =>
     reportProcessError('unhandled_rejection', reason)
   )
@@ -233,6 +237,7 @@ async function main(): Promise<void> {
     log: createLogger({ module: 'pool' }),
     onNotification,
     onWalletError: (wallet, error) => {
+      captureException(error, { tags: { walletId: wallet.id } })
       void dispatcher
         .sendListenerError(wallet.id, 'connection_failed', error.message)
         .catch(() => {})
@@ -381,6 +386,7 @@ async function main(): Promise<void> {
       await changeListener.stop()
       await nwcPool.closeAll()
       await pgPool.end()
+      await flushSentry(2000)
       log.info('shutdown.complete')
       process.exit(0)
     })().catch(err => {

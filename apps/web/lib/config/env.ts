@@ -253,6 +253,25 @@ const envSchema = z.object({
     .default('10')
     .describe('Maximum number of files per upload request (default: 10)'),
 
+  // Sentry error monitoring (optional — nothing initializes without a DSN)
+  SENTRY_DSN: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .url('SENTRY_DSN must be a valid URL')
+      .optional()
+      .describe('Sentry DSN for server-side error reporting (optional)')
+  ),
+
+  NEXT_PUBLIC_SENTRY_DSN: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .url('NEXT_PUBLIC_SENTRY_DSN must be a valid URL')
+      .optional()
+      .describe('Sentry DSN for browser-side error reporting (optional)')
+  ),
+
   NOSTR_PROFILE_CACHE_DIR: z
     .string()
     .min(1, 'NOSTR_PROFILE_CACHE_DIR must not be empty')

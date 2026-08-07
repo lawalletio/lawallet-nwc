@@ -83,6 +83,12 @@ export interface AppConfig {
     dir: string | undefined
   }
 
+  // Sentry error monitoring (server-side DSN)
+  sentry: {
+    dsn: string | undefined
+    enabled: boolean
+  }
+
   // Rate Limiting
   rateLimit: {
     enabled: boolean
@@ -188,6 +194,11 @@ export function getConfig(strict: boolean = true): AppConfig {
 
     nostrProfileCache: {
       dir: env.NOSTR_PROFILE_CACHE_DIR
+    },
+
+    sentry: {
+      dsn: env.SENTRY_DSN,
+      enabled: !!env.SENTRY_DSN
     },
 
     rateLimit: {

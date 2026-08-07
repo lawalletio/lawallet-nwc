@@ -46,35 +46,53 @@ function deps() {
   return depsPromise
 }
 
+// Lazy Sentry loader, same best-effort spirit as deps(): only touched when a
+// DSN is configured, and a load failure silently degrades to pino-only spans.
+let sentryPromise: Promise<typeof import('@sentry/nextjs') | null> | null = null
+
+function sentry() {
+  if (!process.env.SENTRY_DSN) return Promise.resolve(null)
+  sentryPromise ??= import('@sentry/nextjs').catch(() => null)
+  return sentryPromise
+}
+
 export async function withSpan<T>(
   span: string,
   fn: () => Promise<T>
 ): Promise<T> {
   const { log, getCurrentReqId } = await deps()
-  const start = performance.now()
+  const Sentry = await sentry()
 
-  try {
-    const result = await fn()
-    log?.debug(
-      {
-        reqId: getCurrentReqId(),
-        span,
-        durationMs: Math.round(performance.now() - start),
-        ok: true
-      },
-      'span.end'
-    )
-    return result
-  } catch (err) {
-    log?.warn(
-      {
-        reqId: getCurrentReqId(),
-        span,
-        durationMs: Math.round(performance.now() - start),
-        ok: false
-      },
-      'span.end'
-    )
-    throw err
+  const run = async (): Promise<T> => {
+    const start = performance.now()
+    try {
+      const result = await fn()
+      log?.debug(
+        {
+          reqId: getCurrentReqId(),
+          span,
+          durationMs: Math.round(performance.now() - start),
+          ok: true
+        },
+        'span.end'
+      )
+      return result
+    } catch (err) {
+      log?.warn(
+        {
+          reqId: getCurrentReqId(),
+          span,
+          durationMs: Math.round(performance.now() - start),
+          ok: false
+        },
+        'span.end'
+      )
+      throw err
+    }
   }
+
+  if (Sentry) {
+    return Sentry.startSpan({ name: span, op: 'function' }, run)
+  }
+  return run()
 }

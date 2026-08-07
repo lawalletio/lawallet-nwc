@@ -20,6 +20,8 @@ Options:
                           shell history or clipboard and cannot drift between
                           the two hosts.
   --database-url URL      Supply the Postgres URL directly instead.
+  --sentry-dsn URL        Optional Sentry DSN for error reporting. Omit to
+                          leave Sentry disabled (the default).
   --secrets-only          Stage secrets, skip the deploy.
   --deploy-only           Skip secrets, just deploy.
   --help                  Show this help.
@@ -41,6 +43,7 @@ app="lawallet-listener"
 web_origin=""
 from_vercel=""
 database_url=""
+sentry_dsn=""
 do_secrets=1
 do_deploy=1
 
@@ -58,6 +61,9 @@ while [[ $# -gt 0 ]]; do
     --database-url)
       [[ $# -ge 2 ]] || { echo "Missing value for --database-url." >&2; exit 2; }
       database_url="$2"; shift 2 ;;
+    --sentry-dsn)
+      [[ $# -ge 2 ]] || { echo "Missing value for --sentry-dsn." >&2; exit 2; }
+      sentry_dsn="$2"; shift 2 ;;
     --secrets-only) do_deploy=0; shift ;;
     --deploy-only) do_secrets=0; shift ;;
     --help|-h) usage; exit 0 ;;
@@ -199,6 +205,11 @@ if [[ "$do_secrets" == "1" ]]; then
     args+=("$name=$value")
     generated+="  $name = $value"$'\n'
   done
+
+  # Optional and never generated: a DSN is issued by Sentry, not minted here.
+  if [[ -n "$sentry_dsn" ]]; then
+    args+=("SENTRY_DSN=$sentry_dsn")
+  fi
 
   if [[ ${#args[@]} -gt 0 ]]; then
     echo "==> Staging secrets on $app"
