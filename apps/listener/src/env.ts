@@ -193,6 +193,16 @@ const envSchema = z.object({
       .describe('Sentry environment tag (falls back to NODE_ENV)')
   ),
 
+  SENTRY_RELEASE: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .optional()
+      .describe(
+        'Release identifier (git SHA), baked into the image at build time — release health is only tracked when set'
+      )
+  ),
+
   DEAD_CONFIRMATION_PROBES: z
     .string()
     .default('3')

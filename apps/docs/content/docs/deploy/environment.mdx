@@ -116,6 +116,7 @@ and no Sentry code is activated.
 | `SENTRY_DSN`             | Web + listener | Optional      | Enables server-side error reporting to Sentry.                                              |
 | `NEXT_PUBLIC_SENTRY_DSN` | Web            | Optional      | Enables browser error reporting. Inlined at build time, so set it before building the web app. |
 | `SENTRY_AUTH_TOKEN`      | Build only     | Optional      | Used only during the build to upload sourcemaps to Sentry. Never needed at runtime.         |
+| `SENTRY_RELEASE`         | Listener       | Optional      | Commit the running image was built from. Baked in by `--build-arg SENTRY_RELEASE=<sha>`; enables release health (crash-free sessions). The web app detects its release automatically on Vercel. |
 
 ## Key rotation
 

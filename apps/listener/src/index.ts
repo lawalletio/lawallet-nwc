@@ -35,7 +35,12 @@ import {
 import { WebhookDispatcher } from './webhook'
 import { requestProxyReconcile } from './proxy-reconcile'
 import { createProcessErrorReporter } from './process-errors'
-import { captureException, flushSentry, initSentry } from './sentry'
+import {
+  captureException,
+  endSentrySession,
+  flushSentry,
+  initSentry
+} from './sentry'
 
 async function main(): Promise<void> {
   // @getalby/sdk's relay layer needs the global WebSocket (Node >= 22).
@@ -386,6 +391,7 @@ async function main(): Promise<void> {
       await changeListener.stop()
       await nwcPool.closeAll()
       await pgPool.end()
+      endSentrySession()
       await flushSentry(2000)
       log.info('shutdown.complete')
       process.exit(0)

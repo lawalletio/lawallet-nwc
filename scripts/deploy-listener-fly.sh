@@ -226,7 +226,12 @@ if [[ "$do_deploy" == "1" ]]; then
   # --ha=false: fly deploy otherwise adds a second "spare" machine, and two
   # listeners double-subscribe every wallet and race on the shared catch-up
   # and dead-prober cursors. This service is a singleton on purpose.
-  fly deploy --config apps/listener/fly.toml --app "$app" --ha=false
+  #
+  # SENTRY_RELEASE bakes the deployed commit into the image so Sentry can
+  # track release health. Harmless when Sentry is not configured.
+  release="$(git rev-parse HEAD 2>/dev/null || true)"
+  fly deploy --config apps/listener/fly.toml --app "$app" --ha=false \
+    --build-arg "SENTRY_RELEASE=$release"
 fi
 
 if [[ -n "${adopted:-}" ]]; then

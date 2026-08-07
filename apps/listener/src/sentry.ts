@@ -40,11 +40,34 @@ export function initSentry(env: ListenerEnv): void {
   Sentry.init({
     dsn: env.SENTRY_DSN,
     environment: env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'production',
+    release: env.SENTRY_RELEASE,
     tracesSampleRate: 0,
     sendDefaultPii: false,
     beforeSend: scrubEvent
   })
   initialized = true
+
+  // Release health: the SDK's default processSession integration already
+  // opened a session for this process run, but it only transmits one that
+  // ended badly. Send the healthy one now so the run lands in the denominator
+  // of the crash-free rate — without it Sentry sees crashes and no baseline.
+  // (Health needs `release` above; sessions alone are not enough.)
+  Sentry.captureSession()
+}
+
+/**
+ * Close the current process run as a clean exit.
+ *
+ * The integration's own hook runs on `beforeExit`, which a graceful shutdown
+ * never reaches — it calls process.exit() directly.
+ */
+export function endSentrySession(): void {
+  if (!initialized) return
+  try {
+    Sentry.endSession()
+  } catch {
+    // best-effort on shutdown
+  }
 }
 
 export function captureException(
