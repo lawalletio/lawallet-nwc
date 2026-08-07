@@ -4,7 +4,7 @@ import { createNewUser } from '@/lib/user'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
-import { getSettings } from '@/lib/settings'
+import { resolveAddressDomain } from '@/lib/public-url'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
@@ -41,11 +41,10 @@ export const GET = withErrorHandling(async (request: Request) => {
   // Lightning addresses resolve as `username@<domain>`. The `endpoint`
   // setting (where the instance is publicly reachable) may differ from
   // the address domain — e.g. `endpoint=https://beta.lacrypta.ar` while
-  // `domain=lacrypta.ar` — so we read the address domain directly here
-  // rather than via `resolvePublicEndpoint`, which mixes the two concerns.
-  const { domain } = await getSettings(['domain'])
-  const addressDomain =
-    domain?.trim() || request.headers.get('host') || new URL(request.url).host
+  // `domain=lacrypta.ar` — so `resolveAddressDomain` reads the address
+  // domain directly rather than `resolvePublicEndpoint`, which mixes the
+  // two concerns.
+  const addressDomain = await resolveAddressDomain(request)
   const primaryAddress = user.lightningAddresses[0]
   const lightningAddress = primaryAddress?.username
     ? `${primaryAddress.username}@${addressDomain}`

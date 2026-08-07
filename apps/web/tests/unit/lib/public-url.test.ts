@@ -4,7 +4,7 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn()
 }))
 
-import { resolveApiUrl } from '@/lib/public-url'
+import { resolveApiUrl, resolveAddressDomain } from '@/lib/public-url'
 import { getSettings } from '@/lib/settings'
 
 /** Minimal request stub exposing a `host` header. */
@@ -59,5 +59,51 @@ describe('resolveApiUrl', () => {
     expect(await resolveApiUrl(req('localhost:3000'))).toBe(
       'https://app.example.com'
     )
+  })
+})
+
+describe('resolveAddressDomain', () => {
+  it('uses the domain setting even when endpoint is a different host', async () => {
+    // The exact bug scenario: text/identifier must say the domain, not the API host.
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'lawallet.io',
+      endpoint: 'https://beta.lawallet.io',
+      subdomain: ''
+    })
+    expect(await resolveAddressDomain(req('beta.lawallet.io'))).toBe(
+      'lawallet.io'
+    )
+  })
+
+  it('joins legacy subdomain with domain', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: 'lacrypta.ar',
+      subdomain: 'app',
+      endpoint: ''
+    })
+    expect(await resolveAddressDomain(req())).toBe('app.lacrypta.ar')
+  })
+
+  it('falls back to the endpoint host when domain is unset', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      domain: '',
+      subdomain: '',
+      endpoint: 'https://beta.lacrypta.ar'
+    })
+    expect(await resolveAddressDomain(req('localhost:55067'))).toBe(
+      'beta.lacrypta.ar'
+    )
+  })
+
+  it('falls back to the request host when neither domain nor endpoint is set', async () => {
+    vi.mocked(getSettings).mockResolvedValue({})
+    expect(await resolveAddressDomain(req('localhost:55067'))).toBe(
+      'localhost:55067'
+    )
+  })
+
+  it('defaults to localhost:3000 as the last resort', async () => {
+    vi.mocked(getSettings).mockResolvedValue({})
+    expect(await resolveAddressDomain(req())).toBe('localhost:3000')
   })
 })

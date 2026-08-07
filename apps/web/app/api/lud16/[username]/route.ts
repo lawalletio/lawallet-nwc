@@ -9,7 +9,11 @@ import {
   LUD12_MAX_COMMENT_LENGTH
 } from '@/lib/validation/schemas'
 import { validateParams } from '@/lib/validation/middleware'
-import { resolvePublicEndpoint, resolveApiUrl } from '@/lib/public-url'
+import {
+  resolvePublicEndpoint,
+  resolveApiUrl,
+  resolveAddressDomain
+} from '@/lib/public-url'
 import { LNURL_VERIFY_USERNAME } from '@/lib/domain-onboarding'
 import {
   parseLightningAddress,
@@ -218,15 +222,17 @@ export const GET = withErrorHandling(
           throw new NotFoundError('Deferred payment proxy is not configured')
         }
         const parsed = parseLightningAddress(route.redirect)
-        const [{ host, url }, apiUrl] = await Promise.all([
+        const [{ host }, apiUrl, addressDomain] = await Promise.all([
           resolvePublicEndpoint(req),
-          resolveApiUrl(req)
+          resolveApiUrl(req),
+          resolveAddressDomain(req)
         ])
         // Kept for the *remote* SSRF checks and snapshotted onto the payment.
         // A destination on this instance no longer reaches those checks:
         // `fetchDestinationMetadata` serves it over loopback instead, and loops
         // are handled by cycle detection plus the forwarding hop counter.
-        const blockedHosts = [host, new URL(apiUrl).hostname]
+        // Both hostnames point back here, so both are blocked.
+        const blockedHosts = [host, addressDomain, new URL(apiUrl).hostname]
         if (!parsed) {
           throw new NotFoundError('Proxy target is invalid')
         }
@@ -250,7 +256,7 @@ export const GET = withErrorHandling(
         const callback = `${apiUrl}/api/lud16/${username}/cb`
         const feePercent = (proxy.row.feeBps / 100).toFixed(2)
         const metadata: [string, string][] = [
-          ['text/identifier', `${username}@${host}`],
+          ['text/identifier', `${username}@${addressDomain}`],
           [
             'text/plain',
             `Payment to ${route.redirect} via LaWallet proxy (${feePercent}% service fee)`
@@ -296,14 +302,14 @@ export const GET = withErrorHandling(
       // route.kind === 'wallet' — return our own LUD-16 so /cb can mint an
       // invoice through the resolved wallet's driver.
       //
-      // `host` labels the address in the metadata (the public LN-address domain),
-      // but the `callback` is fetched directly by the sender's wallet, so it must
-      // point at this instance's API URL (the `endpoint` setting / request host) —
-      // NOT the `domain`, which need not serve the API. Mirrors the card `/scan`
-      // fix; without it, payments to `user@domain` fail when the domain doesn't
-      // serve the API.
-      const [{ host }, zapCapability] = await Promise.all([
-        resolvePublicEndpoint(req),
+      // `addressDomain` labels the address in the metadata (the `domain` setting
+      // — what payer wallets display), but the `callback` is fetched directly by
+      // the sender's wallet, so it must point at this instance's API URL (the
+      // `endpoint` setting / request host) — NOT the `domain`, which need not
+      // serve the API. Mirrors the card `/scan` fix; without it, payments to
+      // `user@domain` fail when the domain doesn't serve the API.
+      const [addressDomain, zapCapability] = await Promise.all([
+        resolveAddressDomain(req),
         getZapReceiptCapability()
       ])
       const callback = `${await resolveApiUrl(req)}/api/lud16/${username}/cb`
@@ -321,8 +327,8 @@ export const GET = withErrorHandling(
       if (pubkey && !avatarEntry) warmNostrProfileForLud16(pubkey)
 
       const metadata: [string, string][] = [
-        ['text/identifier', `${username}@${host}`],
-        ['text/plain', `Payment to @${username} on ${host}`],
+        ['text/identifier', `${username}@${addressDomain}`],
+        ['text/plain', `Payment to @${username} on ${addressDomain}`],
         ...(avatarEntry ? [avatarEntry] : [])
       ]
 
