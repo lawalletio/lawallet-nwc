@@ -62,5 +62,14 @@ export default withSentryConfig(nextConfig, {
   org: 'la-crypta',
   project: 'lawallet-web',
   silent: !process.env.CI,
-  disableLogger: true
+  disableLogger: true,
+  // Records each build as a deploy against its release (Sentry ▸ Releases ▸
+  // Deploys), so a spike can be read against "what shipped when". Only runs
+  // when SENTRY_AUTH_TOKEN is present — a no-op for forks and self-hosters.
+  release: {
+    deploy: {
+      env: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'development',
+      url: process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`
+    }
+  }
 })

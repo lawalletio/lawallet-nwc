@@ -50,10 +50,28 @@ jobs:
       # --ha=false matches scripts/deploy-listener-fly.sh: without it Fly adds a
       # second "spare" machine, and two listeners on one relay pool double every
       # webhook.
+      #
+      # --build-arg SENTRY_RELEASE bakes the commit into the image so every
+      # event carries a release — the input Sentry needs for release health.
       - name: fly deploy
-        run: flyctl deploy --config apps/listener/fly.toml --app lawallet-listener --ha=false
+        run: flyctl deploy --config apps/listener/fly.toml --app lawallet-listener --ha=false --build-arg SENTRY_RELEASE=${{ github.sha }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # Records the deploy against the release in Sentry (Releases ▸ Deploys).
+      # Skipped entirely when the SENTRY_AUTH_TOKEN secret is not configured —
+      # forks and self-hosters deploy without it.
+      - name: Record the deploy in Sentry
+        if: env.SENTRY_AUTH_TOKEN != ''
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: la-crypta
+          SENTRY_PROJECT: lawallet-listener
+        run: |
+          npx --yes @sentry/cli releases new "$GITHUB_SHA"
+          npx --yes @sentry/cli releases set-commits "$GITHUB_SHA" --auto --ignore-missing
+          npx --yes @sentry/cli releases finalize "$GITHUB_SHA"
+          npx --yes @sentry/cli releases deploys "$GITHUB_SHA" new --env production
 
       - name: Verify the deployed listener answers
         run: |
