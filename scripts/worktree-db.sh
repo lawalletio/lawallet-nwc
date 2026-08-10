@@ -60,7 +60,13 @@ EOF
 }
 
 compose() {
-  docker compose -f "$compose_file" "$@"
+  # docker-compose.yml declares `JWT_SECRET` with `:?` so a deployment can
+  # never boot on a public default. Compose resolves interpolation for the
+  # WHOLE file at parse time, so even `up -d postgres` fails without it.
+  # This script only ever touches the postgres service, so a throwaway value
+  # is correct here — it never reaches the web container.
+  JWT_SECRET="${JWT_SECRET:-worktree-db-postgres-only-placeholder-secret}" \
+    docker compose -f "$compose_file" "$@"
 }
 
 have_compose_postgres() {
@@ -92,7 +98,8 @@ Unable to connect to Postgres.
 
 Either:
   1. Install \`psql\` and make sure local Postgres is reachable at $db_host:$db_port
-  2. Start the bundled container with: docker compose up -d postgres
+  2. Start the bundled container with:
+     JWT_SECRET="\$(openssl rand -hex 32)" docker compose up -d postgres
 EOF
   exit 1
 }

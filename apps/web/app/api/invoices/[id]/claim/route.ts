@@ -76,8 +76,12 @@ export const POST = withErrorHandling(
       // invoices list stops showing it as "pending payment".
       if (invoice.status === 'PENDING') {
         try {
-          await prisma.invoice.update({
-            where: { id },
+          // Conditional on PENDING: `invoice` is a stale read, so a concurrent
+          // claim may have already committed PAID and created the address
+          // between it and this write. An unconditional update would clobber
+          // that to EXPIRED, leaving a paid invoice the user can't see.
+          await prisma.invoice.updateMany({
+            where: { id, status: 'PENDING' },
             data: { status: 'EXPIRED' }
           })
         } catch {

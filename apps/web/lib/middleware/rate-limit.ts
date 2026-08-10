@@ -26,6 +26,18 @@ export interface RateLimitOptions {
   identifier?: string
   /** Whether the request is authenticated */
   isAuthenticated?: boolean
+  /**
+   * Counter namespace. Callers sharing a bucket share one counter, so a
+   * high-volume endpoint must never share with a low-limit one: a few
+   * username-availability lookups would otherwise exhaust the 5/min
+   * `sensitive` budget that card activation reads from. Presets set this;
+   * callers passing raw options fall back to `'default'`.
+   *
+   * Deliberately NOT the request path — dynamic segments like
+   * `/api/cards/<id>/scan` would let a caller mint a fresh counter per
+   * attacker-chosen id and bypass the limit entirely.
+   */
+  bucket?: string
 }
 
 /**
@@ -148,7 +160,8 @@ export async function checkRateLimit(
 
   const identifier = options.identifier ?? getClientIp(request)
   const prefix = options.isAuthenticated ? 'auth' : 'anon'
-  const key = `ratelimit:${prefix}:${identifier}`
+  const bucket = options.bucket ?? 'default'
+  const key = `ratelimit:${prefix}:${bucket}:${identifier}`
 
   return checkRateLimitInMemory(key, windowMs, maxRequests)
 }
@@ -244,28 +257,32 @@ export async function rateLimit(
  */
 export const RateLimitPresets = {
   /** Standard public endpoints (60 req/min) */
-  public: {} as RateLimitOptions,
+  public: { bucket: 'public' } as RateLimitOptions,
 
   /** Authentication endpoints (10 req/min) */
   auth: {
+    bucket: 'auth',
     maxRequests: 10,
     maxRequestsAuth: 30
   } as RateLimitOptions,
 
   /** Sensitive operations (5 req/min) */
   sensitive: {
+    bucket: 'sensitive',
     maxRequests: 5,
     maxRequestsAuth: 20
   } as RateLimitOptions,
 
   /** Card scan callbacks (high volume, 200 req/min) */
   cardScan: {
+    bucket: 'cardScan',
     maxRequests: 200,
     maxRequestsAuth: 500
   } as RateLimitOptions,
 
   /** LUD16 lookups (high volume, 120 req/min) */
   lud16: {
+    bucket: 'lud16',
     maxRequests: 120,
     maxRequestsAuth: 300
   } as RateLimitOptions

@@ -159,6 +159,15 @@ export function InfrastructureTab() {
     setWiping(true)
     try {
       const res = await fetch('/api/dev/reset', { method: 'POST' })
+      // This block renders on NODE_ENV alone, but the route additionally
+      // requires the ENABLE_DEV_ROUTES opt-in and 404s without it. The flag is
+      // server-only, so name it in the error rather than gate the button on a
+      // value the client bundle can't read.
+      if (res.status === 404) {
+        throw new Error(
+          'Reset unavailable — set ENABLE_DEV_ROUTES=true to enable /api/dev/* routes'
+        )
+      }
       if (!res.ok) throw new Error(`Reset failed (HTTP ${res.status})`)
       // Clear the in-memory + localStorage auth state, then hard-reload
       // to /admin so the cleared schema re-runs the setup wizard.

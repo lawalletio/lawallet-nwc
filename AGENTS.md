@@ -152,7 +152,9 @@ Required: `DATABASE_URL`, `JWT_SECRET` (32+ chars). See `apps/web/.env.example` 
 
 ## Deployment
 
-- **Docker**: `docker compose up` from root (builds apps/web, starts PostgreSQL)
+- **Docker**: `docker compose up` from root (builds apps/web, starts PostgreSQL).
+  `JWT_SECRET` must be set — the compose file fails closed rather than ship a
+  public default.
 - **Vercel**: Set Root Directory to `apps/web` in Vercel dashboard
   (`apps/web/vercel.json`)
 - **Netlify**: root `netlify.toml` — base stays at the repo root, publishes

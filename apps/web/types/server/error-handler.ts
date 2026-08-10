@@ -53,8 +53,10 @@ export const toApiError = (error: unknown): ApiError => {
 
 // Skip these 4xx codes in the activity log — they're normal client behavior
 // (expired tokens, 404s on poll endpoints, rate limits) and would swamp the
-// admin UI with noise.
-const QUIET_CLIENT_ERRORS = new Set([401, 403, 404, 429])
+// admin UI with noise. 413 is here because oversized bodies are rejected
+// BEFORE authentication on the webhook path: logging them would turn the
+// memory-exhaustion fix into a DB-write amplification vector.
+const QUIET_CLIENT_ERRORS = new Set([401, 403, 404, 413, 429])
 
 function inferCategoryFromPath(pathname: string | undefined): ActivityCategory {
   if (!pathname) return 'SERVER'

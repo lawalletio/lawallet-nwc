@@ -52,7 +52,12 @@ Every authenticated request (NIP-98 or Bearer JWT) passes through `resolveRole(p
 2. Otherwise, it checks the `root` setting (for compatibility with bootstrap before the `User` table). If the pubkey matches, the role is `ADMIN`.
 3. In every other case, the role is `USER`.
 
-The JWT embeds the role when it is issued. **Changing a user's role does not invalidate its active tokens**; the change appears only after the next `POST /api/jwt`. For this reason, sensitive operations (assigning roles or changing settings) generally require direct NIP-98 rather than accepting a JWT.
+The JWT embeds the role when it is issued, but that claim is only a hint: session tokens are stateless and cannot be revoked, so `resolveRole(pubkey)` re-runs on **every** request and the freshly resolved role is what authorizes it. **Demoting or deleting a user takes effect immediately**, without waiting for the token to expire.
+
+Two deliberate exceptions:
+
+- **Device tokens** (`kind: 'device'`) keep the role they were minted with. Their `scopes` claim is the authoritative restriction — an explicit subset of the minting admin's permissions — so re-resolving the owner's role would widen, not narrow, what the token can do.
+- Session lifetimes are capped at **24 hours** (`MAX_SESSION_JWT_SECONDS`), since a leaked stateless token stays valid until it expires.
 
 ## How a role is assigned
 

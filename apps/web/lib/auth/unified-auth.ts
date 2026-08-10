@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateNip98 } from '@/lib/nip98'
 import { validateJwtFromRequest, JwtValidationResult } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
-import { AuthenticationError, AuthorizationError } from '@/types/server/errors'
+import {
+  ApiError,
+  AuthenticationError,
+  AuthorizationError
+} from '@/types/server/errors'
 import {
   Role,
   Permission,
@@ -139,11 +143,26 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
     // immediately instead of keeping them until token expiry. Device tokens
     // keep their minted role — their `scopes` claim is the authoritative
     // restriction.
-    const role = isDeviceToken ? claimRole : await resolveRole(pubkey)
+    const role = isDeviceToken
+      ? claimRole
+      : await resolveRole(pubkey).catch(cause => {
+          // The token is already cryptographically valid here, so a failed
+          // lookup is an infrastructure problem, not a credential problem.
+          // Reporting it as 401 would tell the user their session expired —
+          // a re-login can't fix a DB outage, and it buckets the incident
+          // under auth failures instead of availability.
+          throw new ApiError('Could not resolve account role', {
+            statusCode: 503,
+            code: 'SERVICE_UNAVAILABLE',
+            cause
+          })
+        })
 
     return { pubkey, role, method: 'jwt', scopes }
   } catch (error) {
-    if (error instanceof AuthenticationError) throw error
+    // Any deliberate ApiError (including the 503 above) passes through
+    // untouched; only unexpected throws become "invalid token".
+    if (error instanceof ApiError) throw error
     throw new AuthenticationError('Invalid or expired JWT', {
       details: error instanceof Error ? error.message : 'Invalid token'
     })

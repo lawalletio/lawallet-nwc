@@ -54,7 +54,9 @@ describe('ClaimAddressScreen', () => {
     expect(
       screen.getByRole('heading', { name: 'Claim your Lightning address' })
     ).toBeTruthy()
-    expect(screen.getByRole('button', { name: /claim address/i })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /claim address/i })
+    ).toBeDisabled()
   })
 
   it('shows a format error for invalid characters', async () => {
@@ -63,29 +65,58 @@ describe('ClaimAddressScreen', () => {
 
     await userEvent.type(screen.getByLabelText('Username'), 'ab.')
 
+    expect(screen.getByText('Lowercase letters and numbers only.')).toBeTruthy()
     expect(
-      screen.getByText('Lowercase letters and numbers only.')
-    ).toBeTruthy()
-    expect(screen.getByRole('button', { name: /claim address/i })).toBeDisabled()
+      screen.getByRole('button', { name: /claim address/i })
+    ).toBeDisabled()
   })
 
   it('flags a taken username and keeps the CTA disabled', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ json: async () => ({ available: false }) })
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ available: false })
+      })
     )
     render(<ClaimAddressScreen />)
 
     await userEvent.type(screen.getByLabelText('Username'), 'satoshi')
 
     expect(await screen.findByText('That username is taken.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /claim address/i })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /claim address/i })
+    ).toBeDisabled()
+  })
+
+  it('does not report a rate-limited username as taken', async () => {
+    // A 429 body has no `available` field. Coercing it would render a free
+    // username as "taken" and disable the CTA with nothing explaining why —
+    // an unusable form on any deployment where users share a source IP.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        json: async () => ({ error: 'Rate limit exceeded' })
+      })
+    )
+    render(<ClaimAddressScreen />)
+
+    await userEvent.type(screen.getByLabelText('Username'), 'satoshi')
+
+    const cta = screen.getByRole('button', { name: /claim address/i })
+    await waitFor(() => expect(cta).toBeEnabled())
+    expect(screen.queryByText('That username is taken.')).toBeNull()
   })
 
   it('claims a username and returns to /wallet on success', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ json: async () => ({ available: true }) })
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ available: true })
+      })
     )
     createAddressMock.mockResolvedValue({ username: 'satoshi' })
     render(<ClaimAddressScreen />)

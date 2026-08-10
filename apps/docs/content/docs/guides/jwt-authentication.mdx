@@ -165,6 +165,13 @@ Exchange a NIP-98 signed request for a JWT session token.
 }
 ```
 
+The body is optional and defaults to `1h`. `expiresIn` accepts an `ms`-style
+duration (`30m`, `8h`, `1d`) or a plain number of **seconds**, and is capped at
+**24 hours** — session tokens are stateless and unrevocable, so a leaked one
+must not stay usable for weeks. An out-of-range or malformed value returns
+`400`. Device tokens are minted through a different endpoint and keep their own,
+operator-chosen lifetimes.
+
 **Headers:**
 
 ```text

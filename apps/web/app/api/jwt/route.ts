@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createJwtToken } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { AuthenticationError, InternalServerError } from '@/types/server/errors'
+import {
+  AuthenticationError,
+  InternalServerError,
+  ValidationError
+} from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { jwtRequestSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
@@ -51,8 +55,13 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     expiresIn = /^\d+$/.test(data.expiresIn)
       ? Number(data.expiresIn)
       : data.expiresIn
-  } catch {
-    // Body is optional for this endpoint; default to 1h
+  } catch (error) {
+    // A missing or unparseable body is fine — the body is optional here and
+    // defaults to 1h. But a body that IS present carrying an invalid or
+    // over-cap `expiresIn` must surface as a 400: silently downgrading it to
+    // 1h and returning 200 reads as a phantom "my session expires early" bug
+    // with nothing in the response to explain it.
+    if (error instanceof ValidationError) throw error
   }
 
   // 3. Get JWT secret
