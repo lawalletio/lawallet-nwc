@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { PrismaClient } from '../lib/generated/prisma'
 import { encryptRemoteWalletEnvelope } from '../lib/wallet/remote-wallet-vault-core'
+import { DEV_ADMIN_USER_ID } from '../lib/dev-identity'
 import { mockUserData } from '../mocks/user'
 import { mockLightningAddressData } from '../mocks/lightning-address'
 import { mockNtag424Data } from '../mocks/ntag424'
@@ -26,6 +27,10 @@ async function main() {
           id: user.id,
           pubkey: user.pubkey,
           createdAt: user.createdAt,
+          // Session JWTs re-resolve the role from the DB on every request, so
+          // the dev admin must actually carry ADMIN here — minting a token
+          // with an ADMIN claim is no longer enough (e2e fixtures do that).
+          role: user.id === DEV_ADMIN_USER_ID ? 'ADMIN' : undefined,
           nostrIdentities: {
             create: { pubkey: user.pubkey, isPrimary: true }
           }
