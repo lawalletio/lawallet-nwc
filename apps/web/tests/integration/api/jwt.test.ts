@@ -142,6 +142,65 @@ describe('POST /api/jwt', () => {
     expect(res.status).toBe(500)
   })
 
+  it('caps expiresIn at 24h — an over-cap value falls back to the 1h default', async () => {
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'test-secret' },
+      maintenance: { enabled: false }
+    } as any)
+    vi.mocked(validateNip98).mockResolvedValue({
+      pubkey: PUBKEY,
+      event: {} as any
+    })
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      role: 'USER'
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({})
+    vi.mocked(createJwtToken).mockReturnValue('mock-jwt-token')
+
+    const req = createNextRequest('/api/jwt', {
+      method: 'POST',
+      headers: { authorization: 'Nostr dGVzdA==' },
+      body: { expiresIn: '720h' }
+    })
+    const res = await POST(req)
+    const body: any = await assertResponse(res, 200)
+
+    // The schema rejects durations over 24h; the route treats the body as
+    // optional and mints with the default instead of a 30-day token.
+    expect(body.expiresIn).toBe('1h')
+    expect(createJwtToken).toHaveBeenCalledWith(
+      expect.anything(),
+      'test-secret',
+      expect.objectContaining({ expiresIn: '1h' })
+    )
+  })
+
+  it('accepts a custom expiresIn within the 24h cap', async () => {
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'test-secret' },
+      maintenance: { enabled: false }
+    } as any)
+    vi.mocked(validateNip98).mockResolvedValue({
+      pubkey: PUBKEY,
+      event: {} as any
+    })
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      role: 'USER'
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({})
+    vi.mocked(createJwtToken).mockReturnValue('mock-jwt-token')
+
+    const req = createNextRequest('/api/jwt', {
+      method: 'POST',
+      headers: { authorization: 'Nostr dGVzdA==' },
+      body: { expiresIn: '8h' }
+    })
+    const res = await POST(req)
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.expiresIn).toBe('8h')
+  })
+
   it('defaults to USER role when not found in DB', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'test-secret' },

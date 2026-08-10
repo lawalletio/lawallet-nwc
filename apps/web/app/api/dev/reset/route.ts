@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { NotFoundError } from '@/types/server/errors'
+import { assertDevRoutesEnabled } from '@/lib/dev-guard'
 import { logger } from '@/lib/logger'
 import { invalidateHotSettingsCache } from '@/lib/settings'
 
 // Wipes the entire database back to a clean state so the onboarding
-// flow can be re-tested. Dev-only: 404 in production so the route is
-// not even discoverable. No auth — auth state itself is being wiped.
+// flow can be re-tested. Dev-only: 404 unless ENABLE_DEV_ROUTES=true on a
+// non-production env, so the route is not even discoverable. No auth — auth
+// state itself is being wiped.
 export const POST = withErrorHandling(async () => {
-  if (process.env.NODE_ENV === 'production') {
-    throw new NotFoundError('Not found')
-  }
+  assertDevRoutesEnabled()
 
   // Delete leaf rows first to respect FK constraints. Most relations
   // have onDelete: Cascade or SetNull so this ordering is conservative

@@ -18,11 +18,16 @@ vi.mock('@/lib/middleware/maintenance', () => ({
   checkMaintenance: vi.fn()
 }))
 
-// The route doesn't touch the DB, but its `withErrorHandling` wrapper imports
-// the activity log which instantiates the Prisma client at module load.
-vi.mock('@/lib/prisma', () => ({ prisma: {} }))
+// The route upserts the dev admin identity (the session-JWT role claim is
+// re-resolved from the DB on every request, so the row must exist); the
+// `withErrorHandling` wrapper also imports the activity log which
+// instantiates the Prisma client at module load.
+vi.mock('@/lib/prisma', () => ({
+  prisma: { user: { upsert: vi.fn().mockResolvedValue({}) } }
+}))
 
 import { POST } from '@/app/api/dev/login/route'
+import { prisma } from '@/lib/prisma'
 
 function decodePayload(jwt: string) {
   return JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString())
@@ -33,8 +38,9 @@ afterEach(() => {
 })
 
 describe('POST /api/dev/login', () => {
-  it('mints an ADMIN JWT in development', async () => {
+  it('mints an ADMIN JWT in development with ENABLE_DEV_ROUTES=true', async () => {
     vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('ENABLE_DEV_ROUTES', 'true')
 
     const res = await POST(
       createNextRequest('/api/dev/login', { method: 'POST' })
@@ -50,12 +56,31 @@ describe('POST /api/dev/login', () => {
     expect(payload.permissions).toContain('cards:write')
     expect(payload.iss).toBe('lawallet-nwc')
     expect(payload.aud).toBe('lawallet-users')
+
+    // The minted claim is only a hint — the DB row must back it with ADMIN.
+    expect(prisma.user.upsert).toHaveBeenCalledWith({
+      where: { id: DEV_ADMIN_USER_ID },
+      update: { pubkey: DEV_ADMIN_PUBKEY, role: 'ADMIN' },
+      create: { id: DEV_ADMIN_USER_ID, pubkey: DEV_ADMIN_PUBKEY, role: 'ADMIN' }
+    })
+  })
+
+  it('is unavailable in development without the ENABLE_DEV_ROUTES opt-in', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('ENABLE_DEV_ROUTES', '')
+
+    const res = await POST(
+      createNextRequest('/api/dev/login', { method: 'POST' })
+    )
+
+    expect(res.status).toBe(404)
   })
 
   it.each(['production', 'test', 'staging', ''])(
-    'is unavailable unless NODE_ENV is exactly "development" (%s → 404)',
+    'is unavailable without the opt-in (%s → 404)',
     async env => {
       vi.stubEnv('NODE_ENV', env)
+      vi.stubEnv('ENABLE_DEV_ROUTES', '')
 
       const res = await POST(
         createNextRequest('/api/dev/login', { method: 'POST' })
@@ -64,4 +89,15 @@ describe('POST /api/dev/login', () => {
       expect(res.status).toBe(404)
     }
   )
+
+  it('stays closed in production even with ENABLE_DEV_ROUTES=true', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('ENABLE_DEV_ROUTES', 'true')
+
+    const res = await POST(
+      createNextRequest('/api/dev/login', { method: 'POST' })
+    )
+
+    expect(res.status).toBe(404)
+  })
 })

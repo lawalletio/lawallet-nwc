@@ -3,7 +3,9 @@ import { NextResponse } from 'next/server'
 import { buildErrorResponse } from './api-response'
 import {
   ApiError,
+  ConflictError,
   InternalServerError,
+  NotFoundError,
   ServiceUnavailableError,
   TooManyRequestsError
 } from './errors'
@@ -19,8 +21,31 @@ export const toApiError = (error: unknown): ApiError => {
     return error
   }
 
+  // Prisma error messages embed schema and query details — never serialize
+  // them to clients. Map the well-known codes to proper status codes and keep
+  // the original error as `cause` for logs/Sentry.
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002') {
+      return new ConflictError('A record with this value already exists')
+    }
+    if (error.code === 'P2025') {
+      return new NotFoundError('Record not found')
+    }
+    return new InternalServerError('Database error', { cause: error })
+  }
+  if (
+    error instanceof Prisma.PrismaClientValidationError ||
+    error instanceof Prisma.PrismaClientUnknownRequestError ||
+    error instanceof Prisma.PrismaClientInitializationError ||
+    error instanceof Prisma.PrismaClientRustPanicError
+  ) {
+    return new InternalServerError('Database error', { cause: error })
+  }
+
   if (error instanceof Error) {
-    return new InternalServerError(error.message, { cause: error })
+    // Fixed message: a plain Error's text describes internals (library
+    // messages, file paths, SQL) and must not reach the client.
+    return new InternalServerError('Internal server error', { cause: error })
   }
 
   return new InternalServerError('Unexpected error')
@@ -94,10 +119,16 @@ export const handleApiError = (
     apiError.details
   )
 
-  // Log errors with context
+  // Log errors with context. When the original error was mapped to a
+  // sanitized ApiError (e.g. Prisma P2002 → 409), keep its name/message for
+  // server-side debugging — the client only ever sees the sanitized shape.
   logger.error(
     {
       err: apiError,
+      originalError:
+        error instanceof Error && !(error instanceof ApiError)
+          ? { name: error.name, message: error.message }
+          : undefined,
       statusCode: apiError.statusCode,
       code: apiError.code,
       details: apiError.details

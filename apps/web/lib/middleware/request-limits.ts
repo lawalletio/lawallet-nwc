@@ -148,6 +148,75 @@ export async function checkRequestLimits(
 }
 
 /**
+ * Read a raw request body with a hard size cap and return it as text.
+ *
+ * Unlike {@link checkRequestLimits} (which only inspects and leaves the body
+ * for a later parser), this consumes the body — for routes that need the exact
+ * raw bytes, like HMAC-signed webhooks where the signature covers the payload.
+ * The cap is enforced WHILE reading: Content-Length is rejected up front, and
+ * a chunked body is aborted as soon as it exceeds the limit, so an
+ * unauthenticated oversized POST is never fully buffered in memory before the
+ * signature check runs.
+ *
+ * @param request - The incoming HTTP request
+ * @param presetOrSize - A preset name or an explicit byte limit
+ * @throws {PayloadTooLargeError} If the body exceeds the limit
+ */
+export async function readRawBodyWithLimit(
+  request: Request,
+  presetOrSize: SizePreset | number
+): Promise<string> {
+  const maxBodySize =
+    typeof presetOrSize === 'number'
+      ? presetOrSize
+      : resolvePreset(presetOrSize).maxBodySize
+
+  const contentLength = request.headers.get('content-length')
+  if (contentLength !== null) {
+    const length = parseInt(contentLength, 10)
+    if (!isNaN(length) && length > maxBodySize) {
+      logger.warn(
+        { contentLength: length, maxBodySize, url: request.url },
+        'request.body_too_large'
+      )
+      throw new PayloadTooLargeError(
+        `Request body too large. Maximum size is ${formatBytes(maxBodySize)}.`,
+        { maxBodySize, contentLength: length }
+      )
+    }
+  }
+
+  if (!request.body) return ''
+
+  const reader = request.body.getReader()
+  const decoder = new TextDecoder()
+  let result = ''
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > maxBodySize) {
+        logger.warn(
+          { actualSize: total, maxBodySize, url: request.url },
+          'request.body_too_large'
+        )
+        throw new PayloadTooLargeError(
+          `Request body too large. Maximum size is ${formatBytes(maxBodySize)}.`,
+          { maxBodySize, actualSize: total }
+        )
+      }
+      result += decoder.decode(value, { stream: true })
+    }
+  } finally {
+    await reader.cancel().catch(() => {})
+  }
+  result += decoder.decode()
+  return result
+}
+
+/**
  * Check individual file sizes and count in a FormData payload.
  *
  * Call this AFTER parsing FormData in upload endpoints.

@@ -94,8 +94,30 @@ describe('GET /api/settings', () => {
       listener_enabled: 'false',
       listener_url_source: 'none',
       listener_secret_source: 'none',
-      listener_url_effective: ''
+      listener_url_effective: '',
+      listener_secret_configured: 'false'
     })
+  })
+
+  it('never returns listener_auth_secret — only its presence flag', async () => {
+    vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
+    vi.mocked(getSettings).mockResolvedValue({
+      root: mockPubkey,
+      domain: 'test.com',
+      endpoint: 'app',
+      listener_auth_secret: 'super-secret-value-that-must-not-leak'
+    })
+
+    const req = createNextRequest('/api/settings')
+    const res = await GET(req)
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.listener_secret_configured).toBe('true')
+    expect(body.listener_auth_secret).toBeUndefined()
+    // Defense in depth: the secret string appears nowhere in the payload.
+    expect(JSON.stringify(body)).not.toContain(
+      'super-secret-value-that-must-not-leak'
+    )
   })
 
   it('returns minimal settings when not authenticated', async () => {

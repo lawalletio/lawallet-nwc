@@ -21,9 +21,21 @@ vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn()
 }))
 
-vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn()
-}))
+vi.mock('@/lib/auth/unified-auth', async () => {
+  // `authHasPermission` mirrors the real scope-aware helper: a device token's
+  // scopes win over the role map.
+  const { hasPermission } = await import('@/lib/auth/permissions')
+  return {
+    authenticate: vi.fn(),
+    authHasPermission: (
+      auth: { role: string; scopes?: string[] },
+      permission: string
+    ) =>
+      auth.scopes
+        ? auth.scopes.includes(permission)
+        : hasPermission(auth.role as never, permission as never)
+  }
+})
 
 vi.mock('@/lib/events/event-bus', () => ({
   eventBus: { emit: vi.fn() }

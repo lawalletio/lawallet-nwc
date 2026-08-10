@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { NotFoundError } from '@/types/server/errors'
+import { assertDevRoutesEnabled } from '@/lib/dev-guard'
 import { eventBus } from '@/lib/events/event-bus'
 import { logger } from '@/lib/logger'
 
@@ -9,15 +9,13 @@ import { logger } from '@/lib/logger'
  * `DELETE /api/dev/cards` — wipe every card (plus its NTAG424 key material and
  * activation tokens) so the card flow can be re-tested from a clean slate.
  *
- * Allowlisted to local development: it returns 404 unless `NODE_ENV` is exactly
- * `development`, so production, test, staging, or an unset env are locked out —
- * mirroring {@link file://../reset/route.ts} and {@link file://../login/route.ts}.
+ * Gated by {@link assertDevRoutesEnabled}: 404 in production and everywhere
+ * without the explicit `ENABLE_DEV_ROUTES=true` opt-in — mirroring
+ * {@link file://../reset/route.ts} and {@link file://../login/route.ts}.
  * The button that calls it is gated the same way, so this is double-gated.
  */
 export const DELETE = withErrorHandling(async (_request: Request) => {
-  if (process.env.NODE_ENV !== 'development') {
-    throw new NotFoundError('Not found')
-  }
+  assertDevRoutesEnabled()
 
   // Activation tokens cascade on card delete; the NTAG424 row is referenced
   // *by* the card, so delete cards first, then the now-orphaned ntag424 rows.

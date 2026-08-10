@@ -29,10 +29,10 @@ You have two options:
 
 ### Option A — Docker (recommended)
 
-The repo ships a `docker-compose.yml` that runs PostgreSQL with credentials matching `.env.example`:
+The repo ships a `docker-compose.yml` that runs PostgreSQL with credentials matching `.env.example`. The compose file intentionally has no default `JWT_SECRET` (a shipped fallback would let anyone forge admin tokens), so pass a throwaway value for the Postgres-only flow:
 
 ```bash
-docker compose up -d postgres
+JWT_SECRET="$(openssl rand -hex 32)" docker compose up -d postgres
 ```
 
 That starts Postgres on `localhost:5432` with database `lawallet`, user `lawallet`, password `lawallet_password`.

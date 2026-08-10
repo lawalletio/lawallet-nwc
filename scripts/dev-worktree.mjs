@@ -51,6 +51,8 @@ function renderEnv(env) {
     `POSTGRES_VOLUME="${env.POSTGRES_VOLUME}"`,
     `DATABASE_URL="${env.DATABASE_URL}"`,
     'NODE_ENV="development"',
+    // Local-only opt-in for the /api/dev/* routes (reset/login/impersonate).
+    'ENABLE_DEV_ROUTES="true"',
     `PORT="${env.PORT}"`,
     `WEB_PORT="${env.WEB_PORT}"`,
     `JWT_SECRET="${env.JWT_SECRET}"`,

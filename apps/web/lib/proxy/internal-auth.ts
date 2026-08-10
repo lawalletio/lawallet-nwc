@@ -6,6 +6,7 @@ import {
   NWC_WEBHOOK_TIMESTAMP_HEADER
 } from '@/lib/validation/schemas'
 import { getListenerConfig } from '@/lib/listener-config'
+import { readRawBodyWithLimit } from '@/lib/middleware/request-limits'
 import { AuthenticationError, NotFoundError } from '@/types/server/errors'
 
 export async function readAuthenticatedListenerBody(
@@ -27,7 +28,9 @@ export async function readAuthenticatedListenerBody(
   ) {
     throw new AuthenticationError('Listener timestamp outside accepted window')
   }
-  const raw = await request.text()
+  // Capped read: the signature hasn't been verified yet, so the body must
+  // never be buffered unbounded in memory (unauthenticated DoS vector).
+  const raw = await readRawBodyWithLimit(request, 'json')
   const expected = createHmac('sha256', secret)
     .update(`${timestamp}.${raw}`)
     .digest('hex')

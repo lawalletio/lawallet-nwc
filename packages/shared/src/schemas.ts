@@ -665,8 +665,36 @@ export const remoteWalletNotificationDeliveryParamsSchema = z.object({
 
 // ── JWT ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Session JWTs are stateless and unrevocable, so their lifetime is capped:
+ * a leaked (or over-generous) token must not stay usable for weeks. Device
+ * tokens have their own schema (`deviceTokenExpiresIn`) with operator-chosen
+ * lifetimes.
+ */
+export const MAX_SESSION_JWT_SECONDS = 24 * 60 * 60 // 24h
+
+/** Parses an `ms`-style duration (`30m`, `8h`) or bare seconds into seconds. */
+function sessionDurationToSeconds(value: string): number | null {
+  const match = /^(\d+)\s*(s|m|h)?$/i.exec(value.trim())
+  if (!match) return null
+  const amount = Number(match[1])
+  const unit = (match[2] ?? 's').toLowerCase()
+  const factor = unit === 'h' ? 3600 : unit === 'm' ? 60 : 1
+  return amount * factor
+}
+
 export const jwtRequestSchema = z.object({
-  expiresIn: z.string().optional().default('1h')
+  expiresIn: z
+    .string()
+    .trim()
+    .refine(value => {
+      const seconds = sessionDurationToSeconds(value)
+      return (
+        seconds !== null && seconds >= 1 && seconds <= MAX_SESSION_JWT_SECONDS
+      )
+    }, 'Use a duration like 30m or 8h (1 second to 24 hours)')
+    .optional()
+    .default('1h')
 })
 
 // ── Device Tokens (QR-based JWT login, B.0) ──────────────────────────────────

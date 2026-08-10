@@ -17,13 +17,26 @@ import { eventBus } from '@/lib/events/event-bus'
 import { probeLud21Support } from '@/lib/lnurl-probe'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
+/**
+ * Settings keys that must NEVER be serialized to clients, regardless of role.
+ * `listener_auth_secret` signs the listener's payment webhooks — leaking it to
+ * a read-only role (VIEWER has SETTINGS_READ) lets an attacker forge
+ * `payment_received` events and move funds. The UI works with presence flags
+ * (`listener_secret_configured`) and write-only updates instead.
+ */
+const SENSITIVE_SETTINGS_KEYS = new Set(['listener_auth_secret'])
+
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch all settings records from the database
   const settings = await getSettings()
   const endpoint = settings.endpoint ?? settings.subdomain
   const hasRoot = Boolean(settings.root)
   const responseSettings = {
-    ...settings,
+    ...Object.fromEntries(
+      Object.entries(settings).filter(
+        ([key]) => !SENSITIVE_SETTINGS_KEYS.has(key)
+      )
+    ),
     endpoint,
     subdomain: endpoint,
     hasRoot
@@ -89,7 +102,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     listener_enabled: listener.enabled ? 'true' : 'false',
     listener_url_source: listener.urlSource,
     listener_secret_source: listener.secretSource,
-    listener_url_effective: listener.url ?? ''
+    listener_url_effective: listener.url ?? '',
+    // Presence flag only — the secret value itself is never exposed (see
+    // SENSITIVE_SETTINGS_KEYS). The settings UI uses this to keep the stored
+    // secret when saving unrelated listener fields.
+    listener_secret_configured: settings.listener_auth_secret ? 'true' : 'false'
   })
 })
 

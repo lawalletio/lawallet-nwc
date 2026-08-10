@@ -113,16 +113,6 @@ export const POST = withErrorHandling(
       )
     }
 
-    // Mark invoice as paid
-    await prisma.invoice.update({
-      where: { id },
-      data: {
-        status: 'PAID',
-        preimage: body.preimage,
-        paidAt: new Date()
-      }
-    })
-
     // Execute purpose-specific action
     let result: Record<string, unknown> = { success: true }
 
@@ -142,48 +132,84 @@ export const POST = withErrorHandling(
         throw new ConflictError('Username was taken while payment was pending')
       }
 
-      if (invoice.purpose === 'REGISTRATION') {
-        await prisma.$transaction(async tx => {
-          const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(
-            user.id,
-            tx
-          )
-          const candidate =
-            currentPrimaryWallet ??
-            (await findInitialPrimaryWalletCandidate(user.id, tx))
+      // Read-only routing defaults for a secondary add — computed outside the
+      // transaction since they don't take a tx client.
+      const secondaryRouting =
+        invoice.purpose === 'WALLET_ADDRESS'
+          ? await resolveDefaultAddressRouting(user.id)
+          : null
 
-          // Primary swap: delete the existing primary first so the
-          // partial-unique index on (userId) WHERE isPrimary=true
-          // doesn't conflict, then insert the new primary row.
-          const existingPrimary = await tx.lightningAddress.findFirst({
-            where: { userId: user.id, isPrimary: true }
-          })
-          if (existingPrimary) {
-            await tx.lightningAddress.delete({
-              where: { username: existingPrimary.username }
-            })
-          }
-          await tx.lightningAddress.create({
+      // The PAID flip and the address creation commit or roll back TOGETHER:
+      // a failed insert (e.g. the username was taken concurrently) must never
+      // strand a paid invoice with no address — the user paid and is entitled
+      // to retry. The conditional update also closes the double-claim race:
+      // only one concurrent claim flips PENDING → PAID and wins.
+      try {
+        await prisma.$transaction(async tx => {
+          const claimed = await tx.invoice.updateMany({
+            where: { id, status: 'PENDING' },
             data: {
-              username,
-              userId: user.id,
-              isPrimary: true,
-              mode: candidate ? 'CUSTOM_NWC' : 'IDLE',
-              remoteWalletId: candidate?.id ?? null
+              status: 'PAID',
+              preimage: body.preimage,
+              paidAt: new Date()
             }
           })
-          await syncPrimaryRemoteWalletFlag(user.id, tx)
-        })
-      } else {
-        // Secondary add: never touches the existing primary.
-        await prisma.lightningAddress.create({
-          data: {
-            username,
-            userId: user.id,
-            isPrimary: false,
-            ...(await resolveDefaultAddressRouting(user.id))
+          if (claimed.count === 0) {
+            throw new ConflictError('Invoice has already been claimed')
+          }
+
+          if (invoice.purpose === 'REGISTRATION') {
+            const currentPrimaryWallet = await getPrimaryRemoteWalletForUser(
+              user.id,
+              tx
+            )
+            const candidate =
+              currentPrimaryWallet ??
+              (await findInitialPrimaryWalletCandidate(user.id, tx))
+
+            // Primary swap: delete the existing primary first so the
+            // partial-unique index on (userId) WHERE isPrimary=true
+            // doesn't conflict, then insert the new primary row.
+            const existingPrimary = await tx.lightningAddress.findFirst({
+              where: { userId: user.id, isPrimary: true }
+            })
+            if (existingPrimary) {
+              await tx.lightningAddress.delete({
+                where: { username: existingPrimary.username }
+              })
+            }
+            await tx.lightningAddress.create({
+              data: {
+                username,
+                userId: user.id,
+                isPrimary: true,
+                mode: candidate ? 'CUSTOM_NWC' : 'IDLE',
+                remoteWalletId: candidate?.id ?? null
+              }
+            })
+            await syncPrimaryRemoteWalletFlag(user.id, tx)
+          } else {
+            // Secondary add: never touches the existing primary.
+            await tx.lightningAddress.create({
+              data: {
+                username,
+                userId: user.id,
+                isPrimary: false,
+                ...secondaryRouting
+              }
+            })
           }
         })
+      } catch (error) {
+        // Concurrent claim created the same username after our pre-check —
+        // the unique index is the real guard. The invoice flip rolled back,
+        // so report the conflict (not a paid-but-addressless 500).
+        if ((error as { code?: string }).code === 'P2002') {
+          throw new ConflictError(
+            'Username was taken while payment was pending'
+          )
+        }
+        throw error
       }
 
       const { domain } = await getSettings(['domain'])
@@ -191,6 +217,19 @@ export const POST = withErrorHandling(
         success: true,
         lightningAddress: `${username}@${domain}`,
         username
+      }
+    } else {
+      // Non-address purposes: conditional flip only — same double-claim guard.
+      const claimed = await prisma.invoice.updateMany({
+        where: { id, status: 'PENDING' },
+        data: {
+          status: 'PAID',
+          preimage: body.preimage,
+          paidAt: new Date()
+        }
+      })
+      if (claimed.count === 0) {
+        throw new ConflictError('Invoice has already been claimed')
       }
     }
 

@@ -89,10 +89,16 @@ export function NwcServicesTab() {
   const [listenerEnabled, setListenerEnabled] = useState(false)
   const [listenerUrl, setListenerUrl] = useState('')
   const [listenerSecret, setListenerSecret] = useState('')
+  const [secretConfigured, setSecretConfigured] = useState(false)
   const [secretVisible, setSecretVisible] = useState(false)
   const [enabledSaving, setEnabledSaving] = useState(false)
   const [probe, setProbe] = useState<ProbeState>({ status: 'idle' })
   const [deployGuideOpen, setDeployGuideOpen] = useState(false)
+
+  // The API never returns the stored secret — only a presence flag. This ref
+  // tracks whether the field holds a user-entered value; saves omit the key
+  // entirely when untouched so the stored secret is preserved.
+  const secretDirtyRef = useRef(false)
 
   // Hydrate exactly once — re-running on refetches would clobber live edits.
   const hydratedRef = useRef(false)
@@ -101,7 +107,7 @@ export function NwcServicesTab() {
     hydratedRef.current = true
     setListenerEnabled(settings.listener_enabled === 'true')
     setListenerUrl(settings.listener_url ?? '')
-    setListenerSecret(settings.listener_auth_secret ?? '')
+    setSecretConfigured(settings.listener_secret_configured === 'true')
   }, [settings])
 
   const urlFromEnv = settings?.listener_url_source === 'env'
@@ -113,7 +119,7 @@ export function NwcServicesTab() {
     listenerSecret !== '' && listenerSecret.length < SECRET_MIN_LENGTH
   const isConfigured =
     (listenerUrl.trim() !== '' || urlFromEnv) &&
-    (listenerSecret !== '' || secretFromEnv)
+    (listenerSecret !== '' || secretConfigured || secretFromEnv)
   const needsConfig = listenerEnabled && !isConfigured
   const probeUrl = listenerUrl.trim() || settings?.listener_url_effective || ''
 
@@ -124,22 +130,29 @@ export function NwcServicesTab() {
     async (patch: { enabled?: boolean; url?: string; secret?: string }) => {
       const enabled = patch.enabled ?? listenerEnabled
       const url = (patch.url ?? listenerUrl).trim()
-      const secret = patch.secret ?? listenerSecret
-      const configured =
-        (url !== '' || urlFromEnv) && (secret !== '' || secretFromEnv)
+      const secret =
+        patch.secret ?? (secretDirtyRef.current ? listenerSecret : undefined)
+      const hasSecret =
+        (secret ?? '') !== '' || secretConfigured || secretFromEnv
+      const configured = (url !== '' || urlFromEnv) && hasSecret
       await saveSetting({
         // Keep the DB consistent (disabled) until a full config exists —
         // the amber hint below the toggle explains it.
         listener_enabled: enabled && configured ? 'true' : 'false',
         listener_url: url,
-        listener_auth_secret: secret
+        ...(secret !== undefined ? { listener_auth_secret: secret } : {})
       })
+      if (patch.secret !== undefined) {
+        setSecretConfigured(patch.secret !== '')
+        secretDirtyRef.current = false
+      }
     },
     [
       saveSetting,
       listenerEnabled,
       listenerUrl,
       listenerSecret,
+      secretConfigured,
       urlFromEnv,
       secretFromEnv
     ]
@@ -173,6 +186,7 @@ export function NwcServicesTab() {
   function handleGenerateSecret() {
     const secret = generateSecretValue()
     setListenerSecret(secret)
+    secretDirtyRef.current = true
     setSecretVisible(true)
     void secretStatus.run(() => persistListener({ secret }))
   }
@@ -341,12 +355,15 @@ export function NwcServicesTab() {
                   placeholder={
                     secretFromEnv
                       ? '(set via environment)'
-                      : 'Min 32 characters'
+                      : secretConfigured
+                        ? '(stored — enter a new value to rotate)'
+                        : 'Min 32 characters'
                   }
                   aria-invalid={secretInvalid || undefined}
                   className={secretInvalid ? `${INVALID_CLASSES} pr-9` : 'pr-9'}
                   onChange={e => {
                     setListenerSecret(e.target.value)
+                    secretDirtyRef.current = true
                     debouncedSecretSave(e.target.value)
                   }}
                 />

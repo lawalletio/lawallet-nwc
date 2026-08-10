@@ -62,8 +62,9 @@ export interface SettingsData {
   listener_enabled?: string
   /** Stored listener base URL (DB value only; empty = fall back to env). */
   listener_url?: string
-  /** Stored shared secret (DB value only; the env value is never returned). */
-  listener_auth_secret?: string
+  /** The shared secret is write-only and never returned by the API — only its
+   * presence is reported via this flag ('true' when a DB value is stored). */
+  listener_secret_configured?: string
   /** Where the effective URL/secret come from (computed, full response only). */
   listener_url_source?: 'settings' | 'env' | 'none'
   listener_secret_source?: 'settings' | 'env' | 'none'

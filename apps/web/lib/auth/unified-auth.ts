@@ -103,9 +103,10 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
       throw new AuthenticationError('JWT missing pubkey claim')
     }
 
-    const role = isValidRole(result.payload.role)
+    const claimRole = isValidRole(result.payload.role)
       ? result.payload.role
       : Role.USER
+    const isDeviceToken = result.payload.kind === 'device'
 
     // Device tokens (B.0) carry an explicit `scopes` claim that narrows what the
     // token can do regardless of role. Only trust a well-formed array of known
@@ -123,7 +124,7 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
     // token whose `apiUrl` claim is missing or doesn't match this platform's URL
     // so a token issued for one instance can't be replayed against another. Only
     // device tokens carry `apiUrl`; session JWTs (no `kind`) are unaffected.
-    if (result.payload.kind === 'device') {
+    if (isDeviceToken) {
       const url = await resolveApiUrl(request)
       if (normalizeApiUrl(result.payload.apiUrl) !== normalizeApiUrl(url)) {
         throw new AuthenticationError('Token is not valid for this instance', {
@@ -131,6 +132,14 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
         })
       }
     }
+
+    // Session JWTs are unrevocable, so the baked-in role claim is only a
+    // hint: re-resolve it from the DB on every request, exactly like the
+    // NIP-98 path. A demoted or deleted account then loses its privileges
+    // immediately instead of keeping them until token expiry. Device tokens
+    // keep their minted role — their `scopes` claim is the authoritative
+    // restriction.
+    const role = isDeviceToken ? claimRole : await resolveRole(pubkey)
 
     return { pubkey, role, method: 'jwt', scopes }
   } catch (error) {
@@ -161,6 +170,25 @@ export async function authenticateWithRole(
 }
 
 /**
+ * Scope-aware permission check on an already-authenticated result. A device
+ * token's `scopes` claim is authoritative — it's the explicit set the admin
+ * delegated, already validated as a subset of their RBAC at mint time. For
+ * every other caller, falls back to the role→permission map.
+ *
+ * Routes that call {@link authenticate} directly MUST use this instead of a
+ * bare `hasPermission(auth.role, …)`, or a narrowly-scoped device token
+ * silently inherits its owner's full role (privilege escalation).
+ */
+export function authHasPermission(
+  auth: AuthResult,
+  permission: Permission
+): boolean {
+  return auth.scopes
+    ? auth.scopes.includes(permission)
+    : hasPermission(auth.role, permission)
+}
+
+/**
  * Authenticates and verifies the actor holds the given permission.
  *
  * @throws {AuthenticationError} When the request lacks valid credentials.
@@ -172,14 +200,7 @@ export async function authenticateWithPermission(
 ): Promise<AuthResult> {
   const auth = await authenticate(request)
 
-  // A device token's `scopes` claim is authoritative — it's the explicit set
-  // the admin delegated, already validated as a subset of their RBAC at mint
-  // time. For every other caller, fall back to the role→permission map.
-  const allowed = auth.scopes
-    ? auth.scopes.includes(permission)
-    : hasPermission(auth.role, permission)
-
-  if (!allowed) {
+  if (!authHasPermission(auth, permission)) {
     throw new AuthorizationError('Not authorized to perform this action')
   }
 
