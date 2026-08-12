@@ -673,13 +673,17 @@ export const remoteWalletNotificationDeliveryParamsSchema = z.object({
  */
 export const MAX_SESSION_JWT_SECONDS = 24 * 60 * 60 // 24h
 
-/** Parses an `ms`-style duration (`30m`, `8h`) or bare seconds into seconds. */
+/** Parses an `ms`-style duration (`30m`, `8h`, `1d`) or bare seconds into seconds. */
 function sessionDurationToSeconds(value: string): number | null {
-  const match = /^(\d+)\s*(s|m|h)?$/i.exec(value.trim())
+  // `d` is accepted even though `2d` exceeds the cap — `1d` is a legal way to
+  // spell the maximum, and rejecting the unit outright makes a valid request
+  // look malformed. `w` is omitted: every `w` value is over the cap.
+  const match = /^(\d+)\s*(s|m|h|d)?$/i.exec(value.trim())
   if (!match) return null
   const amount = Number(match[1])
   const unit = (match[2] ?? 's').toLowerCase()
-  const factor = unit === 'h' ? 3600 : unit === 'm' ? 60 : 1
+  const factor =
+    unit === 'd' ? 86400 : unit === 'h' ? 3600 : unit === 'm' ? 60 : 1
   return amount * factor
 }
 

@@ -235,14 +235,38 @@ describe('POST /api/webhooks/nwc', () => {
   })
 
   it('rejects an oversized body with 413 before any signature work', async () => {
-    // 200 KB against the mocked 100 KB json cap. The limit must trip even
-    // with a VALID signature — an unauthenticated (or wrongly-signed) large
-    // POST must never be fully buffered before rejection.
+    // 2 MB against the mocked 1 MB `large` cap. The limit must trip even with
+    // a VALID signature — an unauthenticated (or wrongly-signed) large POST
+    // must never be fully buffered before rejection.
     const res = await POST(
-      signedRequest({ ...paymentReceived, padding: 'x'.repeat(200 * 1024) })
+      signedRequest({
+        ...paymentReceived,
+        padding: 'x'.repeat(2 * 1024 * 1024)
+      })
     )
     expect(res.status).toBe(413)
     expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('accepts a fat payload under the 1 MB cap', async () => {
+    // `payment.transaction` re-embeds the raw NWC transaction on top of the
+    // flattened fields, so real events can comfortably exceed the 100 KB json
+    // preset. A 413 here would be unrecoverable: the listener treats a
+    // non-5xx/429 as non-retryable and its sweeper has no attempt cap, so the
+    // payment would silently never land.
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      pendingInvoice as never
+    )
+    const res = await POST(
+      signedRequest({
+        ...paymentReceived,
+        payment: {
+          ...(paymentReceived as Record<string, any>).payment,
+          transaction: { blob: 'x'.repeat(300 * 1024) }
+        }
+      })
+    )
+    expect(res.status).not.toBe(413)
   })
 
   it('marks a PENDING invoice PAID on payment_received and emits SSE', async () => {

@@ -77,7 +77,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Capped read: the signature hasn't been verified yet, so the body must
   // never be buffered unbounded in memory (unauthenticated DoS vector).
-  const raw = await readRawBodyWithLimit(request, 'json')
+  //
+  // `large` (1 MB), not `json` (100 KB): `payment.transaction` re-embeds the
+  // entire raw NWC transaction on top of the already-flattened fields, and a
+  // 413 here is unrecoverable — the listener treats a non-5xx/429 as
+  // non-retryable and its sweeper has no attempt cap, so an oversized event
+  // never lands and the payment silently never appears. 1 MB still closes the
+  // memory-exhaustion vector.
+  const raw = await readRawBodyWithLimit(request, 'large')
   const expected = createHmac('sha256', webhookSecret)
     .update(`${timestampHeader}.${raw}`)
     .digest('hex')

@@ -117,5 +117,5 @@ overrides:
   nanoid@>=4.0.0 <5.1.16: 5.1.16
   # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq (high, image-size ICNS/JXL/HEIF
   # DoS) have NO published fix ("Patched versions: <0.0.0", latest is 2.0.2).
-  # Resolved by bumping fumadocs-core to 16.14.3 in apps/docs, which drops the
+  # Resolved by bumping fumadocs-core to 16.8.0 in apps/docs, which drops the
   # image-size dependency entirely — no override is possible here.

@@ -33,7 +33,9 @@ try {
 } catch (error) {
   console.error(`[db] Database offline: ${databaseLabel}`)
   console.error(`[db] ${formatError(error)}`)
-  console.error('[db] Start local Postgres with: docker compose up -d postgres')
+  console.error(
+    '[db] Start local Postgres with: JWT_SECRET="$(openssl rand -hex 32)" docker compose up -d postgres'
+  )
   console.error(
     '[db] Then apply migrations with: pnpm --filter @lawallet-nwc/web exec prisma migrate deploy'
   )

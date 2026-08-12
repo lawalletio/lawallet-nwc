@@ -247,8 +247,10 @@ SQLite is a different database engine and not a drop-in substitute.
 Instead:
 
 ```bash
-# Start the shared local Postgres once
-docker compose up -d postgres
+# Start the shared local Postgres once. The compose file has no default
+# JWT_SECRET (fail-closed on purpose) and resolves interpolation for the
+# whole file, so pass a throwaway value even for the postgres-only flow.
+JWT_SECRET="$(openssl rand -hex 32)" docker compose up -d postgres
 
 # In each worktree, create or reuse a unique database and export DATABASE_URL
 eval "$(./scripts/worktree-db.sh env)"

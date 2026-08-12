@@ -147,6 +147,31 @@ describe('POST /api/invoices/[id]/claim', () => {
     expect(res.status).toBe(400)
   })
 
+  it('sweeps an expired invoice conditionally so a concurrent claim survives', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      expiresAt: new Date(Date.now() - 60_000)
+    } as any)
+
+    const req = createNextRequest('/api/invoices/inv-1/claim', {
+      method: 'POST',
+      body: { preimage: PREIMAGE }
+    })
+    await POST(req, createParamsPromise({ id: 'inv-1' }))
+
+    // `invoice` is a stale read: a concurrent claim may have committed PAID
+    // and created the address between it and this write. An unconditional
+    // `update` would clobber that to EXPIRED, leaving a paid invoice the user
+    // can't see. The guard must be part of the where clause.
+    expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'inv-1', status: 'PENDING' }),
+        data: { status: 'EXPIRED' }
+      })
+    )
+  })
+
   it('rejects preimage that does not hash to paymentHash', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
       baseInvoice as any

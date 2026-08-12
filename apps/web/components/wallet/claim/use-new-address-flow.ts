@@ -165,8 +165,11 @@ export function useNewAddressFlow({
         const res = await fetch(
           `/api/lightning-addresses/check?username=${encodeURIComponent(username)}`
         )
+        // Only a 2xx carries a meaningful `available`. Coercing an error body
+        // (429, 400, 500) would render a free username as "taken" and disable
+        // submit with nothing explaining why — treat it as "unknown" instead.
         const body = (await res.json()) as { available?: boolean }
-        if (!cancelled) setAvailable(Boolean(body.available))
+        if (!cancelled) setAvailable(res.ok ? Boolean(body.available) : null)
       } catch {
         if (!cancelled) setAvailable(null)
       } finally {

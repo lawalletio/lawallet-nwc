@@ -142,7 +142,7 @@ describe('POST /api/jwt', () => {
     expect(res.status).toBe(500)
   })
 
-  it('caps expiresIn at 24h — an over-cap value falls back to the 1h default', async () => {
+  it('caps expiresIn at 24h — an over-cap value is rejected with 400', async () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'test-secret' },
       maintenance: { enabled: false }
@@ -163,16 +163,67 @@ describe('POST /api/jwt', () => {
       body: { expiresIn: '720h' }
     })
     const res = await POST(req)
+
+    // A present-but-invalid body must surface as a 400. Silently minting a 1h
+    // token with a 200 would read as a phantom "session expires early" bug.
+    expect(res.status).toBe(400)
+    expect(createJwtToken).not.toHaveBeenCalled()
+  })
+
+  it('accepts 1d — exactly the 24h cap, expressed in days', async () => {
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'test-secret' },
+      maintenance: { enabled: false }
+    } as any)
+    vi.mocked(validateNip98).mockResolvedValue({
+      pubkey: PUBKEY,
+      event: {} as any
+    })
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      role: 'USER'
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({})
+    vi.mocked(createJwtToken).mockReturnValue('mock-jwt-token')
+
+    const req = createNextRequest('/api/jwt', {
+      method: 'POST',
+      headers: { authorization: 'Nostr dGVzdA==' },
+      body: { expiresIn: '1d' }
+    })
+    const res = await POST(req)
     const body: any = await assertResponse(res, 200)
 
-    // The schema rejects durations over 24h; the route treats the body as
-    // optional and mints with the default instead of a 30-day token.
-    expect(body.expiresIn).toBe('1h')
+    expect(body.expiresIn).toBe('1d')
     expect(createJwtToken).toHaveBeenCalledWith(
       expect.anything(),
       'test-secret',
-      expect.objectContaining({ expiresIn: '1h' })
+      expect.objectContaining({ expiresIn: '1d' })
     )
+  })
+
+  it('still defaults to 1h when the body is absent entirely', async () => {
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'test-secret' },
+      maintenance: { enabled: false }
+    } as any)
+    vi.mocked(validateNip98).mockResolvedValue({
+      pubkey: PUBKEY,
+      event: {} as any
+    })
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      role: 'USER'
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({})
+    vi.mocked(createJwtToken).mockReturnValue('mock-jwt-token')
+
+    const req = createNextRequest('/api/jwt', {
+      method: 'POST',
+      headers: { authorization: 'Nostr dGVzdA==' }
+    })
+    const res = await POST(req)
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.expiresIn).toBe('1h')
   })
 
   it('accepts a custom expiresIn within the 24h cap', async () => {
