@@ -42,13 +42,14 @@ const { captureException } = vi.hoisted(() => ({
 }))
 vi.mock('@sentry/nextjs', () => ({ captureException }))
 
-import { handleApiError } from '@/types/server/error-handler'
+import { handleApiError, toApiError } from '@/types/server/error-handler'
 import {
   AuthenticationError,
   InternalServerError,
   NotFoundError,
   ServiceUnavailableError
 } from '@/types/server/errors'
+import { Prisma } from '@/lib/generated/prisma'
 
 const ORIGINAL_DSN = process.env.SENTRY_DSN
 
@@ -133,5 +134,67 @@ describe('handleApiError Sentry forwarding', () => {
     const body = await response.json()
     expect(body.success).toBe(false)
     expect(body.error.message).toBe('db exploded')
+  })
+})
+
+describe('toApiError sanitization', () => {
+  it('maps Prisma P2002 to 409 without leaking constraint details', async () => {
+    const prismaError = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed on the fields: (`username`)',
+      { code: 'P2002', clientVersion: '6.0.0' }
+    )
+
+    const response = handleApiError(prismaError)
+
+    expect(response.status).toBe(409)
+    const body = await response.json()
+    expect(body.error.message).toBe('A record with this value already exists')
+    expect(JSON.stringify(body)).not.toContain('username')
+  })
+
+  it('maps Prisma P2025 to 404', async () => {
+    const prismaError = new Prisma.PrismaClientKnownRequestError(
+      'An operation failed because it depends on one or more records that were required but not found.',
+      { code: 'P2025', clientVersion: '6.0.0' }
+    )
+
+    const response = handleApiError(prismaError)
+
+    expect(response.status).toBe(404)
+    const body = await response.json()
+    expect(body.error.message).toBe('Record not found')
+  })
+
+  it('maps an unknown Prisma code to a generic 500', async () => {
+    const prismaError = new Prisma.PrismaClientKnownRequestError(
+      'Raw query failed. Code: `23505`. Message: `duplicate key value violates unique constraint "Card_uid_key"`',
+      { code: 'P2010', clientVersion: '6.0.0' }
+    )
+
+    const response = handleApiError(prismaError)
+
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.error.message).toBe('Database error')
+    expect(JSON.stringify(body)).not.toContain('Card_uid_key')
+  })
+
+  it('maps a plain Error to a fixed 500 message (no internals leak)', async () => {
+    const response = handleApiError(
+      new Error('connect ECONNREFUSED 10.0.0.2:5432')
+    )
+
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.error.message).toBe('Internal server error')
+    expect(JSON.stringify(body)).not.toContain('ECONNREFUSED')
+  })
+
+  it('keeps the original error as cause for logs/Sentry', () => {
+    const cause = new Error('boom internals')
+    const apiError = toApiError(cause)
+
+    expect(apiError).toBeInstanceOf(InternalServerError)
+    expect(apiError.cause).toBe(cause)
   })
 })

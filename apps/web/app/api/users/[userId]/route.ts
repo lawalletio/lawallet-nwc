@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { authenticate } from '@/lib/auth/unified-auth'
+import { authenticate, authHasPermission } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
-import { Permission, hasPermission } from '@/lib/auth/permissions'
+import { Permission } from '@/lib/auth/permissions'
 import { AuthorizationError, NotFoundError } from '@/types/server/errors'
 import { toWalletAddressDto } from '@/lib/wallet/wallet-address-dto'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
@@ -80,7 +80,7 @@ export const GET = withErrorHandling(
     // still counts as "me".
     const me = await resolveAccountByPubkey(auth.pubkey)
     const isSelf = me?.id === user.id
-    if (!isSelf && !hasPermission(auth.role, Permission.USERS_READ)) {
+    if (!isSelf && !authHasPermission(auth, Permission.USERS_READ)) {
       throw new AuthorizationError('Not authorized to view this user')
     }
 

@@ -152,6 +152,17 @@ for (const [contents, label] of [
     2,
     `${label} must pass NWC_VAULT_SECRET to web and listener`
   )
+  // A default JWT_SECRET is public knowledge — anyone can sign an ADMIN token
+  // with it. Both compose files must fail closed when the variable is unset.
+  requireMatch(
+    contents,
+    /\$\{JWT_SECRET:\?/,
+    `${label} must require JWT_SECRET via :? (no insecure default)`
+  )
+  requireCondition(
+    !/\$\{JWT_SECRET:-/.test(contents),
+    `${label} must not ship a default JWT_SECRET value`
+  )
 }
 
 // The Umbrel package lives in lawalletio/umbrel-app-store and is only ever

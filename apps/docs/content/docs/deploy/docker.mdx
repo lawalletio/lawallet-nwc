@@ -46,7 +46,7 @@ Common Compose overrides:
 | ----------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `LAWALLET_TAG`                                        | `latest`                 | Image tag to run (pin to a release, e.g. `1.0.0`)                                                             |
 | `PORT`                                                | `2288`                   | Host port the app is published on                                                                             |
-| `JWT_SECRET`                                          | _(insecure placeholder)_ | **Set this** — must be ≥ 32 characters                                                                        |
+| `JWT_SECRET`                                          | _(required)_             | **Set this** — must be ≥ 32 characters; Compose refuses to start without it                                    |
 | `LISTENER_URL`                                        | _(unset)_                | Set to `http://listener:4100` when enabling the bundled listener profile                                      |
 | `LISTENER_AUTH_SECRET`                                | _(unset)_                | Operator-generated shared secret for the optional listener, ≥ 32 characters                                   |
 | `NWC_VAULT_SECRET`                                    | _(unset)_                | Dedicated ≥32-character key shared by web/listener; required for stored NWC RemoteWallets or proxy settlement |

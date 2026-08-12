@@ -79,10 +79,13 @@ overrides:
   minimatch@>=9.0.0 <9.0.7: 9.0.7
   # GHSA-3jxr-9vmj-r5cp (high, 2026-07-20): DoS via exponential-time expansion.
   # Patched on three maintenance lines — 1.1.16, 2.1.2 and 5.0.7 — so each
-  # major that appears in the tree needs its own pin.
+  # major that appears in the tree needs its own pin. The >=3 entry pins 5.0.9
+  # (not 5.0.7) and scopes to <5.0.9: GHSA-rgw5-rvv9-x895 (high) discloses a
+  # bypass of the CVE-2026-14257 mitigation on >=4.0.0 <5.0.9, and loose specs
+  # like minimatch 10's ^5.0.1 sit above the old <5.0.7 window.
   brace-expansion@<1.1.16: 1.1.16
   brace-expansion@>=2.0.0 <2.1.2: 2.1.2
-  brace-expansion@>=3.0.0 <5.0.7: 5.0.8
+  brace-expansion@>=3.0.0 <5.0.9: 5.0.9
   ajv@<7: 6.14.0
   # GHSA-r28c-9q8g-f849 (high, 2026-07-25): path traversal via sourceMappingURL
   # auto-loading leaks arbitrary .map files. Patched in >=8.5.18. Range-scoped
@@ -102,3 +105,17 @@ overrides:
   esbuild: 0.28.1
   vite: 6.4.3
   ws: 8.21.0
+  # GHSA-5p4m-2wfm-xmqj (high): quadratic CPU in !!omap resolution on js-yaml
+  # 3.x/4.x; the CVE-2026-59870 fix was only shipped as 4.3.1. Reached via
+  # apps/docs > fumadocs-mdx.
+  js-yaml@<4.3.1: 4.3.1
+  # GHSA-28wg-ghj8-5hjv / GHSA-2v37-7h3g-55p8 (high): nanoid generators loop
+  # indefinitely on negative/zero sizes. Patched on 3.3.17 (3.x line, via
+  # apps/docs > fumadocs-mdx > vite > postcss) and 5.1.16 (5.x line, via
+  # apps/web > @scalar/api-reference-react).
+  nanoid@<3.3.17: 3.3.17
+  nanoid@>=4.0.0 <5.1.16: 5.1.16
+  # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq (high, image-size ICNS/JXL/HEIF
+  # DoS) have NO published fix ("Patched versions: <0.0.0", latest is 2.0.2).
+  # Resolved by bumping fumadocs-core to 16.14.3 in apps/docs, which drops the
+  # image-size dependency entirely — no override is possible here.

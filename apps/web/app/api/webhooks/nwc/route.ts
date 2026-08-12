@@ -18,6 +18,7 @@ import {
   type NwcWebhookPayload
 } from '@/lib/validation/schemas'
 import { eventBus } from '@/lib/events/event-bus'
+import { readRawBodyWithLimit } from '@/lib/middleware/request-limits'
 import {
   ActivityEvent,
   invoiceLogMetadata,
@@ -74,7 +75,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     throw new AuthenticationError('Webhook timestamp outside accepted window')
   }
 
-  const raw = await request.text()
+  // Capped read: the signature hasn't been verified yet, so the body must
+  // never be buffered unbounded in memory (unauthenticated DoS vector).
+  const raw = await readRawBodyWithLimit(request, 'json')
   const expected = createHmac('sha256', webhookSecret)
     .update(`${timestampHeader}.${raw}`)
     .digest('hex')

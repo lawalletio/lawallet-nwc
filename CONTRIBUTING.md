@@ -107,7 +107,9 @@ cp apps/web/.env.example apps/web/.env
 #   JWT_SECRET="$(openssl rand -base64 48)"
 
 # 5. Start a local Postgres (skip if you already have one)
-docker compose up -d postgres
+#    The compose file has no default JWT_SECRET (fail-closed on purpose);
+#    a throwaway value is enough for the postgres-only flow.
+JWT_SECRET="$(openssl rand -hex 32)" docker compose up -d postgres
 
 # 6. Apply migrations and seed mock data
 cd apps/web

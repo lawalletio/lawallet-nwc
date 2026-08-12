@@ -71,6 +71,11 @@ beforeEach(() => {
     id: 'user-1',
     pubkey: 'a'.repeat(64)
   } as any)
+  // The claim flips PENDING → PAID with a conditional updateMany; default to
+  // "this request won the race". Tests for the race override with count: 0.
+  vi.mocked(prismaMock.invoice.updateMany).mockResolvedValue({
+    count: 1
+  } as any)
 })
 
 describe('POST /api/invoices/[id]/claim', () => {
@@ -156,6 +161,7 @@ describe('POST /api/invoices/[id]/claim', () => {
 
     expect(res.status).toBe(400)
     expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
     expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
   })
 
@@ -177,10 +183,11 @@ describe('POST /api/invoices/[id]/claim', () => {
     expect(body.username).toBe('alice')
     expect(body.lightningAddress).toBe('alice@test.com')
 
-    // Invoice marked PAID with preimage
-    expect(prismaMock.invoice.update).toHaveBeenCalledWith(
+    // Invoice flipped PAID with preimage via the conditional (race-safe)
+    // updateMany — only a still-PENDING row may transition.
+    expect(prismaMock.invoice.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'inv-1' },
+        where: { id: 'inv-1', status: 'PENDING' },
         data: expect.objectContaining({
           status: 'PAID',
           preimage: PREIMAGE
@@ -217,6 +224,30 @@ describe('POST /api/invoices/[id]/claim', () => {
 
     expect(res.status).toBe(403)
     expect(prismaMock.invoice.update).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.updateMany).not.toHaveBeenCalled()
+    expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
+  })
+
+  it('returns 409 when a concurrent claim wins the PENDING → PAID race', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(
+      baseInvoice as any
+    )
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(null)
+    // The row was still PENDING when read, but a parallel request flipped it
+    // first — the conditional update matches zero rows.
+    vi.mocked(prismaMock.invoice.updateMany).mockResolvedValue({
+      count: 0
+    } as any)
+
+    const req = createNextRequest('/api/invoices/inv-1/claim', {
+      method: 'POST',
+      body: { preimage: PREIMAGE }
+    })
+    const res = await POST(req, createParamsPromise({ id: 'inv-1' }))
+
+    expect(res.status).toBe(409)
+    // The losing claim must not create the address either (same transaction).
     expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
   })
 

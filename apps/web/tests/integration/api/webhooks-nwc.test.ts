@@ -21,7 +21,12 @@ vi.mock('next/server', async importActual => ({
 }))
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
+  getConfig: vi.fn(() => ({
+    maintenance: { enabled: false },
+    // The route caps the raw body read (before HMAC verification) via
+    // readRawBodyWithLimit, which resolves sizes from config.
+    requestLimits: { maxBodySize: 1048576, maxJsonSize: 102400 }
+  }))
 }))
 
 vi.mock('@/lib/listener-config', () => ({
@@ -78,8 +83,7 @@ vi.mock('@/lib/remote-wallet-forwarding/reconcile', () => ({
   reconcileRemoteWalletForwarding: reconcileRemoteWalletForwardingMock
 }))
 vi.mock('@/lib/remote-wallet-notifications/service', () => ({
-  enqueueRemoteWalletNotificationEvent:
-    enqueueRemoteWalletNotificationEventMock
+  enqueueRemoteWalletNotificationEvent: enqueueRemoteWalletNotificationEventMock
 }))
 vi.mock('@/lib/remote-wallet-notifications/reconcile', () => ({
   reconcileRemoteWalletNotifications: reconcileRemoteWalletNotificationsMock
@@ -228,6 +232,17 @@ describe('POST /api/webhooks/nwc', () => {
       signedRequest({ type: 'payment_received', nope: true })
     )
     expect(res.status).toBe(400)
+  })
+
+  it('rejects an oversized body with 413 before any signature work', async () => {
+    // 200 KB against the mocked 100 KB json cap. The limit must trip even
+    // with a VALID signature — an unauthenticated (or wrongly-signed) large
+    // POST must never be fully buffered before rejection.
+    const res = await POST(
+      signedRequest({ ...paymentReceived, padding: 'x'.repeat(200 * 1024) })
+    )
+    expect(res.status).toBe(413)
+    expect(prismaMock.invoice.findUnique).not.toHaveBeenCalled()
   })
 
   it('marks a PENDING invoice PAID on payment_received and emits SSE', async () => {

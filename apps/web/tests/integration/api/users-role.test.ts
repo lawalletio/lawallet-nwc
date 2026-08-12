@@ -30,10 +30,21 @@ vi.mock('@/lib/middleware/request-limits', () => ({
 
 // Route now uses unified `authenticate()` so the dashboard's JWT is accepted
 // alongside NIP-98. The AuthResult already carries role+pubkey, so there's
-// no separate caller-role DB lookup to mock anymore.
-vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn()
-}))
+// no separate caller-role DB lookup to mock anymore. `authHasPermission` is
+// the real scope-aware helper (device-token scopes win over the role map).
+vi.mock('@/lib/auth/unified-auth', async () => {
+  const { hasPermission } = await import('@/lib/auth/permissions')
+  return {
+    authenticate: vi.fn(),
+    authHasPermission: (
+      auth: { role: Role; scopes?: string[] },
+      permission: string
+    ) =>
+      auth.scopes
+        ? auth.scopes.includes(permission)
+        : hasPermission(auth.role, permission as never)
+  }
+})
 
 import { GET, PUT } from '@/app/api/users/[userId]/role/route'
 import { authenticate } from '@/lib/auth/unified-auth'
@@ -157,6 +168,27 @@ describe('PUT /api/users/[userId]/role', () => {
     const res = await PUT(req, createParamsPromise({ userId: target.id }))
 
     expect(res.status).toBe(403)
+  })
+
+  it('rejects a device token whose scopes exclude users:manage_roles even with ADMIN role', async () => {
+    const target = createUserFixture({ pubkey: userPubkey, role: 'USER' })
+    // A narrowly-scoped device token must NOT inherit its owner's full role
+    // on routes that check permissions manually.
+    vi.mocked(authenticate).mockResolvedValue({
+      role: Role.ADMIN,
+      pubkey: adminPubkey,
+      method: 'jwt',
+      scopes: ['cards:read'] as never
+    })
+
+    const req = createNextRequest(`/api/users/${target.id}/role`, {
+      method: 'PUT',
+      body: { role: 'OPERATOR' }
+    })
+    const res = await PUT(req, createParamsPromise({ userId: target.id }))
+
+    expect(res.status).toBe(403)
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
   })
 
   it('allows admin to promote another user to ADMIN', async () => {

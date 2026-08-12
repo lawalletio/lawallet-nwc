@@ -29,7 +29,9 @@ services:
     environment:
       # The container runs `prisma migrate deploy` on startup, then `node server.js`.
       DATABASE_URL: postgresql://${POSTGRES_USER:-lawallet}:${POSTGRES_PASSWORD:-lawallet_password}@postgres:5432/${POSTGRES_DB:-lawallet}
-      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_secure_secret_at_least_32_chars}
+      # No default on purpose: a shipped fallback is public knowledge and lets
+      # anyone forge ADMIN tokens. `generate-deployment-env.sh` creates one.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required — generate one with `openssl rand -hex 32`}
       # Encrypts server-custodied Nostr keys (passkey signup). Empty disables
       # passkey account creation. Back the value up — losing it makes
       # custodied keys unrecoverable.

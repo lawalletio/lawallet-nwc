@@ -2,13 +2,10 @@ import { NextResponse } from 'next/server'
 import { createJwtToken } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { withErrorHandling } from '@/types/server/error-handler'
-import {
-  NotFoundError,
-  InternalServerError,
-  ValidationError
-} from '@/types/server/errors'
+import { InternalServerError, ValidationError } from '@/types/server/errors'
 import { Role, getRolePermissions } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
+import { assertDevRoutesEnabled } from '@/lib/dev-guard'
 import { logger } from '@/lib/logger'
 import { authenticateWithRole } from '@/lib/auth/unified-auth'
 
@@ -17,15 +14,13 @@ import { authenticateWithRole } from '@/lib/auth/unified-auth'
  * pubkey (with their real, DB-resolved role) so an authenticated admin can
  * view the app exactly as that user.
  *
- * Strictly a local-development tool: returns 404 unless `NODE_ENV` is exactly
- * `development`, so production / test / staging / unset are all locked out. The
- * UI is also gated by environment and ADMIN role. It is the impersonation
- * sibling of `/api/dev/login`.
+ * Strictly a local-development tool: gated by {@link assertDevRoutesEnabled}
+ * (404 in production and without `ENABLE_DEV_ROUTES=true`). The UI is also
+ * gated by environment and ADMIN role. It is the impersonation sibling of
+ * `/api/dev/login`.
  */
 export const POST = withErrorHandling(async (request: Request) => {
-  if (process.env.NODE_ENV !== 'development') {
-    throw new NotFoundError('Not found')
-  }
+  assertDevRoutesEnabled()
 
   await authenticateWithRole(request, Role.ADMIN)
 

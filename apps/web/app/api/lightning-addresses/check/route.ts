@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { ValidationError } from '@/types/server/errors'
+import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,8 +11,12 @@ export const dynamic = 'force-dynamic'
  *
  * Public endpoint — no auth required.
  * Returns { available: boolean } for the given username.
+ * Rate-limited: an unbounded availability oracle is a username-enumeration
+ * vector (and the registration form only needs a few lookups per session).
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
+  await rateLimit(request, RateLimitPresets.public)
+
   const username = request.nextUrl.searchParams.get('username')
 
   if (!username) {

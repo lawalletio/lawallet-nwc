@@ -32,7 +32,8 @@ import { useSettings } from '@/lib/client/hooks/use-settings'
 const baseSettings = {
   listener_enabled: 'false',
   listener_url: '',
-  listener_auth_secret: '',
+  // The API never returns the secret value — only this presence flag.
+  listener_secret_configured: 'false',
   listener_url_source: 'none',
   listener_secret_source: 'none',
   listener_url_effective: ''
@@ -95,6 +96,31 @@ describe('NwcServicesTab', () => {
     expect(patch.listener_auth_secret.length).toBeGreaterThanOrEqual(32)
     // Still disabled: no URL yet, so the unit persists enabled='false'.
     expect(patch.listener_enabled).toBe('false')
+  })
+
+  it('keeps the stored secret when saving the URL (no resend, no wipe)', async () => {
+    mockSettings({ listener_secret_configured: 'true' })
+    render(<NwcServicesTab />)
+
+    const urlInput = screen.getByPlaceholderText('http://listener:4100')
+    await userEvent.type(urlInput, 'http://listener:4200')
+    await userEvent.tab() // blur flushes the pending debounced save
+
+    await waitFor(() => expect(saveSettingMock).toHaveBeenCalled())
+    const patch = saveSettingMock.mock.calls[0][0] as Record<string, string>
+    expect(patch.listener_url).toBe('http://listener:4200')
+    // The secret field was never touched — the key must be absent entirely
+    // so the stored value survives the save.
+    expect('listener_auth_secret' in patch).toBe(false)
+  })
+
+  it('shows the stored-secret placeholder when a secret is configured', () => {
+    mockSettings({ listener_secret_configured: 'true' })
+    render(<NwcServicesTab />)
+
+    expect(
+      screen.getByPlaceholderText('(stored — enter a new value to rotate)')
+    ).toBeTruthy()
   })
 
   it('renders probe success details', async () => {

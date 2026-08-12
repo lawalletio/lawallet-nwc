@@ -224,5 +224,28 @@ describe('Validation Schemas', () => {
       const result = jwtRequestSchema.parse(data)
       expect(result).toEqual({ expiresIn: '2h' })
     })
+
+    it('accepts the 24h cap exactly', () => {
+      expect(jwtRequestSchema.parse({ expiresIn: '24h' })).toEqual({
+        expiresIn: '24h'
+      })
+      // Bare numbers are seconds — 86400s == 24h.
+      expect(jwtRequestSchema.parse({ expiresIn: '86400' })).toEqual({
+        expiresIn: '86400'
+      })
+    })
+
+    it('rejects expiresIn beyond the 24h cap', () => {
+      expect(() => jwtRequestSchema.parse({ expiresIn: '25h' })).toThrow()
+      expect(() => jwtRequestSchema.parse({ expiresIn: '720h' })).toThrow()
+      expect(() => jwtRequestSchema.parse({ expiresIn: '86401' })).toThrow()
+    })
+
+    it('rejects zero and malformed durations', () => {
+      expect(() => jwtRequestSchema.parse({ expiresIn: '0s' })).toThrow()
+      expect(() => jwtRequestSchema.parse({ expiresIn: 'soon' })).toThrow()
+      // Days are intentionally not supported for session JWTs.
+      expect(() => jwtRequestSchema.parse({ expiresIn: '7d' })).toThrow()
+    })
   })
 })

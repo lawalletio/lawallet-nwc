@@ -126,16 +126,65 @@ describe('authenticate', () => {
   })
 
   describe('with JWT (Bearer header)', () => {
-    it('returns pubkey and role from JWT claims', async () => {
+    beforeEach(() => {
+      // Session JWTs re-resolve the role from the DB on every request, so
+      // default to "no account, no root" and let each test opt into a role.
+      // (clearAllMocks keeps stale mockResolvedValue implementations — set
+      // them explicitly or a previous describe's role leaks into this one.)
+      vi.mocked(prisma.nostrIdentity.findUnique).mockResolvedValue(null)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+      vi.mocked(getSettings).mockResolvedValue({})
+    })
+
+    it('re-resolves a session JWT role from the DB instead of trusting the claim', async () => {
       vi.mocked(validateJwtFromRequest).mockResolvedValue({
         payload: { pubkey: PUBKEY, role: 'ADMIN', iat: 1000, exp: 2000 },
         header: { alg: 'HS256' }
       } as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        id: 'user-1',
+        pubkey: PUBKEY,
+        role: 'OPERATOR'
+      } as any)
 
       const result = await authenticate(mockBearerRequest())
       expect(result.pubkey).toBe(PUBKEY)
-      expect(result.role).toBe(Role.ADMIN)
+      // The claim says ADMIN, the DB says OPERATOR — the DB wins.
+      expect(result.role).toBe(Role.OPERATOR)
       expect(result.method).toBe('jwt')
+    })
+
+    it('a demoted admin loses privileges immediately, even with a live token', async () => {
+      vi.mocked(validateJwtFromRequest).mockResolvedValue({
+        payload: { pubkey: PUBKEY, role: 'ADMIN', iat: 1000, exp: 2000 },
+        header: { alg: 'HS256' }
+      } as any)
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        id: 'user-1',
+        pubkey: PUBKEY,
+        role: 'USER'
+      } as any)
+      vi.mocked(getSettings).mockResolvedValue({ root: 'different' })
+
+      const result = await authenticate(mockBearerRequest())
+      expect(result.role).toBe(Role.USER)
+      await expect(
+        authenticateWithPermission(
+          mockBearerRequest(),
+          Permission.SETTINGS_WRITE
+        )
+      ).rejects.toThrow(AuthorizationError)
+    })
+
+    it('falls back to the Settings root for admin on a session JWT', async () => {
+      vi.mocked(validateJwtFromRequest).mockResolvedValue({
+        payload: { pubkey: PUBKEY, role: 'USER', iat: 1000, exp: 2000 },
+        header: { alg: 'HS256' }
+      } as any)
+      vi.mocked(getSettings).mockResolvedValue({ root: PUBKEY })
+
+      const result = await authenticate(mockBearerRequest())
+      expect(result.role).toBe(Role.ADMIN)
     })
 
     it('falls back to USER when JWT has invalid role', async () => {
@@ -232,6 +281,14 @@ describe('authenticateWithRole', () => {
       payload: { pubkey: PUBKEY, role: 'ADMIN', iat: 1000, exp: 2000 },
       header: { alg: 'HS256' }
     } as any)
+    // Session JWT: the role gate reads the DB role, not the claim.
+    vi.mocked(prisma.nostrIdentity.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: 'user-1',
+      pubkey: PUBKEY,
+      role: 'ADMIN'
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({})
 
     const result = await authenticateWithRole(mockBearerRequest(), Role.ADMIN)
     expect(result.pubkey).toBe(PUBKEY)
@@ -334,10 +391,31 @@ describe('device-token scopes (B.0)', () => {
       jwt: { enabled: true, secret: 'a'.repeat(32) }
     } as any)
     vi.mocked(validateJwtFromRequest).mockResolvedValue({
-      payload: { pubkey: PUBKEY, role, scopes, iat: 1000, exp: 2000 },
+      payload: {
+        pubkey: PUBKEY,
+        role,
+        scopes,
+        // kind: 'device' + matching apiUrl mark this as a device token —
+        // without them the payload is a session JWT and the role gets
+        // re-resolved from the DB instead of read from the claim.
+        kind: 'device',
+        apiUrl: 'https://app.example.com',
+        iat: 1000,
+        exp: 2000
+      },
       header: { alg: 'HS256' }
     } as any)
   }
+
+  it('keeps the minted role without a DB role lookup', async () => {
+    mockDeviceToken('OPERATOR', undefined)
+
+    const result = await authenticate(mockBearerRequest())
+    expect(result.role).toBe(Role.OPERATOR)
+    expect(prisma.nostrIdentity.findUnique).not.toHaveBeenCalled()
+    expect(prisma.user.findUnique).not.toHaveBeenCalled()
+    expect(getSettings).not.toHaveBeenCalled()
+  })
 
   it('surfaces a valid scopes array on the AuthResult', async () => {
     mockDeviceToken('OPERATOR', ['cards:read', 'cards:write'])
@@ -448,9 +526,14 @@ describe('device-token apiUrl enforcement (B.0)', () => {
       payload: { pubkey: PUBKEY, role: 'ADMIN', iat: 1000, exp: 2000 },
       header: { alg: 'HS256' }
     } as any)
+    // Session JWTs re-resolve the role from the DB — pin it explicitly.
+    vi.mocked(prisma.nostrIdentity.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+    vi.mocked(getSettings).mockResolvedValue({})
 
     const result = await authenticate(mockBearerRequest())
     expect(result.pubkey).toBe(PUBKEY)
+    expect(result.role).toBe(Role.USER)
     expect(resolveApiUrl).not.toHaveBeenCalled()
   })
 })

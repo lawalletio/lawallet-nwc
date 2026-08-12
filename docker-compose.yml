@@ -26,7 +26,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-lawallet}:${POSTGRES_PASSWORD:-lawallet_password}@postgres:5432/${POSTGRES_DB:-lawallet}
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-2288}
-      JWT_SECRET: ${JWT_SECRET:-lawallet_local_development_secret_change_me_please}
+      # No default on purpose: a shipped fallback is public knowledge and lets
+      # anyone forge ADMIN tokens. Generate one with `pnpm deploy:env`
+      # (deployment) or let `pnpm start:dev-server` create one (local dev).
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required — generate one with `pnpm deploy:env` or `openssl rand -hex 32`}
       # Encrypts server-custodied Nostr keys (passkey signup). Empty disables
       # passkey account creation. Back the value up — losing it makes
       # custodied keys unrecoverable.

@@ -6,9 +6,9 @@ import {
   NotFoundError,
   ValidationError
 } from '@/types/server/errors'
-import { authenticate } from '@/lib/auth/unified-auth'
+import { authenticate, authHasPermission } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
-import { Permission, hasPermission } from '@/lib/auth/permissions'
+import { Permission } from '@/lib/auth/permissions'
 import { validateBody, validateParams } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import {
@@ -139,13 +139,11 @@ export const GET = withErrorHandling(
     const isOwner = !!caller && caller.id === address.userId
 
     if (!isOwner) {
-      // A device token's `scopes` are authoritative; everyone else derives
-      // permissions from their role. Mirror `authenticateWithPermission`.
-      const canRead = auth.scopes
-        ? auth.scopes.includes(Permission.ADDRESSES_READ)
-        : hasPermission(auth.role, Permission.ADDRESSES_READ)
+      // Scope-aware check (device tokens included) via the shared helper.
       // Same 404 as a genuine miss so non-admins can't enumerate usernames.
-      if (!canRead) throw new NotFoundError('Address not found')
+      if (!authHasPermission(auth, Permission.ADDRESSES_READ)) {
+        throw new NotFoundError('Address not found')
+      }
 
       const [primaryWallet, selectable, deferredProxyEnabled, protocols] =
         await Promise.all([
@@ -175,20 +173,19 @@ export const GET = withErrorHandling(
       })
     }
 
-    const [primaryWallet, selectable, deferredProxyEnabled, protocols] = await Promise.all(
-      [
+    const [primaryWallet, selectable, deferredProxyEnabled, protocols] =
+      await Promise.all([
         getPrimaryRemoteWalletForUser(caller.id),
         selectableWallets(caller.id),
         isProxyEnabled(),
         resolveAddressProtocols({
-            mode: address.mode,
-            redirect: address.redirect,
-            aliasProtocols: address.aliasProtocols,
-            routable: address.remoteWallet?.status === 'ACTIVE',
-            user: address.user
-          })
-      ]
-    )
+          mode: address.mode,
+          redirect: address.redirect,
+          aliasProtocols: address.aliasProtocols,
+          routable: address.remoteWallet?.status === 'ACTIVE',
+          user: address.user
+        })
+      ])
     const wallets = sortWalletsWithPrimary(selectable, primaryWallet)
 
     // Ship the already-resolved connection URI so the balance / transactions

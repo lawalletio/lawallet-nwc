@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authenticate } from '@/lib/auth/unified-auth'
+import { authenticate, authHasPermission } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { eventBus } from '@/lib/events/event-bus'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { Role, Permission, hasPermission } from '@/lib/auth/permissions'
+import { Role, Permission } from '@/lib/auth/permissions'
 import {
   AuthorizationError,
   ValidationError,
@@ -47,7 +47,7 @@ export const GET = withErrorHandling(
     // Compared by account id so a secondary-pubkey session still counts.
     const me = await resolveAccountByPubkey(auth.pubkey)
     const isSelf = me?.id === targetUser.id
-    if (!isSelf && !hasPermission(auth.role, Permission.USERS_READ)) {
+    if (!isSelf && !authHasPermission(auth, Permission.USERS_READ)) {
       throw new AuthorizationError("Not authorized to view this user's role")
     }
 
@@ -67,7 +67,7 @@ export const PUT = withErrorHandling(
     const auth = await authenticate(request)
     const { userId } = await params
 
-    if (!hasPermission(auth.role, Permission.USERS_MANAGE_ROLES)) {
+    if (!authHasPermission(auth, Permission.USERS_MANAGE_ROLES)) {
       throw new AuthorizationError('Not authorized to manage roles')
     }
 
