@@ -28,6 +28,7 @@ function address(overrides: Partial<WalletAddress>): WalletAddress {
     mode: 'IDLE',
     redirect: null,
     remoteWalletId: null,
+    remoteWalletName: null,
     isPrimary: false,
     nwcMode: 'NONE',
     createdAt: '2026-01-01T00:00:00.000Z',

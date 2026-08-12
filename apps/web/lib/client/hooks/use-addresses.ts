@@ -13,6 +13,8 @@ export interface AddressData {
   redirect: string | null
   /** The RemoteWallet this address is bound to (CUSTOM_NWC), or null. */
   remoteWalletId: string | null
+  /** Name of the bound RemoteWallet, for display without a second fetch. */
+  remoteWalletName: string | null
   isPrimary: boolean
   /** Server-derived effective NWC capability for this address. */
   nwcMode: EffectiveNwcMode

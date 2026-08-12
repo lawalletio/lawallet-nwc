@@ -13,6 +13,8 @@ export interface WalletAddressDto {
   redirect: string | null
   /** The RemoteWallet this address is bound to (CUSTOM_NWC), or null. */
   remoteWalletId: string | null
+  /** Name of the bound RemoteWallet, for display without a second fetch. */
+  remoteWalletName: string | null
   isPrimary: boolean
   /** Server-derived effective capability for this address. */
   nwcMode: EffectiveNwcMode
@@ -69,6 +71,7 @@ export function toWalletAddressDto(
     mode: address.mode,
     redirect: address.redirect ?? null,
     remoteWalletId: address.remoteWalletId ?? null,
+    remoteWalletName: address.remoteWallet?.name ?? null,
     isPrimary: address.isPrimary,
     nwcMode: deriveEffectiveNwcMode(address, defaultWallet),
     createdAt: address.createdAt.toISOString(),

@@ -19,6 +19,8 @@ export interface WalletAddress {
   redirect: string | null
   /** The RemoteWallet this address is bound to (CUSTOM_NWC), or null. */
   remoteWalletId: string | null
+  /** Name of the bound RemoteWallet, for display without a second fetch. */
+  remoteWalletName: string | null
   isPrimary: boolean
   /** Effective NWC mode derived server-side; mirrors what users actually get. */
   nwcMode: EffectiveNwcMode
