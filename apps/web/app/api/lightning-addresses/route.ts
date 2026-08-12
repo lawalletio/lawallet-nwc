@@ -53,6 +53,7 @@ export const GET = withErrorHandling(async (request: Request) => {
     mode: address.mode,
     redirect: address.redirect,
     remoteWalletId: address.remoteWalletId,
+    remoteWalletName: address.remoteWallet?.name ?? null,
     isPrimary: address.isPrimary,
     nwcMode: deriveEffectiveNwcMode(
       address,

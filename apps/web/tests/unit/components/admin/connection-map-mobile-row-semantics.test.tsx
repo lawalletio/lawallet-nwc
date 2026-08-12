@@ -35,6 +35,7 @@ describe('Connection Map mobile rows', () => {
             mode: 'IDLE',
             redirect: null,
             remoteWalletId: null,
+            remoteWalletName: null,
             isPrimary: false,
             nwcMode: 'SEND_RECEIVE',
             createdAt: '2026-08-05T00:00:00.000Z',
@@ -51,7 +52,6 @@ describe('Connection Map mobile rows', () => {
       screen.getByRole('button', { name: 'Open alice details' })
     )
     expect(onOpenDetail).toHaveBeenCalledOnce()
-
   })
 
   it('renders card detail and binding actions as sibling buttons', async () => {
@@ -86,6 +86,5 @@ describe('Connection Map mobile rows', () => {
       screen.getByRole('button', { name: 'Open Everyday card details' })
     )
     expect(onOpenDetail).toHaveBeenCalledOnce()
-
   })
 })

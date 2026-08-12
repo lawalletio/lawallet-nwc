@@ -339,14 +339,17 @@ export default function AdminAddressesPage() {
                           </Button>
                           {addr.isPrimary && (
                             <>
-                              {/* Mobile: compact star with a hover/focus
+                              {/* Narrow: compact star with a hover/focus
                                 tooltip — there's no room for a full
                                 "Primary" pill next to the copy button
-                                and the @domain-less address. */}
+                                and the @domain-less address. Kept up to
+                                `md` (not just `sm`) since the mobile
+                                @domain suffix reappearing at `sm` leaves
+                                even less room for the text pill. */}
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span
-                                    className="inline-flex size-5 items-center justify-center text-yellow-500 sm:hidden"
+                                    className="inline-flex size-5 items-center justify-center text-yellow-500 md:hidden"
                                     aria-label="Primary address"
                                   >
                                     <Star
@@ -357,12 +360,12 @@ export default function AdminAddressesPage() {
                                 </TooltipTrigger>
                                 <TooltipContent>Primary</TooltipContent>
                               </Tooltip>
-                              {/* Desktop: full Primary badge with a star
+                              {/* Wide: full Primary badge with a star
                                 prefix. No tooltip needed here since the
                                 label is already readable. */}
                               <Badge
                                 variant="secondary"
-                                className="hidden items-center gap-1 text-xs sm:inline-flex"
+                                className="hidden items-center gap-1 text-xs md:inline-flex"
                               >
                                 <Star
                                   className="size-3 fill-yellow-500 text-yellow-500"
@@ -451,6 +454,26 @@ export default function AdminAddressesPage() {
                           {addr.mode === 'CUSTOM_NWC' && (
                             <NwcCapabilityIcons mode={addr.nwcMode} />
                           )}
+
+                          {/* Name of the bound RemoteWallet, linking to its
+                            detail page. Only linkable in the "mine" view —
+                            the remote-wallet API is owner-gated, so an admin
+                            browsing another user's address would 404. */}
+                          {addr.mode === 'CUSTOM_NWC' &&
+                            addr.remoteWalletId &&
+                            addr.remoteWalletName &&
+                            (adminView ? (
+                              <span className="truncate text-xs text-muted-foreground">
+                                {addr.remoteWalletName}
+                              </span>
+                            ) : (
+                              <Link
+                                href={`/admin/remote-wallets/${encodeURIComponent(addr.remoteWalletId)}`}
+                                className="truncate text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                              >
+                                {addr.remoteWalletName}
+                              </Link>
+                            ))}
                         </div>
                       </TableCell>
                       <TableCell>
