@@ -121,8 +121,8 @@ async function renderPage() {
 }
 
 async function openModePicker() {
-  const modeLabel = await screen.findByText('Mode')
-  await userEvent.click(modeLabel.closest('button')!)
+  // The mode summary is plain text now; the dedicated Switch button opens it.
+  await userEvent.click(await screen.findByRole('button', { name: 'Switch' }))
 }
 
 beforeEach(() => {
@@ -164,9 +164,7 @@ describe('/admin/addresses/[username]', () => {
     expect(screen.getByRole('tab', { name: 'Activity' })).toBeInTheDocument()
     expect(screen.getByText('Pending proxy balance')).toBeVisible()
 
-    const modeButton = screen.getByRole('button', {
-      name: /Mode Deferred proxy/
-    })
+    const modeButton = screen.getByRole('button', { name: 'Switch' })
     const tabList = screen.getByRole('tablist', {
       name: 'Proxy address sections'
     })
@@ -209,9 +207,12 @@ describe('/admin/addresses/[username]', () => {
 
     await renderPage()
 
-    expect(screen.getByText('Connected to Treasury wallet')).toBeVisible()
-    expect(
-      screen.getByRole('link', { name: 'View wallet' })
-    ).toHaveAttribute('href', '/admin/remote-wallets/wallet-1')
+    // The mode icon carries the "connected to" meaning now, so the summary
+    // shows the wallet name on its own.
+    expect(screen.getByText('Treasury wallet')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'View wallet' })).toHaveAttribute(
+      'href',
+      '/admin/remote-wallets/wallet-1'
+    )
   })
 })

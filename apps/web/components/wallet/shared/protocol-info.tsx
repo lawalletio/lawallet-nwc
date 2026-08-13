@@ -178,6 +178,12 @@ export function ProtocolInfoTrigger({
               {info.label} · {info.name}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">{info.summary}</p>
+            {/* What is true HERE — who serves it when this address aliases
+            another, or why it is off. Worth reading on hover, not only after
+            opening the dialog. */}
+            {detail && (
+              <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+            )}
             <p className="mt-1 text-xs">
               {protocolStateLabel(state)} · click for details
             </p>
