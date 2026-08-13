@@ -104,3 +104,15 @@ jobs:
       tag: ${{ needs.release.outputs.version }}
       ref: ${{ needs.release.outputs.sha }}
     secrets: inherit
+
+  # Same reason the docker job is called directly: the bump commit is pushed
+  # with GITHUB_TOKEN, and GitHub does not fire `push`-triggered workflows for
+  # it. Without this the hosted listener silently stays on whatever commit last
+  # touched apps/listener — it sat on 2.5.0 while 2.5.1 was live everywhere else.
+  fly:
+    name: Deploy listener to Fly.io
+    needs: release
+    uses: ./.github/workflows/fly-listener.yml
+    with:
+      ref: ${{ needs.release.outputs.sha }}
+    secrets: inherit

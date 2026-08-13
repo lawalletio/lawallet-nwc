@@ -27,6 +27,21 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/fly-listener.yml'
   workflow_dispatch:
+  # Called by release.yml. A push made with GITHUB_TOKEN does not trigger
+  # other workflows, so the `chore(release)` commit never fires the `push`
+  # trigger above — v2.5.1 shipped to Docker Hub and the app stores while Fly
+  # stayed on the previous build. The release calls this explicitly instead.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Commit to deploy (the release bump, not the dispatch commit).'
+        required: false
+        type: string
+    secrets:
+      FLY_API_TOKEN:
+        required: true
+      SENTRY_AUTH_TOKEN:
+        required: false
 
 # One deploy at a time, and never cancel one midway: an interrupted `fly deploy`
 # can leave the app on a half-replaced machine.
@@ -40,6 +55,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Defaults to the triggering ref for push/dispatch; the release hands
+          # us its bump commit so the image reports the version just tagged.
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
