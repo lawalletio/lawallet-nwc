@@ -504,10 +504,23 @@ importers:
         version: 3.2.6(@types/debug@4.1.13)(@types/node@25.6.0)(@vitest/ui@3.2.6)(happy-dom@20.10.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(jiti@2.6.1)(lightningcss@1.32.0)(msw@2.12.8(@types/node@25.6.0)(typescript@5.9.3))(terser@5.49.2)(tsx@4.21.0)(yaml@2.8.3)
 
   packages/sdk:
+    dependencies:
+      nostr-tools:
+        specifier: ^2.24.1
+        version: 2.24.1(typescript@5.9.3)
     devDependencies:
+      msw:
+        specifier: ^2.12.8
+        version: 2.12.8(@types/node@25.6.0)(typescript@5.9.3)
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.6.1)(postcss@8.5.23)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@25.6.0)(@vitest/ui@3.2.6)(happy-dom@20.10.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(jiti@2.6.1)(lightningcss@1.32.0)(msw@2.12.8(@types/node@25.6.0)(typescript@5.9.3))(terser@5.49.2)(tsx@4.21.0)(yaml@2.8.3)
 
   packages/shared:
     dependencies:
@@ -10694,7 +10707,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.15
       tinyrainbow: 2.0.0
-      vitest: 3.2.6(@types/debug@4.1.13)(@types/node@25.6.0)(@vitest/ui@3.2.6)(happy-dom@20.10.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(jiti@2.6.1)(lightningcss@1.32.0)(msw@2.12.8(@types/node@25.6.0)(typescript@5.9.3))(terser@5.49.2)(tsx@4.21.0)(yaml@2.8.3)
+      vitest: 3.2.6(@types/debug@4.1.13)(@types/node@25.6.0)(@vitest/ui@3.2.6)(happy-dom@20.10.2(bufferutil@4.0.9)(utf-8-validate@5.0.10))(jiti@1.21.7)(lightningcss@1.32.0)(msw@2.12.8(@types/node@25.6.0)(typescript@5.9.3))(terser@5.49.2)(tsx@4.21.0)(yaml@2.8.3)
 
   '@vitest/utils@3.2.6':
     dependencies:
@@ -12156,7 +12169,7 @@ snapshots:
     dependencies:
       magic-string: 0.30.21
       mlly: 1.8.2
-      rollup: 4.60.1
+      rollup: 4.62.4
 
   flat-cache@4.0.1:
     dependencies:
@@ -15102,11 +15115,11 @@ snapshots:
       picocolors: 1.1.1
       postcss-load-config: 6.0.1(jiti@2.6.1)(postcss@8.5.23)(tsx@4.21.0)(yaml@2.8.3)
       resolve-from: 5.0.0
-      rollup: 4.60.1
+      rollup: 4.62.4
       source-map: 0.7.6
       sucrase: 3.35.1
       tinyexec: 0.3.2
-      tinyglobby: 0.2.15
+      tinyglobby: 0.2.17
       tree-kill: 1.2.2
     optionalDependencies:
       postcss: 8.5.23
