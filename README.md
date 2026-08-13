@@ -24,7 +24,7 @@
 
 **Lightning Address Platform and Nostr CRM**
 
-An open-source platform for creating, managing, and serving Lightning Addresses connected via NWC. Built on a progressive self-custody model — users start receiving payments instantly through address aliasing, then upgrade to NWC and eventually self-hosting at their own pace.
+An open-source platform for creating, managing, and serving Lightning Addresses connected via NWC. Built on a progressive self-custody model — users start receiving payments instantly through ad[...]
 
 > **Pre-Alpha** — Do not use real funds. Expect breaking changes.
 
@@ -38,11 +38,11 @@ An open-source platform for creating, managing, and serving Lightning Addresses 
 
 # One Click Deploy 👇
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawallet-nwc&root-directory=apps%2Fweb&demo-title=lawallet%20nwc&integration-ids=oac_3sK3gnG06emjIEVL09jjntDD&env=JWT_SECRET%2CNWC_VAULT_SECRET&envDescription=JWT_SECRET%20and%20NWC_VAULT_SECRET%20must%20each%20be%20a%20different%2032%2B%20character%20random%20string.%20Generate%20each%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc%2Fblob%2Fmain%2Fapps%2Fweb%2F.env.example)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flawalletio%2Flawallet-nwc&project-name=lawallet-nwc&repository-name=lawall[...]
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/lawalletio/lawallet-nwc)
 
 Vercel provisions Postgres for you. On Netlify, bring a Postgres connection
-string ([Neon](https://neon.com) and [Supabase](https://supabase.com) both have
+([Neon](https://neon.com) and [Supabase](https://supabase.com) both have
 free tiers) — see the [Netlify guide](https://docs.lawallet.io/docs/deploy/netlify).
 Both one-click flows prompt for a dedicated `NWC_VAULT_SECRET`; it encrypts
 every stored RemoteWallet NWC connection and the optional proxy credentials.
@@ -271,7 +271,7 @@ migrates the database (seeding it only when fresh), and prints the ready
 
 ## Documentation
 
-The full rendered docs live at **[docs.lawallet.io](https://docs.lawallet.io)**. The interactive REST reference is at **[beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs)**. Source documents in this repo:
+The full rendered docs live at **[docs.lawallet.io](https://docs.lawallet.io)**. The interactive REST reference is at **[beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs)**. Source do[...]
 
 | Document                                  | Description                                                   |
 | ----------------------------------------- | ------------------------------------------------------------- |
@@ -302,13 +302,15 @@ All eight months are covered by the OpenSats Fifteenth Wave grant (Dec 2025 – 
 
 ## Contributing
 
-Contributions are welcome. Open an issue to discuss bugs, features, or roadmap items before sending a PR. See [docs/TESTING.md](./docs/TESTING.md) for the testing strategy and [CLAUDE.md](./CLAUDE.md) for repo conventions.
+Contributions are welcome. Open an issue to discuss bugs, features, or roadmap items before sending a PR. See [docs/TESTING.md](./docs/TESTING.md) for the testing strategy and [CLAUDE.md](./CLAUD[...]
 
 ---
 
 ## License
 
 [MIT](./LICENSE) © LaWallet contributors
+
+Developed and maintained by [github.com/agustinkassis](https://github.com/agustinkassis)
 
 ---
 
