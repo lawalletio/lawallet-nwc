@@ -290,3 +290,67 @@ describe('validateNip98', () => {
     )
   })
 })
+
+describe('validateNip98QueryToken', () => {
+  function createEventsEvent(overrides: Record<string, any> = {}) {
+    return {
+      kind: 27235,
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: 'a'.repeat(64),
+      tags: [
+        ['u', 'http://localhost:3000/api/events'],
+        ['method', 'GET']
+      ],
+      content: '',
+      id: 'event_id',
+      sig: 'event_sig',
+      ...overrides
+    }
+  }
+
+  it('validates against the request URL without its query string', async () => {
+    const { nip98 } = await import('nostr-tools')
+    vi.mocked(nip98.validateEvent).mockResolvedValue(true)
+    const { validateNip98QueryToken } = await import('@/lib/nip98')
+
+    const event = createEventsEvent()
+    const token = btoa(JSON.stringify(event))
+    // The token rides in the query string it cannot sign — the candidate URL
+    // handed to nostr-tools must be the bare pathname.
+    const request = new Request(
+      `http://localhost:3000/api/events?token=${encodeURIComponent(token)}`
+    )
+
+    const result = await validateNip98QueryToken(request, token)
+
+    expect(result.pubkey).toBe('a'.repeat(64))
+    expect(nip98.validateEvent).toHaveBeenCalledWith(
+      event,
+      'http://localhost:3000/api/events',
+      'GET',
+      ''
+    )
+  })
+
+  it('rejects stale events', async () => {
+    const { validateNip98QueryToken } = await import('@/lib/nip98')
+    const event = createEventsEvent({
+      created_at: Math.floor(Date.now() / 1000) - 120
+    })
+    const token = btoa(JSON.stringify(event))
+    const request = new Request('http://localhost:3000/api/events')
+
+    await expect(validateNip98QueryToken(request, token)).rejects.toThrow(
+      'Event timestamp is too old or too new'
+    )
+  })
+
+  it('rejects garbage tokens', async () => {
+    const { validateNip98QueryToken } = await import('@/lib/nip98')
+    const request = new Request('http://localhost:3000/api/events')
+
+    await expect(
+      validateNip98QueryToken(request, '!!!not-base64!!!')
+    ).rejects.toThrow('Invalid event format')
+  })
+})
