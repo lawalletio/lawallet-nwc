@@ -36,6 +36,7 @@ import {
   FORWARDING_AMOUNT_TOO_SMALL_ERROR,
   largestRemainderShares
 } from './money'
+import { sweepMissedPayments } from './capture-sweep'
 import { emitForwardingUpdated } from './service'
 import { enqueueForwardedReceiptNotifications } from '@/lib/remote-wallet-notifications/service'
 import { reconcileRemoteWalletNotifications } from '@/lib/remote-wallet-notifications/reconcile'
@@ -79,6 +80,15 @@ export async function reconcileRemoteWalletForwarding(
   } = {}
 ): Promise<{ claimed: number; completed: number; failed: number }> {
   const workerId = options.workerId ?? randomUUID()
+  // Recover payments whose `payment_received` webhook was never delivered
+  // before claiming: capture is the only producer of receipts, so without
+  // this a lost delivery strands the funds permanently. Never fatal — the
+  // receipts already on the books still have to move.
+  try {
+    await sweepMissedPayments({ walletIds: options.walletIds })
+  } catch (error) {
+    logger.warn({ err: error }, 'remote_wallet_forwarding.capture_sweep_failed')
+  }
   const ids = await claimReceipts(
     workerId,
     options.ids,

@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { requireUserId } from '@/lib/auth/account'
-import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
+import {
+  loadOwnedRemoteWallet,
+  loadViewableRemoteWallet
+} from '@/lib/remote-wallets/owned'
 import { withErrorHandling } from '@/types/server/error-handler'
 import {
   ConflictError,
@@ -63,19 +66,31 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
 }
 
 /**
- * `GET /api/remote-wallets/[id]` — fetch a single wallet by id, scoped to
- * the caller. `config` is intentionally omitted from the response; the
- * connection URI is a secret and lives behind a future reveal endpoint.
+ * `GET /api/remote-wallets/[id]` — fetch a single wallet by id. Readable by
+ * the owner, or by an admin holding REMOTE_WALLETS_READ (`isOwner: false`).
+ * `config` is intentionally omitted from the response; the connection URI is
+ * a secret and is never served to a non-owner at all.
  */
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const userId = await requireUserId(request)
-
     const { id } = validateParams(await params, idParam)
-    const wallet = await loadOwnedRemoteWallet(id, userId)
+    const { wallet, isOwner } = await loadViewableRemoteWallet(id, request)
+    const owner = isOwner
+      ? null
+      : await prisma.user.findUnique({
+          where: { id: wallet.userId },
+          select: { pubkey: true }
+        })
 
     const receiveCapabilities = await getZapReceiptCapability()
-    return NextResponse.json({ ...toDto(wallet), receiveCapabilities })
+    return NextResponse.json({
+      ...toDto(wallet),
+      receiveCapabilities,
+      // Drives view-only mode in the UI. An admin looking at somebody else's
+      // wallet gets the same payload minus every affordance that spends.
+      isOwner,
+      ownerPubkey: owner?.pubkey ?? null
+    })
   }
 )
 

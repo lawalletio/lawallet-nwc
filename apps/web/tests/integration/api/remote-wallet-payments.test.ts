@@ -11,7 +11,12 @@ vi.mock('@/lib/auth/account', () => ({
   requireUserId: vi.fn().mockResolvedValue('user-1')
 }))
 vi.mock('@/lib/remote-wallets/owned', () => ({
-  loadOwnedRemoteWallet: vi.fn().mockResolvedValue({ id: 'wallet-1' })
+  loadOwnedRemoteWallet: vi.fn().mockResolvedValue({ id: 'wallet-1' }),
+  loadViewableRemoteWallet: vi.fn().mockResolvedValue({
+    wallet: { id: 'wallet-1', userId: 'user-1' },
+    isOwner: true,
+    userId: 'user-1'
+  })
 }))
 vi.mock('@/lib/middleware/maintenance', () => ({ checkMaintenance: vi.fn() }))
 vi.mock('@/lib/logger', () => ({

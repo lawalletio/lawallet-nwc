@@ -293,6 +293,12 @@ export const listenerRecentEventSchema = z.object({
 export type ListenerRecentEvent = z.infer<typeof listenerRecentEventSchema>
 
 export const listenerStatusResponseSchema = z.object({
+  /**
+   * The running listener's own package version. Optional: image tags drift on
+   * self-hosted bundles, so a newer web must still read an older listener's
+   * status rather than failing validation and reporting it unreachable.
+   */
+  version: z.string().optional(),
   /** ISO timestamp of process start. */
   startedAt: z.string(),
   uptimeSeconds: z.number().int().nonnegative(),

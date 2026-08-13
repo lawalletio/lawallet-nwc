@@ -17,6 +17,7 @@ import {
 import { useNwcTransactions } from '@/lib/client/hooks/use-nwc-transactions'
 import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
 import { DEFAULT_LNCURL_SERVER } from '@/lib/lncurl'
+import { truncateNpub } from '@/lib/client/format'
 import { RemoteWalletRowActions } from '@/components/admin/remote-wallet-row-actions'
 import { WalletActions } from '@/components/admin/connection-map/wallet-detail-dialog'
 import { LncurlCountdown } from '@/components/admin/remote-wallet/lncurl-countdown'
@@ -41,11 +42,19 @@ export default function RemoteWalletDetailPage() {
 
   const { data: wallet, loading, error, refetch } = useRemoteWallet(id)
 
+  // An admin holding REMOTE_WALLETS_READ can open somebody else's wallet.
+  // That view is strictly read-only, and the owner-only endpoints below are
+  // never even called: balance and the NWC connection string stay private, and
+  // holding the connection string would BE the ability to spend.
+  // (Older responses omit the field → treat as owned.)
+  const isOwner = wallet?.isOwner !== false
+
   // Only ACTIVE wallets have a live connection: skip the balance/transaction
   // round-trips (and the secret connection-string fetch) for the rest.
   const isActive = wallet?.status === 'ACTIVE'
-  const balance = useLiveRemoteWalletBalance(isActive ? id : null)
-  const connection = useRemoteWalletConnectionString(isActive ? id : null)
+  const canConnect = isActive && isOwner
+  const balance = useLiveRemoteWalletBalance(canConnect ? id : null)
+  const connection = useRemoteWalletConnectionString(canConnect ? id : null)
   const txs = useNwcTransactions(connection.data?.connectionString ?? null, 100)
 
   const balanceSats = balance.data?.balanceSats ?? null
@@ -118,8 +127,29 @@ export default function RemoteWalletDetailPage() {
                   )}
                 </div>
               </div>
-              <RemoteWalletRowActions wallet={wallet} onChanged={refetch} />
+              {isOwner && (
+                <RemoteWalletRowActions wallet={wallet} onChanged={refetch} />
+              )}
             </div>
+
+            {!isOwner && (
+              <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+                Viewing another user’s wallet (read-only). Its balance and
+                connection are private to the owner
+                {wallet.ownerPubkey ? (
+                  <>
+                    {' '}
+                    <Link
+                      href={`/admin/users/${wallet.ownerPubkey}`}
+                      className="underline underline-offset-2"
+                    >
+                      {truncateNpub(wallet.ownerPubkey)}
+                    </Link>
+                  </>
+                ) : null}
+                .
+              </div>
+            )}
 
             {!isActive && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
@@ -133,7 +163,8 @@ export default function RemoteWalletDetailPage() {
               capabilities={wallet.receiveCapabilities}
             />
 
-            {/* Balance + chart */}
+            {/* Balance + chart — owner only; both need the wallet's secret */}
+            {isOwner && (
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="flex flex-col gap-4">
                 <BalanceHero
@@ -171,6 +202,7 @@ export default function RemoteWalletDetailPage() {
                 />
               </div>
             </div>
+            )}
 
             <RemoteWalletForwardingPanel
               walletId={wallet.id}
@@ -178,9 +210,10 @@ export default function RemoteWalletDetailPage() {
               transactionsLoading={txs.loading || connection.loading}
               transactionsError={txs.error}
               walletActive={isActive}
+              readOnly={!isOwner}
             />
 
-            <RemoteWalletNotificationsPanel walletId={wallet.id} />
+            {isOwner && <RemoteWalletNotificationsPanel walletId={wallet.id} />}
           </>
         )}
       </div>

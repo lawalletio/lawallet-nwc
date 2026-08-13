@@ -2,7 +2,10 @@ import type { RemoteWallet } from '@/lib/generated/prisma'
 import { eventBus } from '@/lib/events/event-bus'
 import { parseExactPaymentInvoice } from '@/lib/invoice-utils'
 import { prisma } from '@/lib/prisma'
-import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
+import {
+  loadOwnedRemoteWallet,
+  loadViewableRemoteWallet
+} from '@/lib/remote-wallets/owned'
 import { MAX_PROXY_FEE_BPS } from '@/lib/proxy/constants'
 import {
   assertNoForwardingCycle,
@@ -73,7 +76,24 @@ function remoteWalletForwardingEligibility(wallet: RemoteWallet): {
 }
 
 export async function getReceiveActionDto(walletId: string, userId: string) {
-  const wallet = await loadOwnedRemoteWallet(walletId, userId)
+  return buildReceiveActionDto(await loadOwnedRemoteWallet(walletId, userId))
+}
+
+/**
+ * Read path for the forwarding plan. Same DTO, but readable by an admin
+ * holding REMOTE_WALLETS_READ — the PUT/PATCH twins stay owner-only, so a
+ * viewer can see where funds are routed without being able to redirect them.
+ */
+export async function getViewableReceiveActionDto(
+  walletId: string,
+  request: Request
+) {
+  const { wallet } = await loadViewableRemoteWallet(walletId, request)
+  return buildReceiveActionDto(wallet)
+}
+
+async function buildReceiveActionDto(wallet: RemoteWallet) {
+  const walletId = wallet.id
   const action = await prisma.remoteWalletReceiveAction.findUnique({
     where: { remoteWalletId: walletId },
     include: {

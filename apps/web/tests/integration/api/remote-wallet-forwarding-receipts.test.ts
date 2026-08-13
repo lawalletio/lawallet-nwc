@@ -11,6 +11,13 @@ const afterMock = vi.hoisted(() =>
 const loadOwnedRemoteWalletMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ id: 'wallet-1' })
 )
+const loadViewableRemoteWalletMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    wallet: { id: 'wallet-1', userId: 'user-1' },
+    isOwner: true,
+    userId: 'user-1'
+  })
+)
 const reconcileMock = vi.hoisted(() => vi.fn())
 
 vi.mock('next/server', async importActual => ({
@@ -25,7 +32,8 @@ vi.mock('@/lib/auth/account', () => ({
   requireUserId: vi.fn().mockResolvedValue('user-1')
 }))
 vi.mock('@/lib/remote-wallets/owned', () => ({
-  loadOwnedRemoteWallet: loadOwnedRemoteWalletMock
+  loadOwnedRemoteWallet: loadOwnedRemoteWalletMock,
+  loadViewableRemoteWallet: loadViewableRemoteWalletMock
 }))
 vi.mock('@/lib/remote-wallet-forwarding/service', () => ({
   emitForwardingUpdated: vi.fn()
@@ -86,6 +94,11 @@ beforeEach(() => {
   resetPrismaMock()
   afterMock.mockClear()
   reconcileMock.mockClear()
+  loadViewableRemoteWalletMock.mockReset().mockResolvedValue({
+    wallet: { id: 'wallet-1', userId: 'user-1' },
+    isOwner: true,
+    userId: 'user-1'
+  })
   loadOwnedRemoteWalletMock.mockResolvedValue({ id: walletId })
 })
 
@@ -106,12 +119,17 @@ describe('GET /api/remote-wallets/[id]/forwarding-receipts', () => {
     const body = await response.json()
     expect(body.receipts).toHaveLength(1)
     expect(body.nextCursor).toBeNull()
-    expect(loadOwnedRemoteWalletMock).toHaveBeenCalledWith(walletId, 'user-1')
+    expect(loadViewableRemoteWalletMock).toHaveBeenCalledWith(
+      walletId,
+      expect.anything()
+    )
   })
 
   it('reports a wallet owned by somebody else as missing', async () => {
     const { NotFoundError } = await import('@/types/server/errors')
-    loadOwnedRemoteWalletMock.mockRejectedValue(
+    // Not the owner and no REMOTE_WALLETS_READ — the viewable loader answers
+    // 404 exactly like a genuine miss, so wallet ids can't be probed.
+    loadViewableRemoteWalletMock.mockRejectedValue(
       new NotFoundError('Wallet not found')
     )
 

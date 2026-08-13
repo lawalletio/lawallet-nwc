@@ -34,6 +34,14 @@ export interface RemoteWalletData {
     receiptPubkey: string | null
     reason: string | null
   }
+  /**
+   * Detail endpoint only. `false` when an admin is viewing somebody else's
+   * wallet — the page must then render read-only. Absent on older responses,
+   * so callers treat `undefined` as owned.
+   */
+  isOwner?: boolean
+  /** Owner's pubkey, only sent when `isOwner` is false. */
+  ownerPubkey?: string | null
 }
 
 /** Optional filters. Mirrors `remoteWalletListQuerySchema`. */

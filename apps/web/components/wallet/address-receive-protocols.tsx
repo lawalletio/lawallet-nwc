@@ -1,6 +1,4 @@
-import { AtSign, MessageSquare, Radio, ShieldCheck, Zap } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { ProtocolRow } from '@/components/wallet/shared/protocol-row'
+import { ProtocolChip } from '@/components/wallet/shared/protocol-chip'
 
 export interface AddressReceiveProtocolsProps {
   /** Each may be `null` — "not determined", which is not "unsupported". */
@@ -14,9 +12,11 @@ export interface AddressReceiveProtocolsProps {
 }
 
 /**
- * Capability snapshot for a Lightning Address. This intentionally describes
- * what the public LUD-16 endpoint is serving now, rather than merely which
- * options were selected in the address editor.
+ * Capability snapshot for a Lightning Address, as one row of chips. This
+ * describes what the public LUD-16 endpoint is serving now, rather than which
+ * options were selected in the address editor — so who serves it (proxy,
+ * alias) stays on the header badge, and the per-protocol specifics live in
+ * each chip's dialog.
  */
 export function AddressReceiveProtocols({
   protocols,
@@ -31,100 +31,74 @@ export function AddressReceiveProtocols({
   const served = viaAlias && provider ? ` by ${provider}` : ''
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-5 py-3">
-        <div>
-          <h2 className="text-sm font-medium">Receive protocols</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {viaAlias && provider
-              ? `Served by ${provider}, which this address aliases.`
-              : 'Public capabilities for this Lightning Address.'}
-          </p>
-        </div>
-        <Badge variant={viaProxy || viaAlias ? 'secondary' : 'outline'}>
-          {viaProxy
-            ? 'Served by proxy'
-            : viaAlias
-              ? 'Served by alias'
-              : 'Current status'}
-        </Badge>
-      </div>
-      <div className="grid divide-y divide-border/60 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <div className="divide-y divide-border/60">
-          <ProtocolRow
-            enabled={protocols.lud16 ?? null}
-            protocolKey="lud16"
-            icon={<Zap className="size-4" />}
-            title="LUD-16 address"
-            detail={
-              protocols.lud16
-                ? `Resolves a payRequest${served}.`
-                : protocols.lud16 === null
-                  ? 'Not checked yet.'
-                  : 'This address does not resolve a payRequest.'
-            }
-          />
-          <ProtocolRow
-            enabled={protocols.nip05 ?? null}
-            protocolKey="nip05"
-            icon={<AtSign className="size-4" />}
-            title="NIP-05 identifier"
-            detail={
-              protocols.nip05
-                ? 'Published in this domain\u2019s nostr.json.'
-                : 'The account has no usable Nostr public key.'
-            }
-          />
-          <ProtocolRow
-            enabled={protocols.lud12 ?? null}
-            protocolKey="lud12"
-            icon={<MessageSquare className="size-4" />}
-            title="LUD-12 comments"
-            detail={
-              protocols.lud12
-                ? `Payers can attach a comment${served}.`
-                : protocols.lud12 === null
-                  ? 'Not checked yet.'
-                  : 'Payer comments are not accepted.'
-            }
-          />
-        </div>
-        <div className="divide-y divide-border/60">
-          <ProtocolRow
-            enabled={protocols.lud21 ?? null}
-            protocolKey="lud21"
-            icon={<ShieldCheck className="size-4" />}
-            title="LUD-21 verification"
-            detail={
-              protocols.lud21
-                ? viaProxy
-                  ? 'Proxy invoices expose a settlement verification URL.'
-                  : `Issued invoices expose a settlement verification URL${served}.`
-                : protocols.lud21 === null
-                  ? 'Not checked yet.'
-                  : 'Issued invoices expose no verification URL.'
-            }
-          />
-          <ProtocolRow
-            enabled={protocols.nip57 ?? null}
-            protocolKey="nip57"
-            icon={<Radio className="size-4" />}
-            title="NIP-57 zaps"
-            detail={
-              protocols.nip57
-                ? viaProxy
-                  ? 'Proxy receipts are signed and published after settlement.'
-                  : viaAlias
-                    ? `Advertised${served} \u00b7 receipts are signed by that provider.`
-                    : 'Settled zap invoices publish a signed receipt.'
-                : protocols.nip57 === null
-                  ? 'Not checked yet.'
-                  : (reason ??
-                    'Unavailable until settlement detection and a receipt signer are ready.')
-            }
-          />
-        </div>
-      </div>
+    <section
+      aria-label="Receive protocols"
+      // `p-2` matches `gap-2`, so the ring of space around the chips is the
+      // same as the space between them. Both margins need `!`: the parent
+      // stack's `space-y-6` sets margin-top AND margin-bottom on its children
+      // and wins on specificity, so a plain `mb-4` here resolves to 0.
+      className="!mb-4 !mt-2 mx-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-2 rounded-xl border border-border bg-card p-2"
+    >
+      <ProtocolChip
+        protocolKey="lud16"
+        state={protocols.lud16 ?? null}
+        detail={
+          protocols.lud16
+            ? `Resolves a payRequest${served}.`
+            : protocols.lud16 === null
+              ? 'Not checked yet.'
+              : 'This address does not resolve a payRequest.'
+        }
+      />
+      <ProtocolChip
+        protocolKey="nip05"
+        state={protocols.nip05 ?? null}
+        detail={
+          protocols.nip05
+            ? 'Published in this domain’s nostr.json.'
+            : 'The account has no usable Nostr public key.'
+        }
+      />
+      <ProtocolChip
+        protocolKey="lud12"
+        state={protocols.lud12 ?? null}
+        detail={
+          protocols.lud12
+            ? `Payers can attach a comment${served}.`
+            : protocols.lud12 === null
+              ? 'Not checked yet.'
+              : 'Payer comments are not accepted.'
+        }
+      />
+      <ProtocolChip
+        protocolKey="lud21"
+        state={protocols.lud21 ?? null}
+        detail={
+          protocols.lud21
+            ? viaProxy
+              ? 'Proxy invoices expose a settlement verification URL.'
+              : `Issued invoices expose a settlement verification URL${served}.`
+            : protocols.lud21 === null
+              ? 'Not checked yet.'
+              : 'Issued invoices expose no verification URL.'
+        }
+      />
+      <ProtocolChip
+        protocolKey="nip57"
+        state={protocols.nip57 ?? null}
+        detail={
+          protocols.nip57
+            ? viaProxy
+              ? 'Proxy receipts are signed and published after settlement.'
+              : viaAlias
+                ? `Advertised${served} · receipts are signed by that provider.`
+                : 'Settled zap invoices publish a signed receipt.'
+            : protocols.nip57 === null
+              ? 'Not checked yet.'
+              : (reason ??
+                'Unavailable until settlement detection and a receipt signer are ready.')
+        }
+      />
     </section>
   )
 }

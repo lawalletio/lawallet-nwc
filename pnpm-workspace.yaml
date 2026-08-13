@@ -110,10 +110,12 @@ overrides:
   # apps/docs > fumadocs-mdx.
   js-yaml@<4.3.1: 4.3.1
   # GHSA-28wg-ghj8-5hjv / GHSA-2v37-7h3g-55p8 (high): nanoid generators loop
-  # indefinitely on negative/zero sizes. Patched on 3.3.17 (3.x line, via
-  # apps/docs > fumadocs-mdx > vite > postcss) and 5.1.16 (5.x line, via
-  # apps/web > @scalar/api-reference-react).
-  nanoid@<3.3.17: 3.3.17
+  # indefinitely on negative/zero sizes. The 3.x advisory widened after the
+  # first fix — GHSA-2v37 now reports `<3.3.18`, so the old 3.3.17 pin landed
+  # inside the vulnerable range and audit went red again. Reached via
+  # apps/docs > fumadocs-mdx > vite > postcss (3.x) and
+  # apps/web > @scalar/api-reference-react (5.x).
+  nanoid@<3.3.18: 3.3.18
   nanoid@>=4.0.0 <5.1.16: 5.1.16
   # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq (high, image-size ICNS/JXL/HEIF
   # DoS) have NO published fix ("Patched versions: <0.0.0", latest is 2.0.2).

@@ -510,6 +510,8 @@ model RemoteWalletReceiveAction {
   enabled           Boolean                             @default(false)
   enabledAt         DateTime?
   pausedAt          DateTime?
+  /// Cursor for the missed-payment capture sweep. Null until the first sweep.
+  lastSweepAt       DateTime?
   leaseOwner        String?
   leaseExpiresAt    DateTime?
   currentRevisionId String?                             @unique

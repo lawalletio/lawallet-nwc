@@ -78,7 +78,8 @@ export function RemoteWalletForwardingPanel({
   transactions = [],
   transactionsLoading = false,
   transactionsError = null,
-  walletActive = true
+  walletActive = true,
+  readOnly = false
 }: {
   walletId: string
   transactions?: NwcTransaction[]
@@ -86,6 +87,13 @@ export function RemoteWalletForwardingPanel({
   transactionsError?: Error | null
   /** Inactive wallets are never polled, so "no payments" would be a lie. */
   walletActive?: boolean
+  /**
+   * Admin viewing somebody else's wallet. The plan and its history stay
+   * visible; every control that moves funds or rewrites where they go is not
+   * rendered. The server refuses these calls regardless — this only keeps the
+   * UI from offering a button that would 404.
+   */
+  readOnly?: boolean
 }) {
   const action = useRemoteWalletReceiveAction(walletId)
   const activityPagination = useCursorPagination()
@@ -237,7 +245,7 @@ export function RemoteWalletForwardingPanel({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {data.configured && data.pendingReceipts > 0 && (
+          {!readOnly && data.configured && data.pendingReceipts > 0 && (
             <Button
               variant="secondary"
               onClick={() => void forceForward()}
@@ -264,7 +272,7 @@ export function RemoteWalletForwardingPanel({
                 : 'Force Forward'}
             </Button>
           )}
-          {data.configured && (
+          {!readOnly && data.configured && (
             <Button
               variant="outline"
               onClick={() => void toggle(!data.enabled)}
@@ -278,14 +286,16 @@ export function RemoteWalletForwardingPanel({
               {data.enabled ? 'Pause' : 'Resume'}
             </Button>
           )}
-          <Button
-            onClick={() => setConfigOpen(true)}
-            disabled={!data.eligible}
-            title={data.reason ?? undefined}
-          >
-            <Settings2 data-icon="inline-start" />
-            {data.configured ? 'Edit plan' : 'Configure'}
-          </Button>
+          {!readOnly && (
+            <Button
+              onClick={() => setConfigOpen(true)}
+              disabled={!data.eligible}
+              title={data.reason ?? undefined}
+            >
+              <Settings2 data-icon="inline-start" />
+              {data.configured ? 'Edit plan' : 'Configure'}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -372,6 +382,7 @@ export function RemoteWalletForwardingPanel({
         open={Boolean(selectedReceipt)}
         onOpenChange={open => !open && setSelectedReceiptId(null)}
         retrying={mutations.loading}
+        readOnly={readOnly}
         onRetry={async receipt => {
           try {
             await mutations.retryReceipt(receipt.id)
@@ -968,22 +979,26 @@ function ForwardReceiptDialog({
   open,
   onOpenChange,
   onRetry,
-  retrying
+  retrying,
+  readOnly = false
 }: {
   receipt: ForwardReceiptData | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onRetry: (receipt: ForwardReceiptData) => Promise<void>
   retrying: boolean
+  readOnly?: boolean
 }) {
   const payment = useRemoteWalletPayment(
     receipt?.walletId ?? null,
     receipt?.sourcePaymentHash ?? null
   )
   if (!receipt) return null
-  const retryable = receipt.legs.some(leg =>
-    ['READY', 'REJECTED', 'EXPIRED'].includes(leg.status)
-  )
+  const retryable =
+    !readOnly &&
+    receipt.legs.some(leg =>
+      ['READY', 'REJECTED', 'EXPIRED'].includes(leg.status)
+    )
   const zap = payment.data?.zap ?? null
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

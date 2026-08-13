@@ -39,9 +39,21 @@ vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn()
 }))
 
-vi.mock('@/lib/auth/unified-auth', () => ({
-  authenticate: vi.fn()
-}))
+// `authHasPermission` keeps its real semantics (the role→permission map) so
+// the cross-user tests below are actually decided by RBAC, not by a stub.
+vi.mock('@/lib/auth/unified-auth', async () => {
+  const { hasPermission } = await import('@/lib/auth/permissions')
+  return {
+    authenticate: vi.fn(),
+    authHasPermission: (
+      auth: { role: Parameters<typeof hasPermission>[0]; scopes?: string[] },
+      permission: Parameters<typeof hasPermission>[1]
+    ) =>
+      auth.scopes
+        ? auth.scopes.includes(permission)
+        : hasPermission(auth.role, permission)
+  }
+})
 
 import {
   GET as listHandler,
@@ -581,6 +593,45 @@ describe('GET /api/remote-wallets/[id]', () => {
     )
     const body = (await assertResponse(res, 200)) as { name: string }
     expect(body.name).toBe('Mine')
+  })
+
+  it('lets an admin read another user\u2019s wallet, flagged read-only', async () => {
+    vi.mocked(authenticate).mockResolvedValue({
+      pubkey: USER_PUBKEY,
+      role: 'ADMIN' as never,
+      method: 'jwt'
+    })
+    const caller = createUserFixture({ pubkey: USER_PUBKEY })
+    const owner = createUserFixture({ pubkey: 'd'.repeat(64) })
+    vi.mocked(prismaMock.user.findUnique)
+      .mockResolvedValueOnce(caller as never)
+      .mockResolvedValueOnce({ pubkey: owner.pubkey } as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: owner.id,
+      name: 'Theirs'
+    })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+
+    const res = await getHandler(
+      createNextRequest('/api/remote-wallets/w1'),
+      createParamsPromise({ id: 'w1' })
+    )
+    const body = (await assertResponse(res, 200)) as {
+      name: string
+      isOwner: boolean
+      ownerPubkey: string
+      config?: unknown
+    }
+
+    expect(body.name).toBe('Theirs')
+    // The UI switches to view-only on this flag.
+    expect(body.isOwner).toBe(false)
+    expect(body.ownerPubkey).toBe(owner.pubkey)
+    // The encrypted NWC blob must never ride along on the cross-user read.
+    expect(body.config).toBeUndefined()
   })
 
   it('returns 404 (not 403) when the wallet belongs to another user', async () => {

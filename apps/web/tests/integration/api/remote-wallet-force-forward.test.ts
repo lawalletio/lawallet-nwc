@@ -11,6 +11,7 @@ const afterMock = vi.hoisted(() =>
 const loadOwnedRemoteWalletMock = vi.hoisted(() => vi.fn())
 const emitForwardingUpdatedMock = vi.hoisted(() => vi.fn())
 const reconcileRemoteWalletForwardingMock = vi.hoisted(() => vi.fn())
+const sweepMissedPaymentsMock = vi.hoisted(() => vi.fn())
 
 vi.mock('next/server', async importActual => ({
   ...(await importActual<typeof import('next/server')>()),
@@ -31,6 +32,9 @@ vi.mock('@/lib/remote-wallet-forwarding/service', () => ({
 }))
 vi.mock('@/lib/remote-wallet-forwarding/reconcile', () => ({
   reconcileRemoteWalletForwarding: reconcileRemoteWalletForwardingMock
+}))
+vi.mock('@/lib/remote-wallet-forwarding/capture-sweep', () => ({
+  sweepMissedPayments: sweepMissedPaymentsMock
 }))
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
@@ -61,6 +65,7 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   loadOwnedRemoteWalletMock.mockResolvedValue({ id: walletId })
+  sweepMissedPaymentsMock.mockResolvedValue(0)
   reconcileRemoteWalletForwardingMock.mockResolvedValue({
     claimed: 0,
     completed: 0,
@@ -150,5 +155,48 @@ describe('POST /api/remote-wallets/[id]/receive-action/force', () => {
     // conflict, not malformed input.
     expect(response.status).toBe(409)
     expect(afterMock).not.toHaveBeenCalled()
+  })
+
+  it('recovers payments the listener never delivered before deciding there is nothing to do', async () => {
+    // The whole point of the button on a stuck wallet: no receipt exists yet
+    // because the payment_received webhook was lost, so capture has to run
+    // first or this answers "nothing pending" while the funds sit there.
+    sweepMissedPaymentsMock.mockImplementation(async () => {
+      vi.mocked(
+        prismaMock.remoteWalletForwardReceipt.updateMany
+      ).mockResolvedValue({ count: 1 })
+      return 1
+    })
+    vi.mocked(prismaMock.remoteWalletForwardReceipt.updateMany).mockResolvedValue(
+      { count: 0 }
+    )
+
+    const response = await POST(
+      createNextRequest(
+        `/api/remote-wallets/${walletId}/receive-action/force`,
+        { method: 'POST' }
+      ),
+      createParamsPromise({ id: walletId })
+    )
+
+    expect(sweepMissedPaymentsMock).toHaveBeenCalledWith({
+      walletIds: [walletId],
+      force: true
+    })
+    expect(response.status).toBe(202)
+  })
+
+  it('still forwards known receipts when the wallet cannot be swept', async () => {
+    sweepMissedPaymentsMock.mockRejectedValue(new Error('relay down'))
+
+    const response = await POST(
+      createNextRequest(
+        `/api/remote-wallets/${walletId}/receive-action/force`,
+        { method: 'POST' }
+      ),
+      createParamsPromise({ id: walletId })
+    )
+
+    expect(response.status).toBe(202)
   })
 })

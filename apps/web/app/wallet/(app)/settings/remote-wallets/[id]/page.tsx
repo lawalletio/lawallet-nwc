@@ -20,8 +20,11 @@ export default function WalletRemoteWalletDetailPage() {
   const params = useParams<{ id: string }>()
   const wallet = useRemoteWallet(params?.id ?? null)
   const isActive = wallet.data?.status === 'ACTIVE'
+  // An admin can reach this URL for somebody else's wallet. Same rule as the
+  // admin page: read-only, and never ask for the owner's connection string.
+  const isOwner = wallet.data?.isOwner !== false
   const connection = useRemoteWalletConnectionString(
-    isActive ? (wallet.data?.id ?? null) : null
+    isActive && isOwner ? (wallet.data?.id ?? null) : null
   )
   const transactions = useNwcTransactions(
     connection.data?.connectionString ?? null,
@@ -78,8 +81,11 @@ export default function WalletRemoteWalletDetailPage() {
               transactions={transactions.data ?? []}
               transactionsLoading={transactions.loading || connection.loading}
               transactionsError={transactions.error}
+              readOnly={!isOwner}
             />
-            <RemoteWalletNotificationsPanel walletId={wallet.data.id} />
+            {isOwner && (
+              <RemoteWalletNotificationsPanel walletId={wallet.data.id} />
+            )}
           </>
         )}
       </main>

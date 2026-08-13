@@ -7,6 +7,8 @@ import type { ListenerEnv } from '../src/env'
 import { createHttpServer } from '../src/http/server'
 import { metrics as baseMetrics, type Metrics } from '../src/metrics'
 import type { NwcPool } from '../src/nwc/pool'
+import { listenerStatusResponseSchema } from '@lawallet-nwc/shared'
+import packageJson from '../package.json'
 
 const LEGACY_SECRET = 'legacy-listener-secret-0123456789abcdef'
 const REQUEST_SECRET = 'request-listener-secret-0123456789abcdef'
@@ -172,6 +174,18 @@ describe('idempotent payment HTTP API', () => {
 
     expect(response.status).toBe(200)
     expect(body.degraded).toContain('recentEvents')
+  })
+
+  it('reports its own package version so the admin banner never hardcodes one', async () => {
+    const origin = await start(payments)
+
+    const response = await fetch(`${origin}/status`, {
+      headers: { authorization: `Bearer ${REQUEST_SECRET}` }
+    })
+    const body = (await response.json()) as { version?: string }
+
+    expect(body.version).toBe(packageJson.version)
+    expect(listenerStatusResponseSchema.safeParse(body).success).toBe(true)
   })
 
   it('returns 202 after the long-poll budget without cancelling the operation', async () => {

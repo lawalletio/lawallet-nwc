@@ -5,15 +5,17 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   AlertTriangle,
+  Ban,
   CheckCircle2,
-  ChevronDown,
   ExternalLink,
   Forward,
+  Hourglass,
   Plus,
   Trash2,
   Wallet,
   XCircle
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { LightningAddressHero } from '@/components/admin/lightning-address-hero'
@@ -55,7 +57,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger
 } from '@/components/ui/collapsible'
-import { BalanceCard } from '@/components/wallet/balance-card'
+import { WalletBalanceInline } from '@/components/wallet/wallet-balance-inline'
 import { ProxyPendingBalanceCard } from '@/components/wallet/proxy-pending-balance-card'
 import { AddressInvoicesCard } from '@/components/wallet/address-invoices-card'
 import { AddressReceiveProtocols } from '@/components/wallet/address-receive-protocols'
@@ -80,23 +82,33 @@ import { cn } from '@/lib/utils'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
+/** Ties the header's Save button to the form inside the collapsible. */
+const MODE_FORM_ID = 'address-mode-form'
+
 const MODE_DESCRIPTIONS: Record<
   LightningAddressMode,
-  { label: string; help: string }
+  { label: string; help: string; icon: LucideIcon }
 > = {
-  IDLE: { label: 'Idle', help: 'Address is disabled and rejects payments.' },
+  IDLE: {
+    label: 'Idle',
+    help: 'Address is disabled and rejects payments.',
+    icon: Ban
+  },
   ALIAS: {
     label: 'Alias',
-    help: 'Forward incoming payments to another lightning address.'
+    help: 'Forward incoming payments to another lightning address.',
+    icon: Forward
   },
   PROXY_ALIAS: {
     label: 'Deferred proxy',
-    help: 'Receive first, then forward minus the configured service fee.'
+    help: 'Receive first, then forward minus the configured service fee.',
+    icon: Hourglass
   },
   CUSTOM_NWC: {
     label: 'Custom wallet',
-    help: 'Receive via a specific wallet.'
-  },
+    help: 'Receive via a specific wallet.',
+    icon: Wallet
+  }
 }
 
 const CONNECT_NEW_WALLET_VALUE = '__connect_new_wallet__'
@@ -523,6 +535,18 @@ export default function AdminAddressEditPage({ params }: PageProps) {
     void handleSave()
   }
 
+  /**
+   * Revert the form to the loaded baseline and collapse, so re-opening shows
+   * a clean form instead of stale uncommitted edits.
+   */
+  function cancelModeEdit() {
+    if (!data) return
+    setMode(data.address.mode)
+    setRedirect(data.address.redirect ?? '')
+    setRemoteWalletId(data.address.remoteWalletId ?? '')
+    setModeOpen(false)
+  }
+
   async function handleDelete() {
     try {
       await deleteAddress(username)
@@ -601,31 +625,16 @@ export default function AdminAddressEditPage({ params }: PageProps) {
             option => data.deferredProxyEnabled || option !== 'PROXY_ALIAS'
           )
 
-          const emptyReason = !isOwner
-            ? // Admin read-only view: the balance needs the owner's connection
-              // secret, which we deliberately don't return, so there's nothing to
-              // show here.
-              'Balance is private to the address owner.'
-            : persistedMode === 'IDLE'
-              ? 'This address is disabled.'
-              : persistedMode === 'ALIAS' || persistedMode === 'PROXY_ALIAS'
-                ? `Forwards to ${data.address.redirect ?? 'another address'}.`
-                : persistedMode === 'CUSTOM_NWC'
-                  ? 'No wallet is linked to this address yet.'
-                  : 'Set a primary wallet to enable payments.'
-
           return (
-            <div className="space-y-6 px-4 py-6 sm:px-6">
+            <div className="space-y-6 px-4 pb-6 pt-2 sm:px-6">
               {/* Centered address hero — the address now leads the page content
               (mirroring the /admin dashboard's centered display) instead of
               sitting in the navbar. */}
-              <div className="flex flex-col items-center gap-2 pt-2 text-center">
+              {/* The hero's breathing room comes from the page padding above
+              and the protocol strip's `!mt-2` below — keep them equal. */}
+              <div className="flex flex-col items-center gap-2 text-center">
                 <LightningAddressHero address={fullAddress} label="" />
-                {isOwner ? (
-                  <p className="max-w-md text-sm text-muted-foreground">
-                    Configure how this address handles incoming payments.
-                  </p>
-                ) : (
+                {!isOwner && (
                   <p className="max-w-md text-sm text-muted-foreground">
                     Viewing another user&rsquo;s address (read-only). Owner{' '}
                     {data.ownerPubkey ? (
@@ -655,29 +664,15 @@ export default function AdminAddressEditPage({ params }: PageProps) {
               <ProxyAddressWorkspace
                 enabled={isOwner && persistedMode === 'PROXY_ALIAS'}
                 balance={
+                  // The plain NWC balance now sits next to the wallet it
+                  // belongs to; only the proxy's pending balance still earns a
+                  // card, because it is a queue rather than a wallet total.
                   isOwner && persistedMode === 'PROXY_ALIAS' ? (
                     <ProxyPendingBalanceCard
                       username={username}
                       configuredDestination={data.address.redirect}
                     />
-                  ) : (
-                    <BalanceCard
-                      connectionString={data.effectiveConnectionString}
-                      emptyReason={emptyReason}
-                      // Alias addresses forward payments — render a forward arrow
-                      // in the empty-state tile so the visual signals "redirect"
-                      // instead of the generic NWC logo used for other empty states.
-                      emptyIcon={
-                        persistedMode === 'ALIAS' ||
-                        persistedMode === 'PROXY_ALIAS' ? (
-                          <Forward
-                            className="size-5 text-muted-foreground"
-                            aria-hidden
-                          />
-                        ) : undefined
-                      }
-                    />
-                  )
+                  ) : null
                 }
                 payments={
                   isOwner ? <AddressInvoicesCard username={username} /> : null
@@ -730,6 +725,9 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                                 ? boundWallet.name
                                 : 'No wallet linked'}
                             </span>
+                            <WalletBalanceInline
+                              connectionString={data.effectiveConnectionString}
+                            />
                           </div>
                         ) : (
                           <span className="text-muted-foreground">
@@ -746,35 +744,44 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                       id="address-mode-settings"
                     >
                       <div className="flex items-center gap-3 px-5 py-3">
-                        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md py-1 text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {/* The mode at a glance: its own icon, its name, and
+                        where the money actually goes. `key` replays the fade
+                        when the mode changes, so a save reads as a change. */}
+                        <div
+                          key={data.address.mode}
+                          className="flex min-w-0 flex-1 animate-field-in items-center gap-3 motion-reduce:animate-none"
+                        >
+                          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/70 text-muted-foreground ring-1 ring-border/60 transition-colors">
+                            {React.createElement(
+                              MODE_DESCRIPTIONS[data.address.mode].icon,
+                              { className: 'size-5', 'aria-hidden': true }
+                            )}
+                          </span>
                           <div className="flex min-w-0 flex-col gap-0.5">
-                            <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                              Mode
-                            </span>
-                            <span className="truncate text-sm font-medium">
+                            <span className="truncate text-base font-semibold leading-tight">
                               {MODE_DESCRIPTIONS[data.address.mode].label}
-                              {(data.address.mode === 'ALIAS' ||
-                                data.address.mode === 'PROXY_ALIAS') &&
-                                data.address.redirect && (
-                                  <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
-                                    → {data.address.redirect}
-                                  </span>
-                                )}
                             </span>
+                            {(data.address.mode === 'ALIAS' ||
+                              data.address.mode === 'PROXY_ALIAS') &&
+                              data.address.redirect && (
+                                <span className="truncate font-mono text-xs text-muted-foreground">
+                                  → {data.address.redirect}
+                                </span>
+                              )}
                             {data.address.mode === 'CUSTOM_NWC' &&
                               boundWallet && (
-                                <span className="truncate text-xs text-muted-foreground">
-                                  Connected to {boundWallet.name}
+                                <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                                  {boundWallet.name}
+                                  <WalletBalanceInline
+                                    connectionString={
+                                      data.effectiveConnectionString
+                                    }
+                                    className="before:mr-1 before:content-['·']"
+                                  />
                                 </span>
                               )}
                           </div>
-                          <ChevronDown
-                            className={cn(
-                              'size-4 shrink-0 text-muted-foreground transition-transform',
-                              modeOpen && 'rotate-180'
-                            )}
-                          />
-                        </CollapsibleTrigger>
+                        </div>
 
                         {data.address.mode === 'CUSTOM_NWC' && boundWallet && (
                           <Button
@@ -795,9 +802,50 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                             </Link>
                           </Button>
                         )}
+
+                        {modeOpen ? (
+                          // Open: the form's actions live up here, next to the
+                          // mode they change, so they stay in view no matter
+                          // how long the expanded form gets. `form=` lets Save
+                          // submit it from outside the <form> element.
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              disabled={saving}
+                              onClick={cancelModeEdit}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="submit"
+                              form={MODE_FORM_ID}
+                              variant="theme"
+                              size="sm"
+                              disabled={saveDisabled}
+                            >
+                              {saving && (
+                                <Spinner size={16} data-icon="inline-start" />
+                              )}
+                              Save
+                            </Button>
+                          </div>
+                        ) : (
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0"
+                            >
+                              Switch
+                            </Button>
+                          </CollapsibleTrigger>
+                        )}
                       </div>
-                      <CollapsibleContent className="border-t border-border/60">
+                      <CollapsibleContent className="overflow-hidden border-t border-border/60 data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                         <form
+                          id={MODE_FORM_ID}
                           onSubmit={handleModeSubmit}
                           className="flex flex-col gap-4 p-5"
                         >
@@ -843,8 +891,14 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                             })}
                           </RadioGroup>
 
+                          {/* `key={mode}` remounts on every switch, so the
+                          fade replays instead of only firing the first time a
+                          block appears. */}
                           {(mode === 'ALIAS' || mode === 'PROXY_ALIAS') && (
-                            <div className="space-y-2">
+                            <div
+                              key={mode}
+                              className="animate-field-in space-y-2 motion-reduce:animate-none"
+                            >
                               <Label htmlFor="redirect">Redirect to</Label>
                               <Input
                                 ref={redirectInputRef}
@@ -876,7 +930,10 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                           )}
 
                           {mode === 'CUSTOM_NWC' && (
-                            <div className="space-y-4">
+                            <div
+                              key={mode}
+                              className="animate-field-in space-y-4 motion-reduce:animate-none"
+                            >
                               {data.wallets.length > 0 ? (
                                 <div className="space-y-2">
                                   <Label htmlFor="remote-wallet">
@@ -944,41 +1001,6 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                               )}
                             </div>
                           )}
-
-
-                          {/* Save/Cancel live inside the collapsible — once the user
-                    expands Mode and makes changes, the actions are right
-                    there with the form; the rest of the page stays calm.
-                    Cancel reverts local form state back to the loaded
-                    baseline and collapses, so re-opening shows a clean
-                    form instead of stale uncommitted edits. */}
-                          <div className="flex items-center justify-end gap-2 pt-2">
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              disabled={saving}
-                              onClick={() => {
-                                setMode(data.address.mode)
-                                setRedirect(data.address.redirect ?? '')
-                                setRemoteWalletId(
-                                  data.address.remoteWalletId ?? ''
-                                )
-                                setModeOpen(false)
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              type="submit"
-                              variant="theme"
-                              disabled={saveDisabled}
-                            >
-                              {saving && (
-                                <Spinner size={16} data-icon="inline-start" />
-                              )}
-                              Save
-                            </Button>
-                          </div>
                         </form>
                       </CollapsibleContent>
                     </Collapsible>
