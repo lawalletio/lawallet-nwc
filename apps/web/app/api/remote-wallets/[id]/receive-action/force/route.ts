@@ -1,6 +1,8 @@
 import { after, NextResponse } from 'next/server'
 import { requireUserId } from '@/lib/auth/account'
+import { logger } from '@/lib/logger'
 import { prisma } from '@/lib/prisma'
+import { sweepMissedPayments } from '@/lib/remote-wallet-forwarding/capture-sweep'
 import { reconcileRemoteWalletForwarding } from '@/lib/remote-wallet-forwarding/reconcile'
 import { emitForwardingUpdated } from '@/lib/remote-wallet-forwarding/service'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
@@ -33,6 +35,19 @@ export const POST = withErrorHandling(
     }
     if (!action.enabled) {
       throw new ConflictError('Resume forwarding before forcing a run')
+    }
+
+    // Recover anything the listener never delivered first, so this button can
+    // un-stick a payment that has no receipt at all rather than answering
+    // "nothing to forward" while the funds sit there. Best-effort: a wallet
+    // that won't answer must not turn Force Forward into a 500.
+    try {
+      await sweepMissedPayments({ walletIds: [id], force: true })
+    } catch (error) {
+      logger.warn(
+        { err: error, remoteWalletId: id },
+        'remote_wallet_forwarding.capture_sweep_failed'
+      )
     }
 
     // Only move the receipt-level schedule forward. Existing PENDING/UNKNOWN
