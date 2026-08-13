@@ -15,6 +15,7 @@ import { NwcPaymentService } from '../nwc/payments'
 import { NwcPool, NwcPoolError } from '../nwc/pool'
 import { recentEventsSafe } from '../store'
 import { verifyBearer } from './auth'
+import packageJson from '../../package.json'
 
 const MAX_BODY_BYTES = 64 * 1024
 const DEFAULT_HEALTH_DB_TIMEOUT_MS = 750
@@ -149,6 +150,7 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
       }
 
       const status: ListenerStatusResponse = {
+        version: packageJson.version,
         startedAt: metrics.startedAt.toISOString(),
         uptimeSeconds: Math.floor(
           (Date.now() - metrics.startedAt.getTime()) / 1000

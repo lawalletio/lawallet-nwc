@@ -1,6 +1,6 @@
 {
   "name": "@lawallet-nwc/listener",
-  "version": "0.1.0",
+  "version": "2.4.0",
   "private": true,
   "type": "module",
   "engines": {

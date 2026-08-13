@@ -82,6 +82,36 @@ function formatUptime(seconds: number): string {
   return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`
 }
 
+/**
+ * Uptime that actually ticks, derived from the listener's own `startedAt`
+ * rather than the `uptimeSeconds` snapshot — that only moves on the 6s poll,
+ * so a seconds-resolution counter visibly stutters.
+ *
+ * The timer runs at the resolution on screen: 1s while seconds show, 1m while
+ * minutes are the smallest unit (`12m` and `3h 4m` alike), 1h once the format
+ * drops to days and hours. No re-render buys a number that cannot change.
+ */
+function useLiveUptimeSeconds(startedAt: string | undefined): number | null {
+  const startedMs = useMemo(
+    () => (startedAt ? Date.parse(startedAt) : Number.NaN),
+    [startedAt]
+  )
+  const [now, setNow] = useState(() => Date.now())
+  const seconds = Number.isNaN(startedMs)
+    ? null
+    : Math.max(0, Math.floor((now - startedMs) / 1000))
+  const tickMs =
+    seconds === null ? null : seconds < 60 ? 1000 : seconds < 86400 ? 60000 : 3600000
+  // Keyed on tickMs, so crossing a unit boundary swaps the timer instead of
+  // leaving a 1s interval running for the rest of the process's life.
+  useEffect(() => {
+    if (tickMs === null) return
+    const id = setInterval(() => setNow(Date.now()), tickMs)
+    return () => clearInterval(id)
+  }, [tickMs])
+  return seconds
+}
+
 /** Shared link target: the remote wallet behind an NWC connection. */
 function walletHref(walletId: string): string {
   return `/admin/remote-wallets/${walletId}`
@@ -154,43 +184,60 @@ function getConnState(
 
 const CONN_META: Record<
   ConnState,
-  { label: string; dot: string; text: string; pulse: boolean }
+  {
+    label: string
+    dot: string
+    text: string
+    pulse: boolean
+    /**
+     * Feed chip. Only states where the listener is actually answering may
+     * claim "live" — a hardcoded chip next to "Reconnecting…" reads as though
+     * the numbers below it are current when they are the last-known ones.
+     */
+    chip: string | null
+  }
 > = {
   loading: {
     label: 'Checking…',
     dot: 'bg-muted-foreground',
     text: 'text-muted-foreground',
-    pulse: true
+    pulse: true,
+    chip: 'checking'
   },
   connected: {
     label: 'Connected',
     dot: 'bg-green-500',
     text: 'text-green-600',
-    pulse: true
+    pulse: true,
+    chip: 'live'
   },
   degraded: {
     label: 'Connected · feed degraded',
     dot: 'bg-yellow-500',
     text: 'text-yellow-600',
-    pulse: true
+    pulse: true,
+    chip: 'live'
   },
   reconnecting: {
     label: 'Reconnecting…',
     dot: 'bg-yellow-500',
     text: 'text-yellow-600',
-    pulse: true
+    pulse: true,
+    chip: 'disconnected'
   },
   unreachable: {
     label: 'Unreachable',
     dot: 'bg-red-500',
     text: 'text-red-600',
-    pulse: false
+    pulse: false,
+    chip: 'disconnected'
   },
   disabled: {
     label: 'Not configured',
     dot: 'bg-muted-foreground',
     text: 'text-muted-foreground',
-    pulse: false
+    pulse: false,
+    chip: null
   }
 }
 
@@ -209,6 +256,7 @@ function ConnectionStatusBanner({
   error?: string
 }) {
   const meta = CONN_META[state]
+  const uptimeSeconds = useLiveUptimeSeconds(status?.startedAt)
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-card p-4">
       <span className="relative mt-1 flex size-2.5 shrink-0">
@@ -229,14 +277,21 @@ function ConnectionStatusBanner({
           <span className={cn('text-sm font-semibold', meta.text)}>
             Listener {meta.label}
           </span>
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            live
-          </span>
+          {meta.chip && (
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              {meta.chip}
+            </span>
+          )}
+          {status?.version && (
+            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              v{status.version}
+            </span>
+          )}
         </div>
         <p className="mt-0.5 text-sm text-muted-foreground">
           {state === 'connected' && status && (
             <>
-              Up {formatUptime(status.uptimeSeconds)} ·{' '}
+              Up {formatUptime(uptimeSeconds ?? status.uptimeSeconds)} ·{' '}
               {status.counters.webhooksDelivered} webhooks delivered
               {status.counters.webhooksFailed > 0 &&
                 ` · ${status.counters.webhooksFailed} failed`}

@@ -8,7 +8,8 @@
 //   1. Resolves the base version: the HIGHER of the root package.json
 //      version and the latest v* git tag (they have drifted before — e.g.
 //      tag v0.10.1 vs package.json 0.10.0).
-//   2. Bumps the lockstep packages: root, @lawallet-nwc/web, @lawallet-nwc/cli.
+//   2. Bumps the lockstep packages: root, @lawallet-nwc/web, @lawallet-nwc/cli,
+//      @lawallet-nwc/listener.
 //      (shared/openapi/sdk are versioned independently and untouched.)
 //   3. Scaffolds docs/changelogs/v<new>.md in the house format, pre-filled
 //      with the merged PRs since the last tag as raw material for the
@@ -40,7 +41,9 @@ if (!['patch', 'minor', 'major'].includes(bump)) {
 const LOCKSTEP_PACKAGES = [
   'package.json',
   'apps/web/package.json',
-  'apps/cli/package.json'
+  'apps/cli/package.json',
+  // Ships in the same image tag as web and reports its version over /status.
+  'apps/listener/package.json'
 ]
 
 const git = cmd =>
