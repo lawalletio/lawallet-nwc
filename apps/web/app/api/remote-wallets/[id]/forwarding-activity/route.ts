@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { remoteWalletForwardActivityListQuerySchema } from '@lawallet-nwc/shared'
-import { requireUserId } from '@/lib/auth/account'
 import { prisma } from '@/lib/prisma'
-import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
+import { loadViewableRemoteWallet } from '@/lib/remote-wallets/owned'
 import { validateParams, validateQuery } from '@/lib/validation/middleware'
 import { idParam } from '@/lib/validation/schemas'
 import { NotFoundError } from '@/types/server/errors'
@@ -10,9 +9,8 @@ import { withErrorHandling } from '@/types/server/error-handler'
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const userId = await requireUserId(request)
     const { id } = validateParams(await params, idParam)
-    await loadOwnedRemoteWallet(id, userId)
+    await loadViewableRemoteWallet(id, request)
     const query = validateQuery(
       request.url,
       remoteWalletForwardActivityListQuerySchema

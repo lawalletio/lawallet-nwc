@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { requireUserId } from '@/lib/auth/account'
 import { prisma } from '@/lib/prisma'
-import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
+import { loadViewableRemoteWallet } from '@/lib/remote-wallets/owned'
 import { z } from 'zod'
 import { validateParams } from '@/lib/validation/middleware'
 import { NotFoundError } from '@/types/server/errors'
@@ -25,15 +24,18 @@ export const GET = withErrorHandling(
     request: Request,
     { params }: { params: Promise<{ id: string; paymentHash: string }> }
   ) => {
-    const userId = await requireUserId(request)
     const { id: walletId, paymentHash: hash } = validateParams(
       await params,
       paymentRouteParams
     )
-    await loadOwnedRemoteWallet(walletId, userId)
+    const { wallet } = await loadViewableRemoteWallet(walletId, request)
 
     const invoice = await prisma.invoice.findFirst({
-      where: { paymentHash: hash, remoteWalletId: walletId, userId },
+      where: {
+        paymentHash: hash,
+        remoteWalletId: walletId,
+        userId: wallet.userId
+      },
       select: {
         zapRequest: true,
         zapRequestJson: true,

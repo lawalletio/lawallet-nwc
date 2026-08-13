@@ -6,7 +6,7 @@ import {
 import { requireUserId } from '@/lib/auth/account'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import {
-  getReceiveActionDto,
+  getViewableReceiveActionDto,
   putReceiveAction,
   setReceiveActionEnabled
 } from '@/lib/remote-wallet-forwarding/service'
@@ -23,9 +23,8 @@ async function userIdFor(request: Request): Promise<string> {
 
 export const GET = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
-    const userId = await requireUserId(request)
     const { id } = validateParams(await params, idParam)
-    return NextResponse.json(await getReceiveActionDto(id, userId))
+    return NextResponse.json(await getViewableReceiveActionDto(id, request))
   }
 )
 

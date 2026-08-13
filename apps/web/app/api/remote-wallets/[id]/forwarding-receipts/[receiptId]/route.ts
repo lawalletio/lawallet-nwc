@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { remoteWalletForwardReceiptParamsSchema } from '@lawallet-nwc/shared'
-import { requireUserId } from '@/lib/auth/account'
 import { prisma } from '@/lib/prisma'
 import { forwardReceiptToDto } from '@/lib/remote-wallet-forwarding/dto'
 import { commentsByPaymentHash } from '@/lib/remote-wallet-forwarding/comments'
-import { loadOwnedRemoteWallet } from '@/lib/remote-wallets/owned'
+import { loadViewableRemoteWallet } from '@/lib/remote-wallets/owned'
 import { validateParams } from '@/lib/validation/middleware'
 import { NotFoundError } from '@/types/server/errors'
 import { withErrorHandling } from '@/types/server/error-handler'
@@ -14,14 +13,15 @@ export const GET = withErrorHandling(
     request: Request,
     { params }: { params: Promise<{ id: string; receiptId: string }> }
   ) => {
-    const userId = await requireUserId(request)
     const { id, receiptId } = validateParams(
       await params,
       remoteWalletForwardReceiptParamsSchema
     )
-    await loadOwnedRemoteWallet(id, userId)
+    const { wallet } = await loadViewableRemoteWallet(id, request)
     const receipt = await prisma.remoteWalletForwardReceipt.findFirst({
-      where: { id: receiptId, walletId: id, userId },
+      // Scoped to the wallet's OWNER, not the caller — an admin viewing
+      // someone else's wallet must still see that wallet's receipts.
+      where: { id: receiptId, walletId: id, userId: wallet.userId },
       include: {
         revision: {
           select: {

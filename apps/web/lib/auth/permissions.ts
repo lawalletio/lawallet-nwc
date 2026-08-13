@@ -34,7 +34,15 @@ export enum Permission {
   ADDRESSES_WRITE = 'addresses:write',
   NTAGS_READ = 'ntags:read',
   NTAGS_WRITE = 'ntags:write',
-  ACTIVITY_READ = 'activity:read'
+  ACTIVITY_READ = 'activity:read',
+  /**
+   * Read another user's remote wallets. Deliberately read-only and with no
+   * `:write` twin — every mutation on a remote wallet either moves money or
+   * rewrites where money goes, so those stay owner-only regardless of role.
+   * The owner's NWC connection string is never covered by this: holding it is
+   * equivalent to holding the funds.
+   */
+  REMOTE_WALLETS_READ = 'remote_wallets:read'
 }
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
