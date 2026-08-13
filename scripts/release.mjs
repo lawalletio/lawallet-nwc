@@ -187,9 +187,14 @@ ${prLines.join('\n') || '- (no merged PRs found since the last tag)'}
   console.log(`scaffolded docs/changelogs/v${nextVersion}.md`)
 }
 
-// Machine-readable output for the workflow.
+// Machine-readable output for the workflow. `files` is emitted so the commit
+// step stages exactly what was bumped: it used to hardcode its own list, which
+// silently dropped apps/listener/package.json when this list grew — the bump
+// was written, never staged, and the image shipped reporting the old version.
 if (process.env.GITHUB_OUTPUT) {
-  writeFileSync(process.env.GITHUB_OUTPUT, `version=${nextVersion}\n`, {
-    flag: 'a'
-  })
+  writeFileSync(
+    process.env.GITHUB_OUTPUT,
+    `version=${nextVersion}\nfiles=${LOCKSTEP_PACKAGES.join(' ')}\n`,
+    { flag: 'a' }
+  )
 }

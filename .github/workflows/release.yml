@@ -69,7 +69,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json apps/web/package.json apps/cli/package.json docs/changelogs/
+          # Staged from the bump step's own list — see scripts/release.mjs.
+          git add ${{ steps.bump.outputs.files }} docs/changelogs/
           git commit -m "chore(release): v${VERSION}"
           # Annotated tag, pushed explicitly — `--follow-tags` skips
           # lightweight tags, which silently dropped the tag in v0.11.0.
