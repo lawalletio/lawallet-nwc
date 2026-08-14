@@ -18,7 +18,10 @@ import type {
   FreeRegistration,
   Lud06Invoice,
   Lud06Response,
+  JwtToken,
   Nip05Response,
+  ProvisionAddressInput,
+  ProvisionedAddress,
   PublicInstanceSettings,
   RegistrationInvoice,
   RemoteWallet,
@@ -220,11 +223,52 @@ export class LaWalletClient {
         }>(`/api/wallet/addresses/${encodeURIComponent(username)}/invoices`)
         .then(response => response.invoices),
 
+    /**
+     * Operator provisioning: create an address owned by ANOTHER pubkey,
+     * materialising that account if the instance has never seen it. Requires
+     * the `addresses:write` permission (ADMIN or OPERATOR) and bypasses the
+     * self-service registration policy — this is the path for instances that
+     * keep "User Registration" switched off.
+     *
+     * The credential this runs under is an admin one, so it belongs on a
+     * server, never in a browser.
+     */
+    provision: (input: ProvisionAddressInput): Promise<ProvisionedAddress> =>
+      this.http.post('/api/lightning-addresses', input),
+
     checkAvailability: (username: string): Promise<UsernameAvailability> =>
       this.http.get(
         `/api/lightning-addresses/check?username=${encodeURIComponent(username)}`,
         { auth: false }
       )
+  }
+
+  readonly auth = {
+    /**
+     * Mints a session JWT from the configured signer.
+     *
+     * Server-side only: `/api/jwt` is NIP-98-only and deliberately not
+     * CORS-exposed. It is also rate limited to 10 requests/min per IP — mint
+     * ONE token per process and reuse it, never one per request:
+     *
+     * ```ts
+     * const { token } = await client.auth.mintJwt('12h')
+     * client.setSigner(null) // a signer takes precedence over the token
+     * client.setToken(token)
+     * ```
+     */
+    mintJwt: async (expiresIn?: string): Promise<JwtToken> => {
+      // async so a missing signer REJECTS rather than throwing synchronously
+      // out of a promise-returning method.
+      if (!this.signer) {
+        throw new LaWalletError(
+          401,
+          'mintJwt requires a signer — /api/jwt only accepts NIP-98',
+          'NO_SIGNER'
+        )
+      }
+      return this.http.post('/api/jwt', expiresIn ? { expiresIn } : undefined)
+    }
   }
 
   readonly registration = {

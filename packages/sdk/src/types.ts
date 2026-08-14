@@ -101,6 +101,25 @@ export interface WalletAddressDetailResponse {
   ownerPubkey: string | null
 }
 
+/** Body for `POST /api/lightning-addresses` (operator provisioning). */
+export interface ProvisionAddressInput {
+  username: string
+  /** Target's hex pubkey — use `toPubkey()` to normalise an npub. */
+  pubkey: string
+}
+
+/** A provisioned address, echoing the owning account's primary pubkey. */
+export interface ProvisionedAddress extends WalletAddress {
+  pubkey: string
+}
+
+/** `POST /api/jwt` — a session token minted from a NIP-98 signature. */
+export interface JwtToken {
+  token: string
+  expiresIn: string | number
+  type: 'Bearer'
+}
+
 export interface UsernameAvailability {
   available: boolean
   username: string

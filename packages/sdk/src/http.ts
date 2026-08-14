@@ -42,8 +42,7 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
     opts?: HttpRequestOptions
   ): Promise<T> {
     const url = endpoint + path
-    const body =
-      init.body !== undefined ? JSON.stringify(init.body) : undefined
+    const body = init.body !== undefined ? JSON.stringify(init.body) : undefined
 
     const headers: Record<string, string> = {}
     if (body !== undefined) {

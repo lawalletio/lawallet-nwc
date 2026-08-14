@@ -13,7 +13,9 @@ import type { NostrSigner } from './signer'
  *
  * @returns The payload to feed to `getToken`, or `undefined` for empty bodies.
  */
-export function bodyToPayload(body: unknown): Record<string, unknown> | undefined {
+export function bodyToPayload(
+  body: unknown
+): Record<string, unknown> | undefined {
   if (!body) return undefined
 
   if (typeof body === 'string') {

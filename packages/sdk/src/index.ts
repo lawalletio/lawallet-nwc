@@ -16,17 +16,21 @@ export {
   generateSigner,
   hasBrowserExtension,
   toNpub,
+  toPubkey,
   type NostrSigner,
   type GeneratedSigner,
   type EventTemplate,
   type NostrEvent
 } from './signer'
 
+export { createNip98Token, createNip98QueryToken, bodyToPayload } from './nip98'
+
 export {
-  createNip98Token,
-  createNip98QueryToken,
-  bodyToPayload
-} from './nip98'
+  signChallengeEvent,
+  verifyChallengeEvent,
+  CHALLENGE_EVENT_KIND,
+  CHALLENGE_MAX_SKEW_SECONDS
+} from './challenge'
 
 export { pollVerifyUrl, checkVerifyOnce, type VerifyResult } from './lnurl'
 
@@ -40,10 +44,6 @@ export {
   type EventSourceLike
 } from './sse'
 
-export type {
-  HttpClient,
-  HttpRequestOptions,
-  AuthHeaderProvider
-} from './http'
+export type { HttpClient, HttpRequestOptions, AuthHeaderProvider } from './http'
 
 export type * from './types'

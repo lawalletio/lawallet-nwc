@@ -34,7 +34,8 @@ export function pollVerifyUrl(
 ): Promise<VerifyResult> {
   const interval = opts?.interval ?? 3000
   const timeout = opts?.timeout ?? 300_000
-  const doFetch = opts?.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args))
+  const doFetch =
+    opts?.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args))
 
   return new Promise((resolve, reject) => {
     let timer: ReturnType<typeof setInterval>
@@ -97,7 +98,8 @@ export async function checkVerifyOnce(
   verifyUrl: string,
   opts?: { fetchImpl?: typeof fetch }
 ): Promise<VerifyResult> {
-  const doFetch = opts?.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args))
+  const doFetch =
+    opts?.fetchImpl ?? ((...args: Parameters<typeof fetch>) => fetch(...args))
   const res = await doFetch(verifyUrl)
   if (!res.ok) {
     throw new Error(`Verify request failed (${res.status})`)

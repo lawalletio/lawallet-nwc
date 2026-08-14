@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
-import { LaWalletClient, generateSigner } from '../src'
-import { ENDPOINT } from './helpers'
+import { LaWalletClient, LaWalletError, generateSigner, toPubkey } from '../src'
+import { ENDPOINT, decodeNip98Header, expectValidNip98 } from './helpers'
 import { server } from './setup'
 
 const address = (overrides: Record<string, unknown> = {}) => ({
@@ -123,5 +123,99 @@ describe('addresses resource', () => {
       'nostr+walletconnect://abc'
     )
     await expect(client.remoteWallets.balance('rw1')).resolves.toBe(1234)
+  })
+})
+
+describe('operator provisioning', () => {
+  const TARGET = 'b'.repeat(64)
+
+  it('provisions an address for another pubkey with a signed request', async () => {
+    const { signer } = generateSigner()
+    const client = new LaWalletClient({ endpoint: ENDPOINT, signer })
+
+    let body: unknown = null
+    let authHeader: string | null = null
+    server.use(
+      http.post(`${ENDPOINT}/api/lightning-addresses`, async ({ request }) => {
+        authHeader = request.headers.get('authorization')
+        body = await request.json()
+        return HttpResponse.json(
+          { ...address({ username: 'reserved' }), pubkey: TARGET },
+          { status: 201 }
+        )
+      })
+    )
+
+    const result = await client.addresses.provision({
+      username: 'reserved',
+      pubkey: TARGET
+    })
+
+    expect(body).toEqual({ username: 'reserved', pubkey: TARGET })
+    expectValidNip98(
+      decodeNip98Header(authHeader),
+      `${ENDPOINT}/api/lightning-addresses`,
+      'POST'
+    )
+    expect(result.pubkey).toBe(TARGET)
+    expect(result.username).toBe('reserved')
+  })
+
+  it('normalises an npub to hex for the API', () => {
+    const { npub, pubkey } = generateSigner()
+    expect(toPubkey(npub)).toBe(pubkey)
+    expect(toPubkey(pubkey.toUpperCase())).toBe(pubkey)
+    expect(() => toPubkey('not-a-key')).toThrow()
+  })
+})
+
+describe('auth.mintJwt', () => {
+  it('mints a session token with a NIP-98 signature', async () => {
+    const { signer } = generateSigner()
+    const client = new LaWalletClient({ endpoint: ENDPOINT, signer })
+
+    let authHeader: string | null = null
+    let body: unknown = null
+    server.use(
+      http.post(`${ENDPOINT}/api/jwt`, async ({ request }) => {
+        authHeader = request.headers.get('authorization')
+        body = await request.json()
+        return HttpResponse.json({
+          token: 'a.b.c',
+          expiresIn: '12h',
+          type: 'Bearer'
+        })
+      })
+    )
+
+    const minted = await client.auth.mintJwt('12h')
+
+    expect(body).toEqual({ expiresIn: '12h' })
+    expectValidNip98(
+      decodeNip98Header(authHeader),
+      `${ENDPOINT}/api/jwt`,
+      'POST'
+    )
+    expect(minted.token).toBe('a.b.c')
+
+    // The minted token can then carry the session — but the signer wins while
+    // it is still set, so it has to be cleared first.
+    client.setSigner(null)
+    client.setToken(minted.token)
+    server.use(
+      http.get(`${ENDPOINT}/api/users/me`, ({ request }) => {
+        expect(request.headers.get('authorization')).toBe('Bearer a.b.c')
+        return HttpResponse.json({ userId: 'u1' })
+      })
+    )
+    await client.users.me()
+  })
+
+  it('refuses without a signer, since /api/jwt only accepts NIP-98', async () => {
+    const client = new LaWalletClient({ endpoint: ENDPOINT, token: 'a.b.c' })
+
+    const error = await client.auth.mintJwt().catch(e => e)
+    expect(error).toBeInstanceOf(LaWalletError)
+    expect(error.code).toBe('NO_SIGNER')
   })
 })

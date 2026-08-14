@@ -116,3 +116,18 @@ export function generateSigner(): GeneratedSigner {
 export function toNpub(pubkey: string): string {
   return nip19.npubEncode(pubkey)
 }
+
+/**
+ * `npub1…` (or 64-char hex) → lowercase hex pubkey, the format the API takes.
+ * Throws on anything else, so it doubles as input validation.
+ */
+export function toPubkey(npubOrHex: string): string {
+  const value = npubOrHex.trim()
+  if (value.startsWith('npub1')) {
+    const decoded = nip19.decode(value)
+    if (decoded.type !== 'npub') throw new Error('Invalid npub')
+    return decoded.data
+  }
+  if (/^[0-9a-f]{64}$/i.test(value)) return value.toLowerCase()
+  throw new Error('Expected an npub1… string or a 64-character hex pubkey')
+}
