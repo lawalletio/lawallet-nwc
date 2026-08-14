@@ -10,6 +10,11 @@ export const userIdParam = z.object({
   userId: z.string().min(1, 'User ID is required')
 })
 
+/** A Nostr public key in the canonical wire format (lowercase hex, no npub). */
+export const hexPubkeySchema = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/, 'Must be a 64-char lowercase hex pubkey')
+
 /**
  * Upper bound for any stored media URL. Blossom URLs are ~100 chars; 2 KB
  * leaves generous room while keeping a single row from being used as blob
@@ -295,6 +300,15 @@ export const createWalletAddressSchema = z.object({
     ),
   mode: lightningAddressModeSchema.optional()
 })
+
+/**
+ * Body for POST /api/lightning-addresses — an operator provisions an address
+ * for somebody else's pubkey. `mode` is deliberately absent: the operator
+ * hands out a name, the routing default applies.
+ */
+export const provisionLightningAddressSchema = createWalletAddressSchema
+  .pick({ username: true })
+  .extend({ pubkey: hexPubkeySchema })
 
 /**
  * Body for PATCH /api/wallet/addresses/[username] (update).
@@ -941,9 +955,8 @@ export type BackupImportResult = z.infer<typeof backupImportResultSchema>
 // Structural validation only — deep cryptographic validation of the WebAuthn
 // payloads belongs to @simplewebauthn/server on the route side.
 
-export const hexPubkeySchema = z
-  .string()
-  .regex(/^[0-9a-f]{64}$/, 'Must be a 64-char lowercase hex pubkey')
+// `hexPubkeySchema` is defined in the Common block at the top of this file —
+// address provisioning needs it well before this section.
 
 /** A signed Nostr event, as proof of key control (NIP-42 kind 22242). */
 export const signedNostrEventSchema = z
