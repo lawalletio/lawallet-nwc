@@ -147,6 +147,32 @@ const address = await admin.addresses.provision({
 })
 ```
 
+## After provisioning, the address is theirs
+
+Creating the address needs an operator; **managing it does not**. Once it
+exists, the owner's own key can set an alias, bind an NWC wallet or clear
+routing — and that keeps working with self-service registration switched off,
+because the toggle gates _creating_ addresses, not managing your own.
+
+```typescript
+// signed by the OWNER, no admin involvement
+const owner = new LaWalletClient({ endpoint, signer: theirSigner })
+
+await owner.addresses.update('reserved', {
+  mode: 'ALIAS',
+  redirect: 'them@getalby.com'
+})
+```
+
+`examples/admin-provisioning` shows this as a third screen: claim, then
+configure. Returning visitors land straight on it.
+
+## Auditing what you issued
+
+`addresses.listAll()` returns every address on the instance (requires
+`addresses:read`, so VIEWER and up) — the admin counterpart to `list()`, and a
+cheap way for a backend to confirm its credential works at boot.
+
 ## Worth knowing
 
 - **The target may already have addresses.** A provisioned address becomes
