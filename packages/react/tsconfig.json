@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "incremental": false
+  },
+  "include": ["src", "tests", "tsup.config.ts", "vitest.config.ts"]
+}
