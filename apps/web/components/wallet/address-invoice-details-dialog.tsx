@@ -27,6 +27,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { LightningAddressInput } from '@/components/wallet/shared/lightning-address-input'
 import type {
   AddressInvoice,
   AddressProxyAttempt
@@ -248,18 +249,11 @@ export function AddressInvoiceDetailsDialog({
                             New Lightning Address
                           </label>
                           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                            <Input
+                            <LightningAddressInput
                               id={`proxy-destination-${invoice.id}`}
-                              type="email"
-                              inputMode="email"
-                              autoCapitalize="none"
-                              autoCorrect="off"
                               value={destination}
-                              onChange={event =>
-                                setDestination(event.target.value)
-                              }
+                              onChange={setDestination}
                               placeholder="name@example.com"
-                              required
                               disabled={recovering}
                               className="h-9 font-mono text-sm"
                             />

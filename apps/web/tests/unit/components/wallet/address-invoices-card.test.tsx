@@ -16,6 +16,12 @@ vi.mock('@/lib/client/hooks/use-wallet-addresses', () => ({
   useProxyForwardingMutations: mocks.useProxyForwardingMutations
 }))
 
+// The recovery panel's address field is the shared suggesting input, which
+// reads the caller's own domain through useApi -> useAuth. This card is
+// rendered here without the provider tree.
+vi.mock('@/lib/client/hooks/use-api', () => ({
+  useApi: () => ({ data: { lightningAddress: 'me@lawallet.io' } })
+}))
 vi.mock('sonner', () => ({
   toast: { success: mocks.toastSuccess, error: mocks.toastError }
 }))

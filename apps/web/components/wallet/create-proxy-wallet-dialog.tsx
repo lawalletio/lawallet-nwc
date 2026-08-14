@@ -15,6 +15,7 @@ import {
   DialogTrigger
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { LightningAddressInput } from '@/components/wallet/shared/lightning-address-input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { useRemoteWalletForwardingMutations } from '@/lib/client/hooks/use-remote-wallet-forwarding'
@@ -101,11 +102,11 @@ export function CreateProxyWalletDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="proxy-wallet-destination">Destination</Label>
-            <Input
+            <LightningAddressInput
               id="proxy-wallet-destination"
               placeholder="name@example.com"
               value={destination}
-              onChange={event => setDestination(event.target.value)}
+              onChange={setDestination}
             />
           </div>
           <div className="grid grid-cols-2 gap-3">

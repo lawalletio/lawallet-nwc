@@ -39,6 +39,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { LightningAddressInput } from '@/components/wallet/shared/lightning-address-input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -889,16 +890,14 @@ function ForwardingConfigDialog({
               key={destination.id}
               className="grid grid-cols-[minmax(0,1fr)_6rem_auto] gap-2"
             >
-              <Input
+              <LightningAddressInput
                 aria-label={`Destination ${index + 1}`}
                 placeholder="name@example.com"
                 value={destination.address}
-                onChange={event =>
+                onChange={next =>
                   setDestinations(rows =>
                     rows.map((row, rowIndex) =>
-                      rowIndex === index
-                        ? { ...row, address: event.target.value }
-                        : row
+                      rowIndex === index ? { ...row, address: next } : row
                     )
                   )
                 }
