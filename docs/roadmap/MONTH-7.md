@@ -10,7 +10,18 @@
 
 - **MASTER card account-share** — the FOREVER-QR flow on top of the shipped SIMPLE / ONE_TIME activation: `CardClaim` / `LightningAddressShare` / `RemoteWalletShare` model + claim / share-revoke endpoints (enum values already reserved in the schema)
 - **NWC Proxy Lite** settlement layer + full **LUD-16 / LUD-21 / LUD-22 / NIP-57** closeout — see [Month 6](MONTH-6.md) for the full spec
-- **`@lawallet-nwc/react`** hooks package extraction
+- **`@lawallet-nwc/sdk` + `@lawallet-nwc/react`** — **delivered.** Scope grew
+  past the planned hooks extraction: the SDK went from stub to a full
+  nostr-first client (per-request NIP-98, no JWT in the public surface),
+  `@lawallet-nwc/react` ships a provider + 12 hooks, cross-origin access was
+  opened (`apps/web/proxy.ts`) with `/api/jwt` deliberately excluded, `/api/events`
+  learned to accept a NIP-98-signed query token, and operators gained
+  `POST /api/lightning-addresses` to issue addresses on a user's behalf. Two
+  reference apps: [`examples/onboarding`](../../examples/onboarding)
+  (self-service claim incl. the paid path) and
+  [`examples/admin-provisioning`](../../examples/admin-provisioning)
+  (operator-issued, proof-of-npub). Docs at `/docs/sdk`. **Remaining:** flip
+  `private: false` and publish to npm.
 - **WordPress plugin** (`lawallet-wordpress`)
 - **Resend** email adapter (foundation for the email-to-Nostr bridge below)
 - **Nostr scheduler**, threat model + security-audit prep, Vercel / Netlify deploy configs
@@ -206,6 +217,11 @@ Namespaced keys added to the existing `Settings` model:
 | Operator → user broadcast         | Admin sends DM to a segment via instance nsec                 | P0       |
 | i18n — en/es/pt-BR                | Locale switcher works; key parity enforced in CI              | P0       |
 | i18n — operator default locale    | Anonymous visitors land in operator-selected locale           | P1       |
+| `@lawallet-nwc/sdk`               | Full client, no stub warnings; used by both example apps      | ✅ P1    |
+| `@lawallet-nwc/react`             | Provider + hooks over the SDK; used by docs examples          | ✅ P1    |
+| Cross-origin SDK access           | Third-party apps reach the API; `/api/jwt` stays same-origin  | ✅ P1    |
+| Operator address provisioning     | Admin/operator issues an address for another npub             | ✅ P1    |
+| npm publish (both packages)       | `private: false` + published; the last step for consumers     | P1       |
 | Group chat threads (NIP-29)       | Deferred to M9 / post-roadmap                                 | —        |
 | Paid relay perk (nostr.wine etc.) | Deferred to post-roadmap                                      | —        |
 
