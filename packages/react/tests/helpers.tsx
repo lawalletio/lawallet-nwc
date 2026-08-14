@@ -1,5 +1,5 @@
 import type { EventSourceLike } from '@lawallet-nwc/sdk'
-import { render } from '@testing-library/react'
+import { render, type RenderResult } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { LaWalletProvider, type LaWalletProviderProps } from '../src'
 
@@ -43,7 +43,7 @@ export class StubEventSource implements EventSourceLike {
 export function renderWithProvider(
   ui: ReactNode,
   props?: Partial<LaWalletProviderProps>
-) {
+): RenderResult {
   return render(
     <LaWalletProvider
       endpoint={ENDPOINT}
