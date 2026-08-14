@@ -1,0 +1,52 @@
+{
+  "name": "@lawallet-nwc/react",
+  "version": "0.1.0",
+  "description": "React provider + hooks for LaWallet NWC instances — nostr-first auth, lightning address claiming with payment, remote wallets and live SSE updates",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@lawallet-nwc/sdk": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.1.13",
+    "happy-dom": "^20.10.2",
+    "msw": "^2.12.8",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
+  },
+  "keywords": [
+    "lawallet",
+    "react",
+    "hooks",
+    "nostr",
+    "lightning",
+    "nwc"
+  ],
+  "license": "MIT"
+}

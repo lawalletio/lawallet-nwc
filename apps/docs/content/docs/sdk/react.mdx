@@ -1,0 +1,256 @@
+---
+title: 'React Hooks'
+description: 'LaWalletProvider and every hook in @lawallet-nwc/react, with copy-pasteable examples.'
+---
+
+`@lawallet-nwc/react` wraps the SDK in a provider + hooks. One prop — your
+instance's endpoint — and the provider fetches the instance's public settings
+automatically, restores remembered logins, and keeps a single SSE stream
+alive that refreshes the data hooks.
+
+```tsx
+import { LaWalletProvider } from '@lawallet-nwc/react'
+
+export function Root() {
+  return (
+    <LaWalletProvider endpoint="https://wallet.example.com">
+      <App />
+    </LaWalletProvider>
+  )
+}
+```
+
+Provider props:
+
+| Prop              | Default   | Purpose                                                           |
+| ----------------- | --------- | ----------------------------------------------------------------- |
+| `endpoint`        | required  | Public origin of your LaWallet instance                           |
+| `storage`         | `'local'` | `'local'` restores logins across reloads; `'none'` is memory-only |
+| `EventSourceImpl` | global    | EventSource injection for tests / unusual runtimes                |
+
+Every hook re-exports its SDK types, so `import` everything from
+`@lawallet-nwc/react` and you never need a second package.
+
+## useInstanceInfo — branding without configuration
+
+```tsx
+import { useInstanceInfo } from '@lawallet-nwc/react'
+
+function Header() {
+  const { settings, loading } = useInstanceInfo()
+  if (loading) return <Skeleton />
+  return (
+    <header>
+      <img src={settings?.logotype_url ?? '/fallback.svg'} alt="" />
+      <h1>{settings?.community_name}</h1>
+    </header>
+  )
+}
+```
+
+## useAuth — nostr login, four ways
+
+```tsx
+import { useAuth, hasBrowserExtension } from '@lawallet-nwc/react'
+
+function Login() {
+  const auth = useAuth()
+
+  if (auth.status === 'authenticated') {
+    return (
+      <p>
+        {auth.npub} <button onClick={auth.logout}>Log out</button>
+      </p>
+    )
+  }
+
+  return (
+    <>
+      {hasBrowserExtension() && (
+        <button onClick={() => auth.loginWithExtension()}>
+          Connect NIP-07 extension
+        </button>
+      )}
+      <button
+        onClick={async () => {
+          const { nsec } = await auth.loginWithNewKey({ remember: true })
+          showBackupDialog(nsec) // shown ONCE — it is the account
+        }}
+      >
+        Create a Nostr identity
+      </button>
+      <button onClick={() => auth.loginWithNsec(input, { remember: true })}>
+        Sign in with nsec
+      </button>
+    </>
+  )
+}
+```
+
+`loginWithSigner(signer)` accepts any structural signer (NIP-46 bunker, NDK,
+custom) — see [Authentication](/docs/sdk/authentication). There is no token
+and no refresh: logging in just hands the client a signer.
+
+## useUser — signup is a side effect
+
+```tsx
+import { useUser } from '@lawallet-nwc/react'
+
+function Account() {
+  const { user, loading } = useUser()
+  if (loading) return <Skeleton />
+  return user?.lightningAddress ? (
+    <p>⚡ {user.lightningAddress}</p>
+  ) : (
+    <ClaimFlow />
+  )
+}
+```
+
+The first authenticated fetch **creates** the user server-side — for a fresh
+npub, rendering this hook after login is the entire signup.
+
+## useAddresses / useAddress — list, create, route
+
+```tsx
+import { useAddresses, useAddress, LaWalletError } from '@lawallet-nwc/react'
+
+function Addresses() {
+  const { addresses, createAddress } = useAddresses()
+  return (
+    <ul>
+      {addresses?.map(a => (
+        <li key={a.username}>
+          {a.username} {a.isPrimary && '★'} — {a.mode}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function RoutingEditor({ username }: { username: string }) {
+  const { address, update, setPrimary, remove } = useAddress(username)
+  return (
+    <>
+      <button
+        onClick={() => update({ mode: 'ALIAS', redirect: 'me@getalby.com' })}
+      >
+        Forward elsewhere
+      </button>
+      <button onClick={() => update({ mode: 'IDLE' })}>Clear routing</button>
+      <button onClick={setPrimary}>Make primary</button>
+      <button onClick={remove}>Delete</button>
+    </>
+  )
+}
+```
+
+`createAddress` rethrows the SDK's `LaWalletError` — catch `status === 402`
+to branch into the paid flow, or skip the branching entirely with
+[`useClaimAddress`](/docs/sdk/registration-flow).
+
+## useUsernameAvailability — check as they type
+
+```tsx
+import { useUsernameAvailability } from '@lawallet-nwc/react'
+
+function UsernameField({ value, onChange }: FieldProps) {
+  const { available, checking, formatError } = useUsernameAvailability(value)
+  return (
+    <>
+      <input value={value} onChange={e => onChange(e.target.value)} />
+      <small>
+        {formatError ??
+          (checking
+            ? 'Checking…'
+            : available
+              ? 'Available ✓'
+              : value && available === false
+                ? 'Taken ✗'
+                : '')}
+      </small>
+    </>
+  )
+}
+```
+
+Debounced 300 ms against the public availability endpoint — safe before
+login.
+
+## useAddressInvoices — live received payments
+
+```tsx
+import { useAddressInvoices } from '@lawallet-nwc/react'
+
+function Payments({ username }: { username: string }) {
+  const { invoices } = useAddressInvoices(username)
+  return (
+    <ul>
+      {invoices?.map(inv => (
+        <li key={inv.id}>
+          {inv.amountSats} sats — {inv.status}
+          {inv.comment && <q>{inv.comment}</q>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+```
+
+No polling code: the provider's SSE stream emits `invoices:updated` and the
+hook refetches itself.
+
+## useRemoteWallets — NWC connections
+
+```tsx
+import { useRemoteWallets } from '@lawallet-nwc/react'
+
+function Wallets() {
+  const { wallets, create, createLncurl, remove, getBalance } =
+    useRemoteWallets()
+
+  const connect = (connectionString: string) =>
+    create({ name: 'My wallet', type: 'NWC', config: { connectionString } })
+
+  const disposable = () => createLncurl() // server-minted LNCurl wallet
+
+  return (
+    <ul>
+      {wallets?.map(w => (
+        <li key={w.id}>
+          {w.name} — {w.status}
+          <button onClick={() => remove(w.id)}>Revoke</button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+```
+
+See [NWC & routing](/docs/sdk/nwc) for binding a wallet to an address.
+
+## useClaimAddress — the whole onboarding state machine
+
+The flagship hook: username picking, availability, the paid branch (invoice
+QR, WebLN, LUD-21 polling, refresh-resume) and claiming — as one headless
+state machine. Full guide: [Registration flow](/docs/sdk/registration-flow).
+
+## Lower-level building blocks
+
+- `useLaWallet()` — the raw `LaWalletClient` for anything not covered above.
+- `useResource(key, fetcher, eventTypes?)` — the caching primitive every data
+  hook is built on (in-flight dedupe, cache-until-invalidated, SSE refresh);
+  use it for your own endpoints or plugin routes.
+- `useSSEConnected()` — connection indicator for a "live" badge.
+
+```tsx
+import { useLaWallet, useResource } from '@lawallet-nwc/react'
+
+function PluginPanel() {
+  const { client } = useLaWallet()
+  const { data } = useResource('/api/plugins', () =>
+    client ? fetchMyPluginData(client) : Promise.reject()
+  )
+  return <pre>{JSON.stringify(data, null, 2)}</pre>
+}
+```

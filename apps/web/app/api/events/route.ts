@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { verifyJwtToken } from '@/lib/jwt'
 import { getConfig } from '@/lib/config'
 import { getRolePermissions, isValidRole } from '@/lib/auth/permissions'
+import { validateNip98QueryToken } from '@/lib/nip98'
+import { resolveRole } from '@/lib/auth/resolve-role'
 import { eventBus } from '@/lib/events/event-bus'
 
 export const dynamic = 'force-dynamic'
@@ -18,31 +20,68 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  // Verify JWT
-  const config = getConfig()
-  if (!config.jwt.secret) {
-    return new Response(JSON.stringify({ error: 'JWT not configured' }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
+  // The token is either a session JWT (three dot-separated segments,
+  // first-party app) or a base64 NIP-98 event signed by the user's key
+  // (cross-origin SDK clients — /api/jwt is not CORS-exposed). The signed
+  // `u` tag must be this route's URL without any query string, since the
+  // token cannot commit to a URL containing itself.
+  let role: string
+  if (token.split('.').length === 3) {
+    const config = getConfig()
+    if (!config.jwt.secret) {
+      return new Response(JSON.stringify({ error: 'JWT not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
 
-  let payload
-  try {
-    const result = verifyJwtToken(token, config.jwt.secret, {
-      issuer: 'lawallet-nwc',
-      audience: 'lawallet-users'
-    })
-    payload = result.payload
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    })
+    let payload
+    try {
+      const result = verifyJwtToken(token, config.jwt.secret, {
+        issuer: 'lawallet-nwc',
+        audience: 'lawallet-users'
+      })
+      payload = result.payload
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    }
+    role = payload.role as string
+  } else {
+    let pubkey: string
+    try {
+      ;({ pubkey } = await validateNip98QueryToken(request, token))
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
+    // The event only proves key ownership — the role must come from the DB,
+    // never from anything client-supplied.
+    try {
+      role = await resolveRole(pubkey)
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Role resolution unavailable' }),
+        {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    }
   }
 
   // Resolve permissions from role
-  const role = payload.role as string
   const permissions = isValidRole(role) ? getRolePermissions(role) : []
 
   // Create SSE stream

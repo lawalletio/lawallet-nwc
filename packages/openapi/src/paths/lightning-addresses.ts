@@ -8,6 +8,8 @@ import {
   withRole
 } from '../helpers'
 import { registry } from '../registry'
+import { responses } from '../responses'
+import { schemas } from '../schemas'
 
 const TAG = 'Lightning Addresses'
 
@@ -33,6 +35,32 @@ registry.registerPath({
       'Addresses.',
       z.object({ data: z.array(addressSchema) })
     ),
+    ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('OPERATOR'),
+  method: 'post',
+  path: '/api/lightning-addresses',
+  tags: [TAG],
+  summary: 'Provision an address for another pubkey.',
+  description:
+    'Operator provisioning: creates a lightning address owned by the supplied pubkey, materialising that account when the instance has never seen it. Requires the `addresses:write` permission (ADMIN or OPERATOR). Unlike POST /api/wallet/addresses this bypasses the self-service registration policy — it is the path for instances that keep "User Registration" switched off and hand out reserved addresses out-of-band.',
+  operationId: 'lightningAddresses.provision',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: schemas.LightningAddressProvisionRequest
+        }
+      }
+    }
+  },
+  responses: {
+    201: inlineJsonResponse('Address provisioned.', addressSchema),
+    409: responses.conflict,
     ...commonErrorResponses
   }
 })

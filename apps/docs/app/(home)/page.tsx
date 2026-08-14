@@ -8,8 +8,8 @@ import { OpenStandardsSection } from '@/components/open-standards-section'
 const toolbox = [
   {
     title: 'SDK & React Hooks',
-    description: '11 hooks, TypeScript client, caching & type safety',
-    href: '/docs/guides/sdk',
+    description: 'Nostr-signed TypeScript client + React hooks for your own app',
+    href: '/docs/sdk',
     icon: 'package',
     badge: 'TypeScript',
     badgeColor: '#3178C6'

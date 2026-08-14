@@ -1,0 +1,153 @@
+---
+title: 'Registration Flow'
+description: 'The flagship guide: onboard a visitor from nothing to a paid lightning address bound to their npub.'
+---
+
+This is the flow the SDK was built around: a domain owner's webapp turns a
+visitor with (or without) a Nostr identity into `username@your-domain` — with
+the operator's registration price paid over lightning in the middle.
+
+The instance decides the policy, the same client code handles both:
+
+- **Free registration** — `addresses.create()` succeeds directly.
+- **Paid registration** — the create call answers **402**. The app then mints
+  a lightning invoice, shows its QR, and once the payment settles proves it
+  with the preimage; the server creates the address in the same transaction.
+
+## How the paid path works
+
+1. `POST /api/wallet/addresses` → `402 Payment Required`.
+2. `POST /api/invoices` with the desired username → `{ id, bolt11, verify, expiresAt, amountSats }`.
+3. The user pays `bolt11` from any wallet (QR scan or WebLN).
+4. The app polls the LUD-21 `verify` URL until it answers
+   `{ settled: true, preimage }`.
+5. `POST /api/invoices/[id]/claim` with the preimage —
+   `sha256(preimage) === paymentHash` is the proof of payment — and the
+   address is created atomically for the authenticated npub.
+
+No webhooks, no operator work in the middle, and the preimage never requires
+trusting the payer's wallet: the LUD-21 verifier hands it out only after
+settlement.
+
+## One call: `claimAddress`
+
+The SDK orchestrates the whole thing:
+
+```typescript
+import { LaWalletClient, generateSigner } from '@lawallet-nwc/sdk'
+
+const { signer, nsec } = generateSigner() // or the user's own signer
+const wallet = new LaWalletClient({
+  endpoint: 'https://wallet.example.com',
+  signer
+})
+
+const result = await wallet.registration.claimAddress({
+  username: 'satoshi',
+  onInvoice: invoice => {
+    renderQr(invoice.bolt11) // called only when the instance charges
+    console.log(`Pay ${invoice.amountSats} sats`)
+  }
+})
+
+console.log(result) // { lightningAddress: 'satoshi@wallet.example.com', paid: true }
+```
+
+`claimAddress` resolves when the address exists — immediately on the free
+path, after settlement on the paid one. It polls for the invoice's full
+lifetime, treats an already-claimed invoice as success (a lost response must
+not strand a paid user), and surfaces a half-configured paid mode as a typed
+`LaWalletError` with code `PAID_REGISTRATION_INCOMPLETE`. Pass an
+`AbortSignal` to cancel.
+
+## In React: `useClaimAddress`
+
+The hook version powers a full UI — it is a direct port of the claim screen
+in LaWallet's own wallet, driven by the SDK:
+
+```tsx
+import { useClaimAddress } from '@lawallet-nwc/react'
+import { QRCodeSVG } from 'qrcode.react'
+
+function ClaimScreen() {
+  const flow = useClaimAddress({
+    onCreated: address => confetti(address)
+  })
+
+  if (flow.step === 'payment' && flow.invoice) {
+    return (
+      <section>
+        <h2>
+          Pay {flow.invoice.amountSats} sats for {flow.username}@{flow.domain}
+        </h2>
+        <QRCodeSVG value={flow.invoice.bolt11.toUpperCase()} size={240} />
+        {flow.hasWebLn && (
+          <button
+            onClick={flow.handleWebLnPay}
+            disabled={flow.payingWithWallet}
+          >
+            Pay with extension
+          </button>
+        )}
+        <button onClick={flow.handleManualCheck} disabled={flow.manualChecking}>
+          I paid — check now
+        </button>
+        <button onClick={flow.backFromPayment}>Cancel</button>
+        {flow.paymentStatus === 'expired' && (
+          <p>Invoice expired — start over.</p>
+        )}
+      </section>
+    )
+  }
+
+  if (flow.step === 'success') {
+    return <h2>⚡ {flow.claimedAddress}</h2>
+  }
+
+  return (
+    <form onSubmit={flow.handleSubmit}>
+      <input
+        value={flow.username}
+        onChange={e => flow.setUsername(e.target.value.toLowerCase())}
+      />
+      <small>
+        {flow.formatError ??
+          (flow.checking ? 'Checking…' : flow.available ? 'Available ✓' : '')}
+      </small>
+      <button disabled={flow.submitDisabled}>
+        {flow.submitting ? 'Claiming…' : 'Claim'}
+      </button>
+      {flow.error && <p role="alert">{flow.error}</p>}
+    </form>
+  )
+}
+```
+
+What the hook handles for you:
+
+- **Availability** — debounced format + availability checking while typing.
+- **The 402 branch** — mints the invoice and switches to the payment step.
+- **Settlement** — LUD-21 polling for the invoice's whole lifetime, plus a
+  manual "I paid — check now" escape hatch and a WebLN one-click path (the
+  extension returns the preimage directly).
+- **Refresh survival** — the pending invoice is stashed in `sessionStorage`;
+  a reload lands back on the QR with polling resumed, so a user who already
+  paid is never stranded.
+- **Race safety** — the poller, the manual check and WebLN can't double-claim.
+- **Cache invalidation** — on success, `useUser` / `useAddresses` refetch by
+  themselves.
+
+## The complete app
+
+[`examples/onboarding`](https://github.com/lawalletio/lawallet-nwc/tree/main/examples/onboarding)
+wires this guide end to end — branded landing, nostr login (extension /
+generated key / nsec), this claim flow, then alias or NWC configuration —
+in a few hundred lines of Vite + React.
+
+## Operator setup
+
+Paid registration is configured on the instance (Settings → registration):
+enable lightning registration, set the operator's receiving lightning address
+and the price in sats. The receiving address must support LUD-21 `verify` —
+the invoice endpoint refuses to mint otherwise, and `claimAddress` surfaces
+that as `PAID_REGISTRATION_INCOMPLETE` rather than looping.

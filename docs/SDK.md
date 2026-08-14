@@ -1,73 +1,89 @@
 # Client SDK + React Hooks
 
-## Overview
+Two packages let anyone running a LaWallet instance offer its features from
+their own webapp (usually their own domain or subdomain):
 
-Two packages provide typed access to the LaWallet NWC backend:
+- **`@lawallet-nwc/sdk`** (`packages/sdk`) — typed, framework-free client for
+  the REST API. Browser and Node. Only runtime dependency: `nostr-tools`.
+- **`@lawallet-nwc/react`** (`packages/react`) — React provider + hooks built
+  on the SDK.
 
-- **Client SDK** — standalone TypeScript client for all API endpoints
-- **React Hooks** — React hooks built on top of the SDK with caching and state management
-
----
-
-## TypeScript Client SDK
-
-### Package
-
-- Published as standalone npm package
-- Auto-generated TypeScript types from API schemas
-- Unit tests with MSW mocks
-
-### API Coverage
-
-- **Lightning Address**: create, lookup, update, delete
-- **Alias/Redirect**: set target, remove, get status
-- **NWC Connection**: connect, disconnect, status
-- **Authentication**: NIP-98 login → JWT session, token refresh, logout
-- **Webhooks**: subscribe, unsubscribe, list
-- **Wallet**: balance, send, receive
-
-### Delivered
-
-- Month 2: Core SDK (auth, addresses, redirect, NWC, webhooks)
-- Month 3: Courtesy NWC methods
-- Month 5: LUD-21/22, redirect, zap methods
-- Month 6: Full documentation + API reference
+Full documentation: [`apps/docs/content/docs/sdk/`](../apps/docs/content/docs/sdk/)
+(published at `/docs/sdk`). Two complete working apps live in
+[`examples/onboarding`](../examples/onboarding) (self-service claim with
+payment) and [`examples/admin-provisioning`](../examples/admin-provisioning)
+(operator-issued reserved addresses).
 
 ---
 
-## React Hooks Package
+## Authentication model
 
-### Package
+**Nostr events, not sessions.** Every authenticated request carries a
+kind-27235 NIP-98 event signed by the user's key, committing to the URL,
+method and body hash, valid ±60s. There is no login endpoint, no session
+state and nothing to refresh — the signer _is_ the session.
 
-- Published as `@lawallet-nwc/react`
-- Built on top of Client SDK
-- SWR or React Query for caching + revalidation
-- Loading, error, and success states on every hook
-- TypeScript generics for type-safe responses
+Signers are structural (`getPublicKey()` + `signEvent()`), so `window.nostr`
+(NIP-07), `@nostrify`, NDK and nostr-tools NIP-46 bunker signers all work.
+The SDK ships `nsecSigner`, `browserSigner` and `generateSigner`.
 
-### Hooks Reference
-
-| Hook               | Purpose                                                   | Month |
-| ------------------ | --------------------------------------------------------- | ----- |
-| `useAddress`       | CRUD single lightning address (including redirect config) | 2     |
-| `useAddresses`     | List/search/filter with pagination                        | 2     |
-| `useNWCConnection` | Connect, disconnect, status polling                       | 2     |
-| `usePayments`      | Payment history, real-time updates                        | 2     |
-| `useAuth`          | NIP-98 login → JWT session, session state, logout         | 2     |
-| `useWebhooks`      | Subscribe, unsubscribe, list active hooks                 | 2     |
-| `useWallet`        | Balance, send, receive, NWC status                        | 2     |
-| `useCourtesyNWC`   | Provision/revoke courtesy NWC from proxy                  | 3     |
-| `useZap`           | Send/receive zaps, verify receipts                        | 5     |
-| `useVerify`        | Payment settlement status (LUD-21)                        | 5     |
-| `useRedirect`      | Address alias/redirect configuration                      | 5     |
+`POST /api/jwt` (the first-party web app's session mechanism) is deliberately
+**not** CORS-exposed — see `apps/web/middleware.ts`. SSE authenticates with a
+signed NIP-98 event in the `token` query parameter, since `EventSource`
+cannot send headers.
 
 ---
 
-## Lifecycle
+## SDK surface
 
-| Month | SDK Milestone                                                | Hooks Milestone                                                 |
-| ----- | ------------------------------------------------------------ | --------------------------------------------------------------- |
-| 2     | Core: auth, addresses, redirect, NWC, webhooks. npm publish. | 7 base hooks. Published as @lawallet-nwc/react.                 |
-| 3     | Frontend + Courtesy NWC Proxy consume SDK.                   | Add `useCourtesyNWC`.                                           |
-| 5     | Add LUD-21/22, redirect, zap methods.                        | Add `useZap`, `useVerify`, `useRedirect`. Update `useWebhooks`. |
-| 6     | Full docs + API reference.                                   | Full docs + usage examples.                                     |
+| Namespace       | Covers                                                                      |
+| --------------- | --------------------------------------------------------------------------- |
+| `settings`      | Public instance settings — branding, domain, feature flags                  |
+| `users`         | `me()` — fetch (and implicitly create) the current user                     |
+| `addresses`     | List / get / create / update / remove / set-primary, invoices, availability |
+| `registration`  | Invoice mint, LUD-21 verify, preimage claim, `claimAddress()` orchestration |
+| `remoteWallets` | NWC CRUD, server-minted LNCurl wallets, connection string, balance          |
+| `lud16`         | Public LUD-16 resolve / invoice request / LUD-21 verify                     |
+| `nip05`         | `/.well-known/nostr.json` lookups                                           |
+| `events`        | SSE change notifications                                                    |
+
+Errors throw `LaWalletError` with `status`, `code` and `details`.
+
+Proof of key control ships as `signChallengeEvent` / `verifyChallengeEvent` —
+the kind-22242 (NIP-42) format LaWallet uses internally, so an operator
+backend can verify that a visitor holds the npub it is about to provision for.
+
+---
+
+## React hooks
+
+| Hook                      | Purpose                                                             |
+| ------------------------- | ------------------------------------------------------------------- |
+| `useLaWallet`             | The configured client + endpoint                                    |
+| `useInstanceInfo`         | Public instance settings (auto-fetched by the provider)             |
+| `useAuth`                 | Login (extension / nsec / generated key / any signer), logout, npub |
+| `useUser`                 | Current user — first authenticated fetch creates the account        |
+| `useAddresses`            | List + create (rethrows 402 for paid registration)                  |
+| `useAddress`              | One address + routing mutations (alias redirect, NWC binding)       |
+| `useUsernameAvailability` | Debounced public availability check                                 |
+| `useClaimAddress`         | Full claim state machine incl. paid path (QR, WebLN, resume)        |
+| `useAddressInvoices`      | Received payments, SSE-refreshed                                    |
+| `useRemoteWallets`        | NWC connections + lifecycle                                         |
+| `useResource`             | The caching primitive (dedupe, invalidate, SSE refresh)             |
+| `useSSEConnected`         | Live-connection indicator                                           |
+
+`<LaWalletProvider endpoint="https://wallet.example.com">` is the only setup:
+it fetches instance settings, restores remembered logins and owns a single
+SSE subscription. Caching is a ~90-line internal store — no SWR/React Query.
+
+---
+
+## Status
+
+Both packages are `private: true` but publish-shaped (dist exports, `files`,
+`sideEffects: false`); flipping `private` is the remaining npm-publish step.
+Versioned independently of the app release train (`scripts/release.mjs`).
+
+Not yet covered (future work): webhook/notification hooks, NIP-57 zap
+helpers, card administration, and a built-in NIP-46 bunker signer (external
+ones already work).

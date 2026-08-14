@@ -1,31 +1,20 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
-import {
-  AuthenticationError,
-  ConflictError,
-  NotFoundError
-} from '@/types/server/errors'
+import { AuthenticationError, NotFoundError } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { requireAddressRegistration } from '@/lib/auth/paid-registration-guard'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createWalletAddressSchema } from '@/lib/validation/schemas'
-import { eventBus } from '@/lib/events/event-bus'
-import { ActivityEvent, logActivity } from '@/lib/activity-log'
+import { createLightningAddressForUser } from '@/lib/wallet/create-address'
 import {
   toWalletAddressDto,
   type WalletAddressDto
 } from '@/lib/wallet/wallet-address-dto'
-import { resolveDefaultAddressRouting } from '@/lib/wallet/default-address-mode'
 import { resolveAddressProtocols } from '@/lib/wallet/address-protocols'
-import {
-  derivePrimaryWallet,
-  findInitialPrimaryWalletCandidate,
-  getPrimaryRemoteWalletForUser,
-  syncPrimaryRemoteWalletFlag
-} from '@/lib/wallet/primary-wallet'
+import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -98,74 +87,11 @@ export const POST = withErrorHandling(async (request: Request) => {
   // non-bypassing actors must go through /api/invoices + preimage claim.
   await requireAddressRegistration(role)
 
-  const existing = await prisma.lightningAddress.findUnique({
-    where: { username }
-  })
-  if (existing) throw new ConflictError('Username is already taken')
-
-  // A user's first/only address becomes their primary automatically — nobody
-  // should end up with a single, non-primary address. Subsequent adds never
-  // touch the existing primary. The DB's partial-unique index (one primary per
-  // userId) makes this safe: when the count is 0 there's no primary to clash.
-  const ownedCount = await prisma.lightningAddress.count({
-    where: { userId: user.id }
-  })
-  const isPrimary = ownedCount === 0
-
-  const created = await prisma.$transaction(async tx => {
-    const primaryCandidate = isPrimary
-      ? await findInitialPrimaryWalletCandidate(user.id, tx)
-      : null
-    // A non-primary address with no explicit mode inherits the primary
-    // wallet as its own binding, so it routes immediately without depending
-    // on the primary staying put.
-    const fallback = isPrimary ? null : await resolveDefaultAddressRouting(user.id)
-    const nextMode = isPrimary
-      ? primaryCandidate
-        ? 'CUSTOM_NWC'
-        : 'IDLE'
-      : (mode ?? fallback!.mode)
-    const boundWalletId = isPrimary
-      ? (primaryCandidate?.id ?? null)
-      : nextMode === 'CUSTOM_NWC'
-        ? (fallback?.remoteWalletId ?? null)
-        : null
-
-    const address = await tx.lightningAddress.create({
-      data: {
-        username,
-        userId: user.id,
-        mode: nextMode,
-        remoteWalletId: boundWalletId,
-        isPrimary
-      },
-      include: { remoteWallet: true }
-    })
-
-    if (isPrimary) {
-      await syncPrimaryRemoteWalletFlag(user.id, tx)
-    }
-
-    return address
-  })
-
-  const defaultWallet = isPrimary
-    ? derivePrimaryWallet(created)
-    : await getPrimaryRemoteWalletForUser(user.id)
-
-  eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
-  // Also bump users:updated so any mounted /api/users/me consumer (e.g.
-  // the admin home banner that nudges to register a first address) drops
-  // its now-stale state.
-  eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
-  logActivity.fireAndForget({
-    category: 'ADDRESS',
-    event: ActivityEvent.ADDRESS_CREATED,
-    message: `Lightning address created: ${created.username}`,
+  const dto = await createLightningAddressForUser({
     userId: user.id,
-    metadata: { username: created.username, mode: created.mode }
+    username,
+    mode
   })
-  return NextResponse.json(toWalletAddressDto(created, defaultWallet), {
-    status: 201
-  })
+
+  return NextResponse.json(dto, { status: 201 })
 })

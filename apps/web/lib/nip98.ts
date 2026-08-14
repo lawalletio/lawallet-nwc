@@ -15,8 +15,21 @@ export interface Nip98ValidationResult {
   event: NostrEvent
 }
 
+function decodeNip98Token(base64Event: string): NostrEvent {
+  if (!base64Event) {
+    throw new Error('Event data is required')
+  }
+
+  try {
+    return JSON.parse(atob(base64Event))
+  } catch (error) {
+    console.error('Failed to parse event:', error)
+    throw new Error('Invalid event format')
+  }
+}
+
 /**
- * Validates a NIP-98 authentication token from a `Request`.
+ * Candidate public origins for the signed `u` tag.
  *
  * The signed `u` tag commits to the *public* URL the client used, which is not
  * the internal one Next.js sees behind a proxy/tunnel. Reverse proxies (e.g.
@@ -24,50 +37,8 @@ export interface Nip98ValidationResult {
  * to the internal origin and don't forward `x-forwarded-host`, so we anchor on
  * the admin-configured `endpoint` setting (this instance's true public URL) and
  * accept forwarded/host headers only as fallbacks.
- *
- * @param request - The incoming HTTP request
- * @param timeDelta - Allowed clock skew in seconds for the event's `created_at`
- * @returns The verified pubkey and full event
- * @throws {Error} On missing/malformed header, signature mismatch, or stale timestamp.
  */
-export async function validateNip98(
-  request: Request,
-  timeDelta: number = 60
-): Promise<Nip98ValidationResult> {
-  const authHeader = request.headers.get('authorization')
-
-  if (!authHeader) {
-    throw new Error('Authorization header is required')
-  }
-
-  if (!authHeader.startsWith('Nostr ')) {
-    throw new Error('Authorization header must start with "Nostr "')
-  }
-
-  const base64Event = authHeader.substring(6) // Remove "Nostr " prefix
-
-  if (!base64Event) {
-    throw new Error('Event data is required')
-  }
-
-  let event: NostrEvent
-  try {
-    const eventData = atob(base64Event)
-    event = JSON.parse(eventData)
-  } catch (error) {
-    console.error('Failed to parse event:', error)
-    throw new Error('Invalid event format')
-  }
-
-  // The signed `u` tag commits to the *public* URL the client used, which is
-  // not the internal one Next.js sees behind a proxy/tunnel. Reverse proxies
-  // (e.g. Cloudflare Tunnel + Umbrel's app_proxy) frequently rewrite the `Host`
-  // header to the internal origin and don't forward `x-forwarded-host`, so we
-  // anchor on the admin-configured `endpoint` setting (this instance's true
-  // public URL) and accept forwarded/host headers only as fallbacks.
-  const originalUrl = new URL(request.url)
-  const pathAndQuery = originalUrl.pathname + originalUrl.search
-
+async function resolveCandidateOrigins(request: Request): Promise<Set<string>> {
   const origins = new Set<string>()
 
   // 1. Admin-configured public endpoint — authoritative behind proxies/tunnels.
@@ -93,7 +64,20 @@ export async function validateNip98(
       forwardedProto || (request.url.startsWith('https') ? 'https' : 'http')
     origins.add(`${protocol}://${host}`)
   }
-  origins.add(originalUrl.origin)
+  origins.add(new URL(request.url).origin)
+
+  return origins
+}
+
+async function validateDecodedEvent(
+  event: NostrEvent,
+  request: Request,
+  pathAndQuery: string,
+  method: string,
+  requestBody: string,
+  timeDelta: number
+): Promise<Nip98ValidationResult> {
+  const origins = await resolveCandidateOrigins(request)
 
   // The `u` tag must equal one of the candidate public URLs. Pick the matching
   // one so nostr-tools validates against it; otherwise fall back to the first
@@ -105,11 +89,7 @@ export async function validateNip98(
   const publicUrl =
     candidateUrls.find(candidate => candidate === uTag) ?? candidateUrls[0]
 
-  const method = request.method
-
   try {
-    const requestBody = await request.clone().text()
-
     const isValid = await nip98.validateEvent(
       event,
       publicUrl,
@@ -138,9 +118,76 @@ export async function validateNip98(
     )
   }
 
-  const result = {
+  return {
     pubkey: event.pubkey,
     event: event
   }
-  return result
+}
+
+/**
+ * Validates a NIP-98 authentication token from a `Request`'s
+ * `Authorization: Nostr <base64-event>` header.
+ *
+ * @param request - The incoming HTTP request
+ * @param timeDelta - Allowed clock skew in seconds for the event's `created_at`
+ * @returns The verified pubkey and full event
+ * @throws {Error} On missing/malformed header, signature mismatch, or stale timestamp.
+ */
+export async function validateNip98(
+  request: Request,
+  timeDelta: number = 60
+): Promise<Nip98ValidationResult> {
+  const authHeader = request.headers.get('authorization')
+
+  if (!authHeader) {
+    throw new Error('Authorization header is required')
+  }
+
+  if (!authHeader.startsWith('Nostr ')) {
+    throw new Error('Authorization header must start with "Nostr "')
+  }
+
+  const event = decodeNip98Token(authHeader.substring(6)) // Remove "Nostr " prefix
+
+  const originalUrl = new URL(request.url)
+  const requestBody = await request.clone().text()
+
+  return validateDecodedEvent(
+    event,
+    request,
+    originalUrl.pathname + originalUrl.search,
+    request.method,
+    requestBody,
+    timeDelta
+  )
+}
+
+/**
+ * Validates a NIP-98 event carried in a query parameter instead of the
+ * `Authorization` header — for `EventSource`, which cannot send headers.
+ *
+ * Because the token travels *inside* the query string, it cannot commit to a
+ * URL containing itself: the signed `u` tag must be the request URL without
+ * any query (e.g. `https://instance.example/api/events`), and the method is
+ * always GET with no payload.
+ *
+ * @param request - The incoming HTTP request (used for public-URL resolution)
+ * @param token - The base64-encoded kind-27235 event
+ * @param timeDelta - Allowed clock skew in seconds for the event's `created_at`
+ */
+export async function validateNip98QueryToken(
+  request: Request,
+  token: string,
+  timeDelta: number = 60
+): Promise<Nip98ValidationResult> {
+  const event = decodeNip98Token(token)
+
+  return validateDecodedEvent(
+    event,
+    request,
+    new URL(request.url).pathname,
+    'GET',
+    '',
+    timeDelta
+  )
 }

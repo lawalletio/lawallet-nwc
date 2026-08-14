@@ -21,6 +21,7 @@ import {
   createRemoteCardSchema,
   createRemoteWalletSchema,
   createWalletAddressSchema,
+  provisionLightningAddressSchema,
   externalDeviceKeyParam,
   idParam,
   jwtRequestSchema,
@@ -158,6 +159,10 @@ export const schemas = {
   WalletAddressCreateRequest: registry.register(
     'WalletAddressCreateRequest',
     createWalletAddressSchema
+  ),
+  LightningAddressProvisionRequest: registry.register(
+    'LightningAddressProvisionRequest',
+    provisionLightningAddressSchema
   ),
   WalletAddressUpdateRequest: registry.register(
     'WalletAddressUpdateRequest',
