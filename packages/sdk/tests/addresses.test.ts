@@ -58,6 +58,34 @@ describe('addresses resource', () => {
     expect(invoices[0].id).toBe('inv1')
   })
 
+  it('unwraps the detail envelope from the single-address endpoint', async () => {
+    const { signer } = generateSigner()
+    const client = new LaWalletClient({ endpoint: ENDPOINT, signer })
+
+    // The endpoint returns { address, wallets, ... }, not the bare DTO.
+    server.use(
+      http.get(`${ENDPOINT}/api/wallet/addresses/alice`, () =>
+        HttpResponse.json({
+          address: address({ mode: 'ALIAS', redirect: 'a@b.com' }),
+          wallets: [],
+          effectiveConnectionString: null,
+          deferredProxyEnabled: false,
+          protocols: {},
+          isOwner: true,
+          ownerPubkey: 'a'.repeat(64)
+        })
+      )
+    )
+
+    const result = await client.addresses.get('alice')
+    expect(result.username).toBe('alice')
+    expect(result.mode).toBe('ALIAS')
+
+    const detail = await client.addresses.getDetail('alice')
+    expect(detail.isOwner).toBe(true)
+    expect(detail.address.username).toBe('alice')
+  })
+
   it('checks availability without authentication', async () => {
     const client = new LaWalletClient({ endpoint: ENDPOINT })
 

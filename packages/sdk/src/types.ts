@@ -84,6 +84,23 @@ export interface UpdateWalletAddressInput {
   remoteWalletId?: string | null
 }
 
+/**
+ * Envelope returned by `GET /api/wallet/addresses/[username]` — the address
+ * plus context the detail screen needs without a second round-trip.
+ */
+export interface WalletAddressDetailResponse {
+  address: WalletAddress
+  /** The caller's remote wallets, summarised for a routing picker. */
+  wallets: Array<Record<string, unknown>>
+  /** Connection string this address currently routes to, when it resolves to a wallet. */
+  effectiveConnectionString: string | null
+  deferredProxyEnabled: boolean
+  /** Receive protocols this address supports (LUD-16, NIP-05, …). */
+  protocols: unknown
+  isOwner: boolean
+  ownerPubkey: string | null
+}
+
 export interface UsernameAvailability {
   available: boolean
   username: string

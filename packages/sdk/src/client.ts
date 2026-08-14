@@ -25,7 +25,8 @@ import type {
   UpdateRemoteWalletInput,
   UpdateWalletAddressInput,
   UsernameAvailability,
-  WalletAddress
+  WalletAddress,
+  WalletAddressDetailResponse
 } from './types'
 
 export interface LaWalletClientOptions {
@@ -171,9 +172,23 @@ export class LaWalletClient {
   }
 
   readonly addresses = {
-    list: (): Promise<WalletAddress[]> => this.http.get('/api/wallet/addresses'),
+    list: (): Promise<WalletAddress[]> =>
+      this.http.get('/api/wallet/addresses'),
 
+    /**
+     * One address. The endpoint wraps the address in a detail envelope
+     * (alongside the caller's wallets and derived routing info); this unwraps
+     * it so the shape matches `list()` and `update()`.
+     */
     get: (username: string): Promise<WalletAddress> =>
+      this.http
+        .get<WalletAddressDetailResponse>(
+          `/api/wallet/addresses/${encodeURIComponent(username)}`
+        )
+        .then(response => response.address),
+
+    /** The full detail envelope: the address plus the caller's wallets and routing info. */
+    getDetail: (username: string): Promise<WalletAddressDetailResponse> =>
       this.http.get(`/api/wallet/addresses/${encodeURIComponent(username)}`),
 
     /** Throws `LaWalletError` with `status: 402` when the instance requires payment. */
@@ -256,7 +271,10 @@ export class LaWalletClient {
     }): Promise<RemoteWallet> =>
       this.http.post('/api/remote-wallets/lncurl', input ?? {}),
 
-    update: (id: string, patch: UpdateRemoteWalletInput): Promise<RemoteWallet> =>
+    update: (
+      id: string,
+      patch: UpdateRemoteWalletInput
+    ): Promise<RemoteWallet> =>
       this.http.patch(`/api/remote-wallets/${encodeURIComponent(id)}`, patch),
 
     /** Soft-revokes the wallet. */
@@ -415,8 +433,7 @@ export class LaWalletClient {
       )
       return {
         lightningAddress:
-          claim.lightningAddress ??
-          `${username}@${await this.resolveDomain()}`,
+          claim.lightningAddress ?? `${username}@${await this.resolveDomain()}`,
         paid: true
       }
     } catch (error) {

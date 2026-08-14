@@ -6,15 +6,17 @@ import { useState } from 'react'
  * (nsec shown once for backup), or a pasted nsec. No passwords, no emails,
  * no JWT — the signer is the session.
  */
-export function Login({ onBack }: { onBack: () => void }) {
+export function Login({
+  onBack,
+  onKeyGenerated
+}: {
+  onBack: () => void
+  onKeyGenerated: (nsec: string) => void
+}) {
   const auth = useAuth()
   const [nsecInput, setNsecInput] = useState('')
   const [remember, setRemember] = useState(true)
-  const [backup, setBackup] = useState<{ nsec: string; npub: string } | null>(
-    null
-  )
   const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true)
@@ -25,32 +27,6 @@ export function Login({ onBack }: { onBack: () => void }) {
     } finally {
       setBusy(false)
     }
-  }
-
-  // A freshly generated key pauses here until the user confirms the backup.
-  if (backup) {
-    return (
-      <main className="shell center">
-        <h1>Save your key</h1>
-        <p className="muted">
-          This secret key <strong>is</strong> your account. Store it in a
-          password manager — it is shown only once.
-        </p>
-        <code className="nsec-box">{backup.nsec}</code>
-        <button
-          className="secondary"
-          onClick={() => {
-            navigator.clipboard?.writeText(backup.nsec)
-            setCopied(true)
-          }}
-        >
-          {copied ? 'Copied ✓' : 'Copy to clipboard'}
-        </button>
-        <button className="primary" onClick={() => setBackup(null)}>
-          I saved it — continue
-        </button>
-      </main>
-    )
   }
 
   return (
@@ -89,7 +65,7 @@ export function Login({ onBack }: { onBack: () => void }) {
           onClick={() =>
             run(async () => {
               const generated = await auth.loginWithNewKey({ remember: true })
-              setBackup(generated)
+              onKeyGenerated(generated.nsec)
             })
           }
         >

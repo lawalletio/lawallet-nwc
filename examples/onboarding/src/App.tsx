@@ -1,5 +1,6 @@
 import { useAuth, useInstanceInfo, useUser } from '@lawallet-nwc/react'
 import { useState } from 'react'
+import { Backup } from './screens/Backup'
 import { Claim } from './screens/Claim'
 import { Dashboard } from './screens/Dashboard'
 import { Landing } from './screens/Landing'
@@ -10,6 +11,9 @@ export function App() {
   const { status } = useAuth()
   const { user, loading: userLoading } = useUser()
   const [showLogin, setShowLogin] = useState(false)
+  // A freshly generated nsec must be acknowledged before anything else —
+  // Login unmounts as soon as auth succeeds, so the gate lives here.
+  const [pendingBackup, setPendingBackup] = useState<string | null>(null)
 
   if (settingsLoading) {
     return (
@@ -19,9 +23,21 @@ export function App() {
     )
   }
 
+  if (pendingBackup) {
+    return (
+      <Backup
+        nsec={pendingBackup}
+        onAcknowledge={() => setPendingBackup(null)}
+      />
+    )
+  }
+
   if (status !== 'authenticated') {
     return showLogin ? (
-      <Login onBack={() => setShowLogin(false)} />
+      <Login
+        onBack={() => setShowLogin(false)}
+        onKeyGenerated={setPendingBackup}
+      />
     ) : (
       <Landing onStart={() => setShowLogin(true)} />
     )
