@@ -1,5 +1,6 @@
 import { useAuth, useInstanceInfo, useUser } from '@lawallet-nwc/react'
 import { useState } from 'react'
+import { endpoint } from './main'
 import { Backup } from './screens/Backup'
 import { Claim } from './screens/Claim'
 import { Dashboard } from './screens/Dashboard'
@@ -7,7 +8,7 @@ import { Landing } from './screens/Landing'
 import { Login } from './screens/Login'
 
 export function App() {
-  const { loading: settingsLoading } = useInstanceInfo()
+  const { loading: settingsLoading, error: settingsError } = useInstanceInfo()
   const { status } = useAuth()
   const { user, loading: userLoading } = useUser()
   const [showLogin, setShowLogin] = useState(false)
@@ -19,6 +20,23 @@ export function App() {
     return (
       <main className="shell center">
         <p className="muted">Loading…</p>
+      </main>
+    )
+  }
+
+  // Unreachable instance: a wrong endpoint or an instance without cross-origin
+  // access is the one failure a newcomer hits, so name it rather than hanging.
+  if (settingsError) {
+    return (
+      <main className="shell center">
+        <h1>Can’t reach that instance</h1>
+        <p className="muted">
+          Tried <code>{endpoint}</code> — {settingsError.message}
+        </p>
+        <p className="muted">
+          Set <code>VITE_LAWALLET_ENDPOINT</code> in <code>.env</code> to your
+          own LaWallet instance, then restart the dev server.
+        </p>
       </main>
     )
   }

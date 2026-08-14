@@ -22,17 +22,26 @@ then alias or NWC wallet configuration.
 ## Run it
 
 ```bash
-# From the repo root — builds @lawallet-nwc/sdk and @lawallet-nwc/react once
-pnpm build
-
-cd examples/onboarding
-cp .env.example .env   # set VITE_LAWALLET_ENDPOINT to your instance
-pnpm dev
+pnpm install && pnpm build
 ```
 
-Point `VITE_LAWALLET_ENDPOINT` at your instance's **public** URL — NIP-98
-signatures commit to it. For local development against a dev server started
-with `pnpm start:dev-server`, use the URL it prints.
+```bash
+pnpm --filter lawallet-example-onboarding dev
+```
+
+That's it — with no configuration it runs against the public instance at
+`https://beta.lawallet.io`. (`pnpm build` is needed once so the workspace
+packages have their `dist/`.)
+
+### Against your own instance
+
+```bash
+cp .env.example .env   # set VITE_LAWALLET_ENDPOINT
+```
+
+Use your instance's **public** origin — NIP-98 signatures commit to that exact
+URL, so an origin a proxy rewrites will fail to authenticate. For a local dev
+server started with `pnpm start:dev-server`, use the URL it prints.
 
 To exercise the paid path, enable paid registration in your instance's admin
 settings (Settings → registration) — the flow branches on the API's 402

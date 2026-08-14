@@ -4,22 +4,19 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import './styles.css'
 
-const endpoint = import.meta.env.VITE_LAWALLET_ENDPOINT
+/**
+ * Endpoint of the LaWallet instance this app serves. Resolved at build time
+ * by vite.config.ts: an explicit VITE_LAWALLET_ENDPOINT wins, otherwise this
+ * monorepo's own dev instance, otherwise the public one. Whatever it is, it
+ * must be the origin the instance is publicly reachable at — NIP-98
+ * signatures commit to that exact URL.
+ */
+export const endpoint: string = import.meta.env.VITE_DEFAULT_ENDPOINT
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {endpoint ? (
-      <LaWalletProvider endpoint={endpoint}>
-        <App />
-      </LaWalletProvider>
-    ) : (
-      <main className="shell">
-        <h1>Almost there</h1>
-        <p>
-          Copy <code>.env.example</code> to <code>.env</code> and set{' '}
-          <code>VITE_LAWALLET_ENDPOINT</code> to your LaWallet instance URL.
-        </p>
-      </main>
-    )}
+    <LaWalletProvider endpoint={endpoint}>
+      <App />
+    </LaWalletProvider>
   </StrictMode>
 )
