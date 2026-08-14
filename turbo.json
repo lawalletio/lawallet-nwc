@@ -1,20 +1,45 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["tsconfig.base.json", ".nvmrc"],
-  "globalEnv": ["NODE_ENV"],
-  "remoteCache": { "signature": true },
+  "globalDependencies": [
+    "tsconfig.base.json",
+    ".nvmrc"
+  ],
+  "globalEnv": [
+    "NODE_ENV"
+  ],
+  "remoteCache": {
+    "signature": true
+  },
   "tasks": {
     "topo": {
-      "dependsOn": ["^topo"]
+      "dependsOn": [
+        "^topo"
+      ]
     },
     "db:generate": {
-      "inputs": ["prisma/schema.prisma", "prisma.config.ts"],
-      "outputs": ["lib/generated/prisma/**"]
+      "inputs": [
+        "prisma/schema.prisma",
+        "prisma.config.ts"
+      ],
+      "outputs": [
+        "lib/generated/prisma/**"
+      ]
     },
     "build": {
-      "dependsOn": ["^build", "db:generate"],
-      "inputs": ["$TURBO_DEFAULT$", "!tests/**", "!**/*.test.*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "dependsOn": [
+        "^build",
+        "db:generate"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!tests/**",
+        "!**/*.test.*"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ],
       "env": [
         "DATABASE_URL",
         "JWT_SECRET",
@@ -24,35 +49,77 @@
         "NEXT_PUBLIC_API_DOCS_URL",
         "NEXT_PUBLIC_SENTRY_DSN"
       ],
-      "passThroughEnv": ["NWC_VAULT_SECRET", "SENTRY_AUTH_TOKEN"]
+      "passThroughEnv": [
+        "NWC_VAULT_SECRET",
+        "SENTRY_AUTH_TOKEN"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate"]
+      "dependsOn": [
+        "db:generate"
+      ]
     },
     "lint": {
-      "outputs": [".eslintcache"]
+      "outputs": [
+        ".eslintcache"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^topo", "db:generate"],
-      "outputs": ["*.tsbuildinfo", "dist/**/*.tsbuildinfo"]
+      "dependsOn": [
+        "^topo",
+        "db:generate"
+      ],
+      "outputs": [
+        "*.tsbuildinfo",
+        "dist/**/*.tsbuildinfo"
+      ]
+    },
+    "@lawallet-nwc/react#typecheck": {
+      "dependsOn": [
+        "^build",
+        "db:generate"
+      ]
+    },
+    "lawallet-example-onboarding#typecheck": {
+      "dependsOn": [
+        "^build",
+        "db:generate"
+      ]
     },
     "test": {
-      "dependsOn": ["^topo", "db:generate"]
+      "dependsOn": [
+        "^topo",
+        "db:generate"
+      ]
     },
     "test:coverage": {
-      "dependsOn": ["^topo", "db:generate"],
-      "outputs": ["coverage/**"]
+      "dependsOn": [
+        "^topo",
+        "db:generate"
+      ],
+      "outputs": [
+        "coverage/**"
+      ]
     },
     "e2e": {
       "cache": false,
-      "dependsOn": ["db:generate"],
-      "env": ["DATABASE_URL", "JWT_SECRET", "E2E_BASE_URL", "CI"]
+      "dependsOn": [
+        "db:generate"
+      ],
+      "env": [
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "E2E_BASE_URL",
+        "CI"
+      ]
     },
     "e2e:domain": {
       "cache": false,
-      "dependsOn": ["db:generate"],
+      "dependsOn": [
+        "db:generate"
+      ],
       "env": [
         "DATABASE_URL",
         "JWT_SECRET",
@@ -66,7 +133,9 @@
     },
     "bench": {
       "cache": false,
-      "dependsOn": ["db:generate"]
+      "dependsOn": [
+        "db:generate"
+      ]
     },
     "clean": {
       "cache": false
