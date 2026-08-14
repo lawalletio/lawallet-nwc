@@ -1,4 +1,11 @@
 {
   "title": "SDK",
-  "pages": ["index", "authentication", "react", "registration-flow", "nwc"]
+  "pages": [
+    "index",
+    "authentication",
+    "react",
+    "registration-flow",
+    "admin-provisioning",
+    "nwc"
+  ]
 }

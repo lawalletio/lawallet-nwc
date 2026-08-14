@@ -1,0 +1,160 @@
+---
+title: 'Admin Provisioning'
+description: 'Issue reserved lightning addresses on behalf of your users, for instances where self-registration is closed.'
+---
+
+Some instances turn **Settings → Lightning Address → User Registration** off:
+users can't create their own address, and the operator hands out reserved
+names through their own process — membership, vetting, an off-platform
+payment, a waiting list.
+
+This is the API and flow for that. A visitor proves they hold a Nostr key;
+your backend, holding an admin credential, provisions `name@your-domain` for
+that npub — creating the account on the instance if it has never seen the key.
+
+<Callout type="info" title="Complete example">
+  [`examples/admin-provisioning`](https://github.com/lawalletio/lawallet-nwc/tree/main/examples/admin-provisioning)
+  implements everything on this page — a Vite app whose backend runs as
+  middleware, so `pnpm dev` starts both halves.
+</Callout>
+
+## The endpoint
+
+```typescript
+await admin.addresses.provision({ username: 'reserved', pubkey: '<hex>' })
+```
+
+`POST /api/lightning-addresses` requires the `addresses:write` permission
+(**ADMIN** or **OPERATOR**). Unlike the self-service
+`POST /api/wallet/addresses` it:
+
+- accepts a **target pubkey** and creates that account on demand, so a key the
+  instance has never seen can be handed a name;
+- **bypasses the registration policy** — neither the User Registration toggle
+  nor paid registration applies, because the operator is acting out-of-band.
+
+Pubkeys go over the wire as hex. `toPubkey()` accepts either form:
+
+```typescript
+import { toPubkey } from '@lawallet-nwc/sdk'
+
+toPubkey('npub1…') // → hex, throws on anything invalid
+```
+
+## Prove the user controls the npub
+
+Never provision against a pubkey somebody merely typed in — anyone could
+reserve a name against someone else's key. Make them sign for it.
+
+The SDK ships both halves of the same kind-22242 (NIP-42) proof LaWallet uses
+internally for identity linking and passkey registration:
+
+```typescript
+// Browser — answer the challenge your backend issued
+import { signChallengeEvent } from '@lawallet-nwc/sdk'
+
+const event = await signChallengeEvent(nonce, signer)
+```
+
+```typescript
+// Your backend — verify it, and learn which pubkey it proves
+import { verifyChallengeEvent } from '@lawallet-nwc/sdk'
+
+const pubkey = verifyChallengeEvent(event, nonce, expectedPubkey)
+```
+
+`verifyChallengeEvent` checks the kind, that the `challenge` tag answers your
+nonce, a ±300s freshness window, the Schnorr signature, and (when you pass
+one) that it was the key you expect. Failures throw a `LaWalletError` with an
+HTTP-shaped `status` and `code` (`PROOF_STALE`, `PROOF_BAD_SIGNATURE`, …), so
+a backend can map them straight onto a response.
+
+Issuing the challenge is yours to design; the example keeps it stateless with
+an HMAC that carries the expiry, the target pubkey and a nonce, so there's no
+table to maintain.
+
+## Authenticating as the admin
+
+Two ways, both genuine admin credentials — the API re-resolves the role from
+the database on every request rather than trusting a claim in a token.
+
+### NIP-98 (default)
+
+Every request is signed with the admin key. Works on every endpoint,
+including the few that only accept NIP-98.
+
+```typescript
+import { LaWalletClient, nsecSigner } from '@lawallet-nwc/sdk'
+
+const admin = new LaWalletClient({
+  endpoint: process.env.LAWALLET_ENDPOINT!,
+  signer: nsecSigner(process.env.LAWALLET_ADMIN_NSEC!)
+})
+```
+
+### Session JWT
+
+Mint once, then send it as a Bearer token:
+
+```typescript
+const minter = new LaWalletClient({ endpoint, signer: nsecSigner(nsec) })
+const { token } = await minter.auth.mintJwt('12h')
+
+const admin = new LaWalletClient({ endpoint, token })
+```
+
+<Callout type="warn" title="Mint once per process">
+  `/api/jwt` is rate limited to **10 requests/min per IP** and only accepts
+  NIP-98. Cache the token for its lifetime and re-mint near expiry — a mint per
+  request will pass every local test and fail in production. Note also that a
+  signer takes precedence over a token on the same client, so build a separate
+  client (or call `setSigner(null)`) for the Bearer path.
+</Callout>
+
+## Keep the admin key server-side
+
+The admin key must never reach a browser. Two habits make that structural
+rather than a matter of discipline:
+
+- Read it from an env var your bundler will not inline. In Vite, only
+  `VITE_`-prefixed variables reach client code — so `LAWALLET_ADMIN_NSEC`
+  cannot leak by accident.
+- Give the browser a client with **no signer and no token**. It can still read
+  the public endpoints (instance settings, username availability) and is
+  incapable of an authenticated call.
+
+`POST /api/jwt` is deliberately not CORS-exposed, which is the same boundary
+expressed at the API: minting a session belongs on a server.
+
+## Putting it together
+
+```typescript
+// your backend
+import { verifyChallengeEvent } from '@lawallet-nwc/sdk'
+
+// 1. unpack the challenge you issued (expiry + the pubkey it was bound to)
+const { pubkey, nonce } = openChallenge(body.challenge)
+
+// 2. the visitor must prove they hold that key, right now
+verifyChallengeEvent(body.event, nonce, pubkey)
+
+// 3. only then spend the admin credential
+const address = await admin.addresses.provision({
+  username: body.username,
+  pubkey
+})
+```
+
+## Worth knowing
+
+- **The target may already have addresses.** A provisioned address becomes
+  primary only when it's the account's first; otherwise it's added alongside
+  and inherits the account's default routing. It never displaces an existing
+  primary.
+- **`lncurl_auto_create` applies to accounts created this way.** With it on,
+  provisioning for a brand-new key may also mint a wallet, so the address
+  arrives already routable (`CUSTOM_NWC`) instead of `IDLE`.
+- **A taken username returns 409**, including when two requests race.
+- **Rate limit your own endpoints.** The instance's limiter doesn't cover your
+  app, and a proof is free for keys the visitor holds — put your real
+  criterion (invite code, paid order, allowlist) in front of the challenge.

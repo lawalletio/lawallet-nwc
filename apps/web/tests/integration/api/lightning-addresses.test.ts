@@ -236,7 +236,7 @@ describe('POST /api/lightning-addresses (operator provisioning)', () => {
     vi.mocked(createNewUser).mockResolvedValue({ id: 'user-new' } as any)
 
     const res = await post({ username: 'reserved', pubkey: TARGET })
-    const body = await assertResponse(res, 201)
+    const body = (await assertResponse(res, 201)) as Record<string, unknown>
 
     expect(createNewUser).toHaveBeenCalledTimes(1)
     expect(createNewUser).toHaveBeenCalledWith(TARGET)
@@ -260,7 +260,7 @@ describe('POST /api/lightning-addresses (operator provisioning)', () => {
     } as any)
 
     const res = await post({ username: 'reserved', pubkey: TARGET })
-    const body = await assertResponse(res, 201)
+    const body = (await assertResponse(res, 201)) as Record<string, unknown>
 
     expect(createNewUser).not.toHaveBeenCalled()
     expect(createLightningAddressForUser).toHaveBeenCalledWith(

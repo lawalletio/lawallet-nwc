@@ -43,6 +43,7 @@ packages/
   openapi/    Zod → OpenAPI 3.1 document generation
 examples/
   onboarding/ Reference webapp built on the SDK
+  admin-provisioning/ Operator-issued reserved addresses (SDK + a backend)
 ```
 
 For deeper architectural context, read [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)

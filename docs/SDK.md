@@ -9,8 +9,10 @@ their own webapp (usually their own domain or subdomain):
   on the SDK.
 
 Full documentation: [`apps/docs/content/docs/sdk/`](../apps/docs/content/docs/sdk/)
-(published at `/docs/sdk`). A complete working app lives in
-[`examples/onboarding`](../examples/onboarding).
+(published at `/docs/sdk`). Two complete working apps live in
+[`examples/onboarding`](../examples/onboarding) (self-service claim with
+payment) and [`examples/admin-provisioning`](../examples/admin-provisioning)
+(operator-issued reserved addresses).
 
 ---
 
@@ -46,6 +48,10 @@ cannot send headers.
 | `events`        | SSE change notifications                                                    |
 
 Errors throw `LaWalletError` with `status`, `code` and `details`.
+
+Proof of key control ships as `signChallengeEvent` / `verifyChallengeEvent` —
+the kind-22242 (NIP-42) format LaWallet uses internally, so an operator
+backend can verify that a visitor holds the npub it is about to provision for.
 
 ---
 

@@ -88,6 +88,12 @@
         "db:generate"
       ]
     },
+    "lawallet-example-admin-provisioning#typecheck": {
+      "dependsOn": [
+        "^build",
+        "db:generate"
+      ]
+    },
     "test": {
       "dependsOn": [
         "^topo",
