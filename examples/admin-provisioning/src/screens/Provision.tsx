@@ -21,10 +21,13 @@ const USERNAME_RE = /^[a-z0-9]+$/
  */
 export function Provision({
   identity,
-  domain
+  domain,
+  onProvisioned
 }: {
   identity: Identity
   domain: string | null
+  /** Hands the new name to the app so the owner can configure it. */
+  onProvisioned: (username: string) => void
 }) {
   const [username, setUsername] = useState('')
   const [available, setAvailable] = useState<boolean | null>(null)
@@ -78,7 +81,12 @@ export function Provision({
       const event = await signChallengeEvent(nonce, identity.signer)
 
       // 3. The backend verifies the proof, then provisions as admin.
-      setResult(await post('/api/provision', { challenge, event, username }))
+      const provisioned = await post('/api/provision', {
+        challenge,
+        event,
+        username
+      })
+      setResult(provisioned)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not provision')
     } finally {
@@ -94,12 +102,18 @@ export function Provision({
         </h1>
         <p className="muted">
           Provisioned for {toNpub(identity.pubkey).slice(0, 16)}… ·{' '}
-          {result.isPrimary ? 'primary address' : 'additional address'} ·{' '}
+          {result.isPrimary ? 'primary address' : 'additional address'} ·
           routing {result.mode}
         </p>
         <span className="badge">
           operator authenticated via {result.authMode}
         </span>
+        <button
+          className="primary"
+          onClick={() => onProvisioned(result.username)}
+        >
+          Set it up
+        </button>
       </main>
     )
   }

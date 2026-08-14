@@ -20,6 +20,12 @@ the account on the instance if it has never seen that key.
    the visitor signs it (NIP-42 kind 22242), the backend verifies the proof
    and only then spends its admin credential to call
    `POST /api/lightning-addresses`.
+4. **Manage** — the address is now theirs: forward it to another lightning
+   address (`ALIAS`), point it at their own wallet over NWC (`CUSTOM_NWC`), or
+   clear routing. Every call here is signed by the **visitor's** key, not the
+   operator's — and it keeps working with self-service registration off, since
+   that policy only gates _creating_ addresses, not managing your own.
+   Returning visitors land straight on this screen.
 
 ## Run it
 
