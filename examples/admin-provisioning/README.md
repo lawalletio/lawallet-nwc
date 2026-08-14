@@ -28,29 +28,44 @@ pnpm install && pnpm build
 ```
 
 ```bash
-cd examples/admin-provisioning
-cp .env.example .env      # set LAWALLET_ADMIN_NSEC
-pnpm dev
+pnpm --filter lawallet-example-admin-provisioning dev
 ```
 
-The endpoint resolves with no configuration (this monorepo's dev instance,
-else the public one). The **admin nsec is required** — without it the app runs
-but refuses to provision, and says so.
+No configuration needed. The endpoint resolves on its own (this monorepo's dev
+instance, else the public one), and **the admin key provisions itself**:
 
-At boot the backend logs which credential it will use and verifies it:
+1. No `LAWALLET_ADMIN_NSEC`? One is generated and written to `.env`, so it
+   stays stable across restarts.
+2. The account is materialised on the instance — you can't grant a role to a
+   user row that doesn't exist yet.
+3. On an instance with **no owner**, the key claims root and becomes ADMIN, so
+   a fresh install works with nothing to set up.
+4. Otherwise the backend prints exactly how to grant it:
 
 ```
-[admin-provisioning] http://localhost:3052 · auth nip98 · admin npub1abc123… · credential ok
+[admin-provisioning] npub1ymv5rg7… is not an admin on this instance yet.
+[admin-provisioning] Grant it from the instance (Admin → Users), or directly:
+[admin-provisioning]   UPDATE "User" SET role='ADMIN' WHERE pubkey='26d941a3…';
+[admin-provisioning] The role is read per request, so no restart is needed.
 ```
+
+Once it can provision, boot reports:
+
+```
+[admin-provisioning] http://localhost:3052 · auth nip98 · admin npub1ymv5rg7… · credential ok
+```
+
+To use a key you already have, put it in `.env` (see `.env.example`) and it is
+left alone.
 
 ## Both admin auth methods
 
 `LAWALLET_ADMIN_AUTH` switches how the backend authenticates:
 
-| mode | how | notes |
-| --- | --- | --- |
-| `nip98` (default) | every request is signed with the admin key | works on every endpoint, including the few that only accept NIP-98 |
-| `jwt` | one session token minted at boot, sent as `Bearer` | `/api/jwt` is rate limited to 10/min per IP, so the token is cached and re-minted only near expiry — never per request |
+| mode              | how                                                | notes                                                                                                                  |
+| ----------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `nip98` (default) | every request is signed with the admin key         | works on every endpoint, including the few that only accept NIP-98                                                     |
+| `jwt`             | one session token minted at boot, sent as `Bearer` | `/api/jwt` is rate limited to 10/min per IP, so the token is cached and re-minted only near expiry — never per request |
 
 Both are genuine admin credentials: the API re-resolves the role from the
 database on every request instead of trusting a claim inside the token. The

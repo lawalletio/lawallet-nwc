@@ -224,6 +224,13 @@ export class LaWalletClient {
         .then(response => response.invoices),
 
     /**
+     * Every address on the instance, across all users. Requires
+     * `addresses:read` (VIEWER and up) — the admin counterpart to `list()`.
+     */
+    listAll: (): Promise<WalletAddress[]> =>
+      this.http.get('/api/lightning-addresses'),
+
+    /**
      * Operator provisioning: create an address owned by ANOTHER pubkey,
      * materialising that account if the instance has never seen it. Requires
      * the `addresses:write` permission (ADMIN or OPERATOR) and bypasses the

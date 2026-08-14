@@ -7,6 +7,11 @@ import {
   type NostrEvent
 } from '@lawallet-nwc/sdk'
 import { createAdminClient, type AdminAuthMode } from './admin-client'
+import {
+  ensureAdminNsec,
+  ensureAdminRole,
+  promotionInstructions
+} from './admin-key'
 import { mintChallenge, openChallenge } from './challenge'
 
 /**
@@ -23,18 +28,23 @@ import { mintChallenge, openChallenge } from './challenge'
 
 export interface ApiOptions {
   endpoint: string
-  adminNsec?: string
+  adminNsec: string
   authMode: AdminAuthMode
   challengeSecret: string
 }
 
 export function readApiOptions(
   env: Record<string, string | undefined>,
-  endpoint: string
+  endpoint: string,
+  envPath: string
 ): ApiOptions {
+  // An admin key is required, so provide one rather than failing: generated
+  // and persisted on first run, then granted the role where possible.
+  const { nsec } = ensureAdminNsec(env, envPath)
+
   return {
     endpoint: env.LAWALLET_ENDPOINT?.replace(/\/+$/, '') || endpoint,
-    adminNsec: env.LAWALLET_ADMIN_NSEC,
+    adminNsec: nsec,
     authMode: env.LAWALLET_ADMIN_AUTH === 'jwt' ? 'jwt' : 'nip98',
     // Per-boot secret when unset: restarting simply invalidates challenges
     // that are still in flight, which is fine for a demo.
@@ -44,13 +54,11 @@ export function readApiOptions(
 }
 
 export function createApiHandler(options: ApiOptions) {
-  const admin = options.adminNsec
-    ? createAdminClient({
-        endpoint: options.endpoint,
-        nsec: options.adminNsec,
-        authMode: options.authMode
-      })
-    : null
+  const admin = createAdminClient({
+    endpoint: options.endpoint,
+    nsec: options.adminNsec,
+    authMode: options.authMode
+  })
 
   /** @returns true when the request was handled. */
   return async function handle(
@@ -71,14 +79,6 @@ export function createApiHandler(options: ApiOptions) {
       }
 
       if (path === '/api/provision') {
-        if (!admin) {
-          throw new LaWalletError(
-            503,
-            'This deployment has no admin key configured — set LAWALLET_ADMIN_NSEC.',
-            'NO_ADMIN_KEY'
-          )
-        }
-
         // 1. Unpack the challenge we issued (HMAC + TTL + the pubkey it was for).
         const { pubkey, nonce } = openChallenge(
           String(body.challenge ?? ''),
@@ -121,12 +121,6 @@ export function createApiHandler(options: ApiOptions) {
  */
 export async function logAdminIdentity(options: ApiOptions): Promise<void> {
   const tag = '[admin-provisioning]'
-  if (!options.adminNsec) {
-    console.warn(
-      `${tag} no LAWALLET_ADMIN_NSEC set — provisioning is disabled (copy .env.example to .env)`
-    )
-    return
-  }
 
   const admin = createAdminClient({
     endpoint: options.endpoint,
@@ -134,18 +128,33 @@ export async function logAdminIdentity(options: ApiOptions): Promise<void> {
     authMode: options.authMode
   })
 
+  // Claims root on an instance that has none — makes a fresh install work
+  // with no setup at all. A no-op once somebody owns the instance.
+  await ensureAdminRole(options.endpoint, options.adminNsec)
+
   try {
     const npub = await admin.npub()
     const client = await admin.get()
-    await client.addresses.list()
+    // Probe the ADMIN capability, not the caller's own addresses.
+    await client.addresses.listAll()
     console.log(
       `${tag} ${options.endpoint} · auth ${admin.authMode} · admin ${npub.slice(0, 12)}… · credential ok`
     )
   } catch (error) {
+    const status = (error as { status?: number }).status
     const detail = error instanceof Error ? error.message : String(error)
+
+    if (status === 403) {
+      // The key is valid, it just lacks the permission — say exactly how to fix.
+      const { nsecSigner, toNpub } = await import('@lawallet-nwc/sdk')
+      const pubkey = await nsecSigner(options.adminNsec).getPublicKey()
+      console.warn(promotionInstructions(toNpub(pubkey), pubkey))
+      return
+    }
+
     console.warn(
       `${tag} credential check failed against ${options.endpoint}: ${detail}\n` +
-        `${tag} is that key an ADMIN/OPERATOR on this instance, and does LAWALLET_ENDPOINT match its public URL?`
+        `${tag} does LAWALLET_ENDPOINT match the instance's public URL?`
     )
   }
 }

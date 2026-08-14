@@ -45,7 +45,8 @@ function resolveEndpoint(env: Record<string, string>): string {
 function operatorBackend(env: Record<string, string>): Plugin {
   const options = readApiOptions(
     { ...process.env, ...env },
-    resolveEndpoint(env)
+    resolveEndpoint(env),
+    fileURLToPath(new URL('.env', import.meta.url))
   )
   const handler = createApiHandler(options)
 
