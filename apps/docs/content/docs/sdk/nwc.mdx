@@ -1,0 +1,112 @@
+---
+title: 'NWC & Routing'
+description: 'Remote wallets, connection strings, and the four routing modes of a lightning address.'
+---
+
+A lightning address on a LaWallet instance is a _router_: where an incoming
+payment ends up depends on the address's **mode**. The SDK exposes the full
+lifecycle — create NWC connections, inspect them, and bind them to addresses.
+
+## Address modes
+
+| Mode          | Payments go…                                                 | Requires                    |
+| ------------- | ------------------------------------------------------------ | --------------------------- |
+| `IDLE`        | Nowhere yet — the address exists but can't receive           | —                           |
+| `ALIAS`       | Forwarded: LUD-16 resolution redirects to another address    | `redirect` (`user@host`)    |
+| `PROXY_ALIAS` | Through the instance's proxy, then on to a destination       | Operator-configured proxy   |
+| `CUSTOM_NWC`  | Straight into the user's own wallet via Nostr Wallet Connect | A `remoteWalletId` they own |
+
+Pick `ALIAS` when the user already has a wallet address elsewhere and just
+wants the vanity name; pick `CUSTOM_NWC` for true self-custody — invoices are
+minted by _their_ wallet, the instance only routes.
+
+```typescript
+// Forward satoshi@your-domain to an existing wallet
+await wallet.addresses.update('satoshi', {
+  mode: 'ALIAS',
+  redirect: 'satoshi@getalby.com'
+})
+
+// Or clear routing entirely
+await wallet.addresses.update('satoshi', { mode: 'IDLE' })
+```
+
+## Connecting a wallet (NWC)
+
+A _remote wallet_ wraps a [Nostr Wallet Connect](https://nwc.dev) pairing.
+Create one from a `nostr+walletconnect://` string, then bind it:
+
+```typescript
+const remoteWallet = await wallet.remoteWallets.create({
+  name: 'My Alby Hub',
+  type: 'NWC',
+  config: { connectionString: 'nostr+walletconnect://...' }
+})
+
+await wallet.addresses.update('satoshi', {
+  mode: 'CUSTOM_NWC',
+  remoteWalletId: remoteWallet.id
+})
+```
+
+The connection string is stored encrypted server-side and never appears in
+list responses. The owner can read it back explicitly:
+
+```typescript
+const secret = await wallet.remoteWallets.connectionString(remoteWallet.id)
+const sats = await wallet.remoteWallets.balance(remoteWallet.id)
+```
+
+Revoking is soft — the wallet stops routing but its history survives:
+
+```typescript
+await wallet.remoteWallets.remove(remoteWallet.id)
+```
+
+## Server-minted wallets (LNCurl)
+
+Instances with LNCurl enabled can mint a disposable custodial wallet on
+demand — useful to give brand-new users something that receives immediately,
+before they bring their own NWC:
+
+```typescript
+const disposable = await wallet.remoteWallets.createLncurl({ isDefault: true })
+// provider === 'lncurl'; upgrade the user to their own wallet later
+```
+
+Check `settings.lncurl_enabled` from the public instance settings before
+offering it.
+
+## In React
+
+```tsx
+import { useAddress, useRemoteWallets } from '@lawallet-nwc/react'
+
+function ConnectWallet({ username }: { username: string }) {
+  const { update } = useAddress(username)
+  const { create } = useRemoteWallets()
+
+  const connect = async (connectionString: string) => {
+    const remoteWallet = await create({
+      name: 'My wallet',
+      type: 'NWC',
+      config: { connectionString }
+    })
+    await update({ mode: 'CUSTOM_NWC', remoteWalletId: remoteWallet.id })
+  }
+
+  return <NwcStringInput onSubmit={connect} />
+}
+```
+
+Both hooks invalidate their caches after mutations, so every mounted list and
+detail view refreshes on its own — and the instance also broadcasts
+`addresses:updated` over SSE, which keeps _other_ tabs in sync too.
+
+## Watching payments land
+
+Once an address routes somewhere, received payments show up on
+`useAddressInvoices(username)` (or `wallet.addresses.invoices(username)`),
+live-refreshed by `invoices:updated` events. For payment flows you drive
+yourself, `wallet.lud16.requestInvoice()` + `wallet.lud16.pollVerify()` give
+you the public LUD-16/LUD-21 pair against any username on the instance.

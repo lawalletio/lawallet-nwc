@@ -1,56 +1,21 @@
 ---
 title: 'Client SDK & React Hooks'
-description: 'Roadmap notes for the planned SDK and React Hooks packages.'
+description: 'Build your own webapp on your LaWallet instance with @lawallet-nwc/sdk and @lawallet-nwc/react.'
 ---
 
-<div
-  className="inline-flex items-center rounded-full px-3 py-1 text-xs font-mono font-semibold uppercase tracking-wider border"
-  style={{
-    color: '#F5A623',
-    borderColor: '#F5A62330',
-    backgroundColor: '#F5A62310'
-  }}
->
-  Expected · Month 7
-</div>
+The SDK is real and lives in the monorepo: **`@lawallet-nwc/sdk`** (typed,
+framework-free client — nostr-first NIP-98 auth, lightning-address
+registration with payment, remote wallets/NWC, LUD-16, SSE) and
+**`@lawallet-nwc/react`** (provider + hooks built on it).
 
-<Callout type="info" title="Status">
-  React components and hooks already live in the codebase under
-  `apps/web/components/` and `apps/web/lib/client/hooks/`. They still need to be
-  extracted and published as a standalone npm package — that migration was
-  deferred from Month 6 and is now targeted for **Month 7**.
-</Callout>
+The full documentation moved to its own section:
 
-## Overview
+- [SDK Overview](/docs/sdk) — install, quickstart, endpoint coverage
+- [Authentication](/docs/sdk/authentication) — signers and Nostr-signed requests
+- [React Hooks](/docs/sdk/react) — the provider and every hook, with examples
+- [Registration Flow](/docs/sdk/registration-flow) — the flagship onboarding + payment guide
+- [NWC & Routing](/docs/sdk/nwc) — remote wallets and address modes
 
-The current `lawallet-nwc` repository does not yet ship a published client SDK or React Hooks npm package.
-
-This page documents the intended SDK and hooks direction described in the roadmap so the planned API surface stays visible while implementation catches up.
-
----
-
-## Planned React Hooks Package
-
-The roadmap also calls for a React hooks package built on top of that SDK.
-
-Planned hook areas:
-
-| Hook               | Purpose                                                     | Month |
-| ------------------ | ----------------------------------------------------------- | ----- |
-| `useAddress`       | CRUD single lightning address                               | 2     |
-| `useAddresses`     | List/search/filter with pagination                          | 2     |
-| `useNWCConnection` | Connect, disconnect, status polling                         | 2     |
-| `useAuth`          | NIP-98 to JWT session flow                                  | 2     |
-| `useWallet`        | Wallet status and NWC state                                 | 2     |
-| `useCourtesyNWC`   | Courtesy NWC via [lncurl](https://github.com/rolznz/lncurl) | 3     |
-| `useWebhooks`      | Webhook management                                          | 5     |
-| `useRedirect`      | Redirect configuration                                      | 5     |
-
-## Lifecycle
-
-| Month | SDK Milestone                                | Hooks Milestone                              |
-| ----- | -------------------------------------------- | -------------------------------------------- |
-| 2     | Core auth, address, and NWC coverage.        | Base hooks for auth and address flows.       |
-| 3     | Frontend adoption and courtesy-NWC support.  | Add `useCourtesyNWC`.                        |
-| 5     | Redirect, webhook, and verification methods. | Expand hooks to match the newer API surface. |
-| 6     | Full docs + API reference.                   | Full docs + usage examples.                  |
+For a complete working app, see
+[`examples/onboarding`](https://github.com/lawalletio/lawallet-nwc/tree/main/examples/onboarding)
+in the repository.

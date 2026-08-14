@@ -34,10 +34,15 @@ App Router with REST API + LUD-16 resolution).
 apps/
   web/        Next.js 16 — frontend, REST API, LUD-16 resolution (main app)
   docs/       Fumadocs site
-  listener/   NWC Payment Listener (stub)
+  listener/   NWC Payment Listener — live NWC pool + webhooks
+  cli/        Installer CLI behind the curl|bash bootstrap
 packages/
-  sdk/        TypeScript SDK client (stub)
-  shared/     Shared types & utilities (stub)
+  sdk/        @lawallet-nwc/sdk — typed API client, NIP-98-signed
+  react/      @lawallet-nwc/react — provider + hooks over the SDK
+  shared/     Zod schemas + shared types (source of truth)
+  openapi/    Zod → OpenAPI 3.1 document generation
+examples/
+  onboarding/ Reference webapp built on the SDK
 ```
 
 For deeper architectural context, read [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)

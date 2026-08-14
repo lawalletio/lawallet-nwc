@@ -1,0 +1,148 @@
+---
+title: 'Authentication'
+description: "Nostr-signed requests: every API call is a NIP-98 event signed by the user's key."
+---
+
+The SDK authenticates with **Nostr events, not sessions**. For every
+authenticated request it builds a kind-27235
+([NIP-98](https://github.com/nostr-protocol/nips/blob/master/98.md)) event
+signed by the user's key, committing to:
+
+- the exact request URL (`u` tag),
+- the HTTP method (`method` tag),
+- a SHA-256 hash of the JSON body for writes (`payload` tag),
+- a `created_at` within ±60 seconds of the server clock.
+
+The event travels as `Authorization: Nostr <base64-event>`. There is no login
+endpoint, nothing stored server-side, and nothing to refresh or revoke — drop
+the signer and the "session" is gone. Replay is bounded by the 60-second
+window and the URL/method/body commitment.
+
+```typescript
+import { LaWalletClient, nsecSigner } from '@lawallet-nwc/sdk'
+
+const wallet = new LaWalletClient({
+  endpoint: 'https://wallet.example.com',
+  signer: nsecSigner('nsec1...')
+})
+
+await wallet.users.me() // signed with the user's key, automatically
+```
+
+## Signers
+
+A signer is anything with two methods:
+
+```typescript
+interface NostrSigner {
+  getPublicKey(): Promise<string>
+  signEvent(event: EventTemplate): Promise<NostrEvent>
+}
+```
+
+That shape is deliberately identical to `window.nostr` (NIP-07) and
+structurally compatible with `@nostrify/nostrify`, NDK and nostr-tools
+signers — anything that can sign a Nostr event can drive the SDK.
+
+### Local key (nsec)
+
+```typescript
+import { nsecSigner } from '@lawallet-nwc/sdk'
+
+const signer = nsecSigner('nsec1...') // or 64-char hex
+```
+
+Signing is local and silent — per-request signatures cost nothing.
+
+### Browser extension (NIP-07)
+
+```typescript
+import { browserSigner, hasBrowserExtension } from '@lawallet-nwc/sdk'
+
+if (hasBrowserExtension()) {
+  const signer = browserSigner() // wraps window.nostr
+}
+```
+
+<Callout type="info" title="Extension prompts">
+  Some extensions ask for confirmation on every signature. Since the SDK signs
+  one event per request, tell users to allow automatic signing of **kind 27235
+  (HTTP Auth)** events for your app — extensions like Alby and nos2x support
+  per-kind auto-approval.
+</Callout>
+
+### Generated identity (onboarding)
+
+```typescript
+import { generateSigner } from '@lawallet-nwc/sdk'
+
+const { signer, nsec, npub } = generateSigner()
+// Show `nsec` to the user ONCE for backup — it IS their account.
+```
+
+### Remote signers (NIP-46) and anything else
+
+The SDK ships no bunker client of its own — pass any external signer that
+satisfies the interface. With nostr-tools:
+
+```typescript
+import { BunkerSigner, parseBunkerInput } from 'nostr-tools/nip46'
+import { LaWalletClient } from '@lawallet-nwc/sdk'
+
+const pointer = await parseBunkerInput('bunker://...')
+const bunker = BunkerSigner.fromBunker(clientSecretKey, pointer!)
+await bunker.connect()
+
+const wallet = new LaWalletClient({
+  endpoint: 'https://wallet.example.com',
+  signer: {
+    getPublicKey: () => bunker.getPublicKey(),
+    signEvent: event => bunker.signEvent(event)
+  }
+})
+```
+
+## Live events (SSE)
+
+`EventSource` cannot send headers, so `wallet.events.subscribe()` signs a
+fresh NIP-98 event and passes it as the `?token=` query parameter instead.
+Because the token rides in the query string it cannot commit to a URL
+containing itself — its `u` tag is the events URL **without any query**, and
+the SDK handles that (including re-signing on every reconnect).
+
+```typescript
+const unsubscribe = wallet.events.subscribe((type, data) => {
+  if (type === 'invoices:updated') refreshInvoices()
+})
+```
+
+## The endpoint must be the public URL
+
+Signatures commit to the URL **the server believes it is serving**. Always
+pass the instance's public origin (the one in the operator's `endpoint`
+setting) — a proxy or tunnel that rewrites the origin will make every
+signature invalid. This also means the SDK never builds URLs from
+`window.location`; the `endpoint` option is the single source of truth.
+
+## Clock skew
+
+The ±60-second `created_at` window applies to **every** request. A device
+clock more than a minute off will fail all authenticated calls with a 401
+whose message names the timestamp — worth surfacing verbatim in your UI.
+
+## Storing keys in your app
+
+The SDK never persists anything. `@lawallet-nwc/react` optionally remembers a
+login in `localStorage` when you pass `remember: true` — that stores the nsec
+on the device, which is a custody decision: fine for low-value onboarding
+keys, wrong for a user's main identity. Prefer the extension flow for
+returning users; it persists nothing but a marker, and keys stay in the
+extension.
+
+<Callout type="warn" title="First-party session JWTs">
+  The instance's own web app uses short-lived JWTs minted at `/api/jwt` for its
+  sessions. That endpoint is intentionally **not** exposed cross-origin —
+  third-party apps authenticate with signed Nostr events as described here.
+  (Admin-minted device tokens can be passed via the client's `token` option
+  where such a token already exists.)
+</Callout>
