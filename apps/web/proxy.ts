@@ -29,7 +29,7 @@ const SELF_MANAGED_CORS = [
 
 const JWT_ROUTE = /^\/api\/jwt(\/|$)/
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (

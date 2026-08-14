@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { NextRequest } from 'next/server'
-import { middleware } from '@/middleware'
+import { proxy } from '@/proxy'
 
 const req = (path: string, method = 'GET') =>
   new NextRequest(`http://localhost:3000${path}`, { method })
 
-describe('CORS middleware', () => {
+describe('CORS proxy', () => {
   it('answers OPTIONS preflight with 204 and CORS headers', () => {
-    const res = middleware(req('/api/settings', 'OPTIONS'))
+    const res = proxy(req('/api/settings', 'OPTIONS'))
     expect(res.status).toBe(204)
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
     expect(res.headers.get('Access-Control-Allow-Methods')).toContain('PATCH')
@@ -18,16 +18,16 @@ describe('CORS middleware', () => {
   })
 
   it('adds CORS headers to pass-through API responses', () => {
-    const res = middleware(req('/api/wallet/addresses'))
+    const res = proxy(req('/api/wallet/addresses'))
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
   })
 
   it('never exposes /api/jwt cross-origin', () => {
     for (const method of ['OPTIONS', 'POST', 'GET']) {
-      const res = middleware(req('/api/jwt', method))
+      const res = proxy(req('/api/jwt', method))
       expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull()
     }
-    const nested = middleware(req('/api/jwt/protected', 'OPTIONS'))
+    const nested = proxy(req('/api/jwt/protected', 'OPTIONS'))
     expect(nested.headers.get('Access-Control-Allow-Origin')).toBeNull()
   })
 
@@ -40,7 +40,7 @@ describe('CORS middleware', () => {
       '/api/cards/abc123/write',
       '/api/cards/abc123/wipe'
     ]) {
-      const res = middleware(req(path, 'OPTIONS'))
+      const res = proxy(req(path, 'OPTIONS'))
       // Pass-through, not a 204: the route's own OPTIONS handler must run.
       expect(res.status).not.toBe(204)
       expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull()
@@ -48,12 +48,10 @@ describe('CORS middleware', () => {
   })
 
   it('still covers authenticated card admin routes', () => {
-    const res = middleware(req('/api/cards', 'OPTIONS'))
+    const res = proxy(req('/api/cards', 'OPTIONS'))
     expect(res.status).toBe(204)
     expect(
-      middleware(req('/api/cards/abc123')).headers.get(
-        'Access-Control-Allow-Origin'
-      )
+      proxy(req('/api/cards/abc123')).headers.get('Access-Control-Allow-Origin')
     ).toBe('*')
   })
 })
