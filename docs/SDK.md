@@ -1,18 +1,27 @@
 # Client SDK + React Hooks
 
-Two packages let anyone running a LaWallet instance offer its features from
-their own webapp (usually their own domain or subdomain):
+The SDK now lives in its own repository: **[lawalletio/sdk](https://github.com/lawalletio/sdk)**,
+published to npm as **`@lawallet/sdk`**.
 
-- **`@lawallet-nwc/sdk`** (`packages/sdk`) — typed, framework-free client for
-  the REST API. Browser and Node. Only runtime dependency: `nostr-tools`.
-- **`@lawallet-nwc/react`** (`packages/react`) — React provider + hooks built
-  on the SDK.
+```bash
+npm install @lawallet/sdk
+```
 
-Full documentation: [`apps/docs/content/docs/sdk/`](../apps/docs/content/docs/sdk/)
-(published at `/docs/sdk`). Two complete working apps live in
-[`examples/onboarding`](../examples/onboarding) (self-service claim with
-payment) and [`examples/admin-provisioning`](../examples/admin-provisioning)
-(operator-issued reserved addresses).
+One package, two entry points: `@lawallet/sdk` (typed, framework-free client —
+browser and Node, only runtime dependency `nostr-tools`) and
+`@lawallet/sdk/react` (provider + hooks). React is an optional peer dependency,
+so a Node backend importing the core never pulls it in.
+
+Consumer documentation lives at [`/docs/sdk`](../apps/docs/content/docs/sdk/),
+including a [full usage example](../apps/docs/content/docs/sdk/usage-example.mdx).
+The runnable apps and the agent skills are in the SDK repo.
+
+**This repo still contains `packages/sdk` and `packages/react`** — the
+pre-split originals, now duplicated by the published package. They are pending
+removal; new work belongs in lawalletio/sdk.
+
+The notes below describe the surface this instance exposes to that SDK, which
+is what matters when changing the API here.
 
 ---
 
@@ -80,13 +89,15 @@ SSE subscription. Caching is a ~90-line internal store — no SWR/React Query.
 
 ## Status
 
-Both packages are `private: true` but publish-shaped (dist exports, `files`,
-`sideEffects: false`); flipping `private` is the remaining npm-publish step.
-Versioned independently of the app release train (`scripts/release.mjs`).
+Published from [lawalletio/sdk](https://github.com/lawalletio/sdk) as
+`@lawallet/sdk@1.0.0`, versioned independently of this app's release train.
+Requires an instance running **v2.6.0 or newer** — that release added the
+cross-origin layer, the NIP-98 SSE token and the operator provisioning
+endpoint the SDK depends on.
 
 Two reference apps consume it end to end:
-[`examples/onboarding`](../examples/onboarding) (self-service claim, incl. the
-paid path) and [`examples/admin-provisioning`](../examples/admin-provisioning)
+[`example-onboarding`](../examples/onboarding) (self-service claim, incl. the
+paid path) and [`example-admin-provisioning`](../examples/admin-provisioning)
 (operator-issued addresses with proof-of-npub). Both finish in a manager where
 the owner sets an alias or binds their own NWC wallet.
 
