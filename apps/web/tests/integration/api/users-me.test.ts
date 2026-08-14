@@ -211,9 +211,9 @@ describe('GET /api/users/me', () => {
 
   // ── primary-address driven fields ───────────────────────────────────────
   // The response grew `effectiveNwcString` + `primaryAddressMode` +
-  // `primaryUsername` + `primaryRedirect` so the dashboard can decide
-  // between NwcCard and ForwardingCard without a second round-trip, and
-  // NwcCard can scope its balance widget to the address's actual route.
+  // `primaryUsername` + `primaryRedirect` so the dashboard can pick the right
+  // card without a second round-trip, and NwcCard can scope its balance widget
+  // to the address's actual route.
 
   const primaryConnUri = 'nostr+walletconnect://primary-conn'
   const addressConnUri = 'nostr+walletconnect://address-conn'

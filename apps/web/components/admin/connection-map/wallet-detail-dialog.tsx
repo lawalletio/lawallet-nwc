@@ -21,6 +21,7 @@ import { DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { LightningAddressInput } from '@/components/wallet/shared/lightning-address-input'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { formatRelativeTime } from '@/lib/client/format'
@@ -1005,14 +1006,12 @@ export function WalletActions({
           >
             <X className="size-4" />
           </Button>
-          <Input
-            type="text"
+          <LightningAddressInput
             autoFocus
-            spellCheck={false}
-            autoComplete="off"
+            allowNonAddress
             placeholder="Lightning address or invoice"
             value={destinationInput}
-            onChange={e => setDestinationInput(e.target.value)}
+            onChange={setDestinationInput}
             disabled={busy}
             className="h-11 flex-1 font-mono text-xs"
           />

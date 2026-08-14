@@ -7,6 +7,7 @@ import { clearNwcCacheKeyMemo } from '@/lib/client/cache/key'
 import { clearContactsCache } from '@/lib/client/contacts-store'
 import { clearCurrencyPreferences } from '@/lib/client/currencies-store'
 import { clearNostrProfileCache } from '@/lib/client/cache/nostr-profile-cache'
+import { clearAllAvatars } from '@/lib/client/cache/avatar-cache'
 
 const USER_CACHE_STORAGE_PREFIXES = ['lawallet-api-', 'lawallet-pages-']
 const USER_SESSION_STORAGE_PREFIXES = [
@@ -84,6 +85,7 @@ export function clearSessionCaches(): Promise<void> {
   clearContactsCache()
   clearCurrencyPreferences()
   clearNostrProfileCache()
+  clearAllAvatars()
   removeSessionStorageData()
   notifyServiceWorker()
 

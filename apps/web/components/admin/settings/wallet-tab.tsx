@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { useSettings } from '@/lib/client/hooks/use-settings'
+import { isLightningAddress } from '@/lib/ln-address'
 import {
   useSettingSaver,
   SettingSwitch,
@@ -191,10 +192,18 @@ export function WalletTab() {
                 <Label>Payment Address</Label>
                 <SettingTextInput
                   type="text"
+                  suggestLightningAddress
                   placeholder="admin@getalby.com"
                   value={registrationLnAddress}
                   onValueChange={setRegistrationLnAddress}
                   save={addr => persistPaid({ address: addr })}
+                  invalid={
+                    registrationLnAddress.length > 0 &&
+                    !isLightningAddress(registrationLnAddress)
+                  }
+                  isInvalidValue={next =>
+                    next.length > 0 && !isLightningAddress(next)
+                  }
                 />
                 <p
                   className={

@@ -73,8 +73,7 @@ export default function AdminDashboardPage() {
     userId: string
     lightningAddress: string | null
     // The primary address's configured mode drives which card renders
-    // below — NwcCard for NWC-ish modes, ForwardingCard for IDLE/ALIAS.
-    // Null when the user has no primary address yet.
+    // below. Null when the user has no primary address yet.
     primaryAddressMode:
       | 'IDLE'
       | 'ALIAS'

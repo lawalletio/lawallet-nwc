@@ -21,6 +21,7 @@ import { useAuth } from '@/components/admin/auth-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { LightningAddressInput } from '@/components/wallet/shared/lightning-address-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
@@ -453,13 +454,11 @@ export function CardEmulator() {
                 <TabsContent value="address" className="space-y-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="emu-address">Lightning address</Label>
-                    <Input
+                    <LightningAddressInput
                       id="emu-address"
                       value={address}
-                      onChange={e => setAddress(e.target.value)}
+                      onChange={setAddress}
                       placeholder="satoshi@example.com"
-                      autoComplete="off"
-                      spellCheck={false}
                     />
                   </div>
                   <div className="space-y-1.5">

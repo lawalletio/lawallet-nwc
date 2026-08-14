@@ -258,7 +258,7 @@ interface NostrEvent {
   created_at: number
 }
 
-interface ResolvedNip05Profile {
+export interface ResolvedNip05Profile {
   displayName: string | null
   name: string | null
   pubkey: string | null
@@ -266,7 +266,12 @@ interface ResolvedNip05Profile {
   avatarUrl: string | null
 }
 
-async function resolveNip05Profile(
+/**
+ * NIP-05 (`.well-known/nostr.json`) then kind 0, for one lightning address.
+ * Exported so the shared address input can resolve an address the user typed —
+ * one that is not a saved contact and may never become one.
+ */
+export async function resolveNip05Profile(
   lightningAddress: string
 ): Promise<ResolvedNip05Profile | null> {
   const [name, host] = lightningAddress.split('@')

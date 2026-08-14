@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
+import { LightningAddressInput } from '@/components/wallet/shared/lightning-address-input'
 import { Switch } from '@/components/ui/switch'
 import { Spinner } from '@/components/ui/spinner'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
@@ -174,6 +175,13 @@ interface SettingTextInputProps extends Omit<
   /** When this returns true the debounced save is skipped (value left local). */
   isInvalidValue?: (value: string) => boolean
   debounceMs?: number
+  /**
+   * Render the shared Lightning-address field instead of a plain input, so a
+   * setting that holds an address gets the same suggestions as everywhere
+   * else. Selecting a suggestion goes through the same debounced save path as
+   * typing, so the picked value is persisted rather than left local.
+   */
+  suggestLightningAddress?: boolean
 }
 
 /** A plain text input that auto-saves on a debounce with a status indicator. */
@@ -186,6 +194,7 @@ export function SettingTextInput({
   debounceMs,
   className,
   onBlur,
+  suggestLightningAddress,
   ...inputProps
 }: SettingTextInputProps) {
   const { status, handleChange, flush } = useDebouncedSave(value, {
@@ -193,26 +202,49 @@ export function SettingTextInput({
     debounceMs,
     isInvalid: isInvalidValue
   })
+  function applyValue(next: string) {
+    onValueChange(next)
+    handleChange(next)
+  }
   return (
     <div className="relative">
-      <Input
-        {...inputProps}
-        value={value}
-        aria-invalid={invalid || undefined}
-        className={cn(
-          invalid && INVALID_CLASSES,
-          status !== 'idle' && 'pr-9',
-          className
-        )}
-        onChange={e => {
-          onValueChange(e.target.value)
-          handleChange(e.target.value)
-        }}
-        onBlur={e => {
-          flush()
-          onBlur?.(e)
-        }}
-      />
+      {suggestLightningAddress ? (
+        <LightningAddressInput
+          id={inputProps.id}
+          name={inputProps.name}
+          placeholder={inputProps.placeholder}
+          disabled={inputProps.disabled}
+          invalid={invalid}
+          value={value}
+          onChange={applyValue}
+          // A picked suggestion must persist like typed text does.
+          onSelect={next => {
+            applyValue(next)
+            flush()
+          }}
+          onBlur={flush}
+          className={cn(status !== 'idle' && 'pr-9', className)}
+        />
+      ) : (
+        <Input
+          {...inputProps}
+          value={value}
+          aria-invalid={invalid || undefined}
+          className={cn(
+            invalid && INVALID_CLASSES,
+            status !== 'idle' && 'pr-9',
+            className
+          )}
+          onChange={e => {
+            onValueChange(e.target.value)
+            handleChange(e.target.value)
+          }}
+          onBlur={e => {
+            flush()
+            onBlur?.(e)
+          }}
+        />
+      )}
       {status !== 'idle' && (
         <SaveStatusIcon
           status={status}

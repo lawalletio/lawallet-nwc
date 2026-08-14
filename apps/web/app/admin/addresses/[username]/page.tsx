@@ -19,6 +19,7 @@ import type { LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { LightningAddressHero } from '@/components/admin/lightning-address-hero'
+import { LightningAddressInput } from '@/components/wallet/shared/lightning-address-input'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -900,18 +901,14 @@ export default function AdminAddressEditPage({ params }: PageProps) {
                               className="animate-field-in space-y-2 motion-reduce:animate-none"
                             >
                               <Label htmlFor="redirect">Redirect to</Label>
-                              <Input
-                                ref={redirectInputRef}
+                              <LightningAddressInput
+                                inputRef={redirectInputRef}
                                 id="redirect"
                                 placeholder="someone@example.com"
                                 value={redirect}
                                 disabled={saving}
-                                onChange={e =>
-                                  setRedirect(e.target.value.toLowerCase())
-                                }
-                                className={cn(
-                                  aliasInvalid && 'border-destructive'
-                                )}
+                                invalid={aliasInvalid}
+                                onChange={setRedirect}
                               />
                               {aliasInvalid && (
                                 <p className="text-xs text-destructive">
