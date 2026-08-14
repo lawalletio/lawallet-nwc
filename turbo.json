@@ -94,6 +94,11 @@
         "db:generate"
       ]
     },
+    "lawallet-example-admin-provisioning#test": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
     "test": {
       "dependsOn": [
         "^topo",
