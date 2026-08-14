@@ -1,0 +1,264 @@
+---
+title: 'Usage Example'
+description: 'A complete app against a LaWallet instance: install, provider, nostr login, claim an address, then route it.'
+---
+
+One file at a time, from `npm install` to a working lightning address. Every
+snippet below is real `@lawallet/sdk` API — nothing pseudo-code.
+
+## 1. Install
+
+```bash
+npm install @lawallet/sdk react react-dom
+```
+
+`@lawallet/sdk` brings only `nostr-tools`. React is an optional peer, so a
+backend importing the core client never pulls it in.
+
+## 2. Wrap the app
+
+```tsx title="src/main.tsx"
+import { LaWalletProvider } from '@lawallet/sdk/react'
+import { createRoot } from 'react-dom/client'
+import { App } from './App'
+
+createRoot(document.getElementById('root')!).render(
+  <LaWalletProvider endpoint="https://beta.lawallet.io">
+    <App />
+  </LaWalletProvider>
+)
+```
+
+`endpoint` must be the origin the instance is **publicly** reachable at —
+NIP-98 signatures commit to it, so an origin a proxy rewrites will fail to
+authenticate. The provider fetches the instance's public settings, restores a
+remembered login, and owns a single SSE subscription.
+
+## 3. Route on auth state
+
+There is no session to check: the user is authenticated exactly when a signer
+is attached.
+
+```tsx title="src/App.tsx"
+import { useAuth, useUser } from '@lawallet/sdk/react'
+import { Login } from './Login'
+import { Claim } from './Claim'
+import { Wallet } from './Wallet'
+
+export function App() {
+  const { status } = useAuth()
+  const { user, loading } = useUser()
+
+  if (status !== 'authenticated') return <Login />
+  if (loading) return <p>Loading…</p>
+  // The first authenticated fetch CREATES the account — this is signup.
+  return user?.lightningAddress ? <Wallet /> : <Claim />
+}
+```
+
+## 4. Sign in with Nostr
+
+```tsx title="src/Login.tsx"
+import { hasBrowserExtension, useAuth } from '@lawallet/sdk/react'
+import { useState } from 'react'
+
+export function Login() {
+  const auth = useAuth()
+  const [nsec, setNsec] = useState('')
+  const [backup, setBackup] = useState<string | null>(null)
+
+  // A generated key IS the account — show it once, before anything else.
+  if (backup) {
+    return (
+      <>
+        <p>Save this key. It is shown only once.</p>
+        <code>{backup}</code>
+        <button onClick={() => setBackup(null)}>I saved it</button>
+      </>
+    )
+  }
+
+  return (
+    <>
+      {hasBrowserExtension() && (
+        <button onClick={() => auth.loginWithExtension()}>
+          Connect NIP-07 extension
+        </button>
+      )}
+
+      <button
+        onClick={async () => {
+          const { nsec } = await auth.loginWithNewKey({ remember: true })
+          setBackup(nsec)
+        }}
+      >
+        Create a Nostr identity
+      </button>
+
+      <input
+        type="password"
+        placeholder="nsec1…"
+        value={nsec}
+        onChange={e => setNsec(e.target.value)}
+      />
+      <button onClick={() => auth.loginWithNsec(nsec, { remember: true })}>
+        Sign in
+      </button>
+
+      {auth.error && <p role="alert">{auth.error.message}</p>}
+    </>
+  )
+}
+```
+
+`loginWithSigner(signer)` takes any structural signer — a NIP-46 bunker, NDK,
+or your own — so you are never limited to the three above.
+
+## 5. Claim the address
+
+`useClaimAddress` is the whole state machine: availability, the operator's paid
+path (invoice QR, WebLN, LUD-21 polling, resume after a refresh) and the claim.
+
+```tsx title="src/Claim.tsx"
+import { useClaimAddress } from '@lawallet/sdk/react'
+import { QRCodeSVG } from 'qrcode.react'
+
+export function Claim() {
+  const flow = useClaimAddress()
+
+  if (flow.step === 'payment' && flow.invoice) {
+    return (
+      <>
+        <h2>
+          Pay {flow.invoice.amountSats} sats for {flow.username}@{flow.domain}
+        </h2>
+        <QRCodeSVG value={flow.invoice.bolt11.toUpperCase()} size={240} />
+        {flow.hasWebLn && (
+          <button onClick={flow.handleWebLnPay}>Pay with extension</button>
+        )}
+        <button onClick={flow.handleManualCheck}>I paid — check now</button>
+      </>
+    )
+  }
+
+  if (flow.step === 'success') return <h2>⚡ {flow.claimedAddress}</h2>
+
+  return (
+    <form onSubmit={flow.handleSubmit}>
+      <input
+        value={flow.username}
+        onChange={e => flow.setUsername(e.target.value.toLowerCase())}
+      />
+      <small>
+        {flow.formatError ??
+          (flow.checking ? 'Checking…' : flow.available ? 'Available ✓' : '')}
+      </small>
+      <button disabled={flow.submitDisabled}>Claim</button>
+      {flow.error && <p role="alert">{flow.error}</p>}
+    </form>
+  )
+}
+```
+
+On a free instance the payment step never appears — same code either way.
+
+## 6. Route the address and watch payments
+
+```tsx title="src/Wallet.tsx"
+import {
+  useAddress,
+  useAddressInvoices,
+  useRemoteWallets,
+  useUser
+} from '@lawallet/sdk/react'
+
+export function Wallet() {
+  const { user } = useUser()
+  const username = user!.primaryUsername!
+  const { address, update } = useAddress(username)
+  const { invoices } = useAddressInvoices(username)
+  const wallets = useRemoteWallets()
+
+  const forward = () => update({ mode: 'ALIAS', redirect: 'me@getalby.com' })
+
+  const connectOwnWallet = async (connectionString: string) => {
+    const wallet = await wallets.create({
+      name: 'My wallet',
+      type: 'NWC',
+      config: { connectionString }
+    })
+    await update({ mode: 'CUSTOM_NWC', remoteWalletId: wallet.id })
+  }
+
+  return (
+    <>
+      <h1>⚡ {user!.lightningAddress}</h1>
+      <p>Routing: {address?.mode}</p>
+      <button onClick={forward}>Forward elsewhere</button>
+
+      <ul>
+        {invoices?.map(inv => (
+          <li key={inv.id}>
+            {inv.amountSats} sats — {inv.status}
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+```
+
+The invoice list needs no polling code: the provider's SSE stream emits
+`invoices:updated` and the hook refetches itself.
+
+## Without React
+
+The same client drives a script or a backend — no provider, no hooks:
+
+```typescript
+import { LaWalletClient, nsecSigner } from '@lawallet/sdk'
+
+const wallet = new LaWalletClient({
+  endpoint: 'https://beta.lawallet.io',
+  signer: nsecSigner(process.env.NSEC!)
+})
+
+await wallet.users.me() // creates the account on first call
+
+const { lightningAddress, paid } = await wallet.registration.claimAddress({
+  username: 'satoshi',
+  onInvoice: invoice => console.log('Pay:', invoice.bolt11)
+})
+
+console.log(lightningAddress, paid)
+```
+
+## Handling errors
+
+Every non-2xx response throws `LaWalletError` with the HTTP `status`, the
+server's `code` and optional `details`. Branch on those, never on message text:
+
+```typescript
+import { LaWalletError } from '@lawallet/sdk'
+
+try {
+  await wallet.addresses.create({ username: 'satoshi' })
+} catch (error) {
+  if (error instanceof LaWalletError) {
+    if (error.status === 402) return startPaymentFlow() // instance charges
+    if (error.status === 403) return askOperator() // registration closed
+    if (error.status === 409) return showTaken()
+  }
+  throw error
+}
+```
+
+A 403 means self-service registration is switched off — the operator issues
+addresses instead. See [Admin provisioning](/docs/sdk/admin-provisioning).
+
+## Runnable apps
+
+Both live in the SDK repo and start with no configuration:
+
+- [`example-onboarding`](https://github.com/lawalletio/sdk/tree/main/examples/example-onboarding) — this guide, end to end
+- [`example-admin-provisioning`](https://github.com/lawalletio/sdk/tree/main/examples/example-admin-provisioning) — the operator-issued variant

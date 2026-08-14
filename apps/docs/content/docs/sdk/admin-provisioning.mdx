@@ -13,7 +13,7 @@ your backend, holding an admin credential, provisions `name@your-domain` for
 that npub — creating the account on the instance if it has never seen the key.
 
 <Callout type="info" title="Complete example">
-  [`examples/admin-provisioning`](https://github.com/lawalletio/lawallet-nwc/tree/main/examples/admin-provisioning)
+  [`example-admin-provisioning`](https://github.com/lawalletio/sdk/tree/main/examples/example-admin-provisioning)
   implements everything on this page — a Vite app whose backend runs as
   middleware, so `pnpm dev` starts both halves. It generates its own admin key
   on first run and tells you how to grant it the role (or claims it outright on
@@ -38,7 +38,7 @@ await admin.addresses.provision({ username: 'reserved', pubkey: '<hex>' })
 Pubkeys go over the wire as hex. `toPubkey()` accepts either form:
 
 ```typescript
-import { toPubkey } from '@lawallet-nwc/sdk'
+import { toPubkey } from '@lawallet/sdk'
 
 toPubkey('npub1…') // → hex, throws on anything invalid
 ```
@@ -53,14 +53,14 @@ internally for identity linking and passkey registration:
 
 ```typescript
 // Browser — answer the challenge your backend issued
-import { signChallengeEvent } from '@lawallet-nwc/sdk'
+import { signChallengeEvent } from '@lawallet/sdk'
 
 const event = await signChallengeEvent(nonce, signer)
 ```
 
 ```typescript
 // Your backend — verify it, and learn which pubkey it proves
-import { verifyChallengeEvent } from '@lawallet-nwc/sdk'
+import { verifyChallengeEvent } from '@lawallet/sdk'
 
 const pubkey = verifyChallengeEvent(event, nonce, expectedPubkey)
 ```
@@ -86,7 +86,7 @@ Every request is signed with the admin key. Works on every endpoint,
 including the few that only accept NIP-98.
 
 ```typescript
-import { LaWalletClient, nsecSigner } from '@lawallet-nwc/sdk'
+import { LaWalletClient, nsecSigner } from '@lawallet/sdk'
 
 const admin = new LaWalletClient({
   endpoint: process.env.LAWALLET_ENDPOINT!,
@@ -132,7 +132,7 @@ expressed at the API: minting a session belongs on a server.
 
 ```typescript
 // your backend
-import { verifyChallengeEvent } from '@lawallet-nwc/sdk'
+import { verifyChallengeEvent } from '@lawallet/sdk'
 
 // 1. unpack the challenge you issued (expiry + the pubkey it was bound to)
 const { pubkey, nonce } = openChallenge(body.challenge)

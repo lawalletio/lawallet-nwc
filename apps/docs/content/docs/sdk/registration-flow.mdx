@@ -34,7 +34,7 @@ settlement.
 The SDK orchestrates the whole thing:
 
 ```typescript
-import { LaWalletClient, generateSigner } from '@lawallet-nwc/sdk'
+import { LaWalletClient, generateSigner } from '@lawallet/sdk'
 
 const { signer, nsec } = generateSigner() // or the user's own signer
 const wallet = new LaWalletClient({
@@ -66,7 +66,7 @@ The hook version powers a full UI — it is a direct port of the claim screen
 in LaWallet's own wallet, driven by the SDK:
 
 ```tsx
-import { useClaimAddress } from '@lawallet-nwc/react'
+import { useClaimAddress } from '@lawallet/sdk/react'
 import { QRCodeSVG } from 'qrcode.react'
 
 function ClaimScreen() {
@@ -139,7 +139,7 @@ What the hook handles for you:
 
 ## The complete app
 
-[`examples/onboarding`](https://github.com/lawalletio/lawallet-nwc/tree/main/examples/onboarding)
+[`example-onboarding`](https://github.com/lawalletio/sdk/tree/main/examples/example-onboarding)
 wires this guide end to end — branded landing, nostr login (extension /
 generated key / nsec), this claim flow, then alias or NWC configuration —
 in a few hundred lines of Vite + React.

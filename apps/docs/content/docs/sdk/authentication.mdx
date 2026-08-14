@@ -19,7 +19,7 @@ the signer and the "session" is gone. Replay is bounded by the 60-second
 window and the URL/method/body commitment.
 
 ```typescript
-import { LaWalletClient, nsecSigner } from '@lawallet-nwc/sdk'
+import { LaWalletClient, nsecSigner } from '@lawallet/sdk'
 
 const wallet = new LaWalletClient({
   endpoint: 'https://wallet.example.com',
@@ -47,7 +47,7 @@ signers — anything that can sign a Nostr event can drive the SDK.
 ### Local key (nsec)
 
 ```typescript
-import { nsecSigner } from '@lawallet-nwc/sdk'
+import { nsecSigner } from '@lawallet/sdk'
 
 const signer = nsecSigner('nsec1...') // or 64-char hex
 ```
@@ -57,7 +57,7 @@ Signing is local and silent — per-request signatures cost nothing.
 ### Browser extension (NIP-07)
 
 ```typescript
-import { browserSigner, hasBrowserExtension } from '@lawallet-nwc/sdk'
+import { browserSigner, hasBrowserExtension } from '@lawallet/sdk'
 
 if (hasBrowserExtension()) {
   const signer = browserSigner() // wraps window.nostr
@@ -74,7 +74,7 @@ if (hasBrowserExtension()) {
 ### Generated identity (onboarding)
 
 ```typescript
-import { generateSigner } from '@lawallet-nwc/sdk'
+import { generateSigner } from '@lawallet/sdk'
 
 const { signer, nsec, npub } = generateSigner()
 // Show `nsec` to the user ONCE for backup — it IS their account.
@@ -87,7 +87,7 @@ satisfies the interface. With nostr-tools:
 
 ```typescript
 import { BunkerSigner, parseBunkerInput } from 'nostr-tools/nip46'
-import { LaWalletClient } from '@lawallet-nwc/sdk'
+import { LaWalletClient } from '@lawallet/sdk'
 
 const pointer = await parseBunkerInput('bunker://...')
 const bunker = BunkerSigner.fromBunker(clientSecretKey, pointer!)
@@ -132,7 +132,7 @@ whose message names the timestamp — worth surfacing verbatim in your UI.
 
 ## Storing keys in your app
 
-The SDK never persists anything. `@lawallet-nwc/react` optionally remembers a
+The SDK never persists anything. `@lawallet/sdk/react` optionally remembers a
 login in `localStorage` when you pass `remember: true` — that stores the nsec
 on the device, which is a custody decision: fine for low-value onboarding
 keys, wrong for a user's main identity. Prefer the extension flow for

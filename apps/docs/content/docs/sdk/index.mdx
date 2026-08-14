@@ -3,35 +3,44 @@ title: 'SDK Overview'
 description: 'Build your own webapp on top of your LaWallet instance — typed client, React hooks, nostr-first auth.'
 ---
 
-Two packages let anyone running a LaWallet instance offer its features from
-their own webapp (usually on their own domain or subdomain):
+**One package, two entry points**, so anyone running a LaWallet instance can
+offer its features from their own webapp (usually on their own domain or
+subdomain):
 
-- **`@lawallet-nwc/sdk`** — a typed, framework-free client for the REST API.
+- **`@lawallet/sdk`** — a typed, framework-free client for the REST API.
   Works in the browser and in Node. Its only runtime dependency is
   `nostr-tools`.
-- **`@lawallet-nwc/react`** — a React provider + hooks built on the SDK:
+- **`@lawallet/sdk/react`** — a React provider + hooks built on that client:
   instance branding, nostr login, lightning-address claiming (with payment),
   NWC wallet binding, and live updates over SSE.
+
+```bash
+npm install @lawallet/sdk
+```
+
+React is an **optional** peer dependency, so a Node backend that imports the
+core client never pulls React into its dependency graph. Both entry points
+share one implementation, so a `LaWalletError` thrown by the core is the same
+class the hooks re-throw.
 
 Everything is **nostr-first**: there are no accounts, no passwords and no
 session tokens. The user's Nostr key _is_ their identity — every
 authenticated API request is a [NIP-98](https://github.com/nostr-protocol/nips/blob/master/98.md)
 event signed by that key. See [Authentication](/docs/sdk/authentication).
 
-<Callout type="info" title="Pre-release">
-  The packages live in this monorepo (`packages/sdk`, `packages/react`) and are
-  publish-shaped but not yet on npm. Until they are published, consume them from
-  the monorepo: `pnpm build` produces `dist/` for both, and the
-  [`examples/onboarding`](https://github.com/lawalletio/lawallet-nwc/tree/main/examples/onboarding)
-  and
-  [`examples/admin-provisioning`](https://github.com/lawalletio/lawallet-nwc/tree/main/examples/admin-provisioning)
-  apps show the intended integration verbatim.
+<Callout type="info" title="Where the SDK lives">
+  The SDK is developed and published from its own repository,
+  [lawalletio/sdk](https://github.com/lawalletio/sdk) — that is where issues,
+  the runnable example apps and the agent skills live. This section documents
+  how to use it against a LaWallet instance; it requires an instance running
+  **v2.6.0 or newer**, which is when cross-origin access, the NIP-98 SSE token
+  and the operator provisioning endpoint landed.
 </Callout>
 
 ## Quickstart
 
 ```typescript
-import { LaWalletClient, nsecSigner } from '@lawallet-nwc/sdk'
+import { LaWalletClient, nsecSigner } from '@lawallet/sdk'
 
 const wallet = new LaWalletClient({
   endpoint: 'https://wallet.example.com', // your instance's PUBLIC origin
@@ -77,7 +86,7 @@ the server's `code` and optional `details` — branch on those instead of
 parsing messages:
 
 ```typescript
-import { LaWalletError } from '@lawallet-nwc/sdk'
+import { LaWalletError } from '@lawallet/sdk'
 
 try {
   await wallet.addresses.create({ username: 'satoshi' })
