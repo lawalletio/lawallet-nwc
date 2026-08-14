@@ -103,7 +103,18 @@ See [MONTH-6.md](./roadmap/MONTH-6) and the [Month 6 report](./reports/MONTH-6).
 
 - **MASTER card account-share** — FOREVER QRs + the `CardClaim` / `LightningAddressShare` / `RemoteWalletShare` data model + share-revoke endpoints (the `MASTER` / `FOREVER` enum values are reserved in the schema but not yet implemented)
 - **NWC Proxy Lite** settlement layer + full **LUD-16 / LUD-21 / LUD-22 / NIP-57** closeout (LUD-22 webhook _transport_ already ships via the listener; the spec closeout does not)
-- **`@lawallet-nwc/react`** hooks package extraction
+- **`@lawallet-nwc/sdk` + `@lawallet-nwc/react`** — **delivered.** Scope grew
+  past the planned hooks extraction: the SDK went from stub to a full
+  nostr-first client (per-request NIP-98, no JWT in the public surface),
+  `@lawallet-nwc/react` ships a provider + 12 hooks, cross-origin access was
+  opened (`apps/web/proxy.ts`) with `/api/jwt` deliberately excluded, `/api/events`
+  learned to accept a NIP-98-signed query token, and operators gained
+  `POST /api/lightning-addresses` to issue addresses on a user's behalf. Two
+  reference apps: [`examples/onboarding`](../../examples/onboarding)
+  (self-service claim incl. the paid path) and
+  [`examples/admin-provisioning`](../../examples/admin-provisioning)
+  (operator-issued, proof-of-npub). Docs at `/docs/sdk`. **Remaining:** flip
+  `private: false` and publish to npm.
 - **WordPress plugin** (`lawallet-wordpress`), **Resend** email adapter, **Nostr scheduler**, threat model + security-audit prep, Vercel / Netlify deploy configs
 
 ---
@@ -118,7 +129,7 @@ The active window. Operators can charge users in sats for tier access, users can
 
 - **MASTER card account-share** — the FOREVER-QR flow on top of the shipped SIMPLE / ONE_TIME activation: `CardClaim` / `LightningAddressShare` / `RemoteWalletShare` model + claim / share-revoke endpoints
 - **NWC Proxy Lite** settlement layer + full **LUD-16 / LUD-21 / LUD-22 / NIP-57** closeout
-- **`@lawallet-nwc/react`** hooks package extraction; **WordPress plugin**; **Resend** email adapter (foundation for the email-to-Nostr bridge below); **Nostr scheduler**; threat model + security-audit prep; Vercel / Netlify deploy configs
+- **`@lawallet-nwc/sdk` + `@lawallet-nwc/react`** — delivered (see [SDK docs](./sdk)); **WordPress plugin**; **Resend** email adapter (foundation for the email-to-Nostr bridge below); **Nostr scheduler**; threat model + security-audit prep; Vercel / Netlify deploy configs
 
 **Month 7 scope:**
 
@@ -161,25 +172,25 @@ Group chat threads (NIP-29), operator-hosted paid Nostr relay (strfry/khatru), C
 
 Snapshot of what has shipped so far. This grows each month as deliverables land.
 
-| Area              | State                                                                                                                                                                                                                      |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| API Routes        | 79 route handlers, all wrapped with error handling, Zod validation, and unified auth                                                                                                                                       |
-| Admin Dashboard   | Full Figma rebuild — Home / Users / Activity / Cards / Designs / Settings, fully responsive                                                                                                                                |
-| Wallet UI         | Onboarding, Send / Receive / Scan, offline cache, NWC setup, full settings; **PWA installable** with offline service worker; **Activate Card** flow                                                                        |
-| Remote Wallets    | `RemoteWallet` model + pluggable NWC driver + Connection Map UI (desktop canvas + mobile tabs); LNCurl disposable wallets                                                                                                  |
-| NWC Listener      | Live transport service in `apps/listener/` — relay pool, HMAC webhooks, missed-event recovery, never-drop retry, realtime dashboard                                                                                        |
-| Landing           | Split into the [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing) repo; this app redirects `/` there                                                                                                     |
-| Auth Backend      | NIP-98 → JWT exchange, dual-method (`Authorization: Nostr` or `Bearer`), RBAC with 4 roles, maintenance mode                                                                                                               |
-| Testing           | 108 unit/integration test files (Vitest + MSW + happy-dom) + 8 Playwright E2E specs, CI-enforced coverage thresholds                                                                                                       |
-| Database          | 15 Prisma models incl. `User`, `LightningAddress`, `RemoteWallet`, `Card`, `CardActivationToken`, `CardPaymentAttempt`, `CardDesign`, `Ntag424`, `ActivityLog`, `PluginRecord`, `NostrProfileCache`, `Settings`, `Invoice` |
-| Lightning Address | LUD-12 (comments) + LUD-21 (verify) live; LUD-16 alias / NWC modes; NIP-05 (`.well-known/nostr.json`); LUD-22 webhook _transport_ via listener — full LUD-16/22 + NIP-57 closeout in M7                                    |
-| NFC Cards         | Full NTAG424 encryption, scan, write, OTC activation, BoltCard QR pairing, SIMPLE/ONE_TIME activation tokens                                                                                                               |
-| Backup & Restore  | ADMIN zip export/import of 14 models with optional AES-256-GCM encryption (merge / replace modes)                                                                                                                          |
-| Deploy            | Multi-arch Docker Hub images, Umbrel app-store auto-update, published Start9 `.s9pk`, installer CLI                                                                                                                        |
-| Plugins           | In-codebase plugin system (`apps/web/plugins/`) with a `badges` reference plugin; `pnpm plugin:new` scaffold                                                                                                               |
-| Alby Integration  | Sub-account management via `@getalby/sdk` v7                                                                                                                                                                               |
-| Developer Surface | OpenAPI 3.1 spec + Scalar Playground at [beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs); TS SDK + `@lawallet-nwc/react` extraction in M7                                                                    |
-| Monorepo          | pnpm workspaces + Turborepo — 4 apps (`web`, `docs`, `listener`, `cli`) + 3 packages (`sdk`, `shared`, `openapi`)                                                                                                          |
+| Area              | State                                                                                                                                                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API Routes        | 79 route handlers, all wrapped with error handling, Zod validation, and unified auth                                                                                                                                                                          |
+| Admin Dashboard   | Full Figma rebuild — Home / Users / Activity / Cards / Designs / Settings, fully responsive                                                                                                                                                                   |
+| Wallet UI         | Onboarding, Send / Receive / Scan, offline cache, NWC setup, full settings; **PWA installable** with offline service worker; **Activate Card** flow                                                                                                           |
+| Remote Wallets    | `RemoteWallet` model + pluggable NWC driver + Connection Map UI (desktop canvas + mobile tabs); LNCurl disposable wallets                                                                                                                                     |
+| NWC Listener      | Live transport service in `apps/listener/` — relay pool, HMAC webhooks, missed-event recovery, never-drop retry, realtime dashboard                                                                                                                           |
+| Landing           | Split into the [`lawallet-landing`](https://github.com/lawalletio/lawallet-landing) repo; this app redirects `/` there                                                                                                                                        |
+| Auth Backend      | NIP-98 → JWT exchange, dual-method (`Authorization: Nostr` or `Bearer`), RBAC with 4 roles, maintenance mode                                                                                                                                                  |
+| Testing           | 108 unit/integration test files (Vitest + MSW + happy-dom) + 8 Playwright E2E specs, CI-enforced coverage thresholds                                                                                                                                          |
+| Database          | 15 Prisma models incl. `User`, `LightningAddress`, `RemoteWallet`, `Card`, `CardActivationToken`, `CardPaymentAttempt`, `CardDesign`, `Ntag424`, `ActivityLog`, `PluginRecord`, `NostrProfileCache`, `Settings`, `Invoice`                                    |
+| Lightning Address | LUD-12 (comments) + LUD-21 (verify) live; LUD-16 alias / NWC modes; NIP-05 (`.well-known/nostr.json`); LUD-22 webhook _transport_ via listener — full LUD-16/22 + NIP-57 closeout in M7                                                                       |
+| NFC Cards         | Full NTAG424 encryption, scan, write, OTC activation, BoltCard QR pairing, SIMPLE/ONE_TIME activation tokens                                                                                                                                                  |
+| Backup & Restore  | ADMIN zip export/import of 14 models with optional AES-256-GCM encryption (merge / replace modes)                                                                                                                                                             |
+| Deploy            | Multi-arch Docker Hub images, Umbrel app-store auto-update, published Start9 `.s9pk`, installer CLI                                                                                                                                                           |
+| Plugins           | In-codebase plugin system (`apps/web/plugins/`) with a `badges` reference plugin; `pnpm plugin:new` scaffold                                                                                                                                                  |
+| Alby Integration  | Sub-account management via `@getalby/sdk` v7                                                                                                                                                                                                                  |
+| Developer Surface | OpenAPI 3.1 spec + Scalar Playground at [beta.lawallet.io/api-docs](https://beta.lawallet.io/api-docs); TS SDK (`@lawallet-nwc/sdk`) + `@lawallet-nwc/react` delivered in M7 — nostr-first auth, two reference apps, docs at `/docs/sdk`; npm publish pending |
+| Monorepo          | pnpm workspaces + Turborepo — 4 apps (`web`, `docs`, `listener`, `cli`) + 3 packages (`sdk`, `shared`, `openapi`)                                                                                                                                             |
 
 ---
 

@@ -84,6 +84,12 @@ Both packages are `private: true` but publish-shaped (dist exports, `files`,
 `sideEffects: false`); flipping `private` is the remaining npm-publish step.
 Versioned independently of the app release train (`scripts/release.mjs`).
 
+Two reference apps consume it end to end:
+[`examples/onboarding`](../examples/onboarding) (self-service claim, incl. the
+paid path) and [`examples/admin-provisioning`](../examples/admin-provisioning)
+(operator-issued addresses with proof-of-npub). Both finish in a manager where
+the owner sets an alias or binds their own NWC wallet.
+
 Not yet covered (future work): webhook/notification hooks, NIP-57 zap
 helpers, card administration, and a built-in NIP-46 bunker signer (external
 ones already work).
