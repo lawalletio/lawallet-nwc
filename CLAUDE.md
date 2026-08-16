@@ -28,9 +28,6 @@ packages/
   openapi/      Zod → OpenAPI 3.1 document generation
   sdk/          @lawallet-nwc/sdk — typed API client, NIP-98-signed (docs/SDK.md)
   react/        @lawallet-nwc/react — provider + hooks over the SDK
-examples/
-  onboarding/   Reference webapp: nostr login → paid address claim → NWC setup
-  admin-provisioning/  Operator issues reserved addresses (proof-of-npub + admin auth)
 ```
 
 ## Branch & PR Workflow

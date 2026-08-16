@@ -1,7 +1,6 @@
 packages:
   - 'apps/*'
   - 'packages/*'
-  - 'examples/*'
 
 # Dependency build-script policy. pnpm blocks third-party install/postinstall
 # scripts by default; these lists record the deliberate decision to keep every

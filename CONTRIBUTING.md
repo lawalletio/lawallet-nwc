@@ -41,9 +41,6 @@ packages/
   react/      @lawallet-nwc/react — provider + hooks over the SDK
   shared/     Zod schemas + shared types (source of truth)
   openapi/    Zod → OpenAPI 3.1 document generation
-examples/
-  onboarding/ Reference webapp built on the SDK
-  admin-provisioning/ Operator-issued reserved addresses (SDK + a backend)
 ```
 
 For deeper architectural context, read [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)

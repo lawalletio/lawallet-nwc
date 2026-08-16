@@ -110,11 +110,10 @@ See [MONTH-6.md](./roadmap/MONTH-6) and the [Month 6 report](./reports/MONTH-6).
   opened (`apps/web/proxy.ts`) with `/api/jwt` deliberately excluded, `/api/events`
   learned to accept a NIP-98-signed query token, and operators gained
   `POST /api/lightning-addresses` to issue addresses on a user's behalf. Two
-  reference apps: [`examples/onboarding`](../../examples/onboarding)
-  (self-service claim incl. the paid path) and
-  [`examples/admin-provisioning`](../../examples/admin-provisioning)
-  (operator-issued, proof-of-npub). Docs at `/docs/sdk`. **Remaining:** flip
-  `private: false` and publish to npm.
+  reference apps, since moved to [lawalletio/sdk](https://github.com/lawalletio/sdk):
+  `example-onboarding` (self-service claim incl. the paid path) and
+  `example-admin-provisioning` (operator-issued, proof-of-npub). Docs at
+  `/docs/sdk`. **Remaining:** flip `private: false` and publish to npm.
 - **WordPress plugin** (`lawallet-wordpress`), **Resend** email adapter, **Nostr scheduler**, threat model + security-audit prep, Vercel / Netlify deploy configs
 
 ---
