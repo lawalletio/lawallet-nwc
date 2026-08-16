@@ -95,9 +95,11 @@ Requires an instance running **v2.6.0 or newer** — that release added the
 cross-origin layer, the NIP-98 SSE token and the operator provisioning
 endpoint the SDK depends on.
 
-Two reference apps consume it end to end:
-[`example-onboarding`](../examples/onboarding) (self-service claim, incl. the
-paid path) and [`example-admin-provisioning`](../examples/admin-provisioning)
+Two reference apps consume it end to end, both in
+[lawalletio/sdk](https://github.com/lawalletio/sdk):
+[`example-onboarding`](https://github.com/lawalletio/sdk/tree/main/examples/example-onboarding)
+(self-service claim, incl. the paid path) and
+[`example-admin-provisioning`](https://github.com/lawalletio/sdk/tree/main/examples/example-admin-provisioning)
 (operator-issued addresses with proof-of-npub). Both finish in a manager where
 the owner sets an alias or binds their own NWC wallet.
 
