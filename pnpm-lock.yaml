@@ -26,6 +26,7 @@ overrides:
   js-yaml@<4.3.1: 4.3.1
   nanoid@<3.3.18: 3.3.18
   nanoid@>=4.0.0 <5.1.16: 5.1.16
+  deepmerge-ts@<8.0.0: 8.0.1
 
 importers:
 
@@ -337,7 +338,7 @@ importers:
         version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       nostr-tools:
         specifier: latest
-        version: 2.24.1(typescript@5.9.3)
+        version: 2.24.2(typescript@5.9.3)
       pino:
         specifier: ^10.3.0
         version: 10.3.0
@@ -367,7 +368,7 @@ importers:
         version: 1.0.0-alpha.11(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react-resizable-panels:
         specifier: latest
-        version: 4.12.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 4.12.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       recharts:
         specifier: latest
         version: 3.10.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react-is@17.0.2)(react@19.2.4)(redux@5.0.1)
@@ -541,7 +542,7 @@ importers:
     dependencies:
       nostr-tools:
         specifier: ^2.24.1
-        version: 2.24.1(typescript@5.9.3)
+        version: 2.24.2(typescript@5.9.3)
     devDependencies:
       msw:
         specifier: ^2.12.8
@@ -4096,8 +4097,8 @@ packages:
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
 
-  deepmerge-ts@7.1.5:
-    resolution: {integrity: sha512-HOJkrhaYsweh+W+e74Yn7YStZOilkoPb6fycpwNLKzSPtruFs48nYis0zy5yJz1+ktUhHxoRDJ27RQAWLIJVJw==}
+  deepmerge-ts@8.0.1:
+    resolution: {integrity: sha512-szCXE7YLCvLKR9bFPJcvsezOShdalctSvrgN/LM/QGUEPZQajwjmsMObZ6/DuANT5lxzM/wtO8Feubwdkz8myA==}
     engines: {node: '>=16.0.0'}
 
   define-data-property@1.1.4:
@@ -5839,6 +5840,14 @@ packages:
       typescript:
         optional: true
 
+  nostr-tools@2.24.2:
+    resolution: {integrity: sha512-nVf8tvsDPsZvvtT5csRTrMrdrhTId8wl3IgDHt1BWCuL6J+IlmBOW68SCl7SQ6K0PoxenpLPHSKLo4yj49JybA==}
+    peerDependencies:
+      typescript: '>=5.0.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   nostr-wasm@0.1.0:
     resolution: {integrity: sha512-78BTryCLcLYv96ONU8Ws3Q1JzjlAt+43pWQhIl86xZmWeegYCNLPml7yQ+gG3vR6V5h4XGj+TxO+SS5dsThQIA==}
 
@@ -6285,8 +6294,8 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@4.12.2:
-    resolution: {integrity: sha512-NwY5LCo4WrxVvDh0xoMML6EMLPONP/8ckKcIdpnojxexoatZdjLiRqLJQjQK5CPkd4SYiB/2M5BVrjZBQtOO7Q==}
+  react-resizable-panels@4.12.3:
+    resolution: {integrity: sha512-GHMJWnDXui/3RX4bT+cgBP+N3N2nkwcoZATr/2xLFpqQQe7TlBrE0cGM0dUa9ceT7A90tUrSRsiqgRG+g0/2AA==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
@@ -8160,7 +8169,7 @@ snapshots:
       '@jsr/scure__base': 1.2.6
       '@jsr/std__encoding': 0.224.3
       lru-cache: 10.4.3
-      nostr-tools: 2.24.1(typescript@5.9.3)
+      nostr-tools: 2.24.2(typescript@5.9.3)
       websocket-ts: 2.2.1
       zod: 3.25.76
     transitivePeerDependencies:
@@ -8561,7 +8570,7 @@ snapshots:
   '@prisma/config@6.19.2(magicast@0.3.5)':
     dependencies:
       c12: 3.1.0(magicast@0.3.5)
-      deepmerge-ts: 7.1.5
+      deepmerge-ts: 8.0.1
       effect: 3.21.0
       empathic: 2.0.0
     transitivePeerDependencies:
@@ -11371,7 +11380,7 @@ snapshots:
 
   deep-is@0.1.4: {}
 
-  deepmerge-ts@7.1.5: {}
+  deepmerge-ts@8.0.1: {}
 
   define-data-property@1.1.4:
     dependencies:
@@ -13581,6 +13590,18 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
+  nostr-tools@2.24.2(typescript@5.9.3):
+    dependencies:
+      '@noble/ciphers': 2.1.1
+      '@noble/curves': 2.0.1
+      '@noble/hashes': 2.0.1
+      '@scure/base': 2.0.0
+      '@scure/bip32': 2.0.1
+      '@scure/bip39': 2.0.1
+      nostr-wasm: 0.1.0
+    optionalDependencies:
+      typescript: 5.9.3
+
   nostr-wasm@0.1.0: {}
 
   nypm@0.6.4:
@@ -14043,7 +14064,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.14
 
-  react-resizable-panels@4.12.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  react-resizable-panels@4.12.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)

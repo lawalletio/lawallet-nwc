@@ -117,6 +117,13 @@ overrides:
   # apps/web > @scalar/api-reference-react (5.x).
   nanoid@<3.3.18: 3.3.18
   nanoid@>=4.0.0 <5.1.16: 5.1.16
+  # GHSA-ggr8-5vv4-36mx (high, 2026-08-17): stack exhaustion when merging a
+  # recursive object graph. Patched in 8.0.0. Reached through
+  # apps/web > @prisma/client > prisma > @prisma/config, which pins the exact
+  # version 7.1.5, so the override is the only way up. 8.x keeps the same dual
+  # import/require exports map, so it is a drop-in for @prisma/config's CJS
+  # build; range-scoped so it retires once Prisma ships a patched pin.
+  deepmerge-ts@<8.0.0: 8.0.1
   # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq (high, image-size ICNS/JXL/HEIF
   # DoS) have NO published fix ("Patched versions: <0.0.0", latest is 2.0.2).
   # Resolved by bumping fumadocs-core to 16.8.0 in apps/docs, which drops the
