@@ -49,7 +49,7 @@ export function nwcStatusLabel(status: NwcStatus): string {
   }
 }
 
-interface BalanceState {
+export interface NwcBalanceState {
   /** Current balance in sats. Null while loading or on error. */
   sats: number | null
   loading: boolean
@@ -113,15 +113,22 @@ function installSdkConsolePatch() {
  *
  * When `onTransaction` is provided, subscribes to NIP-47 notifications
  * (`payment_received` / `payment_sent`) for real-time updates.
+ *
+ * Connection changes are silent unless `announceStatus` is set — the wallet
+ * surfaces render `status` inline (RelayErrorBadge) and don't want a toast
+ * on every relay hiccup.
  */
 export function useNwcBalance(
   nwcString: string | null,
   opts?: {
     pollMs?: number
     onTransaction?: (tx: NwcTransactionEvent) => void
+    /** Toast on connect/disconnect transitions. Off by default. */
+    announceStatus?: boolean
   }
-): BalanceState {
+): NwcBalanceState {
   const pollMs = opts?.pollMs ?? DEFAULT_POLL_MS
+  const announceStatus = opts?.announceStatus ?? false
   // Seed lazily from the local cache so a reload paints the last-seen
   // balance immediately. `nwcCacheKey` is synchronous (FNV-1a) so this
   // happens in the same tick as state init — no flash of `null` and no
@@ -232,7 +239,7 @@ export function useNwcBalance(
           // Persist for the next reload; failures (quota, disabled
           // storage) are swallowed by `writeBalance`.
           writeBalance(nwcKey, fresh)
-          if (lastAnnouncedRef.current === 'disconnected') {
+          if (announceStatus && lastAnnouncedRef.current === 'disconnected') {
             toast.success('Wallet reconnected')
           }
           lastAnnouncedRef.current = 'connected'
@@ -246,11 +253,13 @@ export function useNwcBalance(
           // toast every 30 s on a flaky relay.
           if (lastAnnouncedRef.current !== 'disconnected') {
             const isTimeout = /reply timeout/i.test(e.message)
-            toast.error(
-              isTimeout
-                ? 'Wallet relay timed out. Retrying in the background…'
-                : 'Wallet disconnected. Retrying in the background…'
-            )
+            if (announceStatus) {
+              toast.error(
+                isTimeout
+                  ? 'Wallet relay timed out. Retrying in the background…'
+                  : 'Wallet disconnected. Retrying in the background…'
+              )
+            }
             lastAnnouncedRef.current = 'disconnected'
           }
         } finally {
@@ -323,7 +332,7 @@ export function useNwcBalance(
       }
       clientRef.current = null
     }
-  }, [nwcString, pollMs, nonce])
+  }, [nwcString, pollMs, nonce, announceStatus])
 
   return { sats, loading, error, refetch, updatedAt, status, fromCache }
 }

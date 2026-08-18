@@ -3,6 +3,7 @@ import { WalletShell } from '@/components/wallet/wallet-shell'
 import { PwaManager } from '@/components/pwa/pwa-manager'
 import { FirstLoadProgressProvider } from '@/components/pwa/first-load-progress'
 import { RoutePrefetcher } from '@/components/wallet/route-prefetcher'
+import { WalletNwcProvider } from '@/components/wallet/nwc-provider'
 
 export default function WalletAppLayout({
   children
@@ -12,10 +13,12 @@ export default function WalletAppLayout({
   return (
     <FirstLoadProgressProvider>
       <RoutePrefetcher />
-      <WalletShell>
-        {children}
-        <PwaManager />
-      </WalletShell>
+      <WalletNwcProvider>
+        <WalletShell>
+          {children}
+          <PwaManager />
+        </WalletShell>
+      </WalletNwcProvider>
     </FirstLoadProgressProvider>
   )
 }

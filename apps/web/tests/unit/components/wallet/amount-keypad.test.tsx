@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   AmountKeypad,
   parseKeypadValue
@@ -10,13 +10,18 @@ import {
 function Harness({
   initial = '0',
   integerOnly = true,
-  fixedDecimalDigits
+  fixedDecimalDigits,
+  onSubmit,
+  withNote = false
 }: {
   initial?: string
   integerOnly?: boolean
   fixedDecimalDigits?: number
+  onSubmit?: () => void
+  withNote?: boolean
 }) {
   const [value, setValue] = useState(initial)
+  const noteRef = useRef<HTMLInputElement>(null)
   return (
     <>
       <div data-testid="value">{value}</div>
@@ -25,7 +30,10 @@ function Harness({
         onChange={setValue}
         integerOnly={integerOnly}
         fixedDecimalDigits={fixedDecimalDigits}
+        onSubmit={onSubmit}
+        noteRef={withNote ? noteRef : undefined}
       />
+      {withNote && <input ref={noteRef} aria-label="note" />}
     </>
   )
 }
@@ -91,5 +99,49 @@ describe('parseKeypadValue', () => {
   it('parses a valid positive number', () => {
     expect(parseKeypadValue('1234')).toBe(1234)
     expect(parseKeypadValue('1.5')).toBe(1.5)
+  })
+
+  it('types digits and deletes from the physical keyboard', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.keyboard('123')
+    expect(screen.getByTestId('value').textContent).toBe('123')
+    await user.keyboard('{Backspace}')
+    expect(screen.getByTestId('value').textContent).toBe('12')
+  })
+
+  it('submits on Enter', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} />)
+    await user.keyboard('5{Enter}')
+    expect(screen.getByTestId('value').textContent).toBe('5')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores digits typed into a text input but still submits on Enter', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} withNote />)
+    await user.click(screen.getByLabelText('note'))
+    await user.keyboard('7{Enter}')
+    expect(screen.getByTestId('value').textContent).toBe('0')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('hands typing over to the note field on Tab', async () => {
+    const user = userEvent.setup()
+    render(<Harness withNote />)
+    await user.keyboard('12{Tab}')
+    expect(screen.getByTestId('value').textContent).toBe('12')
+    expect(screen.getByLabelText('note')).toHaveFocus()
+  })
+
+  it('hands typing over to the note field on a non-digit key', async () => {
+    const user = userEvent.setup()
+    render(<Harness withNote />)
+    await user.keyboard('12h')
+    expect(screen.getByTestId('value').textContent).toBe('12')
+    expect(screen.getByLabelText('note')).toHaveFocus()
   })
 })

@@ -2,36 +2,24 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useApi } from '@/lib/client/hooks/use-api'
-import { resolveUserNwc } from '@/lib/client/wallet-nwc'
-import { useNwcBalance } from '@/lib/client/use-nwc-balance'
+import { useWalletNwcTransactions } from '@/components/wallet/nwc-provider'
 import { QrDisplay } from '@/components/wallet/shared/qr-display'
 import { useReceiveFlow, receiveActions } from '@/lib/client/wallet-flow-store'
-
-interface UserMeResponse {
-  effectiveNwcString: string | null
-  nwcString: string
-}
 
 export function ReceiveInvoiceStep() {
   const router = useRouter()
   const flow = useReceiveFlow()
-  const { data: me } = useApi<UserMeResponse>('/api/users/me')
-  const effectiveNwc = resolveUserNwc(me)
-
-  // Subscribe to NIP-47 notifications; when we see a payment_received whose
-  // payment hash matches the minted invoice, advance to the summary screen.
-  useNwcBalance(effectiveNwc, {
-    onTransaction: tx => {
-      if (
-        tx.type === 'incoming' &&
-        flow.invoice &&
-        tx.paymentHash === flow.invoice.paymentHash &&
-        tx.settledAt !== null
-      ) {
-        receiveActions.markSettled(tx.paymentHash)
-        router.replace('/wallet/receive/summary')
-      }
+  // Watch the shared NIP-47 subscription; when a payment_received matches
+  // the minted invoice, advance to the summary screen.
+  useWalletNwcTransactions(tx => {
+    if (
+      tx.type === 'incoming' &&
+      flow.invoice &&
+      tx.paymentHash === flow.invoice.paymentHash &&
+      tx.settledAt !== null
+    ) {
+      receiveActions.markSettled(tx.paymentHash)
+      router.replace('/wallet/receive/summary')
     }
   })
 

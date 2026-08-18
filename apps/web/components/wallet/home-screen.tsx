@@ -16,7 +16,10 @@ import {
 import { useApi } from '@/lib/client/hooks/use-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
-import { useNwcBalance } from '@/lib/client/use-nwc-balance'
+import {
+  useWalletNwc,
+  useWalletNwcTransactions
+} from '@/components/wallet/nwc-provider'
 import { listTransactions, type NwcTransaction } from '@/lib/client/nwc'
 import { nwcCacheKey } from '@/lib/client/cache/key'
 import {
@@ -74,15 +77,11 @@ export function HomeScreen() {
   // send/receive/balance/activity should spend from the primary wallet.
   const effectiveNwc = resolveUserNwc(me)
   // Bump on each NIP-47 notification so the recent-activity preview can
-  // refetch without spinning up its own relay subscription. `useNwcBalance`
-  // already maintains one — piggyback on that.
+  // refetch. The layout's provider owns the relay connection, so this
+  // survives navigation instead of resubscribing per screen.
   const [txTick, setTxTick] = useState(0)
-  const { sats, error, loading, fromCache, status, refetch } = useNwcBalance(
-    effectiveNwc,
-    {
-      onTransaction: () => setTxTick(t => t + 1)
-    }
-  )
+  const { sats, error, loading, fromCache, status, refetch } = useWalletNwc()
+  useWalletNwcTransactions(() => setTxTick(t => t + 1))
 
   const { data: settings } = useSettings()
 

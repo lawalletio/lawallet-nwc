@@ -222,6 +222,7 @@ export function SendAmountStep() {
           integerOnly={keypadUsesInteger}
           fixedDecimalDigits={fixedDecimalDigits}
           maxDecimalDigits={maxDecimalDigits}
+          onSubmit={next}
           className="min-h-0 flex-1 grid-rows-4 gap-3"
           buttonClassName="h-full min-h-[58px] rounded-2xl bg-card/90 text-3xl"
         />

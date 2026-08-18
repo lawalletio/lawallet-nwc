@@ -4,7 +4,7 @@ import { ReceiveAmountStep } from '@/components/wallet/receive/amount-step'
 export default function ReceiveAmountPage() {
   return (
     <div className="flex flex-1 flex-col">
-      <ScreenHeader title="Amount" />
+      <ScreenHeader title="Receive" />
       <ReceiveAmountStep />
     </div>
   )

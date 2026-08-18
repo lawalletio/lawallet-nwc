@@ -67,6 +67,7 @@ export function NwcCard({ username }: NwcCardProps = {}) {
   // Real-time balance via NWC — polls every 30s plus subscribes to
   // NIP-47 payment notifications for instant updates.
   const balance = useNwcBalance(nwcString || null, {
+    announceStatus: true,
     onTransaction: tx => {
       const isIncoming = tx.type === 'incoming'
       const amount = `${tx.amountSats.toLocaleString()} sats`
