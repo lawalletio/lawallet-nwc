@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupText } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { NostrConnectForm } from '@/components/shared/nostr-connect-form'
+import { useAuth } from '@/components/admin/auth-context'
 import { cn } from '@/lib/utils'
 
 interface ClaimDialogProps {
@@ -25,6 +26,7 @@ interface ClaimDialogProps {
 
 export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
   const router = useRouter()
+  const { status } = useAuth()
 
   const [step, setStep] = useState<'username' | 'connect'>('username')
   const [username, setUsername] = useState('')
@@ -119,6 +121,11 @@ export function ClaimDialog({ open, onOpenChange, domain }: ClaimDialogProps) {
       return
     }
     setUsernameError(null)
+    // Already signed in — no reason to show the connect step again.
+    if (status === 'authenticated') {
+      handleLoginSuccess()
+      return
+    }
     setStep('connect')
   }
 
