@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ArrowRight } from 'lucide-react'
@@ -40,6 +40,7 @@ export function ReceiveAmountStep() {
   )
   const [description, setDescription] = useState(flow.description)
   const [loading, setLoading] = useState(false)
+  const noteRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     trackEvent(AnalyticsEvent.WALLET_RECEIVE_STARTED)
@@ -82,18 +83,25 @@ export function ReceiveAmountStep() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4 pb-6">
-      <AmountDisplay value={value} />
+    <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-5">
+      <div className="flex min-h-0 flex-1 flex-col justify-between gap-5">
+        <AmountDisplay value={value} className="py-1 pt-2" />
 
-      <AmountKeypad
-        value={value}
-        onChange={setValue}
-        integerOnly
-        disabled={loading}
-      />
+        <AmountKeypad
+          value={value}
+          onChange={setValue}
+          integerOnly
+          disabled={loading}
+          noteRef={noteRef}
+          onSubmit={create}
+          className="min-h-0 flex-1 grid-rows-4 gap-3"
+          buttonClassName="h-full min-h-[58px] rounded-2xl bg-card/90 text-3xl"
+        />
+      </div>
 
-      <div className="pt-6 space-y-3">
+      <div className="space-y-3 pt-1">
         <Input
+          ref={noteRef}
           placeholder="Add a note (optional)"
           value={description}
           onChange={e => setDescription(e.target.value)}

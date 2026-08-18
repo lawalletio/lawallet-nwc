@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, type RefObject } from 'react'
 import { Delete } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +16,13 @@ interface AmountKeypadProps {
   fixedDecimalDigits?: number
   /** Maximum number of digits after the decimal point. Defaults to unlimited. */
   maxDecimalDigits?: number
+  /** Called when the user presses Enter on a physical keyboard. */
+  onSubmit?: () => void
+  /**
+   * Note/comment field to hand typing over to: Tab, or any non-digit
+   * character typed on a physical keyboard, focuses it.
+   */
+  noteRef?: RefObject<HTMLInputElement | HTMLTextAreaElement | null>
   disabled?: boolean
   className?: string
   buttonClassName?: string
@@ -63,6 +71,8 @@ export function AmountKeypad({
   maxDigits = 12,
   fixedDecimalDigits,
   maxDecimalDigits,
+  onSubmit,
+  noteRef,
   disabled,
   className,
   buttonClassName
@@ -126,6 +136,65 @@ export function AmountKeypad({
     onChange(formatFixedDecimalValue(nextDigits, decimalDigits))
   }
 
+  // Physical keyboard mirrors the on-screen keys. Listener lives on the
+  // window so the keypad works without holding focus; refs keep it
+  // subscribed once instead of re-binding on every keystroke.
+  const pressRef = useRef(press)
+  const submitRef = useRef(onSubmit)
+  const noteElRef = useRef(noteRef)
+  useEffect(() => {
+    pressRef.current = press
+    submitRef.current = onSubmit
+    noteElRef.current = noteRef
+  })
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      // Focused buttons/links handle Enter and Space natively.
+      if (target?.closest('button, a')) return
+
+      // Enter submits from anywhere on the page, including the note field.
+      if (event.key === 'Enter') {
+        if (!submitRef.current) return
+        event.preventDefault()
+        submitRef.current()
+        return
+      }
+
+      if (
+        target?.closest('input, textarea, select, [contenteditable="true"]')
+      ) {
+        return
+      }
+
+      const note = noteElRef.current?.current
+      if (note && event.key === 'Tab' && !event.shiftKey) {
+        event.preventDefault()
+        note.focus()
+        return
+      }
+      if (note && event.key.length === 1 && !/^[0-9]$/.test(event.key)) {
+        // Not preventDefault'd: the character lands in the note field.
+        note.focus()
+        return
+      }
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        event.preventDefault()
+        pressRef.current('backspace')
+        return
+      }
+      if (/^[0-9]$/.test(event.key)) {
+        event.preventDefault()
+        pressRef.current(event.key as Key)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   return (
     <div
       className={cn(
@@ -143,7 +212,12 @@ export function AmountKeypad({
           <button
             key={key + index}
             type="button"
-            onClick={() => press(key)}
+            onClick={event => {
+              press(key)
+              // Drop focus so a following Enter submits instead of
+              // re-pressing the clicked digit.
+              event.currentTarget.blur()
+            }}
             className={cn(
               'flex h-14 items-center justify-center rounded-xl bg-card text-2xl font-semibold text-foreground',
               'transition-colors hover:bg-accent active:scale-[0.98] active:bg-accent',

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApi } from '@/lib/client/hooks/use-api'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
-import { useNwcBalance } from '@/lib/client/use-nwc-balance'
+import { useWalletNwcTransactions } from '@/components/wallet/nwc-provider'
 import { listTransactions, type NwcTransaction } from '@/lib/client/nwc'
 import { nwcCacheKey } from '@/lib/client/cache/key'
 import { readRecent, upsertMany } from '@/lib/client/cache/activity-cache'
@@ -24,12 +24,10 @@ export function ActivityScreen() {
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
   const nwcString = resolveUserNwc(me)
 
-  // Reuse the existing balance subscription so an inbound payment refreshes
+  // Reuse the layout provider's connection so an inbound payment refreshes
   // the list in real-time without spinning up a second relay connection.
   const [refreshKey, setRefreshKey] = useState(0)
-  useNwcBalance(nwcString, {
-    onTransaction: () => setRefreshKey(k => k + 1)
-  })
+  useWalletNwcTransactions(() => setRefreshKey(k => k + 1))
 
   const [transactions, setTransactions] = useState<NwcTransaction[]>([])
   const [loadingInitial, setLoadingInitial] = useState(false)

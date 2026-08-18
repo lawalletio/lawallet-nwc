@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
@@ -113,6 +113,25 @@ export function SendPreviewStep() {
     }
   }, [flow.recipient, flow.amountSats, router])
 
+  // Enter mirrors the pay button for keyboard users. Ref keeps the
+  // listener subscribed once while always calling the latest confirm.
+  const confirmRef = useRef<() => void>(() => {})
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Enter') return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      // Focused buttons/links fire their own click on Enter.
+      if (target?.closest('button, a')) return
+      event.preventDefault()
+      confirmRef.current()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   useEffect(() => {
     if (!lightningAddress || flow.recipient?.destination.kind !== 'lnurl-pay') {
       return
@@ -154,12 +173,11 @@ export function SendPreviewStep() {
     }
   }, [quoteKey, flow.recipient, flow.amountSats, flow.comment])
 
-  if (!flow.recipient || flow.amountSats === null) return null
-
   const recipientLabel =
     recipientDetails?.displayName ??
-    flow.recipient.profile?.name ??
-    flow.recipient.raw
+    flow.recipient?.profile?.name ??
+    flow.recipient?.raw ??
+    ''
   const canPay = Boolean(
     effectiveNwc && currentQuote.status === 'ready' && !paying
   )
@@ -201,6 +219,15 @@ export function SendPreviewStep() {
       setPaying(false)
     }
   }
+
+  useEffect(() => {
+    confirmRef.current = () => {
+      if (!canPay) return
+      void confirm()
+    }
+  })
+
+  if (!flow.recipient || flow.amountSats === null) return null
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4">
