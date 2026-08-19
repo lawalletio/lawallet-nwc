@@ -59,6 +59,7 @@ bench-results/
 .source/
 
 .claude/worktrees
+.claude/launch.json
 .lawallet/
 
 # Turborepo

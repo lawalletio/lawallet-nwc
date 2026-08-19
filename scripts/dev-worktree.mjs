@@ -15,6 +15,8 @@ const webEnvPath = join(webDir, '.env.local')
 const listenerEnvPath = join(listenerDir, '.env.local')
 const stateDir = join(root, '.dev')
 const statePath = join(stateDir, 'worktree-env.json')
+const launchPath = join(root, '.claude', 'launch.json')
+const nodeVersion = readFileSync(join(root, '.nvmrc'), 'utf8').trim()
 
 const command = process.argv[2] || 'start'
 const hash = createHash('sha1').update(root).digest('hex').slice(0, 8)
@@ -168,8 +170,58 @@ async function loadOrCreateEnv() {
   writeFileSync(rootEnvPath, renderEnv(env))
   writeFileSync(webEnvPath, renderEnv(env))
   writeFileSync(listenerEnvPath, renderEnv(env))
+  mkdirSync(dirname(launchPath), { recursive: true })
+  writeFileSync(launchPath, `${JSON.stringify(launchConfig(env), null, 2)}\n`)
 
   return env
+}
+
+// `.claude/launch.json` drives the in-app Browser pane. Its ports are
+// per-worktree, so it is generated here (and gitignored) instead of committed
+// with one worktree's ports baked in. `next dev` resolves its port before the
+// .env files load, hence `PORT=` in the shell; the listener reads
+// LISTENER_PORT from its own .env.local.
+function nvm(command) {
+  return `source $HOME/.nvm/nvm.sh && nvm use ${nodeVersion} > /dev/null && ${command}`
+}
+
+function launchConfig(env) {
+  const app = (name, command, port, autoPort) => ({
+    name,
+    runtimeExecutable: '/bin/zsh',
+    runtimeArgs: ['-c', nvm(command)],
+    port,
+    ...(autoPort ? { autoPort: true } : {})
+  })
+
+  return {
+    version: '0.0.1',
+    configurations: [
+      app(
+        'web',
+        `PORT=${env.WEB_PORT} pnpm --filter @lawallet-nwc/web dev`,
+        Number(env.WEB_PORT)
+      ),
+      app(
+        'listener',
+        'pnpm --filter @lawallet-nwc/listener dev',
+        Number(env.LISTENER_PORT)
+      ),
+      app('docs', 'pnpm --filter @lawallet-nwc/docs dev', 3001, true),
+      app(
+        'example-onboarding',
+        'pnpm --filter lawallet-example-onboarding dev',
+        5173,
+        true
+      ),
+      app(
+        'example-admin-provisioning',
+        'pnpm --filter lawallet-example-admin-provisioning dev',
+        5174,
+        true
+      )
+    ]
+  }
 }
 
 function run(name, args, options = {}) {
@@ -368,7 +420,7 @@ async function main() {
 
   if (command === 'env') {
     console.log(
-      `Environment written to:\n- ${rootEnvPath}\n- ${webEnvPath}\n- ${listenerEnvPath}`
+      `Environment written to:\n- ${rootEnvPath}\n- ${webEnvPath}\n- ${listenerEnvPath}\n- ${launchPath}`
     )
     console.log(`Web URL: http://localhost:${env.WEB_PORT}/admin`)
     return
