@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { RefreshCw, Ticket } from 'lucide-react'
+import { ExternalLink, RefreshCw, Ticket } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,30 @@ import {
   type Voucher
 } from '@/lib/client/hooks/use-vouchers'
 import { cn } from '@/lib/utils'
+
+/**
+ * Vouchers arrive from outside the wallet, so the useful question here isn't
+ * "how do I use this page" but "how does a merchant get a coupon to me" —
+ * which is the integrator guide.
+ */
+const VOUCHERS_DOCS_URL = 'https://docs.lawallet.io/docs/integrations/vouchers'
+
+function DocsLink({ className }: { className?: string }) {
+  return (
+    <a
+      href={VOUCHERS_DOCS_URL}
+      target="_blank"
+      rel="noreferrer"
+      className={cn(
+        'inline-flex items-center gap-1 text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground',
+        className
+      )}
+    >
+      How vouchers work
+      <ExternalLink className="size-3" />
+    </a>
+  )
+}
 
 /**
  * `/admin/vouchers` — the signed-in user's coupon stash.
@@ -104,6 +128,7 @@ export default function VouchersPage() {
               Coupons that merchants have issued to your Nostr identity. Show
               the code at the till to redeem.
             </p>
+            <DocsLink className="mt-1" />
           </div>
           <div className="flex gap-2">
             {refreshable.length > 0 ? (
@@ -184,7 +209,10 @@ function EmptyState() {
         automatically. Nothing to set up — though you can restrict which
         services are allowed to send you one.
       </p>
-      <VoucherSettingsDialog />
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <VoucherSettingsDialog />
+        <DocsLink />
+      </div>
     </div>
   )
 }
