@@ -83,8 +83,12 @@ describe('GET /api/cards/[id]/scan', () => {
       ...createCardFixture(),
       design: createCardDesignFixture(),
       user: createUserFixture(),
-      // Card bound to an ACTIVE wallet → it can pay.
-      remoteWallet: { type: 'NWC', config: {}, status: 'ACTIVE' }
+      // Card bound to an ACTIVE wallet that grants sending → it can pay.
+      remoteWallet: {
+        type: 'NWC',
+        config: { mode: 'SEND_RECEIVE' },
+        status: 'ACTIVE'
+      }
     }
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
     vi.mocked(getSettings).mockResolvedValue({
@@ -129,6 +133,33 @@ describe('GET /api/cards/[id]/scan', () => {
         }
       }
     })
+  })
+
+  it('advertises a 0–0 withdraw range for a receive-only wallet', async () => {
+    // Regression: `configured` used to check only that a wallet was ACTIVE, so
+    // a receive-only card advertised a payable range and the callback then
+    // refused the tap with "not enabled for outgoing payments".
+    const card = {
+      ...createCardFixture(),
+      design: createCardDesignFixture(),
+      user: createUserFixture(),
+      remoteWallet: {
+        type: 'NWC',
+        config: { mode: 'RECEIVE', connectionString: 'nostr+walletconnect://x' },
+        status: 'ACTIVE'
+      }
+    }
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const req = createNextRequest(`/api/cards/${card.id}/scan`, {
+      searchParams: { p: 'A'.repeat(32), c: 'B'.repeat(16) }
+    })
+    const res = await ScanGet(req, createParamsPromise({ id: card.id }))
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.minWithdrawable).toBe(0)
+    expect(body.maxWithdrawable).toBe(0)
   })
 
   it('returns public card status JSON when x-request-action: info', async () => {

@@ -15,6 +15,7 @@ import {
 } from '@/lib/validation/schemas'
 import { validateBody, validateQuery } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
+import { resolveNwcModeForCreate } from '@/lib/wallet/nwc-send-capability'
 import { getDriver } from '@/lib/wallet/drivers'
 import { eventBus } from '@/lib/events/event-bus'
 import type {
@@ -161,11 +162,30 @@ export const POST = withErrorHandling(async (request: Request) => {
     })
   }
 
+  // The client sends its own capability probe result, but that probe is a
+  // debounced browser relay round-trip that silently falls back to RECEIVE when
+  // it doesn't finish — which permanently blocks card spends from a wallet that
+  // can pay. Confirm it against the wallet before storing.
+  let configToStore: unknown = parsedConfig.data
+  if (body.type === 'NWC') {
+    const nwcConfig = parsedConfig.data as {
+      connectionString: string
+      mode: 'RECEIVE' | 'SEND_RECEIVE'
+    }
+    configToStore = {
+      ...nwcConfig,
+      mode: await resolveNwcModeForCreate(
+        nwcConfig.connectionString,
+        nwcConfig.mode
+      )
+    }
+  }
+
   const walletId = randomUUID()
   const storedConfig = encryptRemoteWalletConfig(
     walletId,
     body.type,
-    parsedConfig.data
+    configToStore
   )
 
   try {

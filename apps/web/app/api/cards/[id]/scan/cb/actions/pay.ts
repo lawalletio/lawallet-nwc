@@ -42,6 +42,7 @@ import {
   prepareListenerPaymentFastPath,
   resolveListenerBridge
 } from '@/lib/wallet/drivers/listener-transport'
+import { nwcWalletCanSend } from '@/lib/wallet/nwc-send-capability'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { eventBus } from '@/lib/events/event-bus'
 
@@ -117,10 +118,21 @@ export default async function pay(
       ? resumeAttempt(existing)
       : ludError('Card wallet configuration is invalid')
   }
+  // A stored `RECEIVE` mode is re-verified against the wallet here rather than
+  // taken as final — see nwc-send-capability. Without this a wallet whose
+  // pairing-time probe timed out stays unspendable forever, with no way for the
+  // holder to fix it.
   if (
     route.type === 'NWC' &&
-    (resolved.config as { mode?: string }).mode !== 'SEND_RECEIVE'
+    !(await nwcWalletCanSend({
+      walletId: route.walletId,
+      config: resolved.config
+    }))
   ) {
+    logger.warn(
+      { cardId: card.id, walletId: route.walletId },
+      'Card payment refused: wallet does not grant pay_invoice'
+    )
     const existing = await findExactAttempt(card.id, counter, invoice)
     return existing
       ? resumeAttempt(existing)

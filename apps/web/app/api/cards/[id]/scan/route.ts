@@ -16,6 +16,7 @@ import { resolveCardWallet } from '@/lib/wallet/resolve-payment-route'
 import { buildCardInfo } from '@/lib/card-info'
 import { logger } from '@/lib/logger'
 import { derivePrimaryWallet } from '@/lib/wallet/primary-wallet'
+import { nwcWalletCanSend } from '@/lib/wallet/nwc-send-capability'
 
 export const OPTIONS = withErrorHandling(async (_req: NextRequest) => {
   return new NextResponse(null, {
@@ -125,18 +126,30 @@ export const GET = withErrorHandling(
     const primaryWallet = derivePrimaryWallet(
       card.user?.lightningAddresses?.[0]
     )
+    const route = resolveCardWallet({
+      remoteWallet: card.remoteWallet ?? null,
+      defaultRemoteWallet: primaryWallet
+    })
+    // The advertised range has to agree with what the callback will actually
+    // do, so this mirrors the callback's send-capability gate — a wallet that
+    // can only receive is as unspendable as no wallet at all, and advertising
+    // a payable range for it just moves the failure to after the user has
+    // committed to the tap. `nwcWalletCanSend` short-circuits on a stored
+    // SEND_RECEIVE, so the common path stays a pure DB read.
     const configured =
       card.blockedAt === null &&
       card.disabledAt === null &&
-      resolveCardWallet({
-        remoteWallet: card.remoteWallet ?? null,
-        defaultRemoteWallet: primaryWallet
-      }).kind === 'wallet'
+      route.kind === 'wallet' &&
+      (route.type !== 'NWC' ||
+        (await nwcWalletCanSend({
+          walletId: route.walletId,
+          config: route.config
+        })))
 
     // Trace the LNURL-withdraw request so the scan → scan/cb sequence is
-    // correlatable in logs. `configured=false` means the card has no ACTIVE
-    // wallet, so the advertised 0–0 range tells the wallet nothing is payable
-    // up front (the eventual cb would 400 with "not configured for payments").
+    // correlatable in logs. `configured=false` means the card has no wallet it
+    // can spend from, so the advertised 0–0 range tells the wallet nothing is
+    // payable up front rather than letting the cb reject after the tap.
     logger.info({ cardId, configured }, 'Card scan: LNURL-withdraw request')
 
     const response = {

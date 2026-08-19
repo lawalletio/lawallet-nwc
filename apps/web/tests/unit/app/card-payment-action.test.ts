@@ -20,11 +20,18 @@ const mocks = vi.hoisted(() => ({
   preimageMatches: vi.fn(),
   findAttempt: vi.fn(),
   findWallet: vi.fn(),
+  canSend: vi.fn(),
   activity: vi.fn(),
   emit: vi.fn()
 }))
 
 vi.mock('light-bolt11-decoder', () => ({ decode: mocks.decode }))
+
+// Keeps the send gate off the relay: the capability probe itself is covered in
+// tests/unit/lib/wallet/nwc-send-capability.test.ts.
+vi.mock('@/lib/wallet/nwc-send-capability', () => ({
+  nwcWalletCanSend: mocks.canSend
+}))
 
 vi.mock('@/lib/card-payments/attempts', () => ({
   claimCardPaymentAttempt: mocks.claim
@@ -175,6 +182,7 @@ describe('card payment callback action', () => {
     for (const mock of Object.values(mocks)) mock.mockReset()
     vi.spyOn(Date, 'now').mockReturnValue(NOW_SECONDS * 1_000)
     mocks.decode.mockReturnValue(decodedInvoice())
+    mocks.canSend.mockResolvedValue(true)
     mocks.driverForWallet.mockReturnValue({
       driver: { payInvoice: mocks.driverPay },
       config: {
@@ -471,7 +479,35 @@ describe('card payment callback action', () => {
     expect(mocks.driverPay).not.toHaveBeenCalled()
   })
 
+  it('pays through a stale RECEIVE mode once the wallet is re-verified', async () => {
+    // Regression: `mode` is a capability cache written by a browser probe that
+    // silently defaults to RECEIVE, so it cannot be the last word on whether a
+    // spend is allowed — nwcWalletCanSend re-checks and repairs it.
+    const created = attempt({ transport: 'DIRECT' })
+    mocks.canSend.mockResolvedValueOnce(true)
+    mocks.driverForWallet.mockReturnValueOnce({
+      driver: { payInvoice: mocks.driverPay },
+      config: {
+        connectionString: `nostr+walletconnect://${'a'.repeat(64)}?relay=wss%3A%2F%2Frelay.example&secret=${'b'.repeat(64)}`,
+        mode: 'RECEIVE'
+      }
+    })
+    mocks.claim.mockResolvedValue({ outcome: 'CREATED', attempt: created })
+    mocks.driverPay.mockResolvedValue({
+      preimage: '01'.repeat(32),
+      feesPaidSats: 0,
+      feesPaidMsats: 0,
+      transport: 'DIRECT'
+    })
+
+    const response = await pay(request(), card, 7)
+
+    expect(await responseBody(response)).toEqual({ status: 'OK' })
+    expect(mocks.driverPay).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects a receive-only wallet before consuming the tap', async () => {
+    mocks.canSend.mockResolvedValueOnce(false)
     mocks.driverForWallet.mockReturnValueOnce({
       driver: { payInvoice: mocks.driverPay },
       config: {
