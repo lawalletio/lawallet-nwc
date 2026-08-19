@@ -707,7 +707,12 @@ export function DomainOnboardingWizard({
 
   const cleanDomain = domain.trim().toLowerCase()
   const endpointValue = normalizeEndpoint(endpoint)
-  const probeEndpointValue = endpointValue || currentOrigin
+  // A blank endpoint defaults to the domain itself — the same default the
+  // settings route persists, so what we probe is what gets saved. When the
+  // domain fronts another stack the probe falls back to `apiGatewayEndpoint`
+  // (this origin) on its own, so this costs nothing in the rewrite setup.
+  const probeEndpointValue =
+    endpointValue || (cleanDomain ? `https://${cleanDomain}` : currentOrigin)
   const invalidDomain = cleanDomain !== '' && !DOMAIN_PATTERN.test(cleanDomain)
   const lawalletHost = useMemo(
     () => (cleanDomain ? `lawallet.${cleanDomain}` : 'lawallet.example.com'),
@@ -871,11 +876,11 @@ export function DomainOnboardingWizard({
     try {
       await updateSettings({
         domain: cleanDomain,
-        ...(endpointValue ? { endpoint: endpointValue } : {})
+        endpoint: probeEndpointValue
       })
       onConfigured({
         domain: cleanDomain,
-        endpoint: endpointValue || initialEndpoint
+        endpoint: probeEndpointValue
       })
       toast.success('Domain saved')
       setSaving(false)

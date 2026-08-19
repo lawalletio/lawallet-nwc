@@ -15,6 +15,7 @@ import {
 } from '@/lib/settings-auth'
 import { eventBus } from '@/lib/events/event-bus'
 import { probeLud21Support } from '@/lib/lnurl-probe'
+import { buildPublicUrl, parseEndpoint } from '@/lib/public-url-utils'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 /**
@@ -120,7 +121,9 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'registration_ln_enabled',
     'maintenance_enabled',
     'listener_url',
-    'listener_auth_secret'
+    'listener_auth_secret',
+    'domain',
+    'endpoint'
   ])
 
   const body = await validateBody(request, settingsBodySchema)
@@ -130,6 +133,23 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   delete body.domain_verified
   if (shouldResetDomainVerification) {
     body.domain_verified = 'false'
+  }
+
+  // The endpoint must never be left blank once a domain exists: it is what the
+  // SDK, device tokens and LNURL callbacks resolve this instance through, and
+  // an empty value leaves every one of them guessing from the request host.
+  // Saving the domain (or clearing the endpoint) defaults it to the domain
+  // itself — the overwhelmingly common single-host setup. Only routing saves
+  // trigger this, so an unrelated settings write never rewrites the endpoint
+  // (and never resets domain verification as a side effect).
+  if (shouldResetDomainVerification) {
+    const effectiveDomain = body.domain ?? settings.domain ?? ''
+    const effectiveEndpoint = body.endpoint ?? settings.endpoint ?? ''
+    const domainHost = parseEndpoint(effectiveDomain)?.host
+
+    if (domainHost && !effectiveEndpoint.trim()) {
+      body.endpoint = buildPublicUrl(domainHost)
+    }
   }
 
   // Precondition check: if paid registration is enabled after this save,
