@@ -40,13 +40,15 @@ export function VoucherCard({
     >
       <Link
         href={`/admin/vouchers/${voucher.id}`}
-        className="relative block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative block overflow-hidden border-b border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <DesignImage
-          src={voucher.imageUrl}
-          alt=""
-          className="rounded-none border-b border-border"
-        />
+        {/* The zoom lives on a wrapper, not on DesignImage's `img`, so it
+            doesn't fight that element's own opacity transition — and so the
+            "No image" placeholder zooms identically. `overflow-hidden` on the
+            link is what crops the overshoot. */}
+        <div className="transition-transform duration-500 ease-out group-hover:scale-[1.06] motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+          <DesignImage src={voucher.imageUrl} alt="" className="rounded-none" />
+        </div>
         <MerchantOverlay pubkey={voucher.merchantPubkey} />
       </Link>
 
@@ -118,10 +120,13 @@ function MerchantOverlay({ pubkey }: { pubkey: string }) {
   const name = profile?.displayName || profile?.name || truncateNpub(pubkey, 6)
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/70 via-black/35 to-transparent p-3 pb-6">
-      <Avatar className="size-6 shrink-0 ring-1 ring-white/25">
+    // Recedes on hover rather than disappearing: the merchant is why you
+    // recognise the card, so it stays legible enough to keep your place while
+    // the artwork it was covering comes forward.
+    <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2.5 bg-gradient-to-b from-black/70 via-black/35 to-transparent p-3 pb-8 transition-opacity duration-300 ease-out group-hover:opacity-30 motion-reduce:transition-none">
+      <Avatar className="size-9 shrink-0 ring-1 ring-white/25">
         {profile?.picture ? <AvatarImage src={profile.picture} alt="" /> : null}
-        <AvatarFallback className="bg-black/50 text-[9px] text-white">
+        <AvatarFallback className="bg-black/50 text-[11px] font-medium text-white">
           {npubInitials(pubkey)}
         </AvatarFallback>
       </Avatar>
