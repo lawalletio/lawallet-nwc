@@ -69,7 +69,24 @@ export function verifyChallengeEvent(
     )
   }
 
-  if (!verifyEvent(event)) {
+  // `verifyEvent` is handed a freshly built object rather than the caller's:
+  // nostr-tools memoizes its verdict on the event under a symbol key, and an
+  // object that already carries a `true` there short-circuits the check
+  // entirely. This is an exported API taking an event object, so unlike the
+  // server routes — which only ever see JSON-parsed bodies, and JSON can't
+  // carry a symbol — a consumer really can hand over an in-memory event that
+  // `finalizeEvent` or an earlier `verifyEvent` already stamped. Rebuilding
+  // from exactly the signed fields costs one object literal.
+  const candidate = {
+    id: event.id,
+    pubkey: event.pubkey,
+    created_at: event.created_at,
+    kind: event.kind,
+    tags: event.tags,
+    content: event.content,
+    sig: event.sig
+  } as NostrEvent
+  if (!verifyEvent(candidate)) {
     throw new LaWalletError(
       401,
       'Proof event signature is invalid',

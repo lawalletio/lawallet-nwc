@@ -74,6 +74,32 @@ describe('proof of key control', () => {
     expect(error.code).toBe('PROOF_BAD_SIGNATURE')
   })
 
+  it('rejects a spread-tampered event that still carries a cached verdict', async () => {
+    const { signer } = generateSigner()
+    const event = await signChallengeEvent(NONCE, signer)
+    // No JSON round-trip here, unlike the test above. This is an exported
+    // API, so a consumer really can pass the in-memory event `signChallenge
+    // Event` just produced — and object spread carries nostr-tools'
+    // `verifiedSymbol` cache along with the fields, so a naive
+    // `verifyEvent(event)` returns the memoized `true` and never looks at the
+    // flipped signature. Guards the rebuild in `verifyChallengeEvent`.
+    const sig =
+      event.sig.slice(0, -2) + (event.sig.endsWith('00') ? '11' : '00')
+    const tampered = { ...event, sig }
+
+    const error = expectThrow(() => verifyChallengeEvent(tampered, NONCE))
+    expect(error.code).toBe('PROOF_BAD_SIGNATURE')
+  })
+
+  it('rejects spread-tampered content that still carries a cached verdict', async () => {
+    const { signer } = generateSigner()
+    const event = await signChallengeEvent(NONCE, signer)
+    const tampered = { ...event, content: 'evil' }
+
+    const error = expectThrow(() => verifyChallengeEvent(tampered, NONCE))
+    expect(error.code).toBe('PROOF_BAD_SIGNATURE')
+  })
+
   it('rejects a validly signed event of the wrong kind', async () => {
     // A note the user posted elsewhere must not double as an auth proof.
     const secretKey = generateSecretKey()
