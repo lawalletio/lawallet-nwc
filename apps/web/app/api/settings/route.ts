@@ -29,7 +29,6 @@ const SENSITIVE_SETTINGS_KEYS = new Set(['listener_auth_secret'])
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch all settings records from the database
   const settings = await getSettings()
-  const endpoint = settings.endpoint ?? settings.subdomain
   const hasRoot = Boolean(settings.root)
   const responseSettings = {
     ...Object.fromEntries(
@@ -37,8 +36,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         ([key]) => !SENSITIVE_SETTINGS_KEYS.has(key)
       )
     ),
-    endpoint,
-    subdomain: endpoint,
     hasRoot
   }
 
@@ -61,8 +58,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({
       domain: settings.domain,
       domain_verified: settings.domain_verified,
-      endpoint,
-      subdomain: endpoint,
+      endpoint: settings.endpoint,
       hasRoot,
       brand_theme: settings.brand_theme,
       brand_rounding: settings.brand_rounding,
@@ -129,9 +125,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   const body = await validateBody(request, settingsBodySchema)
   const shouldResetDomainVerification =
-    body.domain !== undefined ||
-    body.endpoint !== undefined ||
-    body.subdomain !== undefined
+    body.domain !== undefined || body.endpoint !== undefined
 
   delete body.domain_verified
   if (shouldResetDomainVerification) {
@@ -224,8 +218,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const processedSettings = Object.values(
     Object.entries(body).reduce(
       (acc, [name, value]) => {
-        const normalizedName = name.trim().toLowerCase()
-        const key = normalizedName === 'subdomain' ? 'endpoint' : normalizedName
+        const key = name.trim().toLowerCase()
         acc[key] = { name: key, value }
         return acc
       },

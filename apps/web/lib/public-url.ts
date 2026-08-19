@@ -22,18 +22,16 @@ export interface PublicEndpoint {
  * - `endpoint` — full URL where this instance runs (e.g. `https://app.example.com`).
  *   Bare hosts are accepted; missing protocol falls back to `https://`.
  * - `domain` — the root domain used for the lightning address (e.g. `example.com`).
- * - `subdomain` — legacy: subdomain prefix joined with `domain` (e.g. `app`).
  *
  * Priority:
  * 1. `endpoint` (parsed as URL — protocol respected, https default).
- * 2. Legacy `subdomain` + `domain` → `subdomain.domain` (https default).
- * 3. `domain` only.
- * 4. Request `host` header (fallback for local/dev).
+ * 2. `domain` (https default).
+ * 3. Request `host` header (fallback for local/dev).
  */
 export async function resolvePublicEndpoint(request?: {
   headers: { get: (k: string) => string | null }
 }): Promise<PublicEndpoint> {
-  const settings = await getSettings(['domain', 'endpoint', 'subdomain'], {
+  const settings = await getSettings(['domain', 'endpoint'], {
     cache: 'hot'
   })
 
@@ -45,9 +43,9 @@ export async function resolvePublicEndpoint(request?: {
     }
   }
 
-  const legacyHost = buildPublicHost(settings.domain, settings.subdomain)
-  if (legacyHost) {
-    return { host: legacyHost, url: buildPublicUrl(legacyHost) }
+  const domainHost = buildPublicHost(settings.domain)
+  if (domainHost) {
+    return { host: domainHost, url: buildPublicUrl(domainHost) }
   }
 
   const headerHost = request?.headers.get('host') || 'localhost:3000'
@@ -64,20 +62,19 @@ export async function resolvePublicEndpoint(request?: {
  * the endpoint host.
  *
  * Priority:
- * 1. Legacy `subdomain` + `domain` → `subdomain.domain`.
- * 2. `domain` only.
- * 3. `endpoint` host (instances that never configured a separate domain).
- * 4. Request `host` header, then the request URL's host (fallback for local/dev).
+ * 1. `domain`.
+ * 2. `endpoint` host (instances that never configured a separate domain).
+ * 3. Request `host` header, then the request URL's host (fallback for local/dev).
  */
 export async function resolveAddressDomain(request?: {
   headers: { get: (k: string) => string | null }
   url?: string
 }): Promise<string> {
-  const settings = await getSettings(['domain', 'endpoint', 'subdomain'], {
+  const settings = await getSettings(['domain', 'endpoint'], {
     cache: 'hot'
   })
 
-  const host = buildPublicHost(settings.domain, settings.subdomain)
+  const host = buildPublicHost(settings.domain)
   if (host) return host
 
   return (
@@ -93,7 +90,7 @@ export async function resolveAddressDomain(request?: {
  * actually reachable and clients should send requests.
  *
  * Unlike {@link resolvePublicEndpoint}, this deliberately does **not** fall back
- * to the lightning-address `domain`/`subdomain` settings. An instance served at
+ * to the lightning-address `domain` setting. An instance served at
  * `http://localhost:55067` may advertise a public address domain of
  * `lacrypta.ar` for LUD-16, but a device token must be bound to the former — the
  * URL the device will actually call — not the latter.

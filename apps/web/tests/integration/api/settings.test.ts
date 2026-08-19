@@ -88,7 +88,6 @@ describe('GET /api/settings', () => {
       root: mockPubkey,
       domain: 'test.com',
       endpoint: 'app',
-      subdomain: 'app',
       hasRoot: true,
       // Computed NWC-listener keys (full response only)
       listener_enabled: 'false',
@@ -135,7 +134,6 @@ describe('GET /api/settings', () => {
     expect(body).toEqual({
       domain: 'test.com',
       endpoint: 'app',
-      subdomain: 'app',
       hasRoot: true
     })
   })
@@ -156,16 +154,14 @@ describe('GET /api/settings', () => {
     expect(body).toEqual({
       domain: 'test.com',
       endpoint: 'app',
-      subdomain: 'app',
       hasRoot: true
     })
   })
 
-  it('falls back to legacy subdomain setting when endpoint is missing', async () => {
+  it('omits endpoint when it is not configured', async () => {
     vi.mocked(validateNip98Auth).mockRejectedValue(new Error('no auth'))
     vi.mocked(getSettings).mockResolvedValue({
-      domain: 'test.com',
-      subdomain: 'wallet'
+      domain: 'test.com'
     })
 
     const req = createNextRequest('/api/settings')
@@ -174,8 +170,6 @@ describe('GET /api/settings', () => {
 
     expect(body).toEqual({
       domain: 'test.com',
-      endpoint: 'wallet',
-      subdomain: 'wallet',
       hasRoot: false
     })
   })
@@ -251,14 +245,14 @@ describe('POST /api/settings', () => {
     expect(prismaMock.settings.upsert).toHaveBeenCalledTimes(3)
   })
 
-  it('maps subdomain updates to the endpoint setting', async () => {
+  it('resets domain verification when the endpoint changes', async () => {
     vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
     vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
     vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
 
     const req = createNextRequest('/api/settings', {
       method: 'POST',
-      body: { subdomain: 'wallet' }
+      body: { endpoint: 'wallet' }
     })
     const res = await POST(req)
     const body = await assertResponse(res, 200)

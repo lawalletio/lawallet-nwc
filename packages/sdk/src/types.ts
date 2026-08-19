@@ -10,7 +10,6 @@ export interface PublicInstanceSettings {
   domain_verified: string | null
   /** Public origin the instance is reachable at. */
   endpoint: string | null
-  subdomain: string | null
   hasRoot: boolean
   brand_theme: string | null
   brand_rounding: string | null

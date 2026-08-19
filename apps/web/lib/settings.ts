@@ -7,7 +7,6 @@ const HOT_SETTING_KEYS = [
   'root',
   'domain',
   'endpoint',
-  'subdomain',
   'listener_enabled',
   'listener_url',
   'listener_auth_secret'

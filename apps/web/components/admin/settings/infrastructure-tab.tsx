@@ -180,7 +180,7 @@ export function InfrastructureTab() {
   }
 
   const [domain, setDomain] = useState('')
-  const [subdomain, setSubdomain] = useState('')
+  const [endpoint, setEndpoint] = useState('')
   const [currentOrigin, setCurrentOrigin] = useState('')
 
   const [relays, setRelays] = useState<string[]>([''])
@@ -215,7 +215,7 @@ export function InfrastructureTab() {
   const loadFromSettings = useCallback(() => {
     if (!settings) return
     setDomain(settings.domain ?? '')
-    setSubdomain(settings.subdomain ?? settings.endpoint ?? '')
+    setEndpoint(settings.endpoint ?? '')
     setRelays(parseStringArray(settings.relays))
     setBlossomServers(
       parseStringArray(settings.blossom_servers, DEFAULT_BLOSSOM_SERVERS)
@@ -288,7 +288,7 @@ export function InfrastructureTab() {
   // Per-field validity — empty inputs are treated as valid (they're simply
   // not included in the save payload). Only non-empty, malformed values flag.
   const domainInvalid = domain.trim() !== '' && !isValidDomain(domain)
-  const endpointInvalid = !isValidEndpoint(subdomain)
+  const endpointInvalid = !isValidEndpoint(endpoint)
   const relayInvalid = relays.map(
     r => r.trim() !== '' && !isValidUrlWithProtocol(r, WS_PROTOCOLS)
   )
@@ -298,7 +298,7 @@ export function InfrastructureTab() {
   const smtpHostInvalid = smtpHost.trim() !== '' && !isValidDomain(smtpHost)
   const gtagIdInvalid = !isValidGtagId(gtagId)
   const savedDomain = settings?.domain?.trim().toLowerCase() ?? ''
-  const savedEndpoint = (settings?.endpoint ?? settings?.subdomain ?? '')
+  const savedEndpoint = (settings?.endpoint ?? '')
     .trim()
     .replace(/\/+$/, '')
     .toLowerCase()
@@ -462,7 +462,7 @@ export function InfrastructureTab() {
   const previewDomain = domain.trim().toLowerCase() || 'your-domain.com'
   const visibleDomainMatchesSaved = domain.trim().toLowerCase() === savedDomain
   const visibleEndpointMatchesSaved =
-    subdomain.trim().replace(/\/+$/, '').toLowerCase() === savedEndpoint
+    endpoint.trim().replace(/\/+$/, '').toLowerCase() === savedEndpoint
   const domainRoutingEdited =
     hasConfiguredDomain &&
     (!visibleDomainMatchesSaved || !visibleEndpointMatchesSaved)
@@ -511,15 +511,15 @@ export function InfrastructureTab() {
         open={domainWizardOpen}
         onOpenChange={setDomainWizardOpen}
         initialDomain={domain}
-        initialEndpoint={subdomain}
+        initialEndpoint={endpoint}
         currentOrigin={currentOrigin}
         latestProbeResult={latestDomainProbeResult}
         latestProbeError={latestDomainProbeError}
         latestProbeChecking={false}
         updateSettings={saveSetting}
-        onConfigured={({ domain: nextDomain, endpoint }) => {
+        onConfigured={({ domain: nextDomain, endpoint: nextEndpoint }) => {
           setDomain(nextDomain)
-          setSubdomain(endpoint)
+          setEndpoint(nextEndpoint)
           setDomainConnectionEditorOpen(false)
           lastAutoProbeKey.current = null
         }}
@@ -666,8 +666,8 @@ export function InfrastructureTab() {
                 <Label>This instance endpoint</Label>
                 <Input
                   placeholder={currentOrigin || 'https://app.domain.com'}
-                  value={subdomain}
-                  onChange={e => setSubdomain(e.target.value)}
+                  value={endpoint}
+                  onChange={e => setEndpoint(e.target.value)}
                   aria-invalid={endpointInvalid || undefined}
                   className={cn(endpointInvalid && INVALID_CLASSES)}
                 />
