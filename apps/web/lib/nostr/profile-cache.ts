@@ -43,8 +43,16 @@ export async function resolveProfiles(
   // (mirrored on User.pubkey) OR as a linked NostrIdentity. Secondary
   // identities only live in NostrIdentity, so gating on User.pubkey alone
   // would drop their profiles (and their avatars on /admin/account).
+  //
+  // A pubkey referenced by a stored Voucher is resolvable too. Merchants and
+  // coupon-manager services are never accounts here, but their keys are
+  // already in our database because somebody deposited a coupon naming them —
+  // so resolving them leaks nothing new and is what puts a real name and
+  // avatar on the voucher detail page. The anti-relay-proxy property holds:
+  // the caller still cannot ask for an arbitrary pubkey, only one this
+  // instance already stores.
   const candidatePubkeys = normalized.map(n => n.pubkey)
-  const [users, identities] = await Promise.all([
+  const [users, identities, vouchers] = await Promise.all([
     db.user.findMany({
       where: { pubkey: { in: candidatePubkeys } },
       select: { pubkey: true }
@@ -52,11 +60,22 @@ export async function resolveProfiles(
     db.nostrIdentity.findMany({
       where: { pubkey: { in: candidatePubkeys } },
       select: { pubkey: true }
+    }),
+    db.voucher.findMany({
+      where: {
+        OR: [
+          { merchantPubkey: { in: candidatePubkeys } },
+          { servicePubkey: { in: candidatePubkeys } }
+        ]
+      },
+      select: { merchantPubkey: true, servicePubkey: true },
+      distinct: ['merchantPubkey', 'servicePubkey']
     })
   ])
   const registeredPubkeys = new Set([
     ...users.map(u => u.pubkey),
-    ...identities.map(i => i.pubkey)
+    ...identities.map(i => i.pubkey),
+    ...vouchers.flatMap(v => [v.merchantPubkey, v.servicePubkey])
   ])
   const registered = normalized.filter(n => registeredPubkeys.has(n.pubkey))
   if (registered.length === 0) return []

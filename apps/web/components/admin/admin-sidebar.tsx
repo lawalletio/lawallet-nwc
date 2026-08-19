@@ -16,6 +16,7 @@ import {
   Settings,
   ChevronLeft,
   Nfc,
+  Ticket,
   MoreVertical,
   Copy,
   LogOut,
@@ -92,6 +93,15 @@ const platformItems: NavItem[] = [
     title: 'Cards',
     href: '/admin/cards',
     icon: CreditCard
+  },
+  // Vouchers is shown to every authenticated user — no `permission` set. The
+  // stash is per-user (scoped by the caller's pubkey via
+  // /api/wallet/vouchers), and vouchers are deposited by external coupon
+  // services rather than created here, so there is nothing admin-only about it.
+  {
+    title: 'Vouchers',
+    href: '/admin/vouchers',
+    icon: Ticket
   },
   // Addresses is shown to every authenticated user — no `permission` set.
   // The page itself is per-user (driven by the caller's pubkey via

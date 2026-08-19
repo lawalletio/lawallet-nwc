@@ -206,6 +206,25 @@ enum WebAuthnFlow {
   EXPORT
 }
 
+/// Lifecycle of a stored coupons-protocol voucher. Mirrors the status a
+/// coupon-manager service reports from `GET {claimUrl}?nonce=`
+/// (`minted | claimed | expired | voided`). CLAIMED and VOIDED are terminal:
+/// a burned coupon must never come back to life — see `lib/vouchers/transition.ts`.
+enum VoucherStatus {
+  MINTED
+  CLAIMED
+  EXPIRED
+  VOIDED
+}
+
+/// Who may deposit vouchers to a user's stash via `POST /api/vouchers`.
+/// Every deposit is NIP-98 authenticated regardless; this narrows *which*
+/// signers the recipient accepts.
+enum VoucherDepositPolicy {
+  ANYONE
+  ALLOWLIST
+}
+
 model User {
   id                                 String                             @id
   pubkey                             String                             @unique
@@ -235,6 +254,14 @@ model User {
   managedNostrKey                    ManagedNostrKey?
   nostrIdentities                    NostrIdentity[]
   walletForwardReceipts              RemoteWalletForwardReceipt[]
+  vouchers                           Voucher[]
+  /// Who may deposit vouchers to this account. Deposits are always NIP-98
+  /// signed; ALLOWLIST additionally restricts *which* signers are accepted.
+  voucherDepositPolicy               VoucherDepositPolicy               @default(ANYONE)
+  /// Hex pubkeys allowed to deposit while `voucherDepositPolicy` is ALLOWLIST.
+  /// Always stored hex — npub and NIP-05 input is resolved on save so the
+  /// deposit hot path is a plain array membership test.
+  voucherSenderAllowlist             String[]                           @default([])
 
   @@index([role])
 }
@@ -1042,4 +1069,66 @@ model PluginRecord {
 
   @@unique([pluginId, kind, key])
   @@index([pluginId, kind])
+}
+
+// A coupon held on a user's behalf, compatible with the lacrypta/coupons
+// protocol (https://github.com/lacrypta/coupons). External coupon-manager
+// services (CMS) mint coupons and deposit them here against a member's npub;
+// the instance stores and displays them, and the merchant's POS burns them.
+//
+// Custodial by construction: the nonce is a bearer credential sitting in this
+// table, and the CMS's own database — not this one — is the authority on
+// whether a coupon has been spent. A future protocol version should carry
+// vouchers as ecash (Cashu, NIP-60/61) so the bearer value is blinded and the
+// operator can't read it. See docs/services/VOUCHERS.md.
+model Voucher {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The coupon code: 22-char base64url nonce, and the *only* credential
+  /// needed to redeem. Unique per issuing service rather than globally —
+  /// two independent CMSs can legitimately mint the same 16 random bytes.
+  nonce          String
+  /// Coupon *definition* id (uuid) on the issuing service. Many vouchers
+  /// share one definition.
+  couponId       String?
+  name           String
+  description    String?
+  imageUrl       String?
+  /// Merchant that accepts this voucher (hex pubkey).
+  merchantPubkey String
+  /// Coupon-manager service that signed the voucher (hex pubkey). Together
+  /// with `nonce` this is the row's natural key.
+  servicePubkey  String
+  /// Service endpoints from the merchant's kind-30078 announcement.
+  /// `claimUrl` is what the status refresh polls; `mintUrl` is stored for
+  /// completeness so a later phase can re-mint or deep-link without a
+  /// second discovery round-trip.
+  claimUrl       String
+  mintUrl        String?
+  /// The protocol `Benefit` plus any extra conditions, verbatim. Opaque on
+  /// purpose: the benefit union grows upstream (percent, fixed, multibuy,
+  /// buyXgetY, freeItems, …) and a new type must not require a migration.
+  metadata       Json?
+  /// The CMS-signed kind-20402 event, stored verbatim as provenance so the
+  /// voucher stays independently verifiable long after deposit. Null when the
+  /// depositor posted plain fields instead of a signed event.
+  voucherEvent   Json?
+
+  status          VoucherStatus @default(MINTED)
+  expiresAt       DateTime?
+  claimedAt       DateTime?
+  /// Last time `claimUrl` was polled. Backs the refresh cooldown so the
+  /// button can't be used to hammer a third-party service.
+  statusCheckedAt DateTime?
+  /// NIP-98 pubkey that deposited this row — audit trail, and what an owner
+  /// needs in order to build a sender allowlist after the fact.
+  depositedBy     String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([servicePubkey, nonce])
+  @@index([userId, status])
+  @@index([userId, createdAt])
 }

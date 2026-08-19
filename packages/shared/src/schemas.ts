@@ -1225,3 +1225,145 @@ export const updateIdentityRequestSchema = z
     message: 'Provide isPrimary or label'
   })
 export type UpdateIdentityRequest = z.infer<typeof updateIdentityRequestSchema>
+
+// ── Vouchers (lacrypta/coupons protocol) ─────────────────────────────────────
+//
+// A voucher is a coupon minted by an external coupon-manager service (CMS) and
+// deposited against a member's npub. See docs/services/VOUCHERS.md for the
+// protocol mapping and the ecash migration note.
+
+/**
+ * The coupons protocol pins the coupon code to exactly 22 characters — the
+ * base64url encoding of 16 random bytes — in its OpenAPI document
+ * (`minLength: 22, maxLength: 22`). Rejecting anything else early keeps a
+ * malformed code from reaching a third-party service as a query parameter.
+ */
+export const VOUCHER_NONCE_LENGTH = 22
+
+/** Upper bound for a service endpoint URL. Same budget as a media URL. */
+export const VOUCHER_URL_MAX_LENGTH = MEDIA_URL_MAX_LENGTH
+
+export const voucherStatusSchema = z.enum([
+  'MINTED',
+  'CLAIMED',
+  'EXPIRED',
+  'VOIDED'
+])
+export type VoucherStatus = z.infer<typeof voucherStatusSchema>
+
+export const voucherDepositPolicySchema = z.enum(['ANYONE', 'ALLOWLIST'])
+export type VoucherDepositPolicy = z.infer<typeof voucherDepositPolicySchema>
+
+/**
+ * A pubkey as a *caller* may write it: 64-char hex or `npub1…`. Normalized to
+ * hex in the route via `normalizeNostrPubkey`, which is also what rejects
+ * other NIP-19 types (nsec, note, nprofile). Kept loose here so the caller
+ * gets "Invalid Nostr public key" rather than a regex dump.
+ */
+export const nostrPubkeyInputSchema = z.string().trim().min(1).max(128)
+
+/**
+ * An allowlist entry as typed by the owner: hex, `npub1…`, or a NIP-05
+ * identifier (`name@domain`). Resolved to hex on save.
+ */
+export const voucherSenderInputSchema = z.string().trim().min(1).max(128)
+
+/**
+ * Service endpoint URL. The scheme is *not* constrained here: production
+ * requires https, but the coupons spec explicitly allows localhost in dev, and
+ * that's an environment-dependent rule the route enforces rather than a shape
+ * rule Zod can express once for both.
+ */
+const voucherServiceUrlSchema = z
+  .string()
+  .trim()
+  .url('Must be a valid URL')
+  .max(VOUCHER_URL_MAX_LENGTH, 'URL too long')
+
+/** Body of `POST /api/vouchers` — the public (NIP-98 authed) deposit. */
+export const depositVoucherSchema = z.object({
+  /** Recipient account, as npub or hex. */
+  npub: nostrPubkeyInputSchema,
+  /** The coupon code. Also present inside `voucherEvent` when one is sent. */
+  nonce: z
+    .string()
+    .trim()
+    .length(
+      VOUCHER_NONCE_LENGTH,
+      `Nonce must be ${VOUCHER_NONCE_LENGTH} characters`
+    ),
+  /** Coupon definition id on the issuing service. */
+  couponId: z.string().uuid('Coupon id must be a UUID').optional(),
+  /** Upstream caps the definition name at 80 characters. */
+  name: z.string().trim().min(1, 'Name is required').max(80, 'Name too long'),
+  /** Upstream caps the definition description at 500 characters. */
+  description: z.string().trim().max(500, 'Description too long').optional(),
+  image: imageUrlSchema.optional(),
+  merchantPubkey: nostrPubkeyInputSchema,
+  /**
+   * The signing CMS. Optional: when omitted, the NIP-98 signer *is* the
+   * service. When a `voucherEvent` is supplied, its `pubkey` must match.
+   */
+  servicePubkey: nostrPubkeyInputSchema.optional(),
+  claimUrl: voucherServiceUrlSchema,
+  mintUrl: voucherServiceUrlSchema.optional(),
+  /**
+   * The protocol `Benefit` plus any extra conditions. Deliberately opaque —
+   * the benefit union grows upstream and this instance only renders it.
+   */
+  metadata: z.record(z.unknown()).optional(),
+  /** Expiry as unix seconds, matching the protocol's `expiration` tag. */
+  expiresAt: z.number().int().positive().optional(),
+  /**
+   * The CMS-signed kind-20402 voucher event. Optional, but when present it is
+   * verified and its values win over the plain fields above — a signature
+   * beats an assertion.
+   */
+  voucherEvent: z.record(z.unknown()).optional()
+})
+export type DepositVoucherRequest = z.infer<typeof depositVoucherSchema>
+
+export const voucherListQuerySchema = z.object({
+  status: voucherStatusSchema.optional()
+})
+
+export const voucherIdParam = z.object({
+  id: z.string().min(1, 'Voucher ID is required')
+})
+
+/** Body of `PUT /api/wallet/vouchers/settings`. */
+export const updateVoucherSettingsSchema = z.object({
+  policy: voucherDepositPolicySchema,
+  /**
+   * Senders accepted while the policy is ALLOWLIST. Capped at 50 because each
+   * unresolved NIP-05 entry costs one outbound request on save.
+   */
+  allowlist: z.array(voucherSenderInputSchema).max(50, 'Too many senders')
+})
+export type UpdateVoucherSettingsRequest = z.infer<
+  typeof updateVoucherSettingsSchema
+>
+
+/**
+ * The status vocabulary a coupon-manager service reports from
+ * `GET {claimUrl}?nonce=`. Lowercase on the wire, uppercase in our enum.
+ */
+export const couponServiceStatusSchema = z.enum([
+  'minted',
+  'claimed',
+  'expired',
+  'voided'
+])
+
+/**
+ * The subset of a service's claim-preview response we actually consume.
+ * `.passthrough()` because the full payload carries the benefit and merchant
+ * fields too, and an upstream addition must not fail the status refresh.
+ */
+export const couponClaimPreviewSchema = z
+  .object({
+    status: couponServiceStatusSchema,
+    claimedAt: z.union([z.string(), z.number()]).nullish(),
+    expiresAt: z.union([z.string(), z.number()]).nullish()
+  })
+  .passthrough()
