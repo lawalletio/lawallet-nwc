@@ -9,6 +9,7 @@ export const voucherSelect = {
   name: true,
   description: true,
   imageUrl: true,
+  url: true,
   merchantPubkey: true,
   servicePubkey: true,
   claimUrl: true,
@@ -36,6 +37,8 @@ export interface VoucherDto {
   name: string
   description: string | null
   imageUrl: string | null
+  /** Merchant's offer page. Always rendered with `rel="noopener noreferrer"`. */
+  url: string | null
   merchantPubkey: string
   servicePubkey: string
   claimUrl: string
@@ -62,6 +65,7 @@ export function toVoucherDto(row: VoucherRow): VoucherDto {
     name: row.name,
     description: row.description,
     imageUrl: row.imageUrl,
+    url: row.url,
     merchantPubkey: row.merchantPubkey,
     servicePubkey: row.servicePubkey,
     claimUrl: row.claimUrl,

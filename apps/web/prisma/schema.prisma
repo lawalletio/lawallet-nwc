@@ -1096,6 +1096,11 @@ model Voucher {
   name           String
   description    String?
   imageUrl       String?
+  /// Where to read more about the offer — the merchant's product or campaign
+  /// page. Rendered as a clickable link, so the scheme is constrained to
+  /// http(s) on the way in (`externalUrlSchema`): an `<a href>` executes
+  /// `javascript:` on click.
+  url            String?
   /// Merchant that accepts this voucher (hex pubkey).
   merchantPubkey String
   /// Coupon-manager service that signed the voucher (hex pubkey). Together

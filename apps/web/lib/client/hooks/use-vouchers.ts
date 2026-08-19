@@ -56,6 +56,8 @@ export interface Voucher {
   name: string
   description: string | null
   imageUrl: string | null
+  /** Merchant's offer page, when the issuer supplied one. */
+  url: string | null
   merchantPubkey: string
   servicePubkey: string
   claimUrl: string

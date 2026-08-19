@@ -22,6 +22,7 @@ const voucherSchema = z
     name: z.string(),
     description: z.string().nullable(),
     imageUrl: z.string().nullable(),
+    url: z.string().nullable(),
     merchantPubkey: z.string(),
     servicePubkey: z.string(),
     claimUrl: z.string(),

@@ -38,6 +38,7 @@ Content-Type: application/json
   "name": "20% off any coffee",
   "description": "Valid on any single drink, one per customer.",
   "image": "https://cdn.example.com/coffee.png",
+  "url": "https://cafe.example.com/promos/spring-coffee",
   "merchantPubkey": "npub1…",
   "servicePubkey": "npub1…",
   "claimUrl": "https://merchant.example.com/api/coupons/claim",
@@ -48,7 +49,9 @@ Content-Type: application/json
 }
 ```
 
-Every field except `npub`, `nonce`, `name`, `merchantPubkey`, and `claimUrl` is optional. `npub`, `merchantPubkey`, and `servicePubkey` accept either an `npub1…` or a 64-character hex pubkey.
+Every field except `npub`, `nonce`, `name`, `merchantPubkey`, and `claimUrl` is optional.
+
+`url` is an optional link to your offer or product page, shown on the voucher's detail page labelled with its host. It must be `http(s)` — `javascript:`, `data:` and `file:` are rejected, because that value ends up in an `<a href>`. `npub`, `merchantPubkey`, and `servicePubkey` accept either an `npub1…` or a 64-character hex pubkey.
 
 ### Authentication
 

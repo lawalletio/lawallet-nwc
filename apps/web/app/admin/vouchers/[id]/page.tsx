@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ChevronLeft,
+  ExternalLink,
   Eye,
   EyeOff,
   RefreshCw,
@@ -173,10 +174,39 @@ function Hero({ voucher }: { voucher: Voucher }) {
         {voucher.description ? (
           <p className="text-sm text-muted-foreground">{voucher.description}</p>
         ) : null}
+        {voucher.url ? (
+          // `noopener noreferrer` and the http(s) scheme guard applied on the
+          // way in (`externalUrlSchema`) are both load-bearing: this href is
+          // supplied by whoever deposited the voucher, not by us.
+          <a
+            href={voucher.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-foreground underline underline-offset-2 hover:opacity-80"
+          >
+            {offerHost(voucher.url)}
+            <ExternalLink className="size-3.5" />
+          </a>
+        ) : null}
         <Timing voucher={voucher} />
       </div>
     </section>
   )
+}
+
+/**
+ * Label the offer link with its host rather than a generic "Learn more".
+ *
+ * The destination is third-party and arrives with the voucher, so showing
+ * where the click actually goes is the honest thing to put on it — the same
+ * reason a mail client surfaces the domain.
+ */
+function offerHost(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, '')
+  } catch {
+    return 'View offer'
+  }
 }
 
 function Timing({ voucher }: { voucher: Voucher }) {

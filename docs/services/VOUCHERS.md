@@ -55,6 +55,21 @@ that it is unauthenticated. `app/api/vouchers/route.ts`:
    without a reload. This is the _only_ path that makes a new voucher
    appear, since the deposit originates outside the browser.
 
+### Untrusted URLs
+
+Three fields on a deposit are third-party URLs, and each has a different sink:
+
+| Field                  | Sink                | Guard                                                                          |
+| ---------------------- | ------------------- | ------------------------------------------------------------------------------ |
+| `claimUrl` / `mintUrl` | Server-side `fetch` | `assertServiceUrl` on input, plus DNS-pinned SSRF checks on every poll         |
+| `image`                | `<img src>`         | `imageUrlSchema` — http(s) only                                                |
+| `url`                  | `<a href>`          | `externalUrlSchema` — http(s) only, plus `rel="noopener noreferrer"` at render |
+
+The image and link guards share one predicate (`isHttpUrl` in
+`packages/shared/src/schemas.ts`) so they cannot drift. The link is the
+sharper of the two: `javascript:` is inert in an `<img src>` but executes
+from an `<a href>` on click.
+
 ## Status refresh (`POST /api/wallet/vouchers/{id}/refresh`)
 
 `lib/vouchers/status.ts` polls the service's claim preview. The URL comes

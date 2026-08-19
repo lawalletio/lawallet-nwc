@@ -287,6 +287,43 @@ describe('POST /api/vouchers', () => {
     expect(response.status).toBe(400)
   })
 
+  it('stores an optional offer url', async () => {
+    mockAuth()
+    mockRecipient()
+
+    await Deposit(
+      request(body({ url: 'https://cafe.example.com/promos/spring' }))
+    )
+
+    const args = vi.mocked(prismaMock.voucher.upsert).mock.calls[0][0] as any
+    expect(args.create.url).toBe('https://cafe.example.com/promos/spring')
+  })
+
+  it('defaults the offer url to null when omitted', async () => {
+    mockAuth()
+    mockRecipient()
+
+    await Deposit(request(body()))
+
+    const args = vi.mocked(prismaMock.voucher.upsert).mock.calls[0][0] as any
+    expect(args.create.url).toBeNull()
+  })
+
+  it.each([
+    ['javascript:alert(1)'],
+    ['data:text/html,<script>alert(1)</script>'],
+    ['file:///etc/passwd']
+  ])('rejects %s as an offer url', async url => {
+    // This value ends up in an `<a href>`, where `javascript:` executes on
+    // click — zod 3's `.url()` accepts all three on its own.
+    mockAuth()
+    mockRecipient()
+
+    const response = await Deposit(request(body({ url })))
+    expect(response.status).toBe(400)
+    expect(prismaMock.voucher.upsert).not.toHaveBeenCalled()
+  })
+
   it('rejects a nonce that is not 22 characters', async () => {
     mockAuth()
     mockRecipient()

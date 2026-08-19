@@ -39,24 +39,50 @@ export const MEDIA_URL_MAX_LENGTH = 2048
  * with an explicit, much smaller byte budget rather than reusing
  * `MEDIA_URL_MAX_LENGTH`.
  */
+/**
+ * The scheme guard behind {@link imageUrlSchema} and {@link externalUrlSchema}.
+ *
+ * Extracted so the two cannot drift: this is a security control, and a second
+ * copy of it is a second thing to forget when the rule changes. `javascript:`
+ * is the case that matters — inert in an `<img src>`, but it *executes* from
+ * an `<a href>` on click.
+ */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(value)
+    return (
+      (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
+    )
+  } catch {
+    return false
+  }
+}
+
 export const imageUrlSchema = z
   .string()
   .trim()
   .url('Image URL must be a valid URL')
   .max(MEDIA_URL_MAX_LENGTH, 'Image URL too long')
-  .refine(
-    value => {
-      try {
-        const { protocol, hostname } = new URL(value)
-        return (
-          (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
-        )
-      } catch {
-        return false
-      }
-    },
-    { message: 'Image URL must be an http:// or https:// URL' }
-  )
+  .refine(isHttpUrl, {
+    message: 'Image URL must be an http:// or https:// URL'
+  })
+
+/**
+ * A URL accepted from API input and later rendered as a clickable link.
+ *
+ * Same scheme guard as {@link imageUrlSchema}, stricter consequence: an
+ * `<a href>` runs `javascript:` on click, so this is the difference between a
+ * broken image and stored XSS. Every consumer must still render it with
+ * `rel="noopener noreferrer"`.
+ */
+export const externalUrlSchema = z
+  .string()
+  .trim()
+  .url('Must be a valid URL')
+  .max(MEDIA_URL_MAX_LENGTH, 'URL too long')
+  .refine(isHttpUrl, {
+    message: 'URL must be an http:// or https:// URL'
+  })
 
 /**
  * Media URL accepted when restoring rows that are already in a database
@@ -1299,6 +1325,8 @@ export const depositVoucherSchema = z.object({
   /** Upstream caps the definition description at 500 characters. */
   description: z.string().trim().max(500, 'Description too long').optional(),
   image: imageUrlSchema.optional(),
+  /** Where to read more — the merchant's offer or product page. */
+  url: externalUrlSchema.optional(),
   merchantPubkey: nostrPubkeyInputSchema,
   /**
    * The signing CMS. Optional: when omitted, the NIP-98 signer *is* the
