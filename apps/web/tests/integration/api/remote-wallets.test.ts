@@ -35,6 +35,12 @@ vi.mock('@/lib/middleware/maintenance', () => ({
   checkMaintenance: vi.fn()
 }))
 
+// The server-side capability probe is a relay round-trip; its own behaviour is
+// covered in tests/unit/lib/wallet/nwc-send-capability.test.ts.
+vi.mock('@/lib/wallet/nwc-send-capability', () => ({
+  resolveNwcModeForCreate: vi.fn(async (_conn: string, claimed: string) => claimed)
+}))
+
 vi.mock('@/lib/middleware/request-limits', () => ({
   checkRequestLimits: vi.fn()
 }))
@@ -66,6 +72,7 @@ import {
 } from '@/app/api/remote-wallets/[id]/route'
 import { GET as forwardingMapHandler } from '@/app/api/remote-wallets/forwarding-map/route'
 import { authenticate } from '@/lib/auth/unified-auth'
+import { resolveNwcModeForCreate } from '@/lib/wallet/nwc-send-capability'
 
 const USER_PUBKEY = 'a'.repeat(64)
 const VALID_NWC = `nostr+walletconnect://${'b'.repeat(64)}?relay=wss%3A%2F%2Fr.example&secret=${'c'.repeat(64)}`
@@ -340,7 +347,7 @@ describe('POST /api/remote-wallets', () => {
     expect(body.type).toBe('NWC')
   })
 
-  it('persists the parsed config with mode defaulted to RECEIVE', async () => {
+  it('persists the mode the server-side capability probe resolved', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
@@ -367,6 +374,38 @@ describe('POST /api/remote-wallets', () => {
             mode: 'RECEIVE'
           }),
           nwcConfigEncryptedAt: expect.any(Date)
+        })
+      })
+    )
+  })
+
+  it('stores SEND_RECEIVE when the wallet grants sending, whatever the client claimed', async () => {
+    // Regression: the client's probe is a debounced browser round-trip that
+    // falls back to RECEIVE when it doesn't finish, which used to pin a capable
+    // wallet receive-only with no way to repair it.
+    vi.mocked(resolveNwcModeForCreate).mockResolvedValueOnce('SEND_RECEIVE')
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(
+      createRemoteWalletFixture({ userId: user.id }) as never
+    )
+
+    await createHandler(
+      createNextRequest('/api/remote-wallets', {
+        method: 'POST',
+        body: {
+          name: 'X',
+          type: 'NWC',
+          config: { connectionString: VALID_NWC, mode: 'RECEIVE' }
+        }
+      })
+    )
+
+    expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          config: expect.objectContaining({ mode: 'SEND_RECEIVE' })
         })
       })
     )
