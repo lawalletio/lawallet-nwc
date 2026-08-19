@@ -34,8 +34,7 @@ describe('resolveApiUrl', () => {
     // The exact bug scenario: a public address domain is set but endpoint is not.
     vi.mocked(getSettings).mockResolvedValue({
       endpoint: '',
-      domain: 'lacrypta.ar',
-      subdomain: ''
+      domain: 'lacrypta.ar'
     })
     expect(await resolveApiUrl(req('localhost:55067'))).toBe(
       'http://localhost:55067'
@@ -67,18 +66,16 @@ describe('resolveAddressDomain', () => {
     // The exact bug scenario: text/identifier must say the domain, not the API host.
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'lawallet.io',
-      endpoint: 'https://beta.lawallet.io',
-      subdomain: ''
+      endpoint: 'https://beta.lawallet.io'
     })
     expect(await resolveAddressDomain(req('beta.lawallet.io'))).toBe(
       'lawallet.io'
     )
   })
 
-  it('joins legacy subdomain with domain', async () => {
+  it('uses the domain setting verbatim as the address host', async () => {
     vi.mocked(getSettings).mockResolvedValue({
-      domain: 'lacrypta.ar',
-      subdomain: 'app',
+      domain: 'app.lacrypta.ar',
       endpoint: ''
     })
     expect(await resolveAddressDomain(req())).toBe('app.lacrypta.ar')
@@ -87,7 +84,6 @@ describe('resolveAddressDomain', () => {
   it('falls back to the endpoint host when domain is unset', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       domain: '',
-      subdomain: '',
       endpoint: 'https://beta.lacrypta.ar'
     })
     expect(await resolveAddressDomain(req('localhost:55067'))).toBe(

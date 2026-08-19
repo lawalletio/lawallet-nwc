@@ -6,12 +6,12 @@ import {
 } from '@/lib/public-url-utils'
 
 describe('buildPublicHost', () => {
-  it('combines domain and subdomain into a full host', () => {
-    expect(buildPublicHost(' Example.com ', ' App ')).toBe('app.example.com')
+  it('trims and lowercases the configured domain', () => {
+    expect(buildPublicHost(' App.Example.com ')).toBe('app.example.com')
   })
 
-  it('returns the root domain when there is no subdomain', () => {
-    expect(buildPublicHost('example.com')).toBe('example.com')
+  it("returns '' when the domain is unset", () => {
+    expect(buildPublicHost()).toBe('')
   })
 })
 

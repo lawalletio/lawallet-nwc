@@ -6,7 +6,6 @@ export interface SettingsData {
   domain?: string
   domain_verified?: string
   endpoint?: string
-  subdomain?: string
   hasRoot?: boolean
   root?: string
   is_community?: string

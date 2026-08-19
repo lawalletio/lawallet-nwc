@@ -15,6 +15,7 @@ import {
 } from '@/lib/settings-auth'
 import { eventBus } from '@/lib/events/event-bus'
 import { probeLud21Support } from '@/lib/lnurl-probe'
+import { buildPublicUrl, parseEndpoint } from '@/lib/public-url-utils'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 
 /**
@@ -29,7 +30,6 @@ const SENSITIVE_SETTINGS_KEYS = new Set(['listener_auth_secret'])
 export const GET = withErrorHandling(async (request: NextRequest) => {
   // Fetch all settings records from the database
   const settings = await getSettings()
-  const endpoint = settings.endpoint ?? settings.subdomain
   const hasRoot = Boolean(settings.root)
   const responseSettings = {
     ...Object.fromEntries(
@@ -37,8 +37,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         ([key]) => !SENSITIVE_SETTINGS_KEYS.has(key)
       )
     ),
-    endpoint,
-    subdomain: endpoint,
     hasRoot
   }
 
@@ -61,8 +59,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({
       domain: settings.domain,
       domain_verified: settings.domain_verified,
-      endpoint,
-      subdomain: endpoint,
+      endpoint: settings.endpoint,
       hasRoot,
       brand_theme: settings.brand_theme,
       brand_rounding: settings.brand_rounding,
@@ -124,18 +121,35 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     'registration_ln_enabled',
     'maintenance_enabled',
     'listener_url',
-    'listener_auth_secret'
+    'listener_auth_secret',
+    'domain',
+    'endpoint'
   ])
 
   const body = await validateBody(request, settingsBodySchema)
   const shouldResetDomainVerification =
-    body.domain !== undefined ||
-    body.endpoint !== undefined ||
-    body.subdomain !== undefined
+    body.domain !== undefined || body.endpoint !== undefined
 
   delete body.domain_verified
   if (shouldResetDomainVerification) {
     body.domain_verified = 'false'
+  }
+
+  // The endpoint must never be left blank once a domain exists: it is what the
+  // SDK, device tokens and LNURL callbacks resolve this instance through, and
+  // an empty value leaves every one of them guessing from the request host.
+  // Saving the domain (or clearing the endpoint) defaults it to the domain
+  // itself — the overwhelmingly common single-host setup. Only routing saves
+  // trigger this, so an unrelated settings write never rewrites the endpoint
+  // (and never resets domain verification as a side effect).
+  if (shouldResetDomainVerification) {
+    const effectiveDomain = body.domain ?? settings.domain ?? ''
+    const effectiveEndpoint = body.endpoint ?? settings.endpoint ?? ''
+    const domainHost = parseEndpoint(effectiveDomain)?.host
+
+    if (domainHost && !effectiveEndpoint.trim()) {
+      body.endpoint = buildPublicUrl(domainHost)
+    }
   }
 
   // Precondition check: if paid registration is enabled after this save,
@@ -224,8 +238,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const processedSettings = Object.values(
     Object.entries(body).reduce(
       (acc, [name, value]) => {
-        const normalizedName = name.trim().toLowerCase()
-        const key = normalizedName === 'subdomain' ? 'endpoint' : normalizedName
+        const key = name.trim().toLowerCase()
         acc[key] = { name: key, value }
         return acc
       },
