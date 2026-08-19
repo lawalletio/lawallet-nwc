@@ -40,13 +40,14 @@ export function VoucherCard({
     >
       <Link
         href={`/admin/vouchers/${voucher.id}`}
-        className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <DesignImage
           src={voucher.imageUrl}
           alt=""
           className="rounded-none border-b border-border"
         />
+        <MerchantOverlay pubkey={voucher.merchantPubkey} />
       </Link>
 
       <div className="flex flex-1 flex-col gap-3 p-4">
@@ -77,8 +78,6 @@ export function VoucherCard({
           </p>
         ) : null}
 
-        <MerchantChip pubkey={voucher.merchantPubkey} />
-
         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
           <ExpiryNote voucher={voucher} />
           {/* Terminal statuses can't change, so the refresh would be a no-op
@@ -105,20 +104,31 @@ export function VoucherCard({
   )
 }
 
-function MerchantChip({ pubkey }: { pubkey: string }) {
+/**
+ * Who issued this coupon, laid over the artwork.
+ *
+ * The merchant is the single most useful thing to know at a glance in a grid
+ * — "is this the cafe near me?" — so it rides on the art rather than
+ * competing with the benefit text below. The scrim is what makes it legible:
+ * voucher images come from arbitrary merchants and can be any colour, so
+ * white text alone is a coin flip.
+ */
+function MerchantOverlay({ pubkey }: { pubkey: string }) {
   const { profile } = useNostrProfile(pubkey)
   const name = profile?.displayName || profile?.name || truncateNpub(pubkey, 6)
 
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-      <Avatar className="size-5">
+    <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-2 bg-gradient-to-b from-black/70 via-black/35 to-transparent p-3 pb-6">
+      <Avatar className="size-6 shrink-0 ring-1 ring-white/25">
         {profile?.picture ? <AvatarImage src={profile.picture} alt="" /> : null}
-        <AvatarFallback className="text-[9px]">
+        <AvatarFallback className="bg-black/50 text-[9px] text-white">
           {npubInitials(pubkey)}
         </AvatarFallback>
       </Avatar>
-      <Store className="size-3.5 shrink-0" aria-hidden />
-      <span className="truncate">{name}</span>
+      <Store className="size-3.5 shrink-0 text-white/70" aria-hidden />
+      <span className="truncate text-sm font-medium text-white drop-shadow-sm">
+        {name}
+      </span>
     </div>
   )
 }
