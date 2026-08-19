@@ -42,6 +42,7 @@ import {
 import { useAuth } from '@/components/admin/auth-context'
 import { invalidateApiPath } from '@/lib/client/hooks/use-api'
 import { DEFAULT_BLOSSOM_SERVERS } from '@/lib/client/blossom-defaults'
+import { buildPublicUrl } from '@/lib/public-url-utils'
 import { cn } from '@/lib/utils'
 import { DomainOnboardingWizard } from '@/components/admin/settings/domain-onboarding-wizard'
 import type { DomainProbeResult } from '@/lib/domain-onboarding'
@@ -138,6 +139,24 @@ type DomainProbeState =
   | { status: 'ready'; result: DomainProbeResult }
   | { status: 'problem'; result?: DomainProbeResult; error?: string }
 
+/**
+ * The endpoint field is never shown blank. An unset endpoint falls back to the
+ * configured domain — the same default `POST /api/settings` persists — and,
+ * before a domain exists, to the origin this page is served from, which is by
+ * definition where the instance is reachable. Reads `window` directly so
+ * hydration never races the mount effect that captures the origin.
+ */
+export function resolveEndpointValue(
+  endpoint?: string,
+  domain?: string
+): string {
+  if (endpoint?.trim()) return endpoint
+  return (
+    buildPublicUrl(domain) ||
+    (typeof window === 'undefined' ? '' : window.location.origin)
+  )
+}
+
 export function InfrastructureTab() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -215,7 +234,7 @@ export function InfrastructureTab() {
   const loadFromSettings = useCallback(() => {
     if (!settings) return
     setDomain(settings.domain ?? '')
-    setEndpoint(settings.endpoint ?? '')
+    setEndpoint(resolveEndpointValue(settings.endpoint, settings.domain))
     setRelays(parseStringArray(settings.relays))
     setBlossomServers(
       parseStringArray(settings.blossom_servers, DEFAULT_BLOSSOM_SERVERS)
