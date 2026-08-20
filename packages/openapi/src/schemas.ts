@@ -16,6 +16,7 @@ import {
   createCardDesignSchema,
   createCardSchema,
   depositVoucherSchema,
+  sendVoucherSchema,
   updateVoucherSettingsSchema,
   updateCardSchema,
   createInvoiceSchema,
@@ -591,5 +592,14 @@ export const UpdateVoucherSettings = registry.register(
     description:
       'Who may deposit vouchers to the caller. Allowlist entries accept hex, ' +
       'npub, or NIP-05 and are resolved to hex on save.'
+  })
+)
+
+export const SendVoucher = registry.register(
+  'SendVoucher',
+  sendVoucherSchema.openapi({
+    description:
+      'Recipient lightning address for a voucher transfer, plus an optional ' +
+      'message. Irreversible once the recipient accepts.'
   })
 )

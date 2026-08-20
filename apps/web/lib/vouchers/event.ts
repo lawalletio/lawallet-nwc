@@ -48,7 +48,9 @@ function tagValue(event: NostrEvent, name: string): string | null {
  * What actually gates a deposit is the recipient's policy, not this function.
  *
  * @param raw - The event as posted, still untyped.
- * @param expected.merchantPubkey - Hex merchant the deposit body claims.
+ * @param expected.merchantPubkey - Hex merchant the caller claims, when it has
+ *   one to claim. A transfer learns the merchant *from* the voucher, so it has
+ *   nothing to cross-check and omits this.
  * @param expected.nonce - The coupon code the deposit body claims.
  * @param expected.servicePubkey - Hex signer the body claims, when it declared one.
  * @throws ValidationError with a specific reason on any failure.
@@ -56,8 +58,8 @@ function tagValue(event: NostrEvent, name: string): string | null {
 export function verifyVoucherEvent(
   raw: unknown,
   expected: {
-    merchantPubkey: string
     nonce: string
+    merchantPubkey?: string | null
     servicePubkey?: string | null
   }
 ): VerifiedVoucherEvent {
@@ -94,7 +96,13 @@ export function verifyVoucherEvent(
   }
 
   const merchant = tagValue(event, 'p')
-  if (!merchant || merchant.toLowerCase() !== expected.merchantPubkey) {
+  if (!merchant) {
+    throw new ValidationError('voucherEvent has no merchant (`p`) tag')
+  }
+  if (
+    expected.merchantPubkey &&
+    merchant.toLowerCase() !== expected.merchantPubkey
+  ) {
     throw new ValidationError(
       'voucherEvent names a different merchant than the deposit'
     )

@@ -141,6 +141,13 @@ function MerchantOverlay({ pubkey }: { pubkey: string }) {
 function ExpiryNote({ voucher }: { voucher: Voucher }) {
   const now = useNow()
 
+  if (voucher.status === 'TRANSFERRED') {
+    return (
+      <p className="truncate text-xs text-muted-foreground">
+        Sent{voucher.transferredTo ? ` to ${voucher.transferredTo}` : ''}
+      </p>
+    )
+  }
   if (voucher.status === 'CLAIMED' && voucher.claimedAt) {
     return (
       <p className="text-xs text-muted-foreground">

@@ -59,6 +59,7 @@ function createPrismaMock(): PrismaClient {
     remoteWalletNotificationDelivery: createModelMock(),
     remoteWalletNotificationAttempt: createModelMock(),
     voucher: createModelMock(),
+    voucherTransfer: createModelMock(),
     $transaction: vi.fn(fn => {
       if (typeof fn === 'function') {
         return fn(prismaMock)

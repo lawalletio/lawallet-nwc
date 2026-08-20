@@ -267,6 +267,11 @@ model User {
   /// Who may deposit vouchers to this account. Deposits are always NIP-98
   /// signed; ALLOWLIST additionally restricts *which* signers are accepted.
   voucherDepositPolicy               VoucherDepositPolicy               @default(ANYONE)
+  /// Whether this account's lightning address advertises `allowVouchers` and
+  /// accepts LNURL voucher transfers. Off by default and opt-in: a transfer is
+  /// an *anonymous* write into someone's stash, and that surface must not
+  /// appear on every existing address the day the feature ships.
+  allowVouchers                      Boolean                            @default(false)
   /// Hex pubkeys allowed to deposit while `voucherDepositPolicy` is ALLOWLIST.
   /// Always stored hex — npub and NIP-05 input is resolved on save so the
   /// deposit hot path is a plain array membership test.

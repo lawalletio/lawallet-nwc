@@ -105,6 +105,92 @@ Merchant and service npubs render with real names and avatars because
 anti-relay-proxy property: a caller still cannot ask for an arbitrary pubkey,
 only one this instance already stores.
 
+## Transfer
+
+Vouchers move by **burn-and-remint**. The recipient calls the coupon service's
+`POST {refreshUrl}`, which kills the sender's nonce and mints a replacement
+with the same benefit snapshot and the same expiry. Because the nonce _is_ the
+credential, that swap is the change of ownership — there is no holder field to
+reassign, and there is no account system involved. Spec:
+[refresh](https://github.com/lacrypta/coupons/pull/2).
+
+### Discovery and transport
+
+A recipient's LUD-16 payRequest emits `allowVouchers: true` when
+`User.allowVouchers` is on — **off by default**, because a transfer is an
+anonymous write into someone's stash and that surface must not appear on every
+existing address the day it ships.
+
+The sender POSTs to the recipient's ordinary LNURL `callback`.
+`app/api/lud16/[username]/cb/route.ts` is a dispatcher: `GET` is LNURL-pay
+(extracted unchanged into `cb/actions/pay.ts`), `POST` routes on the body's
+`action` to one file per action. Same layout as `app/api/cards/[id]/scan/cb/`.
+
+### Why the receiver never dials a URL from the request
+
+`resolveTransferService` (`lib/vouchers/transfer.ts`) pins the coupon service
+by pubkey and reuses the origin from a row we already store.
+
+A 20402 signature proves **integrity, not authenticity**. Anyone can generate
+a keypair, sign a flawless voucher for "$500 off at RealShop", and host a
+service that reports it valid forever. Every signature check passes, the
+victim's stash shows the merchant's real name and avatar — the profile cache
+resolves any pubkey stored on a `Voucher` row — and the fraud surfaces at the
+till. Pinning closes that, and closes SSRF-via-transfer at the same time.
+
+The cost is deliberate: a coupon from a service this instance has never seen
+cannot arrive by transfer. Deposit it over the NIP-98 endpoint first, which
+has an authenticated signer to hold responsible.
+
+### Ordering, and the one step that cannot be undone
+
+The CMS swap is irreversible; everything else is bookkeeping. So:
+
+1. Rate limit (by **recipient** — an attacker rotates IPs, not victims), body
+   size, schema, recipient policy, service pinning. No unauthenticated request
+   reaches the network before all of these pass, or the endpoint is a free
+   HTTP proxy.
+2. **Write the intent row, then swap.** A failed insert means we never call
+   refresh, so a database outage costs nobody their coupon.
+3. Store the replacement, then answer `ACCEPTED`.
+
+`VoucherTransfer` is unique on `(servicePubkey, oldNonce)`, so a retried
+delivery replays the stored answer without touching the service, and a row
+left without `newNonce` is a completed burn that can be replayed — refresh is
+idempotent on its `Idempotency-Key`.
+
+The sender claims the send with a conditional `MINTED → TRANSFER_PENDING`
+update so an honest double-send cannot start, and **re-reads the service on
+any refusal**: a recipient can swap the nonce and then answer `ERROR`, and the
+service is the only authority on who holds the coupon now. The sender's row is
+never deleted — it is the only record of where the coupon went.
+
+### Untrusted input, by sink
+
+| Field                  | Sink                   | Guard                                                             |
+| ---------------------- | ---------------------- | ----------------------------------------------------------------- |
+| `claimUrl` / `mintUrl` | Server-side `fetch`    | `assertServiceUrl` on input, DNS-pinned SSRF checks on every poll |
+| `refreshUrl`           | Server-side `POST`     | Never read from a request; taken from our own stored row          |
+| Recipient address      | Server-side `fetch` ×2 | Owner-supplied, DNS-pinned both hops (`lib/vouchers/deliver.ts`)  |
+| `image`                | `<img src>`            | `imageUrlSchema` — http(s) only                                   |
+| `url`                  | `<a href>`             | `externalUrlSchema` + `rel="noopener noreferrer"`                 |
+
+### What cannot be made safe
+
+- **A recipient can swap the nonce and then answer `ERROR`**, keeping the
+  coupon while the sender believes the send failed. Structural: they must be
+  able to swap before they can promise anything, and the mirror protocol is
+  the mirror scam. Mitigated by re-reading the service, and by saying so in
+  the send dialog.
+- **No sender identity.** LUD-16 carries none, so `depositedBy` is empty on a
+  transferred row and the UI shows no "from". Inventing one would render as
+  provenance while being trivially forged.
+- **`merchantPubkey` is unverified** without kind-30078 discovery, yet we
+  render it with a cached avatar and profile name — an unverified identity
+  that _looks_ verified. Live today, independent of transfer.
+- **The service sees the whole transfer graph**, timestamped. Inherent to
+  refresh-based transfer; only ecash fixes it.
+
 ## Future: ecash
 
 This implementation is **custodial**. The nonce is a bearer credential

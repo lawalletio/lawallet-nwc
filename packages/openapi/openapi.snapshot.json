@@ -2518,6 +2518,24 @@
           "allowlist"
         ],
         "description": "Who may deposit vouchers to the caller. Allowlist entries accept hex, npub, or NIP-05 and are resolved to hex on save."
+      },
+      "SendVoucher": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 320
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "description": "Recipient lightning address for a voucher transfer, plus an optional message. Irreversible once the recipient accepts."
       }
     },
     "parameters": {}
@@ -7688,7 +7706,7 @@
           "LUD-16"
         ],
         "summary": "LUD-16 / LUD-06 pay request lookup.",
-        "description": "Public lookup that resolves a lightning address to a LUD-06 pay request response. Supports LUD-12 (commentAllowed) and LUD-21 (verify field).",
+        "description": "Public lookup that resolves a lightning address to a LUD-06 pay request response. Supports LUD-12 (commentAllowed) and LUD-21 (verify field).\n\nEmits `allowVouchers: true` when the owner has opted in to receiving coupon transfers on the callback. Absent means do not send one.",
         "operationId": "lud16.payRequest",
         "security": [],
         "parameters": [
@@ -7825,6 +7843,137 @@
           },
           "404": {
             "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "x-required-role": "PUBLIC",
+        "tags": [
+          "LUD-16"
+        ],
+        "summary": "LUD-16 callback actions (voucher transfer).",
+        "description": "The same callback URL as LNURL-pay, dispatched by action. `GET` is ordinary LNURL-pay; `POST` carries actions, keyed on `action` in the body.\n\nToday the only action is `voucher`: take delivery of a lacrypta/coupons voucher. The receiver verifies the signed kind-20402, resolves the signing service against services it already knows — never against a URL from the request — and swaps the nonce before answering.\n\nRefusals are `200` with an LNURL `ERROR` body, and are deliberately uniform: distinguishing \"no such user\" from \"not accepting\" would let a caller enumerate the community.",
+        "operationId": "lud16.callbackAction",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "username",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "voucher"
+                    ]
+                  },
+                  "nonce": {
+                    "type": "string",
+                    "minLength": 22,
+                    "maxLength": 22
+                  },
+                  "voucher": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "action",
+                  "nonce",
+                  "voucher"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted, or an LNURL-shaped refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACCEPTED"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ERROR"
+                          ]
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "reason"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
             "content": {
               "application/json": {
                 "schema": {
@@ -17929,6 +18078,8 @@
                       "type": "string",
                       "enum": [
                         "MINTED",
+                        "TRANSFER_PENDING",
+                        "TRANSFERRED",
                         "CLAIMED",
                         "EXPIRED",
                         "VOIDED"
@@ -17957,6 +18108,8 @@
                       "type": "string",
                       "enum": [
                         "MINTED",
+                        "TRANSFER_PENDING",
+                        "TRANSFERRED",
                         "CLAIMED",
                         "EXPIRED",
                         "VOIDED"
@@ -18055,6 +18208,8 @@
               "type": "string",
               "enum": [
                 "MINTED",
+                "TRANSFER_PENDING",
+                "TRANSFERRED",
                 "CLAIMED",
                 "EXPIRED",
                 "VOIDED"
@@ -18123,6 +18278,12 @@
                           "null"
                         ]
                       },
+                      "refreshUrl": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "metadata": {
                         "type": [
                           "object",
@@ -18141,6 +18302,8 @@
                         "type": "string",
                         "enum": [
                           "MINTED",
+                          "TRANSFER_PENDING",
+                          "TRANSFERRED",
                           "CLAIMED",
                           "EXPIRED",
                           "VOIDED"
@@ -18170,6 +18333,12 @@
                       "depositedBy": {
                         "type": "string"
                       },
+                      "transferredTo": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "createdAt": {
                         "type": "string",
                         "format": "date-time"
@@ -18187,6 +18356,7 @@
                       "servicePubkey",
                       "claimUrl",
                       "mintUrl",
+                      "refreshUrl",
                       "metadata",
                       "voucherEvent",
                       "status",
@@ -18194,6 +18364,7 @@
                       "claimedAt",
                       "statusCheckedAt",
                       "depositedBy",
+                      "transferredTo",
                       "createdAt"
                     ],
                     "description": "A coupon held on the caller’s behalf."
@@ -18337,6 +18508,12 @@
                         "null"
                       ]
                     },
+                    "refreshUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "metadata": {
                       "type": [
                         "object",
@@ -18355,6 +18532,8 @@
                       "type": "string",
                       "enum": [
                         "MINTED",
+                        "TRANSFER_PENDING",
+                        "TRANSFERRED",
                         "CLAIMED",
                         "EXPIRED",
                         "VOIDED"
@@ -18384,6 +18563,12 @@
                     "depositedBy": {
                       "type": "string"
                     },
+                    "transferredTo": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "createdAt": {
                       "type": "string",
                       "format": "date-time"
@@ -18401,6 +18586,7 @@
                     "servicePubkey",
                     "claimUrl",
                     "mintUrl",
+                    "refreshUrl",
                     "metadata",
                     "voucherEvent",
                     "status",
@@ -18408,6 +18594,7 @@
                     "claimedAt",
                     "statusCheckedAt",
                     "depositedBy",
+                    "transferredTo",
                     "createdAt"
                   ],
                   "description": "A coupon held on the caller’s behalf."
@@ -18649,6 +18836,12 @@
                             "null"
                           ]
                         },
+                        "refreshUrl": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "metadata": {
                           "type": [
                             "object",
@@ -18667,6 +18860,8 @@
                           "type": "string",
                           "enum": [
                             "MINTED",
+                            "TRANSFER_PENDING",
+                            "TRANSFERRED",
                             "CLAIMED",
                             "EXPIRED",
                             "VOIDED"
@@ -18696,6 +18891,12 @@
                         "depositedBy": {
                           "type": "string"
                         },
+                        "transferredTo": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "createdAt": {
                           "type": "string",
                           "format": "date-time"
@@ -18713,6 +18914,7 @@
                         "servicePubkey",
                         "claimUrl",
                         "mintUrl",
+                        "refreshUrl",
                         "metadata",
                         "voucherEvent",
                         "status",
@@ -18720,6 +18922,7 @@
                         "claimedAt",
                         "statusCheckedAt",
                         "depositedBy",
+                        "transferredTo",
                         "createdAt"
                       ],
                       "description": "A coupon held on the caller’s behalf."
@@ -19026,6 +19229,282 @@
           },
           "500": {
             "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wallet/vouchers/{id}/send": {
+      "post": {
+        "x-required-role": "USER",
+        "tags": [
+          "Vouchers"
+        ],
+        "summary": "Hand a voucher to a lightning address.",
+        "description": "Resolves the recipient’s LUD-16 payRequest, requires `allowVouchers`, and POSTs the signed voucher to their callback. The recipient swaps the nonce at the coupon service to take it, so this is **irreversible** once accepted.\n\nThe claim is a conditional `MINTED → TRANSFER_PENDING` update, so a double send cannot start two deliveries of one nonce. On refusal the coupon service — not the recipient’s answer — decides the final status: a recipient can swap the nonce and then reply with an error.",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendVoucher"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Delivered. The voucher is now TRANSFERRED.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "voucher": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "string"
+                        },
+                        "couponId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "imageUrl": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "url": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "merchantPubkey": {
+                          "type": "string"
+                        },
+                        "servicePubkey": {
+                          "type": "string"
+                        },
+                        "claimUrl": {
+                          "type": "string"
+                        },
+                        "mintUrl": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "refreshUrl": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "metadata": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {}
+                        },
+                        "voucherEvent": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "additionalProperties": {}
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "MINTED",
+                            "TRANSFER_PENDING",
+                            "TRANSFERRED",
+                            "CLAIMED",
+                            "EXPIRED",
+                            "VOIDED"
+                          ]
+                        },
+                        "expiresAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "claimedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "statusCheckedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "depositedBy": {
+                          "type": "string"
+                        },
+                        "transferredTo": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "nonce",
+                        "couponId",
+                        "name",
+                        "description",
+                        "imageUrl",
+                        "url",
+                        "merchantPubkey",
+                        "servicePubkey",
+                        "claimUrl",
+                        "mintUrl",
+                        "refreshUrl",
+                        "metadata",
+                        "voucherEvent",
+                        "status",
+                        "expiresAt",
+                        "claimedAt",
+                        "statusCheckedAt",
+                        "depositedBy",
+                        "transferredTo",
+                        "createdAt"
+                      ],
+                      "description": "A coupon held on the caller’s behalf."
+                    }
+                  },
+                  "required": [
+                    "voucher"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current resource state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; check the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream service unavailable or maintenance mode active.",
             "content": {
               "application/json": {
                 "schema": {

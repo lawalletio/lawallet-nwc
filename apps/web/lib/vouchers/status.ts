@@ -7,7 +7,10 @@ import {
   isPrivateNetworkAddress,
   type SafeAddress
 } from '@/lib/proxy/lnurl'
-import { couponClaimPreviewSchema } from '@/lib/validation/schemas'
+import {
+  couponClaimPreviewSchema,
+  couponRefreshResponseSchema
+} from '@/lib/validation/schemas'
 import type { VoucherStatus } from '@/lib/validation/schemas'
 import { ServiceUnavailableError } from '@/types/server/errors'
 import { voucherStatusFromService } from '@/lib/vouchers/transition'
@@ -70,17 +73,33 @@ function toDate(value: string | number | null | undefined): Date | null {
 }
 
 function get(url: URL, pinned: SafeAddress): Promise<unknown> {
-  const send = url.protocol === 'http:' ? httpRequest : httpsRequest
+  return send(url, pinned, 'GET')
+}
+
+function send(
+  url: URL,
+  pinned: SafeAddress,
+  method: 'GET' | 'POST',
+  payload?: { body: string; idempotencyKey: string }
+): Promise<unknown> {
+  const request = url.protocol === 'http:' ? httpRequest : httpsRequest
   return new Promise((resolve, reject) => {
-    const req = send(
+    const req = request(
       url,
       {
-        method: 'GET',
+        method,
         signal: AbortSignal.timeout(TIMEOUT_MS),
         lookup: createPinnedLookup(pinned),
         headers: {
           accept: 'application/json',
-          'user-agent': 'LaWallet-Vouchers/1'
+          'user-agent': 'LaWallet-Vouchers/1',
+          ...(payload
+            ? {
+                'content-type': 'application/json',
+                'content-length': Buffer.byteLength(payload.body),
+                'idempotency-key': payload.idempotencyKey
+              }
+            : {})
         }
       },
       response => {
@@ -124,8 +143,74 @@ function get(url: URL, pinned: SafeAddress): Promise<unknown> {
           : new ServiceUnavailableError('Could not reach the coupon service')
       )
     )
-    req.end()
+    req.end(payload?.body)
   })
+}
+
+export interface RefreshedVoucher {
+  nonce: string
+  couponId: string | null
+  expiresAt: Date | null
+  voucher: Record<string, unknown> | null
+  /**
+   * How the replacement describes itself. Mint-shaped responses carry these;
+   * a service that omits them leaves the caller to fall back.
+   */
+  name: string | null
+  description: string | null
+  image: string | null
+  benefit: unknown
+}
+
+/**
+ * Swap a nonce for its replacement at the coupon-manager service.
+ *
+ * This is the one irreversible step in a transfer: it burns the sender's nonce
+ * and mints a new one, and the response is the only place that new nonce ever
+ * appears. Two consequences the caller must respect — persist the result
+ * before acknowledging anything, and pass a stable `idempotencyKey` so a
+ * retried call replays instead of burning twice.
+ *
+ * `refreshUrl` must come from our own record of the service, never from a
+ * request body. See `lib/vouchers/transfer.ts`.
+ */
+export async function refreshVoucherAtService(input: {
+  refreshUrl: string
+  nonce: string
+  idempotencyKey: string
+}): Promise<RefreshedVoucher> {
+  const url = assertServiceUrl(input.refreshUrl, 'refreshUrl')
+  const pinned = await resolveSafeAddress(url.hostname)
+  const body = JSON.stringify({ nonce: input.nonce })
+
+  const raw = await send(url, pinned, 'POST', {
+    body,
+    idempotencyKey: input.idempotencyKey
+  })
+  const parsed = couponRefreshResponseSchema.safeParse(raw)
+  if (!parsed.success) {
+    throw new ServiceUnavailableError(
+      'Coupon service returned an unrecognized refresh response'
+    )
+  }
+  if (parsed.data.nonce === input.nonce) {
+    // A service that hands back the same nonce has not swapped anything.
+    // Storing it would leave both sides believing they hold the coupon.
+    throw new ServiceUnavailableError(
+      'Coupon service did not return a replacement nonce'
+    )
+  }
+
+  return {
+    nonce: parsed.data.nonce,
+    couponId: parsed.data.couponId ?? null,
+    expiresAt: toDate(parsed.data.expiresAt),
+    voucher: (parsed.data.voucher as Record<string, unknown>) ?? null,
+    name: parsed.data.name ?? null,
+    description: parsed.data.description ?? null,
+    image: parsed.data.image ?? null,
+    benefit: parsed.data.coupon ?? null
+  }
 }
 
 /**

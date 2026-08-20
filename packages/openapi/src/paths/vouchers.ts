@@ -11,7 +11,14 @@ import { responses } from '../responses'
 
 const TAG = 'Vouchers'
 
-const voucherStatusSchema = z.enum(['MINTED', 'CLAIMED', 'EXPIRED', 'VOIDED'])
+const voucherStatusSchema = z.enum([
+  'MINTED',
+  'TRANSFER_PENDING',
+  'TRANSFERRED',
+  'CLAIMED',
+  'EXPIRED',
+  'VOIDED'
+])
 
 const voucherSchema = z
   .object({
@@ -27,6 +34,7 @@ const voucherSchema = z
     servicePubkey: z.string(),
     claimUrl: z.string(),
     mintUrl: z.string().nullable(),
+    refreshUrl: z.string().nullable(),
     metadata: z.record(z.unknown()).nullable(),
     voucherEvent: z.record(z.unknown()).nullable(),
     status: voucherStatusSchema,
@@ -34,6 +42,7 @@ const voucherSchema = z
     claimedAt: z.string().datetime().nullable(),
     statusCheckedAt: z.string().datetime().nullable(),
     depositedBy: z.string(),
+    transferredTo: z.string().nullable(),
     createdAt: z.string().datetime()
   })
   .openapi({ description: 'A coupon held on the caller’s behalf.' })
@@ -184,5 +193,39 @@ registry.registerPath({
     200: inlineJsonResponse('Updated policy.', voucherSettingsSchema),
     ...commonErrorResponses,
     404: responses.notFound
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
+  method: 'post',
+  path: '/api/wallet/vouchers/{id}/send',
+  tags: [TAG],
+  summary: 'Hand a voucher to a lightning address.',
+  description:
+    'Resolves the recipient’s LUD-16 payRequest, requires `allowVouchers`, and ' +
+    'POSTs the signed voucher to their callback. The recipient swaps the nonce ' +
+    'at the coupon service to take it, so this is **irreversible** once accepted.\n\n' +
+    'The claim is a conditional `MINTED → TRANSFER_PENDING` update, so a double ' +
+    'send cannot start two deliveries of one nonce. On refusal the coupon ' +
+    'service — not the recipient’s answer — decides the final status: a ' +
+    'recipient can swap the nonce and then reply with an error.',
+  security: protectedSecurity,
+  request: {
+    params: z.object({ id: z.string() }),
+    body: {
+      content: jsonContent('SendVoucher')
+    }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Delivered. The voucher is now TRANSFERRED.',
+      z.object({ voucher: voucherSchema })
+    ),
+    ...commonErrorResponses,
+    404: responses.notFound,
+    409: responses.conflict,
+    429: responses.rateLimited,
+    503: responses.serviceUnavailable
   }
 })

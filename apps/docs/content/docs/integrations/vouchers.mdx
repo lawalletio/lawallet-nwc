@@ -112,6 +112,19 @@ Redemption itself happens at your point of sale. LaWallet does not call `POST {c
 - The nonce must be exactly 22 characters, per the protocol.
 - `name` ≤ 80 characters, `description` ≤ 500.
 
+## Transfers between wallets
+
+A member can hand a coupon to another lightning address. The recipient's wallet swaps the nonce at your service — `POST {refreshUrl}` — so the sender's copy dies and a new one is minted. That swap _is_ the change of ownership; there is no holder field, because the nonce is the credential.
+
+For this to work against your service you need two things:
+
+1. **A refresh endpoint.** `POST {refreshUrl}` burns a nonce and mints a replacement with the same benefit snapshot and the same `expiresAt`, keyed on a required `Idempotency-Key` so a retry replays instead of burning twice. Spec: [lacrypta/coupons#2](https://github.com/lacrypta/coupons/pull/2).
+2. **`refreshUrl` on the deposit**, or in your kind-30078 announcement. Without it the coupon is stored fine but cannot be transferred, and the Send button stays hidden.
+
+The old nonce must then preview as `refreshed` — not `voided`. `voided` means you revoked it; `refreshed` means it moved and still exists, and that is the only way a sender learns their coupon was taken.
+
+Receiving is opt-in per member and off by default, and an instance only accepts transfers from services it already holds vouchers from. Deposit over `POST /api/vouchers` first — that path has an authenticated signer; a transfer does not.
+
 ## Note on custody
 
 A stored voucher is a **database row**, not bearer value. The instance operator can read every member's coupon codes, members cannot transfer a voucher to somebody else, and your service's database remains the sole authority on whether a coupon has been spent.

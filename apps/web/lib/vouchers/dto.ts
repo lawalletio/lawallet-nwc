@@ -14,6 +14,7 @@ export const voucherSelect = {
   servicePubkey: true,
   claimUrl: true,
   mintUrl: true,
+  refreshUrl: true,
   metadata: true,
   voucherEvent: true,
   status: true,
@@ -21,6 +22,7 @@ export const voucherSelect = {
   claimedAt: true,
   statusCheckedAt: true,
   depositedBy: true,
+  transferredTo: true,
   createdAt: true
 } satisfies Prisma.VoucherSelect
 
@@ -43,6 +45,8 @@ export interface VoucherDto {
   servicePubkey: string
   claimUrl: string
   mintUrl: string | null
+  /** Present when the issuing service supports transfers. */
+  refreshUrl: string | null
   metadata: unknown
   voucherEvent: unknown
   status: VoucherStatus
@@ -50,6 +54,8 @@ export interface VoucherDto {
   claimedAt: string | null
   statusCheckedAt: string | null
   depositedBy: string
+  /** Lightning address this coupon was sent to, once TRANSFERRED. */
+  transferredTo: string | null
   createdAt: string
 }
 
@@ -70,6 +76,7 @@ export function toVoucherDto(row: VoucherRow): VoucherDto {
     servicePubkey: row.servicePubkey,
     claimUrl: row.claimUrl,
     mintUrl: row.mintUrl,
+    refreshUrl: row.refreshUrl,
     metadata: row.metadata ?? null,
     voucherEvent: row.voucherEvent ?? null,
     status: row.status as VoucherStatus,
@@ -77,6 +84,7 @@ export function toVoucherDto(row: VoucherRow): VoucherDto {
     claimedAt: row.claimedAt?.toISOString() ?? null,
     statusCheckedAt: row.statusCheckedAt?.toISOString() ?? null,
     depositedBy: row.depositedBy,
+    transferredTo: row.transferredTo,
     createdAt: row.createdAt.toISOString()
   }
 }

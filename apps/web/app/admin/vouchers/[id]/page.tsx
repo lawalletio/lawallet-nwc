@@ -27,9 +27,11 @@ import { DesignImage } from '@/components/admin/design-image'
 import { QrDisplay } from '@/components/wallet/shared/qr-display'
 import { NpubIdentity } from '@/components/admin/vouchers/npub-identity'
 import {
+  canSend,
   isSpent,
   VoucherStatusBadge
 } from '@/components/admin/vouchers/voucher-status-badge'
+import { SendVoucherDialog } from '@/components/admin/vouchers/send-voucher-dialog'
 import { formatBenefit, formatBenefitCap } from '@/lib/vouchers/benefit'
 import { truncateNpub } from '@/lib/client/format'
 import { useNow } from '@/lib/client/hooks/use-now'
@@ -120,6 +122,9 @@ export default function VoucherDetailPage() {
             <Provenance voucher={voucher} />
 
             <div className="flex flex-wrap gap-2">
+              {canSend(voucher) ? (
+                <SendVoucherDialog voucher={voucher} onSent={refetch} />
+              ) : null}
               {isSpent(voucher.status) ? null : (
                 <Button
                   variant="outline"
@@ -212,6 +217,14 @@ function offerHost(url: string): string {
 function Timing({ voucher }: { voucher: Voucher }) {
   const now = useNow()
 
+  if (voucher.status === 'TRANSFERRED') {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Sent{voucher.transferredTo ? ` to ${voucher.transferredTo}` : ''}
+      </p>
+    )
+  }
+
   if (voucher.status === 'CLAIMED' && voucher.claimedAt) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -239,6 +252,17 @@ function Timing({ voucher }: { voucher: Voucher }) {
  */
 function NonceSection({ voucher }: { voucher: Voucher }) {
   const [revealed, setRevealed] = React.useState(false)
+
+  if (voucher.status === 'TRANSFERRED') {
+    return (
+      <section className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+        You sent this coupon
+        {voucher.transferredTo ? ` to ${voucher.transferredTo}` : ''}. The code
+        here was swapped for a new one when they took it, so it no longer buys
+        anything.
+      </section>
+    )
+  }
 
   if (isSpent(voucher.status)) {
     return (

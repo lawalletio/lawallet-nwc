@@ -7,7 +7,13 @@ import {
   withQuery
 } from '@/lib/client/hooks/use-api'
 
-export type VoucherStatus = 'MINTED' | 'CLAIMED' | 'EXPIRED' | 'VOIDED'
+export type VoucherStatus =
+  | 'MINTED'
+  | 'TRANSFER_PENDING'
+  | 'TRANSFERRED'
+  | 'CLAIMED'
+  | 'EXPIRED'
+  | 'VOIDED'
 
 /**
  * A `Benefit` from the coupons protocol. Modelled as a discriminated union so
@@ -62,6 +68,8 @@ export interface Voucher {
   servicePubkey: string
   claimUrl: string
   mintUrl: string | null
+  /** Present when the issuing service supports transfers. Gates the Send action. */
+  refreshUrl: string | null
   /** The protocol payload. `metadata.coupon` holds the benefit. */
   metadata: { coupon?: VoucherBenefit; [key: string]: unknown } | null
   /** The stored kind-20402 event, when the depositor sent one. */
@@ -71,6 +79,8 @@ export interface Voucher {
   claimedAt: string | null
   statusCheckedAt: string | null
   depositedBy: string
+  /** Where it was sent, once TRANSFERRED. */
+  transferredTo: string | null
   createdAt: string
 }
 
@@ -102,6 +112,10 @@ export function useVoucherSettings() {
 
 export function useVoucherMutations() {
   const refresh = useMutation<void, RefreshResult>()
+  const send = useMutation<
+    { address: string; comment?: string },
+    { voucher: Voucher }
+  >()
   const remove = useMutation<void, { deleted: boolean }>()
   const saveSettings = useMutation<
     { policy: VoucherSettings['policy']; allowlist: string[] },
@@ -114,6 +128,20 @@ export function useVoucherMutations() {
       const result = await refresh.mutate(
         'post',
         `${LIST_PATH}/${encodeURIComponent(id)}/refresh`
+      )
+      invalidateApiPath(LIST_PATH)
+      return result
+    },
+
+    /** Hand the coupon to a lightning address. Irreversible once accepted. */
+    sendVoucher: async (
+      id: string,
+      input: { address: string; comment?: string }
+    ) => {
+      const result = await send.mutate(
+        'post',
+        `${LIST_PATH}/${encodeURIComponent(id)}/send`,
+        input
       )
       invalidateApiPath(LIST_PATH)
       return result
@@ -134,6 +162,7 @@ export function useVoucherMutations() {
     },
 
     refreshing: refresh.loading,
+    sending: send.loading,
     deleting: remove.loading,
     savingSettings: saveSettings.loading
   }

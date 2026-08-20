@@ -1340,6 +1340,12 @@ export const depositVoucherSchema = z.object({
   claimUrl: voucherServiceUrlSchema,
   mintUrl: voucherServiceUrlSchema.optional(),
   /**
+   * The service's refresh endpoint. Without it the coupon is stored fine but
+   * can never be transferred — the wallet hides Send rather than offering an
+   * action that would fail at the last step.
+   */
+  refreshUrl: voucherServiceUrlSchema.optional(),
+  /**
    * The protocol `Benefit` plus any extra conditions. Deliberately opaque —
    * the benefit union grows upstream and this instance only renders it.
    */
@@ -1410,10 +1416,80 @@ export const couponServiceStatusSchema = z.enum([
 export const couponClaimPreviewSchema = z
   .object({
     status: z.preprocess(
-      value => (couponServiceStatusSchema.safeParse(value).success ? value : undefined),
+      value =>
+        couponServiceStatusSchema.safeParse(value).success ? value : undefined,
       couponServiceStatusSchema.optional()
     ),
     claimedAt: z.union([z.string(), z.number()]).nullish(),
     expiresAt: z.union([z.string(), z.number()]).nullish()
+  })
+  .passthrough()
+
+// ── Voucher transfer over LUD-16 ─────────────────────────────────────────────
+
+/**
+ * Actions accepted by `POST {lud16 callback}`.
+ *
+ * `pay` is deliberately absent: LNURL-pay is the GET, and the method is the
+ * primary discriminator. This enum is only for the POST surface.
+ */
+export const lud16CallbackActionSchema = z.enum(['voucher'])
+
+/**
+ * Body of a voucher transfer.
+ *
+ * Note what is NOT here: no `claimUrl`, no `refreshUrl`, no sender identity.
+ * Service endpoints are resolved from what the receiver already stores for the
+ * signing pubkey — taking a URL from an unauthenticated body would let a
+ * sender point us at a service that swears their forgery is real. And LUD-16
+ * carries no sender authentication, so a self-declared pubkey would be worse
+ * than nothing: it reads as provenance while being trivially forged.
+ */
+export const voucherTransferSchema = z.object({
+  action: z.literal('voucher'),
+  nonce: z
+    .string()
+    .trim()
+    .length(
+      VOUCHER_NONCE_LENGTH,
+      `Nonce must be ${VOUCHER_NONCE_LENGTH} characters`
+    ),
+  /** The CMS-signed kind-20402. Required here — an unsigned transfer is unverifiable. */
+  voucher: z.record(z.unknown()),
+  comment: z.string().trim().max(LUD12_MAX_COMMENT_LENGTH).optional()
+})
+export type VoucherTransferRequest = z.infer<typeof voucherTransferSchema>
+
+/** Answer to a transfer. `ERROR` mirrors the LNURL error shape. */
+export const voucherTransferResponseSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('ACCEPTED') }),
+  z.object({ status: z.literal('ERROR'), reason: z.string() })
+])
+
+/** Body of `POST /api/wallet/vouchers/[id]/send`. */
+export const sendVoucherSchema = z.object({
+  /** Recipient lightning address, e.g. `alice@wallet.example`. */
+  address: z.string().trim().min(3).max(320),
+  comment: z.string().trim().max(LUD12_MAX_COMMENT_LENGTH).optional()
+})
+
+/**
+ * The CMS refresh response we consume — mint-shaped. `.passthrough()` for the
+ * same reason as the claim preview: an upstream addition must not break us.
+ */
+export const couponRefreshResponseSchema = z
+  .object({
+    nonce: z.string().trim().min(1),
+    couponId: z.string().nullish(),
+    expiresAt: z.union([z.string(), z.number()]).nullish(),
+    voucher: z.record(z.unknown()).optional(),
+    // Mint-shaped, so the replacement describes itself. These are what the
+    // recipient renders: taking them from the *sender* would let them choose
+    // what the recipient sees, and taking them from some older row of the
+    // same service shows the wrong coupon entirely.
+    name: z.string().nullish(),
+    description: z.string().nullish(),
+    image: z.string().nullish(),
+    coupon: z.unknown().optional()
   })
   .passthrough()

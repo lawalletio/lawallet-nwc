@@ -72,6 +72,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   // never has to reason about a malformed URL it read back out of the DB.
   assertServiceUrl(body.claimUrl, 'claimUrl')
   if (body.mintUrl) assertServiceUrl(body.mintUrl, 'mintUrl')
+  if (body.refreshUrl) assertServiceUrl(body.refreshUrl, 'refreshUrl')
 
   // A linked secondary identity still resolves to the owning account, so a
   // service that only knows an old npub can still deliver.
@@ -125,6 +126,7 @@ export const POST = withErrorHandling(async (request: Request) => {
     servicePubkey,
     claimUrl: body.claimUrl,
     mintUrl: body.mintUrl ?? null,
+    refreshUrl: body.refreshUrl ?? null,
     metadata: (body.metadata ?? null) as Prisma.InputJsonValue,
     voucherEvent: (body.voucherEvent ?? null) as Prisma.InputJsonValue,
     // A voucher event whose phase already says `claimed` was minted from an
@@ -154,6 +156,7 @@ export const POST = withErrorHandling(async (request: Request) => {
       metadata: data.metadata,
       claimUrl: data.claimUrl,
       mintUrl: data.mintUrl,
+      refreshUrl: data.refreshUrl,
       expiresAt: data.expiresAt
     },
     select: { id: true, status: true }
