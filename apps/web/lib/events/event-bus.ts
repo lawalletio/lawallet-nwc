@@ -26,7 +26,8 @@ const EVENT_PERMISSION_MAP: Record<SSEEventType, Permission | null> = {
   // Payload-free invalidation. APIs remain owner-scoped, so every signed-in
   // user may safely refetch without learning another account's wallet ids.
   'remote-wallet-forwarding:updated': null,
-  'remote-wallet-notifications:updated': null
+  'remote-wallet-notifications:updated': null,
+  'vouchers:updated': null
 }
 
 // ─── Event Bus ────────────────────────────────────────────────────────────

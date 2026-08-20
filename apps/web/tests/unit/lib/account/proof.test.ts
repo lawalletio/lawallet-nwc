@@ -98,6 +98,29 @@ describe('nostr link proof', () => {
     ).toThrow(AuthenticationError)
   })
 
+  it('rejects a spread-tampered event that still carries a cached verdict', () => {
+    const { challenge, nonce } = mintNostrLinkChallenge(ACCOUNT)
+    const { event } = signProof(nonce)
+    // No JSON round-trip here, unlike the test above: object spread copies
+    // nostr-tools' `verifiedSymbol` cache along with the fields, so a naive
+    // `verifyEvent(event)` returns the memoized `true` and never looks at the
+    // flipped signature. Guards the rebuild in `verifySignedChallengeEvent`.
+    const sig = event.sig.slice(0, -1) + (event.sig.endsWith('a') ? 'b' : 'a')
+    const tampered = { ...event, sig }
+    expect(() =>
+      verifyNostrLinkProof({ challenge, event: tampered, accountId: ACCOUNT })
+    ).toThrow(AuthenticationError)
+  })
+
+  it('rejects spread-tampered content that still carries a cached verdict', () => {
+    const { challenge, nonce } = mintNostrLinkChallenge(ACCOUNT)
+    const { event } = signProof(nonce)
+    const tampered = { ...event, content: 'evil' }
+    expect(() =>
+      verifyNostrLinkProof({ challenge, event: tampered, accountId: ACCOUNT })
+    ).toThrow(AuthenticationError)
+  })
+
   it('rejects a garbage challenge token', () => {
     const { event } = signProof('n')
     expect(() =>

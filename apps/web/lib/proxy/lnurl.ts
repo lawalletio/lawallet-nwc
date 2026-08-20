@@ -9,10 +9,7 @@ import {
 } from '@/lib/invoice-utils'
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
 import { isDestinationInvoiceAmountAcceptable } from './money'
-import {
-  resolveLocalDestination,
-  resolveSelfOrigin
-} from './local-destination'
+import { resolveLocalDestination, resolveSelfOrigin } from './local-destination'
 
 const MAX_RESPONSE_BYTES = 64 * 1024
 const FETCH_TIMEOUT_MS = 7000
@@ -53,6 +50,7 @@ const payMetadataSchema = z.object({
   metadata: z.string().default('[]'),
   commentAllowed: z.number().int().nonnegative().optional(),
   allowsNostr: z.boolean().optional(),
+  allowVouchers: z.boolean().optional(),
   nostrPubkey: z.string().optional()
 })
 

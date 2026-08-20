@@ -206,6 +206,33 @@ enum WebAuthnFlow {
   EXPORT
 }
 
+/// Lifecycle of a stored coupons-protocol voucher. Mirrors the status a
+/// coupon-manager service reports from `GET {claimUrl}?nonce=`
+/// (`minted | claimed | expired | voided`). CLAIMED and VOIDED are terminal:
+/// a burned coupon must never come back to life — see `lib/vouchers/transition.ts`.
+enum VoucherStatus {
+  MINTED
+  /// A transfer is in flight. Set by a conditional MINTED -> TRANSFER_PENDING
+  /// update *before* the outbound request, so an honest double-send cannot
+  /// start; settled to TRANSFERRED or back to MINTED by the outcome.
+  TRANSFER_PENDING
+  /// Swapped away to another holder. Terminal: the nonce on this row was
+  /// burned by the recipient's refresh and buys nothing. The row is kept as
+  /// the only record of where the coupon went.
+  TRANSFERRED
+  CLAIMED
+  EXPIRED
+  VOIDED
+}
+
+/// Who may deposit vouchers to a user's stash via `POST /api/vouchers`.
+/// Every deposit is NIP-98 authenticated regardless; this narrows *which*
+/// signers the recipient accepts.
+enum VoucherDepositPolicy {
+  ANYONE
+  ALLOWLIST
+}
+
 model User {
   id                                 String                             @id
   pubkey                             String                             @unique
@@ -235,6 +262,20 @@ model User {
   managedNostrKey                    ManagedNostrKey?
   nostrIdentities                    NostrIdentity[]
   walletForwardReceipts              RemoteWalletForwardReceipt[]
+  vouchers                           Voucher[]
+  voucherTransfers                   VoucherTransfer[]
+  /// Who may deposit vouchers to this account. Deposits are always NIP-98
+  /// signed; ALLOWLIST additionally restricts *which* signers are accepted.
+  voucherDepositPolicy               VoucherDepositPolicy               @default(ANYONE)
+  /// Whether this account's lightning address advertises `allowVouchers` and
+  /// accepts LNURL voucher transfers. Off by default and opt-in: a transfer is
+  /// an *anonymous* write into someone's stash, and that surface must not
+  /// appear on every existing address the day the feature ships.
+  allowVouchers                      Boolean                            @default(false)
+  /// Hex pubkeys allowed to deposit while `voucherDepositPolicy` is ALLOWLIST.
+  /// Always stored hex — npub and NIP-05 input is resolved on save so the
+  /// deposit hot path is a plain array membership test.
+  voucherSenderAllowlist             String[]                           @default([])
 
   @@index([role])
 }
@@ -1042,4 +1083,112 @@ model PluginRecord {
 
   @@unique([pluginId, kind, key])
   @@index([pluginId, kind])
+}
+
+// A coupon held on a user's behalf, compatible with the lacrypta/coupons
+// protocol (https://github.com/lacrypta/coupons). External coupon-manager
+// services (CMS) mint coupons and deposit them here against a member's npub;
+// the instance stores and displays them, and the merchant's POS burns them.
+//
+// Custodial by construction: the nonce is a bearer credential sitting in this
+// table, and the CMS's own database — not this one — is the authority on
+// whether a coupon has been spent. A future protocol version should carry
+// vouchers as ecash (Cashu, NIP-60/61) so the bearer value is blinded and the
+// operator can't read it. See docs/services/VOUCHERS.md.
+model Voucher {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The coupon code: 22-char base64url nonce, and the *only* credential
+  /// needed to redeem. Unique per issuing service rather than globally —
+  /// two independent CMSs can legitimately mint the same 16 random bytes.
+  nonce          String
+  /// Coupon *definition* id (uuid) on the issuing service. Many vouchers
+  /// share one definition.
+  couponId       String?
+  name           String
+  description    String?
+  imageUrl       String?
+  /// Where to read more about the offer — the merchant's product or campaign
+  /// page. Rendered as a clickable link, so the scheme is constrained to
+  /// http(s) on the way in (`externalUrlSchema`): an `<a href>` executes
+  /// `javascript:` on click.
+  url            String?
+  /// Merchant that accepts this voucher (hex pubkey).
+  merchantPubkey String
+  /// Coupon-manager service that signed the voucher (hex pubkey). Together
+  /// with `nonce` this is the row's natural key.
+  servicePubkey  String
+  /// Service endpoints from the merchant's kind-30078 announcement.
+  /// `claimUrl` is what the status refresh polls; `mintUrl` is stored for
+  /// completeness so a later phase can re-mint or deep-link without a
+  /// second discovery round-trip.
+  claimUrl       String
+  mintUrl        String?
+  /// The protocol `Benefit` plus any extra conditions, verbatim. Opaque on
+  /// purpose: the benefit union grows upstream (percent, fixed, multibuy,
+  /// buyXgetY, freeItems, …) and a new type must not require a migration.
+  metadata       Json?
+  /// The CMS-signed kind-20402 event, stored verbatim as provenance so the
+  /// voucher stays independently verifiable long after deposit. Null when the
+  /// depositor posted plain fields instead of a signed event.
+  voucherEvent   Json?
+
+  status          VoucherStatus @default(MINTED)
+  expiresAt       DateTime?
+  claimedAt       DateTime?
+  /// Last time `claimUrl` was polled. Backs the refresh cooldown so the
+  /// button can't be used to hammer a third-party service.
+  statusCheckedAt DateTime?
+  /// NIP-98 pubkey that deposited this row — audit trail, and what an owner
+  /// needs in order to build a sender allowlist after the fact. Empty for a
+  /// row received by LNURL transfer, which carries no sender identity.
+  depositedBy     String
+  /// Lightning address this coupon was sent to, once TRANSFERRED. The only
+  /// record of where it went — the row is never deleted on send.
+  transferredTo   String?
+  /// The service's refresh endpoint, when it advertised one. Absent means the
+  /// CMS predates refresh and the coupon cannot be transferred.
+  refreshUrl      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([servicePubkey, nonce])
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+/// Write-ahead record of an inbound voucher transfer, on the RECEIVING side.
+///
+/// Exists because the CMS refresh is the one irreversible step in a transfer:
+/// it burns the sender's nonce and mints a replacement. If we called it and
+/// then failed to persist the replacement, the coupon would be destroyed —
+/// burned at the service, held by nobody. So the intent is written first: a
+/// failed insert means we never call refresh (a database outage burns
+/// nothing), and a row stuck without `newNonce` is a completed burn we can
+/// replay the refresh for, since refresh is idempotent on `Idempotency-Key`.
+///
+/// The unique key also makes a retried transfer free: the same old nonce from
+/// the same service replays the stored answer without touching the CMS.
+model VoucherTransfer {
+  id             String    @id @default(cuid())
+  /// Account that received the transfer.
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Coupon-manager service that signed the incoming voucher (hex pubkey).
+  servicePubkey  String
+  /// The nonce as it arrived — burned by our refresh, kept as the idempotency key.
+  oldNonce       String
+  /// The replacement. Null until the refresh has returned and been stored.
+  newNonce       String?
+  /// Sent to the CMS so a retried refresh replays instead of re-minting.
+  idempotencyKey String
+  /// The voucher row created once the swap completed.
+  voucherId      String?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  @@unique([servicePubkey, oldNonce])
+  @@index([userId, createdAt])
 }

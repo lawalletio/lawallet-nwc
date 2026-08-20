@@ -148,6 +148,12 @@ export function getOpenApiDocument(
         name: 'Remote Connections',
         description: 'External device pairing for cards.'
       },
+      {
+        name: 'Vouchers',
+        description:
+          'Coupons issued to a member’s npub by external coupon-manager ' +
+          'services (lacrypta/coupons protocol).'
+      },
       { name: 'Activity', description: 'Activity log access.' },
       {
         name: 'Events',

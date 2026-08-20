@@ -123,7 +123,8 @@ export const GET = withErrorHandling(
               id: true,
               // pubkey drives the cached-Nostr-avatar embed in the payRequest
               // metadata below.
-              pubkey: true
+              pubkey: true,
+              allowVouchers: true
             }
           }
         }
@@ -351,7 +352,11 @@ export const GET = withErrorHandling(
               allowsNostr: true,
               nostrPubkey: zapCapability.receiptPubkey!
             }
-          : {})
+          : {}),
+        // Advertised only when the owner opted in. Absent reads as "don't send
+        // me coupons", which is the right default for an anonymous write
+        // surface — see the `allowVouchers` column comment.
+        ...(lightningAddress.user.allowVouchers ? { allowVouchers: true } : {})
       } as LUD06Response)
     }
   ),

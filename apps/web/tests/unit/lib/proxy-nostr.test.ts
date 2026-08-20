@@ -105,6 +105,33 @@ describe('proxy NIP-57 validation', () => {
     expect(() => run('not-a-pubkey')).toThrow(/p tag/)
   })
 
+  it('rejects a tampered signature', () => {
+    // `validateZapRequest` takes the raw string and parses it itself, so the
+    // event it verifies can never carry nostr-tools' `verifiedSymbol` cache —
+    // JSON.stringify drops symbol-keyed properties on the way in. This pins
+    // that the signature is genuinely re-checked rather than memoized.
+    const event = zapRequest()
+    const sig = event.sig.slice(0, -1) + (event.sig.endsWith('a') ? 'b' : 'a')
+    expect(() =>
+      validateZapRequest({
+        raw: JSON.stringify({ ...event, sig }),
+        amountMsats: 100_000,
+        nowSeconds: 1_700_000_000
+      })
+    ).toThrow(/signature, kind, or timestamp is invalid/)
+  })
+
+  it('rejects tampered content', () => {
+    const event = zapRequest()
+    expect(() =>
+      validateZapRequest({
+        raw: JSON.stringify({ ...event, content: 'evil' }),
+        amountMsats: 100_000,
+        nowSeconds: 1_700_000_000
+      })
+    ).toThrow(/signature, kind, or timestamp is invalid/)
+  })
+
   it('derives the advertised receipt pubkey from the signer', () => {
     expect(receiptPubkey(Buffer.from(senderKey).toString('hex'))).toHaveLength(
       64

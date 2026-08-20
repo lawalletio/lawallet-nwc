@@ -47,6 +47,10 @@ beforeEach(() => {
   // Registration is resolved from User.pubkey ∪ NostrIdentity; default the
   // identity lookup to empty so tests opt in via User.pubkey as before.
   vi.mocked(prismaMock.nostrIdentity.findMany).mockResolvedValue([] as any)
+  // Vouchers also make a pubkey resolvable (a merchant or coupon service is
+  // never an account here). Default to none so these tests keep exercising
+  // the account paths only.
+  vi.mocked(prismaMock.voucher.findMany).mockResolvedValue([] as any)
 })
 
 describe('resolveProfiles', () => {
@@ -215,5 +219,46 @@ describe('resolveProfiles', () => {
     expect(relayFetcher).toHaveBeenCalledWith([PUBKEY_A])
     expect(profiles).toHaveLength(1)
     expect(profiles[0].pubkey).toBe(PUBKEY_A)
+  })
+
+  it('resolves a merchant or coupon service referenced by a stored voucher', async () => {
+    // Neither is an account here, but both are already in our database
+    // because somebody deposited a coupon naming them — so resolving them
+    // leaks nothing new, and it is what puts a real name on the voucher page.
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([] as any)
+    vi.mocked(prismaMock.voucher.findMany).mockResolvedValue([
+      { merchantPubkey: PUBKEY_B, servicePubkey: PUBKEY_A }
+    ] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
+    const relayFetcher = vi
+      .fn()
+      .mockResolvedValue([kind0(PUBKEY_B, 100, { name: 'cafe' })])
+
+    const profiles = await resolveProfiles([PUBKEY_B], {
+      now: NOW,
+      relayFetcher,
+      precacheImages: vi.fn()
+    })
+
+    expect(relayFetcher).toHaveBeenCalledWith([PUBKEY_B])
+    expect(profiles.map(p => p.pubkey)).toEqual([PUBKEY_B])
+  })
+
+  it('still refuses a pubkey nothing in the database references', async () => {
+    // The anti-relay-proxy property: widening for vouchers must not make this
+    // endpoint resolve arbitrary keys.
+    vi.mocked(prismaMock.user.findMany).mockResolvedValue([] as any)
+    vi.mocked(prismaMock.voucher.findMany).mockResolvedValue([] as any)
+    vi.mocked(prismaMock.nostrProfileCache.findMany).mockResolvedValue([])
+    const relayFetcher = vi.fn()
+
+    const profiles = await resolveProfiles([PUBKEY_B], {
+      now: NOW,
+      relayFetcher,
+      precacheImages: vi.fn()
+    })
+
+    expect(relayFetcher).not.toHaveBeenCalled()
+    expect(profiles).toHaveLength(0)
   })
 })

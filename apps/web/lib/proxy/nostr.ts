@@ -37,6 +37,13 @@ export function validateZapRequest(input: {
   } catch {
     throw new ValidationError('Zap request is not valid JSON')
   }
+  // `verifyEvent` is safe to hand `event` directly *only* because it was
+  // JSON.parse'd three lines up: nostr-tools memoizes its verdict on the
+  // event under a symbol key, and an object already carrying a `true` there
+  // skips the signature check entirely — but JSON can't carry a symbol. This
+  // input is a string, so no caller can smuggle a pre-verified object in. If
+  // this signature ever changes to accept an `Event`, rebuild it from the
+  // seven signed fields first, the way `lib/vouchers/event.ts` does.
   if (
     event.kind !== 9734 ||
     !verifyEvent(event) ||
@@ -172,7 +179,6 @@ export async function publishZapReceipt(input: {
   }
   return { event, json: JSON.stringify(event) }
 }
-
 
 function isRelayUrl(value: string): boolean {
   try {

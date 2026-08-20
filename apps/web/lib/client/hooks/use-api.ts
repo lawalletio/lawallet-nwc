@@ -53,6 +53,10 @@ function getEventTypeForPath(path: string): SSEEventType | null {
   // The caller's own cards feed mirrors the admin `/api/cards` → `cards:updated`
   // so a newly paired/unpaired card refreshes the Connection Map + Cards view.
   if (path.startsWith('/api/wallet/cards')) return 'cards:updated'
+  // A voucher deposit arrives from an *external* service, so the stash has no
+  // local mutation to invalidate off — the SSE bump is the only thing that
+  // makes a freshly deposited coupon appear without a reload.
+  if (path.startsWith('/api/wallet/vouchers')) return 'vouchers:updated'
   // `/api/card-designs` must come *before* the `/api/cards` rule because
   // `cards`.startsWith test would otherwise claim it. Designs emit their
   // own `designs:updated` bus event; wiring them to `cards:updated` meant

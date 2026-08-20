@@ -39,24 +39,50 @@ export const MEDIA_URL_MAX_LENGTH = 2048
  * with an explicit, much smaller byte budget rather than reusing
  * `MEDIA_URL_MAX_LENGTH`.
  */
+/**
+ * The scheme guard behind {@link imageUrlSchema} and {@link externalUrlSchema}.
+ *
+ * Extracted so the two cannot drift: this is a security control, and a second
+ * copy of it is a second thing to forget when the rule changes. `javascript:`
+ * is the case that matters — inert in an `<img src>`, but it *executes* from
+ * an `<a href>` on click.
+ */
+export function isHttpUrl(value: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(value)
+    return (
+      (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
+    )
+  } catch {
+    return false
+  }
+}
+
 export const imageUrlSchema = z
   .string()
   .trim()
   .url('Image URL must be a valid URL')
   .max(MEDIA_URL_MAX_LENGTH, 'Image URL too long')
-  .refine(
-    value => {
-      try {
-        const { protocol, hostname } = new URL(value)
-        return (
-          (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
-        )
-      } catch {
-        return false
-      }
-    },
-    { message: 'Image URL must be an http:// or https:// URL' }
-  )
+  .refine(isHttpUrl, {
+    message: 'Image URL must be an http:// or https:// URL'
+  })
+
+/**
+ * A URL accepted from API input and later rendered as a clickable link.
+ *
+ * Same scheme guard as {@link imageUrlSchema}, stricter consequence: an
+ * `<a href>` runs `javascript:` on click, so this is the difference between a
+ * broken image and stored XSS. Every consumer must still render it with
+ * `rel="noopener noreferrer"`.
+ */
+export const externalUrlSchema = z
+  .string()
+  .trim()
+  .url('Must be a valid URL')
+  .max(MEDIA_URL_MAX_LENGTH, 'URL too long')
+  .refine(isHttpUrl, {
+    message: 'URL must be an http:// or https:// URL'
+  })
 
 /**
  * Media URL accepted when restoring rows that are already in a database
@@ -1225,3 +1251,245 @@ export const updateIdentityRequestSchema = z
     message: 'Provide isPrimary or label'
   })
 export type UpdateIdentityRequest = z.infer<typeof updateIdentityRequestSchema>
+
+// ── Vouchers (lacrypta/coupons protocol) ─────────────────────────────────────
+//
+// A voucher is a coupon minted by an external coupon-manager service (CMS) and
+// deposited against a member's npub. See docs/services/VOUCHERS.md for the
+// protocol mapping and the ecash migration note.
+
+/**
+ * The coupons protocol pins the coupon code to exactly 22 characters — the
+ * base64url encoding of 16 random bytes — in its OpenAPI document
+ * (`minLength: 22, maxLength: 22`). Rejecting anything else early keeps a
+ * malformed code from reaching a third-party service as a query parameter.
+ */
+export const VOUCHER_NONCE_LENGTH = 22
+
+/** Upper bound for a service endpoint URL. Same budget as a media URL. */
+export const VOUCHER_URL_MAX_LENGTH = MEDIA_URL_MAX_LENGTH
+
+export const voucherStatusSchema = z.enum([
+  'MINTED',
+  /** A send is in flight. Set before the request, settled by its outcome. */
+  'TRANSFER_PENDING',
+  /** Swapped away to somebody else. Terminal — the nonce here is dead. */
+  'TRANSFERRED',
+  'CLAIMED',
+  'EXPIRED',
+  'VOIDED'
+])
+export type VoucherStatus = z.infer<typeof voucherStatusSchema>
+
+export const voucherDepositPolicySchema = z.enum(['ANYONE', 'ALLOWLIST'])
+export type VoucherDepositPolicy = z.infer<typeof voucherDepositPolicySchema>
+
+/**
+ * A pubkey as a *caller* may write it: 64-char hex or `npub1…`. Normalized to
+ * hex in the route via `normalizeNostrPubkey`, which is also what rejects
+ * other NIP-19 types (nsec, note, nprofile). Kept loose here so the caller
+ * gets "Invalid Nostr public key" rather than a regex dump.
+ */
+export const nostrPubkeyInputSchema = z.string().trim().min(1).max(128)
+
+/**
+ * An allowlist entry as typed by the owner: hex, `npub1…`, or a NIP-05
+ * identifier (`name@domain`). Resolved to hex on save.
+ */
+export const voucherSenderInputSchema = z.string().trim().min(1).max(128)
+
+/**
+ * Service endpoint URL. The scheme is *not* constrained here: production
+ * requires https, but the coupons spec explicitly allows localhost in dev, and
+ * that's an environment-dependent rule the route enforces rather than a shape
+ * rule Zod can express once for both.
+ */
+const voucherServiceUrlSchema = z
+  .string()
+  .trim()
+  .url('Must be a valid URL')
+  .max(VOUCHER_URL_MAX_LENGTH, 'URL too long')
+
+/** Body of `POST /api/vouchers` — the public (NIP-98 authed) deposit. */
+export const depositVoucherSchema = z.object({
+  /** Recipient account, as npub or hex. */
+  npub: nostrPubkeyInputSchema,
+  /** The coupon code. Also present inside `voucherEvent` when one is sent. */
+  nonce: z
+    .string()
+    .trim()
+    .length(
+      VOUCHER_NONCE_LENGTH,
+      `Nonce must be ${VOUCHER_NONCE_LENGTH} characters`
+    ),
+  /** Coupon definition id on the issuing service. */
+  couponId: z.string().uuid('Coupon id must be a UUID').optional(),
+  /** Upstream caps the definition name at 80 characters. */
+  name: z.string().trim().min(1, 'Name is required').max(80, 'Name too long'),
+  /** Upstream caps the definition description at 500 characters. */
+  description: z.string().trim().max(500, 'Description too long').optional(),
+  image: imageUrlSchema.optional(),
+  /** Where to read more — the merchant's offer or product page. */
+  url: externalUrlSchema.optional(),
+  merchantPubkey: nostrPubkeyInputSchema,
+  /**
+   * The signing CMS. Optional: when omitted, the NIP-98 signer *is* the
+   * service. When a `voucherEvent` is supplied, its `pubkey` must match.
+   */
+  servicePubkey: nostrPubkeyInputSchema.optional(),
+  claimUrl: voucherServiceUrlSchema,
+  mintUrl: voucherServiceUrlSchema.optional(),
+  /**
+   * The service's refresh endpoint. Without it the coupon is stored fine but
+   * can never be transferred — the wallet hides Send rather than offering an
+   * action that would fail at the last step.
+   */
+  refreshUrl: voucherServiceUrlSchema.optional(),
+  /**
+   * The protocol `Benefit` plus any extra conditions. Deliberately opaque —
+   * the benefit union grows upstream and this instance only renders it.
+   */
+  metadata: z.record(z.unknown()).optional(),
+  /** Expiry as unix seconds, matching the protocol's `expiration` tag. */
+  expiresAt: z.number().int().positive().optional(),
+  /**
+   * The CMS-signed kind-20402 voucher event. Optional, but when present it is
+   * verified and its values win over the plain fields above — a signature
+   * beats an assertion.
+   */
+  voucherEvent: z.record(z.unknown()).optional()
+})
+export type DepositVoucherRequest = z.infer<typeof depositVoucherSchema>
+
+export const voucherListQuerySchema = z.object({
+  status: voucherStatusSchema.optional()
+})
+
+export const voucherIdParam = z.object({
+  id: z.string().min(1, 'Voucher ID is required')
+})
+
+/** Body of `PUT /api/wallet/vouchers/settings`. */
+export const updateVoucherSettingsSchema = z.object({
+  policy: voucherDepositPolicySchema,
+  /**
+   * Senders accepted while the policy is ALLOWLIST. Capped at 50 because each
+   * unresolved NIP-05 entry costs one outbound request on save.
+   */
+  allowlist: z.array(voucherSenderInputSchema).max(50, 'Too many senders')
+})
+export type UpdateVoucherSettingsRequest = z.infer<
+  typeof updateVoucherSettingsSchema
+>
+
+/**
+ * The status vocabulary a coupon-manager service reports from
+ * `GET {claimUrl}?nonce=`. Lowercase on the wire, uppercase in our enum.
+ */
+export const couponServiceStatusSchema = z.enum([
+  'minted',
+  'claimed',
+  'expired',
+  'voided',
+  /**
+   * The nonce was swapped for a replacement — the coupon moved, it was not
+   * revoked. Distinct from `voided` on purpose: `voided` means the merchant
+   * killed the value, `refreshed` means the value still exists in somebody
+   * else's hands, and that is the only signal a stranded sender gets.
+   */
+  'refreshed'
+])
+
+/**
+ * The subset of a service's claim-preview response we actually consume.
+ *
+ * `.passthrough()` because the full payload carries the benefit and merchant
+ * fields too, and an upstream addition must not fail the status refresh.
+ *
+ * `status` is deliberately NOT the strict enum. A service is free to grow its
+ * vocabulary, and a strict parse would turn every unknown value into a thrown
+ * `ServiceUnavailableError` — breaking status refresh entirely against a
+ * *newer* service, which is exactly the wallet that most needs to hear from
+ * it. Unknown values parse to `undefined`, and the caller leaves the stored
+ * status alone. Fail open on vocabulary, never on signatures.
+ */
+export const couponClaimPreviewSchema = z
+  .object({
+    status: z.preprocess(
+      value =>
+        couponServiceStatusSchema.safeParse(value).success ? value : undefined,
+      couponServiceStatusSchema.optional()
+    ),
+    claimedAt: z.union([z.string(), z.number()]).nullish(),
+    expiresAt: z.union([z.string(), z.number()]).nullish()
+  })
+  .passthrough()
+
+// ── Voucher transfer over LUD-16 ─────────────────────────────────────────────
+
+/**
+ * Actions accepted by `POST {lud16 callback}`.
+ *
+ * `pay` is deliberately absent: LNURL-pay is the GET, and the method is the
+ * primary discriminator. This enum is only for the POST surface.
+ */
+export const lud16CallbackActionSchema = z.enum(['voucher'])
+
+/**
+ * Body of a voucher transfer.
+ *
+ * Note what is NOT here: no `claimUrl`, no `refreshUrl`, no sender identity.
+ * Service endpoints are resolved from what the receiver already stores for the
+ * signing pubkey — taking a URL from an unauthenticated body would let a
+ * sender point us at a service that swears their forgery is real. And LUD-16
+ * carries no sender authentication, so a self-declared pubkey would be worse
+ * than nothing: it reads as provenance while being trivially forged.
+ */
+export const voucherTransferSchema = z.object({
+  action: z.literal('voucher'),
+  nonce: z
+    .string()
+    .trim()
+    .length(
+      VOUCHER_NONCE_LENGTH,
+      `Nonce must be ${VOUCHER_NONCE_LENGTH} characters`
+    ),
+  /** The CMS-signed kind-20402. Required here — an unsigned transfer is unverifiable. */
+  voucher: z.record(z.unknown()),
+  comment: z.string().trim().max(LUD12_MAX_COMMENT_LENGTH).optional()
+})
+export type VoucherTransferRequest = z.infer<typeof voucherTransferSchema>
+
+/** Answer to a transfer. `ERROR` mirrors the LNURL error shape. */
+export const voucherTransferResponseSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('ACCEPTED') }),
+  z.object({ status: z.literal('ERROR'), reason: z.string() })
+])
+
+/** Body of `POST /api/wallet/vouchers/[id]/send`. */
+export const sendVoucherSchema = z.object({
+  /** Recipient lightning address, e.g. `alice@wallet.example`. */
+  address: z.string().trim().min(3).max(320),
+  comment: z.string().trim().max(LUD12_MAX_COMMENT_LENGTH).optional()
+})
+
+/**
+ * The CMS refresh response we consume — mint-shaped. `.passthrough()` for the
+ * same reason as the claim preview: an upstream addition must not break us.
+ */
+export const couponRefreshResponseSchema = z
+  .object({
+    nonce: z.string().trim().min(1),
+    couponId: z.string().nullish(),
+    expiresAt: z.union([z.string(), z.number()]).nullish(),
+    voucher: z.record(z.unknown()).optional(),
+    // Mint-shaped, so the replacement describes itself. These are what the
+    // recipient renders: taking them from the *sender* would let them choose
+    // what the recipient sees, and taking them from some older row of the
+    // same service shows the wrong coupon entirely.
+    name: z.string().nullish(),
+    description: z.string().nullish(),
+    image: z.string().nullish(),
+    coupon: z.unknown().optional()
+  })
+  .passthrough()
