@@ -17,7 +17,8 @@ const TIMEOUT_MS = 10_000
 const MAX_RESPONSE_BYTES = 64 * 1024
 
 export interface VoucherStatusReport {
-  status: VoucherStatus
+  /** Null when the service reported a status this build doesn't recognise. */
+  status: VoucherStatus | null
   claimedAt: Date | null
   expiresAt: Date | null
 }

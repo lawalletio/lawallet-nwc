@@ -1271,6 +1271,10 @@ export const VOUCHER_URL_MAX_LENGTH = MEDIA_URL_MAX_LENGTH
 
 export const voucherStatusSchema = z.enum([
   'MINTED',
+  /** A send is in flight. Set before the request, settled by its outcome. */
+  'TRANSFER_PENDING',
+  /** Swapped away to somebody else. Terminal — the nonce here is dead. */
+  'TRANSFERRED',
   'CLAIMED',
   'EXPIRED',
   'VOIDED'
@@ -1380,17 +1384,35 @@ export const couponServiceStatusSchema = z.enum([
   'minted',
   'claimed',
   'expired',
-  'voided'
+  'voided',
+  /**
+   * The nonce was swapped for a replacement — the coupon moved, it was not
+   * revoked. Distinct from `voided` on purpose: `voided` means the merchant
+   * killed the value, `refreshed` means the value still exists in somebody
+   * else's hands, and that is the only signal a stranded sender gets.
+   */
+  'refreshed'
 ])
 
 /**
  * The subset of a service's claim-preview response we actually consume.
+ *
  * `.passthrough()` because the full payload carries the benefit and merchant
  * fields too, and an upstream addition must not fail the status refresh.
+ *
+ * `status` is deliberately NOT the strict enum. A service is free to grow its
+ * vocabulary, and a strict parse would turn every unknown value into a thrown
+ * `ServiceUnavailableError` — breaking status refresh entirely against a
+ * *newer* service, which is exactly the wallet that most needs to hear from
+ * it. Unknown values parse to `undefined`, and the caller leaves the stored
+ * status alone. Fail open on vocabulary, never on signatures.
  */
 export const couponClaimPreviewSchema = z
   .object({
-    status: couponServiceStatusSchema,
+    status: z.preprocess(
+      value => (couponServiceStatusSchema.safeParse(value).success ? value : undefined),
+      couponServiceStatusSchema.optional()
+    ),
     claimedAt: z.union([z.string(), z.number()]).nullish(),
     expiresAt: z.union([z.string(), z.number()]).nullish()
   })

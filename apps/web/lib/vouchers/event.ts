@@ -14,6 +14,8 @@ export const VOUCHER_EVENT_KIND = 20402
 export interface VerifiedVoucherEvent {
   /** Signer — the coupon-manager service. */
   servicePubkey: string
+  /** The merchant that accepts the coupon, from the `p` tag. */
+  merchantPubkey: string
   nonce: string
   /** Coupon definition id, from the `coupon` tag. */
   couponId: string | null
@@ -37,8 +39,16 @@ function tagValue(event: NostrEvent, name: string): string | null {
  * voucher provenance rather than an assertion, so nothing is trusted before
  * it passes.
  *
+ * There is deliberately nothing here that binds the voucher to the *recipient*.
+ * The coupons protocol has no holder field: `p` is the merchant (the payload
+ * calls it `owner`, and the spec's own verification snippet fails it with
+ * "different merchant"), and ownership is simply "whoever holds the nonce".
+ * The `npub` on a deposit therefore only decides which account we file the row
+ * under; it is not, and cannot be, cryptographically bound to the voucher.
+ * What actually gates a deposit is the recipient's policy, not this function.
+ *
  * @param raw - The event as posted, still untyped.
- * @param expected.recipientPubkey - Hex pubkey the voucher must be addressed to.
+ * @param expected.merchantPubkey - Hex merchant the deposit body claims.
  * @param expected.nonce - The coupon code the deposit body claims.
  * @param expected.servicePubkey - Hex signer the body claims, when it declared one.
  * @throws ValidationError with a specific reason on any failure.
@@ -46,7 +56,7 @@ function tagValue(event: NostrEvent, name: string): string | null {
 export function verifyVoucherEvent(
   raw: unknown,
   expected: {
-    recipientPubkey: string
+    merchantPubkey: string
     nonce: string
     servicePubkey?: string | null
   }
@@ -83,10 +93,10 @@ export function verifyVoucherEvent(
     throw new ValidationError('voucherEvent signature is invalid')
   }
 
-  const owner = tagValue(event, 'p')
-  if (!owner || owner.toLowerCase() !== expected.recipientPubkey) {
+  const merchant = tagValue(event, 'p')
+  if (!merchant || merchant.toLowerCase() !== expected.merchantPubkey) {
     throw new ValidationError(
-      'voucherEvent is not addressed to the recipient npub'
+      'voucherEvent names a different merchant than the deposit'
     )
   }
 
@@ -110,6 +120,7 @@ export function verifyVoucherEvent(
 
   return {
     servicePubkey: signer.pubkey,
+    merchantPubkey: merchant.toLowerCase(),
     nonce,
     couponId: tagValue(event, 'coupon'),
     expiresAt: Number.isFinite(expiresAt) && expiresAt ? expiresAt : null,

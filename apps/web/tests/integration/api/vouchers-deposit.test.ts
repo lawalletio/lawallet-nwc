@@ -39,6 +39,8 @@ import { resolveAccountByPubkey } from '@/lib/auth/account'
 const serviceKey = generateSecretKey()
 const servicePubkey = getPublicKey(serviceKey)
 const recipientPubkey = 'b'.repeat(64)
+/** `p` on a 20402 is the merchant, never the recipient. */
+const merchantPubkey = 'c'.repeat(64)
 const NONCE = 'hcLPDzERvvHzS4Vn0OLbAQ'
 
 function mockAuth(pubkey = servicePubkey) {
@@ -78,7 +80,7 @@ function signVoucher(
       created_at: Math.floor(Date.now() / 1000),
       tags: overrides.tags ?? [
         ['nonce', NONCE],
-        ['p', recipientPubkey],
+        ['p', merchantPubkey],
         ['coupon', '0f1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9'],
         ['phase', overrides.phase ?? 'minted'],
         ['expiration', '1764633600']
@@ -94,7 +96,7 @@ function body(overrides: Record<string, unknown> = {}) {
     npub: recipientPubkey,
     nonce: NONCE,
     name: '20% off any coffee',
-    merchantPubkey: 'c'.repeat(64),
+    merchantPubkey,
     claimUrl: 'https://merchant.example.com/api/coupons/claim',
     ...overrides
   }
@@ -187,7 +189,7 @@ describe('POST /api/vouchers', () => {
     expect(prismaMock.voucher.upsert).not.toHaveBeenCalled()
   })
 
-  it('rejects a voucher addressed to a different npub', async () => {
+  it('rejects a voucher naming a different merchant', async () => {
     mockAuth()
     mockRecipient()
 

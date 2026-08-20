@@ -212,6 +212,14 @@ enum WebAuthnFlow {
 /// a burned coupon must never come back to life — see `lib/vouchers/transition.ts`.
 enum VoucherStatus {
   MINTED
+  /// A transfer is in flight. Set by a conditional MINTED -> TRANSFER_PENDING
+  /// update *before* the outbound request, so an honest double-send cannot
+  /// start; settled to TRANSFERRED or back to MINTED by the outcome.
+  TRANSFER_PENDING
+  /// Swapped away to another holder. Terminal: the nonce on this row was
+  /// burned by the recipient's refresh and buys nothing. The row is kept as
+  /// the only record of where the coupon went.
+  TRANSFERRED
   CLAIMED
   EXPIRED
   VOIDED
@@ -255,6 +263,7 @@ model User {
   nostrIdentities                    NostrIdentity[]
   walletForwardReceipts              RemoteWalletForwardReceipt[]
   vouchers                           Voucher[]
+  voucherTransfers                   VoucherTransfer[]
   /// Who may deposit vouchers to this account. Deposits are always NIP-98
   /// signed; ALLOWLIST additionally restricts *which* signers are accepted.
   voucherDepositPolicy               VoucherDepositPolicy               @default(ANYONE)
@@ -1128,12 +1137,53 @@ model Voucher {
   /// button can't be used to hammer a third-party service.
   statusCheckedAt DateTime?
   /// NIP-98 pubkey that deposited this row — audit trail, and what an owner
-  /// needs in order to build a sender allowlist after the fact.
+  /// needs in order to build a sender allowlist after the fact. Empty for a
+  /// row received by LNURL transfer, which carries no sender identity.
   depositedBy     String
+  /// Lightning address this coupon was sent to, once TRANSFERRED. The only
+  /// record of where it went — the row is never deleted on send.
+  transferredTo   String?
+  /// The service's refresh endpoint, when it advertised one. Absent means the
+  /// CMS predates refresh and the coupon cannot be transferred.
+  refreshUrl      String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   @@unique([servicePubkey, nonce])
   @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+/// Write-ahead record of an inbound voucher transfer, on the RECEIVING side.
+///
+/// Exists because the CMS refresh is the one irreversible step in a transfer:
+/// it burns the sender's nonce and mints a replacement. If we called it and
+/// then failed to persist the replacement, the coupon would be destroyed —
+/// burned at the service, held by nobody. So the intent is written first: a
+/// failed insert means we never call refresh (a database outage burns
+/// nothing), and a row stuck without `newNonce` is a completed burn we can
+/// replay the refresh for, since refresh is idempotent on `Idempotency-Key`.
+///
+/// The unique key also makes a retried transfer free: the same old nonce from
+/// the same service replays the stored answer without touching the CMS.
+model VoucherTransfer {
+  id             String    @id @default(cuid())
+  /// Account that received the transfer.
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Coupon-manager service that signed the incoming voucher (hex pubkey).
+  servicePubkey  String
+  /// The nonce as it arrived — burned by our refresh, kept as the idempotency key.
+  oldNonce       String
+  /// The replacement. Null until the refresh has returned and been stored.
+  newNonce       String?
+  /// Sent to the CMS so a retried refresh replays instead of re-minting.
+  idempotencyKey String
+  /// The voucher row created once the swap completed.
+  voucherId      String?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  @@unique([servicePubkey, oldNonce])
   @@index([userId, createdAt])
 }

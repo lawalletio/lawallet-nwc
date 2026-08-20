@@ -99,7 +99,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   // than silently reconciled.
   const verified = body.voucherEvent
     ? verifyVoucherEvent(body.voucherEvent, {
-        recipientPubkey: recipient.pubkey,
+        merchantPubkey: merchant.pubkey,
         nonce: body.nonce,
         servicePubkey: declaredService?.pubkey
       })

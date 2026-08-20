@@ -71,10 +71,13 @@ export const POST = withErrorHandling(
       claimUrl: voucher.claimUrl,
       nonce: voucher.nonce
     })
-    const status = nextVoucherStatus(
-      voucher.status as VoucherStatus,
-      report.status
-    )
+    // A status this build doesn't recognise leaves the row alone. We still
+    // stamp `statusCheckedAt` below, so the cooldown applies and we don't
+    // hammer a service that is simply newer than we are.
+    const status =
+      report.status === null
+        ? (voucher.status as VoucherStatus)
+        : nextVoucherStatus(voucher.status as VoucherStatus, report.status)
 
     const updated = await prisma.voucher.update({
       where: { id: voucher.id },
