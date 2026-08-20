@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { VoucherCard } from '@/components/admin/vouchers/voucher-card'
 import { VoucherSettingsDialog } from '@/components/admin/vouchers/voucher-settings-dialog'
+import { DevCreateVoucher } from '@/components/admin/vouchers/dev-create-voucher'
 import {
   useVoucherMutations,
   useVouchers,
@@ -145,6 +146,9 @@ export default function VouchersPage() {
               </Button>
             ) : null}
             <VoucherSettingsDialog />
+            {process.env.NODE_ENV === 'development' && (
+              <DevCreateVoucher onCreated={refetch} />
+            )}
           </div>
         </div>
 
@@ -153,7 +157,7 @@ export default function VouchersPage() {
         ) : loading && !vouchers ? (
           <VouchersSkeleton />
         ) : !vouchers || vouchers.length === 0 ? (
-          <EmptyState />
+          <EmptyState onCreated={refetch} />
         ) : (
           <section
             aria-label="Your vouchers"
@@ -197,7 +201,7 @@ function VouchersSkeleton() {
   )
 }
 
-function EmptyState() {
+function EmptyState({ onCreated }: { onCreated?: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/40 px-6 py-12 text-center">
       <span className="flex size-12 items-center justify-center rounded-full bg-card ring-1 ring-border/50">
@@ -213,6 +217,9 @@ function EmptyState() {
         <VoucherSettingsDialog />
         <DocsLink />
       </div>
+      {process.env.NODE_ENV === 'development' && (
+        <DevCreateVoucher onCreated={onCreated} />
+      )}
     </div>
   )
 }
