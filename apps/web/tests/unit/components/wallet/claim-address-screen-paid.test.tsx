@@ -71,7 +71,7 @@ async function submitUsername() {
 describe('ClaimAddressScreen — paid registration', () => {
   it('shows the invoice QR after the 402', async () => {
     postMock.mockResolvedValue(INVOICE)
-    render(<ClaimAddressScreen />)
+    const { unmount } = render(<ClaimAddressScreen />)
 
     await submitUsername()
 
@@ -82,6 +82,12 @@ describe('ClaimAddressScreen — paid registration', () => {
       purpose: 'wallet-address',
       metadata: { username: 'satoshi' }
     })
+
+    // Reaching the payment step starts a LUD-21 poller that runs for the
+    // invoice's full lifetime. Unmount inside the test so its abort lands
+    // before `vi.unstubAllGlobals()` restores the real `fetch` — otherwise a
+    // surviving 3s interval fires against a real URL after teardown.
+    unmount()
   })
 
   it('keeps the user on the payment step with a retry when the mint fails', async () => {
@@ -96,7 +102,7 @@ describe('ClaimAddressScreen — paid registration', () => {
         'SERVICE_UNAVAILABLE'
       )
     )
-    render(<ClaimAddressScreen />)
+    const { unmount } = render(<ClaimAddressScreen />)
 
     await submitUsername()
 
@@ -112,5 +118,7 @@ describe('ClaimAddressScreen — paid registration', () => {
     expect(
       await screen.findByRole('heading', { name: /pay 21 sats/i })
     ).toBeTruthy()
+
+    unmount() // see above — stop the poller before globals are restored
   })
 })
