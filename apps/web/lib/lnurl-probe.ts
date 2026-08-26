@@ -19,8 +19,13 @@ const DEFAULT_TIMEOUT_MS = 8_000
  * form and should fail fast, while a mint sits between a user and the address
  * they are trying to buy — one slow provider response there is the difference
  * between "pay this QR" and a dead end at the 402.
+ *
+ * The 12s budget is deliberately generous: the provider configured on beta
+ * takes ~7s to answer its callback, which the old 8s ceiling raced often
+ * enough that half the mints reported a timeout instead of the provider's
+ * actual answer.
  */
-const MINT_TIMEOUT_MS = 7_000
+const MINT_TIMEOUT_MS = 12_000
 const MINT_ATTEMPTS = 2
 const RETRY_BACKOFF_MS = 300
 
@@ -219,6 +224,28 @@ function commentWithinBudget(
 }
 
 /**
+ * Best-effort read of a failed callback's explanation. Never throws: a body
+ * that isn't JSON, isn't readable, or says nothing useful must not replace the
+ * status code we already have.
+ */
+async function readCallbackErrorReason(res: Response): Promise<string | null> {
+  try {
+    const body = await res.text()
+    if (!body) return null
+    try {
+      const parsed = JSON.parse(body) as { reason?: unknown; error?: unknown }
+      const reason = parsed.reason ?? parsed.error
+      if (typeof reason === 'string' && reason.trim()) return reason.trim()
+    } catch {
+      // Not JSON — fall through to the raw text.
+    }
+    return body.slice(0, 200).trim() || null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Calls a LUD-16 `callback` endpoint for the given amount and optional comment.
  * The comment is only sent when the provider advertises a LUD-12 budget for it
  * (`options.commentAllowed`), truncated to fit.
@@ -247,8 +274,15 @@ export async function callLud16Callback(
     )
   }
   if (!res.ok) {
+    // LNURL providers explain themselves in the body even on a non-2xx
+    // (`{status:"ERROR", reason:"…"}` per LUD-06). Dropping it left operators
+    // staring at a bare "returned HTTP 400" with no way to tell an
+    // unsupported amount from a rejected comment from a disabled account.
+    const reason = await readCallbackErrorReason(res)
     throw new ValidationError(
-      `Lightning address callback returned HTTP ${res.status}`
+      `Lightning address callback returned HTTP ${res.status}${
+        reason ? `: ${reason}` : ''
+      }`
     )
   }
 

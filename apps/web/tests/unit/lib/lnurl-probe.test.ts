@@ -287,12 +287,32 @@ describe('resolveInvoice', () => {
         return metadataResponse() as Response
       }
       callbackCalls++
-      return { ok: false, status: 400 } as Response
+      return { ok: false, status: 400, text: async () => '' } as Response
     }) as any
 
     await expect(
       resolveInvoice('admin@example.com', 21, 'LaWallet address: alice')
     ).rejects.toThrow(/HTTP 400/)
     expect(callbackCalls).toBe(1)
+  })
+
+  it("carries the provider's own reason into the error message", async () => {
+    global.fetch = vi.fn(async (url: string) => {
+      if (String(url).includes('/.well-known/')) {
+        return metadataResponse() as Response
+      }
+      return {
+        ok: false,
+        status: 400,
+        text: async () =>
+          JSON.stringify({ status: 'ERROR', reason: 'Amount not allowed' })
+      } as Response
+    }) as any
+
+    // Without this an operator only sees "returned HTTP 400" and cannot tell
+    // a rejected amount from a rejected comment from a disabled account.
+    await expect(
+      resolveInvoice('admin@example.com', 21, 'LaWallet address: alice')
+    ).rejects.toThrow(/HTTP 400: Amount not allowed/)
   })
 })
