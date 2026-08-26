@@ -124,8 +124,10 @@ export function NewAddressDialog({
     submitting,
     submitDisabled,
     domain,
+    priceSats,
     handleSubmit,
     invoice,
+    mintError,
     paymentStatus,
     copied,
     hasWebLn,
@@ -200,6 +202,12 @@ export function NewAddressDialog({
           <form onSubmit={handleSubmit} className="space-y-4">
             <DialogHeader>
               <DialogTitle>New address</DialogTitle>
+              {priceSats !== null && (
+                <DialogDescription>
+                  This instance charges {priceSats} sats per address. You’ll get
+                  a Lightning invoice after picking a username.
+                </DialogDescription>
+              )}
             </DialogHeader>
 
             <div className="space-y-2">
@@ -252,10 +260,51 @@ export function NewAddressDialog({
               </Button>
               <Button type="submit" variant="theme" disabled={submitDisabled}>
                 {submitting && <Spinner size={16} className="mr-2" />}
-                {submitting ? 'Creating…' : 'Create'}
+                {submitting
+                  ? 'Creating…'
+                  : priceSats !== null
+                    ? 'Continue to payment'
+                    : 'Create'}
               </Button>
             </DialogFooter>
           </form>
+        )}
+
+        {step === 'payment' && !invoice && (
+          <div className="space-y-5">
+            <DialogHeader className="space-y-1 text-center sm:text-center">
+              <DialogTitle className="text-center">
+                {mintError ? 'Payment couldn’t be started' : 'Preparing payment'}
+              </DialogTitle>
+              <DialogDescription className="text-center">
+                {mintError
+                  ? `${username}@${domain} costs sats on this instance, but we couldn’t reach the payment provider.`
+                  : 'Generating your invoice…'}
+              </DialogDescription>
+            </DialogHeader>
+
+            {mintError ? (
+              <div className="flex flex-col items-center gap-3 text-center">
+                <p className="text-sm text-muted-foreground">{mintError}</p>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={backFromPayment}>
+                    Back
+                  </Button>
+                  <Button
+                    variant="theme"
+                    onClick={() => mintInvoiceAndShowQr()}
+                  >
+                    <RefreshCw className="mr-1.5 size-3.5" />
+                    Try again
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-center py-6">
+                <Spinner size={24} />
+              </div>
+            )}
+          </div>
         )}
 
         {step === 'payment' && invoice && (

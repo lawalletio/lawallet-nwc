@@ -63,9 +63,21 @@ export interface NewAddressFlowState {
   submitting: boolean
   submitDisabled: boolean
   domain: string
+  /**
+   * What claiming an address costs on this instance, or `null` when
+   * registration is free. Read from the public settings so the username step
+   * can warn about payment *before* the create call comes back 402.
+   */
+  priceSats: number | null
   handleSubmit: (e?: FormEvent) => Promise<void>
   // Payment step
   invoice: InvoiceData | null
+  /**
+   * Why the invoice could not be minted, when the paid path was entered but
+   * the provider never handed back a payable bolt11. Non-null implies
+   * `invoice === null` on the payment step.
+   */
+  mintError: string | null
   paymentStatus: 'waiting' | 'detected' | 'expired'
   copied: boolean
   hasWebLn: boolean
@@ -115,6 +127,7 @@ export function useNewAddressFlow({
 
   // Payment step state
   const [invoice, setInvoice] = useState<InvoiceData | null>(null)
+  const [mintError, setMintError] = useState<string | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<
     'waiting' | 'detected' | 'expired'
   >('waiting')
@@ -140,6 +153,16 @@ export function useNewAddressFlow({
   }, [active, step])
 
   const domain = settings?.domain || 'your-domain'
+  // `registration_price` defaults to 21 server-side (see /api/invoices), so
+  // mirror that here rather than rendering "costs NaN sats" when an operator
+  // enabled paid mode without setting an explicit price.
+  const parsedPrice = Number(settings?.registration_price ?? 21)
+  const priceSats =
+    settings?.registration_ln_enabled === 'true'
+      ? Number.isFinite(parsedPrice) && parsedPrice > 0
+        ? parsedPrice
+        : 21
+      : null
   const formatError =
     username.length === 0
       ? null
@@ -195,6 +218,7 @@ export function useNewAddressFlow({
       setAvailable(null)
       setChecking(false)
       setInvoice(null)
+      setMintError(null)
       setPaymentStatus('waiting')
       setCopied(false)
       setClaimedAddress(null)
@@ -296,6 +320,12 @@ export function useNewAddressFlow({
   )
 
   const mintInvoiceAndShowQr = useCallback(async () => {
+    // Land on the payment step first: whatever happens next — a QR or a
+    // failure — belongs there. Bouncing back to the username field on failure
+    // (the old behaviour) left the user staring at the form with a toast that
+    // had already faded, and no idea the instance wanted money at all.
+    setMintError(null)
+    setStep('payment')
     try {
       const result = await apiClient.post<InvoiceData | { free: true }>(
         '/api/invoices',
@@ -305,8 +335,8 @@ export function useNewAddressFlow({
         // Operator hasn't finished configuring paid mode — surface this
         // explicitly rather than silently looping on the free endpoint
         // which would also be unavailable.
-        toast.error(
-          'Paid registration is configured but incomplete. Contact the operator.'
+        setMintError(
+          'Paid registration is configured but incomplete on this instance. Contact the operator.'
         )
         return
       }
@@ -322,11 +352,12 @@ export function useNewAddressFlow({
       claimingRef.current = false
       setInvoice(invoiceData)
       setPaymentStatus('waiting')
-      setStep('payment')
       startLud21Polling(invoiceData)
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to generate invoice'
+      setMintError(
+        err instanceof Error
+          ? err.message
+          : 'Could not reach the payment provider.'
       )
     }
   }, [apiClient, username, startLud21Polling])
@@ -476,6 +507,7 @@ export function useNewAddressFlow({
     }
     setStep('username')
     setInvoice(null)
+    setMintError(null)
     setPaymentStatus('waiting')
     setManualChecking(false)
   }, [])
@@ -498,8 +530,10 @@ export function useNewAddressFlow({
     submitting,
     submitDisabled,
     domain,
+    priceSats,
     handleSubmit,
     invoice,
+    mintError,
     paymentStatus,
     copied,
     hasWebLn,
