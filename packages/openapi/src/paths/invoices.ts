@@ -38,7 +38,11 @@ registry.registerPath({
   },
   responses: {
     201: inlineJsonResponse('Invoice created.', invoiceSchema),
-    ...commonErrorResponses
+    ...commonErrorResponses,
+    // Minting reaches out to the operator's Lightning Address provider. When
+    // that provider is unreachable or refuses, the caller did nothing wrong —
+    // it should retry rather than treat the request as malformed.
+    503: responses.serviceUnavailable
   }
 })
 

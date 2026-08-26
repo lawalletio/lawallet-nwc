@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   probeLightningAddressCapabilities,
-  probeLud21Support
+  probeLud21Support,
+  resolveInvoice
 } from '@/lib/lnurl-probe'
 
 const originalFetch = global.fetch
@@ -192,5 +193,106 @@ describe('probeLightningAddressCapabilities', () => {
     expect(result.checks.lud21.message).toMatch(/verify URL/)
     expect(result.checks.nip57.ok).toBe(false)
     expect(result.checks.nip57.message).toMatch(/NIP-57/)
+  })
+})
+
+describe('resolveInvoice', () => {
+  function metadataResponse(extra: Record<string, unknown> = {}) {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        tag: 'payRequest',
+        callback: 'https://example.com/cb',
+        minSendable: 1_000,
+        maxSendable: 1_000_000_000,
+        ...extra
+      })
+    }
+  }
+
+  const invoiceResponse = {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      pr: 'lnbc210n1test',
+      verify: 'https://example.com/verify/xyz'
+    })
+  }
+
+  function calledUrls(): string[] {
+    return vi.mocked(global.fetch).mock.calls.map(call => String(call[0]))
+  }
+
+  it('omits the comment when the provider advertises no LUD-12 budget', async () => {
+    mockFetchSequence([() => metadataResponse(), () => invoiceResponse])
+
+    await expect(
+      resolveInvoice('admin@example.com', 21, 'LaWallet address: alice')
+    ).resolves.toEqual({
+      bolt11: 'lnbc210n1test',
+      verify: 'https://example.com/verify/xyz'
+    })
+
+    // Sending `comment` to a provider that never advertised `commentAllowed`
+    // is what made real providers answer HTTP 400 mid-registration.
+    expect(calledUrls()[1]).not.toContain('comment=')
+  })
+
+  it('truncates the comment to the advertised commentAllowed budget', async () => {
+    mockFetchSequence([
+      () => metadataResponse({ commentAllowed: 10 }),
+      () => invoiceResponse
+    ])
+
+    await resolveInvoice('admin@example.com', 21, 'LaWallet address: alice')
+
+    expect(calledUrls()[1]).toContain(
+      `comment=${encodeURIComponent('LaWallet a')}`
+    )
+  })
+
+  it('retries the callback once when the provider times out', async () => {
+    let call = 0
+    global.fetch = vi.fn(async () => {
+      call++
+      if (call === 1) return metadataResponse() as Response
+      if (call === 2) throw new Error('This operation was aborted')
+      return invoiceResponse as Response
+    }) as any
+
+    await expect(
+      resolveInvoice('admin@example.com', 21, 'LaWallet address: alice')
+    ).resolves.toMatchObject({ bolt11: 'lnbc210n1test' })
+    expect(call).toBe(3)
+  })
+
+  it('gives up with the provider error once the retries are spent', async () => {
+    global.fetch = vi.fn(async (url: string) => {
+      if (String(url).includes('/.well-known/')) {
+        return metadataResponse() as Response
+      }
+      throw new Error('This operation was aborted')
+    }) as any
+
+    await expect(
+      resolveInvoice('admin@example.com', 21, 'LaWallet address: alice')
+    ).rejects.toThrow(/callback failed/i)
+  })
+
+  it('does not retry a provider verdict (HTTP 400)', async () => {
+    let callbackCalls = 0
+    global.fetch = vi.fn(async (url: string) => {
+      if (String(url).includes('/.well-known/')) {
+        return metadataResponse() as Response
+      }
+      callbackCalls++
+      return { ok: false, status: 400 } as Response
+    }) as any
+
+    await expect(
+      resolveInvoice('admin@example.com', 21, 'LaWallet address: alice')
+    ).rejects.toThrow(/HTTP 400/)
+    expect(callbackCalls).toBe(1)
   })
 })
