@@ -12,17 +12,8 @@ vi.mock('next/navigation', () => ({
   })
 }))
 
-// Paid registration on, 21 sats — the shape the public settings endpoint now
-// serves to every visitor.
 vi.mock('@/lib/client/hooks/use-settings', () => ({
-  useSettings: () => ({
-    data: {
-      domain: 'lawallet.io',
-      registration_ln_enabled: 'true',
-      registration_price: '21'
-    },
-    loading: false
-  })
+  useSettings: () => ({ data: { domain: 'lawallet.io' }, loading: false })
 }))
 
 // Paid instance: creating an address straight away is refused with a 402.
@@ -72,20 +63,12 @@ afterEach(() => {
 async function submitUsername() {
   await userEvent.type(screen.getByLabelText('Username'), 'satoshi')
   await waitFor(() =>
-    expect(screen.getByRole('button', { name: /continue to payment/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /claim address/i })).toBeEnabled()
   )
-  await userEvent.click(screen.getByRole('button', { name: /continue to payment/i }))
+  await userEvent.click(screen.getByRole('button', { name: /claim address/i }))
 }
 
 describe('ClaimAddressScreen — paid registration', () => {
-  it('warns about the price before the create call is even made', () => {
-    render(<ClaimAddressScreen />)
-
-    expect(
-      screen.getByText(/costs 21 sats on this instance/i)
-    ).toBeTruthy()
-  })
-
   it('shows the invoice QR after the 402', async () => {
     postMock.mockResolvedValue(INVOICE)
     render(<ClaimAddressScreen />)

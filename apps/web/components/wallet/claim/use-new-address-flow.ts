@@ -63,12 +63,6 @@ export interface NewAddressFlowState {
   submitting: boolean
   submitDisabled: boolean
   domain: string
-  /**
-   * What claiming an address costs on this instance, or `null` when
-   * registration is free. Read from the public settings so the username step
-   * can warn about payment *before* the create call comes back 402.
-   */
-  priceSats: number | null
   handleSubmit: (e?: FormEvent) => Promise<void>
   // Payment step
   invoice: InvoiceData | null
@@ -153,16 +147,6 @@ export function useNewAddressFlow({
   }, [active, step])
 
   const domain = settings?.domain || 'your-domain'
-  // `registration_price` defaults to 21 server-side (see /api/invoices), so
-  // mirror that here rather than rendering "costs NaN sats" when an operator
-  // enabled paid mode without setting an explicit price.
-  const parsedPrice = Number(settings?.registration_price ?? 21)
-  const priceSats =
-    settings?.registration_ln_enabled === 'true'
-      ? Number.isFinite(parsedPrice) && parsedPrice > 0
-        ? parsedPrice
-        : 21
-      : null
   const formatError =
     username.length === 0
       ? null
@@ -530,7 +514,6 @@ export function useNewAddressFlow({
     submitting,
     submitDisabled,
     domain,
-    priceSats,
     handleSubmit,
     invoice,
     mintError,

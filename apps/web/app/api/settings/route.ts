@@ -75,13 +75,6 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       // wallet) instead of an empty "no wallet connected" state.
       lncurl_enabled: settings.lncurl_enabled,
       lncurl_auto_create: settings.lncurl_auto_create,
-      // Whether claiming an address costs sats, and how many. Not secrets —
-      // anyone who tries to register learns both from the 402 and the invoice
-      // — and the claim UI needs them to say "costs N sats" up front instead
-      // of promising a free address and then demanding payment. The payee
-      // address itself (`registration_ln_address`) stays operator-only.
-      registration_ln_enabled: settings.registration_ln_enabled,
-      registration_price: settings.registration_price,
       social_whatsapp: settings.social_whatsapp,
       social_telegram: settings.social_telegram,
       social_discord: settings.social_discord,

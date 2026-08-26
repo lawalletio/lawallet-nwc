@@ -124,7 +124,6 @@ export function NewAddressDialog({
     submitting,
     submitDisabled,
     domain,
-    priceSats,
     handleSubmit,
     invoice,
     mintError,
@@ -202,12 +201,6 @@ export function NewAddressDialog({
           <form onSubmit={handleSubmit} className="space-y-4">
             <DialogHeader>
               <DialogTitle>New address</DialogTitle>
-              {priceSats !== null && (
-                <DialogDescription>
-                  This instance charges {priceSats} sats per address. You’ll get
-                  a Lightning invoice after picking a username.
-                </DialogDescription>
-              )}
             </DialogHeader>
 
             <div className="space-y-2">
@@ -260,11 +253,7 @@ export function NewAddressDialog({
               </Button>
               <Button type="submit" variant="theme" disabled={submitDisabled}>
                 {submitting && <Spinner size={16} className="mr-2" />}
-                {submitting
-                  ? 'Creating…'
-                  : priceSats !== null
-                    ? 'Continue to payment'
-                    : 'Create'}
+                {submitting ? 'Creating…' : 'Create'}
               </Button>
             </DialogFooter>
           </form>
@@ -278,7 +267,7 @@ export function NewAddressDialog({
               </DialogTitle>
               <DialogDescription className="text-center">
                 {mintError
-                  ? `${username}@${domain} costs sats on this instance, but we couldn’t reach the payment provider.`
+                  ? `We couldn’t reach the payment provider for ${username}@${domain}.`
                   : 'Generating your invoice…'}
               </DialogDescription>
             </DialogHeader>

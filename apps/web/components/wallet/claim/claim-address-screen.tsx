@@ -71,10 +71,7 @@ export function ClaimAddressScreen() {
               </h1>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Pick a username — this is where you’ll receive Lightning
-                payments.{' '}
-                {flow.priceSats !== null
-                  ? `Claiming one costs ${flow.priceSats} sats on this instance.`
-                  : 'It’s free.'}
+                payments. It’s free.
               </p>
             </div>
 
@@ -125,11 +122,7 @@ export function ClaimAddressScreen() {
             disabled={flow.submitDisabled}
           >
             {flow.submitting && <Spinner size={16} className="mr-2" />}
-            {flow.submitting
-              ? 'Claiming…'
-              : flow.priceSats !== null
-                ? 'Continue to payment'
-                : 'Claim address'}
+            {flow.submitting ? 'Claiming…' : 'Claim address'}
           </Button>
         </form>
       )}
@@ -143,8 +136,8 @@ export function ClaimAddressScreen() {
                   Payment couldn’t be started
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  {flow.username}@{flow.domain} costs sats on this instance, but
-                  we couldn’t reach the payment provider.
+                  We couldn’t reach the payment provider for {flow.username}@
+                  {flow.domain}.
                 </p>
               </div>
               <p className="text-sm text-muted-foreground">{flow.mintError}</p>
