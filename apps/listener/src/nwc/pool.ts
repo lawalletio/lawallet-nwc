@@ -110,6 +110,14 @@ const WATCHER_INTERVAL_MS = 30000
 /** Avoid a startup relay storm while keeping enough parallel warm-ups. */
 const MAX_CONCURRENT_NEGOTIATIONS = 8
 const WARMUP_TIMEOUT_MS = 15000
+/**
+ * Number of retry attempts before reporting retryable warmup errors to
+ * onWalletError (Sentry). Transient failures like missing kind 13194 or SDK
+ * timeouts during connect() often resolve on retry — reporting them on every
+ * first failure drowns real payment errors. Only persistent failures (3+
+ * consecutive attempts) are worth alerting on.
+ */
+const WARMUP_RETRY_SENTRY_THRESHOLD = 3
 
 /**
  * Holds one live NWCClient per ACTIVE NWC RemoteWallet for the process
@@ -473,11 +481,25 @@ export class NwcPool {
       conn.lastErrorAt = new Date()
       conn.lastError = error.message
       this.teardownClient(conn)
+
+      const isRetryable = isRetryableWarmupError(error)
       if (conn.retryAttempt === 0) {
-        log.warn(
-          { err: error, walletId: conn.wallet.id, attempt: conn.retryAttempt },
-          'pool.wallet_connect_failed'
-        )
+        // First failure: full stack for non-retryable, lighter log for transient
+        if (isRetryable) {
+          log.info(
+            { error: error.message, walletId: conn.wallet.id },
+            'pool.wallet_warmup_transient'
+          )
+        } else {
+          log.warn(
+            {
+              err: error,
+              walletId: conn.wallet.id,
+              attempt: conn.retryAttempt
+            },
+            'pool.wallet_connect_failed'
+          )
+        }
       } else if (isPowerOfTwo(conn.retryAttempt)) {
         // Keep long-running outages observable without formatting the same
         // source-mapped stack every minute for every disconnected wallet.
@@ -490,7 +512,14 @@ export class NwcPool {
           'pool.wallet_connect_retrying'
         )
       }
-      if (!conn.errorNotified) {
+
+      // Report to Sentry only for non-retryable errors OR after multiple
+      // consecutive failures. Transient warmup issues (missing 13194, SDK
+      // timeout) often resolve on retry — reporting them on every first
+      // failure drowns real payment errors (LAWALLET-LISTENER-1/2).
+      const shouldReport =
+        !isRetryable || conn.retryAttempt >= WARMUP_RETRY_SENTRY_THRESHOLD
+      if (!conn.errorNotified && shouldReport) {
         conn.errorNotified = true
         this.deps.onWalletError?.(conn.wallet, error)
       }
@@ -873,4 +902,25 @@ function isConnectedSafe(client: NWCClient): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Detects transient warmup failures that commonly resolve on retry:
+ * - SDK timeout during negotiation (Nip47TimeoutError)
+ * - Missing NIP-47 info event (relay hadn't propagated kind 13194 yet)
+ * - Our own warmup timeout wrapper
+ *
+ * These should NOT be reported to Sentry on every first failure — only after
+ * multiple consecutive retries to avoid drowning real payment errors.
+ */
+export function isRetryableWarmupError(err: unknown): boolean {
+  if (err instanceof Nip47TimeoutError) return true
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase()
+    if (msg.includes('no info event')) return true
+    if (msg.includes('kind 13194')) return true
+    if (msg.includes('warm-up timed out')) return true
+    if (msg.includes('reply timeout')) return true
+  }
+  return false
 }
