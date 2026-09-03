@@ -3,7 +3,8 @@ import { z } from 'zod'
 import {
   validateBody,
   validateQuery,
-  validateParams
+  validateParams,
+  JsonParseError
 } from '@/lib/validation/middleware'
 import { ValidationError } from '@/types/server/errors'
 
@@ -53,6 +54,60 @@ describe('Validation Middleware', () => {
       })
       await expect(validateBody(request, testSchema)).rejects.toThrow(
         ValidationError
+      )
+    })
+
+    it('throws JsonParseError for malformed JSON', async () => {
+      const createMalformedRequest = () =>
+        new Request('http://localhost', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{"name": "Alice"'
+        })
+
+      const error = await validateBody(
+        createMalformedRequest(),
+        testSchema
+      ).catch(e => e)
+      expect(error).toBeInstanceOf(JsonParseError)
+      expect(error).toBeInstanceOf(ValidationError)
+      expect(error.statusCode).toBe(400)
+      expect(error.message).toBe('Malformed JSON in request body')
+    })
+
+    it('throws JsonParseError for truncated JSON array', async () => {
+      const arraySchema = z.object({ pubkeys: z.array(z.string()) })
+      const request = new Request('http://localhost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"pubkeys": ["abc", "def"'
+      })
+      const error = await validateBody(request, arraySchema).catch(e => e)
+      expect(error).toBeInstanceOf(JsonParseError)
+      expect(error).toBeInstanceOf(ValidationError)
+      expect(error.statusCode).toBe(400)
+      expect(error.message).toBe('Malformed JSON in request body')
+    })
+
+    it('throws JsonParseError for empty body', async () => {
+      const request = new Request('http://localhost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: ''
+      })
+      const error = await validateBody(request, testSchema).catch(e => e)
+      expect(error).toBeInstanceOf(JsonParseError)
+      expect(error).toBeInstanceOf(ValidationError)
+      expect(error.statusCode).toBe(400)
+    })
+
+    it('re-throws non-SyntaxError exceptions', async () => {
+      const request = {
+        json: () => Promise.reject(new TypeError('Network error'))
+      } as unknown as Request
+      await expect(validateBody(request, testSchema)).rejects.toThrow(TypeError)
+      await expect(validateBody(request, testSchema)).rejects.toThrow(
+        'Network error'
       )
     })
   })

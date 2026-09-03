@@ -99,4 +99,45 @@ describe('POST /api/nostr/profiles', () => {
     expect(res.status).toBe(400)
     expect(resolveProfiles).not.toHaveBeenCalled()
   })
+
+  it('returns 400 for malformed JSON (not 500)', async () => {
+    const req = new Request('http://localhost:3000/api/nostr/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"pubkeys": ["abc"'
+    })
+    const res = await POST(req)
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+    expect(body.error.message).toBe('Malformed JSON in request body')
+    expect(resolveProfiles).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 for completely invalid JSON', async () => {
+    const req = new Request('http://localhost:3000/api/nostr/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not json at all'
+    })
+    const res = await POST(req)
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+    expect(resolveProfiles).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 for empty body', async () => {
+    const req = new Request('http://localhost:3000/api/nostr/profiles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: ''
+    })
+    const res = await POST(req)
+
+    expect(res.status).toBe(400)
+    expect(resolveProfiles).not.toHaveBeenCalled()
+  })
 })
