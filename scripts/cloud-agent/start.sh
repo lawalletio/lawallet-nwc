@@ -12,10 +12,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO_ROOT"
 
-# Regenerate env files if a fresh checkout is missing them (no-op otherwise).
-if [ ! -f "$REPO_ROOT/.env.development.local" ]; then
-  pnpm dev:env
-fi
+# shellcheck source=scripts/cloud-agent/postgres-lib.sh
+source "$SCRIPT_DIR/postgres-lib.sh"
+
+# Regenerate env files (restoring persisted secrets) — a fresh checkout wipes
+# the untracked env, and ensure_env keeps secrets consistent with seeded data.
+ensure_env
 
 # Export generated vars (DATABASE_URL, NWC_VAULT_SECRET, …) for Prisma commands.
 set -a
@@ -23,8 +25,6 @@ set -a
 . "$REPO_ROOT/.env.development.local"
 set +a
 
-# shellcheck source=scripts/cloud-agent/postgres-lib.sh
-source "$SCRIPT_DIR/postgres-lib.sh"
 load_db_env
 pg_init
 pg_start

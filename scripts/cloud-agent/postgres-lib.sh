@@ -10,9 +10,42 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PG_DATA="${LAWALLET_PGDATA:-$HOME/.lawallet/pgdata}"
-PG_LOG="${LAWALLET_PGLOG:-$HOME/.lawallet/postgres.log}"
+LAWALLET_HOME="${LAWALLET_HOME:-$HOME/.lawallet}"
+PG_DATA="${LAWALLET_PGDATA:-$LAWALLET_HOME/pgdata}"
+PG_LOG="${LAWALLET_PGLOG:-$LAWALLET_HOME/postgres.log}"
 PG_SOCKET_DIR="/tmp"
+
+# Generate the dev env files while keeping secrets stable across rebuilds.
+#
+# Environment builds do a fresh `git clone` into /workspace, which wipes the
+# untracked `.env.development.local` and `.dev/` state. `pnpm dev:env` would
+# then mint brand-new random secrets (JWT_SECRET, NWC_VAULT_SECRET, …) that no
+# longer match data seeded under the previous secret — and the seeded NWC
+# wallets (encrypted with NWC_VAULT_SECRET) live in the persistent Postgres
+# data dir under $HOME. To keep them consistent we stash the generated env
+# outside the repo and restore it before regenerating, so the same secrets are
+# reused for the life of the environment/snapshot.
+ensure_env() {
+  local persist_env="$LAWALLET_HOME/env.development.local"
+  local persist_state="$LAWALLET_HOME/worktree-env.json"
+  mkdir -p "$LAWALLET_HOME" "$REPO_ROOT/.dev"
+
+  # Restore persisted secrets before generating so dev:env reuses them.
+  if [ ! -f "$REPO_ROOT/.env.development.local" ] && [ -f "$persist_env" ]; then
+    cp "$persist_env" "$REPO_ROOT/.env.development.local"
+  fi
+  if [ ! -f "$REPO_ROOT/.dev/worktree-env.json" ] && [ -f "$persist_state" ]; then
+    cp "$persist_state" "$REPO_ROOT/.dev/worktree-env.json"
+  fi
+
+  pnpm dev:env
+
+  # Persist the canonical env so future clones/boots reuse the same secrets.
+  cp "$REPO_ROOT/.env.development.local" "$persist_env"
+  if [ -f "$REPO_ROOT/.dev/worktree-env.json" ]; then
+    cp "$REPO_ROOT/.dev/worktree-env.json" "$persist_state"
+  fi
+}
 
 pg_bindir() {
   local dir

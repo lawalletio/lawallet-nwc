@@ -10,6 +10,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO_ROOT"
 
+# Ensure env files exist (restoring persisted secrets) in case this terminal
+# starts on a fresh checkout before/independently of start.sh.
+if [ ! -f "$REPO_ROOT/.env.development.local" ]; then
+  # shellcheck source=scripts/cloud-agent/postgres-lib.sh
+  source "$SCRIPT_DIR/postgres-lib.sh"
+  ensure_env
+fi
+
 set -a
 # shellcheck disable=SC1091
 . "$REPO_ROOT/.env.development.local"

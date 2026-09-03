@@ -31,11 +31,14 @@ echo "[install] Generating Prisma client"
 pnpm --filter @lawallet-nwc/web exec prisma generate
 
 # 3. Dev env files -------------------------------------------------------------
+# shellcheck source=scripts/cloud-agent/postgres-lib.sh
+source "$SCRIPT_DIR/postgres-lib.sh"
+
 # Writes .env.development.local + apps/*/.env.local with secrets, ports and a
-# DATABASE_URL pointing at localhost:<POSTGRES_PORT>. Reuses existing values on
-# re-run, so this is safe to call repeatedly.
+# DATABASE_URL pointing at localhost:<POSTGRES_PORT>. ensure_env keeps the
+# generated secrets stable across rebuilds (see postgres-lib.sh).
 echo "[install] Generating dev environment files"
-pnpm dev:env
+ensure_env
 
 # Export the generated vars so Prisma migrate/seed (ts-node doesn't auto-load
 # .env.local) and any child commands see DATABASE_URL, NWC_VAULT_SECRET, etc.
@@ -45,8 +48,6 @@ set -a
 set +a
 
 # 4. Database ------------------------------------------------------------------
-# shellcheck source=scripts/cloud-agent/postgres-lib.sh
-source "$SCRIPT_DIR/postgres-lib.sh"
 load_db_env
 pg_init
 pg_start
