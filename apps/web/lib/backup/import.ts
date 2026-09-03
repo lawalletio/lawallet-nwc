@@ -1,5 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import {
+  safeTransaction,
+  wrapTransactionError,
+  TransactionTimeoutError,
+  TransactionConnectionError
+} from '@/lib/prisma-transaction'
+import {
   type BackupImportRequest,
   type BackupImportResult,
   type BackupResolutionStrategy,
@@ -22,8 +28,8 @@ import {
 import type { ParsedBackup } from '@/lib/backup/archive'
 import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
-const IMPORT_TX_TIMEOUT_MS = 120_000
-const IMPORT_TX_MAX_WAIT_MS = 20_000
+const IMPORT_TX_TIMEOUT_MS = 60_000
+const IMPORT_TX_MAX_WAIT_MS = 10_000
 
 type Row = Record<string, unknown>
 /** Prisma delegates expose create/update/upsert/deleteMany/findMany — typed loose. */
@@ -328,22 +334,36 @@ async function runReplace(
   }
 
   if (atomic) {
-    await prisma.$transaction(async tx => apply(tx as unknown as WriteClient), {
-      timeout: IMPORT_TX_TIMEOUT_MS,
-      maxWait: IMPORT_TX_MAX_WAIT_MS
-    })
-  } else {
     try {
-      await prisma.$transaction(
+      await safeTransaction(
+        prisma,
         async tx => apply(tx as unknown as WriteClient),
-        {
-          timeout: IMPORT_TX_TIMEOUT_MS,
-          maxWait: IMPORT_TX_MAX_WAIT_MS
-        }
+        { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
       )
     } catch (err) {
+      const wrapped = wrapTransactionError(err)
+      if (
+        wrapped instanceof TransactionTimeoutError ||
+        wrapped instanceof TransactionConnectionError
+      ) {
+        result.errors.push({
+          message: `Database operation failed: ${wrapped.message}`
+        })
+      } else {
+        throw err
+      }
+    }
+  } else {
+    try {
+      await safeTransaction(
+        prisma,
+        async tx => apply(tx as unknown as WriteClient),
+        { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
+      )
+    } catch (err) {
+      const wrapped = wrapTransactionError(err)
       result.errors.push({
-        message: err instanceof Error ? err.message : 'Replace failed'
+        message: wrapped instanceof Error ? wrapped.message : 'Replace failed'
       })
     }
   }
@@ -492,28 +512,42 @@ async function runMerge(
   }
 
   if (resolution.atomic) {
-    await prisma.$transaction(
-      async tx => {
-        for (const table of tables)
-          await processTable(tx as unknown as WriteClient, table)
-      },
-      { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
-    )
+    try {
+      await safeTransaction(
+        prisma,
+        async tx => {
+          for (const table of tables)
+            await processTable(tx as unknown as WriteClient, table)
+        },
+        { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
+      )
+    } catch (err) {
+      const wrapped = wrapTransactionError(err)
+      if (
+        wrapped instanceof TransactionTimeoutError ||
+        wrapped instanceof TransactionConnectionError
+      ) {
+        result.errors.push({
+          message: `Database operation failed: ${wrapped.message}`
+        })
+      } else {
+        throw err
+      }
+    }
   } else {
     for (const table of tables) {
       try {
-        await prisma.$transaction(
+        await safeTransaction(
+          prisma,
           async tx => processTable(tx as unknown as WriteClient, table),
-          {
-            timeout: IMPORT_TX_TIMEOUT_MS,
-            maxWait: IMPORT_TX_MAX_WAIT_MS
-          }
+          { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
         )
       } catch (err) {
+        const wrapped = wrapTransactionError(err)
         result.tables[table]!.failed++
         result.errors.push({
           table,
-          message: err instanceof Error ? err.message : 'Import failed'
+          message: wrapped instanceof Error ? wrapped.message : 'Import failed'
         })
       }
     }

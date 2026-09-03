@@ -50,6 +50,10 @@ import {
   ServiceUnavailableError
 } from '@/types/server/errors'
 import { Prisma } from '@/lib/generated/prisma'
+import {
+  TransactionTimeoutError,
+  TransactionConnectionError
+} from '@/lib/prisma-transaction'
 
 const ORIGINAL_DSN = process.env.SENTRY_DSN
 
@@ -196,5 +200,41 @@ describe('toApiError sanitization', () => {
 
     expect(apiError).toBeInstanceOf(InternalServerError)
     expect(apiError.cause).toBe(cause)
+  })
+
+  it('maps TransactionTimeoutError to 503', async () => {
+    const error = new TransactionTimeoutError('Transaction timed out', {
+      elapsedMs: 130000,
+      timeoutMs: 120000
+    })
+
+    const response = handleApiError(error)
+
+    expect(response.status).toBe(503)
+    const body = await response.json()
+    expect(body.error.message).toBe('Database operation timed out')
+    expect(body.error.details).toBeUndefined()
+  })
+
+  it('maps TransactionConnectionError to 503', async () => {
+    const error = new TransactionConnectionError('Connection refused', {
+      cause: new Error("Can't reach database server")
+    })
+
+    const response = handleApiError(error)
+
+    expect(response.status).toBe(503)
+    const body = await response.json()
+    expect(body.error.message).toBe('Database connection failed')
+    expect(body.error.details).toBeUndefined()
+  })
+
+  it('preserves transaction error cause for Sentry', () => {
+    const cause = new Error('Original Prisma error')
+    const timeoutError = new TransactionTimeoutError('Timeout', { cause })
+    const apiError = toApiError(timeoutError)
+
+    expect(apiError).toBeInstanceOf(ServiceUnavailableError)
+    expect((apiError as any).cause).toBe(timeoutError)
   })
 })
