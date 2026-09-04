@@ -127,6 +127,38 @@ export function ClaimAddressScreen() {
         </form>
       )}
 
+      {flow.step === 'payment' && !flow.invoice && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 pb-6 text-center">
+          {flow.mintError ? (
+            <>
+              <div className="space-y-1">
+                <h1 className="text-xl font-semibold text-foreground">
+                  Payment couldn’t be started
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  We couldn’t reach the payment provider for {flow.username}@
+                  {flow.domain}.
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground">{flow.mintError}</p>
+              <Button
+                variant="theme"
+                className="h-12 w-full"
+                onClick={() => flow.mintInvoiceAndShowQr()}
+              >
+                <RefreshCw className="mr-1.5 size-3.5" />
+                Try again
+              </Button>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner size={16} />
+              Generating your invoice…
+            </div>
+          )}
+        </div>
+      )}
+
       {flow.step === 'payment' && flow.invoice && (
         <div className="flex flex-1 flex-col gap-5 px-6 pb-6 pt-2">
           <div className="space-y-1 text-center">

@@ -126,6 +126,7 @@ export function NewAddressDialog({
     domain,
     handleSubmit,
     invoice,
+    mintError,
     paymentStatus,
     copied,
     hasWebLn,
@@ -256,6 +257,43 @@ export function NewAddressDialog({
               </Button>
             </DialogFooter>
           </form>
+        )}
+
+        {step === 'payment' && !invoice && (
+          <div className="space-y-5">
+            <DialogHeader className="space-y-1 text-center sm:text-center">
+              <DialogTitle className="text-center">
+                {mintError ? 'Payment couldn’t be started' : 'Preparing payment'}
+              </DialogTitle>
+              <DialogDescription className="text-center">
+                {mintError
+                  ? `We couldn’t reach the payment provider for ${username}@${domain}.`
+                  : 'Generating your invoice…'}
+              </DialogDescription>
+            </DialogHeader>
+
+            {mintError ? (
+              <div className="flex flex-col items-center gap-3 text-center">
+                <p className="text-sm text-muted-foreground">{mintError}</p>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={backFromPayment}>
+                    Back
+                  </Button>
+                  <Button
+                    variant="theme"
+                    onClick={() => mintInvoiceAndShowQr()}
+                  >
+                    <RefreshCw className="mr-1.5 size-3.5" />
+                    Try again
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-center py-6">
+                <Spinner size={24} />
+              </div>
+            )}
+          </div>
         )}
 
         {step === 'payment' && invoice && (
