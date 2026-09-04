@@ -124,6 +124,16 @@ overrides:
   # import/require exports map, so it is a drop-in for @prisma/config's CJS
   # build; range-scoped so it retires once Prisma ships a patched pin.
   deepmerge-ts@<8.0.0: 8.0.1
+  # GHSA-5jgf-p345-68v8 / GHSA-f65p-4m7j-42xc / GHSA-fph4-wmhf-6fwf /
+  # GHSA-jqff-g426-hqxp (high): ReDoS and component confusion in fast-uri
+  # <3.1.6. Reached via apps/web > @sentry/nextjs > @sentry/webpack-plugin >
+  # webpack > schema-utils > ajv. Range-scoped so it retires once Sentry's
+  # webpack plugin asks for a patched line.
+  fast-uri@<3.1.6: 3.1.6
+  # GHSA-c83g-rgw3-j3cx / GHSA-73wf-gq98-2v4g (high): regular-expression DoS
+  # in browserslist <=4.28.6. Reached via apps/docs > next > styled-jsx >
+  # @babel/core. Patched in >=4.28.7.
+  browserslist@<4.28.7: 4.28.7
   # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq (high, image-size ICNS/JXL/HEIF
   # DoS) have NO published fix ("Patched versions: <0.0.0", latest is 2.0.2).
   # Resolved by bumping fumadocs-core to 16.8.0 in apps/docs, which drops the
