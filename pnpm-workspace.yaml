@@ -128,3 +128,14 @@ overrides:
   # DoS) have NO published fix ("Patched versions: <0.0.0", latest is 2.0.2).
   # Resolved by bumping fumadocs-core to 16.8.0 in apps/docs, which drops the
   # image-size dependency entirely — no override is possible here.
+  # GHSA-5jgf-p345-68v8 / GHSA-f65p-4m7j-42xc / GHSA-fph4-wmhf-6fwf /
+  # GHSA-jqff-g426-hqxp (high, patched in 3.1.6) plus GHSA-qw65-cvwx-89v3 /
+  # GHSA-58mr-gqgx-xq4g (high, 2026-09-02): host confusion / authority
+  # injection still present on 3.1.6. Reached via apps/web > @sentry/nextjs >
+  # @sentry/webpack-plugin > webpack > schema-utils > ajv. Range-scoped so
+  # it retires once parents request a patched range.
+  fast-uri@<3.1.7: 3.1.7
+  # GHSA-c83g-rgw3-j3cx / GHSA-73wf-gq98-2v4g (high): unbounded query-cache
+  # growth and a prototype-write crash in browserslist <=4.28.6. Reached via
+  # apps/docs > next > styled-jsx > @babel/core.
+  browserslist@<4.28.7: 4.28.7
