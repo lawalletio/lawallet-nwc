@@ -1,0 +1,11 @@
+-- Add a separate "last fetch attempt" timestamp to `User` so a failed/empty
+-- NIP-65 fetch no longer bumps the 6h freshness marker `relaysUpdatedAt`.
+--
+-- `nostr-tools` `SimplePool.querySync` resolves `[]` (never rejects) on relay
+-- failure, and `withTimeout` resolves `null` on timeout — both indistinguishable
+-- from a confirmed "user published no kind:10002" at the call site. The previous
+-- code stamped `relaysUpdatedAt` on every empty result, pinning a degraded
+-- answer (operator default relays) for users with no stored list for up to 6h
+-- instead of retrying soon. `lastRelayFetchAttemptAt` records the attempt
+-- without claiming freshness, gating a short backoff independent of the TTL.
+ALTER TABLE "User" ADD COLUMN     "lastRelayFetchAttemptAt" TIMESTAMP(3);
