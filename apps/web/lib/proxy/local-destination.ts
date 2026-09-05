@@ -1,7 +1,7 @@
 import { parseLightningAddress } from '@/lib/wallet/resolve-payment-route'
 import { resolvePublicEndpoint } from '@/lib/public-url'
 import { getSettings } from '@/lib/settings'
-import { localBlockedHosts } from './local-hosts'
+import { localBlockedHosts, type LocalHostRequest } from './local-hosts'
 
 /**
  * Origin to use when this instance calls its own LUD-16 endpoints.
@@ -45,13 +45,20 @@ export interface LocalDestination {
  * Loop safety does NOT depend on this function — it is enforced by the
  * forwarding hop counter (`lib/proxy/forward-hops.ts`) and by config-time
  * cycle detection, both of which work no matter how the hop is transported.
+ *
+ * The ALIAS walk (`followLocalAliases`) is the exception: it decides locality
+ * request-awarely by passing `req` through, so a self-cycle that re-enters via
+ * a hostname not in the operator's `endpoint`/`domain` (e.g. a platform
+ * default host) is still recognised as local. Request-less callers fall back
+ * to the configured hosts only, preserving the background-job behaviour.
  */
 export async function resolveLocalDestination(
-  address: string
+  address: string,
+  req?: LocalHostRequest
 ): Promise<LocalDestination | null> {
   const parsed = parseLightningAddress(address)
   if (!parsed) return null
-  const blocked = await localBlockedHosts().catch(() => [])
+  const blocked = await localBlockedHosts(req).catch(() => [])
   const host = parsed.host.toLowerCase()
   const isLocal = blocked.some(entry => normalizeHost(entry) === host)
   if (!isLocal) return null
