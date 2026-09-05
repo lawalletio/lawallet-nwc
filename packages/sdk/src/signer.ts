@@ -45,15 +45,16 @@ export function hasBrowserExtension(): boolean {
  * Signing is silent (no prompts), which makes per-request NIP-98 free.
  */
 export function nsecSigner(nsecOrHex: string): NostrSigner {
+  const value = nsecOrHex.trim()
   let secretKey: Uint8Array
-  if (nsecOrHex.startsWith('nsec1')) {
-    const decoded = nip19.decode(nsecOrHex)
+  if (value.startsWith('nsec1')) {
+    const decoded = nip19.decode(value)
     if (decoded.type !== 'nsec') {
       throw new Error('Invalid nsec')
     }
     secretKey = decoded.data
-  } else if (/^[0-9a-f]{64}$/i.test(nsecOrHex)) {
-    secretKey = hexToBytes(nsecOrHex.toLowerCase())
+  } else if (/^[0-9a-f]{64}$/i.test(value)) {
+    secretKey = hexToBytes(value.toLowerCase())
   } else {
     throw new Error('Expected an nsec1… string or a 64-character hex key')
   }
