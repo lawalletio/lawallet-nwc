@@ -120,4 +120,17 @@ describe('checkMaintenance', () => {
     await expect(checkMaintenance(mockRequest())).resolves.toBeUndefined()
     expect(validateNip98Auth).not.toHaveBeenCalled()
   })
+
+  it('allows a root pubkey with no User row to bypass maintenance (settings.root fallback)', async () => {
+    const pubkey = 'd'.repeat(64)
+    vi.mocked(getConfig).mockReturnValue({
+      maintenance: { enabled: true }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({ root: pubkey } as any)
+    vi.mocked(validateNip98Auth).mockResolvedValue(pubkey)
+    vi.mocked(prisma.nostrIdentity.findUnique).mockResolvedValue(null)
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
+
+    await expect(checkMaintenance(mockRequest())).resolves.toBeUndefined()
+  })
 })
