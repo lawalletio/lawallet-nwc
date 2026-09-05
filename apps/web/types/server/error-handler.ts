@@ -138,6 +138,15 @@ export const handleApiError = (
     'api.error'
   )
 
+  // Compute the pathname once, with bearer-token segments masked out. Used
+  // for both the Sentry `tags.path` capture and the ActivityLog `pathname`
+  // field so neither sink persists bearer tokens to a third party or to the
+  // operator's own audit table. See `redactPathBearerTokens` for which
+  // routes are masked.
+  const redactedPath =
+    request instanceof Request
+      ? redactPathBearerTokens(safePathname(request.url))
+      : undefined
   // Forward 5xx to Sentry when configured. withErrorHandling swallows the
   // throw (Next's onRequestError never fires for these routes), so this is
   // THE server capture seam. Fire-and-forget: a Sentry failure must never
@@ -155,10 +164,11 @@ export const handleApiError = (
             tags: {
               reqId: getCurrentReqId(),
               code: apiError.code,
-              path:
-                request instanceof Request
-                  ? safePathname(request.url)
-                  : undefined
+              // Use the redacted route-pattern, never the raw pathname —
+              // dynamic segments on /api/cards/otc/[otc] and
+              // /api/remote-connections/[externalDeviceKey] are bearer tokens
+              // and would otherwise leak to Sentry via tags.path.
+              path: redactedPath
             }
           })
         )
@@ -182,23 +192,22 @@ export const handleApiError = (
       error instanceof Prisma.PrismaClientRustPanicError
     const category: ActivityCategory = isDbError
       ? 'SERVER'
-      : inferCategoryFromPath(
-          request instanceof Request ? safePathname(request.url) : undefined
-        )
+      : inferCategoryFromPath(redactedPath)
     const level: ActivityLevel = isServerError ? 'ERROR' : 'WARN'
     const method = request instanceof Request ? request.method : undefined
-    const pathname =
-      request instanceof Request ? safePathname(request.url) : undefined
+    // Persist the redacted route-pattern (not the raw pathname) for the same
+    // reason as `tags.path` above — bearer tokens must not reach the audit
+    // log either. Both sinks get the same redacted value here.
     logActivity.fireAndForget({
       category,
       event: eventCodeForError(category, isServerError, isDbError),
       level,
-      message: `${method ?? 'REQUEST'} ${pathname ?? '?'} failed: ${apiError.message}`,
+      message: `${method ?? 'REQUEST'} ${redactedPath ?? '?'} failed: ${apiError.message}`,
       metadata: {
         statusCode,
         code: apiError.code,
         method,
-        pathname
+        pathname: redactedPath
       }
     })
   }
@@ -224,6 +233,56 @@ function safePathname(url: string | undefined): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/**
+ * Bearer-token routes whose dynamic URL segment alone grants access — no
+ * `Authorization` header required. We must not persist those segments to
+ * Sentry `tags.path` or to the ActivityLog `pathname`; replace them with
+ * the same `[param]` placeholder Next.js / @sentry/nextjs uses for the
+ * parameterized route, so the value remains actionable (the operator can
+ * still group by route) without leaking the credential.
+ *
+ * Why a list and not a generic regex: card `id`s (also 32-hex, same shape
+ * as an OTC) are NOT bearer tokens — `/api/cards/[id]` requires auth and
+ * surfacing them in Sentry is desirable for debugging. The route itself is
+ * the only thing that distinguishes a benign id from a bearer OTC, so we
+ * match on the route prefix. Add new bearer-token routes HERE.
+ */
+const BEARER_TOKEN_PATH_PATTERNS: {
+  match: RegExp
+  replace: RegExp
+  placeholder: string
+}[] = [
+  // /api/cards/otc/<OTC>  and  /api/cards/otc/<OTC>/activate
+  {
+    match: /^\/api\/cards\/otc\/[^/]+(\/|$)/,
+    replace: /^(\/api\/cards\/otc)\/[^/]+/,
+    placeholder: '[otc]'
+  },
+  // /api/remote-connections/<EDK>  and sub-routes (e.g. /cards)
+  {
+    match: /^\/api\/remote-connections\/[^/]+(\/|$)/,
+    replace: /^(\/api\/remote-connections)\/[^/]+/,
+    placeholder: '[externalDeviceKey]'
+  }
+]
+
+/**
+ * Returns a copy of `pathname` with bearer-token dynamic segments replaced
+ * by their `[param]` placeholder. Non-matching paths come back unchanged.
+ * `undefined` stays `undefined`.
+ */
+function redactPathBearerTokens(
+  pathname: string | undefined
+): string | undefined {
+  if (!pathname) return pathname
+  for (const { match, replace, placeholder } of BEARER_TOKEN_PATH_PATTERNS) {
+    if (match.test(pathname)) {
+      return pathname.replace(replace, `$1/${placeholder}`)
+    }
+  }
+  return pathname
 }
 
 type RouteHandler<

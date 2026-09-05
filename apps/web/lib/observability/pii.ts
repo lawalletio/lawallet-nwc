@@ -50,6 +50,13 @@ type SentryEventLike = {
   breadcrumbs?: { message?: string; data?: Record<string, unknown> }[]
   request?: { url?: string; query_string?: unknown }
   spans?: { description?: string }[]
+  // `tags` is a standard CaptureContext/Scope container the app populates via
+  // `captureException(..., { tags })` and `setTag(...)`; left un-iterated it
+  // would let any caller-side secret reach Sentry unredacted. `Record<string,
+  // unknown>` because Sentry primitives include numbers/booleans/null, but
+  // only string values are subject to substring scrubbing — same shape as
+  // `breadcrumbs.data` above.
+  tags?: Record<string, unknown>
 }
 
 /** Sentry `beforeSend`-compatible scrubber. Mutates and returns the event. */
@@ -71,6 +78,11 @@ export function scrubEvent<T extends SentryEventLike>(event: T): T {
   }
   for (const span of event.spans ?? []) {
     if (span.description) span.description = scrubPii(span.description)
+  }
+  if (event.tags) {
+    for (const [key, value] of Object.entries(event.tags)) {
+      if (typeof value === 'string') event.tags[key] = scrubPii(value)
+    }
   }
   return event
 }
