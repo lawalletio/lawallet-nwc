@@ -390,6 +390,13 @@ describe('device-token scopes (B.0)', () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'a'.repeat(32) }
     } as any)
+    // The device-token branch now reads `endpoint` to fail closed when it's
+    // unset (see the apiUrl guard). Pin a configured endpoint matching the
+    // mocked `resolveApiUrl` so the scopes-focused tests stay decoupled from
+    // the binding check.
+    vi.mocked(getSettings).mockResolvedValue({
+      endpoint: 'https://app.example.com'
+    })
     vi.mocked(validateJwtFromRequest).mockResolvedValue({
       payload: {
         pubkey: PUBKEY,
@@ -414,7 +421,9 @@ describe('device-token scopes (B.0)', () => {
     expect(result.role).toBe(Role.OPERATOR)
     expect(prisma.nostrIdentity.findUnique).not.toHaveBeenCalled()
     expect(prisma.user.findUnique).not.toHaveBeenCalled()
-    expect(getSettings).not.toHaveBeenCalled()
+    // Device tokens now read `endpoint` for the instance binding (the guard
+    // before the apiUrl comparison), but still skip the DB role lookup.
+    expect(getSettings).toHaveBeenCalled()
   })
 
   it('surfaces a valid scopes array on the AuthResult', async () => {
@@ -475,6 +484,12 @@ describe('device-token apiUrl enforcement (B.0)', () => {
     vi.mocked(getConfig).mockReturnValue({
       jwt: { enabled: true, secret: 'a'.repeat(32) }
     } as any)
+    // Pin a configured endpoint so the fail-closed guard (which rejects
+    // device tokens when `endpoint` is unset) doesn't fire and these tests
+    // exercise the apiUrl comparison itself.
+    vi.mocked(getSettings).mockResolvedValue({
+      endpoint: 'https://app.example.com'
+    })
     vi.mocked(validateJwtFromRequest).mockResolvedValue({
       payload: {
         pubkey: PUBKEY,
@@ -519,6 +534,35 @@ describe('device-token apiUrl enforcement (B.0)', () => {
     await expect(authenticate(mockBearerRequest())).rejects.toThrow(
       AuthenticationError
     )
+  })
+
+  it('fails closed when endpoint is unset, ignoring the client Host', async () => {
+    // Regression guard for the Host-header spoofing bypass: with `endpoint`
+    // unset, resolveApiUrl() would return the client Host, making the
+    // apiUrl comparison vacuous. The guard now rejects before consulting it.
+    vi.mocked(getConfig).mockReturnValue({
+      jwt: { enabled: true, secret: 'a'.repeat(32) }
+    } as any)
+    vi.mocked(getSettings).mockResolvedValue({ endpoint: '' })
+    vi.mocked(validateJwtFromRequest).mockResolvedValue({
+      payload: {
+        pubkey: PUBKEY,
+        role: 'ADMIN',
+        kind: 'device',
+        apiUrl: 'https://app.example.com',
+        scopes: [Permission.SETTINGS_WRITE],
+        iat: 1000,
+        exp: 2000
+      },
+      header: { alg: 'HS256' }
+    } as any)
+
+    await expect(authenticate(mockBearerRequest())).rejects.toThrow(
+      AuthenticationError
+    )
+    // Crucially, resolveApiUrl is never reached, so the spoofed Host never
+    // feeds the comparison.
+    expect(resolveApiUrl).not.toHaveBeenCalled()
   })
 
   it('does not enforce apiUrl on a session JWT (no kind claim)', async () => {

@@ -17,6 +17,8 @@ import {
 } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
 import { resolveApiUrl } from '@/lib/public-url'
+import { getSettings } from '@/lib/settings'
+import { parseEndpoint } from '@/lib/public-url-utils'
 
 /** Normalizes a base URL for comparison: trim, drop a trailing slash, lowercase. */
 function normalizeApiUrl(value: unknown): string {
@@ -129,6 +131,24 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
     // so a token issued for one instance can't be replayed against another. Only
     // device tokens carry `apiUrl`; session JWTs (no `kind`) are unaffected.
     if (isDeviceToken) {
+      // `apiUrl` is the only per-instance discriminator on a device token —
+      // `iss`/`aud` are identical on every instance. The comparison below uses
+      // `resolveApiUrl(request)`, which falls back to the client-supplied
+      // `Host` header when the `endpoint` setting is unset. An unset `endpoint`
+      // would therefore make the binding compare the frozen claim against a
+      // value chosen by the attacker, failing open silently. Refuse to verify
+      // a device token until `endpoint` is configured so the binding is never
+      // driven by an attacker-controllable header.
+      const { endpoint } = await getSettings(['endpoint'], { cache: 'hot' })
+      if (!parseEndpoint(endpoint)) {
+        throw new AuthenticationError(
+          'Device tokens cannot be verified until `endpoint` is configured',
+          {
+            details:
+              'Instance endpoint is unset; apiUrl binding is unenforceable'
+          }
+        )
+      }
       const url = await resolveApiUrl(request)
       if (normalizeApiUrl(result.payload.apiUrl) !== normalizeApiUrl(url)) {
         throw new AuthenticationError('Token is not valid for this instance', {
