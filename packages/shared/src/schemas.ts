@@ -876,7 +876,15 @@ export const backupConflictSchema = z.object({
   /** Plain-language summary shown in the wizard. */
   message: z.string(),
   suggestedStrategy: backupResolutionStrategy,
-  allowedStrategies: z.array(backupResolutionStrategy).min(1)
+  allowedStrategies: z.array(backupResolutionStrategy).min(1),
+  /**
+   * True when a `skip`-resolved `partial-unique` conflict still inserts the
+   * backup row (demoted) instead of ignoring it. Flag-based partial-uniques
+   * (isPrimary / isDefault) import on skip; predicate-based ones genuinely
+   * skip. Declared on the table descriptor and set only for `partial-unique`
+   * conflicts, so the restore-wizard tally can mirror `runMerge`.
+   */
+  importsEvenOnSkip: z.boolean().optional()
 })
 export type BackupConflict = z.infer<typeof backupConflictSchema>
 

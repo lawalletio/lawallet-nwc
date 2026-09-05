@@ -20,6 +20,24 @@ const STRATEGY_HINT: Record<BackupResolutionStrategy, string> = {
   rename: 'Keep both — import under a new name.'
 }
 
+/**
+ * The shared `skip` hint ("ignore the backup version") is wrong for flag-based
+ * partial-unique conflicts, where `skip` still inserts the backup row demoted
+ * (the existing record keeps the slot). Specialize the wording so it matches
+ * the restore-wizard tally, which counts these as imports.
+ */
+function strategyHintFor(
+  conflict: BackupConflict,
+  strategy: BackupResolutionStrategy
+): string {
+  if (strategy === 'skip' && conflict.importsEvenOnSkip) {
+    const demoted =
+      conflict.field === 'isDefault' ? 'non-default' : 'non-primary'
+    return `Import the backup row as a ${demoted} copy; keep the existing one.`
+  }
+  return STRATEGY_HINT[strategy]
+}
+
 /** One conflict: plain-language explanation + a resolution choice. */
 export function ConflictRow({
   conflict,
@@ -61,7 +79,7 @@ export function ConflictRow({
                 )}
               </span>
               <span className="text-xs text-muted-foreground">
-                {STRATEGY_HINT[strategy]}
+                {strategyHintFor(conflict, strategy)}
               </span>
             </Label>
           </div>

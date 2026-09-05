@@ -32,6 +32,7 @@ import {
   type DefaultStrategy
 } from '@/components/admin/backup/conflict-list'
 import { ResultSummary } from '@/components/admin/backup/result-summary'
+import { computeTally } from '@/lib/backup/tally'
 import {
   BACKUP_PASSWORD_INVALID,
   BACKUP_PASSWORD_REQUIRED,
@@ -107,28 +108,10 @@ export function RestoreWizard({ onClose }: { onClose: () => void }) {
     [allConflicts]
   )
 
-  const tally = useMemo(() => {
-    if (!analysis) return { willImport: 0, willSkip: 0, unchanged: 0 }
-    let newRows = 0
-    let unchanged = 0
-    for (const t of Object.values(analysis.tables)) {
-      if (!t) continue
-      newRows += t.counts.new
-      unchanged += t.counts.identical
-    }
-    let importFromConflicts = 0
-    let skip = 0
-    for (const conflict of resolvableConflicts) {
-      const strategy = resolutions[conflict.id] ?? conflict.suggestedStrategy
-      if (strategy === 'skip') skip++
-      else importFromConflicts++
-    }
-    return {
-      willImport: newRows + importFromConflicts,
-      willSkip: skip,
-      unchanged
-    }
-  }, [analysis, resolvableConflicts, resolutions])
+  const tally = useMemo(
+    () => computeTally(analysis, resolvableConflicts, resolutions),
+    [analysis, resolvableConflicts, resolutions]
+  )
 
   async function runAnalyze() {
     if (!file) return

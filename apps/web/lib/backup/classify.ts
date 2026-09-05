@@ -141,6 +141,7 @@ interface ConflictInit {
   existingValue?: unknown
   allowedStrategies: BackupResolutionStrategy[]
   suggestedStrategy: BackupResolutionStrategy
+  importsEvenOnSkip?: boolean
 }
 
 export function makeConflict(
@@ -160,7 +161,8 @@ export function makeConflict(
     existingOwnerId: init.existingOwnerId,
     message: init.message,
     suggestedStrategy: init.suggestedStrategy,
-    allowedStrategies: init.allowedStrategies
+    allowedStrategies: init.allowedStrategies,
+    importsEvenOnSkip: init.importsEvenOnSkip
   }
 }
 
@@ -261,7 +263,8 @@ export function classifyRow(
           message: `The backup sets a different ${pu.label} for this account than what exists here.`,
           existingId: pkKey(desc, hit),
           allowedStrategies: ['skip', 'overwrite'],
-          suggestedStrategy: 'skip'
+          suggestedStrategy: 'skip',
+          importsEvenOnSkip: pu.importsEvenOnSkip
         })
       }
     }

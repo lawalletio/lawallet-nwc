@@ -50,6 +50,40 @@ describe('backup tables', () => {
     })
   })
 
+  describe('partial-unique importsEvenOnSkip declarations', () => {
+    it('declares importsEvenOnSkip=true for the flag-based primary address partial-unique', () => {
+      const pu = TABLE_DESCRIPTORS.lightningAddresses.partialUniques[0]
+      expect(pu.flag).toBe('isPrimary')
+      expect(pu.importsEvenOnSkip).toBe(true)
+    })
+
+    it('declares importsEvenOnSkip=true for the flag-based default wallet partial-unique', () => {
+      const pu = TABLE_DESCRIPTORS.remoteWallets.partialUniques[0]
+      expect(pu.flag).toBe('isDefault')
+      expect(pu.importsEvenOnSkip).toBe(true)
+    })
+
+    it('leaves importsEvenOnSkip unset for the where-flavor pending activation token', () => {
+      const pu = TABLE_DESCRIPTORS.cardActivationTokens.partialUniques[0]
+      expect(pu.flag).toBeUndefined()
+      expect(pu.where).toEqual({ field: 'status', equals: 'PENDING' })
+      expect(pu.importsEvenOnSkip).toBeUndefined()
+    })
+
+    it('every flag-based partial-unique declares importsEvenOnSkip=true', () => {
+      // Locks the invariant: flag-based PUs import on skip (the row is new;
+      // only the flag clashes), so they must declare it for the tally to match
+      // runMerge. A future flag-based PU added without this flag would surface
+      // here rather than silently breaking the wizard preview.
+      for (const table of BACKUP_TABLE_ORDER) {
+        const desc = TABLE_DESCRIPTORS[table]
+        for (const pu of desc.partialUniques) {
+          if (pu.flag) expect(pu.importsEvenOnSkip).toBe(true)
+        }
+      }
+    })
+  })
+
   describe('drift guards', () => {
     it('every table in CATEGORY_TABLES is a member of BACKUP_TABLE_ORDER', () => {
       for (const tables of Object.values(CATEGORY_TABLES)) {

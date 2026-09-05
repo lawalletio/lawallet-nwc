@@ -189,6 +189,73 @@ describe('backup classify', () => {
       expect(result.conflict?.kind).toBe('partial-unique')
       expect(result.conflict?.field).toBe('isPrimary')
       expect(result.conflict?.allowedStrategies).toEqual(['skip', 'overwrite'])
+      // Flag-based partial-uniques declare importsEvenOnSkip: a `skip` still
+      // inserts the backup row (demoted), so the wizard counts it as an import.
+      expect(result.conflict?.importsEvenOnSkip).toBe(true)
+    })
+
+    it('propagates importsEvenOnSkip for the default-wallet flag-based partial-unique', () => {
+      const desc = TABLE_DESCRIPTORS.remoteWallets
+      const row = {
+        id: 'rw-new',
+        userId: 'user-A',
+        name: 'wallet-new',
+        type: 'NWC',
+        config: {},
+        status: 'ACTIVE',
+        isDefault: true,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        nwcConfigEncryptedAt: null,
+        diedAt: null
+      }
+      const pu = desc.partialUniques[0] // { label: 'default wallet', scope: ['userId'], flag: 'isDefault' }
+      const ctx = emptyCtx()
+      const inner = new Map<string, Row>()
+      inner.set(fieldsKey(pu.scope, row), {
+        id: 'rw-existing',
+        userId: 'user-A',
+        isDefault: true
+      })
+      ctx.partialExisting.set(pu.label, inner)
+      const result = classifyRow(desc, row, ctx, parentAvailable)
+      expect(result.status).toBe('conflicting')
+      expect(result.conflict?.kind).toBe('partial-unique')
+      expect(result.conflict?.field).toBe('isDefault')
+      expect(result.conflict?.importsEvenOnSkip).toBe(true)
+    })
+
+    it('leaves importsEvenOnSkip unset for a where-flavor partial-unique (genuine skip)', () => {
+      const desc = TABLE_DESCRIPTORS.cardActivationTokens
+      const row = {
+        id: 'tok-new',
+        cardId: 'card-1',
+        qrKind: 'ONE_TIME',
+        status: 'PENDING',
+        qrPayload: 'p',
+        issuedByUserId: null,
+        expiresAt: null,
+        claimedAt: null,
+        claimedByUserId: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
+      }
+      const pu = desc.partialUniques[0] // { label: 'pending activation token', scope: ['cardId','qrKind'], where: { status: 'PENDING' } }
+      expect(pu.flag).toBeUndefined()
+      const ctx = emptyCtx()
+      const inner = new Map<string, Row>()
+      inner.set(fieldsKey(pu.scope, row), {
+        id: 'tok-existing',
+        cardId: 'card-1',
+        qrKind: 'ONE_TIME',
+        status: 'PENDING'
+      })
+      ctx.partialExisting.set(pu.label, inner)
+      const result = classifyRow(desc, row, ctx, parentAvailable)
+      expect(result.status).toBe('conflicting')
+      expect(result.conflict?.kind).toBe('partial-unique')
+      // where-flavor has no flag; importsEvenOnSkip is absent (genuine skip).
+      expect(result.conflict?.field).toBeUndefined()
+      expect(result.conflict?.importsEvenOnSkip).toBeUndefined()
     })
   })
 })
