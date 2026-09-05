@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { Permission } from '@/lib/auth/permissions'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { NotFoundError } from '@/types/server/errors'
@@ -27,7 +28,10 @@ export const revalidate = 0
 export const PUT = withErrorHandling(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     await checkRequestLimits(request, 'json')
-    await authenticateWithPermission(request, Permission.CARD_DESIGNS_WRITE)
+    const auth = await authenticateWithPermission(
+      request,
+      Permission.CARD_DESIGNS_WRITE
+    )
 
     const { id } = validateParams(await params, idParam)
     const { description, imageUrl, archived } = await validateBody(
@@ -42,6 +46,8 @@ export const PUT = withErrorHandling(
     if (!existing) {
       throw new NotFoundError('Design not found')
     }
+
+    const actor = await resolveAccountByPubkey(auth.pubkey)
 
     const updated = await prisma.cardDesign.update({
       where: { id },
@@ -69,9 +75,11 @@ export const PUT = withErrorHandling(
       category: 'CARD',
       event: ActivityEvent.CARD_DESIGN_UPDATED,
       message: `Card design updated: ${updated.description}`,
+      userId: actor?.id ?? null,
       metadata: {
         designId: updated.id,
-        archived: !!updated.archivedAt
+        archived: !!updated.archivedAt,
+        changedBy: auth.pubkey
       }
     })
 

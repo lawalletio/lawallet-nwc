@@ -74,6 +74,7 @@ import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { validateAdminAuth } from '@/lib/admin-auth'
 import { getSettings } from '@/lib/settings'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
+import { logActivity } from '@/lib/activity-log'
 
 const mockAdmin = () =>
   vi.mocked(authenticateWithPermission).mockResolvedValue({
@@ -246,6 +247,107 @@ describe('PUT /api/card-designs/[id]', () => {
 
     expect(res.status).toBe(400)
     expect(prismaMock.cardDesign.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/card-designs/[id] — audit attribution', () => {
+  it('attributes the update to the acting admin in the audit log', async () => {
+    mockAdmin()
+    vi.mocked(resolveAccountByPubkey).mockResolvedValue({
+      id: 'admin-user-1'
+    } as any)
+    vi.mocked(prismaMock.cardDesign.findUnique).mockResolvedValue({
+      id: 'd1'
+    } as any)
+    vi.mocked(prismaMock.cardDesign.update).mockResolvedValue({
+      id: 'd1',
+      imageUrl: 'https://blossom.example.com/a.png',
+      description: 'Renamed',
+      createdAt: new Date(),
+      archivedAt: null
+    } as any)
+
+    const req = createNextRequest('/api/card-designs/d1', {
+      method: 'PUT',
+      body: { description: 'Renamed' }
+    })
+    await assertResponse(
+      await UpdatePut(req, createParamsPromise({ id: 'd1' })),
+      200
+    )
+
+    // Guards against a "fake fix" that hardcodes a userId without actually
+    // resolving the caller: the audit row must carry the id returned by
+    // resolveAccountByPubkey(auth.pubkey), not an arbitrary string.
+    expect(resolveAccountByPubkey).toHaveBeenCalledWith('admin')
+    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'CARD',
+        event: 'card.card_design_updated',
+        message: 'Card design updated: Renamed',
+        userId: 'admin-user-1',
+        metadata: expect.objectContaining({
+          designId: 'd1',
+          archived: false,
+          changedBy: 'admin'
+        })
+      })
+    )
+  })
+
+  it('records the actor pubkey in metadata even when account resolution fails', async () => {
+    mockAdmin()
+    vi.mocked(resolveAccountByPubkey).mockResolvedValue(null)
+    vi.mocked(prismaMock.cardDesign.findUnique).mockResolvedValue({
+      id: 'd1'
+    } as any)
+    vi.mocked(prismaMock.cardDesign.update).mockResolvedValue({
+      id: 'd1',
+      imageUrl: 'https://blossom.example.com/a.png',
+      description: 'Renamed',
+      createdAt: new Date(),
+      archivedAt: null
+    } as any)
+
+    const req = createNextRequest('/api/card-designs/d1', {
+      method: 'PUT',
+      body: { description: 'Renamed' }
+    })
+    await assertResponse(
+      await UpdatePut(req, createParamsPromise({ id: 'd1' })),
+      200
+    )
+
+    // `changedBy` is the resilience fallback: when the pubkey isn't linked to
+    // a User row the audit row must still record the actor somewhere.
+    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        metadata: expect.objectContaining({
+          changedBy: 'admin'
+        })
+      })
+    )
+  })
+
+  it('returns 404 and writes no audit row when the design does not exist', async () => {
+    mockAdmin()
+    vi.mocked(prismaMock.cardDesign.findUnique).mockResolvedValue(null)
+
+    const req = createNextRequest('/api/card-designs/missing', {
+      method: 'PUT',
+      body: { description: 'Renamed' }
+    })
+    const res = await UpdatePut(req, createParamsPromise({ id: 'missing' }))
+
+    expect(res.status).toBe(404)
+    // Actor resolution runs only after the existence check, so a 404 neither
+    // wastes the lookup nor logs a spurious CARD_DESIGN_UPDATED row.
+    expect(resolveAccountByPubkey).not.toHaveBeenCalled()
+    expect(prismaMock.cardDesign.update).not.toHaveBeenCalled()
+    expect(logActivity.fireAndForget).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'card.card_design_updated' })
+    )
   })
 })
 
