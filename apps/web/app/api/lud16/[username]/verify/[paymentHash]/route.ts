@@ -131,12 +131,16 @@ export const GET = withErrorHandling(
       const address = invoice.user.lightningAddresses[0]
       const primaryWallet = await getPrimaryRemoteWalletForUser(invoice.user.id)
       const route = invoice.remoteWallet
-        ? {
-            kind: 'wallet' as const,
-            walletId: invoice.remoteWallet.id,
-            type: invoice.remoteWallet.type,
-            config: invoice.remoteWallet.config
-          }
+        ? resolveWalletRoute({
+            mode: 'CUSTOM_NWC',
+            redirect: null,
+            remoteWallet: {
+              id: invoice.remoteWallet.id,
+              type: invoice.remoteWallet.type,
+              config: invoice.remoteWallet.config,
+              status: invoice.remoteWallet.status
+            }
+          })
         : address && 'mode' in address
           ? resolveWalletRoute({
               mode: address.mode,
