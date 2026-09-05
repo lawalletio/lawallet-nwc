@@ -38,7 +38,9 @@ vi.mock('@/lib/middleware/maintenance', () => ({
 // The server-side capability probe is a relay round-trip; its own behaviour is
 // covered in tests/unit/lib/wallet/nwc-send-capability.test.ts.
 vi.mock('@/lib/wallet/nwc-send-capability', () => ({
-  resolveNwcModeForCreate: vi.fn(async (_conn: string, claimed: string) => claimed)
+  resolveNwcModeForCreate: vi.fn(
+    async (_conn: string, claimed: string) => claimed
+  )
 }))
 
 vi.mock('@/lib/middleware/request-limits', () => ({
@@ -800,6 +802,199 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     )
     const body = (await assertResponse(res, 200)) as { status: string }
     expect(body.status).toBe('DISABLED')
+    expect(
+      prismaMock.remoteWalletReceiveAction.updateMany
+    ).toHaveBeenCalledTimes(1)
+    expect(
+      prismaMock.remoteWalletReceiveAction.updateMany
+    ).toHaveBeenCalledWith({
+      where: { remoteWalletId: 'w1' },
+      data: { enabled: false, pausedAt: expect.any(Date) }
+    })
+  })
+
+  it('pauses forwarding even when isDefault=true is set in the same request as a non-ACTIVE status', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({
+      ...wallet,
+      status: 'DISABLED'
+    } as never)
+    vi.mocked(prismaMock.remoteWallet.findUniqueOrThrow).mockResolvedValue({
+      ...wallet,
+      status: 'DISABLED',
+      isDefault: true
+    } as never)
+    vi.mocked(prismaMock.lightningAddress.findFirst)
+      .mockResolvedValueOnce({ username: 'alice' } as never)
+      .mockResolvedValueOnce({ username: 'alice' } as never)
+      .mockResolvedValueOnce({
+        mode: 'CUSTOM_NWC',
+        remoteWalletId: 'w1'
+      } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+    vi.mocked(
+      prismaMock.remoteWalletReceiveAction.updateMany
+    ).mockResolvedValue({
+      count: 1
+    } as never)
+
+    const res = await patchHandler(
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { isDefault: true, status: 'DISABLED' }
+      }),
+      createParamsPromise({ id: 'w1' })
+    )
+    const body = (await assertResponse(res, 200)) as {
+      status: string
+      isDefault: boolean
+    }
+    expect(body.status).toBe('DISABLED')
+    expect(body.isDefault).toBe(true)
+    expect(
+      prismaMock.remoteWalletReceiveAction.updateMany
+    ).toHaveBeenCalledTimes(1)
+    expect(
+      prismaMock.remoteWalletReceiveAction.updateMany
+    ).toHaveBeenCalledWith({
+      where: { remoteWalletId: 'w1' },
+      data: { enabled: false, pausedAt: expect.any(Date) }
+    })
+    expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith({
+      where: { username: 'alice' },
+      data: {
+        mode: 'CUSTOM_NWC',
+        redirect: null,
+        remoteWalletId: 'w1'
+      }
+    })
+  })
+
+  it('pauses forwarding and clears the primary link when status changes to REVOKED', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: user.id,
+      isDefault: true
+    })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({
+      ...wallet,
+      status: 'REVOKED'
+    } as never)
+    vi.mocked(prismaMock.remoteWallet.findUniqueOrThrow).mockResolvedValue({
+      ...wallet,
+      status: 'REVOKED',
+      isDefault: false
+    } as never)
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      mode: 'IDLE',
+      remoteWalletId: null
+    } as never)
+    vi.mocked(prismaMock.lightningAddress.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+    vi.mocked(
+      prismaMock.remoteWalletReceiveAction.updateMany
+    ).mockResolvedValue({
+      count: 1
+    } as never)
+
+    const res = await patchHandler(
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { status: 'REVOKED' }
+      }),
+      createParamsPromise({ id: 'w1' })
+    )
+    const body = (await assertResponse(res, 200)) as {
+      status: string
+      isDefault: boolean
+    }
+    expect(body.status).toBe('REVOKED')
+    expect(body.isDefault).toBe(false)
+    expect(
+      prismaMock.remoteWalletReceiveAction.updateMany
+    ).toHaveBeenCalledWith({
+      where: { remoteWalletId: 'w1' },
+      data: { enabled: false, pausedAt: expect.any(Date) }
+    })
+    expect(prismaMock.lightningAddress.updateMany).toHaveBeenCalledWith({
+      where: { userId: user.id, isPrimary: true, remoteWalletId: 'w1' },
+      data: { mode: 'IDLE', redirect: null, remoteWalletId: null }
+    })
+  })
+
+  it('does not pause forwarding when re-activating to ACTIVE', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: user.id,
+      status: 'DISABLED'
+    })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({
+      ...wallet,
+      status: 'ACTIVE'
+    } as never)
+
+    const res = await patchHandler(
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { status: 'ACTIVE' }
+      }),
+      createParamsPromise({ id: 'w1' })
+    )
+    const body = (await assertResponse(res, 200)) as { status: string }
+    expect(body.status).toBe('ACTIVE')
+    expect(
+      prismaMock.remoteWalletReceiveAction.updateMany
+    ).not.toHaveBeenCalled()
+  })
+
+  it('does not pause forwarding when only renaming (no status field)', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({ id: 'w1', userId: user.id })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({
+      ...wallet,
+      name: 'Renamed'
+    } as never)
+
+    await patchHandler(
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { name: 'Renamed' }
+      }),
+      createParamsPromise({ id: 'w1' })
+    )
+
+    expect(
+      prismaMock.remoteWalletReceiveAction.updateMany
+    ).not.toHaveBeenCalled()
   })
 
   it('rejects an empty body', async () => {
