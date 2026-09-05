@@ -47,10 +47,19 @@ export async function mintWriteToken(
 }
 
 /**
- * Validate a presented write token against a card and tell the caller whether
- * it may be honoured. Single-use is enforced by the caller clearing the token
- * after a successful fetch; here we only check it matches, hasn't expired, and
- * that the card is still fresh.
+ * Validate a presented write token against a card snapshot and tell the caller
+ * whether the token *appears* valid. This is a NON-LOCKING pre-check against an
+ * in-memory snapshot: it rejects missing/mismatched/expired tokens and cards
+ * that are no longer fresh (tapped/blocked) up front, but it does NOT enforce
+ * single-use — two concurrent requests can read the same snapshot and both
+ * pass.
+ *
+ * Callers MUST enforce single-use themselves with an atomic compare-and-consume
+ * inside the same transaction that exports the keys: a conditional
+ * `card.updateMany` whose `where` re-asserts `writeToken`, `writeTokenExpiresAt`
+ * (`gt: now`), `lastUsedAt: null` and `blockedAt: null`, rejecting on
+ * `count === 0` (a concurrent consumer already nulled `writeToken`). See
+ * `app/api/cards/[id]/write/route.ts` for the canonical implementation.
  */
 export function isWriteTokenValid(
   card: {

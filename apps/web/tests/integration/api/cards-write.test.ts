@@ -68,6 +68,8 @@ describe('GET /api/cards/[id]/write', () => {
   it('returns NTAG424 write data with a valid token, unpairing + consuming it', async () => {
     const card = tokenedCard()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    // The atomic compare-and-consume updates exactly one row (the happy path).
+    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 1 } as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'test.com',
       endpoint: ''
@@ -89,8 +91,24 @@ describe('GET /api/cards/[id]/write', () => {
     expect(body.protocol_name).toBe('new_bolt_card_response')
     expect(body.k0).toBeDefined()
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    // The consume is an atomic compare-and-consume `updateMany` whose `where`
+    // re-asserts the token matches, is unexpired, and the card is still fresh
+    // — this is what makes a concurrent replay fail loudly instead of leaking
+    // the keys a second time.
+    expect(prismaMock.card.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: card.id,
+          writeToken: VALID_TOKEN,
+          writeTokenExpiresAt: { gt: expect.any(Date) },
+          lastUsedAt: null,
+          blockedAt: null
+        },
+        data: { writeToken: null, writeTokenExpiresAt: null }
+      })
+    )
     // Exporting the keys unpairs the card from any user — including dropping
-    // the MASTER designation, which belongs to the account it just left...
+    // the MASTER designation, which belongs to the account it just left.
     expect(prismaMock.card.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: card.id },
@@ -102,12 +120,65 @@ describe('GET /api/cards/[id]/write', () => {
         }
       })
     )
-    // ...and consumes the one-time token (single-use replay protection).
-    expect(prismaMock.card.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: card.id },
-        data: { writeToken: null, writeTokenExpiresAt: null }
-      })
+    // The keys are built from a fresh re-read taken under the transaction
+    // (after the consume), not the pre-transaction snapshot.
+    expect(prismaMock.card.findUnique).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns 403 when a concurrent request already consumed the token (atomic compare-and-consume)', async () => {
+    // The snapshot still carries a valid token, so the non-locking pre-check
+    // passes for BOTH overlapping requests. The fix lives in the consume:
+    // request A nulls `writeToken` first, so request B's `updateMany` matches
+    // 0 rows and is rejected loudly — instead of both silently returning keys.
+    const card = tokenedCard()
+    vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 0 } as any)
+
+    const req = createNextRequest(
+      `/api/cards/${card.id}/write?token=${VALID_TOKEN}`
+    )
+    const res = await GET(req, createParamsPromise({ id: card.id }))
+
+    expect(res.status).toBe(403)
+    // The consume was attempted atomically...
+    expect(prismaMock.card.updateMany).toHaveBeenCalledTimes(1)
+    // ...but the throw happened before unpairing or exporting the keys.
+    expect(prismaMock.card.update).not.toHaveBeenCalled()
+    expect(prismaMock.ntag424.update).not.toHaveBeenCalled()
+    expect(cardToNtag424WriteData).not.toHaveBeenCalled()
+  })
+
+  it('builds the response from the fresh re-read inside the transaction, not the pre-transaction snapshot', async () => {
+    // Distinguish the snapshot read from the in-transaction re-read: the keys
+    // returned must come from the row freshly read after the consume, so an
+    // earlier transaction that burned the token can't surface stale keys.
+    const snapshot = tokenedCard()
+    const fresh = tokenedCard({
+      title: 'Fresh After Consume',
+      ntag424: { ...snapshot.ntag424, k0: 'ff'.repeat(16) }
+    })
+    vi.mocked(prismaMock.card.findUnique)
+      .mockResolvedValueOnce(snapshot as any)
+      .mockResolvedValueOnce(fresh as any)
+    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 1 } as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: '', endpoint: '' })
+
+    const req = createNextRequest(
+      `/api/cards/${snapshot.id}/write?token=${VALID_TOKEN}`
+    )
+    await GET(req, createParamsPromise({ id: snapshot.id }))
+
+    expect(cardToNtag424WriteData).toHaveBeenCalledWith(
+      fresh.ntag424,
+      snapshot.id,
+      fresh.title,
+      expect.any(String)
+    )
+    expect(cardToNtag424WriteData).not.toHaveBeenCalledWith(
+      snapshot.ntag424,
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
     )
   })
 
@@ -120,6 +191,9 @@ describe('GET /api/cards/[id]/write', () => {
     const res = await GET(req, createParamsPromise({ id: 'card-1' }))
 
     expect(res.status).toBe(403)
+    // The pre-check rejects before the transaction, so neither the atomic
+    // consume nor any unpair runs.
+    expect(prismaMock.card.updateMany).not.toHaveBeenCalled()
     expect(prismaMock.card.update).not.toHaveBeenCalled()
   })
 
@@ -162,6 +236,8 @@ describe('GET /api/cards/[id]/write', () => {
     const res = await GET(req, createParamsPromise({ id: 'card-1' }))
 
     expect(res.status).toBe(403)
+    // Pre-check rejects a non-fresh card before any DB write.
+    expect(prismaMock.card.updateMany).not.toHaveBeenCalled()
     expect(prismaMock.card.update).not.toHaveBeenCalled()
   })
 
@@ -195,6 +271,7 @@ describe('GET /api/cards/[id]/write', () => {
   it('ignores the domain for lnurlw_base host — falls back to the request host when no endpoint', async () => {
     const card = tokenedCard()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 1 } as any)
     // domain is set but endpoint is NOT: the chip's lnurlw_base host must be the
     // API host the wallet can actually reach on tap (here the request host),
     // never the lightning-address domain (which need not serve the API).
@@ -222,6 +299,7 @@ describe('GET /api/cards/[id]/write', () => {
   it('uses endpoint URL host for lnurlw_base host', async () => {
     const card = tokenedCard()
     vi.mocked(prismaMock.card.findUnique).mockResolvedValue(card as any)
+    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 1 } as any)
     vi.mocked(getSettings).mockResolvedValue({
       domain: 'example.com',
       endpoint: 'https://app.example.com'

@@ -57,20 +57,54 @@ export const GET = withErrorHandling(
     // still fresh (never tapped) and not yet consumed/expired. Everything else —
     // including the legacy untokenized URL — is rejected so the keys can't be
     // re-fetched and the card cloned.
+    //
+    // `isWriteTokenValid` is a non-locking pre-check against an in-memory
+    // snapshot — it cheaply rejects missing/mismatched/expired tokens and
+    // already-tapped/blocked cards, but it does NOT enforce single-use: two
+    // concurrent requests can both read the same snapshot and both pass. The
+    // single-use / mutual-exclusivity guarantee is enforced atomically by the
+    // conditional compare-and-consume `updateMany` inside the transaction
+    // below — that's what makes a concurrent replay fail loudly (403) instead
+    // of succeeding silently and leaking the keys a second time.
     if (!isWriteTokenValid(card, token)) {
       throw new AuthorizationError(
         'A valid one-time programming token is required.'
       )
     }
 
-    // Handing out the keys means the physical card is about to be
-    // (re)programmed, so it can no longer belong to a user — unpair it. In the
-    // same transaction, consume the token (clear it) so the URL is single-use.
-    await prisma.$transaction(async tx => {
-      await unpairCard(tx, card.id, card.ntag424!.cid)
-      await tx.card.update({
-        where: { id: card.id },
+    // Atomically consume the token AND unpair the card in one transaction.
+    // The `where` predicate re-asserts every condition `isWriteTokenValid`
+    // checked against the snapshot — `writeToken` matches the presented value,
+    // is still unexpired, and the card is still fresh — against the LIVE row.
+    // Under Read Committed a concurrent request that consumed the token first
+    // (nulled `writeToken`) makes this `updateMany` match 0 rows, so the
+    // loser throws instead of falling through to key export. The previous
+    // unconditional `update({ where: { id } })` could not observe that signal
+    // and let both requests return 200 with the keys.
+    const fresh = await prisma.$transaction(async tx => {
+      const consumed = await tx.card.updateMany({
+        where: {
+          id: card.id,
+          writeToken: token,
+          writeTokenExpiresAt: { gt: new Date() },
+          lastUsedAt: null,
+          blockedAt: null
+        },
         data: { writeToken: null, writeTokenExpiresAt: null }
+      })
+      if (consumed.count === 0) {
+        throw new AuthorizationError(
+          'The programming token has already been consumed, expired, or the card is no longer fresh.'
+        )
+      }
+      // Handing out the keys means the physical card is about to be
+      // (re)programmed, so it can no longer belong to a user — unpair it.
+      await unpairCard(tx, card.id, card.ntag424!.cid)
+      // Re-read under the transaction so the keys/title come from the row we
+      // just consumed the token on, not the pre-transaction snapshot.
+      return tx.card.findUnique({
+        where: { id: card.id },
+        include: { design: true, ntag424: true }
       })
     })
     eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
@@ -81,15 +115,15 @@ export const GET = withErrorHandling(
       metadata: { cardId: id, endpoint: 'write' }
     })
 
-    // The host burned into the chip's `lnurlw_base` is what the wallet hits on
+    // The host burned in the chip's `lnurlw_base` is what the wallet hits on
     // every tap, so it must be this instance's API URL (the `endpoint` setting /
     // request host) — NOT the lightning-address `domain`, which need not serve
     // the API. Same logic as the `/scan` callback and the LUD-16 callback.
     const host = new URL(await resolveApiUrl(req)).host
     const writeData: Ntag424WriteData = cardToNtag424WriteData(
-      card.ntag424,
-      card.id,
-      card.title,
+      fresh!.ntag424!,
+      id,
+      fresh!.title,
       host
     )
 
