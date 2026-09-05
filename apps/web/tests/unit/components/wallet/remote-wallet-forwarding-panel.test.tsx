@@ -482,4 +482,133 @@ describe('RemoteWalletForwardingPanel', () => {
       { cursor: 'activity-cursor-2', limit: 5 }
     )
   })
+
+  describe('Payments received empty-state copy', () => {
+    // The default beforeEach leaves receipts, transactions, and the action
+    // data empty/loaded-but-empty, so mergeReceivedPayments yields [] and the
+    // empty-state branch at remote-wallet-forwarding-panel.tsx fires.
+    it('uses the conservative message for an inactive wallet with no payments', async () => {
+      render(
+        <RemoteWalletForwardingPanel walletId="wallet-1" walletActive={false} />
+      )
+
+      await userEvent.click(
+        screen.getByRole('tab', { name: 'Payments received' })
+      )
+
+      expect(
+        screen.getByText(
+          'Payment activity is only available while the wallet is active.'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText('No payments have been received by this wallet yet.')
+      ).not.toBeInTheDocument()
+    })
+
+    it('uses the standard message for an active wallet with no payments', async () => {
+      render(<RemoteWalletForwardingPanel walletId="wallet-1" />)
+
+      await userEvent.click(
+        screen.getByRole('tab', { name: 'Payments received' })
+      )
+
+      expect(
+        screen.getByText('No payments have been received by this wallet yet.')
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          'Payment activity is only available while the wallet is active.'
+        )
+      ).not.toBeInTheDocument()
+    })
+
+    it('prefers the error message over the walletActive wording', async () => {
+      render(
+        <RemoteWalletForwardingPanel
+          walletId="wallet-1"
+          walletActive={false}
+          transactionsError={new Error('NWC relay unreachable')}
+        />
+      )
+
+      await userEvent.click(
+        screen.getByRole('tab', { name: 'Payments received' })
+      )
+
+      expect(
+        screen.getByText(
+          'Could not load wallet payments. Forwarding receipts will appear when available.'
+        )
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          'Payment activity is only available while the wallet is active.'
+        )
+      ).not.toBeInTheDocument()
+    })
+
+    it('still renders known receipts for an inactive wallet instead of the empty-state', async () => {
+      // Forwarding receipts are fetched status-agnostically on the server, so a
+      // wallet disabled *after* use still shows its history and never reaches
+      // the walletActive-gated branch.
+      vi.mocked(useRemoteWalletForwardReceipts).mockReturnValue({
+        data: {
+          receipts: [
+            forwardingReceipt({
+              id: 'receipt-historic',
+              comment: 'Pizza money'
+            })
+          ],
+          nextCursor: null
+        },
+        loading: false,
+        error: null,
+        refetch: vi.fn()
+      } as never)
+      render(
+        <RemoteWalletForwardingPanel walletId="wallet-1" walletActive={false} />
+      )
+
+      await userEvent.click(
+        screen.getByRole('tab', { name: 'Payments received' })
+      )
+
+      expect(screen.getByText('“Pizza money”')).toBeInTheDocument()
+      expect(
+        screen.queryByText(
+          'Payment activity is only available while the wallet is active.'
+        )
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText('No payments have been received by this wallet yet.')
+      ).not.toBeInTheDocument()
+    })
+
+    it('shows the loading spinner, not the empty-state, while payments are still loading for an inactive wallet', async () => {
+      render(
+        <RemoteWalletForwardingPanel
+          walletId="wallet-1"
+          walletActive={false}
+          transactionsLoading
+        />
+      )
+
+      await userEvent.click(
+        screen.getByRole('tab', { name: 'Payments received' })
+      )
+
+      // The loading branch short-circuits before walletActive is consulted, so
+      // neither empty-state string is rendered.
+      expect(
+        screen.queryByText(
+          'Payment activity is only available while the wallet is active.'
+        )
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByText('No payments have been received by this wallet yet.')
+      ).not.toBeInTheDocument()
+      expect(document.querySelector('svg.animate-spin')).toBeInTheDocument()
+    })
+  })
 })
