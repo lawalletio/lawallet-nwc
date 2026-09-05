@@ -33,7 +33,7 @@ export async function resolveRpContext(request: {
 }): Promise<RpContext> {
   const [apiUrl, settings] = await Promise.all([
     resolveApiUrl(request),
-    getSettings(['community_name'], { cache: 'hot' })
+    getSettings(['community_name'])
   ])
   const url = new URL(apiUrl)
   return {
