@@ -39,7 +39,7 @@ export async function resolveRpContext(request: {
   return {
     rpId: url.hostname,
     origin: url.origin,
-    rpName: settings.community_name || 'LaWallet'
+    rpName: settings.community_name?.trim() || 'LaWallet'
   }
 }
 
