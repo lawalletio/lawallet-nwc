@@ -11,6 +11,8 @@ const allBrowsers = !!process.env.PW_ALL_BROWSERS
 
 export default defineConfig({
   testDir: './e2e',
+  // Compile the API surface before the workers race for it — see the file.
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
