@@ -42,6 +42,62 @@ export function scrubPii(text: string): string {
   return out
 }
 
+/**
+ * Bearer-token routes whose dynamic URL segment alone grants access — no
+ * `Authorization` header required. Segments on these routes must not be
+ * persisted to Sentry `tags.path`, `request.url`, or the ActivityLog.
+ * Replace them with the same `[param]` placeholder Next.js uses so the
+ * operator can still group by route without leaking the credential.
+ *
+ * Why a list and not a generic regex: card `id`s (also 32-hex, same shape
+ * as an OTC) are NOT bearer tokens — `/api/cards/[id]` requires auth and
+ * surfacing them in Sentry is desirable for debugging. The route prefix is
+ * the only discriminator. Add new bearer-token routes HERE.
+ */
+export const BEARER_TOKEN_PATH_PATTERNS: {
+  match: RegExp
+  replace: RegExp
+  placeholder: string
+}[] = [
+  // /api/cards/otc/<OTC>  and  /api/cards/otc/<OTC>/activate
+  {
+    match: /^\/api\/cards\/otc\/[^/]+(\/|$)/,
+    replace: /^(\/api\/cards\/otc)\/[^/]+/,
+    placeholder: '[otc]'
+  },
+  // /api/remote-connections/<EDK>  and sub-routes (e.g. /cards)
+  {
+    match: /^\/api\/remote-connections\/[^/]+(\/|$)/,
+    replace: /^(\/api\/remote-connections)\/[^/]+/,
+    placeholder: '[externalDeviceKey]'
+  },
+  // /api/activation-tokens/<id>  and  /api/activation-tokens/<id>/claim
+  // The id is randomBytes(16).toString('hex') — a scan-time capability:
+  // possession + authentication transfers the card.
+  {
+    match: /^\/api\/activation-tokens\/[^/]+(\/|$)/,
+    replace: /^(\/api\/activation-tokens)\/[^/]+/,
+    placeholder: '[id]'
+  }
+]
+
+/**
+ * Returns a copy of `pathname` with bearer-token dynamic segments replaced
+ * by their `[param]` placeholder. Non-matching paths come back unchanged.
+ * `undefined` stays `undefined`.
+ */
+export function redactPathBearerTokens(
+  pathname: string | undefined
+): string | undefined {
+  if (!pathname) return pathname
+  for (const { match, replace, placeholder } of BEARER_TOKEN_PATH_PATTERNS) {
+    if (match.test(pathname)) {
+      return pathname.replace(replace, `$1/${placeholder}`)
+    }
+  }
+  return pathname
+}
+
 /** Structural subset of a Sentry event — keeps this module Sentry-free. */
 type SentryEventLike = {
   message?: string
@@ -72,7 +128,20 @@ export function scrubEvent<T extends SentryEventLike>(event: T): T {
       if (typeof value === 'string') crumb.data![key] = scrubPii(value)
     }
   }
-  if (event.request?.url) event.request.url = scrubPii(event.request.url)
+  if (event.request?.url) {
+    // First apply pattern-based scrubbing (Nostr/LN shapes), then apply
+    // bearer-token path redaction so OTC / EDK / activation-token ids are
+    // replaced with their [param] placeholder even though they don't match
+    // the 64-hex Nostr key shape. Extract the pathname from the URL so the
+    // route-prefix discriminator works correctly, then re-embed it.
+    try {
+      const parsed = new URL(event.request.url)
+      parsed.pathname = redactPathBearerTokens(parsed.pathname) ?? parsed.pathname
+      event.request.url = scrubPii(parsed.toString())
+    } catch {
+      event.request.url = scrubPii(event.request.url)
+    }
+  }
   if (typeof event.request?.query_string === 'string') {
     event.request.query_string = scrubPii(event.request.query_string)
   }

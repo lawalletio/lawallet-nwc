@@ -131,6 +131,45 @@ describe('Sentry tags leak — SDK contract (real @sentry/nextjs pipeline)', () 
     expect(JSON.stringify(event)).not.toContain(NSEC)
   })
 
+  it('scrubEvent removes OTC / EDK / activation-token id from event.request.url (requestDataIntegration channel)', async () => {
+    // This test exercises the event.request.url channel that
+    // requestDataIntegration would populate in production (it attaches the
+    // raw incoming request URL to server-side Sentry events). scrubPii's
+    // Nostr/LN/64-hex patterns do NOT match a 32-hex OTC, an arbitrary EDK,
+    // or a 32-hex activation-token id, so scrubEvent must apply bearer-path
+    // redaction on the URL channel in addition to scrubPii.
+    const otc = 'a'.repeat(32) // same OTC fixture as above
+    const edk = 'my-external-device-key'
+    const activationId = 'f'.repeat(32)
+
+    // Test each bearer route shape through the scrubEvent function directly,
+    // which is what beforeSend invokes on every event (including those whose
+    // request.url was populated by requestDataIntegration).
+    const { scrubEvent } = await import('@/lib/observability/pii')
+
+    const otcEvent = {
+      request: { url: `https://api.example.com/api/cards/otc/${otc}` }
+    } as Parameters<typeof scrubEvent>[0]
+    expect(scrubEvent(otcEvent).request?.url).not.toContain(otc)
+    expect(scrubEvent(otcEvent).request?.url).toContain('[otc]')
+
+    const edkEvent = {
+      request: {
+        url: `https://api.example.com/api/remote-connections/${edk}/cards`
+      }
+    } as Parameters<typeof scrubEvent>[0]
+    expect(scrubEvent(edkEvent).request?.url).not.toContain(edk)
+    expect(scrubEvent(edkEvent).request?.url).toContain('[externalDeviceKey]')
+
+    const activationEvent = {
+      request: {
+        url: `https://api.example.com/api/activation-tokens/${activationId}/claim`
+      }
+    } as Parameters<typeof scrubEvent>[0]
+    expect(scrubEvent(activationEvent).request?.url).not.toContain(activationId)
+    expect(scrubEvent(activationEvent).request?.url).toContain('[id]')
+  })
+
   it('does not redact a benign 32-hex card id placed in tags.path (kept actionable for debugging)', async () => {
     // Card IDs are 32-hex (same shape as an OTC) but NOT bearer tokens — they
     // surface in /api/cards/[id] routes that require auth. scrubPii's regex

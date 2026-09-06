@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { scrubPii, scrubEvent } from '@/lib/observability/pii'
+import {
+  scrubPii,
+  scrubEvent,
+  redactPathBearerTokens
+} from '@/lib/observability/pii'
 
 const HEX_A = 'a'.repeat(64)
 const HEX_B = 'b'.repeat(6) + 'c'.repeat(58)
@@ -138,5 +142,105 @@ describe('scrubEvent', () => {
     ).toBeUndefined()
     expect(scrubEvent({ tags: {} }).tags).toEqual({})
     expect(scrubEvent({ tags: { count: 1 } }).tags).toEqual({ count: 1 })
+  })
+
+  it('redacts bearer-token path segments in event.request.url', () => {
+    const otc = 'a'.repeat(32)
+    const edk = 'external-device-key-abc123'
+    const activationId = 'b'.repeat(32)
+
+    const otcEvent = {
+      request: { url: `https://example.com/api/cards/otc/${otc}` }
+    }
+    const otcOut = scrubEvent(otcEvent)
+    expect(otcOut.request!.url).toBe(
+      'https://example.com/api/cards/otc/[otc]'
+    )
+    expect(otcOut.request!.url).not.toContain(otc)
+
+    const edkEvent = {
+      request: { url: `https://example.com/api/remote-connections/${edk}/cards` }
+    }
+    const edkOut = scrubEvent(edkEvent)
+    expect(edkOut.request!.url).toBe(
+      'https://example.com/api/remote-connections/[externalDeviceKey]/cards'
+    )
+    expect(edkOut.request!.url).not.toContain(edk)
+
+    const activationEvent = {
+      request: {
+        url: `https://example.com/api/activation-tokens/${activationId}/claim`
+      }
+    }
+    const activationOut = scrubEvent(activationEvent)
+    expect(activationOut.request!.url).toBe(
+      'https://example.com/api/activation-tokens/[id]/claim'
+    )
+    expect(activationOut.request!.url).not.toContain(activationId)
+  })
+
+  it('does not redact a benign card id in event.request.url', () => {
+    const cardId = 'c'.repeat(32)
+    const event = {
+      request: { url: `https://example.com/api/cards/${cardId}` }
+    }
+    const out = scrubEvent(event)
+    // /api/cards/[id] is an authenticated route — not a bearer-token path
+    expect(out.request!.url).toBe(`https://example.com/api/cards/${cardId}`)
+  })
+})
+
+describe('redactPathBearerTokens', () => {
+  it('redacts OTC segment in /api/cards/otc/<OTC>', () => {
+    const otc = 'a'.repeat(32)
+    expect(redactPathBearerTokens(`/api/cards/otc/${otc}`)).toBe(
+      '/api/cards/otc/[otc]'
+    )
+  })
+
+  it('redacts OTC segment in /api/cards/otc/<OTC>/activate', () => {
+    const otc = 'a'.repeat(32)
+    expect(redactPathBearerTokens(`/api/cards/otc/${otc}/activate`)).toBe(
+      '/api/cards/otc/[otc]/activate'
+    )
+  })
+
+  it('redacts externalDeviceKey segment in /api/remote-connections/<EDK>', () => {
+    expect(
+      redactPathBearerTokens('/api/remote-connections/my-device-key-123')
+    ).toBe('/api/remote-connections/[externalDeviceKey]')
+  })
+
+  it('redacts externalDeviceKey segment in /api/remote-connections/<EDK>/cards', () => {
+    expect(
+      redactPathBearerTokens('/api/remote-connections/my-device-key-123/cards')
+    ).toBe('/api/remote-connections/[externalDeviceKey]/cards')
+  })
+
+  it('redacts activation-token id in /api/activation-tokens/<id>', () => {
+    const id = 'b'.repeat(32)
+    expect(redactPathBearerTokens(`/api/activation-tokens/${id}`)).toBe(
+      '/api/activation-tokens/[id]'
+    )
+  })
+
+  it('redacts activation-token id in /api/activation-tokens/<id>/claim', () => {
+    const id = 'b'.repeat(32)
+    expect(redactPathBearerTokens(`/api/activation-tokens/${id}/claim`)).toBe(
+      '/api/activation-tokens/[id]/claim'
+    )
+  })
+
+  it('does not redact /api/cards/[id] (authenticated route, not a bearer-token path)', () => {
+    const id = 'c'.repeat(32)
+    expect(redactPathBearerTokens(`/api/cards/${id}`)).toBe(`/api/cards/${id}`)
+  })
+
+  it('returns undefined unchanged', () => {
+    expect(redactPathBearerTokens(undefined)).toBeUndefined()
+  })
+
+  it('returns non-matching paths unchanged', () => {
+    expect(redactPathBearerTokens('/api/users/me')).toBe('/api/users/me')
   })
 })

@@ -11,6 +11,7 @@ import {
 } from './errors'
 import { getCurrentReqId, withRequestLogging } from '@/lib/logger'
 import { logger } from '@/lib/logger'
+import { redactPathBearerTokens } from '@/lib/observability/pii'
 import { checkMaintenance } from '@/lib/middleware/maintenance'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import type { ActivityCategory, ActivityLevel } from '@/lib/generated/prisma'
@@ -233,56 +234,6 @@ function safePathname(url: string | undefined): string | undefined {
   } catch {
     return undefined
   }
-}
-
-/**
- * Bearer-token routes whose dynamic URL segment alone grants access — no
- * `Authorization` header required. We must not persist those segments to
- * Sentry `tags.path` or to the ActivityLog `pathname`; replace them with
- * the same `[param]` placeholder Next.js / @sentry/nextjs uses for the
- * parameterized route, so the value remains actionable (the operator can
- * still group by route) without leaking the credential.
- *
- * Why a list and not a generic regex: card `id`s (also 32-hex, same shape
- * as an OTC) are NOT bearer tokens — `/api/cards/[id]` requires auth and
- * surfacing them in Sentry is desirable for debugging. The route itself is
- * the only thing that distinguishes a benign id from a bearer OTC, so we
- * match on the route prefix. Add new bearer-token routes HERE.
- */
-const BEARER_TOKEN_PATH_PATTERNS: {
-  match: RegExp
-  replace: RegExp
-  placeholder: string
-}[] = [
-  // /api/cards/otc/<OTC>  and  /api/cards/otc/<OTC>/activate
-  {
-    match: /^\/api\/cards\/otc\/[^/]+(\/|$)/,
-    replace: /^(\/api\/cards\/otc)\/[^/]+/,
-    placeholder: '[otc]'
-  },
-  // /api/remote-connections/<EDK>  and sub-routes (e.g. /cards)
-  {
-    match: /^\/api\/remote-connections\/[^/]+(\/|$)/,
-    replace: /^(\/api\/remote-connections)\/[^/]+/,
-    placeholder: '[externalDeviceKey]'
-  }
-]
-
-/**
- * Returns a copy of `pathname` with bearer-token dynamic segments replaced
- * by their `[param]` placeholder. Non-matching paths come back unchanged.
- * `undefined` stays `undefined`.
- */
-function redactPathBearerTokens(
-  pathname: string | undefined
-): string | undefined {
-  if (!pathname) return pathname
-  for (const { match, replace, placeholder } of BEARER_TOKEN_PATH_PATTERNS) {
-    if (match.test(pathname)) {
-      return pathname.replace(replace, `$1/${placeholder}`)
-    }
-  }
-  return pathname
 }
 
 type RouteHandler<
