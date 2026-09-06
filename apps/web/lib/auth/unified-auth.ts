@@ -16,7 +16,6 @@ import {
   isValidPermission
 } from '@/lib/auth/permissions'
 import { resolveRole } from '@/lib/auth/resolve-role'
-import { resolveApiUrl } from '@/lib/public-url'
 import { getSettings } from '@/lib/settings'
 import { parseEndpoint } from '@/lib/public-url-utils'
 
@@ -132,15 +131,19 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
     // device tokens carry `apiUrl`; session JWTs (no `kind`) are unaffected.
     if (isDeviceToken) {
       // `apiUrl` is the only per-instance discriminator on a device token —
-      // `iss`/`aud` are identical on every instance. The comparison below uses
-      // `resolveApiUrl(request)`, which falls back to the client-supplied
-      // `Host` header when the `endpoint` setting is unset. An unset `endpoint`
-      // would therefore make the binding compare the frozen claim against a
-      // value chosen by the attacker, failing open silently. Refuse to verify
-      // a device token until `endpoint` is configured so the binding is never
-      // driven by an attacker-controllable header.
+      // `iss`/`aud` are identical on every instance. The comparison must use
+      // the configured `endpoint` setting exclusively; `resolveApiUrl` would
+      // fall back to the client-supplied `Host` header when `endpoint` is
+      // unset, making the binding compare the frozen claim against an
+      // attacker-controlled value. To prevent a TOCTOU race where a second
+      // read inside `resolveApiUrl` observes a different snapshot (e.g. after
+      // an admin removes the endpoint between the two reads), we read and
+      // parse `endpoint` exactly once and build the comparison URL directly
+      // from that single result. The binding is therefore never driven by an
+      // attacker-controllable header.
       const { endpoint } = await getSettings(['endpoint'], { cache: 'hot' })
-      if (!parseEndpoint(endpoint)) {
+      const parsed = parseEndpoint(endpoint)
+      if (!parsed) {
         throw new AuthenticationError(
           'Device tokens cannot be verified until `endpoint` is configured',
           {
@@ -149,7 +152,7 @@ async function authenticateJwt(request: Request): Promise<AuthResult> {
           }
         )
       }
-      const url = await resolveApiUrl(request)
+      const url = `${parsed.protocol}//${parsed.host}`
       if (normalizeApiUrl(result.payload.apiUrl) !== normalizeApiUrl(url)) {
         throw new AuthenticationError('Token is not valid for this instance', {
           details: 'Device token apiUrl does not match this platform'

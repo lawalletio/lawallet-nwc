@@ -512,7 +512,6 @@ describe('device-token apiUrl enforcement (B.0)', () => {
   })
 
   it('matches despite trailing slash and case differences', async () => {
-    vi.mocked(resolveApiUrl).mockResolvedValueOnce('https://App.Example.com')
     mockDeviceTokenWithApiUrl('https://app.example.com/')
 
     await expect(authenticate(mockBearerRequest())).resolves.toMatchObject({
