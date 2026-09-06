@@ -87,6 +87,14 @@ export const GET = withErrorHandling(
           id: card.id,
           writeToken: token,
           writeTokenExpiresAt: { gt: new Date() },
+          // NOTE: `ctr === 0` (the ntag424 relation) cannot be expressed in
+          // `card.updateMany`, but re-checking `lastUsedAt: null` is
+          // sufficient: both tap paths (`claimCardPaymentAttempt` and
+          // `claimCardTap` in `lib/card-payments/attempts.ts`) advance `ctr`
+          // and stamp `lastUsedAt` in the same atomic statement. If a future
+          // tap path ever advances `ctr` without stamping `lastUsedAt`, this
+          // freshness re-check would silently weaken while the pre-check in
+          // `isWriteTokenValid` (which does check `ctr === 0`) still passes.
           lastUsedAt: null,
           blockedAt: null
         },
@@ -120,10 +128,13 @@ export const GET = withErrorHandling(
     // request host) — NOT the lightning-address `domain`, which need not serve
     // the API. Same logic as the `/scan` callback and the LUD-16 callback.
     const host = new URL(await resolveApiUrl(req)).host
+    if (!fresh?.ntag424) {
+      throw new NotFoundError('Card ntag424 data not found after transaction')
+    }
     const writeData: Ntag424WriteData = cardToNtag424WriteData(
-      fresh!.ntag424!,
+      fresh.ntag424,
       id,
-      fresh!.title,
+      fresh.title,
       host
     )
 
