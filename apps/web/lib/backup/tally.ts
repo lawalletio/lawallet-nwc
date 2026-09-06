@@ -43,7 +43,15 @@ export function computeTally(
     // `skip` (demoted), so it must not be counted away from willImport.
     const importsDespiteSkip =
       strategy === 'skip' && conflict.importsEvenOnSkip === true
-    if (strategy === 'skip' && !importsDespiteSkip) skip++
+    // A where-flavor partial-unique (no importsEvenOnSkip) is always skipped
+    // server-side when an incumbent exists, regardless of the strategy —
+    // reconcilePartialUniques returns { skip: true } for the where branch.
+    const skippedDespiteOverwrite =
+      strategy === 'overwrite' &&
+      conflict.kind === 'partial-unique' &&
+      !conflict.importsEvenOnSkip
+    if ((strategy === 'skip' && !importsDespiteSkip) || skippedDespiteOverwrite)
+      skip++
     else importFromConflicts++
   }
 

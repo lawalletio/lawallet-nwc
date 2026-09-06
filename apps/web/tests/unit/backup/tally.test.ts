@@ -101,6 +101,27 @@ describe('backup tally computeTally', () => {
       expect(t).toEqual({ willImport: 0, willSkip: 1, unchanged: 0 })
     })
 
+    it('counts a where-flavor partial-unique overwrite as a SKIP (reconcilePartialUniques ignores prefer for where branch)', () => {
+      // cardActivationTokens pending clash with overwrite: server-side
+      // reconcilePartialUniques where-branch always returns { skip: true }
+      // when an incumbent exists, so this must not be counted as an import.
+      const conflicts = [
+        conflict({
+          id: 'cardActivationTokens:tok-2',
+          table: 'cardActivationTokens',
+          kind: 'partial-unique',
+          field: undefined,
+          importsEvenOnSkip: undefined,
+          suggestedStrategy: 'skip'
+        })
+      ]
+      const resolutions: Record<string, BackupResolutionStrategy> = {
+        'cardActivationTokens:tok-2': 'overwrite'
+      }
+      const t = computeTally(analysis(), conflicts, resolutions)
+      expect(t).toEqual({ willImport: 0, willSkip: 1, unchanged: 0 })
+    })
+
     it('still counts a flag-based skip as an import when the admin overrides to skip explicitly', () => {
       const conflicts = [
         conflict({
