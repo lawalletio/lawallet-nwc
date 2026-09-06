@@ -36,6 +36,11 @@ export function nextVoucherStatus(
   reported: VoucherStatus
 ): VoucherStatus {
   if (isTerminalVoucherStatus(current)) return current
+  // EXPIRED is non-terminal so a late `claimed`/`voided`/`refreshed` can still
+  // land — but that rationale does not extend to `minted`. A service reporting
+  // `minted` for an expired coupon should not put a spendable badge back on
+  // it; expiry is a clock fact, not a service opinion.
+  if (current === 'EXPIRED' && reported === 'MINTED') return current
   return reported
 }
 

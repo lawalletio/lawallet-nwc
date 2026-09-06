@@ -12,7 +12,7 @@ import { normalizeNostrPubkey } from '@/lib/nostr/profile'
 import { eventBus } from '@/lib/events/event-bus'
 import { verifyVoucherEvent } from '@/lib/vouchers/event'
 import { assertServiceUrl } from '@/lib/vouchers/url'
-import type { Prisma } from '@/lib/generated/prisma'
+import { Prisma } from '@/lib/generated/prisma'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -107,9 +107,21 @@ export const POST = withErrorHandling(async (request: Request) => {
     : null
 
   // With no signed event, the NIP-98 signer *is* the service — that is the
-  // only identity we can actually vouch for.
-  const servicePubkey =
-    verified?.servicePubkey ?? declaredService?.pubkey ?? sender
+  // only identity we can actually vouch for. A `servicePubkey` in the body is
+  // an unverified assertion, so it may confirm the signer but never replace
+  // it: letting it through would let any signer file rows under a real CMS's
+  // identity, and `resolveTransferService` reads service endpoints off those
+  // rows.
+  const servicePubkey = verified?.servicePubkey ?? sender
+  if (
+    declaredService &&
+    declaredService.pubkey !== servicePubkey &&
+    !verified
+  ) {
+    throw new ValidationError(
+      'servicePubkey does not match the signer; send a signed voucherEvent to deposit on behalf of another service'
+    )
+  }
 
   const expiresAtSeconds = verified?.expiresAt ?? body.expiresAt ?? null
   const expiresAt = expiresAtSeconds ? new Date(expiresAtSeconds * 1000) : null
@@ -127,8 +139,12 @@ export const POST = withErrorHandling(async (request: Request) => {
     claimUrl: body.claimUrl,
     mintUrl: body.mintUrl ?? null,
     refreshUrl: body.refreshUrl ?? null,
-    metadata: (body.metadata ?? null) as Prisma.InputJsonValue,
-    voucherEvent: (body.voucherEvent ?? null) as Prisma.InputJsonValue,
+    // Nullable Json columns take `Prisma.DbNull`, never a bare `null` — the
+    // cast silenced the type error but leaves the runtime value Prisma
+    // rejects.
+    metadata: (body.metadata ?? Prisma.DbNull) as Prisma.InputJsonValue,
+    voucherEvent: (body.voucherEvent ??
+      Prisma.DbNull) as Prisma.InputJsonValue,
     // A voucher event whose phase already says `claimed` was minted from an
     // ledger that has burned it; recording it as MINTED would show the user a
     // spendable coupon that isn't.

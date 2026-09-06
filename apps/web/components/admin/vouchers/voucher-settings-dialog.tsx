@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import {
@@ -36,6 +37,7 @@ export function VoucherSettingsDialog() {
 
   const [policy, setPolicy] =
     React.useState<VoucherSettings['policy']>('ANYONE')
+  const [allowVouchers, setAllowVouchers] = React.useState(false)
   const [senders, setSenders] = React.useState<string[]>([])
   const [draft, setDraft] = React.useState('')
 
@@ -44,6 +46,7 @@ export function VoucherSettingsDialog() {
   React.useEffect(() => {
     if (!open || !data) return
     setPolicy(data.policy)
+    setAllowVouchers(data.allowVouchers)
     setSenders(data.allowlist.map(entry => entry.npub))
     setDraft('')
   }, [open, data])
@@ -66,7 +69,7 @@ export function VoucherSettingsDialog() {
       pending && !senders.includes(pending) ? [...senders, pending] : senders
 
     try {
-      await saveVoucherSettings({ policy, allowlist })
+      await saveVoucherSettings({ policy, allowVouchers, allowlist })
       toast.success('Deposit settings saved')
       refetch()
       setOpen(false)
@@ -100,6 +103,26 @@ export function VoucherSettingsDialog() {
             signatures you accept.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Separate from the policy below: a transfer arrives over LNURL with
+            no signer at all, so it cannot be matched against an allowlist.
+            It is its own decision and its own switch. */}
+        <Label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3">
+          <Checkbox
+            checked={allowVouchers}
+            onCheckedChange={next => setAllowVouchers(next === true)}
+            className="mt-0.5"
+          />
+          <span className="flex flex-col gap-0.5">
+            <span className="font-medium">
+              Let people send me vouchers by lightning address
+            </span>
+            <span className="text-sm font-normal text-muted-foreground">
+              Advertises your address as accepting transfers. Senders are
+              anonymous, so this stays off while you restrict senders below.
+            </span>
+          </span>
+        </Label>
 
         <RadioGroup
           value={policy}

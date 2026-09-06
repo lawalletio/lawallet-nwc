@@ -1373,6 +1373,12 @@ export const voucherIdParam = z.object({
 export const updateVoucherSettingsSchema = z.object({
   policy: voucherDepositPolicySchema,
   /**
+   * Whether this address advertises `allowVouchers` and takes LNURL voucher
+   * transfers. Separate from `policy` because it gates an *anonymous* write:
+   * an LNURL transfer has no signer to match against the allowlist.
+   */
+  allowVouchers: z.boolean(),
+  /**
    * Senders accepted while the policy is ALLOWLIST. Capped at 50 because each
    * unresolved NIP-05 entry costs one outbound request on save.
    */

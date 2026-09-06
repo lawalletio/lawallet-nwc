@@ -217,6 +217,27 @@ describe('POST {lud16 callback} action=voucher', () => {
     })
   })
 
+  it('only trusts endpoints from a row the service deposited itself', async () => {
+    // The poisoning vector: a coupon is a bearer token, so an attacker can
+    // legitimately obtain one genuine voucher signed by a real CMS and
+    // deposit it here with `refreshUrl` pointing at themselves. If any stored
+    // row could establish that service's endpoint, the next inbound transfer
+    // would POST its bearer nonce straight to them. Only a row the service
+    // authenticated itself to write (depositedBy === servicePubkey) counts.
+    mockRecipient()
+    mockKnownService()
+    await transfer()
+
+    const lookups = vi.mocked(prismaMock.voucher.findFirst).mock.calls
+    expect(lookups.length).toBeGreaterThan(0)
+    for (const call of lookups) {
+      expect((call[0] as any).where).toMatchObject({
+        servicePubkey,
+        depositedBy: servicePubkey
+      })
+    }
+  })
+
   it('refuses a service the instance has never seen', async () => {
     // Pinning is the only thing standing between a forged voucher and a
     // stash entry that looks real until the till rejects it.

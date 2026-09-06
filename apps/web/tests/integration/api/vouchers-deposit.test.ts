@@ -326,6 +326,42 @@ describe('POST /api/vouchers', () => {
     expect(prismaMock.voucher.upsert).not.toHaveBeenCalled()
   })
 
+  it('refuses an unsigned deposit that claims another service identity', async () => {
+    // Without a signed event the NIP-98 signer IS the service. Letting a body
+    // field override that would let any signer file rows under a real CMS's
+    // pubkey — and `resolveTransferService` reads endpoints off those rows.
+    mockAuth()
+    mockRecipient()
+
+    const response = await Deposit(
+      request(body({ servicePubkey: 'e'.repeat(64) }))
+    )
+    expect(response.status).toBe(400)
+    expect(prismaMock.voucher.upsert).not.toHaveBeenCalled()
+  })
+
+  it('records the signer as the service when no event is sent', async () => {
+    mockAuth()
+    mockRecipient()
+    await Deposit(request(body()))
+
+    const args = vi.mocked(prismaMock.voucher.upsert).mock.calls[0][0] as any
+    expect(args.create.servicePubkey).toBe(servicePubkey)
+    expect(args.create.depositedBy).toBe(servicePubkey)
+  })
+
+  it('writes DbNull, not a bare null, for omitted JSON columns', async () => {
+    // Prisma rejects a literal `null` on a nullable Json column; the cast
+    // silenced the type error without fixing the runtime value.
+    mockAuth()
+    mockRecipient()
+    await Deposit(request(body({ metadata: undefined })))
+
+    const args = vi.mocked(prismaMock.voucher.upsert).mock.calls[0][0] as any
+    expect(args.create.metadata).not.toBeNull()
+    expect(args.create.voucherEvent).not.toBeNull()
+  })
+
   it('rejects a nonce that is not 22 characters', async () => {
     mockAuth()
     mockRecipient()

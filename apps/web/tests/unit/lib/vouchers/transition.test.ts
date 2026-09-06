@@ -63,15 +63,24 @@ describe('nextVoucherStatus', () => {
   })
 
   it('accepts any report from a non-terminal status', () => {
-    for (const current of [
-      'MINTED',
-      'EXPIRED',
-      'TRANSFER_PENDING'
-    ] as VoucherStatus[]) {
+    for (const current of ['MINTED', 'TRANSFER_PENDING'] as VoucherStatus[]) {
       for (const reported of ALL) {
         expect(nextVoucherStatus(current, reported)).toBe(reported)
       }
     }
+  })
+
+  it('lets a late claim or void land on an expired voucher', () => {
+    // EXPIRED stays non-terminal so the real outcome can still arrive.
+    expect(nextVoucherStatus('EXPIRED', 'CLAIMED')).toBe('CLAIMED')
+    expect(nextVoucherStatus('EXPIRED', 'VOIDED')).toBe('VOIDED')
+    expect(nextVoucherStatus('EXPIRED', 'TRANSFERRED')).toBe('TRANSFERRED')
+  })
+
+  it('does not let a service un-expire a voucher', () => {
+    // Expiry is a clock fact, not a service opinion — a stray `minted` must
+    // not put a spendable badge back on a dead coupon.
+    expect(nextVoucherStatus('EXPIRED', 'MINTED')).toBe('EXPIRED')
   })
 
   it('does not un-burn a claimed voucher when a service reports minted', () => {

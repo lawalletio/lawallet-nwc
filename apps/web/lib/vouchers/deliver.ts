@@ -56,7 +56,7 @@ export async function deliverVoucher(input: {
   const payRequestUrl = new URL(
     `${scheme}://${host}/.well-known/lnurlp/${encodeURIComponent(name)}`
   )
-  const payRequest = (await json(payRequestUrl, 'GET')) as {
+  const payRequest = (await pinnedJsonRequest(payRequestUrl, 'GET')) as {
     tag?: string
     callback?: string
     allowVouchers?: boolean
@@ -74,7 +74,7 @@ export async function deliverVoucher(input: {
     throw new ValidationError('Recipient callback must use https')
   }
 
-  const answer = await json(callback, 'POST', {
+  const answer = await pinnedJsonRequest(callback, 'POST', {
     action: 'voucher',
     nonce: input.nonce,
     voucher: input.voucherEvent,
@@ -90,7 +90,15 @@ export async function deliverVoucher(input: {
   return parsed.data
 }
 
-async function json(
+/**
+ * A JSON request that resolves, rejects private answers, then pins the socket
+ * to the address that passed — the outbound discipline every voucher call has
+ * to clear, since every one of these hostnames comes from user input.
+ *
+ * Exported so `sender.ts` shares this implementation instead of adding a
+ * third bare `fetch`.
+ */
+export async function pinnedJsonRequest(
   url: URL,
   method: 'GET' | 'POST',
   payload?: unknown

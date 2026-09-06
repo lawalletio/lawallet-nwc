@@ -15,6 +15,8 @@ export const revalidate = 0
 
 interface VoucherSettingsDto {
   policy: 'ANYONE' | 'ALLOWLIST'
+  /** Whether the caller's address advertises `allowVouchers`. */
+  allowVouchers: boolean
   /** Hex pubkeys, with their npub form so the UI never re-encodes. */
   allowlist: { pubkey: string; npub: string }[]
 }
@@ -22,9 +24,11 @@ interface VoucherSettingsDto {
 function toDto(row: {
   voucherDepositPolicy: string
   voucherSenderAllowlist: string[]
+  allowVouchers: boolean
 }): VoucherSettingsDto {
   return {
     policy: row.voucherDepositPolicy as 'ANYONE' | 'ALLOWLIST',
+    allowVouchers: row.allowVouchers,
     allowlist: row.voucherSenderAllowlist.map(pubkey => ({
       pubkey,
       npub: toNpub(pubkey)
@@ -35,7 +39,8 @@ function toDto(row: {
 const SELECT = {
   id: true,
   voucherDepositPolicy: true,
-  voucherSenderAllowlist: true
+  voucherSenderAllowlist: true,
+  allowVouchers: true
 } as const
 
 /** GET /api/wallet/vouchers/settings — the caller's own deposit policy. */
@@ -82,7 +87,8 @@ export const PUT = withErrorHandling(async (request: Request) => {
     where: { id: account.id },
     data: {
       voucherDepositPolicy: body.policy,
-      voucherSenderAllowlist: pubkeys
+      voucherSenderAllowlist: pubkeys,
+      allowVouchers: body.allowVouchers
     },
     select: SELECT
   })

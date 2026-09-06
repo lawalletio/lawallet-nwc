@@ -79,8 +79,12 @@ export const POST = withErrorHandling(
         ? (voucher.status as VoucherStatus)
         : nextVoucherStatus(voucher.status as VoucherStatus, report.status)
 
-    const updated = await prisma.voucher.update({
-      where: { id: voucher.id },
+    // Compare-and-set on the status we polled against. Between the snapshot
+    // above and this write the row may have been claimed, or a send may have
+    // moved it to TRANSFER_PENDING — a delayed `minted` answer must not
+    // resurrect either of those.
+    const settled = await prisma.voucher.updateMany({
+      where: { id: voucher.id, status: voucher.status },
       data: {
         status,
         statusCheckedAt: new Date(),
@@ -92,17 +96,25 @@ export const POST = withErrorHandling(
             ? (voucher.claimedAt ?? report.claimedAt ?? new Date())
             : voucher.claimedAt,
         expiresAt: report.expiresAt ?? voucher.expiresAt
-      },
-      select: voucherSelect
+      }
     })
 
-    if (updated.status !== voucher.status) {
+    // Lost the race: somebody else moved the row while we were on the
+    // network. Their write is the newer fact — report it rather than
+    // overwriting it.
+    const updated = await prisma.voucher.findUnique({
+      where: { id: voucher.id },
+      select: voucherSelect
+    })
+    if (!updated) throw new NotFoundError('Voucher not found')
+
+    if (settled.count > 0 && updated.status !== voucher.status) {
       eventBus.emit({ type: 'vouchers:updated', timestamp: Date.now() })
     }
 
     return NextResponse.json({
       voucher: toVoucherDto(updated),
-      checked: true
+      checked: settled.count > 0
     })
   }
 )

@@ -143,6 +143,40 @@ describe('GET /api/wallet/vouchers/[id]', () => {
   })
 })
 
+describe('POST /api/wallet/vouchers/[id]/refresh — races', () => {
+  it('reports the winner rather than overwriting a concurrent change', async () => {
+    // The row was CLAIMED by another request while we were on the network.
+    // A delayed `minted` answer must not resurrect it.
+    mockAuth()
+    vi.mocked(prismaMock.voucher.findFirst).mockResolvedValue(
+      voucherRow() as any
+    )
+    vi.mocked(fetchVoucherStatus).mockResolvedValue({
+      status: 'MINTED',
+      claimedAt: null,
+      expiresAt: null
+    })
+    vi.mocked(prismaMock.voucher.updateMany).mockResolvedValue({
+      count: 0
+    } as any)
+    vi.mocked(prismaMock.voucher.findUnique).mockResolvedValue(
+      voucherRow({ status: 'CLAIMED' }) as any
+    )
+
+    const response = await Refresh(
+      createNextRequest(
+        'http://localhost:3000/api/wallet/vouchers/voucher-1/refresh',
+        { method: 'POST' }
+      ),
+      ctx()
+    )
+    const data = (await assertResponse(response, 200)) as any
+
+    expect(data.voucher.status).toBe('CLAIMED')
+    expect(data.checked).toBe(false)
+  })
+})
+
 describe('DELETE /api/wallet/vouchers/[id]', () => {
   it('removes the caller’s own voucher', async () => {
     mockAuth()
@@ -183,7 +217,10 @@ describe('POST /api/wallet/vouchers/[id]/refresh', () => {
       claimedAt,
       expiresAt: null
     })
-    vi.mocked(prismaMock.voucher.update).mockResolvedValue(
+    vi.mocked(prismaMock.voucher.updateMany).mockResolvedValue({
+      count: 1
+    } as any)
+    vi.mocked(prismaMock.voucher.findUnique).mockResolvedValue(
       voucherRow({ status: 'CLAIMED', claimedAt }) as any
     )
 
@@ -192,9 +229,12 @@ describe('POST /api/wallet/vouchers/[id]/refresh', () => {
 
     expect(data.checked).toBe(true)
     expect(data.voucher.status).toBe('CLAIMED')
-    expect(vi.mocked(prismaMock.voucher.update).mock.calls[0][0]).toMatchObject(
-      { data: { status: 'CLAIMED', claimedAt } }
-    )
+    const write = vi.mocked(prismaMock.voucher.updateMany).mock
+      .calls[0][0] as any
+    expect(write.data).toMatchObject({ status: 'CLAIMED', claimedAt })
+    // Compare-and-set: conditioned on the status we polled against, so a
+    // concurrent claim or send cannot be silently overwritten.
+    expect(write.where).toMatchObject({ status: 'MINTED' })
   })
 
   it('does not poll a voucher that is already terminal', async () => {
@@ -234,7 +274,12 @@ describe('POST /api/wallet/vouchers/[id]/refresh', () => {
       claimedAt: null,
       expiresAt: null
     })
-    vi.mocked(prismaMock.voucher.update).mockResolvedValue(voucherRow() as any)
+    vi.mocked(prismaMock.voucher.updateMany).mockResolvedValue({
+      count: 1
+    } as any)
+    vi.mocked(prismaMock.voucher.findUnique).mockResolvedValue(
+      voucherRow() as any
+    )
 
     const response = await Refresh(refreshRequest(), ctx())
     const data = (await assertResponse(response, 200)) as any

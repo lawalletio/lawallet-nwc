@@ -2508,6 +2508,9 @@
               "ALLOWLIST"
             ]
           },
+          "allowVouchers": {
+            "type": "boolean"
+          },
           "allowlist": {
             "type": "array",
             "items": {
@@ -2520,6 +2523,7 @@
         },
         "required": [
           "policy",
+          "allowVouchers",
           "allowlist"
         ],
         "description": "Who may deposit vouchers to the caller. Allowlist entries accept hex, npub, or NIP-05 and are resolved to hex on save."
@@ -19047,6 +19051,9 @@
                         "ALLOWLIST"
                       ]
                     },
+                    "allowVouchers": {
+                      "type": "boolean"
+                    },
                     "allowlist": {
                       "type": "array",
                       "items": {
@@ -19068,6 +19075,7 @@
                   },
                   "required": [
                     "policy",
+                    "allowVouchers",
                     "allowlist"
                   ]
                 }
@@ -19165,6 +19173,9 @@
                         "ALLOWLIST"
                       ]
                     },
+                    "allowVouchers": {
+                      "type": "boolean"
+                    },
                     "allowlist": {
                       "type": "array",
                       "items": {
@@ -19186,6 +19197,7 @@
                   },
                   "required": [
                     "policy",
+                    "allowVouchers",
                     "allowlist"
                   ]
                 }

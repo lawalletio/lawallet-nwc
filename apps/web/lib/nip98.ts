@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { nip98, NostrEvent } from 'nostr-tools'
 import { resolveApiUrl } from '@/lib/public-url'
 
@@ -69,6 +70,46 @@ async function resolveCandidateOrigins(request: Request): Promise<Set<string>> {
   return origins
 }
 
+/**
+ * Bind the signature to the request body.
+ *
+ * nostr-tools' `validateEvent` only checks the `payload` tag when its `body`
+ * argument is a **non-empty object**, and we hand it the raw body as a
+ * *string* — so that check never ran. The signature therefore covered the URL,
+ * the method and the timestamp, but not a single byte of what was being
+ * asked for. Inside the ±60s window a captured `Authorization` header could
+ * be replayed against the same endpoint carrying a completely different body,
+ * under the original signer's identity.
+ *
+ * That matters wherever a route makes a decision from the body while trusting
+ * the signer: `POST /api/vouchers` gates on the recipient's sender allowlist,
+ * so an unbound body means an allowlisted service's token can be replayed to
+ * deposit to somebody else entirely.
+ *
+ * So the hash is computed here over the exact bytes received, and the tag is
+ * **required** for any request that carries a body. NIP-98 says the tag SHOULD
+ * be present when there is one; accepting its absence is the same as not
+ * checking. Our own SDK already signs it (`packages/sdk/src/nip98.ts`), and
+ * empty-body requests are unaffected.
+ */
+function assertPayloadBinding(event: NostrEvent, requestBody: string): void {
+  if (!requestBody) return
+
+  const payloadTag = event.tags.find(tag => tag[0] === 'payload')?.[1]
+  if (!payloadTag) {
+    throw new Error(
+      'Invalid nostr event, payload tag is required for requests with a body'
+    )
+  }
+
+  const digest = createHash('sha256').update(requestBody, 'utf8').digest('hex')
+  if (payloadTag.toLowerCase() !== digest) {
+    throw new Error(
+      'Invalid nostr event, payload tag does not match request body hash'
+    )
+  }
+}
+
 async function validateDecodedEvent(
   event: NostrEvent,
   request: Request,
@@ -100,6 +141,8 @@ async function validateDecodedEvent(
     if (!isValid) {
       throw new Error('Event validation failed')
     }
+
+    assertPayloadBinding(event, requestBody)
   } catch (error) {
     console.error('Event validation error:', error)
     throw new Error(

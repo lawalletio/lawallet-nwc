@@ -49,6 +49,7 @@ const voucherSchema = z
 
 const voucherSettingsSchema = z.object({
   policy: z.enum(['ANYONE', 'ALLOWLIST']),
+  allowVouchers: z.boolean(),
   allowlist: z.array(z.object({ pubkey: z.string(), npub: z.string() }))
 })
 

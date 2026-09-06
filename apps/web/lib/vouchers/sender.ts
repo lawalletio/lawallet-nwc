@@ -1,7 +1,7 @@
 import { normalizeNostrPubkey } from '@/lib/nostr/profile'
+import { pinnedJsonRequest } from '@/lib/vouchers/deliver'
 
 const NIP05_RE = /^([a-z0-9._-]+)@([a-z0-9.-]+\.[a-z]{2,})$/i
-const LOOKUP_TIMEOUT_MS = 5_000
 
 interface Nip05Response {
   names?: Record<string, string>
@@ -33,15 +33,17 @@ export async function resolveVoucherSender(
   const [, name, domain] = match
 
   try {
-    const response = await fetch(
-      `https://${domain}/.well-known/nostr.json?name=${encodeURIComponent(name)}`,
-      {
-        headers: { accept: 'application/json' },
-        signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS)
-      }
-    )
-    if (!response.ok) return null
-    const body = (await response.json()) as Nip05Response
+    // Pinned like every other voucher outbound call. `domain` comes straight
+    // from an owner-typed allowlist entry, and the NIP-05 grammar happily
+    // admits `svc.local` or `host.internal`, so a bare fetch here would be a
+    // blind SSRF sink with a resolved/unresolved oracle — owner-only and
+    // capped, but no reason to be the one exception.
+    const body = (await pinnedJsonRequest(
+      new URL(
+        `https://${domain}/.well-known/nostr.json?name=${encodeURIComponent(name)}`
+      ),
+      'GET'
+    )) as Nip05Response
     // NIP-05 name lookup is case-insensitive in practice; `_` is the root.
     const names = body.names ?? {}
     const key =

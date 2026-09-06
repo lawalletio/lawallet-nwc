@@ -20,42 +20,58 @@ export interface TransferService {
  * Resolve the coupon-manager service that signed an incoming transfer — from
  * **our own records**, never from the request.
  *
- * This is the security boundary of the whole transfer path. A 20402 signature
- * proves integrity, not authenticity: anyone can generate a keypair, sign a
- * flawless voucher for "$500 off at RealShop", and stand up a service that
- * reports it as valid forever. Every signature check would pass, the victim's
- * stash would show the merchant's real name and avatar (the profile cache
- * resolves any pubkey stored on a Voucher row), and the fraud would surface at
- * the till — the worst possible place.
+ * This is the security boundary of the whole transfer path, and it has to
+ * clear a higher bar than "we have seen this pubkey before".
  *
- * Pinning by pubkey and reusing the stored origin closes that, and closes
- * SSRF-via-transfer at the same time, because no attacker-supplied URL is ever
- * dialled. The cost is real and intended: a coupon from a service this
- * instance has never seen cannot arrive by transfer. Deposit it over the
- * NIP-98 endpoint first — that path has an authenticated signer to hold
- * responsible, which is exactly what transfer lacks.
+ * A 20402 signature proves integrity, not authenticity: anyone can generate a
+ * keypair, sign a flawless voucher for "$500 off at RealShop", and stand up a
+ * service that reports it valid forever. Worse, a coupon is a bearer token —
+ * so an attacker can *legitimately obtain* one genuine voucher signed by a
+ * real CMS and deposit it here with `refreshUrl` pointing at themselves. If
+ * any stored row could establish a service's endpoint, that one relayed
+ * deposit would redirect the next inbound transfer's bearer nonce straight to
+ * the attacker.
  *
- * A prior row also supplies the presentation fields, so a sender cannot choose
- * the name, description, or artwork that the recipient will see.
+ * So the endpoint is only trusted from a row the service **authenticated
+ * itself** to write: `depositedBy` is the NIP-98 signer of the deposit, and
+ * requiring it to equal `servicePubkey` means the CMS proved possession of
+ * its own key in the same request that supplied the URLs. A relayer cannot
+ * forge that without the service's key, which is the trust ceremony this
+ * needs and the reason no separate registry is required.
+ *
+ * Consequences worth knowing:
+ *   - A service that only ever mints through third-party minters must
+ *     self-deposit at least once before its coupons can be transferred.
+ *   - A coupon from a service this instance has never seen cannot arrive by
+ *     transfer at all. That is the correct answer, not a gap.
+ *
+ * A prior row also supplies presentation fields, but only as a fallback: the
+ * refresh response is mint-shaped and describes the actual replacement, so
+ * `cb/actions/voucher.ts` prefers it and only falls back here when the
+ * service says nothing. A fallback can therefore surface a sibling coupon's
+ * name — acceptable, since the alternative is letting the sender choose it.
  */
 export async function resolveTransferService(input: {
   servicePubkey: string
   userId: string
 }): Promise<TransferService | null> {
-  // Prefer a row this recipient already holds; fall back to any row on the
-  // instance, so a first transfer to a *new member* from a service the
-  // community already uses still works.
+  // Self-deposited rows only. Prefer one this recipient already holds, then
+  // any on the instance — both are equally authenticated, so the preference
+  // is about picking the freshest relevant copy, not about trust.
+  const where = {
+    servicePubkey: input.servicePubkey,
+    // The service signed the deposit that carried these URLs.
+    depositedBy: input.servicePubkey,
+    refreshUrl: { not: null }
+  } as const
+
   const known =
     (await prisma.voucher.findFirst({
-      where: {
-        servicePubkey: input.servicePubkey,
-        userId: input.userId,
-        refreshUrl: { not: null }
-      },
+      where: { ...where, userId: input.userId },
       orderBy: { createdAt: 'desc' }
     })) ??
     (await prisma.voucher.findFirst({
-      where: { servicePubkey: input.servicePubkey, refreshUrl: { not: null } },
+      where,
       orderBy: { createdAt: 'desc' }
     }))
 

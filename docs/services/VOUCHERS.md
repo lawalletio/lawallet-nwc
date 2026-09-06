@@ -129,7 +129,9 @@ The sender POSTs to the recipient's ordinary LNURL `callback`.
 ### Why the receiver never dials a URL from the request
 
 `resolveTransferService` (`lib/vouchers/transfer.ts`) pins the coupon service
-by pubkey and reuses the origin from a row we already store.
+by pubkey and reuses the origin from a row **the service authenticated itself
+to write** — `depositedBy == servicePubkey`, meaning the CMS proved possession
+of its own key in the same NIP-98 request that supplied the URLs.
 
 A 20402 signature proves **integrity, not authenticity**. Anyone can generate
 a keypair, sign a flawless voucher for "$500 off at RealShop", and host a
@@ -138,9 +140,21 @@ victim's stash shows the merchant's real name and avatar — the profile cache
 resolves any pubkey stored on a `Voucher` row — and the fraud surfaces at the
 till. Pinning closes that, and closes SSRF-via-transfer at the same time.
 
-The cost is deliberate: a coupon from a service this instance has never seen
-cannot arrive by transfer. Deposit it over the NIP-98 endpoint first, which
-has an authenticated signer to hold responsible.
+Any weaker rule is exploitable, and it took a review to see why: a coupon is a
+bearer token, so an attacker can _legitimately obtain_ one genuine voucher
+signed by a real CMS and deposit it here with `refreshUrl` pointing at
+themselves. If any stored row could establish that service's endpoint, that
+single relayed deposit would send the next inbound transfer's bearer nonce
+straight to the attacker. Requiring self-deposit is what makes the binding
+cryptographic rather than first-come.
+
+Two consequences, both intended:
+
+- A service that only mints through third-party minters must self-deposit at
+  least once before its coupons can be transferred.
+- A coupon from a service this instance has never seen cannot arrive by
+  transfer at all. Deposit it over the NIP-98 endpoint first, which has an
+  authenticated signer to hold responsible.
 
 ### Ordering, and the one step that cannot be undone
 
@@ -164,6 +178,15 @@ update so an honest double-send cannot start, and **re-reads the service on
 any refusal**: a recipient can swap the nonce and then answer `ERROR`, and the
 service is the only authority on who holds the coupon now. The sender's row is
 never deleted — it is the only record of where the coupon went.
+
+### Receiving is opt-in
+
+`User.allowVouchers` is off by default and set from Settings → Deposit
+settings. It is a separate switch from the deposit `policy` because it gates a
+different thing: an LNURL transfer arrives with **no signer at all**, so it
+cannot be matched against a sender allowlist. An `ALLOWLIST` owner is refused
+transfers outright for the same reason — honouring a self-declared pubkey in
+an unauthenticated body would make every allowlisted npub spoofable.
 
 ### Untrusted input, by sink
 

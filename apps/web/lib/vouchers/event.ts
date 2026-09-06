@@ -95,14 +95,19 @@ export function verifyVoucherEvent(
     throw new ValidationError('voucherEvent signature is invalid')
   }
 
-  const merchant = tagValue(event, 'p')
-  if (!merchant) {
+  const merchantTag = tagValue(event, 'p')
+  if (!merchantTag) {
     throw new ValidationError('voucherEvent has no merchant (`p`) tag')
   }
-  if (
-    expected.merchantPubkey &&
-    merchant.toLowerCase() !== expected.merchantPubkey
-  ) {
+  // Normalize the same way the deposit path does, so both routes store one
+  // shape — a merchant stored as npub or mixed case silently misses the
+  // profile lookup that renders its name and avatar.
+  const merchantKey = normalizeNostrPubkey(merchantTag)
+  if (!merchantKey) {
+    throw new ValidationError('voucherEvent has an invalid merchant (`p`) tag')
+  }
+  const merchant = merchantKey.pubkey
+  if (expected.merchantPubkey && merchant !== expected.merchantPubkey) {
     throw new ValidationError(
       'voucherEvent names a different merchant than the deposit'
     )
@@ -128,7 +133,7 @@ export function verifyVoucherEvent(
 
   return {
     servicePubkey: signer.pubkey,
-    merchantPubkey: merchant.toLowerCase(),
+    merchantPubkey: merchant,
     nonce,
     couponId: tagValue(event, 'coupon'),
     expiresAt: Number.isFinite(expiresAt) && expiresAt ? expiresAt : null,

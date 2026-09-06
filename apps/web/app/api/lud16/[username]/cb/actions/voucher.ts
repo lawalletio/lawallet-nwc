@@ -146,55 +146,60 @@ export default async function voucher(
   }
 
   try {
-    const created = await prisma.voucher.create({
-      data: {
-        userId: recipient.id,
-        nonce: refreshed.nonce,
-        couponId: refreshed.couponId ?? verified.couponId,
-        // The pinned service's own description of the replacement wins. Only
-        // if it says nothing do we fall back to a sibling row — never to
-        // anything the sender supplied, which they could choose freely.
-        name: refreshed.name ?? service.name,
-        description: refreshed.description ?? service.description,
-        imageUrl: refreshed.image ?? service.imageUrl,
-        merchantPubkey: verified.merchantPubkey,
-        servicePubkey: verified.servicePubkey,
-        claimUrl: service.claimUrl,
-        refreshUrl: service.refreshUrl,
-        mintUrl: service.mintUrl,
-        metadata: (refreshed.benefit
-          ? { coupon: refreshed.benefit }
-          : service.metadata) as Prisma.InputJsonValue,
-        voucherEvent: (refreshed.voucher ??
-          body.voucher) as Prisma.InputJsonValue,
-        expiresAt: refreshed.expiresAt ?? service.expiresAt,
-        // LUD-16 carries no sender identity, and inventing one would be a lie
-        // the UI would then render as provenance.
-        depositedBy: ''
-      },
-      select: voucherSelect
-    })
-    await prisma.voucherTransfer.update({
-      where: { id: intent.id },
-      data: {
-        newNonce: refreshed.nonce,
-        voucherId: created.id,
-        completedAt: new Date()
-      }
+    // One transaction: the row and the journal entry that says the burn is
+    // settled must land together, or a retry sees an incomplete intent and
+    // can replay the (idempotent) refresh instead of hitting the unique key
+    // on a half-written voucher forever.
+    await prisma.$transaction(async tx => {
+      const created = await tx.voucher.create({
+        data: {
+          userId: recipient.id,
+          nonce: refreshed.nonce,
+          couponId: refreshed.couponId ?? verified.couponId,
+          // The pinned service's own description of the replacement wins. Only
+          // if it says nothing do we fall back to a sibling row — never to
+          // anything the sender supplied, which they could choose freely.
+          name: refreshed.name ?? service.name,
+          description: refreshed.description ?? service.description,
+          imageUrl: refreshed.image ?? service.imageUrl,
+          merchantPubkey: verified.merchantPubkey,
+          servicePubkey: verified.servicePubkey,
+          claimUrl: service.claimUrl,
+          refreshUrl: service.refreshUrl,
+          mintUrl: service.mintUrl,
+          metadata: (refreshed.benefit
+            ? { coupon: refreshed.benefit }
+            : service.metadata) as Prisma.InputJsonValue,
+          voucherEvent: (refreshed.voucher ??
+            body.voucher) as Prisma.InputJsonValue,
+          expiresAt: refreshed.expiresAt ?? service.expiresAt,
+          // LUD-16 carries no sender identity, and inventing one would be a lie
+          // the UI would then render as provenance.
+          depositedBy: ''
+        },
+        select: voucherSelect
+      })
+      await tx.voucherTransfer.update({
+        where: { id: intent.id },
+        data: {
+          newNonce: refreshed.nonce,
+          voucherId: created.id,
+          completedAt: new Date()
+        }
+      })
     })
   } catch (err) {
-    // The burn already happened and we are about to drop the only copy of the
-    // replacement. Log it loudly so it is recoverable by hand — there is no
-    // way to un-burn, and answering ACCEPTED would strand the coupon silently.
-    // ponytail: manual recovery. A reconciler that replays the refresh from
-    // the intent row is the upgrade if this ever fires in anger.
+    // The burn already happened and the write failed. The intent row survives
+    // with its idempotency key, so the refresh can be replayed to recover the
+    // same replacement — that, not the log line, is the recovery path.
+    //
+    // The nonce is deliberately NOT logged: it is a live bearer credential,
+    // and logs are the one place it must never be written. `transferId` is
+    // enough to find the intent and replay it.
+    // ponytail: manual replay. A reconciler that sweeps incomplete intents is
+    // the upgrade if this ever fires in anger.
     logger.error(
-      {
-        username,
-        transferId: intent.id,
-        newNonce: refreshed.nonce,
-        err: String(err)
-      },
+      { username, transferId: intent.id, err: String(err) },
       'Voucher transfer burned at the service but could not be stored'
     )
     return refuse('Could not store the voucher')

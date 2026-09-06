@@ -441,6 +441,18 @@ export async function mergeAccounts(params: {
       where: { userId: absorbedId },
       data: { userId: survivorId }
     })
+    // Vouchers are bearer value and their transfer journal is the only
+    // recovery path for a half-finished swap. Both cascade on User delete, so
+    // missing them here would silently destroy live coupons the moment the
+    // shell is removed below.
+    await tx.voucher.updateMany({
+      where: { userId: absorbedId },
+      data: { userId: survivorId }
+    })
+    await tx.voucherTransfer.updateMany({
+      where: { userId: absorbedId },
+      data: { userId: survivorId }
+    })
 
     // ── Delete the empty shell BEFORE settling the primary: its
     // User.pubkey would collide with the survivor's mirror if the chosen

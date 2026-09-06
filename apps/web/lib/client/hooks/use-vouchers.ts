@@ -86,6 +86,8 @@ export interface Voucher {
 
 export interface VoucherSettings {
   policy: 'ANYONE' | 'ALLOWLIST'
+  /** Whether this address advertises that it takes LNURL voucher transfers. */
+  allowVouchers: boolean
   allowlist: { pubkey: string; npub: string }[]
 }
 
@@ -118,7 +120,11 @@ export function useVoucherMutations() {
   >()
   const remove = useMutation<void, { deleted: boolean }>()
   const saveSettings = useMutation<
-    { policy: VoucherSettings['policy']; allowlist: string[] },
+    {
+      policy: VoucherSettings['policy']
+      allowVouchers: boolean
+      allowlist: string[]
+    },
     VoucherSettings
   >()
 
@@ -154,6 +160,7 @@ export function useVoucherMutations() {
 
     saveVoucherSettings: async (input: {
       policy: VoucherSettings['policy']
+      allowVouchers: boolean
       allowlist: string[]
     }) => {
       const saved = await saveSettings.mutate('put', SETTINGS_PATH, input)

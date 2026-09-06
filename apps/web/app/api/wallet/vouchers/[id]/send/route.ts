@@ -109,7 +109,9 @@ export const POST = withErrorHandling(
       throw new ServiceUnavailableError(
         settled === 'TRANSFERRED'
           ? 'The recipient refused it but the coupon has already moved'
-          : `Recipient refused the voucher: ${outcome.reason}`
+          : settled === 'TRANSFER_PENDING'
+            ? 'The recipient refused it and the coupon service is unreachable — check back before sending again'
+            : `Recipient refused the voucher: ${outcome.reason}`
       )
     }
 
@@ -142,17 +144,34 @@ async function settleFromService(
   claimUrl: string,
   nonce: string
 ): Promise<VoucherStatus> {
-  let status: VoucherStatus = 'MINTED'
+  let status: VoucherStatus | null = null
   try {
     const report = await fetchVoucherStatus({ claimUrl, nonce })
     if (report.status) {
-      status = nextVoucherStatus('MINTED', report.status)
+      // The row is TRANSFER_PENDING here, which is non-terminal, so the
+      // reported status wins — but pass the real current status rather than a
+      // literal, so this reads as the monotonicity guard it is.
+      status = nextVoucherStatus('TRANSFER_PENDING', report.status)
     }
   } catch {
-    // Unreachable service — fall through to MINTED.
+    // Unreachable, or a vocabulary we don't know. Either way we do not know
+    // whether the nonce is still ours.
   }
-  await prisma.voucher.update({
-    where: { id: voucherId },
+
+  if (status === null) {
+    // Deliberately leave it TRANSFER_PENDING. Defaulting to MINTED on an
+    // ambiguous answer would re-open a nonce that may already have been
+    // burned and let it be sent twice; a stuck-pending row is recoverable by
+    // the next status refresh, a double-send is not.
+    await prisma.voucher.update({
+      where: { id: voucherId },
+      data: { statusCheckedAt: new Date() }
+    })
+    return 'TRANSFER_PENDING'
+  }
+
+  await prisma.voucher.updateMany({
+    where: { id: voucherId, status: 'TRANSFER_PENDING' },
     data: { status, statusCheckedAt: new Date() }
   })
   return status
