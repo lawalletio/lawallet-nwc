@@ -102,8 +102,9 @@ test.describe
   test('admin fixture token is servicable (parity sanity guard)', async ({
     request
   }) => {
-    // Guards against a false pass where the user-only path silently 401s and
-    // the test still sees the conservative copy via a stale page state.
+    // Confirms the admin session token minted by the fixture is accepted by the
+    // API (parity sanity: if the admin token were broken, the admin-surface test
+    // above would be vacuously green). The user-token check lives in beforeAll.
     const adminToken = mintSessionToken(SEEDED_ADMIN_PUBKEY, Role.ADMIN)
     const res = await request.get('/api/remote-wallets', {
       headers: authHeaders(adminToken)
