@@ -130,45 +130,48 @@ export const GET = withErrorHandling(
       // account primary address.
       const address = invoice.user.lightningAddresses[0]
       const primaryWallet = await getPrimaryRemoteWalletForUser(invoice.user.id)
-      const route = invoice.remoteWallet
-        ? resolveWalletRoute({
-            mode: 'CUSTOM_NWC',
-            redirect: null,
-            remoteWallet: {
-              id: invoice.remoteWallet.id,
-              type: invoice.remoteWallet.type,
-              config: invoice.remoteWallet.config,
-              status: invoice.remoteWallet.status
-            }
-          })
-        : address && 'mode' in address
-          ? resolveWalletRoute({
-              mode: address.mode,
-              redirect: address.redirect ?? null,
-              remoteWallet: address.remoteWallet ?? null
-            })
-          : { kind: 'unconfigured' as const }
-      const proxyConfig = invoice.proxyPayment
-        ? await getProxySettlementConfig()
-        : null
-      const walletConn = invoice.proxyPayment
-        ? (proxyConfig?.connectionString ?? null)
-        : route.kind === 'wallet'
-          ? ((route.config as { connectionString?: string } | null)
-              ?.connectionString ?? null)
-          : null
-      if (!walletConn) {
-        const response: LUD21VerifySuccess = {
-          status: 'OK',
-          settled: false,
-          preimage: null,
-          pr: invoice.bolt11
-        }
-        return NextResponse.json(response)
-      }
 
       let nwcClient: NWCClient | null = null
       try {
+        // Resolve inside the try so that decryption errors (e.g. rotated
+        // NWC_VAULT_SECRET, corrupt envelope) degrade to settled: false
+        // rather than propagating as an HTTP 500.
+        const route = invoice.remoteWallet
+          ? resolveWalletRoute({
+              mode: 'CUSTOM_NWC',
+              redirect: null,
+              remoteWallet: {
+                id: invoice.remoteWallet.id,
+                type: invoice.remoteWallet.type,
+                config: invoice.remoteWallet.config,
+                status: invoice.remoteWallet.status
+              }
+            })
+          : address && 'mode' in address
+            ? resolveWalletRoute({
+                mode: address.mode,
+                redirect: address.redirect ?? null,
+                remoteWallet: address.remoteWallet ?? null
+              })
+            : { kind: 'unconfigured' as const }
+        const proxyConfig = invoice.proxyPayment
+          ? await getProxySettlementConfig()
+          : null
+        const walletConn = invoice.proxyPayment
+          ? (proxyConfig?.connectionString ?? null)
+          : route.kind === 'wallet'
+            ? ((route.config as { connectionString?: string } | null)
+                ?.connectionString ?? null)
+            : null
+        if (!walletConn) {
+          const response: LUD21VerifySuccess = {
+            status: 'OK',
+            settled: false,
+            preimage: null,
+            pr: invoice.bolt11
+          }
+          return NextResponse.json(response)
+        }
         nwcClient = new NWCClient({ nostrWalletConnectUrl: walletConn })
         const tx = await nwcClient.lookupInvoice({ payment_hash: paymentHash })
 

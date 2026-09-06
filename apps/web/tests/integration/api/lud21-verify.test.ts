@@ -495,10 +495,10 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(ctorArg.nostrWalletConnectUrl).toBe(PLAINTEXT_CONN)
   })
 
-  it('still works with a plaintext connectionString when NWC_VAULT_SECRET is unset', async () => {
-    // A secret-less dev environment stores plaintext `connectionString`s.
+  it('still works with a plaintext connectionString (non-lwrw1: passthrough, vault configured)', async () => {
     // decryptRemoteWalletConnectionString is a passthrough for non-`lwrw1:`
-    // values, so the verify route must keep working there too.
+    // values regardless of whether NWC_VAULT_SECRET is set, so the verify
+    // route must keep working with plaintext URIs stored in the DB.
     const plaintextConfig = {
       connectionString: PLAINTEXT_CONN,
       mode: 'SEND_RECEIVE'
