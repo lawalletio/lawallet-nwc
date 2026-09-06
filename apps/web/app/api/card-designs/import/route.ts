@@ -71,6 +71,16 @@ export const POST = withErrorHandling(async (request: Request) => {
     'Fetched designs for community'
   )
 
+  if (fetchedDesigns.length === 0) {
+    logger.info('No designs found for this community. Nothing to import.')
+    return NextResponse.json({
+      success: true,
+      message: 'No designs to import',
+      imported: 0,
+      skipped: 0
+    })
+  }
+
   // Check if designs already exist to avoid duplicates. The `in:` list must be
   // scoped to the IDs that will actually be inserted (the fetched catalog IDs,
   // e.g. `veintiuno-N`), not a static local array — otherwise the dedup check
