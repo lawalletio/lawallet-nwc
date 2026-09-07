@@ -30,5 +30,31 @@ jobs:
       # reported paths look like `apps__docs>next>sharp`. `--prod` drops
       # devDependencies but keeps optionalDependencies, so transitive optional
       # deps (next > sharp) stay in scope.
+      # npm's audit POST is a large payload. GHA has been failing this job on
+      # ERR_SOCKET_TIMEOUT against registry.npmjs.org/-/npm/v1/security/audits
+      # even when there are no high findings (see PR #173 run 33834724585).
+      # Retry only that class of registry/network errors; real highs fail fast.
       - name: Check for known vulnerabilities
-        run: pnpm audit --prod --audit-level=high
+        env:
+          npm_config_fetch_retries: '8'
+          npm_config_fetch_retry_mintimeout: '20000'
+          npm_config_fetch_retry_maxtimeout: '120000'
+          npm_config_fetch_timeout: '300000'
+        run: |
+          for i in 1 2 3 4 5; do
+            set +e
+            output="$(pnpm audit --prod --audit-level=high 2>&1)"
+            status=$?
+            set -e
+            printf '%s\n' "$output"
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+            if printf '%s\n' "$output" | grep -Eq 'ERR_SOCKET_TIMEOUT|ECONNRESET|EAI_AGAIN|503 Service|ENOTFOUND'; then
+              echo "::warning::Transient npm audit API failure (attempt $i/5); retrying in 30s"
+              sleep 30
+              continue
+            fi
+            exit "$status"
+          done
+          exit 1
