@@ -24,9 +24,6 @@ function RegisterAddressInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { status, role, apiClient } = useAuth()
-  const { data: settings, loading: settingsLoading } = useSettings(
-    status === 'authenticated'
-  )
   const [open, setOpen] = useState(true)
   const initialUsername = useMemo(
     () => sanitizeUsername(searchParams.get('username')),
@@ -42,6 +39,14 @@ function RegisterAddressInner() {
     null
   )
   const fetchedRef = useRef(false)
+
+  // Always call useSettings unconditionally to maintain stable hook order.
+  // This component only renders when authenticated (AdminLayoutShell guards),
+  // but calling hooks conditionally can cause "Rendered more hooks than during
+  // the previous render" errors when combined with Suspense and concurrent
+  // rendering in React 19.
+  const { data: settings, loading: settingsLoading } = useSettings()
+
   useEffect(() => {
     if (status !== 'authenticated' || fetchedRef.current) return
     fetchedRef.current = true
@@ -52,6 +57,8 @@ function RegisterAddressInner() {
   }, [status, apiClient])
   const isFirstAddress = priorAddressCount === 0
 
+  // Defensive guard: AdminLayoutShell already redirects unauthenticated users,
+  // but this prevents rendering with stale state during concurrent transitions.
   if (status !== 'authenticated') return null
 
   const userRegistrationEnabled =

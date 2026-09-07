@@ -10448,6 +10448,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Upstream service unavailable or maintenance mode active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           }
         }
       }
