@@ -229,8 +229,18 @@ model User {
   relays                             String?
   /// When `relays` was last set (manual save) or refreshed from NIP-65. Drives
   /// the server-side relay-list cache TTL so nostr.json doesn't re-query relays
-  /// on every request.
+  /// on every request. Only bumped when a relay list is actually found (or the
+  /// user saves one) — NOT on a failed/empty fetch (see `lastRelayFetchAttemptAt`).
   relaysUpdatedAt                    DateTime?
+  /// When a relay fetch was last attempted, regardless of outcome (success,
+  /// confirmed-empty, or failure). Separate from `relaysUpdatedAt` so a fetch
+  /// that found nothing — whether because the user published no NIP-65 list
+  /// OR because every relay failed/timed out (the two are indistinguishable
+  /// here, since `nostr-tools` `querySync` resolves `[]` on failure rather than
+  /// rejecting) — does NOT claim freshness. Drives a short backoff so the
+  /// public `nostr.json` endpoint doesn't fan out to relays on every request
+  /// while still retrying a degraded answer far sooner than the 6h TTL.
+  lastRelayFetchAttemptAt            DateTime?
   passkeyCredentials                 PasskeyCredential[]
   managedNostrKey                    ManagedNostrKey?
   nostrIdentities                    NostrIdentity[]

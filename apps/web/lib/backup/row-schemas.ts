@@ -61,7 +61,9 @@ const userRow = z.object({
   albyEnabled: z.boolean(),
   role: userRole,
   relays: z.string().nullable(),
-  relaysUpdatedAt: nullableDate
+  relaysUpdatedAt: nullableDate,
+  // Optional: keeps archives from before this column was added importable.
+  lastRelayFetchAttemptAt: nullableDate.optional().default(null)
 })
 
 const cardDesignRow = z.object({

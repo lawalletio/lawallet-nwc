@@ -1,5 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import {
+  safeTransaction,
+  wrapTransactionError,
+  TransactionTimeoutError,
+  TransactionConnectionError
+} from '@/lib/prisma-transaction'
+import {
   type BackupImportRequest,
   type BackupImportResult,
   type BackupResolutionStrategy,
@@ -22,8 +28,8 @@ import {
 import type { ParsedBackup } from '@/lib/backup/archive'
 import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
-const IMPORT_TX_TIMEOUT_MS = 120_000
-const IMPORT_TX_MAX_WAIT_MS = 20_000
+const IMPORT_TX_TIMEOUT_MS = 60_000
+const IMPORT_TX_MAX_WAIT_MS = 10_000
 
 type Row = Record<string, unknown>
 /** Prisma delegates expose create/update/upsert/deleteMany/findMany — typed loose. */
@@ -55,6 +61,35 @@ function emptyTableResult(): TableResult {
     deleted: 0,
     failed: 0,
     notes: []
+  }
+}
+
+/**
+ * Resets the per-table counters after an atomic transaction aborts so the
+ * returned result describes the rolled-back outcome rather than the rows that
+ * were staged inside the transaction callback. Postgres discards every
+ * create/update/delete issued through `tx`, so any `imported`/`overwritten`/
+ * `renamed`/`deleted`/`skipped` increments recorded before the rejection are
+ * phantom counts — they must be zeroed for every in-scope table.
+ *
+ * `failed` is *incremented* (not reset) so per-row validation failures recorded
+ * before the transaction (see `applyBackup`) survive alongside the atomic
+ * failure signal, matching the non-atomic `runMerge` catch (`failed++`).
+ * `notes` is left untouched for the same reason — invalid-row notes describe
+ * rows that failed validation independently of the rolled-back transaction.
+ */
+function markAtomicRollback(
+  result: BackupImportResult,
+  tables: BackupTableName[]
+) {
+  for (const table of tables) {
+    const t = result.tables[table]!
+    t.imported = 0
+    t.skipped = 0
+    t.overwritten = 0
+    t.renamed = 0
+    t.deleted = 0
+    t.failed++
   }
 }
 
@@ -328,22 +363,40 @@ async function runReplace(
   }
 
   if (atomic) {
-    await prisma.$transaction(async tx => apply(tx as unknown as WriteClient), {
-      timeout: IMPORT_TX_TIMEOUT_MS,
-      maxWait: IMPORT_TX_MAX_WAIT_MS
-    })
-  } else {
     try {
-      await prisma.$transaction(
+      await safeTransaction(
+        prisma,
         async tx => apply(tx as unknown as WriteClient),
-        {
-          timeout: IMPORT_TX_TIMEOUT_MS,
-          maxWait: IMPORT_TX_MAX_WAIT_MS
-        }
+        { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
       )
     } catch (err) {
+      const wrapped = wrapTransactionError(err)
+      if (
+        wrapped instanceof TransactionTimeoutError ||
+        wrapped instanceof TransactionConnectionError
+      ) {
+        // The whole atomic transaction rolled back, so every staged mutation
+        // was discarded by Postgres. Reset the phantom in-transaction counters
+        // and flag every in-scope table as failed (see `markAtomicRollback`).
+        markAtomicRollback(result, tables)
+        result.errors.push({
+          message: `Database operation failed: ${wrapped.message}`
+        })
+      } else {
+        throw err
+      }
+    }
+  } else {
+    try {
+      await safeTransaction(
+        prisma,
+        async tx => apply(tx as unknown as WriteClient),
+        { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
+      )
+    } catch (err) {
+      const wrapped = wrapTransactionError(err)
       result.errors.push({
-        message: err instanceof Error ? err.message : 'Replace failed'
+        message: wrapped instanceof Error ? wrapped.message : 'Replace failed'
       })
     }
   }
@@ -492,28 +545,46 @@ async function runMerge(
   }
 
   if (resolution.atomic) {
-    await prisma.$transaction(
-      async tx => {
-        for (const table of tables)
-          await processTable(tx as unknown as WriteClient, table)
-      },
-      { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
-    )
+    try {
+      await safeTransaction(
+        prisma,
+        async tx => {
+          for (const table of tables)
+            await processTable(tx as unknown as WriteClient, table)
+        },
+        { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
+      )
+    } catch (err) {
+      const wrapped = wrapTransactionError(err)
+      if (
+        wrapped instanceof TransactionTimeoutError ||
+        wrapped instanceof TransactionConnectionError
+      ) {
+        // The whole atomic transaction rolled back, so every staged mutation
+        // was discarded by Postgres. Reset the phantom in-transaction counters
+        // and flag every in-scope table as failed (see `markAtomicRollback`).
+        markAtomicRollback(result, tables)
+        result.errors.push({
+          message: `Database operation failed: ${wrapped.message}`
+        })
+      } else {
+        throw err
+      }
+    }
   } else {
     for (const table of tables) {
       try {
-        await prisma.$transaction(
+        await safeTransaction(
+          prisma,
           async tx => processTable(tx as unknown as WriteClient, table),
-          {
-            timeout: IMPORT_TX_TIMEOUT_MS,
-            maxWait: IMPORT_TX_MAX_WAIT_MS
-          }
+          { timeout: IMPORT_TX_TIMEOUT_MS, maxWait: IMPORT_TX_MAX_WAIT_MS }
         )
       } catch (err) {
+        const wrapped = wrapTransactionError(err)
         result.tables[table]!.failed++
         result.errors.push({
           table,
-          message: err instanceof Error ? err.message : 'Import failed'
+          message: wrapped instanceof Error ? wrapped.message : 'Import failed'
         })
       }
     }

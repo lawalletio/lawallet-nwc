@@ -291,7 +291,7 @@ export function Nip98Modal({
                 readOnly
                 value={authHeader}
                 rows={3}
-                style={inputStyle({ font: 'mono', readonly: true })}
+                style={inputStyle({ font: 'mono' })}
               />
             </div>
           )}
@@ -315,7 +315,7 @@ export function Nip98Modal({
                 readOnly
                 value={response.body}
                 rows={8}
-                style={inputStyle({ font: 'mono', readonly: true })}
+                style={inputStyle({ font: 'mono' })}
               />
             </div>
           )}
@@ -382,19 +382,15 @@ function RowGrid({ children }: { children: React.ReactNode }) {
 }
 
 function inputStyle({
-  font = 'sans',
-  readonly = false
+  font = 'sans'
 }: {
   font?: 'sans' | 'mono'
-  readonly?: boolean
 } = {}): React.CSSProperties {
   return {
     width: '100%',
     marginTop: 6,
     padding: '8px 10px',
-    background: readonly
-      ? 'var(--scalar-background-2)'
-      : 'var(--scalar-background-2)',
+    background: 'var(--scalar-background-2)',
     color: 'var(--scalar-color-1)',
     border: '1px solid var(--scalar-border-color)',
     borderRadius: 6,

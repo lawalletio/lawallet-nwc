@@ -63,16 +63,31 @@ vi.mock('@/lib/user', () => ({
 }))
 
 vi.mock('@simplewebauthn/server', () => ({
-  generateRegistrationOptions: vi.fn(async () => ({
-    challenge: 'test-challenge',
-    rp: { id: 'localhost', name: 'LaWallet' }
-  })),
+  generateRegistrationOptions: vi.fn(
+    async (opts: { rpID: string; rpName: string }) => ({
+      challenge: 'test-challenge',
+      rp: { id: opts.rpID, name: opts.rpName }
+    })
+  ),
   verifyRegistrationResponse: vi.fn()
 }))
 
-// resolveRpContext reads settings; keep it off the DB.
+// resolveRpContext reads `community_name`; honor the requested keys (mirrors the
+// real getSettings, which returns only the requested ones) so the
+// community_name -> rpName -> rp.name flow is actually exercised. Seeding a
+// non-default community_name guards against silent fallback to 'LaWallet'.
 vi.mock('@/lib/settings', () => ({
-  getSettings: vi.fn(async () => ({ community_name: 'LaWallet' }))
+  getSettings: vi.fn(async (keys?: string[]) => {
+    const all: Record<string, string> = { community_name: 'Acme Co' }
+    if (!keys) return all
+    return keys.reduce(
+      (acc, key) => {
+        if (all[key] !== undefined) acc[key] = all[key]
+        return acc
+      },
+      {} as Record<string, string>
+    )
+  })
 }))
 vi.mock('@/lib/public-url', () => ({
   resolveApiUrl: vi.fn(async () => 'http://localhost:3000')
@@ -85,6 +100,7 @@ import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { linkPubkeyToAccount } from '@/lib/account/merge'
 import { createNewUser } from '@/lib/user'
+import { getSettings } from '@/lib/settings'
 import { Role } from '@/lib/auth/permissions'
 
 const CHALLENGE = 'x'.repeat(43)
@@ -185,8 +201,50 @@ describe('POST /api/auth/passkey/registration/options', () => {
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(body.options.challenge).toBe('test-challenge')
+    // The configured community_name flows through to the WebAuthn rp.name
+    // shown in the OS passkey enrollment prompt (no silent 'LaWallet' fallback).
+    expect(body.options.rp.name).toBe('Acme Co')
+    expect(body.options.rp.id).toBe('localhost')
+    expect(getSettings).toHaveBeenCalledWith(['community_name'])
     expect(prismaMock.webAuthnChallenge.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ flow: 'REGISTER', userId: null })
+    })
+  })
+
+  it('falls back to "LaWallet" for rp.name when community_name is unset', async () => {
+    // `withErrorHandling` runs `checkMaintenance` first (it asks for
+    // maintenance_enabled via the hot cache), so a once-only return value would
+    // be consumed before resolveRpContext's read. Override the whole impl.
+    vi.mocked(getSettings).mockImplementation(async () => ({}))
+    try {
+      const response = await optionsRoute(
+        createNextRequest('/api/auth/passkey/registration/options', {
+          method: 'POST',
+          body: {}
+        })
+      )
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.options.rp.name).toBe('LaWallet')
+      expect(getSettings).toHaveBeenCalledWith(['community_name'])
+    } finally {
+      vi.mocked(getSettings).mockRestore()
+    }
+  })
+
+  it('does not request community_name through the hot settings cache', async () => {
+    await optionsRoute(
+      createNextRequest('/api/auth/passkey/registration/options', {
+        method: 'POST',
+        body: {}
+      })
+    )
+    // Regression guard: the hot snapshot (HOT_SETTING_KEYS) excludes
+    // community_name, so requesting { cache: 'hot' } would always return {} and
+    // force the 'LaWallet' fallback. The fix reads community_name from the DB.
+    expect(getSettings).toHaveBeenCalledWith(['community_name'])
+    expect(getSettings).not.toHaveBeenCalledWith(['community_name'], {
+      cache: 'hot'
     })
   })
 })
