@@ -6,13 +6,26 @@ import { DEFAULT_NOSTR_RELAYS, normalizeNostrPubkey } from '@/lib/nostr/profile'
  *
  * `User.relays` is the effective relay list served by NIP-05 (`nostr.json`).
  * It's set two ways: manually via the relay picker (`PUT /api/users/[id]/relays`)
- * or auto-populated here from the user's published NIP-65 relay list. Both stamp
- * `User.relaysUpdatedAt`, which is the cache TTL — so `nostr.json` doesn't
- * re-query Nostr on every request.
+ * or auto-populated here from the user's published NIP-65 relay list. Both
+ * stamp `User.relaysUpdatedAt`, the 6h freshness marker — so `nostr.json`
+ * doesn't re-query Nostr on every request.
+ *
+ * `User.lastRelayFetchAttemptAt` is a separate, shorter-lived marker recording
+ * that a fetch was attempted (success or failure). A fetch that resolves
+ * nothing — including relay failures, which `nostr-tools` `querySync` surfaces
+ * as `[]` rather than rejecting — records only the attempt without claiming
+ * freshness, so a degraded answer is retried after a short backoff instead of
+ * being pinned for the 6h TTL.
  */
 
 const RELAY_LIST_CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6h
 const RELAY_FETCH_TIMEOUT_MS = 3_000
+// Min interval between relay fetch attempts for a single user. The public,
+// unauthenticated `nostr.json` endpoint can't fan out to relays on every
+// request; this gates retries after both successes (until the 6h TTL elapses)
+// and failures/empty results (so a degraded answer is retried far sooner than
+// the TTL, without per-request hammering).
+const RELAY_FETCH_BACKOFF_MS = 60_000 // 60s
 
 interface RelayListEvent {
   pubkey: string
@@ -56,6 +69,7 @@ interface UserRelayRow {
   pubkey: string
   relays: string | null
   relaysUpdatedAt: Date | null
+  lastRelayFetchAttemptAt?: Date | null
 }
 
 interface ResolveRelaysOptions {
@@ -67,12 +81,21 @@ interface ResolveRelaysOptions {
 
 /**
  * Resolve the effective Nostr relay list for a registered user (NIP-65):
- *  - Fresh cache (`relaysUpdatedAt` within TTL) → serve `User.relays` as-is.
- *  - Stale/never fetched → query the user's kind:10002 from Nostr. When found,
- *    persist it into `User.relays` (+ stamp `relaysUpdatedAt`) and return it.
- *    When NOT found, only stamp the check (so we don't refetch every request)
- *    and keep the stored value — a manual relay-picker choice survives for
- *    users who haven't published a NIP-65 list.
+ *  - Fresh cache (`relaysUpdatedAt` within the 6h TTL) → serve `User.relays`.
+ *  - Otherwise, if a fetch was attempted within the short backoff window
+ *    (`lastRelayFetchAttemptAt`) → serve `User.relays` without re-querying,
+ *    so the public `nostr.json` endpoint doesn't fan out per request.
+ *  - Otherwise → query the user's kind:10002 from Nostr:
+ *    - When a list is found, persist it into `User.relays` (+ stamp
+ *      `relaysUpdatedAt` AND `lastRelayFetchAttemptAt`) and return it.
+ *    - When nothing is resolved — either the user published no NIP-65 list
+ *      OR every relay failed/timed out (`nostr-tools` `querySync` resolves `[]`
+ *      on failure rather than rejecting, and `withTimeout` resolves `null` on
+ *      timeout, so the two are indistinguishable here) — record only the
+ *      attempt (`lastRelayFetchAttemptAt`) WITHOUT bumping the 6h freshness
+ *      marker, and keep the stored (possibly manual) list. The next request
+ *      retries after the short backoff instead of serving a degraded answer
+ *      for 6h.
  *
  * Returns `[]` when nothing is known; the caller falls back to the operator's
  * default relay list.
@@ -91,6 +114,19 @@ export async function resolveUserRelays(
     now.getTime() - user.relaysUpdatedAt.getTime() < RELAY_LIST_CACHE_TTL_MS
   if (fresh) return stored
 
+  // A recent attempt (success or failure) suppresses a re-fetch within the
+  // short backoff window. This is deliberately separate from `relaysUpdatedAt`
+  // (freshness): a fetch that resolved nothing — including relay failures that
+  // `querySync` surfaces as `[]` — records an attempt here WITHOUT claiming
+  // freshness, so a still-unknown list is retried soon rather than pinned for
+  // the 6h TTL.
+  const onBackoff =
+    !options.force &&
+    user.lastRelayFetchAttemptAt != null &&
+    now.getTime() - user.lastRelayFetchAttemptAt.getTime() <
+      RELAY_FETCH_BACKOFF_MS
+  if (onBackoff) return stored
+
   const normalized = normalizeNostrPubkey(user.pubkey)
   if (!normalized) return stored
 
@@ -101,29 +137,42 @@ export async function resolveUserRelays(
     const latest = newestByPubkey(events).get(normalized.pubkey)
     if (latest) fetched = parseNip65Relays(latest.tags)
   } catch {
-    // Relay unreachable / timed out — serve whatever we already have.
+    // Import/init error only. `nostr-tools` `querySync` never rejects for
+    // relay-level failures (it resolves `[]`), and `withTimeout` resolves
+    // `null` on timeout — so relay failures don't throw, they land on the
+    // empty branch below and are handled identically. Record the attempt
+    // without claiming freshness, then serve whatever we already have.
+    await stampAttempt(db, user.id, now)
     return stored
   }
 
   if (fetched.length === 0) {
-    // No NIP-65 published. Stamp the check so we don't re-query for a TTL, but
-    // leave the stored (possibly manual) list untouched.
-    await stampChecked(db, user.id, now)
+    // No relay list resolved — "user published none" and "every relay
+    // failed/timed out" are indistinguishable here (see catch comment above).
+    // Record only the attempt so the next request retries after the short
+    // backoff instead of pinning a degraded answer (operator defaults for a
+    // user with no stored list) for the 6h TTL. Leave any stored (possibly
+    // manual) list untouched.
+    await stampAttempt(db, user.id, now)
     return stored
   }
 
   await db.user
     .update({
       where: { id: user.id },
-      data: { relays: JSON.stringify(fetched), relaysUpdatedAt: now }
+      data: {
+        relays: JSON.stringify(fetched),
+        relaysUpdatedAt: now,
+        lastRelayFetchAttemptAt: now
+      }
     })
     .catch(() => {})
   return fetched
 }
 
-async function stampChecked(db: typeof prisma, id: string, now: Date) {
+async function stampAttempt(db: typeof prisma, id: string, now: Date) {
   await db.user
-    .update({ where: { id }, data: { relaysUpdatedAt: now } })
+    .update({ where: { id }, data: { lastRelayFetchAttemptAt: now } })
     .catch(() => {})
 }
 
