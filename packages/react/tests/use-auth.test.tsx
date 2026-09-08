@@ -90,6 +90,30 @@ describe('useAuth', () => {
     expect(screen.getByTestId('npub').textContent).toBe(npub)
   })
 
+  it('logs in with a whitespace-padded nsec (paste artefact)', async () => {
+    stubApi()
+    const { nsec, npub } = generateSigner()
+
+    let authRef: ReturnType<typeof useAuth> | null = null
+    function Grab() {
+      authRef = useAuth()
+      return <AuthProbe />
+    }
+    renderWithProvider(<Grab />)
+
+    // The raw <input> value from a paste routinely carries surrounding
+    // whitespace; loginWithNsec forwards it straight to nsecSigner, so a
+    // padded key must still authenticate rather than throwing.
+    await act(() => authRef!.loginWithNsec(`  ${nsec}  `))
+
+    expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    expect(screen.getByTestId('npub').textContent).toBe(npub)
+    await waitFor(() =>
+      expect(screen.getByTestId('user').textContent).toBe('u1')
+    )
+    expect(lastAuthHeader).toMatch(/^Nostr /)
+  })
+
   it('opens (and closes) the SSE stream with the session', async () => {
     stubApi()
     const { nsec } = generateSigner()
