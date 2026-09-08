@@ -64,6 +64,35 @@ function emptyTableResult(): TableResult {
   }
 }
 
+/**
+ * Resets the per-table counters after an atomic transaction aborts so the
+ * returned result describes the rolled-back outcome rather than the rows that
+ * were staged inside the transaction callback. Postgres discards every
+ * create/update/delete issued through `tx`, so any `imported`/`overwritten`/
+ * `renamed`/`deleted`/`skipped` increments recorded before the rejection are
+ * phantom counts — they must be zeroed for every in-scope table.
+ *
+ * `failed` is *incremented* (not reset) so per-row validation failures recorded
+ * before the transaction (see `applyBackup`) survive alongside the atomic
+ * failure signal, matching the non-atomic `runMerge` catch (`failed++`).
+ * `notes` is left untouched for the same reason — invalid-row notes describe
+ * rows that failed validation independently of the rolled-back transaction.
+ */
+function markAtomicRollback(
+  result: BackupImportResult,
+  tables: BackupTableName[]
+) {
+  for (const table of tables) {
+    const t = result.tables[table]!
+    t.imported = 0
+    t.skipped = 0
+    t.overwritten = 0
+    t.renamed = 0
+    t.deleted = 0
+    t.failed++
+  }
+}
+
 function pkWhere(desc: TableDescriptor, row: Row): Record<string, unknown> {
   if (desc.pk.length === 1) return { [desc.pk[0]]: row[desc.pk[0]] }
   const compound = desc.pk.join('_')
@@ -346,6 +375,10 @@ async function runReplace(
         wrapped instanceof TransactionTimeoutError ||
         wrapped instanceof TransactionConnectionError
       ) {
+        // The whole atomic transaction rolled back, so every staged mutation
+        // was discarded by Postgres. Reset the phantom in-transaction counters
+        // and flag every in-scope table as failed (see `markAtomicRollback`).
+        markAtomicRollback(result, tables)
         result.errors.push({
           message: `Database operation failed: ${wrapped.message}`
         })
@@ -527,6 +560,10 @@ async function runMerge(
         wrapped instanceof TransactionTimeoutError ||
         wrapped instanceof TransactionConnectionError
       ) {
+        // The whole atomic transaction rolled back, so every staged mutation
+        // was discarded by Postgres. Reset the phantom in-transaction counters
+        // and flag every in-scope table as failed (see `markAtomicRollback`).
+        markAtomicRollback(result, tables)
         result.errors.push({
           message: `Database operation failed: ${wrapped.message}`
         })
