@@ -24,6 +24,7 @@ import {
   forwardingGraphNodes
 } from '@/lib/proxy/forwarding-graph'
 import { resolveLocalDestination } from '@/lib/proxy/local-destination'
+import { localBlockedHosts } from '@/lib/proxy/local-hosts'
 import {
   MAX_FORWARD_HOPS,
   getForwardDepth,
@@ -40,18 +41,18 @@ function addresses(rows: Record<string, unknown>) {
 
 /** Wallets keyed by id → their enabled FORWARD destinations. */
 function wallets(rows: Record<string, string[]>) {
-  vi.mocked(
-    prismaMock.remoteWalletReceiveAction.findUnique
-  ).mockImplementation((async ({ where }: any) => {
-    const destinations = rows[where.remoteWalletId]
-    if (!destinations) return null
-    return {
-      enabled: true,
-      currentRevision: {
-        destinations: destinations.map(address => ({ address }))
+  vi.mocked(prismaMock.remoteWalletReceiveAction.findUnique).mockImplementation(
+    (async ({ where }: any) => {
+      const destinations = rows[where.remoteWalletId]
+      if (!destinations) return null
+      return {
+        enabled: true,
+        currentRevision: {
+          destinations: destinations.map(address => ({ address }))
+        }
       }
-    }
-  }) as never)
+    }) as never
+  )
 }
 
 beforeEach(() => {
@@ -67,11 +68,84 @@ describe('local destination detection', () => {
       username: 'mita1',
       origin: 'http://127.0.0.1:3584'
     })
-    expect(await resolveLocalDestination('mita1@app.example.com')).not.toBeNull()
+    expect(
+      await resolveLocalDestination('mita1@app.example.com')
+    ).not.toBeNull()
   })
 
   it('treats another service as remote', async () => {
     expect(await resolveLocalDestination('bob@other.com')).toBeNull()
+  })
+})
+
+describe('request-aware local destination detection', () => {
+  // Mirrors the request shape `next/server`'s NextRequest exposes to the
+  // resolvers; the Host header is the primary signal, the request URL host is
+  // the fallback (proxies may not surface Host, and tests construct
+  // NextRequest without one).
+  function reqArriving(host: string): {
+    headers: { get: (k: string) => string | null }
+    url: string
+  } {
+    return {
+      headers: { get: (k: string) => (k === 'host' ? host : null) },
+      url: `https://${host}/api/lud16/alice`
+    }
+  }
+
+  it('without a request returns only the configured hosts (background jobs)', async () => {
+    expect(await localBlockedHosts()).toEqual([
+      'pay.example.com',
+      'pay.example.com',
+      'app.example.com'
+    ])
+  })
+
+  it('folds the arrival host from the Host header into the blocked set', async () => {
+    const hosts = await localBlockedHosts(reqArriving('alt.example.com'))
+    expect(hosts).toContain('alt.example.com')
+    expect(hosts).toEqual(
+      expect.arrayContaining([
+        'pay.example.com',
+        'app.example.com',
+        'alt.example.com'
+      ])
+    )
+  })
+
+  it('falls back to the request URL host when the Host header is absent', async () => {
+    const hosts = await localBlockedHosts({
+      headers: { get: () => null },
+      url: 'https://alt.example.com/api/lud16/alice'
+    })
+    expect(hosts).toContain('alt.example.com')
+  })
+
+  it('recognises an unconfigured arrival host as local', async () => {
+    expect(
+      await resolveLocalDestination(
+        'alice@alt.example.com',
+        reqArriving('alt.example.com')
+      )
+    ).toEqual({ username: 'alice', origin: 'http://127.0.0.1:3584' })
+  })
+
+  it('still treats a genuinely remote host as remote with an arrival host present', async () => {
+    expect(
+      await resolveLocalDestination(
+        'bob@other.com',
+        reqArriving('alt.example.com')
+      )
+    ).toBeNull()
+  })
+
+  it('keeps the request-less behaviour unchanged for background callers', async () => {
+    // No request threaded (reconciler / config-time checks): an unconfigured
+    // host is NOT local, and the configured host still is.
+    expect(await resolveLocalDestination('alice@alt.example.com')).toBeNull()
+    expect(
+      await resolveLocalDestination('mita1@pay.example.com')
+    ).not.toBeNull()
   })
 })
 
@@ -258,8 +332,6 @@ describe('runtime hop counter', () => {
     vi.mocked(prismaMock.forwardingHop.upsert).mockRejectedValue(
       new Error('db down') as never
     )
-    await expect(
-      recordForwardHop('ef'.repeat(32), 1)
-    ).resolves.toBeUndefined()
+    await expect(recordForwardHop('ef'.repeat(32), 1)).resolves.toBeUndefined()
   })
 })
