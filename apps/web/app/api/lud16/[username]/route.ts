@@ -49,16 +49,29 @@ import {
  * ALIAS moves no money — it hands the payer the destination's own payRequest —
  * so a local alias cycle is a request amplifier rather than a payment loop.
  * That is why it is bounded here rather than by the forwarding hop counter.
+ *
+ * Locality is decided request-awarely: `req` is threaded through to
+ * {@link resolveLocalDestination} so the instance is recognised as local
+ * regardless of which DNS name the request arrived on (a custom
+ * `endpoint`/`domain` plus a platform default host both route here). Without
+ * it, an ALIAS pointing back at this same instance via an unconfigured host
+ * slips past the visited set, is fetched over HTTPS, and re-enters this
+ * handler — recursing once per level. The `MAX_ALIAS_HOPS` cap is
+ * defence-in-depth: the visited set already terminates any local cycle, but
+ * the cap bounds a chain of distinct local aliases to one DB read per hop.
  */
+const MAX_ALIAS_HOPS = 16
+
 async function followLocalAliases(
   redirect: string,
-  from: string
+  from: string,
+  req?: { headers: { get: (k: string) => string | null }; url?: string }
 ): Promise<string | null> {
   let address = redirect
   const seen = new Set<string>([from])
-  for (;;) {
+  for (let hop = 0; hop < MAX_ALIAS_HOPS; hop++) {
     if (!parseLightningAddress(address)) return null
-    const local = await resolveLocalDestination(address)
+    const local = await resolveLocalDestination(address, req)
     if (!local) return address // leaves this instance — fetch it for real
     if (seen.has(local.username)) return null // a -> b -> a
     seen.add(local.username)
@@ -74,6 +87,9 @@ async function followLocalAliases(
     }
     address = next.redirect.trim()
   }
+  // A chain longer than the cap is suspicious rather than provably cyclic, so
+  // refuse to proxy it rather than guessing at a remote target.
+  return null
 }
 
 export const OPTIONS = publicReadOptions
@@ -193,7 +209,7 @@ export const GET = withErrorHandling(
         // timeout unwound, pinning one request per level — reachable by anyone
         // who knew the address. Local hops are followed in the database with a
         // visited set instead, so only the final off-instance hop is fetched.
-        const target = await followLocalAliases(route.redirect, username)
+        const target = await followLocalAliases(route.redirect, username, req)
         if (!target) throw new NotFoundError('Alias target is invalid')
 
         try {

@@ -221,7 +221,7 @@ describe('POST /api/invoices', () => {
     )
   })
 
-  it('fails with validation error when LUD-16 lookup fails', async () => {
+  it('fails with 503 when LUD-16 lookup fails', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@bad-domain.com',
       registration_price: '21',
@@ -237,7 +237,9 @@ describe('POST /api/invoices', () => {
     })
     const res = await POST(req)
 
-    expect(res.status).toBe(400)
+    // The caller's request was fine — the instance's own payment provider is
+    // what failed, so this is 503 (retryable) rather than a client 4xx.
+    expect(res.status).toBe(503)
     expect(prismaMock.invoice.create).not.toHaveBeenCalled()
   })
 
@@ -255,7 +257,8 @@ describe('POST /api/invoices', () => {
     })
     const res = await POST(req)
 
-    expect(res.status).toBe(400)
+    // Operator misconfiguration, not a bad request from the caller.
+    expect(res.status).toBe(503)
   })
 
   it('mints an invoice with purpose WALLET_ADDRESS for secondary-address flow', async () => {
@@ -315,7 +318,7 @@ describe('POST /api/invoices', () => {
     )
   })
 
-  it('rejects (400) and does not persist when provider omits LUD-21 verify', async () => {
+  it('rejects (503) and does not persist when provider omits LUD-21 verify', async () => {
     vi.mocked(getSettings).mockResolvedValue({
       registration_ln_address: 'admin@regressed-provider.com',
       registration_price: '21',
@@ -348,7 +351,7 @@ describe('POST /api/invoices', () => {
     })
     const res = await POST(req)
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(503)
     const body: any = await res.json()
     expect(body.error.message).toMatch(/LUD-21/)
     expect(prismaMock.invoice.create).not.toHaveBeenCalled()

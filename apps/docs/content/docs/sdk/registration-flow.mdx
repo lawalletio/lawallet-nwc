@@ -29,6 +29,21 @@ No webhooks, no operator work in the middle, and the preimage never requires
 trusting the payer's wallet: the LUD-21 verifier hands it out only after
 settlement.
 
+### When step 2 fails
+
+Minting the invoice is the one step that leaves the instance: it resolves the
+operator's own Lightning Address (LUD-16 metadata → callback) to get a payable
+`bolt11`. Third-party providers time out, rate-limit, and occasionally 500, so
+each leg is retried once before the request gives up, and a comment is only
+attached when the provider advertises a LUD-12 `commentAllowed` budget —
+sending one otherwise is what makes strict providers answer `HTTP 400`.
+
+A provider that still can't be reached surfaces as **503**, not 400: nothing is
+wrong with the caller's request, and retrying is the correct response. Show the
+user the error and a retry affordance rather than sending them back to the
+username picker — the 402 already told them the address costs money, and they
+have no other way to pay for it.
+
 ## One call: `claimAddress`
 
 The SDK orchestrates the whole thing:

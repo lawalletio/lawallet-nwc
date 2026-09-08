@@ -191,16 +191,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  // Latest session snapshot for the refresh timer — the timeout closure only
-  // captures the signer it was scheduled with, so signer-less passkey
-  // sessions read the current JWT/method from here when the timer fires.
-  const sessionRef = useRef<{
-    jwt: string | null
-    loginMethod: LoginMethod | null
-  }>({
-    jwt: null,
-    loginMethod: null
-  })
   // Latest in-memory signer, for callbacks that outlive their closure
   // (refreshSession after an account mutation).
   const signerRef = useRef<NostrSigner | null>(null)
@@ -331,10 +321,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [scheduleRefresh]
   )
 
-  // Keep the refresh timer's session snapshot current.
-  useEffect(() => {
-    sessionRef.current = { jwt: state.jwt, loginMethod: state.loginMethod }
-  }, [state.jwt, state.loginMethod])
   useEffect(() => {
     signerRef.current = state.signer
   }, [state.signer])

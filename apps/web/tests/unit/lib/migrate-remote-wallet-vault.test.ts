@@ -77,7 +77,7 @@ describe('RemoteWallet NWC startup migration', () => {
     )
     vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
     vi.mocked(prismaMock.$queryRaw)
-      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([] as never) // advisory lock
       .mockResolvedValueOnce([
         {
           id: 'wallet-1',
@@ -105,5 +105,136 @@ describe('RemoteWallet NWC startup migration', () => {
     mockVault(null)
     vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(0)
     await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(0)
+  })
+
+  it('processes multiple rows in batches', async () => {
+    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(3)
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never) // advisory lock batch 1
+      .mockResolvedValueOnce([
+        {
+          id: 'wallet-1',
+          config: { connectionString: NWC_URI, mode: 'RECEIVE' },
+          nwcConfigEncryptedAt: null
+        },
+        {
+          id: 'wallet-2',
+          config: { connectionString: NWC_URI, mode: 'PAY' },
+          nwcConfigEncryptedAt: null
+        },
+        {
+          id: 'wallet-3',
+          config: { connectionString: NWC_URI, mode: 'FULL' },
+          nwcConfigEncryptedAt: null
+        }
+      ] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(3)
+
+    expect(prismaMock.remoteWallet.update).toHaveBeenCalledTimes(3)
+  })
+
+  it('continues processing after batch boundary', async () => {
+    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(51)
+    vi.mocked(prismaMock.$queryRaw)
+      // First batch
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce(
+        Array.from({ length: 50 }, (_, i) => ({
+          id: `wallet-${i + 1}`,
+          config: { connectionString: NWC_URI, mode: 'RECEIVE' },
+          nwcConfigEncryptedAt: null
+        })) as never
+      )
+      // Second batch
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([
+        {
+          id: 'wallet-51',
+          config: { connectionString: NWC_URI, mode: 'RECEIVE' },
+          nwcConfigEncryptedAt: null
+        }
+      ] as never)
+      // Verification
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(51)
+    expect(prismaMock.remoteWallet.update).toHaveBeenCalledTimes(51)
+  })
+
+  it('retries on transaction timeout', async () => {
+    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+
+    let callCount = 0
+    vi.mocked(prismaMock.$transaction).mockImplementation(async fn => {
+      callCount++
+      if (callCount === 1) {
+        throw new Error(
+          'Transaction already closed: A query cannot be executed on an expired transaction. ' +
+            'The timeout for this transaction was 30000 ms, however 35000 ms passed since the start of the transaction.'
+        )
+      }
+      // Second call succeeds
+      return (fn as Function)({
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            {
+              id: 'wallet-1',
+              config: { connectionString: NWC_URI, mode: 'RECEIVE' },
+              nwcConfigEncryptedAt: null
+            }
+          ]),
+        remoteWallet: {
+          update: vi.fn().mockResolvedValue({})
+        }
+      })
+    })
+
+    vi.mocked(prismaMock.$queryRaw).mockResolvedValueOnce([
+      { count: BigInt(0) }
+    ] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(1)
+    expect(callCount).toBe(2)
+  })
+
+  it('fails after max retries', async () => {
+    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    vi.mocked(prismaMock.$transaction).mockRejectedValue(
+      new Error(
+        'Transaction already closed: A query cannot be executed on an expired transaction. ' +
+          'The timeout for this transaction was 30000 ms, however 35000 ms passed since the start of the transaction.'
+      )
+    )
+
+    await expect(migrateRemoteWalletNwcConfigs()).rejects.toThrow(
+      'Database transaction timed out'
+    )
+  })
+
+  it('skips rows with missing connectionString', async () => {
+    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(2)
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never) // advisory lock
+      .mockResolvedValueOnce([
+        {
+          id: 'wallet-1',
+          config: { connectionString: NWC_URI, mode: 'RECEIVE' },
+          nwcConfigEncryptedAt: null
+        },
+        {
+          id: 'wallet-2',
+          config: { mode: 'PAY' }, // missing connectionString
+          nwcConfigEncryptedAt: null
+        }
+      ] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).rejects.toThrow(
+      'no valid config.connectionString'
+    )
   })
 })

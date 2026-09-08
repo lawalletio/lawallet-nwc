@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSettings } from '@/lib/settings'
 import { withErrorHandling } from '@/types/server/error-handler'
-import { ValidationError } from '@/types/server/errors'
+import { ServiceUnavailableError, ValidationError } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { requireUserAddressRegistration } from '@/lib/auth/paid-registration-guard'
@@ -15,10 +15,15 @@ import {
   invoiceLogMetadata,
   logActivity
 } from '@/lib/activity-log'
+import { logger } from '@/lib/logger'
 import { extractPaymentHash } from '@/lib/invoice-utils'
 import { resolveInvoice } from '@/lib/lnurl-probe'
 
 export const dynamic = 'force-dynamic'
+// Minting goes out to a third-party Lightning Address provider twice (metadata
+// + callback), each leg retried once. Give the handler room for that worst case
+// rather than letting the platform's default cut a slow provider off mid-mint.
+export const maxDuration = 60
 
 export const POST = withErrorHandling(async (request: NextRequest) => {
   await checkRequestLimits(request, 'json')
@@ -75,20 +80,45 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     ? `LaWallet ${body.purpose === 'registration' ? 'registration' : 'address'}: ${body.metadata?.username}`
     : `LaWallet invoice`
 
-  const { bolt11, verify } = await resolveInvoice(lnAddress, price, description)
+  // Anything that goes wrong from here is the *instance's* payment provider
+  // failing, not a bad request from the caller: the client asked for an invoice
+  // correctly and there is nothing it can fix. Surfacing it as 503 lets the UI
+  // say "try again" honestly, and keeps a provider outage out of the 4xx bucket
+  // operators watch for client bugs.
+  let bolt11: string
+  let verify: string | undefined
+  try {
+    ;({ bolt11, verify } = await resolveInvoice(lnAddress, price, description))
+  } catch (err) {
+    logger.warn(
+      {
+        lnAddress,
+        price,
+        error: err instanceof Error ? err.message : String(err)
+      },
+      'Registration invoice mint failed'
+    )
+    throw new ServiceUnavailableError(
+      err instanceof Error
+        ? err.message
+        : 'Could not reach the payment provider'
+    )
+  }
 
   // Defense in depth: the save-time probe asserted LUD-21 support, but an
   // upstream provider can regress. Fail closed here instead of letting the
   // client advance to a payment screen that can't detect settlement.
   if (!verify) {
-    throw new ValidationError(
+    throw new ServiceUnavailableError(
       'Payment provider no longer supports LUD-21 verify; registration temporarily unavailable — contact the operator.'
     )
   }
 
   const paymentHash = extractPaymentHash(bolt11)
   if (!paymentHash) {
-    throw new ValidationError('Could not extract payment hash from invoice')
+    throw new ServiceUnavailableError(
+      'Could not extract payment hash from invoice'
+    )
   }
 
   // Default expiry: 10 minutes

@@ -59,11 +59,12 @@ export async function lookupInvoice(
 ): Promise<InvoiceStatus> {
   const client = await getNwcClient(nwcString)
   const res = (await client.lookupInvoice({ payment_hash: paymentHash })) as {
+    state?: string
     settled_at?: number | null
     amount?: number
   }
   return {
-    settled: res.settled_at != null,
+    settled: !!res.settled_at,
     amountSats: Math.floor((res.amount ?? 0) / 1000)
   }
 }

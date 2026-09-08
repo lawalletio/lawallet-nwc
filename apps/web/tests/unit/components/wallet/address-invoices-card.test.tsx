@@ -22,6 +22,13 @@ vi.mock('@/lib/client/hooks/use-wallet-addresses', () => ({
 vi.mock('@/lib/client/hooks/use-api', () => ({
   useApi: () => ({ data: { lightningAddress: 'me@lawallet.io' } })
 }))
+// Prevent the avatar lookup from making real HTTPS requests to external NIP-05
+// endpoints — the hook fires when the user types a complete lightning address
+// (e.g. carol@example.org), and the pending fetch would be cancelled by
+// happy-dom's teardown, throwing an unhandled ECANCELED that fails the run.
+vi.mock('@/lib/client/hooks/use-lightning-address-avatar', () => ({
+  useLightningAddressAvatar: () => ({ avatarUrl: null, name: null, loading: false })
+}))
 vi.mock('sonner', () => ({
   toast: { success: mocks.toastSuccess, error: mocks.toastError }
 }))

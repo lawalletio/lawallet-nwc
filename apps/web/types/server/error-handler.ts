@@ -15,10 +15,27 @@ import { checkMaintenance } from '@/lib/middleware/maintenance'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import type { ActivityCategory, ActivityLevel } from '@/lib/generated/prisma'
 import { Prisma } from '@/lib/generated/prisma'
+import {
+  TransactionTimeoutError,
+  TransactionConnectionError
+} from '@/lib/prisma-transaction'
 
 export const toApiError = (error: unknown): ApiError => {
   if (error instanceof ApiError) {
     return error
+  }
+
+  // Handle custom transaction errors before generic Prisma errors.
+  // Don't expose timing details (elapsedMs/timeoutMs) in the response.
+  if (error instanceof TransactionTimeoutError) {
+    const e = new ServiceUnavailableError('Database operation timed out')
+    ;(e as any).cause = error
+    return e
+  }
+  if (error instanceof TransactionConnectionError) {
+    const e = new ServiceUnavailableError('Database connection failed')
+    ;(e as any).cause = error
+    return e
   }
 
   // Prisma error messages embed schema and query details — never serialize
@@ -179,7 +196,9 @@ export const handleApiError = (
       error instanceof Prisma.PrismaClientKnownRequestError ||
       error instanceof Prisma.PrismaClientValidationError ||
       error instanceof Prisma.PrismaClientUnknownRequestError ||
-      error instanceof Prisma.PrismaClientRustPanicError
+      error instanceof Prisma.PrismaClientRustPanicError ||
+      error instanceof TransactionTimeoutError ||
+      error instanceof TransactionConnectionError
     const category: ActivityCategory = isDbError
       ? 'SERVER'
       : inferCategoryFromPath(

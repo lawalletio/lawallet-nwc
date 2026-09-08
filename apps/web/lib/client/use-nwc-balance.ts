@@ -208,6 +208,14 @@ export function useNwcBalance(
     let cancelled = false
     let intervalId: ReturnType<typeof setInterval> | null = null
     let unsubscribe: (() => void) | null = null
+    // Per-request id so only the most recent in-flight `fetchOnce` may
+    // commit state. `fetchOnce` is fired from both the poll `setInterval`
+    // and the un-awaited NIP-47 notification callback, so two requests can
+    // overlap. Without this guard the request that settles last wins
+    // regardless of initiation order — a stale, later-resolving result
+    // (e.g. an older `getBalance` that times out 10 s after a newer fetch
+    // already succeeded) would clobber the current status/toast.
+    let reqId = 0
 
     async function load() {
       // Dynamic import keeps the SDK out of the initial bundle
@@ -225,10 +233,14 @@ export function useNwcBalance(
 
       async function fetchOnce() {
         if (cancelled) return
+        const myId = ++reqId
         setLoading(true)
         try {
           const res = await client.getBalance()
-          if (cancelled) return
+          // Ignore stale results from an in-flight fetch that is no longer
+          // the latest (a newer fetch was started while this one was
+          // pending). The newer fetch owns the state.
+          if (cancelled || myId !== reqId) return
           // NWC returns balance in msats
           const fresh = Math.floor(res.balance / 1000)
           setSats(fresh)
@@ -244,7 +256,7 @@ export function useNwcBalance(
           }
           lastAnnouncedRef.current = 'connected'
         } catch (err) {
-          if (cancelled) return
+          if (cancelled || myId !== reqId) return
           const e = err instanceof Error ? err : new Error(String(err))
           setError(e)
           setStatus('disconnected')
@@ -263,7 +275,7 @@ export function useNwcBalance(
             lastAnnouncedRef.current = 'disconnected'
           }
         } finally {
-          if (!cancelled) setLoading(false)
+          if (!cancelled && myId === reqId) setLoading(false)
         }
       }
 

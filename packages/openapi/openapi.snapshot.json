@@ -10198,16 +10198,6 @@
               }
             }
           },
-          "404": {
-            "description": "Resource not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Unhandled server error.",
             "content": {
@@ -10441,6 +10431,16 @@
           },
           "500": {
             "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream service unavailable or maintenance mode active.",
             "content": {
               "application/json": {
                 "schema": {

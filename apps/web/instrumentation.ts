@@ -30,13 +30,51 @@ export async function register() {
     })
   }
 
-  const { migrateRemoteWalletNwcConfigs } =
-    await import('@/lib/wallet/migrate-remote-wallet-vault')
-  await migrateRemoteWalletNwcConfigs()
+  try {
+    const { migrateRemoteWalletNwcConfigs } =
+      await import('@/lib/wallet/migrate-remote-wallet-vault')
+    await migrateRemoteWalletNwcConfigs()
+  } catch (error) {
+    const { createLogger } = await import('@/lib/logger')
+    const log = createLogger({ module: 'instrumentation' })
+    log.error({ err: error }, 'instrumentation.migration_failed')
 
-  const { initializeProxyReceiptSigner } =
-    await import('@/lib/proxy/initialize-receipt-signer')
-  await initializeProxyReceiptSigner()
+    if (process.env.SENTRY_DSN) {
+      try {
+        const Sentry = await import('@sentry/nextjs')
+        Sentry.captureException(error, {
+          tags: { phase: 'instrumentation', migration: 'remote-wallet-nwc' }
+        })
+      } catch {
+        // Sentry failure must not block startup
+      }
+    }
+
+    throw error
+  }
+
+  try {
+    const { initializeProxyReceiptSigner } =
+      await import('@/lib/proxy/initialize-receipt-signer')
+    await initializeProxyReceiptSigner()
+  } catch (error) {
+    const { createLogger } = await import('@/lib/logger')
+    const log = createLogger({ module: 'instrumentation' })
+    log.error({ err: error }, 'instrumentation.proxy_signer_init_failed')
+
+    if (process.env.SENTRY_DSN) {
+      try {
+        const Sentry = await import('@sentry/nextjs')
+        Sentry.captureException(error, {
+          tags: { phase: 'instrumentation', init: 'proxy-receipt-signer' }
+        })
+      } catch {
+        // Sentry failure must not block startup
+      }
+    }
+
+    throw error
+  }
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (

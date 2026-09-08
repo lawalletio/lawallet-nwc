@@ -14,20 +14,6 @@ export function LawalletLogo({ height = 24 }: { height?: number }) {
       aria-label="LaWallet"
       role="img"
     >
-      <defs>
-        <linearGradient
-          id="lawallet-logo-grad"
-          x1="981.4"
-          y1="-854.85"
-          x2="1044.89"
-          y2="-854.85"
-          gradientTransform="translate(0 921.89)"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0" stopColor="#fff" />
-          <stop offset="1" stopColor="#1d1d1b" />
-        </linearGradient>
-      </defs>
       <g>
         <path
           fill="#e95052"

@@ -150,10 +150,145 @@ describe('PUT /api/users/[userId]/relays', () => {
     expect(prismaMock.user.update).not.toHaveBeenCalled()
   })
 
-  it('returns 404 for an unknown user', async () => {
+  it("returns 403 (not 404) for an unknown target, so existence can't be probed", async () => {
     mockAuth(ownerPubkey)
+    // Caller resolves to their own account via the NostrIdentity seam; the
+    // target id does not resolve to any user.
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+      user: { id: 'u1', pubkey: ownerPubkey, role: 'USER' }
+    } as any)
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null as any)
 
-    await assertResponse(await put('nope', { relays: ['wss://nos.lol'] }), 404)
+    await assertResponse(await put('nope', { relays: ['wss://nos.lol'] }), 403)
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  // --- Existence-probe closure (hex-pubkey targets) ---
+  // The pre-fix lookup-then-ownership ordering returned 404 for an unlinked
+  // pubkey but 403 for a linked-but-not-owned one: a 1-bit "is this pubkey
+  // tied to a LaWallet account" oracle. After the fix every non-owner probe —
+  // linked or unlinked, account-less or account-holding — collapses to 403.
+  const linkedTargetPubkey = 'c'.repeat(64)
+  const unlinkedPubkey = 'd'.repeat(64)
+
+  it('gives an account-less prober 403 whether the hex target is linked or not', async () => {
+    // Account-less attacker: its own pubkey resolves to no account, so the
+    // caller-side `!me` check rejects before the target is even looked up.
+    mockAuth(otherPubkey)
+    ;(prismaMock.nostrIdentity.findUnique as any).mockImplementation(
+      (args: any) =>
+        args.where.pubkey === linkedTargetPubkey
+          ? Promise.resolve({
+              user: { id: 'uB', pubkey: linkedTargetPubkey, role: 'USER' }
+            } as any)
+          : Promise.resolve(null)
+    )
+    ;(prismaMock.user.findUnique as any).mockImplementation((args: any) =>
+      args.where.id === 'uB'
+        ? Promise.resolve({ id: 'uB', pubkey: linkedTargetPubkey } as any)
+        : Promise.resolve(null)
+    )
+
+    // Linked-but-not-owned target -> 403
+    await assertResponse(
+      await put(linkedTargetPubkey, { relays: ['wss://nos.lol'] }),
+      403
+    )
+    // Unlinked target -> 403 (same status: no existence probe)
+    await assertResponse(
+      await put(unlinkedPubkey, { relays: ['wss://nos.lol'] }),
+      403
+    )
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it('gives a non-owner with an account 403 whether the hex target is linked or not', async () => {
+    // The caller has their OWN account (u2) but probes other pubkeys.
+    mockAuth(ownerPubkey)
+    ;(prismaMock.nostrIdentity.findUnique as any).mockImplementation(
+      (args: any) =>
+        args.where.pubkey === ownerPubkey
+          ? Promise.resolve({
+              user: { id: 'u2', pubkey: ownerPubkey, role: 'USER' }
+            } as any)
+          : args.where.pubkey === linkedTargetPubkey
+            ? Promise.resolve({
+                user: { id: 'uB', pubkey: linkedTargetPubkey, role: 'USER' }
+              } as any)
+            : Promise.resolve(null)
+    )
+    ;(prismaMock.user.findUnique as any).mockImplementation((args: any) =>
+      args.where.id === 'uB'
+        ? Promise.resolve({ id: 'uB', pubkey: linkedTargetPubkey } as any)
+        : Promise.resolve(null)
+    )
+
+    // Linked-but-not-owned target -> 403
+    await assertResponse(
+      await put(linkedTargetPubkey, { relays: ['wss://nos.lol'] }),
+      403
+    )
+    // Unlinked target -> 403 (same status: no existence probe)
+    await assertResponse(
+      await put(unlinkedPubkey, { relays: ['wss://nos.lol'] }),
+      403
+    )
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it('lets the owner edit by targeting their own primary hex pubkey', async () => {
+    mockAuth(ownerPubkey)
+    ;(prismaMock.nostrIdentity.findUnique as any).mockImplementation(
+      (args: any) =>
+        args.where.pubkey === ownerPubkey
+          ? Promise.resolve({
+              user: { id: 'u1', pubkey: ownerPubkey, role: 'USER' }
+            } as any)
+          : Promise.resolve(null)
+    )
+    ;(prismaMock.user.findUnique as any).mockImplementation((args: any) =>
+      args.where.id === 'u1'
+        ? Promise.resolve({ id: 'u1', pubkey: ownerPubkey } as any)
+        : Promise.resolve(null)
+    )
+    vi.mocked(prismaMock.user.update).mockResolvedValue({ id: 'u1' } as any)
+
+    const res = await put(ownerPubkey, { relays: ['wss://nos.lol'] })
+    const body: any = await assertResponse(res, 200)
+    expect(body.relays).toEqual(['wss://nos.lol'])
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'u1' },
+        data: expect.objectContaining({
+          relays: JSON.stringify(['wss://nos.lol']),
+          relaysUpdatedAt: expect.any(Date)
+        })
+      })
+    )
+  })
+
+  it('lets a secondary identity of the owner edit the same account relays', async () => {
+    const secondaryPubkey = 'e'.repeat(64)
+    mockAuth(secondaryPubkey)
+    // Secondary pubkey resolves to account u1, whose primary is ownerPubkey.
+    ;(prismaMock.nostrIdentity.findUnique as any).mockImplementation(
+      (args: any) =>
+        args.where.pubkey === secondaryPubkey
+          ? Promise.resolve({
+              user: { id: 'u1', pubkey: ownerPubkey, role: 'USER' }
+            } as any)
+          : Promise.resolve(null)
+    )
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'u1',
+      pubkey: ownerPubkey
+    } as any)
+    vi.mocked(prismaMock.user.update).mockResolvedValue({ id: 'u1' } as any)
+
+    const res = await put('u1', { relays: ['wss://nos.lol'] })
+    await assertResponse(res, 200)
+    expect(prismaMock.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'u1' } })
+    )
   })
 })
