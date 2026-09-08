@@ -108,10 +108,15 @@ export function wrapTransactionError(error: unknown): Error {
       { err: error, elapsedMs, timeoutMs },
       'prisma.transaction_timeout'
     )
-    return new TransactionTimeoutError(
-      `Database transaction timed out after ${elapsedMs ?? 'unknown'}ms (limit: ${timeoutMs ?? 'unknown'}ms)`,
-      { elapsedMs, timeoutMs, cause: error }
-    )
+    // Keep elapsedMs/timeoutMs as structured fields (logs/Sentry) but stop
+    // baking them into `.message`: import.ts stringifies `.message` straight
+    // into the API response (catch-path that bypasses the toApiError 503
+    // sanitizer), and the throw-path sanitizer already strips timing too.
+    return new TransactionTimeoutError('Database transaction timed out', {
+      elapsedMs,
+      timeoutMs,
+      cause: error
+    })
   }
 
   if (CONNECTION_PATTERNS.some(pattern => pattern.test(message))) {
