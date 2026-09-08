@@ -132,8 +132,7 @@ registry.registerPath({
       'Relays updated.',
       z.object({ userId: z.string(), relays: z.array(z.string()) })
     ),
-    ...commonErrorResponses,
-    404: responses.notFound
+    ...commonErrorResponses
   }
 })
 

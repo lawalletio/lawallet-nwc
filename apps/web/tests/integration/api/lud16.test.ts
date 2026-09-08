@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createLightningAddressFixture } from '@/tests/helpers/fixtures'
@@ -445,6 +445,151 @@ describe('GET /api/lud16/[username]', () => {
     const req = createNextRequest('/api/lud16/alice')
     const res = await Lud16Get(req, createParamsPromise({ username: 'alice' }))
     expect(res.status).toBe(404)
+  })
+
+  // ─── ALIAS self-cycle detection (followLocalAliases) ─────────────────────
+  // An ALIAS that points back at this same instance via any DNS name that
+  // routes here must be caught by the in-DB visited set, not re-fetched over
+  // HTTPS into this same handler. The detector folds the request's arrival
+  // host into `localBlockedHosts` so the instance is recognised as local
+  // regardless of which hostname the request came in on (a custom
+  // `endpoint`/`domain` plus a platform default host both route here).
+
+  describe('ALIAS self-cycle detection (followLocalAliases)', () => {
+    afterEach(() => {
+      // mockImplementation recurses/throws persistently; reset so the next
+      // test's `mockResolvedValueOnce`/`mockRejectedValueOnce` stays in control.
+      vi.mocked(fetchDestinationPayRequest).mockReset()
+    })
+
+    it('detects a self-cycle via the configured endpoint host (control)', async () => {
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+        username: 'alice',
+        mode: 'ALIAS',
+        redirect: 'alice@app.test.com',
+        nwcConnection: null,
+        remoteWallet: null,
+        user: { id: 'user-1', remoteWallets: [] }
+      } as any)
+      fetchDestinationPayRequest.mockImplementation(async () => {
+        throw new Error('fetch must NOT be called for a detected self-cycle')
+      })
+
+      const req = createNextRequest('https://app.test.com/api/lud16/alice')
+      const res = await Lud16Get(
+        req,
+        createParamsPromise({ username: 'alice' })
+      )
+
+      expect(res.status).toBe(404)
+      expect(fetchDestinationPayRequest).not.toHaveBeenCalled()
+    })
+
+    it('detects a self-cycle via an unconfigured host that routes to this instance', async () => {
+      // Settings configure only app.test.com / test.com; alt.example.com is
+      // NOT configured but routes to this same process (the PaaS default-host
+      // case). Before the fix, the detector missed this and re-fetched.
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+        username: 'alice',
+        mode: 'ALIAS',
+        redirect: 'alice@alt.example.com',
+        nwcConnection: null,
+        remoteWallet: null,
+        user: { id: 'user-1', remoteWallets: [] }
+      } as any)
+      fetchDestinationPayRequest.mockImplementation(async () => {
+        throw new Error('fetch must NOT be called for a detected self-cycle')
+      })
+
+      // Request arrives via the unconfigured host.
+      const req = createNextRequest('https://alt.example.com/api/lud16/alice')
+      const res = await Lud16Get(
+        req,
+        createParamsPromise({ username: 'alice' })
+      )
+
+      expect(res.status).toBe(404)
+      expect(fetchDestinationPayRequest).not.toHaveBeenCalled()
+    })
+
+    it('bounds a self-cycle to a single fetch when the trigger arrives via the configured host', async () => {
+      // Scenario (b): the payer's request arrives via the configured endpoint,
+      // so the first hop is not recognised as local yet — the handler issues
+      // one outbound fetch, which re-enters the handler at the alt-host where
+      // the cycle IS caught (404, no further fetch). The recursion is bounded
+      // to depth 2 instead of amplifying once per level.
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+        username: 'alice',
+        mode: 'ALIAS',
+        redirect: 'alice@alt.example.com',
+        nwcConnection: null,
+        remoteWallet: null,
+        user: { id: 'user-1', remoteWallets: [] }
+      } as any)
+      let fetchCalls = 0
+      const MAX_SIM_DEPTH = 5 // stands in for FETCH_TIMEOUT_MS so a buggy
+      // build can amplify but cannot hang the suite.
+      fetchDestinationPayRequest.mockImplementation(async () => {
+        fetchCalls++
+        if (fetchCalls >= MAX_SIM_DEPTH) {
+          throw new Error('simulated FETCH_TIMEOUT')
+        }
+        // Simulate the rewrite re-entering this same handler at the alt-host.
+        const inner = await Lud16Get(
+          createNextRequest('https://alt.example.com/api/lud16/alice'),
+          createParamsPromise({ username: 'alice' })
+        )
+        if (inner.status !== 404) {
+          throw new Error(`inner HTTP ${inner.status}`)
+        }
+        // The re-entered handler 404s, which surfaces upstream as a fetch
+        // failure.
+        throw new Error('Destination LNURL returned HTTP 404')
+      })
+
+      const req = createNextRequest('https://app.test.com/api/lud16/alice')
+      const res = await Lud16Get(
+        req,
+        createParamsPromise({ username: 'alice' })
+      )
+
+      // Exactly one outbound fetch (depth-2 bound), and the outer 404s.
+      expect(fetchCalls).toBe(1)
+      expect(res.status).toBe(404)
+    })
+
+    it('still proxies a genuinely off-instance ALIAS even with an unconfigured arrival host', async () => {
+      // No over-blocking: folding the arrival host in must not refuse a
+      // redirect to a genuinely remote host.
+      vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+        username: 'alice',
+        mode: 'ALIAS',
+        redirect: 'bob@other.com',
+        nwcConnection: null,
+        remoteWallet: null,
+        user: { id: 'user-1', remoteWallets: [] }
+      } as any)
+      fetchDestinationPayRequest.mockResolvedValueOnce({
+        status: 'OK',
+        tag: 'payRequest',
+        callback: 'https://other.com/lnurlp/bob/cb',
+        minSendable: 1000,
+        maxSendable: 1000000,
+        metadata: '[["text/plain","Bob"]]'
+      })
+
+      // Request arrives via an unconfigured host that is NOT the redirect.
+      const req = createNextRequest('https://alt.example.com/api/lud16/alice')
+      const res = await Lud16Get(
+        req,
+        createParamsPromise({ username: 'alice' })
+      )
+
+      expect(res.status).toBe(200)
+      expect(fetchDestinationPayRequest).toHaveBeenCalledWith('bob@other.com')
+      const body: any = await res.json()
+      expect(body.callback).toBe('https://other.com/lnurlp/bob/cb')
+    })
   })
 })
 

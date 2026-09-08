@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey, resolveAccountId } from '@/lib/auth/account'
-import { AuthorizationError, NotFoundError } from '@/types/server/errors'
+import { AuthorizationError } from '@/types/server/errors'
 import { updateUserRelaysSchema } from '@/lib/validation/schemas'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
@@ -42,19 +42,21 @@ export const PUT = withErrorHandling(
     const auth = await authenticate(request)
     const { userId } = await params
 
+    // Resolve the caller before the target and decide ownership without
+    // revealing existence: unknown and not-owner both collapse to a single
+    // 403, so a 403-vs-404 split can't probe a pubkey for LaWallet membership.
+    // Account-id comparison: a secondary-pubkey session still counts as "me".
+    const me = await resolveAccountByPubkey(auth.pubkey)
+    if (!me) throw new AuthorizationError('You can only edit your own relays')
+
     const targetId = await resolveTargetUserId(userId)
     const user = targetId
       ? await prisma.user.findUnique({
           where: { id: targetId },
-          select: { id: true, pubkey: true }
+          select: { id: true }
         })
       : null
-    if (!user) throw new NotFoundError('User not found')
-
-    // Post-lookup ownership check (so a 403 vs 404 can't probe for existence).
-    // Account-id comparison: a secondary-pubkey session still counts as "me".
-    const me = await resolveAccountByPubkey(auth.pubkey)
-    if (!me || me.id !== user.id) {
+    if (!user || user.id !== me.id) {
       throw new AuthorizationError('You can only edit your own relays')
     }
 

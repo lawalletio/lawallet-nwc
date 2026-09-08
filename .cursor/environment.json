@@ -1,0 +1,12 @@
+{
+  "name": "LaWallet NWC",
+  "install": "bash scripts/cloud-agent/install.sh",
+  "start": "bash scripts/cloud-agent/start.sh",
+  "terminals": [
+    {
+      "name": "web",
+      "command": "bash scripts/cloud-agent/dev-web.sh"
+    }
+  ],
+  "ports": [3332]
+}

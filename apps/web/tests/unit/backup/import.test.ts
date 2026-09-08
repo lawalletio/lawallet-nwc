@@ -1,27 +1,131 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
-import { applyBackup } from '@/lib/backup/import'
-import type { ParsedBackup } from '@/lib/backup/archive'
-import {
-  BACKUP_SCHEMA_VERSION,
-  type BackupImportRequest,
-  type BackupManifest,
-  type BackupTableName
-} from '@/lib/validation/schemas'
 
-// import.ts pulls in the NWC vault (which reads getConfig().nwcVault at call
-// time). Even though these tests never import an NWC wallet row, mock config
-// so any transitive load is deterministic (mirrors export.test.ts).
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
+    isProduction: false,
+    isTest: true,
+    isDevelopment: false,
+    logPretty: false,
     nwcVault: {
-      secret: 'test-backup-nwc-vault-secret-0123456789abcdef',
+      secret: 'test-nwc-vault-secret-0123456789abcdef',
       enabled: true
     }
   }))
 }))
 
+vi.mock('@/lib/logger', () => ({
+  createLogger: vi.fn(() => ({
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn()
+  }))
+}))
+
+vi.mock('@/lib/events/event-bus', () => ({
+  eventBus: { emit: vi.fn() }
+}))
+
+import {
+  BACKUP_SCHEMA_VERSION,
+  backupImportRequestSchema,
+  type BackupManifest,
+  type BackupImportResult,
+  type BackupImportRequest,
+  type BackupTableName
+} from '@/lib/validation/schemas'
+import type { ParsedBackup } from '@/lib/backup/archive'
+import { applyBackup } from '@/lib/backup/import'
+import { emitRestoreEvents } from '@/lib/backup/events'
+import { eventBus } from '@/lib/events/event-bus'
+
+type TableResult = NonNullable<BackupImportResult['tables'][BackupTableName]>
 type Row = Record<string, unknown>
+
+const SETTINGS_ROW = {
+  name: 'domain',
+  value: 'example.com',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+}
+
+const PLUGIN_RECORD_ROW = {
+  id: 'rec-1',
+  pluginId: 'plugin',
+  kind: 'K',
+  key: 'k1',
+  data: { enabled: true },
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+}
+
+const atomicReplace = backupImportRequestSchema.parse({
+  mode: 'replace',
+  atomic: true
+})
+const atomicMerge = backupImportRequestSchema.parse({
+  mode: 'merge',
+  atomic: true
+})
+const nonAtomicMerge = backupImportRequestSchema.parse({
+  mode: 'merge',
+  atomic: false
+})
+
+function buildParsedBackup(
+  categories: BackupManifest['categories'],
+  tables: ParsedBackup['tables']
+): ParsedBackup {
+  const tableMeta = {} as BackupManifest['tables']
+  for (const [table, rows] of Object.entries(tables)) {
+    tableMeta[table as keyof BackupManifest['tables']] = {
+      count: rows!.length,
+      sha256: 'unused'
+    }
+  }
+  return {
+    manifest: {
+      schemaVersion: BACKUP_SCHEMA_VERSION,
+      appVersion: '1.0.0-test',
+      prismaMigration: null,
+      exportedAt: '2026-01-01T00:00:00.000Z',
+      encrypted: false,
+      categories,
+      tables: tableMeta
+    },
+    tables
+  }
+}
+
+function transactionRejectsAfterCallback(errorMessage: string) {
+  ;(prismaMock.$transaction as ReturnType<typeof vi.fn>).mockImplementation(
+    async (fn: any) => {
+      await fn(prismaMock)
+      throw new Error(errorMessage)
+    }
+  )
+}
+
+function seedSettingsReplace() {
+  ;(
+    prismaMock.settings.deleteMany as ReturnType<typeof vi.fn>
+  ).mockResolvedValue({
+    count: 0
+  })
+  ;(prismaMock.settings.create as ReturnType<typeof vi.fn>).mockResolvedValue(
+    SETTINGS_ROW
+  )
+}
+
+function seedSettingsMerge() {
+  ;(prismaMock.settings.findMany as ReturnType<typeof vi.fn>).mockResolvedValue(
+    []
+  )
+  ;(prismaMock.settings.create as ReturnType<typeof vi.fn>).mockResolvedValue(
+    SETTINGS_ROW
+  )
+}
 
 function makeManifest(categories: BackupTableName[]): BackupManifest {
   return {
@@ -91,19 +195,17 @@ const TOKEN_LIVE_EXISTING: Row = {
   status: 'PENDING'
 }
 
-describe('backup import runMerge — partial-unique skip vs import', () => {
-  beforeEach(() => {
-    resetPrismaMock()
-  })
+beforeEach(() => {
+  resetPrismaMock()
+  vi.mocked(eventBus.emit).mockClear()
+})
 
+describe('backup import runMerge — partial-unique skip vs import', () => {
   describe('flag-based partial-unique (lightningAddresses isPrimary)', () => {
     it('imports the backup row demoted on `skip` (NOT a skip)', async () => {
-      // user.findMany — prefetchFkTargets for the required userId FK to users.
       ;(prismaMock.user.findMany as ReturnType<typeof vi.fn>).mockResolvedValue(
         [{ id: 'u1' }]
       )
-      // lightningAddress.findMany — existingByPk query has `username`; the
-      // partial-unique (isPrimary) queries do not.
       ;(
         prismaMock.lightningAddress.findMany as ReturnType<typeof vi.fn>
       ).mockImplementation((args: { where?: Record<string, unknown> }) => {
@@ -124,15 +226,12 @@ describe('backup import runMerge — partial-unique skip vs import', () => {
       const t = result.tables.lightningAddresses!
       expect(t.imported).toBe(1)
       expect(t.skipped).toBe(0)
-      // The row was still written, with the primary flag demoted to false so
-      // the existing alice row keeps its slot.
       expect(prismaMock.lightningAddress.create).toHaveBeenCalledOnce()
       const created = (
         prismaMock.lightningAddress.create as ReturnType<typeof vi.fn>
       ).mock.calls[0][0] as { data: Row }
       expect(created.data.username).toBe('bob')
       expect(created.data.isPrimary).toBe(false)
-      // No incumbent demotion on skip-prefer-existing.
       expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
     })
 
@@ -163,7 +262,6 @@ describe('backup import runMerge — partial-unique skip vs import', () => {
       const t = result.tables.lightningAddresses!
       expect(t.imported).toBe(1)
       expect(t.skipped).toBe(0)
-      // Incoming bob keeps isPrimary: true; the incumbent alice is demoted.
       const created = (
         prismaMock.lightningAddress.create as ReturnType<typeof vi.fn>
       ).mock.calls[0][0] as { data: Row }
@@ -179,12 +277,9 @@ describe('backup import runMerge — partial-unique skip vs import', () => {
 
   describe('where-flavor partial-unique (cardActivationTokens pending)', () => {
     it('genuinely skips on `skip` (no row written)', async () => {
-      // card.findMany — prefetchFkTargets for the required cardId FK to cards.
       ;(prismaMock.card.findMany as ReturnType<typeof vi.fn>).mockResolvedValue(
         [{ id: 'card-1' }]
       )
-      // cardActivationToken.findMany — existingByPk query has `id`; the
-      // pending-status (where-flavor) queries do not.
       ;(
         prismaMock.cardActivationToken.findMany as ReturnType<typeof vi.fn>
       ).mockImplementation((args: { where?: Record<string, unknown> }) => {
@@ -205,15 +300,11 @@ describe('backup import runMerge — partial-unique skip vs import', () => {
       const t = result.tables.cardActivationTokens!
       expect(t.skipped).toBe(1)
       expect(t.imported).toBe(0)
-      // A predicate-based partial-unique skip genuinely drops the row.
       expect(prismaMock.cardActivationToken.create).not.toHaveBeenCalled()
     })
   })
 
   it('matches the wizard tally invariant: flag-based skip imports, where-flavor skip skips', async () => {
-    // Single plan with both rows: the flag-based la (skip→imported) and the
-    // where-flavor token (skip→skipped). Asserts the server-side counts the
-    // restore-wizard tally must mirror.
     ;(prismaMock.user.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
       { id: 'u1' }
     ])
@@ -260,5 +351,190 @@ describe('backup import runMerge — partial-unique skip vs import', () => {
     expect(result.tables.lightningAddresses!.skipped).toBe(0)
     expect(result.tables.cardActivationTokens!.imported).toBe(0)
     expect(result.tables.cardActivationTokens!.skipped).toBe(1)
+  })
+})
+
+describe('applyBackup — atomic transaction rollback counters', () => {
+  describe('replace mode (atomic)', () => {
+    it('resets staged-but-uncommitted counts when $transaction rejects after the callback runs (timeout)', async () => {
+      seedSettingsReplace()
+      transactionRejectsAfterCallback('Transaction already closed')
+
+      const result = await applyBackup(
+        buildParsedBackup(['settings'], { settings: [SETTINGS_ROW] }),
+        atomicReplace
+      )
+
+      expect(result.hadErrors).toBe(true)
+      expect(result.errors).toHaveLength(1)
+      expect(result.errors[0].table).toBeUndefined()
+      expect(result.errors[0].message).toContain('Database operation failed:')
+
+      expect(result.tables.settings!.imported).toBe(0)
+      expect(result.tables.settings!.overwritten).toBe(0)
+      expect(result.tables.settings!.renamed).toBe(0)
+      expect(result.tables.settings!.deleted).toBe(0)
+      expect(result.tables.settings!.skipped).toBe(0)
+      expect(result.tables.settings!.failed).toBe(1)
+
+      emitRestoreEvents(result)
+      expect(eventBus.emit).not.toHaveBeenCalled()
+    })
+
+    it('resets ALL in-scope tables (not just the one being processed) on rollback', async () => {
+      ;(
+        prismaMock.settings.deleteMany as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ count: 0 })
+      ;(
+        prismaMock.pluginRecord.deleteMany as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ count: 0 })
+      ;(
+        prismaMock.settings.create as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(SETTINGS_ROW)
+      ;(
+        prismaMock.pluginRecord.create as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(PLUGIN_RECORD_ROW)
+      transactionRejectsAfterCallback('Transaction already closed')
+
+      const result = await applyBackup(
+        buildParsedBackup(['settings', 'plugins'], {
+          settings: [SETTINGS_ROW],
+          pluginRecords: [PLUGIN_RECORD_ROW]
+        }),
+        atomicReplace
+      )
+
+      expect(result.errors).toHaveLength(1)
+      expect(result.tables.settings!.imported).toBe(0)
+      expect(result.tables.settings!.deleted).toBe(0)
+      expect(result.tables.settings!.failed).toBe(1)
+      expect(result.tables.pluginRecords!.imported).toBe(0)
+      expect(result.tables.pluginRecords!.deleted).toBe(0)
+      expect(result.tables.pluginRecords!.failed).toBe(1)
+    })
+
+    it('preserves per-row validation failures across an atomic rollback', async () => {
+      seedSettingsReplace()
+      transactionRejectsAfterCallback('Transaction already closed')
+
+      const invalidRow = { ...SETTINGS_ROW, name: '' }
+      const result = await applyBackup(
+        buildParsedBackup(['settings'], {
+          settings: [SETTINGS_ROW, invalidRow]
+        }),
+        atomicReplace
+      )
+
+      expect(result.tables.settings!.imported).toBe(0)
+      expect(result.tables.settings!.failed).toBe(2)
+      expect(result.tables.settings!.notes).toEqual([
+        { id: 'row-1', reason: 'invalid-row' }
+      ])
+      expect(result.hadErrors).toBe(true)
+    })
+
+    it('re-throws non-timeout/non-connection errors instead of swallowing them', async () => {
+      seedSettingsReplace()
+      transactionRejectsAfterCallback('Some other Prisma error')
+
+      await expect(
+        applyBackup(
+          buildParsedBackup(['settings'], { settings: [SETTINGS_ROW] }),
+          atomicReplace
+        )
+      ).rejects.toThrow('Some other Prisma error')
+    })
+
+    it('reports committed counts and broadcasts SSE on a successful atomic replace', async () => {
+      seedSettingsReplace()
+
+      const result = await applyBackup(
+        buildParsedBackup(['settings'], { settings: [SETTINGS_ROW] }),
+        atomicReplace
+      )
+
+      expect(result.hadErrors).toBe(false)
+      expect(result.errors).toHaveLength(0)
+      expect(result.tables.settings!.imported).toBe(1)
+      expect(result.tables.settings!.failed).toBe(0)
+
+      emitRestoreEvents(result)
+      expect(eventBus.emit).toHaveBeenCalledTimes(1)
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'settings:updated' })
+      )
+    })
+  })
+
+  describe('merge mode (atomic)', () => {
+    it('resets staged counts when the atomic merge transaction rejects after the callback runs', async () => {
+      seedSettingsMerge()
+      transactionRejectsAfterCallback('Transaction already closed')
+
+      const result = await applyBackup(
+        buildParsedBackup(['settings'], { settings: [SETTINGS_ROW] }),
+        atomicMerge
+      )
+
+      expect(result.hadErrors).toBe(true)
+      expect(result.errors).toHaveLength(1)
+      expect(result.errors[0].message).toContain('Database operation failed:')
+      expect(result.tables.settings!.imported).toBe(0)
+      expect(result.tables.settings!.skipped).toBe(0)
+      expect(result.tables.settings!.overwritten).toBe(0)
+      expect(result.tables.settings!.renamed).toBe(0)
+      expect(result.tables.settings!.failed).toBe(1)
+
+      emitRestoreEvents(result)
+      expect(eventBus.emit).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('merge mode (non-atomic) — unchanged path regression guard', () => {
+    it('records per-table failure and attributes the error when a single per-table transaction fails', async () => {
+      seedSettingsMerge()
+      transactionRejectsAfterCallback('Transaction already closed')
+
+      const result = await applyBackup(
+        buildParsedBackup(['settings'], { settings: [SETTINGS_ROW] }),
+        nonAtomicMerge
+      )
+
+      expect(result.hadErrors).toBe(true)
+      expect(result.errors).toHaveLength(1)
+      expect(result.errors[0].table).toBe('settings')
+      expect(result.tables.settings!.failed).toBe(1)
+    })
+  })
+})
+
+describe('emitRestoreEvents — rollback-aware SSE gating', () => {
+  function tableResult(over: Partial<TableResult> = {}): TableResult {
+    return {
+      imported: 0,
+      skipped: 0,
+      overwritten: 0,
+      renamed: 0,
+      deleted: 0,
+      failed: 0,
+      notes: [],
+      ...over
+    }
+  }
+
+  it('does not emit for tables whose only non-zero counter is `failed` (rolled-back shape)', async () => {
+    const result: BackupImportResult = {
+      mode: 'replace',
+      tables: {
+        settings: tableResult({ failed: 1 }),
+        users: tableResult({ failed: 1 })
+      },
+      hadErrors: true,
+      errors: [{ message: 'Database operation failed: …' }],
+      importedAt: '2026-01-01T00:00:00.000Z'
+    }
+
+    emitRestoreEvents(result)
+    expect(eventBus.emit).not.toHaveBeenCalled()
   })
 })

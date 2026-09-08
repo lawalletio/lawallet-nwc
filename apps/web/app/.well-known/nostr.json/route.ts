@@ -96,6 +96,7 @@ export const GET = withErrorHandling(
             pubkey: true,
             relays: true,
             relaysUpdatedAt: true,
+            lastRelayFetchAttemptAt: true,
             nostrIdentities: {
               where: { isPrimary: true },
               select: { pubkey: true },

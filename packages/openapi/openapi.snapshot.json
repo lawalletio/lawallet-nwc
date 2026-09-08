@@ -10198,16 +10198,6 @@
               }
             }
           },
-          "404": {
-            "description": "Resource not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Unhandled server error.",
             "content": {
