@@ -94,10 +94,11 @@ overrides:
   postcss@<8.5.18: 8.5.23
   # GHSA-f88m-g3jw-g9cj (high): sharp <0.35.0 inherits four libvips CVEs
   # (CVE-2026-33327/33328/35590/35591) in the GIF, TIFF and VIPS decoders.
-  # next@16.2.11 caret-pins `sharp: ^0.34.5` as an optionalDependency, which
-  # cannot reach the 0.35.0 patch line. next@16.3.0 already declares ^0.35.3
-  # on canary/preview, so this override stands aside on its own once 16.3 lands.
-  sharp@<0.35.0: 0.35.3
+  # GHSA-rgj7-g3m4-5g8c (high, 2026-08): libheif overflows (GHSA-g89c-p67h-r497
+  # and GHSA-2jg2-4ch7-h545) remain in <0.35.4. next@16.3.4 caret-pins
+  # `sharp: ^0.35.3`, which still accepts the vulnerable 0.35.3 line, so the
+  # override stays until next asks for ^0.35.4.
+  sharp@<0.35.4: 0.35.4
   # GHSA-4x5r-pxfx-6jf8 (low): arbitrary file read via sourceMappingURL.
   # Reached through next > styled-jsx, which pins @babel/core loosely enough
   # that a patched 7.x satisfies it. Build-time only.
@@ -108,7 +109,10 @@ overrides:
   # GHSA-5p4m-2wfm-xmqj (high): quadratic CPU in !!omap resolution on js-yaml
   # 3.x/4.x; the CVE-2026-59870 fix was only shipped as 4.3.1. Reached via
   # apps/docs > fumadocs-mdx.
-  js-yaml@<4.3.1: 4.3.1
+  # GHSA-2883-xcg3-v3hh (high, 2026-08): maxTotalMergeKeys does not bound CPU
+  # for empty merge sources on >=4.0.0 <4.3.2. Patched in 4.3.2; range
+  # widened so the old 4.3.1 pin does not sit inside the new window.
+  js-yaml@<4.3.2: 4.3.2
   # GHSA-28wg-ghj8-5hjv / GHSA-2v37-7h3g-55p8 (high): nanoid generators loop
   # indefinitely on negative/zero sizes. The 3.x advisory widened after the
   # first fix — GHSA-2v37 now reports `<3.3.18`, so the old 3.3.17 pin landed

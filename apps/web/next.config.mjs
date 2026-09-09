@@ -24,7 +24,11 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  output: 'standalone',
+  // Next 16.3 + Vercel's injected adapter no longer emit
+  // `.next/next-server.js.nft.json`, but `output: 'standalone'` still opens
+  // it unguarded (vercel/next.js#96646). Vercel ignores the standalone
+  // directory anyway; keep it for Docker / Umbrel / Start9.
+  output: process.env.VERCEL ? undefined : 'standalone',
   // Pin the file-tracing root to the monorepo root (apps/web -> ../..).
   // Without this Next infers the root from the nearest lockfile, which in a
   // nested git worktree resolves to the OUTER repo and bloats the standalone
