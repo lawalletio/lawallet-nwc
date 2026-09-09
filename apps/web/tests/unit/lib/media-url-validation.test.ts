@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   MEDIA_URL_MAX_LENGTH,
   createCardDesignSchema,
+  externalUrlSchema,
   imageUrlSchema,
   storedImageUrlSchema,
   updateCardDesignSchema
@@ -76,6 +77,28 @@ describe('imageUrlSchema (API input)', () => {
     const url = prefix + 'a'.repeat(MEDIA_URL_MAX_LENGTH - prefix.length)
     expect(url).toHaveLength(MEDIA_URL_MAX_LENGTH)
     expect(imageUrlSchema.safeParse(url).success).toBe(true)
+  })
+})
+
+describe('externalUrlSchema (rendered as a link href)', () => {
+  it.each([
+    'https://cafe.example.com/promos/spring',
+    'http://localhost:3000/offer',
+    'https://shop.example.com/a/b?utm=1#top'
+  ])('accepts http(s) URL %s', url => {
+    expect(externalUrlSchema.parse(url)).toBe(url)
+  })
+
+  // Sharper than the image case: `javascript:` is inert in an `<img src>` but
+  // executes from an `<a href>` on click. Same fixture, so the two guards are
+  // held to one standard.
+  it.each(REJECTED_SCHEMES)('rejects %s', url => {
+    expect(externalUrlSchema.safeParse(url).success).toBe(false)
+  })
+
+  it(`rejects a URL longer than ${MEDIA_URL_MAX_LENGTH} characters`, () => {
+    const long = `https://example.com/${'a'.repeat(MEDIA_URL_MAX_LENGTH)}`
+    expect(externalUrlSchema.safeParse(long).success).toBe(false)
   })
 })
 

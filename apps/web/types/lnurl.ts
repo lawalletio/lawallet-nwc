@@ -23,6 +23,11 @@ export interface LUD03CallbackError {
 }
 
 export interface LUD06Response {
+  /**
+   * Non-LNURL extension: this address takes coupon transfers on its callback.
+   * Absent or false means don't send one. See docs/services/VOUCHERS.md.
+   */
+  allowVouchers?: boolean
   tag: 'payRequest'
   callback: string
   maxSendable: number

@@ -1,0 +1,132 @@
+---
+title: 'Vouchers (Coupons)'
+description: 'Mint coupons from your own service and deposit them to a LaWallet member’s npub, using the lacrypta/coupons protocol.'
+---
+
+LaWallet instances can hold **vouchers** — coupons issued by a merchant and assigned to a member's Nostr identity. Members see their stash at `/admin/vouchers`, show the code at the till, and refresh the redemption status from the issuing service.
+
+This is the _holder_ side of the [lacrypta/coupons](https://github.com/lacrypta/coupons) protocol. LaWallet does not mint coupons and is not a coupon-manager service; it stores what your service sends and displays it.
+
+- **Protocol:** [github.com/lacrypta/coupons](https://github.com/lacrypta/coupons)
+- **Reference service:** [merchant.lacrypta.ar](https://merchant.lacrypta.ar)
+
+---
+
+## Roles
+
+| Role                             | Who                         | What they do here                                        |
+| -------------------------------- | --------------------------- | -------------------------------------------------------- |
+| **Merchant**                     | Owns the coupon definitions | Named on the voucher; their npub is what the member sees |
+| **Coupon manager service (CMS)** | Runs the coupon database    | Signs the kind-20402 voucher and deposits it             |
+| **Bearer**                       | The LaWallet member         | Holds the nonce, presents it at the till                 |
+
+The nonce _is_ the credential. Anyone holding it can redeem the coupon — treat it the way you would a gift-card number.
+
+## Deposit a voucher
+
+```
+POST /api/vouchers
+Authorization: Nostr <base64 NIP-98 event>
+Content-Type: application/json
+```
+
+```json
+{
+  "npub": "npub1…",
+  "nonce": "hcLPDzERvvHzS4Vn0OLbAQ",
+  "couponId": "0f1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9",
+  "name": "20% off any coffee",
+  "description": "Valid on any single drink, one per customer.",
+  "image": "https://cdn.example.com/coffee.png",
+  "url": "https://cafe.example.com/promos/spring-coffee",
+  "merchantPubkey": "npub1…",
+  "servicePubkey": "npub1…",
+  "claimUrl": "https://merchant.example.com/api/coupons/claim",
+  "mintUrl": "https://merchant.example.com/api/coupons/mint",
+  "metadata": { "coupon": { "type": "percent", "percent": 20 } },
+  "expiresAt": 1764633600,
+  "voucherEvent": { "kind": 20402, "…": "…" }
+}
+```
+
+Every field except `npub`, `nonce`, `name`, `merchantPubkey`, and `claimUrl` is optional.
+
+`url` is an optional link to your offer or product page, shown on the voucher's detail page labelled with its host. It must be `http(s)` — `javascript:`, `data:` and `file:` are rejected, because that value ends up in an `<a href>`. `npub`, `merchantPubkey`, and `servicePubkey` accept either an `npub1…` or a 64-character hex pubkey.
+
+### Authentication
+
+Sign the request with **NIP-98** (kind 27235) as usual — `Authorization: Nostr <base64>`. Your service does **not** need an account on the instance; any valid signature identifies you.
+
+Signing is not the same as being accepted. Each member chooses a **deposit policy**:
+
+- **Anyone** (default) — any valid signature is accepted.
+- **Only these services** — an allowlist of pubkeys the member entered as npub, hex, or NIP-05.
+
+If the member does not accept you — or the npub has no account on this instance — you get the same response:
+
+```json
+{
+  "success": false,
+  "error": { "message": "Recipient does not accept vouchers from this sender" }
+}
+```
+
+That is deliberate. Splitting the two cases would let any signer enumerate which npubs are registered on the instance.
+
+### The signed voucher event
+
+Send `voucherEvent` whenever you can. It is your CMS-signed kind-20402 event, and it is what makes the stored voucher independently verifiable rather than merely asserted. LaWallet checks, in order:
+
+1. `kind === 20402`
+2. The signature verifies (which also catches a tampered tag or content)
+3. The `p` tag equals the recipient's pubkey
+4. The `nonce` tag equals the deposited nonce
+5. `event.pubkey` equals `servicePubkey`, when you declared one
+
+Values derived from the event — signer, nonce, coupon id, expiry — win over the matching plain fields. A `phase: claimed` tag stores the voucher as already redeemed.
+
+Without `voucherEvent`, the NIP-98 signer is recorded as the service, since that is the only identity the instance can vouch for.
+
+### Idempotency
+
+Deposits are keyed on `(servicePubkey, nonce)`. A redeposit refreshes the presentation fields and returns **200**; a first deposit returns **201**. Ownership and redemption state are never overwritten by a redeposit. Retrying is safe.
+
+## Redemption status
+
+LaWallet polls your `claimUrl` — `GET {claimUrl}?nonce=…`, the protocol's public, non-consuming preview — when the member presses Refresh. It expects:
+
+```json
+{ "status": "minted", "claimedAt": null }
+```
+
+`status` maps to the badge the member sees: `minted` → Available, `claimed` → Redeemed, `expired` → Expired, `voided` → Voided.
+
+**Status is monotonic.** Once a voucher is Redeemed or Voided, LaWallet stops polling and never walks it back — a later `minted` answer is far more likely a rollback or a spoofed response than a coupon becoming spendable again.
+
+Redemption itself happens at your point of sale. LaWallet does not call `POST {claimUrl}`, because the protocol burns the coupon before the invoice is settled and an abandoned purchase would destroy it.
+
+## Requirements
+
+- `claimUrl` and `mintUrl` must be `https` (plain `http` is accepted only in development).
+- URLs must not carry credentials, and must not resolve to a private network.
+- The nonce must be exactly 22 characters, per the protocol.
+- `name` ≤ 80 characters, `description` ≤ 500.
+
+## Transfers between wallets
+
+A member can hand a coupon to another lightning address. The recipient's wallet swaps the nonce at your service — `POST {refreshUrl}` — so the sender's copy dies and a new one is minted. That swap _is_ the change of ownership; there is no holder field, because the nonce is the credential.
+
+For this to work against your service you need two things:
+
+1. **A refresh endpoint.** `POST {refreshUrl}` burns a nonce and mints a replacement with the same benefit snapshot and the same `expiresAt`, keyed on a required `Idempotency-Key` so a retry replays instead of burning twice. Spec: [lacrypta/coupons#2](https://github.com/lacrypta/coupons/pull/2).
+2. **`refreshUrl` on the deposit**, or in your kind-30078 announcement. Without it the coupon is stored fine but cannot be transferred, and the Send button stays hidden.
+
+The old nonce must then preview as `refreshed` — not `voided`. `voided` means you revoked it; `refreshed` means it moved and still exists, and that is the only way a sender learns their coupon was taken.
+
+Receiving is opt-in per member and off by default, and an instance only accepts transfers from services it already holds vouchers from. Deposit over `POST /api/vouchers` first — that path has an authenticated signer; a transfer does not.
+
+## Note on custody
+
+A stored voucher is a **database row**, not bearer value. The instance operator can read every member's coupon codes, members cannot transfer a voucher to somebody else, and your service's database remains the sole authority on whether a coupon has been spent.
+
+A future version of the coupons protocol should carry vouchers as **ecash** (Cashu, NIP-60/61): the coupon becomes a blinded bearer token, your CMS acts as the mint, and double-spend protection moves from a status lookup to the mint's spent-proof set. Until that exists, the nonce-in-a-row model is what interoperates with the deployed protocol.

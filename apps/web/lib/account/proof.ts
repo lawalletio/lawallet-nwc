@@ -103,7 +103,25 @@ export function verifySignedChallengeEvent(
   if (skew > PROOF_EVENT_MAX_SKEW_SECONDS) {
     throw new AuthenticationError('Proof event timestamp is too old')
   }
-  if (!verifyEvent(event)) {
+  // `verifyEvent` is handed a freshly built object rather than the caller's:
+  // nostr-tools memoizes its verdict on the event under a symbol key, and an
+  // object that already carries a `true` there short-circuits the check
+  // entirely. Both callers pass a JSON-parsed request body today
+  // (`body.event` in account/identities/link/verify, `body.proof` in
+  // auth/passkey/registration/verify) and JSON can't carry a symbol — but
+  // this function's parameter is typed as an object, so nothing stops a
+  // future caller from handing over an in-memory event. Rebuilding from
+  // exactly the signed fields costs one object literal and removes that.
+  const candidate = {
+    id: event.id,
+    pubkey: event.pubkey,
+    created_at: event.created_at,
+    kind: event.kind,
+    tags: event.tags,
+    content: event.content,
+    sig: event.sig
+  } as NostrEvent
+  if (!verifyEvent(candidate)) {
     throw new AuthenticationError('Proof event signature is invalid')
   }
   if (expectedPubkey && event.pubkey !== expectedPubkey) {

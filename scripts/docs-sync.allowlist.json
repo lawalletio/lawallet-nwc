@@ -18,5 +18,8 @@
   "POST /api/settings/listener-probe",
   "POST /api/admin/backup/export",
   "POST /api/admin/backup/analyze",
-  "POST /api/admin/backup/import"
+  "POST /api/admin/backup/import",
+  "POST /api/dev/vouchers",
+  "GET /api/dev/coupons/claim",
+  "POST /api/dev/coupons/refresh"
 ]

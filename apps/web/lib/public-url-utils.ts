@@ -2,7 +2,12 @@ function normalizePart(value?: string): string {
   return value?.trim().toLowerCase() || ''
 }
 
-function isLocalHost(host: string): boolean {
+/**
+ * Whether a host is this machine. Drives http-vs-https everywhere we build a
+ * URL for a host we did not hard-code — guessing from `NODE_ENV` instead is
+ * the bug that makes a dev build unable to talk to any real domain.
+ */
+export function isLocalHost(host: string): boolean {
   return (
     host === 'localhost' ||
     host.startsWith('localhost:') ||

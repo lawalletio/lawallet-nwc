@@ -15,6 +15,9 @@ import {
   createActivationTokenSchema,
   createCardDesignSchema,
   createCardSchema,
+  depositVoucherSchema,
+  sendVoucherSchema,
+  updateVoucherSettingsSchema,
   updateCardSchema,
   createInvoiceSchema,
   createLncurlWalletSchema,
@@ -570,4 +573,33 @@ export const Lud21Verify = registry.register(
       reason: z.string().optional()
     })
     .openapi({ description: 'LUD-21 payment verification response.' })
+)
+
+export const DepositVoucher = registry.register(
+  'DepositVoucher',
+  depositVoucherSchema.openapi({
+    description:
+      'A coupon minted by an external coupon-manager service and assigned to ' +
+      'a member’s npub. Compatible with the lacrypta/coupons protocol: when ' +
+      '`voucherEvent` carries the service-signed kind-20402 event, its values ' +
+      'take precedence over the plain fields.'
+  })
+)
+
+export const UpdateVoucherSettings = registry.register(
+  'UpdateVoucherSettings',
+  updateVoucherSettingsSchema.openapi({
+    description:
+      'Who may deposit vouchers to the caller. Allowlist entries accept hex, ' +
+      'npub, or NIP-05 and are resolved to hex on save.'
+  })
+)
+
+export const SendVoucher = registry.register(
+  'SendVoucher',
+  sendVoucherSchema.openapi({
+    description:
+      'Recipient lightning address for a voucher transfer, plus an optional ' +
+      'message. Irreversible once the recipient accepts.'
+  })
 )
