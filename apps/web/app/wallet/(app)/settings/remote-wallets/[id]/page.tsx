@@ -81,6 +81,7 @@ export default function WalletRemoteWalletDetailPage() {
               transactions={transactions.data ?? []}
               transactionsLoading={transactions.loading || connection.loading}
               transactionsError={transactions.error}
+              walletActive={isActive}
               readOnly={!isOwner}
             />
             {isOwner && (
