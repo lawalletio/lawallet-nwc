@@ -79,7 +79,7 @@ Send `voucherEvent` whenever you can. It is your CMS-signed kind-20402 event, an
 
 1. `kind === 20402`
 2. The signature verifies (which also catches a tampered tag or content)
-3. The `p` tag equals the recipient's pubkey
+3. The `p` tag matches the `merchantPubkey` you sent in the body
 4. The `nonce` tag equals the deposited nonce
 5. `event.pubkey` equals `servicePubkey`, when you declared one
 
