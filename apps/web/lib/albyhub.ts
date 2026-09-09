@@ -1,3 +1,5 @@
+import { logger } from './logger'
+
 /** Shape returned by `POST /apps` on Alby Hub for a new isolated sub-account. */
 export interface AlbyCreateSubAccountResponse {
   /** NWC pairing URI to hand to the new user's wallet. */
@@ -18,17 +20,23 @@ export interface AlbyCreateSubAccountResponse {
  * Thin client for the self-hosted Alby Hub HTTP API. Used by the signup flow
  * to provision a per-user wallet and lightning address when the operator has
  * enabled the integration.
+ *
+ * The `bearerToken` (operator's Alby Hub admin API credential) is a secret:
+ * it is only ever sent on the wire via the `Authorization` header and is never
+ * written to logs — see `lib/user.ts:createNewUser` for the production caller.
  */
 export class AlbyHub {
   private readonly url: string
   private readonly bearerToken: string
+  private readonly log = logger.child({ module: 'albyhub' })
 
   /**
    * @param url - Alby Hub base URL (e.g. `https://hub.example.com`).
    * @param bearerToken - Hub API token with permission to mint sub-accounts.
+   *   Treated as a secret; never logged.
    */
   constructor(url: string, bearerToken: string) {
-    console.info('Initializing AlbyHub with URL:', url)
+    this.log.info({ url }, 'Initializing AlbyHub')
     this.url = url
     this.bearerToken = bearerToken
   }
@@ -42,12 +50,13 @@ export class AlbyHub {
    * @throws {Error} `'Failed to create sub account'` on a non-2xx response.
    */
   async createSubAccount(name: string, subAccount: boolean = true) {
-    console.info('Creating sub account with name:', name)
-    console.info('Sub account flag:', subAccount)
-    console.info('Url:', `${this.url}/apps`)
-    console.info('BearerToken:', this.bearerToken)
+    const endpoint = `${this.url}/apps`
+    this.log.info(
+      { name, subAccount, url: endpoint },
+      'Creating Alby sub-account'
+    )
 
-    const response = await fetch(`${this.url}/apps`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.bearerToken}`,
@@ -75,17 +84,20 @@ export class AlbyHub {
       })
     })
 
-    console.info('Sub account creation response status:', response.status)
+    this.log.info({ status: response.status }, 'Alby sub-account created')
 
     if (!response.ok) {
-      console.error('Failed to create sub account:', response.statusText)
+      this.log.error(
+        { status: response.status, statusText: response.statusText },
+        'Failed to create Alby sub-account'
+      )
       throw new Error('Failed to create sub account', {
         cause: response.statusText
       })
     }
 
     const data = (await response.json()) as AlbyCreateSubAccountResponse
-    console.info('Successfully created sub account with ID:', data.id)
+    this.log.info({ id: data.id }, 'Alby sub-account created')
     return data
   }
 
@@ -95,10 +107,13 @@ export class AlbyHub {
    * @throws {Error} `'Failed to create a lightning address'` on a non-2xx response.
    */
   async createLightningAddress(username: string, appId: string) {
-    console.info('Creating lightning address:', username)
-    console.info('For app ID:', appId)
+    const endpoint = `${this.url}/lightning-addresses`
+    this.log.info(
+      { username, appId, url: endpoint },
+      'Creating Alby lightning address'
+    )
 
-    const response = await fetch(`${this.url}/lightning-addresses`, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.bearerToken}`,
@@ -111,16 +126,22 @@ export class AlbyHub {
       })
     })
 
-    console.info('Lightning address creation response status:', response.status)
+    this.log.info(
+      { status: response.status },
+      'Alby lightning address creation response'
+    )
 
     if (!response.ok) {
-      console.error('Failed to create lightning address:', response.statusText)
+      this.log.error(
+        { status: response.status, statusText: response.statusText },
+        'Failed to create Alby lightning address'
+      )
       throw new Error('Failed to create a lightning address', {
         cause: response.statusText
       })
     }
 
-    console.info('Successfully created lightning address for:', username)
+    this.log.info({ username }, 'Alby lightning address created')
     return
   }
 }
