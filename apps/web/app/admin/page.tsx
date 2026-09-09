@@ -1,22 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Monitor,
   CreditCard,
   AtSign,
-  ShieldAlert,
-  Zap,
-  Copy,
-  Check,
-  AlertCircle,
-  ArrowRight,
-  AlertTriangle
+  Zap
 } from 'lucide-react'
-import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 import { AdminTopbar } from '@/components/admin/admin-topbar'
 import { StatCard } from '@/components/admin/stat-card'
 import { Badge } from '@/components/ui/badge'
