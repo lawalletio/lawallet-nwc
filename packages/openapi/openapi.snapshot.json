@@ -2428,6 +2428,137 @@
           "status"
         ],
         "description": "LUD-21 payment verification response."
+      },
+      "DepositVoucher": {
+        "type": "object",
+        "properties": {
+          "npub": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "nonce": {
+            "type": "string",
+            "minLength": 22,
+            "maxLength": 22
+          },
+          "couponId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "image": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "merchantPubkey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "servicePubkey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "claimUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "mintUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "refreshUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "expiresAt": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "voucherEvent": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "npub",
+          "nonce",
+          "name",
+          "merchantPubkey",
+          "claimUrl"
+        ],
+        "description": "A coupon minted by an external coupon-manager service and assigned to a member’s npub. Compatible with the lacrypta/coupons protocol: when `voucherEvent` carries the service-signed kind-20402 event, its values take precedence over the plain fields."
+      },
+      "UpdateVoucherSettings": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "string",
+            "enum": [
+              "ANYONE",
+              "ALLOWLIST"
+            ]
+          },
+          "allowVouchers": {
+            "type": "boolean"
+          },
+          "allowlist": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "policy",
+          "allowVouchers",
+          "allowlist"
+        ],
+        "description": "Who may deposit vouchers to the caller. Allowlist entries accept hex, npub, or NIP-05 and are resolved to hex on save."
+      },
+      "SendVoucher": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 320
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "description": "Recipient lightning address for a voucher transfer, plus an optional message. Irreversible once the recipient accepts."
       }
     },
     "parameters": {}
