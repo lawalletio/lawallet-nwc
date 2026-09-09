@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { mockCardDesignData } from '@/mocks/card-design'
 import { getSettings } from '@/lib/settings'
 import { authenticateWithPermission } from '@/lib/auth/unified-auth'
 import { Permission } from '@/lib/auth/permissions'
@@ -72,12 +71,26 @@ export const POST = withErrorHandling(async (request: Request) => {
     'Fetched designs for community'
   )
 
-  // Check if designs already exist to avoid duplicates
+  if (fetchedDesigns.length === 0) {
+    logger.info('No designs found for this community. Nothing to import.')
+    return NextResponse.json({
+      success: true,
+      message: 'No designs to import',
+      imported: 0,
+      skipped: 0
+    })
+  }
+
+  // Check if designs already exist to avoid duplicates. The `in:` list must be
+  // scoped to the IDs that will actually be inserted (the fetched catalog IDs,
+  // e.g. `veintiuno-N`), not a static local array — otherwise the dedup check
+  // never sees the rows it is about to insert and re-syncs collide on the
+  // `id` primary key (Prisma P2002).
   logger.info('Checking for existing card designs in the database')
   const existingDesigns = await prisma.cardDesign.findMany({
     where: {
       id: {
-        in: mockCardDesignData.map(design => design.id)
+        in: fetchedDesigns.map(design => design.id)
       }
     },
     select: { id: true }
@@ -99,13 +112,16 @@ export const POST = withErrorHandling(async (request: Request) => {
       success: true,
       message: 'All card designs already exist',
       imported: 0,
-      skipped: mockCardDesignData.length
+      skipped: fetchedDesigns.length
     })
   }
 
-  // Import new designs
+  // Import new designs inside a transaction so the re-sync is atomic: either
+  // every new row commits or none does (no partial state on a mid-batch
+  // failure). Mirrors the transactional upsert in the sibling
+  // `import-veintiuno` route.
   logger.info({ count: newDesigns.length }, 'Importing new card designs')
-  const importedDesigns = await Promise.all(
+  const importedDesigns = await prisma.$transaction(
     newDesigns.map(design =>
       prisma.cardDesign.create({
         data: {
