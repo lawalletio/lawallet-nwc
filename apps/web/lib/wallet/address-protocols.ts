@@ -15,10 +15,7 @@ export const ADDRESS_PROTOCOL_KEYS = [
 export type AddressProtocolKey = (typeof ADDRESS_PROTOCOL_KEYS)[number]
 
 /** `null` means "not determinable here", which is not the same as unsupported. */
-export type AddressProtocolSupport = Record<
-  AddressProtocolKey,
-  boolean | null
->
+export type AddressProtocolSupport = Record<AddressProtocolKey, boolean | null>
 
 export interface AddressProtocols {
   protocols: AddressProtocolSupport
@@ -127,7 +124,7 @@ export async function resolveAddressProtocols(
         },
         source: 'alias',
         reason: input.redirect
-          ? `Save the redirect again to check what ${input.redirect} supports.`
+          ? `Use Verify Protocols, or save the redirect again, to check what ${input.redirect} supports.`
           : 'This alias has no destination yet.',
         provider: input.redirect
       }

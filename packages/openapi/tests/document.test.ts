@@ -40,6 +40,7 @@ describe('getOpenApiDocument', () => {
       '/api/cards/{id}',
       '/api/card-designs',
       '/api/lightning-addresses',
+      '/api/lightning-addresses/verify-protocols',
       '/api/lud16/{username}',
       '/api/lud16/{username}/cb',
       '/api/lud16/{username}/verify/{paymentHash}',
