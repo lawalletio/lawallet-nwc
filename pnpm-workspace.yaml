@@ -125,13 +125,15 @@ overrides:
   # build; range-scoped so it retires once Prisma ships a patched pin.
   deepmerge-ts@<8.0.0: 8.0.1
   # GHSA-5jgf-p345-68v8 / GHSA-f65p-4m7j-42xc / GHSA-fph4-wmhf-6fwf /
-  # GHSA-jqff-g426-hqxp (high): several fast-uri parser issues patched in
-  # >=3.1.6. Reached via apps/web > @sentry/nextjs > @sentry/webpack-plugin >
-  # webpack > schema-utils > ajv > fast-uri.
-  fast-uri@<3.1.6: 3.1.6
-  # GHSA-c83g-rgw3-j3cx / GHSA-73wf-gq98-2v4g (high): browserslist Regular
-  # Expression Denial of Service in the browsers-list parser, patched in
-  # >=4.28.7. Reached via apps/docs > next > styled-jsx > @babel/core.
+  # GHSA-jqff-g426-hqxp (high, patched in 3.1.6) plus GHSA-qw65-cvwx-89v3 /
+  # GHSA-58mr-gqgx-xq4g (high, 2026-09-02): host confusion / authority
+  # injection still present on 3.1.6. Reached via apps/web > @sentry/nextjs >
+  # @sentry/webpack-plugin > webpack > schema-utils > ajv. Range-scoped so
+  # it retires once parents request a patched range.
+  fast-uri@<3.1.7: 3.1.7
+  # GHSA-c83g-rgw3-j3cx / GHSA-73wf-gq98-2v4g (high): unbounded query-cache
+  # growth and a prototype-write crash in browserslist <=4.28.6. Reached via
+  # apps/docs > next > styled-jsx > @babel/core.
   browserslist@<4.28.7: 4.28.7
   # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq (high, image-size ICNS/JXL/HEIF
   # DoS) have NO published fix ("Patched versions: <0.0.0", latest is 2.0.2).
