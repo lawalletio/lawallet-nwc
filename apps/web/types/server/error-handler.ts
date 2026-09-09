@@ -11,6 +11,7 @@ import {
 } from './errors'
 import { getCurrentReqId, withRequestLogging } from '@/lib/logger'
 import { logger } from '@/lib/logger'
+import { redactPathBearerTokens } from '@/lib/observability/pii'
 import { checkMaintenance } from '@/lib/middleware/maintenance'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import type { ActivityCategory, ActivityLevel } from '@/lib/generated/prisma'
@@ -155,6 +156,15 @@ export const handleApiError = (
     'api.error'
   )
 
+  // Compute the pathname once, with bearer-token segments masked out. Used
+  // for both the Sentry `tags.path` capture and the ActivityLog `pathname`
+  // field so neither sink persists bearer tokens to a third party or to the
+  // operator's own audit table. See `redactPathBearerTokens` for which
+  // routes are masked.
+  const redactedPath =
+    request instanceof Request
+      ? redactPathBearerTokens(safePathname(request.url))
+      : undefined
   // Forward 5xx to Sentry when configured. withErrorHandling swallows the
   // throw (Next's onRequestError never fires for these routes), so this is
   // THE server capture seam. Fire-and-forget: a Sentry failure must never
@@ -172,10 +182,11 @@ export const handleApiError = (
             tags: {
               reqId: getCurrentReqId(),
               code: apiError.code,
-              path:
-                request instanceof Request
-                  ? safePathname(request.url)
-                  : undefined
+              // Use the redacted route-pattern, never the raw pathname —
+              // dynamic segments on /api/cards/otc/[otc] and
+              // /api/remote-connections/[externalDeviceKey] are bearer tokens
+              // and would otherwise leak to Sentry via tags.path.
+              path: redactedPath
             }
           })
         )
@@ -201,23 +212,22 @@ export const handleApiError = (
       error instanceof TransactionConnectionError
     const category: ActivityCategory = isDbError
       ? 'SERVER'
-      : inferCategoryFromPath(
-          request instanceof Request ? safePathname(request.url) : undefined
-        )
+      : inferCategoryFromPath(redactedPath)
     const level: ActivityLevel = isServerError ? 'ERROR' : 'WARN'
     const method = request instanceof Request ? request.method : undefined
-    const pathname =
-      request instanceof Request ? safePathname(request.url) : undefined
+    // Persist the redacted route-pattern (not the raw pathname) for the same
+    // reason as `tags.path` above — bearer tokens must not reach the audit
+    // log either. Both sinks get the same redacted value here.
     logActivity.fireAndForget({
       category,
       event: eventCodeForError(category, isServerError, isDbError),
       level,
-      message: `${method ?? 'REQUEST'} ${pathname ?? '?'} failed: ${apiError.message}`,
+      message: `${method ?? 'REQUEST'} ${redactedPath ?? '?'} failed: ${apiError.message}`,
       metadata: {
         statusCode,
         code: apiError.code,
         method,
-        pathname
+        pathname: redactedPath
       }
     })
   }
