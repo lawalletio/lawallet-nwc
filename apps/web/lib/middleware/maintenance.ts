@@ -1,7 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { validateNip98Auth } from '@/lib/admin-auth'
 import { validateJwtFromRequest } from '@/lib/jwt'
-import { resolveAccountByPubkey } from '@/lib/auth/account'
+import { resolveRole } from '@/lib/auth/resolve-role'
 import { getSettings } from '@/lib/settings'
 import { Role, isValidRole } from '@/lib/auth/permissions'
 import { ServiceUnavailableError } from '@/types/server/errors'
@@ -56,8 +56,8 @@ export async function checkMaintenance(request: Request): Promise<void> {
   // header is missing or invalid, the error is caught and we fall through.
   try {
     const pubkey = await validateNip98Auth(request)
-    const account = await resolveAccountByPubkey(pubkey)
-    if (account?.role === Role.ADMIN) {
+    const role = await resolveRole(pubkey)
+    if (role === Role.ADMIN) {
       return
     }
   } catch {
