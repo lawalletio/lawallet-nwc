@@ -158,15 +158,6 @@ export const PATCH = withErrorHandling(
           }
         })
 
-        if (body.isDefault === true) {
-          await bindPrimaryAddressToWallet(userId, id, tx)
-          return tx.remoteWallet.findUniqueOrThrow({ where: { id } })
-        }
-
-        if (body.status === 'REVOKED' || body.status === 'DEAD') {
-          await clearPrimaryWalletLinkToWallet(userId, id, tx)
-        }
-
         if (body.status && body.status !== 'ACTIVE') {
           await tx.remoteWalletReceiveAction.updateMany({
             where: { remoteWalletId: id },
@@ -174,7 +165,13 @@ export const PATCH = withErrorHandling(
           })
         }
 
+        if (body.isDefault === true) {
+          await bindPrimaryAddressToWallet(userId, id, tx)
+          return tx.remoteWallet.findUniqueOrThrow({ where: { id } })
+        }
+
         if (body.status === 'REVOKED' || body.status === 'DEAD') {
+          await clearPrimaryWalletLinkToWallet(userId, id, tx)
           return tx.remoteWallet.findUniqueOrThrow({ where: { id } })
         }
 
