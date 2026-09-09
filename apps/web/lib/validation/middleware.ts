@@ -2,15 +2,39 @@ import { type ZodType, type ZodTypeDef } from 'zod'
 import { ValidationError } from '@/types/server/errors'
 
 /**
+ * Error thrown when the request body cannot be parsed as JSON.
+ * Extends ValidationError so it's a 400 Bad Request, but the distinct type
+ * lets handlers distinguish between JSON parse errors and schema validation
+ * errors when they need different behavior (e.g. optional body endpoints).
+ */
+export class JsonParseError extends ValidationError {
+  constructor(message = 'Malformed JSON in request body') {
+    super(message)
+    this.name = 'JsonParseError'
+  }
+}
+
+/**
  * Parses a JSON request body against a Zod schema and returns the typed result.
  *
- * @throws {ValidationError} On a parse failure; carries the Zod issue list as `details`.
+ * @throws {JsonParseError} When the body is not valid JSON (empty, truncated,
+ *   or malformed). This is a 400 Bad Request.
+ * @throws {ValidationError} On schema validation failure; carries the Zod
+ *   issue list as `details`.
  */
 export async function validateBody<TOutput, TDef extends ZodTypeDef, TInput>(
   request: Request,
   schema: ZodType<TOutput, TDef, TInput>
 ): Promise<TOutput> {
-  const body = await request.json()
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new JsonParseError()
+    }
+    throw err
+  }
   const result = schema.safeParse(body)
   if (!result.success) {
     throw new ValidationError('Invalid request data', result.error.errors)

@@ -9,7 +9,7 @@ import {
 } from '@/types/server/errors'
 import { logger } from '@/lib/logger'
 import { jwtRequestSchema } from '@/lib/validation/schemas'
-import { validateBody } from '@/lib/validation/middleware'
+import { validateBody, JsonParseError } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { rateLimit, RateLimitPresets } from '@/lib/middleware/rate-limit'
 import { validateNip98 } from '@/lib/nip98'
@@ -56,12 +56,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       ? Number(data.expiresIn)
       : data.expiresIn
   } catch (error) {
-    // A missing or unparseable body is fine — the body is optional here and
-    // defaults to 1h. But a body that IS present carrying an invalid or
+    // A missing or malformed body is fine — the body is optional here and
+    // defaults to 1h. JsonParseError covers empty/malformed JSON.
+    // But a body that IS present and parses as JSON yet carries an invalid or
     // over-cap `expiresIn` must surface as a 400: silently downgrading it to
     // 1h and returning 200 reads as a phantom "my session expires early" bug
     // with nothing in the response to explain it.
-    if (error instanceof ValidationError) throw error
+    if (error instanceof ValidationError && !(error instanceof JsonParseError))
+      throw error
   }
 
   // 3. Get JWT secret
