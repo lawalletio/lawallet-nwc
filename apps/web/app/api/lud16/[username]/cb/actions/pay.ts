@@ -94,11 +94,25 @@ export default async function pay(
     lightningAddress.user.id
   )
 
-  const route = resolveWalletRoute({
-    mode: lightningAddress.mode,
-    redirect: lightningAddress.redirect,
-    remoteWallet: lightningAddress.remoteWallet
-  })
+  let route
+  try {
+    route = resolveWalletRoute({
+      mode: lightningAddress.mode,
+      redirect: lightningAddress.redirect,
+      remoteWallet: lightningAddress.remoteWallet
+    })
+  } catch (err) {
+    // Corrupt/unreadable vault config is an upstream-unavailable wallet,
+    // same as a driver failure during mint — not a 500 in our handler.
+    if (err instanceof DriverError) {
+      logger.error(
+        { username, err: String(err) },
+        'LUD16 wallet route resolution failed'
+      )
+      throw new ServiceUnavailableError('Wallet is currently unavailable')
+    }
+    throw err
+  }
 
   if (route.kind === 'proxyAlias') {
     const amountMsats = Number(amount)

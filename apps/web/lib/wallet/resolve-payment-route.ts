@@ -3,7 +3,7 @@ import type {
   RemoteWalletStatus,
   RemoteWalletType
 } from '@/lib/generated/prisma'
-import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
+import { decryptRemoteWalletConfigForDriver } from '@/lib/wallet/remote-wallet-vault'
 
 // ── RemoteWallet routing ─────────────────────────────────────────────────────
 //
@@ -57,7 +57,11 @@ function walletRoute(wallet: RemoteWalletRef): WalletRoute {
         walletId: wallet.id ?? null,
         type: wallet.type,
         config: wallet.id
-          ? decryptRemoteWalletConfig(wallet.id, wallet.type, wallet.config)
+          ? decryptRemoteWalletConfigForDriver(
+              wallet.id,
+              wallet.type,
+              wallet.config
+            )
           : wallet.config
       }
     : { kind: 'unconfigured' }
@@ -141,7 +145,7 @@ export function resolveCardWallet(
       walletId: input.defaultRemoteWallet.id ?? null,
       type: input.defaultRemoteWallet.type,
       config: input.defaultRemoteWallet.id
-        ? decryptRemoteWalletConfig(
+        ? decryptRemoteWalletConfigForDriver(
             input.defaultRemoteWallet.id,
             input.defaultRemoteWallet.type,
             input.defaultRemoteWallet.config

@@ -5,8 +5,10 @@ vi.mock('@/lib/config', () => ({
 }))
 
 import { getConfig } from '@/lib/config'
+import { DriverConfigError } from '@/lib/wallet/drivers/errors'
 import {
   decryptRemoteWalletConfig,
+  decryptRemoteWalletConfigForDriver,
   decryptRemoteWalletConnectionString,
   encryptRemoteWalletConfig,
   encryptRemoteWalletConnectionString,
@@ -74,5 +76,26 @@ describe('remote wallet NWC vault', () => {
     expect(decryptRemoteWalletConnectionString(NWC_URI, 'legacy-wallet')).toBe(
       NWC_URI
     )
+  })
+
+  it('maps a corrupt vault envelope to DriverConfigError for driver callers', () => {
+    expect(() =>
+      decryptRemoteWalletConfigForDriver('wallet-1', 'NWC', {
+        connectionString: 'lwrw1:not-a-valid-envelope'
+      })
+    ).toThrow(DriverConfigError)
+  })
+
+  it('does not map a missing NWC_VAULT_SECRET to DriverConfigError', () => {
+    mockVault(undefined)
+    try {
+      decryptRemoteWalletConfigForDriver('wallet-1', 'NWC', {
+        connectionString: 'lwrw1:not-a-valid-envelope'
+      })
+      throw new Error('should have thrown')
+    } catch (err) {
+      expect(err).not.toBeInstanceOf(DriverConfigError)
+      expect((err as Error).message).toBe('NWC_VAULT_SECRET is not configured')
+    }
   })
 })

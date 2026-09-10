@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   parseLightningAddress,
   resolveWalletRoute,
@@ -6,6 +6,16 @@ import {
   type ResolveWalletRouteInput,
   type ResolveCardWalletInput
 } from '@/lib/wallet/resolve-payment-route'
+import { DriverConfigError } from '@/lib/wallet/drivers/errors'
+
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn(() => ({
+    nwcVault: {
+      secret: 'test-route-nwc-vault-secret-0123456789abcdef',
+      enabled: true
+    }
+  }))
+}))
 
 const activeWallet = {
   id: 'wallet-1',
@@ -73,8 +83,23 @@ describe('resolveWalletRoute', () => {
         kind: 'unconfigured'
       })
     })
-  })
 
+    it('throws DriverConfigError when the bound vault envelope cannot be decrypted', () => {
+      expect(() =>
+        resolveWalletRoute({
+          ...base,
+          mode: 'CUSTOM_NWC',
+          remoteWallet: {
+            ...activeWallet,
+            config: {
+              connectionString: 'lwrw1:not-a-valid-envelope',
+              mode: 'SEND_RECEIVE'
+            }
+          }
+        })
+      ).toThrow(DriverConfigError)
+    })
+  })
 })
 
 describe('resolveCardWallet', () => {

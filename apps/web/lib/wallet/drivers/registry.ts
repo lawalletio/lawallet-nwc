@@ -1,35 +1,7 @@
 import type { RemoteWalletType } from '@/lib/generated/prisma'
-import {
-  decryptRemoteWalletConfig,
-  RemoteWalletVaultDecryptError
-} from '@/lib/wallet/remote-wallet-vault'
+import { decryptRemoteWalletConfigForDriver } from '@/lib/wallet/remote-wallet-vault'
 import { DriverConfigError, UnsupportedDriverError } from './errors'
 import type { RemoteWalletDriver } from './types'
-
-const VAULT_SECRET_UNCONFIGURED = 'NWC_VAULT_SECRET is not configured'
-
-/**
- * Per-row stored-config failures that should surface as {@link DriverConfigError}
- * (API routes map that to 503). Global misconfig (`NWC_VAULT_SECRET` missing)
- * must stay a plain Error so it remains a 500 + Sentry page.
- */
-function rethrowStoredConfigAsDriverError(
-  type: RemoteWalletType,
-  err: unknown
-): never {
-  if (err instanceof Error && err.message === VAULT_SECRET_UNCONFIGURED) {
-    throw err
-  }
-  if (
-    err instanceof RemoteWalletVaultDecryptError ||
-    (err instanceof Error &&
-      (err.message === 'Remote wallet config must be a JSON object' ||
-        err.message === 'NWC remote wallet config has no connectionString'))
-  ) {
-    throw new DriverConfigError(type, err.message)
-  }
-  throw err
-}
 
 /**
  * Module-level registry — drivers register themselves at import time via
@@ -87,14 +59,9 @@ export function driverForWallet(wallet: {
   config: unknown
 }): { driver: RemoteWalletDriver<unknown>; config: unknown } {
   const driver = getDriver(wallet.type)
-  let config: unknown
-  try {
-    config = wallet.id
-      ? decryptRemoteWalletConfig(wallet.id, wallet.type, wallet.config)
-      : wallet.config
-  } catch (err) {
-    rethrowStoredConfigAsDriverError(wallet.type, err)
-  }
+  const config = wallet.id
+    ? decryptRemoteWalletConfigForDriver(wallet.id, wallet.type, wallet.config)
+    : wallet.config
   const parsed = driver.configSchema.safeParse(config)
   if (!parsed.success) {
     throw new DriverConfigError(wallet.type, parsed.error.issues)
