@@ -35,11 +35,6 @@ export interface CurrentUser {
   userId: string
   /** `username@domain` of the primary address, or null before one is claimed. */
   lightningAddress: string | null
-  albySubAccount: {
-    appId: string
-    nwcUri: string
-    username: string | null
-  } | null
   nwcString: string
   nwcUpdatedAt: string | null
   effectiveNwcString: string | null

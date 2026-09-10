@@ -1,13 +1,11 @@
 ---
 title: 'Courtesy NWC via lncurl'
-description: 'Planned courtesy-wallet provisioning flow using lncurl.'
+description: 'Courtesy-wallet provisioning via lncurl.'
 ---
 
 ## Overview
 
-This page describes a planned integration, not a currently implemented flow in the `lawallet-nwc` repository.
-
-Today, the repo stores NWC URIs directly on the user record and can optionally provision Alby Hub sub-accounts during user creation. It does not currently call `lncurl`, expose courtesy-wallet APIs, or ship a `useCourtesyNWC` hook.
+Courtesy NWC wallets are provisioned via [lncurl](https://github.com/rolznz/lncurl) ([lncurl.lol](https://lncurl.lol)). Today, the repo stores NWC URIs on `RemoteWallet` records and can optionally mint a courtesy wallet during user creation.
 
 ## Planned Goal
 
@@ -33,7 +31,7 @@ The roadmap uses this page to document the intended courtesy-wallet architecture
 
 ## Current Alternative
 
-The only automated provisioning currently present in the repo is Alby Hub sub-account creation during `GET /api/users/me`, when that behavior is enabled in settings.
+Courtesy wallets are provisioned via LNCurl during `GET /api/users/me` when `lncurl_auto_create` is enabled in settings. There is no Alby Hub sub-account client.
 
 ---
 

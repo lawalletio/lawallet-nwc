@@ -10,7 +10,7 @@ The current `lawallet-nwc` repository implements a narrower onboarding flow than
 Implemented today:
 
 - User creation/loading through `GET /api/users/me`
-- Optional automatic Alby Hub sub-account provisioning when auto-generation is enabled
+- Optional automatic LNCurl courtesy-wallet provisioning when auto-create is enabled
 - User-managed lightning address assignment via `PUT /api/users/[userId]/lightning-address`
 - User-managed NWC URI updates via `PUT /api/users/[userId]/nwc`
 - LUD-16 pay responses for users that already have an NWC URI configured
@@ -27,7 +27,7 @@ Not implemented in this repo yet:
 ## Current Flow
 
 1. Authenticate with NIP-98 and exchange that request for a JWT at `POST /api/jwt`.
-2. Call `GET /api/users/me` to load the user. If Alby auto-generation is enabled, the server may provision an Alby sub-account and store its NWC connection.
+2. Call `GET /api/users/me` to load the user. If LNCurl auto-create is enabled, the server may provision a courtesy NWC wallet.
 3. Set a username with `PUT /api/users/[userId]/lightning-address`.
 4. If needed, set or replace the user's NWC URI with `PUT /api/users/[userId]/nwc`.
 5. Once the user has an NWC URI, the lightning address can resolve through `GET /api/lud16/[username]`.

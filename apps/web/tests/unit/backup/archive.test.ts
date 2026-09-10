@@ -18,7 +18,6 @@ const USER = {
   id: 'user-1',
   pubkey: 'a'.repeat(64),
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
-  albyEnabled: false,
   role: 'ADMIN',
   relays: null,
   relaysUpdatedAt: null
@@ -179,6 +178,49 @@ describe('backup archive (parseBackupFile)', () => {
     await expect(parseBackupFile(toFile(bytes))).rejects.toThrow(
       /newer version/
     )
+  })
+
+  it('ignores retired tables such as albySubAccounts in older archives', async () => {
+    const settingsRows = [
+      {
+        name: 'domain',
+        value: 'x.test',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ]
+    const albyRows = [
+      {
+        appId: 1,
+        userId: 'user-1',
+        username: 'alice',
+        nwcUri: 'nostr+walletconnect://x',
+        nostrPubkey: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
+      }
+    ]
+    const settingsBytes = utf8Encode(toNdjson(settingsRows))
+    const albyBytes = utf8Encode(toNdjson(albyRows))
+    const manifest = {
+      schemaVersion: BACKUP_SCHEMA_VERSION,
+      appVersion: '1.0.0-test',
+      prismaMigration: null,
+      exportedAt: '2026-07-06T12:00:00.000Z',
+      encrypted: false,
+      categories: ['core', 'settings'],
+      tables: {
+        settings: { count: 1, sha256: sha256(settingsBytes) },
+        albySubAccounts: { count: 1, sha256: sha256(albyBytes) }
+      }
+    }
+    const bytes = zipSync({
+      'tables/settings.ndjson': settingsBytes,
+      'tables/albySubAccounts.ndjson': albyBytes,
+      'manifest.json': utf8Encode(JSON.stringify(manifest, null, 2))
+    })
+    const parsed = await parseBackupFile(toFile(bytes))
+    expect(parsed.tables.settings).toHaveLength(1)
+    expect(parsed.tables).not.toHaveProperty('albySubAccounts')
   })
 
   it('throws when the manifest is missing entirely', async () => {

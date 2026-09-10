@@ -98,7 +98,7 @@ ValidationError(400), AuthenticationError(401), AuthorizationError(403), NotFoun
 
 ### Database
 
-PostgreSQL via Prisma. Schema at `apps/web/prisma/schema.prisma`. 8 models: User, Card, CardDesign, Ntag424, LightningAddress, AlbySubAccount, Settings, Invoice. Generated client at `apps/web/lib/generated/prisma`.
+PostgreSQL via Prisma. Schema at `apps/web/prisma/schema.prisma`. Models include User, Card, CardDesign, Ntag424, LightningAddress, Settings, Invoice, RemoteWallet. Generated client at `apps/web/lib/generated/prisma`.
 
 ### Frontend
 
@@ -148,7 +148,7 @@ Prettier: no semicolons, single quotes, no trailing commas, arrow parens: avoid.
 
 ## Environment Variables (apps/web/.env)
 
-Required: `DATABASE_URL`, `JWT_SECRET` (32+ chars). See `apps/web/.env.example` for all options including `ALBY_API_URL`, `ALBY_BEARER_TOKEN`, `LOG_LEVEL`, `MAINTENANCE_MODE`.
+Required: `DATABASE_URL`, `JWT_SECRET` (32+ chars). See `apps/web/.env.example` for all options including `LOG_LEVEL`, `MAINTENANCE_MODE`.
 
 ## Deployment
 

@@ -30,8 +30,7 @@ export const GET = withErrorHandling(async (request: Request) => {
             where: { isPrimary: true },
             take: 1,
             include: { remoteWallet: true }
-          },
-          albySubAccount: true
+          }
         }
       })
     : null
@@ -92,13 +91,6 @@ export const GET = withErrorHandling(async (request: Request) => {
   return NextResponse.json({
     userId: user.id,
     lightningAddress,
-    albySubAccount: user.albySubAccount
-      ? {
-          appId: user.albySubAccount.appId,
-          nwcUri: user.albySubAccount.nwcUri,
-          username: user.albySubAccount.username
-        }
-      : null,
     nwcString,
     nwcUpdatedAt,
     effectiveNwcString,

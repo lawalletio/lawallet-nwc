@@ -2011,9 +2011,6 @@
                   }
                 }
               },
-              "hasAlbySubAccount": {
-                "type": "boolean"
-              },
               "hasManagedKey": {
                 "type": "boolean"
               },
@@ -2035,7 +2032,6 @@
               "invoices",
               "relays",
               "profile",
-              "hasAlbySubAccount",
               "hasManagedKey",
               "managedKeyExported"
             ]
@@ -2157,9 +2153,6 @@
                   }
                 }
               },
-              "hasAlbySubAccount": {
-                "type": "boolean"
-              },
               "hasManagedKey": {
                 "type": "boolean"
               },
@@ -2181,7 +2174,6 @@
               "invoices",
               "relays",
               "profile",
-              "hasAlbySubAccount",
               "hasManagedKey",
               "managedKeyExported"
             ]
@@ -2294,9 +2286,6 @@
                   }
                 }
               },
-              "hasAlbySubAccount": {
-                "type": "boolean"
-              },
               "hasManagedKey": {
                 "type": "boolean"
               },
@@ -2318,7 +2307,6 @@
               "invoices",
               "relays",
               "profile",
-              "hasAlbySubAccount",
               "hasManagedKey",
               "managedKeyExported"
             ]
@@ -2333,7 +2321,6 @@
                   "enum": [
                     "managed-key-unexported",
                     "managed-key-dropped",
-                    "alby-subaccount-dropped",
                     "wallet-name-renamed",
                     "primary-address-kept",
                     "default-wallet-kept"

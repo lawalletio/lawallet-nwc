@@ -36,7 +36,7 @@ export const BACKUP_CATEGORIES: CategoryMeta[] = [
     key: 'core',
     label: 'Core data',
     description:
-      'Users, lightning addresses, remote wallets, cards, designs, NTAG keys, activation tokens, and Alby accounts.',
+      'Users, lightning addresses, remote wallets, cards, designs, NTAG keys, and activation tokens.',
     defaultOn: true
   },
   {
@@ -80,7 +80,6 @@ export const TABLE_LABELS: Record<BackupTableName, string> = {
   lightningAddresses: 'Lightning addresses',
   cards: 'Cards',
   cardActivationTokens: 'Activation tokens',
-  albySubAccounts: 'Alby accounts',
   invoices: 'Invoices',
   activityLogs: 'Activity logs',
   settings: 'Settings',

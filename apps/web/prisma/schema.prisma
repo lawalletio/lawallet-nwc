@@ -244,8 +244,6 @@ model User {
   remoteWalletNotificationDeliveries RemoteWalletNotificationDelivery[]
   cards                              Card[]
   invoices                           Invoice[]
-  albySubAccount                     AlbySubAccount?
-  albyEnabled                        Boolean                            @default(false)
   role                               UserRole                           @default(USER)
   activityLogs                       ActivityLog[]
   /// The user's preferred Nostr relays (NIP-65-style), as a JSON-stringified
@@ -819,16 +817,6 @@ model CardPaymentAttempt {
   @@unique([walletId, paymentHash])
   @@index([cardId, createdAt])
   @@index([status, updatedAt])
-}
-
-model AlbySubAccount {
-  appId       Int      @id
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id])
-  username    String? // alby sub account username@getalby.com
-  nwcUri      String
-  nostrPubkey String? // nostr pubkey for nip57
-  createdAt   DateTime @default(now())
 }
 
 model Settings {

@@ -106,26 +106,6 @@ const envSchema = z.object({
     .pipe(z.number().int().positive())
     .describe('Timeout for NWC requests proxied through the listener service'),
 
-  // Alby Integration
-  ALBY_API_URL: z
-    .string()
-    .url('ALBY_API_URL must be a valid URL')
-    .optional()
-    .describe('Alby Hub API base URL'),
-
-  ALBY_BEARER_TOKEN: z
-    .string()
-    .min(1, 'ALBY_BEARER_TOKEN must not be empty')
-    .optional()
-    .describe('Alby Hub API bearer token for authentication'),
-
-  AUTO_GENERATE_ALBY_SUBACCOUNTS: z
-    .string()
-    .default('false')
-    .transform(val => val === 'true')
-    .pipe(z.boolean())
-    .describe('Enable automatic Alby subaccount generation for new users'),
-
   // Server Configuration
   PORT: z
     .string()

@@ -30,14 +30,9 @@ The user signs up and gets a lightning address (e.g., `alice@domain.com`) that i
 
 The user upgrades to a temporary NWC connection provided by the Courtesy NWC Proxy service. This gives them a proper NWC-connected address without needing their own wallet infrastructure.
 
-- User requests a courtesy NWC connection from the proxy
-- Proxy provisions a NWC connection string from a configured provider:
-  - Alby Hub
-  - LNBits
-  - BTCPayServer
-  - YakiHonne
-  - Any generic NWC provider
-- Connection string is linked to the user's lightning address
+- User requests a courtesy NWC connection
+- Platform provisions an NWC connection string via LNCurl (or the user pastes their own)
+- Connection string is stored as a RemoteWallet and linked to the user's lightning address
 - Payments now route via NWC instead of redirect
 - User can switch providers or revoke at any time
 

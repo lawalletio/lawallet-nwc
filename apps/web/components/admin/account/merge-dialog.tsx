@@ -1041,18 +1041,13 @@ function MergeSideCard({ title, side }: { title: string; side: MergeSide }) {
           </li>
         </ul>
 
-        {(side.hasAlbySubAccount || side.hasManagedKey) && (
+        {side.hasManagedKey && (
           <div className="flex flex-wrap gap-1">
-            {side.hasAlbySubAccount && (
-              <Badge variant="secondary">Alby sub-account</Badge>
-            )}
-            {side.hasManagedKey && (
-              <Badge variant="secondary">
-                {side.managedKeyExported
-                  ? 'Custodied key (exported)'
-                  : 'Custodied key'}
-              </Badge>
-            )}
+            <Badge variant="secondary">
+              {side.managedKeyExported
+                ? 'Custodied key (exported)'
+                : 'Custodied key'}
+            </Badge>
           </div>
         )}
       </CardContent>

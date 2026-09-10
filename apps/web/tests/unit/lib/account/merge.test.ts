@@ -60,7 +60,6 @@ function seedMergeUsers(overrides?: {
     pubkey: PK_A,
     relays: null,
     managedNostrKey: null,
-    albySubAccount: null,
     lightningAddresses: [{ username: 'alice', isPrimary: true }],
     remoteWallets: [{ id: 'wa-default', isDefault: true }],
     ...overrides?.survivor
@@ -70,7 +69,6 @@ function seedMergeUsers(overrides?: {
     pubkey: PK_B,
     relays: null,
     managedNostrKey: null,
-    albySubAccount: null,
     nostrIdentities: [{ pubkey: PK_B }],
     lightningAddresses: [{ username: 'bob' }],
     remoteWallets: [{ id: 'wb-1', name: 'NWC Wallet' }],
@@ -321,28 +319,6 @@ describe('mergeAccounts', () => {
       })
     })
   })
-
-  it('drops the absorbed AlbySubAccount when the survivor has one, moves it otherwise', async () => {
-    seedMergeUsers({
-      survivor: { albySubAccount: { appId: 1 } },
-      absorbed: { albySubAccount: { appId: 2 } }
-    })
-    seedMergeDefaults()
-    await mergeAccounts({ survivorId: A, absorbedId: B, mainPubkey: PK_A })
-    expect(prismaMock.albySubAccount.delete).toHaveBeenCalledWith({
-      where: { userId: B }
-    })
-
-    vi.clearAllMocks()
-    resetPrismaMock()
-    seedMergeUsers({ absorbed: { albySubAccount: { appId: 2 } } })
-    seedMergeDefaults()
-    await mergeAccounts({ survivorId: A, absorbedId: B, mainPubkey: PK_A })
-    expect(prismaMock.albySubAccount.update).toHaveBeenCalledWith({
-      where: { userId: B },
-      data: { userId: A }
-    })
-  })
 })
 
 describe('previewMerge', () => {
@@ -358,7 +334,6 @@ describe('previewMerge', () => {
         nostrIdentities: [],
         lightningAddresses: [],
         remoteWallets: [],
-        albySubAccount: null,
         _count: {
           passkeyCredentials: 0,
           cards: 0,

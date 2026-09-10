@@ -46,14 +46,6 @@ export interface AppConfig {
     requestTimeoutMs: number
   }
 
-  // Alby Integration
-  alby: {
-    apiUrl: string | undefined
-    bearerToken: string | undefined
-    autoGenerateSubAccounts: boolean
-    enabled: boolean
-  }
-
   // Server
   server: {
     port: number | undefined
@@ -158,17 +150,6 @@ export function getConfig(strict: boolean = true): AppConfig {
       secret: env.LISTENER_AUTH_SECRET,
       requestSecret: env.LISTENER_REQUEST_AUTH_SECRET,
       requestTimeoutMs: env.LISTENER_REQUEST_TIMEOUT_MS
-    },
-
-    alby: {
-      apiUrl: env.ALBY_API_URL,
-      bearerToken: env.ALBY_BEARER_TOKEN,
-      autoGenerateSubAccounts: env.AUTO_GENERATE_ALBY_SUBACCOUNTS,
-      enabled: !!(
-        env.ALBY_API_URL &&
-        env.ALBY_BEARER_TOKEN &&
-        env.AUTO_GENERATE_ALBY_SUBACCOUNTS
-      )
     },
 
     server: {

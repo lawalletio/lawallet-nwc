@@ -187,7 +187,6 @@ with a readable error. Source of truth: [`apps/web/.env.example`](./apps/web/.en
 | `LOG_LEVEL`                                                             | `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` \| `silent` |
 | `LOG_PRETTY`                                                            | `true` for human-readable logs in dev                                    |
 | `MAINTENANCE_MODE`                                                      | `true` returns 503 for non-admin requests                                |
-| `ALBY_API_URL` / `ALBY_BEARER_TOKEN` / `AUTO_GENERATE_ALBY_SUBACCOUNTS` | Enable courtesy NWC subaccount provisioning                              |
 | `NEXT_PUBLIC_LAWALLET_LANDING_URL`                                      | Where `/` redirects (defaults to `https://lawallet.io`)                  |
 
 See [`apps/web/.env.example`](./apps/web/.env.example) for the full list.

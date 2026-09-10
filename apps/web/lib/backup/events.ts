@@ -7,7 +7,7 @@ import type {
 
 /**
  * Maps a restored table to the existing SSE event that refreshes the admin
- * surfaces reading it. Tables with no matching event (remote wallets, alby,
+ * surfaces reading it. Tables with no matching event (remote wallets,
  * activity logs, caches, plugins) are refetched on demand by their pages —
  * we deliberately don't invent new SSE types (the permission map is total).
  */

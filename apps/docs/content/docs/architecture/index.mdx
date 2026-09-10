@@ -5,7 +5,7 @@ description: 'Current implementation in the repo, plus the target multi-service 
 
 ## Overview
 
-The current `lawallet-nwc` repository is centered around a single Next.js application backed by PostgreSQL. It also integrates with external services when configured, most notably Alby Hub for optional sub-account provisioning.
+The current `lawallet-nwc` repository is centered around a single Next.js application backed by PostgreSQL. Courtesy NWC wallets can be auto-provisioned via LNCurl when that setting is enabled.
 
 The roadmap describes a larger multi-service topology with a payment listener and courtesy-wallet provisioning flows. Those pieces are documented here as target architecture, not as currently shipped code in this repo.
 
@@ -16,7 +16,6 @@ The roadmap describes a larger multi-service topology with a payment listener an
 | Container      | Service                          | Ports | Storage               |
 | -------------- | -------------------------------- | ----- | --------------------- |
 | `lawallet-web` | Next.js application in this repo | 3000  | PostgreSQL via Prisma |
-| External       | Alby Hub (optional)              | —     | Managed externally    |
 
 ## Roadmap Topology
 
@@ -34,7 +33,7 @@ The roadmap describes a larger multi-service topology with a payment listener an
 - PostgreSQL is the primary application datastore
 - LUD-16 responses are served from `/api/lud16/[username]`
 - JWT sessions are issued from `POST /api/jwt` after NIP-98 validation
-- The app can optionally create Alby Hub sub-accounts during user creation
+- Courtesy wallets can be auto-provisioned via LNCurl during user creation
 - Redirect resolution, NIP-05, webhook delivery, and listener-driven real-time updates are not implemented in this repo yet
 
 ---
@@ -67,10 +66,10 @@ See: [NWC Payment Listener](./nwc-listener)
 
 ## Courtesy NWC via lncurl
 
-This is a planned integration, not a current flow in the repo.
+Courtesy NWC wallets are provisioned via [lncurl](https://github.com/rolznz/lncurl) when `lncurl_auto_create` is enabled in settings.
 
-- Documented as the roadmap direction for courtesy wallet provisioning
-- Current repo behavior uses direct NWC values on the user record and optional Alby Hub sub-account creation
+- Direct NWC values live on `RemoteWallet` rows, not on the user record
+- There is no Alby Hub sub-account integration in this repo
 
 See: [Courtesy NWC via lncurl](./nwc-proxy)
 
@@ -82,8 +81,8 @@ See: [Courtesy NWC via lncurl](./nwc-proxy)
 
 1. Client signs a NIP-98 request and exchanges it for a JWT at `POST /api/jwt`
 2. Client loads or creates the user at `GET /api/users/me`
-3. If Alby auto-generation is enabled, the server may provision an Alby sub-account
-4. Client assigns a lightning address and/or sets an NWC URI on the user
+3. If LNCurl auto-create is enabled, the server may provision a courtesy NWC wallet
+4. Client assigns a lightning address and/or connects an NWC wallet
 5. LUD-16 resolution can then succeed for that username
 
 ### LUD-16 Resolution

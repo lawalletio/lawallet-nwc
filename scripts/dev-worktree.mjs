@@ -65,7 +65,6 @@ function renderEnv(env) {
     `LISTENER_AUTH_SECRET="${env.LISTENER_AUTH_SECRET}"`,
     `LISTENER_URL="http://localhost:${env.LISTENER_PORT}"`,
     `WEB_ORIGIN="http://localhost:${env.WEB_PORT}"`,
-    'AUTO_GENERATE_ALBY_SUBACCOUNTS="false"',
     'MAINTENANCE_MODE="false"',
     'RATE_LIMIT_ENABLED="false"',
     'LOG_LEVEL="debug"',

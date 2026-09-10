@@ -55,7 +55,6 @@ export default defineConfig({
       NWC_VAULT_SECRET: E2E_NWC_VAULT_SECRET,
       NODE_ENV: 'development',
       RATE_LIMIT_ENABLED: 'false',
-      AUTO_GENERATE_ALBY_SUBACCOUNTS: 'false',
       MAINTENANCE_MODE: 'false',
       NEXT_PUBLIC_LAWALLET_LANDING_URL: '/admin',
       LOG_LEVEL: 'warn'

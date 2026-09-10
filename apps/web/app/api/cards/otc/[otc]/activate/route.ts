@@ -36,8 +36,7 @@ export const POST = withErrorHandling(
           where: { id: account.id },
           include: {
             // Primary address (at most one) — see addresses_nwc_connection migration.
-            lightningAddresses: { where: { isPrimary: true }, take: 1 },
-            albySubAccount: true
+            lightningAddresses: { where: { isPrimary: true }, take: 1 }
           }
         })
       : null
@@ -89,14 +88,7 @@ export const POST = withErrorHandling(
     return NextResponse.json({
       userId: user.id,
       lightningAddress,
-      albySubAccount: user.albySubAccount
-        ? {
-            appId: user.albySubAccount.appId,
-            nwcUri: user.albySubAccount.nwcUri,
-            username: user.albySubAccount.username
-          }
-        : null,
-      nwcString: user.albySubAccount ? user.albySubAccount.nwcUri : ''
+      nwcString: ''
     })
   }
 )
