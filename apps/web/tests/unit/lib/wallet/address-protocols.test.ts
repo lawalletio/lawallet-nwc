@@ -80,7 +80,7 @@ describe('resolveAddressProtocols', () => {
     expect(result.provider).toBe('bob@strike.me')
     expect(result.protocols.lud16).toBeNull()
     expect(result.protocols.nip57).toBeNull()
-    expect(result.reason).toMatch(/Save the redirect again/)
+    expect(result.reason).toMatch(/Verify Protocols/)
   })
 
   it('reports a probed alias from what its target answered', async () => {

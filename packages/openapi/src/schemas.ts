@@ -42,6 +42,7 @@ import {
   proxyForwardingCommandParams,
   proxyForwardingCommandSchema,
   probeAliasAddressSchema,
+  verifyAddressProtocolsSchema,
   remoteWalletForwardActivityListQuerySchema,
   remoteWalletForwardReceiptListQuerySchema,
   remoteWalletForwardReceiptParamsSchema,
@@ -174,6 +175,10 @@ export const schemas = {
   WalletAliasProbeRequest: registry.register(
     'WalletAliasProbeRequest',
     probeAliasAddressSchema
+  ),
+  VerifyAddressProtocolsRequest: registry.register(
+    'VerifyAddressProtocolsRequest',
+    verifyAddressProtocolsSchema
   ),
   ProxyForwardingCommandParams: registry.register(
     'ProxyForwardingCommandParams',

@@ -531,6 +531,20 @@
           "address"
         ]
       },
+      "VerifyAddressProtocolsRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16,
+            "pattern": "^[a-z0-9]+$"
+          }
+        },
+        "required": [
+          "username"
+        ]
+      },
       "ProxyForwardingCommandParams": {
         "type": "object",
         "properties": {
@@ -7632,6 +7646,214 @@
           },
           "403": {
             "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lightning-addresses/verify-protocols": {
+      "post": {
+        "x-required-role": "ADMIN",
+        "tags": [
+          "Lightning Addresses"
+        ],
+        "summary": "Re-verify one address’s protocols.",
+        "description": "Admin maintenance: re-resolve the protocols a lightning address currently speaks. Alias targets are probed over the network and the result is persisted, which repairs addresses created before LUD-16 verification existed. Requires ADMIN.",
+        "operationId": "lightningAddresses.verifyProtocols",
+        "security": [
+          {
+            "BearerJWT": []
+          },
+          {
+            "NIP98": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyAddressProtocolsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "username": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "redirect": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "probed": {
+                      "type": "boolean"
+                    },
+                    "persisted": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "previous": {
+                      "type": "object",
+                      "properties": {
+                        "protocols": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          }
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "proxy",
+                            "wallet",
+                            "alias",
+                            "unavailable"
+                          ]
+                        },
+                        "reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "provider": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "protocols",
+                        "source",
+                        "reason",
+                        "provider"
+                      ]
+                    },
+                    "protocols": {
+                      "type": "object",
+                      "properties": {
+                        "protocols": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          }
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "proxy",
+                            "wallet",
+                            "alias",
+                            "unavailable"
+                          ]
+                        },
+                        "reason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "provider": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "protocols",
+                        "source",
+                        "reason",
+                        "provider"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "username",
+                    "mode",
+                    "redirect",
+                    "probed",
+                    "persisted",
+                    "error",
+                    "previous",
+                    "protocols"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request payload failed Zod validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is authenticated but lacks the required role or permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
             "content": {
               "application/json": {
                 "schema": {
