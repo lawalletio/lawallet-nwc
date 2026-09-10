@@ -65,4 +65,18 @@ describe('summarizeProtocolScan', () => {
     expect(summary.changed).toBe(1)
     expect(summary.byProtocol.nip57.lost).toBe(1)
   })
+
+  it('lists addresses whose probe reported an error', () => {
+    const summary = summarizeProtocolScan([
+      {
+        username: 'ghost',
+        error: 'timeout',
+        previous: { protocols: unknown },
+        protocols: { protocols: unknown }
+      }
+    ])
+
+    expect(summary.failed).toBe(1)
+    expect(summary.failedAddresses.map(a => a.username)).toEqual(['ghost'])
+  })
 })

@@ -106,6 +106,7 @@ export function summarizeProtocolScan(
     fixed: outcomes.filter(outcome => outcome.fixed).length,
     byProtocol,
     fixedAddresses: outcomes.filter(outcome => outcome.fixed),
-    changedAddresses: outcomes.filter(outcome => outcome.changes.length > 0)
+    changedAddresses: outcomes.filter(outcome => outcome.changes.length > 0),
+    failedAddresses: outcomes.filter(outcome => outcome.error)
   }
 }

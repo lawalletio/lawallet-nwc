@@ -315,11 +315,7 @@ export function VerifyProtocolsDialog({
           </div>
 
           {summary ? (
-            <ProtocolReport
-              summary={summary}
-              domain={domain}
-              failures={results.filter(result => result.error)}
-            />
+            <ProtocolReport summary={summary} domain={domain} />
           ) : (
             <>
               <div className="relative overflow-hidden rounded-xl border border-border bg-card p-4">
@@ -433,12 +429,10 @@ export function VerifyProtocolsDialog({
 
 function ProtocolReport({
   summary,
-  domain,
-  failures
+  domain
 }: {
   summary: ReturnType<typeof summarizeProtocolScan>
   domain: string
-  failures: VerifyAddressProtocolsResult[]
 }) {
   const ledger = SCAN_ORDER.filter(key => {
     const tally = summary.byProtocol[key]
@@ -500,7 +494,8 @@ function ProtocolReport({
         </div>
       </div>
 
-      {summary.changedAddresses.length > 0 || failures.length > 0 ? (
+      {summary.changedAddresses.length > 0 ||
+      summary.failedAddresses.length > 0 ? (
         <ScrollArea className="h-48 rounded-lg border border-border">
           <ol className="flex flex-col">
             {summary.fixedAddresses.map(outcome => (
@@ -545,9 +540,9 @@ function ProtocolReport({
                   <ChangeList changes={outcome.changes} />
                 </li>
               ))}
-            {failures.map(result => (
+            {summary.failedAddresses.map(outcome => (
               <li
-                key={`failed-${result.username}`}
+                key={`failed-${outcome.username}`}
                 className="flex items-start gap-2 border-b border-border/60 px-3 py-2.5 last:border-b-0"
               >
                 <XCircle
@@ -556,11 +551,11 @@ function ProtocolReport({
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate font-mono text-xs">
-                    {result.username}@{domain}
+                    {outcome.username}@{domain}
                   </span>
-                  {result.error ? (
+                  {outcome.error ? (
                     <span className="text-[11px] text-destructive">
-                      {result.error}
+                      {outcome.error}
                     </span>
                   ) : null}
                 </div>
