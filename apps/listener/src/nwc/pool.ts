@@ -37,12 +37,7 @@ export class NwcPoolError extends Error {
 }
 
 type WalletState =
-  | 'connecting'
-  | 'negotiating'
-  | 'ready'
-  | 'disconnected'
-  | 'error'
-  | 'closed'
+  'connecting' | 'negotiating' | 'ready' | 'disconnected' | 'error' | 'closed'
 
 interface WalletConnection {
   wallet: DesiredWallet

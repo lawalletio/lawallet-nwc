@@ -85,6 +85,25 @@ describe('getOpenApiDocument', () => {
     expect(doc.components?.schemas?.ErrorEnvelope).toBeDefined()
   })
 
+  it('emits JSON Schema patterns without JS regex flags', () => {
+    const patterns: string[] = []
+    const walk = (node: unknown) => {
+      if (Array.isArray(node)) {
+        for (const item of node) walk(item)
+        return
+      }
+      if (!node || typeof node !== 'object') return
+      const obj = node as Record<string, unknown>
+      if (typeof obj.pattern === 'string') patterns.push(obj.pattern)
+      for (const value of Object.values(obj)) walk(value)
+    }
+    walk(doc)
+    expect(patterns.length).toBeGreaterThan(0)
+    for (const pattern of patterns) {
+      expect(pattern).not.toMatch(/\/[gimsuy]+$/)
+    }
+  })
+
   it('marks public routes with empty security', () => {
     const lud16 = doc.paths?.['/api/lud16/{username}']?.get
     expect(lud16?.security).toEqual([])

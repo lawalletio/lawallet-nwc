@@ -774,8 +774,7 @@
           },
           "baseFeeSats": {
             "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991
+            "minimum": 0
           },
           "enabled": {
             "type": "boolean"
@@ -1197,7 +1196,8 @@
                 "required": [
                   "clientDataJSON",
                   "attestationObject"
-                ]
+                ],
+                "additionalProperties": {}
               },
               "clientExtensionResults": {
                 "type": "object",
@@ -1213,7 +1213,8 @@
               "rawId",
               "type",
               "response"
-            ]
+            ],
+            "additionalProperties": {}
           },
           "pubkey": {
             "type": "string",
@@ -1259,7 +1260,8 @@
               "tags",
               "content",
               "sig"
-            ]
+            ],
+            "additionalProperties": {}
           },
           "label": {
             "type": "string",
@@ -1357,7 +1359,8 @@
               "tags",
               "content",
               "sig"
-            ]
+            ],
+            "additionalProperties": {}
           },
           "label": {
             "type": "string",
@@ -3969,6 +3972,7 @@
               "description": "The linked identity’s Nostr pubkey (64-char lowercase hex)."
             },
             "required": true,
+            "description": "The linked identity’s Nostr pubkey (64-char lowercase hex).",
             "name": "pubkey",
             "in": "path"
           }
@@ -4079,6 +4083,7 @@
               "description": "The linked identity’s Nostr pubkey (64-char lowercase hex)."
             },
             "required": true,
+            "description": "The linked identity’s Nostr pubkey (64-char lowercase hex).",
             "name": "pubkey",
             "in": "path"
           }
@@ -4954,6 +4959,7 @@
               "description": "Single-use programming token from /write-token."
             },
             "required": true,
+            "description": "Single-use programming token from /write-token.",
             "name": "token",
             "in": "query"
           }
@@ -5521,7 +5527,8 @@
                         "minWithdrawable",
                         "defaultDescription",
                         "tag"
-                      ]
+                      ],
+                      "additionalProperties": {}
                     },
                     {
                       "type": "object",
@@ -5811,7 +5818,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {}
+                  "properties": {},
+                  "additionalProperties": {}
                 }
               }
             }
@@ -5893,7 +5901,8 @@
                   },
                   "required": [
                     "success"
-                  ]
+                  ],
+                  "additionalProperties": {}
                 }
               }
             }
@@ -6570,7 +6579,8 @@
                         "id",
                         "kind",
                         "remoteWalletId"
-                      ]
+                      ],
+                      "additionalProperties": {}
                     }
                   },
                   "required": [
@@ -7346,6 +7356,7 @@
                         "required": [
                           "username"
                         ],
+                        "additionalProperties": {},
                         "description": "Lightning address record."
                       }
                     }
@@ -7448,6 +7459,7 @@
                   "required": [
                     "username"
                   ],
+                  "additionalProperties": {},
                   "description": "Lightning address record."
                 }
               }
@@ -7524,6 +7536,7 @@
               "description": "Username candidate to check."
             },
             "required": true,
+            "description": "Username candidate to check.",
             "name": "username",
             "in": "query"
           }
@@ -7804,7 +7817,8 @@
                     "error",
                     "previous",
                     "protocols"
-                  ]
+                  ],
+                  "additionalProperties": {}
                 }
               }
             }
@@ -7945,7 +7959,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {}
+                  "properties": {},
+                  "additionalProperties": {}
                 }
               }
             }
@@ -8044,7 +8059,8 @@
                   },
                   "required": [
                     "pr"
-                  ]
+                  ],
+                  "additionalProperties": {}
                 }
               }
             }
@@ -8230,6 +8246,7 @@
               "description": "Lightning address username."
             },
             "required": true,
+            "description": "Lightning address username.",
             "name": "username",
             "in": "path"
           },
@@ -8240,6 +8257,7 @@
               "description": "BOLT11 payment hash returned by /cb."
             },
             "required": true,
+            "description": "BOLT11 payment hash returned by /cb.",
             "name": "paymentHash",
             "in": "path"
           }
@@ -8262,7 +8280,8 @@
                   },
                   "required": [
                     "status"
-                  ]
+                  ],
+                  "additionalProperties": {}
                 }
               }
             }
@@ -8360,6 +8379,7 @@
                           "username",
                           "mode"
                         ],
+                        "additionalProperties": {},
                         "description": "Per-user wallet lightning address record."
                       }
                     }
@@ -8476,6 +8496,7 @@
                     "username",
                     "mode"
                   ],
+                  "additionalProperties": {},
                   "description": "Per-user wallet lightning address record."
                 }
               }
@@ -8874,6 +8895,7 @@
                     "required": [
                       "id"
                     ],
+                    "additionalProperties": {},
                     "description": "A card paired to the caller. Never includes NTAG424 keys (only the public `cid`/`ctr` on `ntag424`)."
                   }
                 }
@@ -9221,6 +9243,7 @@
                   "required": [
                     "id"
                   ],
+                  "additionalProperties": {},
                   "description": "A card paired to the caller. Never includes NTAG424 keys (only the public `cid`/`ctr` on `ntag424`)."
                 }
               }
@@ -9505,6 +9528,7 @@
                     "username",
                     "mode"
                   ],
+                  "additionalProperties": {},
                   "description": "Per-user wallet lightning address record."
                 }
               }
@@ -9638,6 +9662,7 @@
                     "username",
                     "mode"
                   ],
+                  "additionalProperties": {},
                   "description": "Per-user wallet lightning address record."
                 }
               }
@@ -9947,7 +9972,8 @@
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "properties": {}
+                        "properties": {},
+                        "additionalProperties": {}
                       }
                     }
                   },
@@ -10066,6 +10092,7 @@
                           "role",
                           "createdAt"
                         ],
+                        "additionalProperties": {},
                         "description": "User record."
                       }
                     }
@@ -10170,6 +10197,7 @@
                     "role",
                     "createdAt"
                   ],
+                  "additionalProperties": {},
                   "description": "User record."
                 }
               }
@@ -10279,6 +10307,7 @@
                     "role",
                     "createdAt"
                   ],
+                  "additionalProperties": {},
                   "description": "User record."
                 }
               }
@@ -10376,7 +10405,8 @@
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "properties": {}
+                        "properties": {},
+                        "additionalProperties": {}
                       }
                     }
                   },
@@ -10510,6 +10540,7 @@
                     "role",
                     "createdAt"
                   ],
+                  "additionalProperties": {},
                   "description": "User record."
                 }
               }
@@ -10869,6 +10900,7 @@
                     "settled",
                     "createdAt"
                   ],
+                  "additionalProperties": {},
                   "description": "Pay-then-act invoice for registration flows."
                 }
               }
@@ -11003,6 +11035,7 @@
                     "settled",
                     "createdAt"
                   ],
+                  "additionalProperties": {},
                   "description": "Pay-then-act invoice for registration flows."
                 }
               }
@@ -11252,7 +11285,8 @@
                         "null"
                       ]
                     }
-                  }
+                  },
+                  "additionalProperties": {}
                 }
               }
             }
@@ -11628,7 +11662,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "properties": {}
+                  "properties": {},
+                  "additionalProperties": {}
                 }
               }
             }
@@ -11709,7 +11744,8 @@
                   },
                   "required": [
                     "id"
-                  ]
+                  ],
+                  "additionalProperties": {}
                 }
               }
             }
@@ -11862,7 +11898,8 @@
                           "null"
                         ],
                         "enum": [
-                          "lncurl"
+                          "lncurl",
+                          null
                         ],
                         "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
                       },
@@ -12025,7 +12062,8 @@
                         "null"
                       ],
                       "enum": [
-                        "lncurl"
+                        "lncurl",
+                        null
                       ],
                       "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
                     },
@@ -16071,7 +16109,8 @@
                         "null"
                       ],
                       "enum": [
-                        "lncurl"
+                        "lncurl",
+                        null
                       ],
                       "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
                     },
@@ -16247,7 +16286,8 @@
                         "null"
                       ],
                       "enum": [
-                        "lncurl"
+                        "lncurl",
+                        null
                       ],
                       "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
                     },
@@ -16420,7 +16460,8 @@
                         "null"
                       ],
                       "enum": [
-                        "lncurl"
+                        "lncurl",
+                        null
                       ],
                       "description": "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."
                     },
@@ -16731,6 +16772,7 @@
               "description": "Session JWT (from POST /api/jwt) or base64-encoded NIP-98 event whose `u` tag is the /api/events URL without query string."
             },
             "required": true,
+            "description": "Session JWT (from POST /api/jwt) or base64-encoded NIP-98 event whose `u` tag is the /api/events URL without query string.",
             "name": "token",
             "in": "query"
           }
@@ -17269,7 +17311,8 @@
                             "type": "string"
                           }
                         }
-                      }
+                      },
+                      "additionalProperties": {}
                     },
                     "balanceMsats": {
                       "type": [
@@ -17463,7 +17506,8 @@
                             "type": "string"
                           }
                         }
-                      }
+                      },
+                      "additionalProperties": {}
                     },
                     "balanceMsats": {
                       "type": [

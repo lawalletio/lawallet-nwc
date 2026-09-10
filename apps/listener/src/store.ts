@@ -87,11 +87,7 @@ export async function bootstrapStore(pool: pg.Pool): Promise<void> {
 // ── Idempotent NWC payment requests ────────────────────────────────────────
 
 export type NwcRequestState =
-  | 'pending'
-  | 'succeeded'
-  | 'rejected'
-  | 'unknown'
-  | 'not_started'
+  'pending' | 'succeeded' | 'rejected' | 'unknown' | 'not_started'
 
 export interface NewNwcRequest {
   requestId: string
