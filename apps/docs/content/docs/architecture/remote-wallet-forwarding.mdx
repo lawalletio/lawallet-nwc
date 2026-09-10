@@ -61,8 +61,8 @@ completing.
 
 Configuration changes are atomic and do not require pausing, but are rejected
 while an uncertain attempt exists. Previously successful legs remain final;
-unpaid legs are superseded and the remaining balance is redistributed under a
-new revision.
+non-residual open legs are superseded and the remaining balance is
+redistributed under a new revision, while residual legs stay payable.
 
 ## Experience
 
