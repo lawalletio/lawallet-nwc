@@ -1,14 +1,21 @@
 import { prisma } from '@/lib/prisma'
 import { randomUUID } from 'node:crypto'
 import { logger } from '@/lib/logger'
-import { createLncurlWallet, DEFAULT_LNCURL_SERVER } from '@/lib/lncurl'
+import {
+  createLncurlWallet,
+  DEFAULT_LNCURL_SERVER,
+  type LncurlWallet
+} from '@/lib/lncurl'
 import type {
   LightningAddressMode,
   Prisma,
   RemoteWallet,
   RemoteWalletStatus
 } from '@/lib/generated/prisma'
-import { syncPrimaryRemoteWalletFlag } from '@/lib/wallet/primary-wallet'
+import {
+  bindPrimaryAddressToWallet,
+  syncPrimaryRemoteWalletFlag
+} from '@/lib/wallet/primary-wallet'
 import { encryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
 
 const DEFAULT_WALLET_NAME = 'LNCurl wallet'
@@ -107,6 +114,20 @@ export interface CreateLncurlRemoteWalletInput {
   revokePrevious?: boolean
   /** Override the LNCurl origin (defaults to the library default). */
   serverUrl?: string
+  /**
+   * When true, bind the account's primary Lightning Address to this wallet
+   * inside the same DB transaction as the create — matching
+   * `POST /api/remote-wallets`. A bind failure rolls back the insert so we
+   * never leave an ACTIVE unbound orphan.
+   */
+  isDefault?: boolean
+  /**
+   * Already-minted LNCurl wallet. When omitted, this helper mints one.
+   * Callers that must classify provider failures separately (the HTTP route)
+   * mint first and inject the result so a later DB/bind error is not wrapped
+   * as a provider 503.
+   */
+  mint?: LncurlWallet
 }
 
 /**
@@ -124,22 +145,29 @@ function uniqueName(requested: string, taken: Set<string>): string {
 /**
  * Provision a fresh LNCurl custodial wallet and persist it as a RemoteWallet.
  *
- * The whole DB write runs in a single transaction:
+ * The mint is a network call, so it stays outside the DB transaction (either
+ * here, or at the caller via `input.mint`). The whole DB write then runs in
+ * a single transaction:
  *   1. create the new wallet (ACTIVE, tagged `provider: 'lncurl'`),
  *   2. when re-provisioning, re-point the bindings (LightningAddress + Card)
  *      that referenced `previousWalletId` at the new wallet, and optionally
- *      archive the previous wallet as DEAD (status DEAD + `diedAt`).
- *   3. synchronize the compatibility `isDefault` flag from the account's
+ *      archive the previous wallet as DEAD (status `DEAD` + `diedAt`).
+ *   3. when `isDefault` is set, bind the account's primary Lightning Address
+ *      to the new wallet (same transaction — bind failure rolls back create).
+ *   4. synchronize the compatibility `isDefault` flag from the account's
  *      primary Lightning Address binding.
  */
 export async function createLncurlRemoteWallet(
   input: CreateLncurlRemoteWalletInput
 ): Promise<RemoteWallet> {
-  const { userId, previousWalletId, revokePrevious, serverUrl } = input
+  const { userId, previousWalletId, revokePrevious, serverUrl, isDefault } =
+    input
 
   // Mint OUTSIDE the transaction — it's a network call and we don't want to
-  // hold a DB transaction open while we wait on LNCurl.
-  const { connectionString, mode } = await createLncurlWallet(serverUrl)
+  // hold a DB transaction open while we wait on LNCurl. Callers that need to
+  // map provider failures separately can inject `mint` and skip this.
+  const { connectionString, mode } =
+    input.mint ?? (await createLncurlWallet(serverUrl || DEFAULT_LNCURL_SERVER))
   const walletId = randomUUID()
 
   return prisma.$transaction(async tx => {
@@ -201,13 +229,22 @@ export async function createLncurlRemoteWallet(
       }
     }
 
-    await syncPrimaryRemoteWalletFlag(userId, tx)
+    const boundPrimaryAddress = isDefault
+      ? await bindPrimaryAddressToWallet(userId, created.id, tx)
+      : null
+
+    if (!boundPrimaryAddress) {
+      await syncPrimaryRemoteWalletFlag(userId, tx)
+    }
 
     logger.info(
       { userId, walletId: created.id, previousWalletId, revokePrevious },
       'LNCurl wallet provisioned'
     )
 
-    return tx.remoteWallet.findUniqueOrThrow({ where: { id: created.id } })
+    const persisted = await tx.remoteWallet.findUniqueOrThrow({
+      where: { id: created.id }
+    })
+    return boundPrimaryAddress ? { ...persisted, isDefault: true } : persisted
   })
 }
