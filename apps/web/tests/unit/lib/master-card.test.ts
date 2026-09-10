@@ -39,7 +39,9 @@ describe('setMasterCard', () => {
     vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
       id: 'card-old'
     } as any)
-    vi.mocked(prismaMock.card.updateMany).mockImplementation((async args => {
+    vi.mocked(prismaMock.card.updateMany).mockImplementation((async (
+      args: any
+    ) => {
       calls.push(args?.data?.kind === 'MASTER' ? 'promote' : 'demote')
       return { count: 1 }
     }) as any)
@@ -60,7 +62,9 @@ describe('setMasterCard', () => {
 
   it('promotes without demoting when the holder had no master', async () => {
     vi.mocked(prismaMock.card.findFirst).mockResolvedValue(null as any)
-    vi.mocked(prismaMock.card.updateMany).mockImplementation((async args => {
+    vi.mocked(prismaMock.card.updateMany).mockImplementation((async (
+      args: any
+    ) => {
       return { count: args?.data?.kind === 'MASTER' ? 1 : 0 }
     }) as any)
 
@@ -87,8 +91,8 @@ describe('setMasterCard', () => {
 
   it('refuses to promote when the card no longer belongs to the holder', async () => {
     vi.mocked(prismaMock.card.findFirst).mockResolvedValue(null as any)
-    vi.mocked(prismaMock.card.updateMany).mockImplementation((async args => {
-      return { count: args?.data?.kind === 'MASTER' ? 0 : 0 }
+    vi.mocked(prismaMock.card.updateMany).mockImplementation((async () => {
+      return { count: 0 }
     }) as any)
 
     await expect(setMasterCard('user-1', 'card-new')).rejects.toMatchObject({
