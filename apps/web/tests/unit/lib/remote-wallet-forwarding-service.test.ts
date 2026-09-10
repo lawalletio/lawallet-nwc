@@ -358,4 +358,236 @@ describe('putReceiveAction', () => {
       })
     })
   })
+
+  function mockPutWithOpenReceipts(receipts: unknown[]) {
+    vi.mocked(
+      prismaMock.remoteWalletReceiveAction.findUnique
+    ).mockResolvedValue({
+      id: 'action-1',
+      enabled: true,
+      enabledAt,
+      currentRevision: {
+        id: 'revision-1',
+        revision: 1,
+        feeBps: 50,
+        baseFeeMsats: BigInt(1_000),
+        destinations: [
+          {
+            address: 'alice@example.com',
+            allocationBps: 10_000,
+            position: 0
+          }
+        ]
+      }
+    } as never)
+    vi.mocked(prismaMock.remoteWalletForwardAttempt.count).mockResolvedValue(0)
+    vi.mocked(
+      prismaMock.remoteWalletReceiveActionRevision.aggregate
+    ).mockResolvedValue({ _max: { revision: 1 } } as never)
+    vi.mocked(
+      prismaMock.remoteWalletReceiveActionRevision.create
+    ).mockResolvedValue({ id: 'revision-2' } as never)
+    vi.mocked(prismaMock.remoteWalletForwardReceipt.findMany)
+      .mockResolvedValueOnce(receipts as never)
+      .mockResolvedValue([] as never)
+    vi.mocked(prismaMock.remoteWalletForwardLeg.updateMany).mockResolvedValue({
+      count: 0
+    } as never)
+    vi.mocked(prismaMock.remoteWalletForwardLeg.createMany).mockResolvedValue({
+      count: 0
+    } as never)
+  }
+
+  it('supersedes only non-residual legs on a blocked zero-gross receipt', async () => {
+    mockPutWithOpenReceipts([
+      {
+        id: 'receipt-1',
+        grossAmountMsats: BigInt(0),
+        legs: [
+          {
+            id: 'leg-open',
+            position: 0,
+            residual: false,
+            status: 'READY',
+            requestedAmountMsats: BigInt(1_000),
+            forwardedAmountMsats: null,
+            routingReserveMsats: BigInt(0)
+          },
+          {
+            id: 'leg-residual',
+            position: 1,
+            residual: true,
+            status: 'READY',
+            requestedAmountMsats: BigInt(500),
+            forwardedAmountMsats: null,
+            routingReserveMsats: BigInt(0)
+          }
+        ]
+      }
+    ])
+
+    await putReceiveAction('wallet-1', 'user-1', input)
+
+    expect(prismaMock.remoteWalletForwardLeg.updateMany).toHaveBeenCalledWith({
+      where: {
+        receiptId: 'receipt-1',
+        residual: false,
+        status: { not: 'SUCCEEDED' }
+      },
+      data: { status: 'SUPERSEDED', supersededAt: expect.any(Date) }
+    })
+    expect(prismaMock.remoteWalletForwardReceipt.update).toHaveBeenCalledWith({
+      where: { id: 'receipt-1' },
+      data: expect.objectContaining({
+        status: 'BLOCKED',
+        lastError: 'Source payment amount is not available yet'
+      })
+    })
+    expect(prismaMock.remoteWalletForwardLeg.createMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects a revision whose new target is below completed plus residual legs', async () => {
+    mockPutWithOpenReceipts([
+      {
+        id: 'receipt-1',
+        grossAmountMsats: BigInt(100_000),
+        legs: [
+          {
+            id: 'leg-succeeded',
+            position: 0,
+            residual: false,
+            status: 'SUCCEEDED',
+            requestedAmountMsats: BigInt(90_000),
+            forwardedAmountMsats: BigInt(90_000),
+            routingReserveMsats: BigInt(0)
+          },
+          {
+            id: 'leg-residual',
+            position: 1,
+            residual: true,
+            status: 'READY',
+            requestedAmountMsats: BigInt(20_000),
+            forwardedAmountMsats: null,
+            routingReserveMsats: BigInt(0)
+          }
+        ]
+      }
+    ])
+
+    await expect(
+      putReceiveAction('wallet-1', 'user-1', input)
+    ).rejects.toMatchObject({ statusCode: 409 })
+  })
+
+  it('marks the receipt COMPLETED when remaining is zero and no residual is held', async () => {
+    mockPutWithOpenReceipts([
+      {
+        id: 'receipt-1',
+        grossAmountMsats: BigInt(100_000),
+        legs: [
+          {
+            id: 'leg-succeeded',
+            position: 0,
+            residual: false,
+            status: 'SUCCEEDED',
+            requestedAmountMsats: BigInt(98_500),
+            forwardedAmountMsats: BigInt(98_500),
+            routingReserveMsats: BigInt(0)
+          },
+          {
+            id: 'leg-superseded-residual',
+            position: 1,
+            residual: true,
+            status: 'SUPERSEDED',
+            requestedAmountMsats: BigInt(9_999),
+            forwardedAmountMsats: null,
+            routingReserveMsats: BigInt(0)
+          }
+        ]
+      }
+    ])
+
+    await putReceiveAction('wallet-1', 'user-1', input)
+
+    expect(prismaMock.remoteWalletForwardLeg.createMany).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWalletForwardReceipt.update).toHaveBeenCalledWith({
+      where: { id: 'receipt-1' },
+      data: expect.objectContaining({
+        status: 'COMPLETED',
+        completedAt: expect.any(Date),
+        targetAmountMsats: BigInt(98_500)
+      })
+    })
+  })
+
+  it('keeps the receipt PARTIAL when remaining is zero but residual is still held', async () => {
+    mockPutWithOpenReceipts([
+      {
+        id: 'receipt-1',
+        grossAmountMsats: BigInt(100_000),
+        legs: [
+          {
+            id: 'leg-succeeded',
+            position: 0,
+            residual: false,
+            status: 'SUCCEEDED',
+            requestedAmountMsats: BigInt(90_000),
+            forwardedAmountMsats: BigInt(90_000),
+            routingReserveMsats: BigInt(0)
+          },
+          {
+            id: 'leg-residual',
+            position: 1,
+            residual: true,
+            status: 'READY',
+            requestedAmountMsats: BigInt(8_500),
+            forwardedAmountMsats: null,
+            routingReserveMsats: BigInt(0)
+          }
+        ]
+      }
+    ])
+
+    await putReceiveAction('wallet-1', 'user-1', input)
+
+    expect(prismaMock.remoteWalletForwardLeg.createMany).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWalletForwardReceipt.update).toHaveBeenCalledWith({
+      where: { id: 'receipt-1' },
+      data: expect.objectContaining({
+        status: 'PARTIAL',
+        completedAt: null,
+        targetAmountMsats: BigInt(98_500)
+      })
+    })
+  })
+
+  it('keeps the receipt RECEIVED when residual is held but nothing has been paid yet', async () => {
+    mockPutWithOpenReceipts([
+      {
+        id: 'receipt-1',
+        grossAmountMsats: BigInt(100_000),
+        legs: [
+          {
+            id: 'leg-residual',
+            position: 0,
+            residual: true,
+            status: 'READY',
+            requestedAmountMsats: BigInt(5_000),
+            forwardedAmountMsats: null,
+            routingReserveMsats: BigInt(0)
+          }
+        ]
+      }
+    ])
+
+    await putReceiveAction('wallet-1', 'user-1', input)
+
+    expect(prismaMock.remoteWalletForwardReceipt.update).toHaveBeenCalledWith({
+      where: { id: 'receipt-1' },
+      data: expect.objectContaining({
+        status: 'RECEIVED',
+        completedAt: null
+      })
+    })
+  })
 })

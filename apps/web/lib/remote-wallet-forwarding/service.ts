@@ -410,12 +410,10 @@ export async function putReceiveAction(
           status:
             remaining === BigInt(0) && residualHeld === BigInt(0)
               ? 'COMPLETED'
-              : remaining === BigInt(0) && residualHeld > BigInt(0)
+              : remaining === BigInt(0)
                 ? 'PARTIAL'
-                : canCreateLegs
-                  ? paid > BigInt(0)
-                    ? 'PARTIAL'
-                    : 'RECEIVED'
+                : paid > BigInt(0)
+                  ? 'PARTIAL'
                   : 'RECEIVED',
           lastError: null,
           nextRetryAt: new Date(),
