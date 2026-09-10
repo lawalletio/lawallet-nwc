@@ -20,15 +20,55 @@ export interface NwcCapabilities {
   canSend: boolean
   /**
    * Derived `RemoteWallet.config.mode` for this connection. We map onto the
-   * platform's two-value enum:
-   *   - `SEND_RECEIVE` when the wallet exposes `pay_invoice` (sending is
-   *     the strictly more powerful capability; receive support is implied
-   *     by every wallet we'd accept here).
-   *   - `RECEIVE` otherwise.
-   * A receive-less wallet is exceptionally rare in NWC land — surface it
-   * to the caller via `canReceive=false` so the UI can flag it.
+   * platform's two-value enum so persisted config stays compatible:
+   *   - `SEND_RECEIVE` when the wallet exposes `pay_invoice`.
+   *   - `RECEIVE` otherwise (including view-only pairings that grant
+   *     neither `pay_invoice` nor `make_invoice`).
+   * Callers MUST also read `canReceive`. A receive-less wallet is rare
+   * but real (view-only / send-only scopes) — `mode` cannot distinguish
+   * it from a genuine receive-only wallet, so the UI flags it via
+   * `canReceive=false` and must not bind it as a primary address.
    */
   mode: 'RECEIVE' | 'SEND_RECEIVE'
+}
+
+/**
+ * UI-facing classification. Distinct from persisted `mode` so view-only
+ * and send-only pairings are not collapsed into “Receive only”.
+ */
+export type NwcCapabilityKind =
+  | 'SEND_RECEIVE'
+  | 'RECEIVE'
+  | 'SEND_ONLY'
+  | 'VIEW_ONLY'
+
+export function nwcCapabilityKind(
+  capabilities: Pick<NwcCapabilities, 'canSend' | 'canReceive'>
+): NwcCapabilityKind {
+  if (capabilities.canSend && capabilities.canReceive) return 'SEND_RECEIVE'
+  if (capabilities.canReceive) return 'RECEIVE'
+  if (capabilities.canSend) return 'SEND_ONLY'
+  return 'VIEW_ONLY'
+}
+
+/** Project a NIP-47 `get_info` payload down to the fields the UI needs. */
+export function deriveNwcCapabilities(info: {
+  methods?: unknown
+  alias?: unknown
+}): NwcCapabilities {
+  const methods = Array.isArray(info.methods) ? info.methods.map(String) : []
+  const canReceive = methods.includes('make_invoice')
+  const canSend = methods.includes('pay_invoice')
+  return {
+    alias:
+      typeof info.alias === 'string' && info.alias.length > 0
+        ? info.alias
+        : null,
+    methods,
+    canReceive,
+    canSend,
+    mode: canSend ? 'SEND_RECEIVE' : 'RECEIVE'
+  }
 }
 
 const DEFAULT_TIMEOUT_MS = 8_000
@@ -98,19 +138,7 @@ export async function probeNwcCapabilities(
   const client = await getNwcClient(nwcString)
   try {
     const info = await withTimeout(client.getInfo(), timeoutMs, signal)
-    const methods = Array.isArray(info.methods) ? info.methods.map(String) : []
-    const canReceive = methods.includes('make_invoice')
-    const canSend = methods.includes('pay_invoice')
-    return {
-      alias:
-        typeof info.alias === 'string' && info.alias.length > 0
-          ? info.alias
-          : null,
-      methods,
-      canReceive,
-      canSend,
-      mode: canSend ? 'SEND_RECEIVE' : 'RECEIVE'
-    }
+    return deriveNwcCapabilities(info)
   } finally {
     // Probing creates a relay subscription that the user is unlikely to
     // need again until they actually submit the form (and even then, the
