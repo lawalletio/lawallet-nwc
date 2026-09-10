@@ -78,12 +78,51 @@ describe('remote wallet NWC vault', () => {
     )
   })
 
+  it('returns a plaintext copy for driver callers on a valid envelope', () => {
+    const stored = encryptRemoteWalletConfig('wallet-1', 'NWC', {
+      connectionString: NWC_URI,
+      mode: 'SEND_RECEIVE'
+    })
+    expect(
+      decryptRemoteWalletConfigForDriver('wallet-1', 'NWC', stored)
+    ).toEqual({
+      connectionString: NWC_URI,
+      mode: 'SEND_RECEIVE'
+    })
+  })
+
   it('maps a corrupt vault envelope to DriverConfigError for driver callers', () => {
     expect(() =>
       decryptRemoteWalletConfigForDriver('wallet-1', 'NWC', {
         connectionString: 'lwrw1:not-a-valid-envelope'
       })
     ).toThrow(DriverConfigError)
+  })
+
+  it('maps a non-object stored config to DriverConfigError', () => {
+    try {
+      decryptRemoteWalletConfigForDriver('wallet-1', 'NWC', null)
+      throw new Error('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(DriverConfigError)
+      expect((err as DriverConfigError).issues).toBe(
+        'Remote wallet config must be a JSON object'
+      )
+    }
+  })
+
+  it('maps a missing NWC connectionString to DriverConfigError', () => {
+    try {
+      decryptRemoteWalletConfigForDriver('wallet-1', 'NWC', {
+        mode: 'SEND_RECEIVE'
+      })
+      throw new Error('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(DriverConfigError)
+      expect((err as DriverConfigError).issues).toBe(
+        'NWC remote wallet config has no connectionString'
+      )
+    }
   })
 
   it('does not map a missing NWC_VAULT_SECRET to DriverConfigError', () => {
@@ -97,5 +136,16 @@ describe('remote wallet NWC vault', () => {
       expect(err).not.toBeInstanceOf(DriverConfigError)
       expect((err as Error).message).toBe('NWC_VAULT_SECRET is not configured')
     }
+  })
+
+  it('rethrows unexpected decrypt failures so they stay 500s', () => {
+    vi.mocked(getConfig).mockImplementation(() => {
+      throw new TypeError('config exploded')
+    })
+    expect(() =>
+      decryptRemoteWalletConfigForDriver('wallet-1', 'NWC', {
+        connectionString: 'lwrw1:not-a-valid-envelope'
+      })
+    ).toThrow(TypeError)
   })
 })
