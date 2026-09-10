@@ -74,6 +74,11 @@ export function SendAmountStep() {
     () => buildRecipientDetails(flow.recipient, savedContact),
     [flow.recipient, savedContact]
   )
+  const recipientAddress = getLightningAddress(flow.recipient)
+  const lnurlpUrl =
+    flow.recipient?.destination.kind === 'lnurl-pay'
+      ? flow.recipient.destination.lnurlpUrl
+      : null
 
   useEffect(() => {
     if (!flow.recipient) {
@@ -89,18 +94,19 @@ export function SendAmountStep() {
   }, [])
 
   useEffect(() => {
-    if (!flow.recipient || !baseDetails) return
+    if (!baseDetails) return
     let cancelled = false
-    const address = getLightningAddress(flow.recipient)
+    const address = recipientAddress
+    const snapshot = baseDetails
 
-    setDetails(baseDetails)
+    setDetails(snapshot)
 
-    if (!address || flow.recipient.destination.kind !== 'lnurl-pay') return
+    if (!address || !lnurlpUrl) return
 
-    setDetails({ ...baseDetails, loading: true })
+    setDetails({ ...snapshot, loading: true })
 
     void Promise.all([
-      fetchLud16Profile(flow.recipient.destination.lnurlpUrl),
+      fetchLud16Profile(lnurlpUrl),
       contactsActions.hydrateNip05Profile(address)
     ]).then(([lud16Profile, nip05Contact]) => {
       if (cancelled) return
@@ -109,14 +115,14 @@ export function SendAmountStep() {
         nip05Contact?.displayName,
         nip05Contact?.name,
         lud16Profile?.name,
-        baseDetails.displayName
+        snapshot.displayName
       )
       const profileAvatarUrl =
         nip05Contact?.avatarUrl ?? lud16Profile?.image ?? null
-      const avatarUrl = profileAvatarUrl ?? baseDetails.avatarUrl
+      const avatarUrl = profileAvatarUrl ?? snapshot.avatarUrl
 
       setDetails({
-        ...baseDetails,
+        ...snapshot,
         displayName,
         avatarUrl,
         loading: false
@@ -141,7 +147,11 @@ export function SendAmountStep() {
     return () => {
       cancelled = true
     }
-  }, [baseDetails, flow.recipient])
+    // Depend on the recipient's stable identity, not `baseDetails`.
+    // upsertRecent always allocates a new Contact, which would otherwise
+    // rebuild baseDetails and re-fetch forever (#178).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipientAddress, lnurlpUrl])
 
   const displayCurrency =
     activeCurrencies.find(currency => currency.code === currencyCode) ??
