@@ -26,7 +26,8 @@ export async function register() {
       tracesSampler: ({ name }) =>
         name.includes('/api/health') || name.includes('/api/status') ? 0 : 0.2,
       sendDefaultPii: false,
-      beforeSend: event => scrubEvent(event)
+      beforeSend: event => scrubEvent(event),
+      beforeSendTransaction: event => scrubEvent(event)
     })
   }
 
