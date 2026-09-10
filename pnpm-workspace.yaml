@@ -143,6 +143,11 @@ overrides:
   # growth and a prototype-write crash in browserslist <=4.28.6. Reached via
   # apps/docs > next > styled-jsx > @babel/core.
   browserslist@<4.28.7: 4.28.7
+  # GHSA-3f6p-5ww8-9rcr (high): MySQL2 auth-plugin downgrade can leak plaintext
+  # credentials. Reached via apps/web > @prisma/client > prisma > mysql2.
+  # This repo uses Postgres only; Prisma CLI still vendors mysql2. Range-scoped
+  # so it retires once Prisma ships a patched pin.
+  mysql2@<3.22.0: 3.22.0
   # GHSA-w3rx-r6r6-pgpr / GHSA-5p2g-fcmc-qvqq (high, image-size ICNS/JXL/HEIF
   # DoS) have NO published fix ("Patched versions: <0.0.0", latest is 2.0.2).
   # Resolved by bumping fumadocs-core to 16.8.0 in apps/docs, which drops the

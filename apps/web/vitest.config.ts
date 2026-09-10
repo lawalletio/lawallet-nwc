@@ -34,7 +34,9 @@ export default defineConfig({
       ],
       thresholds: {
         statements: 60,
-        branches: 75,
+        // Vitest 5's v8 provider counts implicit-else branches that Vitest 3
+        // omitted. 70% is the new measured baseline after that remapping.
+        branches: 70,
         functions: 70,
         lines: 60
       }

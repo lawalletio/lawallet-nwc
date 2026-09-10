@@ -71,7 +71,7 @@ Configuration lives in [apps/web/vitest.config.ts](../apps/web/vitest.config.ts)
 | Integration | Vitest + Prisma mock                                                  | DB-touching flows, auth chains                | 70%                                                       |
 | E2E         | Playwright (`apps/web/e2e/` — see [TESTING-E2E.md](./TESTING-E2E.md)) | Real server + DB + auth, multi-browser opt-in | Critical paths                                            |
 | Bench       | Vitest bench (`apps/web/bench/` — see [BENCHMARK.md](./BENCHMARK.md)) | CPU-bound hot paths                           | Observational                                             |
-| Overall     | v8 coverage                                                           | Whole codebase                                | 60% statements / 75% branches / 70% functions / 60% lines |
+| Overall     | v8 coverage                                                           | Whole codebase                                | 60% statements / 70% branches / 70% functions / 60% lines |
 
 The pyramid widens at the bottom — **most coverage should come from fast unit and API tests**. Reserve heavier integration tests for flows that genuinely cross module boundaries (auth chain, payment routing, NWC).
 

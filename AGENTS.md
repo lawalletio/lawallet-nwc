@@ -140,7 +140,7 @@ Vitest 5 + MSW + happy-dom. Config at `apps/web/vitest.config.ts`.
 
 ### Coverage Thresholds
 
-statements: 60%, branches: 75%, functions: 70%, lines: 60%
+statements: 60%, branches: 70%, functions: 70%, lines: 60%
 
 ## Code Style
 
