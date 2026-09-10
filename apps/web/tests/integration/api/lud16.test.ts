@@ -676,6 +676,34 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
   })
 
+  it('returns 400 for a proxy callback with amount 0', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'proxy',
+      mode: 'PROXY_ALIAS',
+      redirect: 'bob@destination.example',
+      remoteWallet: null,
+      user: {
+        id: DEV_ADMIN_USER_ID,
+        pubkey: DEV_ADMIN_USER_ID,
+        nostrIdentities: [{ pubkey: DEV_ADMIN_USER_ID }]
+      }
+    } as any)
+
+    const req = createNextRequest('/api/lud16/proxy/cb', {
+      searchParams: { amount: '0' }
+    })
+    const res = await Lud16CbGet(
+      req,
+      createParamsPromise({ username: 'proxy' })
+    )
+    const body: any = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+    expect(body.error.message).toBe('Invalid payment amount')
+    expect(createProxyPayRequestMock).not.toHaveBeenCalled()
+  })
+
   it('persists invoice to DB with LUD16_PAYMENT purpose', async () => {
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
       username: 'alice',

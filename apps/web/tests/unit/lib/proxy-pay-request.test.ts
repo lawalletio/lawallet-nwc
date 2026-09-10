@@ -47,6 +47,16 @@ vi.mock('@/lib/invoice-utils', () => ({
 
 import { createProxyPayRequest } from '@/lib/proxy/pay-request'
 
+function proxyPayInput(amountMsats: number) {
+  return {
+    username: 'alice',
+    userId: 'user-1',
+    destination: 'bob@destination.example',
+    blockedHosts: ['lawallet.example'],
+    amountMsats
+  }
+}
+
 describe('createProxyPayRequest', () => {
   beforeEach(() => {
     resetPrismaMock()
@@ -107,5 +117,25 @@ describe('createProxyPayRequest', () => {
         comment: 'hello'
       })
     })
+  })
+
+  it('returns ValidationError for amount 0 instead of a TypeError', async () => {
+    await expect(createProxyPayRequest(proxyPayInput(0))).rejects.toMatchObject({
+      name: 'ValidationError',
+      statusCode: 400,
+      message: 'Invalid payment amount'
+    })
+    expect(fetchDestinationMetadata).not.toHaveBeenCalled()
+    expect(makeInvoice).not.toHaveBeenCalled()
+  })
+
+  it('returns ValidationError when the proxy fee leaves no destination amount', async () => {
+    await expect(createProxyPayRequest(proxyPayInput(1))).rejects.toMatchObject({
+      name: 'ValidationError',
+      statusCode: 400,
+      message: 'Amount is too small after proxy fee'
+    })
+    expect(fetchDestinationMetadata).not.toHaveBeenCalled()
+    expect(makeInvoice).not.toHaveBeenCalled()
   })
 })
