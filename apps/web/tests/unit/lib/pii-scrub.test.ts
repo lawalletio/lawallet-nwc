@@ -225,6 +225,31 @@ describe('scrubEvent', () => {
     expect(JSON.stringify(out)).not.toContain(HEX_A)
     expect(JSON.stringify(out)).not.toContain('alice@example.com')
   })
+
+  it('leaves missing or non-string transaction trace attributes alone', () => {
+    expect(scrubEvent({}).contexts).toBeUndefined()
+    expect(
+      scrubEvent({
+        contexts: { trace: { data: { 'http.status_code': 500 } } }
+      }).contexts!.trace!.data
+    ).toEqual({ 'http.status_code': 500 })
+  })
+
+  it('scrubs query strings, span descriptions, and unparseable request URLs', () => {
+    const nsec = `nsec1${'q'.repeat(58)}`
+    const out = scrubEvent({
+      request: {
+        url: 'not a url nsec1' + 'q'.repeat(58),
+        query_string: `secret=${nsec}`
+      },
+      spans: [{ description: `pay ${NWC_URI}` }, { description: 'idle' }]
+    })
+
+    expect(out.request!.url).toBe('not a url [redacted]')
+    expect(out.request!.query_string).toBe('secret=[redacted]')
+    expect(out.spans![0]!.description).toBe('pay [redacted]')
+    expect(out.spans![1]!.description).toBe('idle')
+  })
 })
 
 describe('Sentry instrumentation wiring', () => {

@@ -86,6 +86,10 @@ export const BEARER_TOKEN_PATH_PATTERNS: {
  * by their `[param]` placeholder. Non-matching paths come back unchanged.
  * `undefined` stays `undefined`.
  */
+export function redactPathBearerTokens(pathname: string): string
+export function redactPathBearerTokens(
+  pathname: string | undefined
+): string | undefined
 export function redactPathBearerTokens(
   pathname: string | undefined
 ): string | undefined {
@@ -142,8 +146,7 @@ export function scrubEvent<T extends SentryEventLike>(event: T): T {
     // route-prefix discriminator works correctly, then re-embed it.
     try {
       const parsed = new URL(event.request.url)
-      parsed.pathname =
-        redactPathBearerTokens(parsed.pathname) ?? parsed.pathname
+      parsed.pathname = redactPathBearerTokens(parsed.pathname)
       event.request.url = scrubPii(parsed.toString())
     } catch {
       event.request.url = scrubPii(event.request.url)
