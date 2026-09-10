@@ -40,6 +40,7 @@ import {
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { ApiClientError } from '@/lib/client/api-client'
 import {
+  nwcCapabilityKind,
   probeNwcCapabilities,
   type NwcCapabilities
 } from '@/lib/client/nwc/probe-capabilities'
@@ -208,10 +209,18 @@ export function CreateRemoteWalletDialog({
    * didn't complete — that's the strictly more limited capability, so
    * the worst-case outcome of a bad detect is a wallet flagged as
    * receive-only that the user can upgrade later via the per-row edit
-   * (when that lands).
+   * (when that lands). Persisted `mode` is still the two-value enum;
+   * a view-only pairing (`canReceive=false`) is not treated as receive-
+   * capable — we refuse primary-address binding instead of inventing a
+   * third stored mode that existing consumers don't understand.
    */
   const submitMode: 'RECEIVE' | 'SEND_RECEIVE' =
     probe.status === 'success' ? probe.capabilities.mode : 'RECEIVE'
+
+  const cannotReceive =
+    probe.status === 'success' && !probe.capabilities.canReceive
+  const primaryAllowed = !cannotReceive
+  const submitIsDefault = isDefault && primaryAllowed
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -222,7 +231,7 @@ export function CreateRemoteWalletDialog({
       if (method === 'lncurl') {
         created = await createLncurlWallet({
           name: trimmedName || undefined,
-          isDefault
+          isDefault: submitIsDefault
         })
         toast.success('LNCurl wallet created')
       } else {
@@ -230,7 +239,7 @@ export function CreateRemoteWalletDialog({
           name: trimmedName,
           type,
           config: { connectionString: trimmedUri, mode: submitMode },
-          isDefault
+          isDefault: submitIsDefault
         })
         toast.success('Wallet added')
       }
@@ -429,19 +438,27 @@ export function CreateRemoteWalletDialog({
 
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div className="flex flex-col gap-0.5">
-                  <Label htmlFor="wallet-default" className="cursor-pointer">
+                  <Label
+                    htmlFor="wallet-default"
+                    className={
+                      primaryAllowed
+                        ? 'cursor-pointer'
+                        : 'cursor-not-allowed opacity-70'
+                    }
+                  >
                     Use for primary address
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    If you have a primary address, it will be linked to this
-                    wallet.
+                    {cannotReceive
+                      ? 'This wallet cannot receive payments, so it cannot be used for your primary Lightning Address.'
+                      : 'If you have a primary address, it will be linked to this wallet.'}
                   </p>
                 </div>
                 <Switch
                   id="wallet-default"
-                  checked={isDefault}
+                  checked={isDefault && primaryAllowed}
                   onCheckedChange={setIsDefault}
-                  disabled={creating}
+                  disabled={creating || !primaryAllowed}
                 />
               </div>
             </>
@@ -536,9 +553,34 @@ function CapabilitiesPanel({
     )
   }
 
-  // success — show the detected mode + wallet alias if reported
+  // success — show the detected mode + wallet alias if reported.
+  // View-only / send-only pairings grant no `make_invoice`; never present
+  // those as a green “Receive only ✓” success.
   const { capabilities } = probe
-  const isSendReceive = capabilities.mode === 'SEND_RECEIVE'
+  const kind = nwcCapabilityKind(capabilities)
+  const alias = capabilities.alias ? (
+    <span className="text-muted-foreground">· {capabilities.alias}</span>
+  ) : null
+
+  if (kind === 'VIEW_ONLY' || kind === 'SEND_ONLY') {
+    return (
+      <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/5 px-3 py-2 text-sm text-yellow-700 dark:text-yellow-400">
+        <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="font-medium">
+            {kind === 'SEND_ONLY' ? 'Send only' : 'View-only'}
+            {alias}
+          </span>
+          <span className="text-xs text-yellow-700/90 dark:text-yellow-400/90">
+            This wallet cannot receive payments. It cannot be used for your
+            primary Lightning Address.
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  const isSendReceive = kind === 'SEND_RECEIVE'
   const Icon = isSendReceive ? ArrowLeftRight : ArrowDownToLine
   return (
     <div className="flex h-10 items-center justify-between rounded-md border border-green-500/40 bg-green-500/5 px-3 text-sm">
@@ -547,9 +589,7 @@ function CapabilitiesPanel({
         <span className="font-medium">
           {isSendReceive ? 'Send and receive' : 'Receive only'}
         </span>
-        {capabilities.alias && (
-          <span className="text-muted-foreground">· {capabilities.alias}</span>
-        )}
+        {alias}
       </div>
       <Check className="size-4 text-green-600 dark:text-green-400" />
     </div>
