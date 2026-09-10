@@ -17,6 +17,8 @@ import {
 import { getServerNwcClient } from './nwc-client-cache'
 import type {
   BalanceResult,
+  LookupInvoiceInput,
+  LookupInvoiceResult,
   MakeInvoiceInput,
   MakeInvoiceResult,
   PayInvoiceInput,
@@ -335,6 +337,67 @@ export const nwcDriver: RemoteWalletDriver<NwcDriverConfig> = {
         throw new DriverRemoteError('NWC make_invoice failed', { cause: err })
       }
     })
+  },
+
+  async lookupInvoice(
+    config,
+    input: LookupInvoiceInput
+  ): Promise<LookupInvoiceResult> {
+    const paymentHash = input.paymentHash.trim().toLowerCase()
+    if (!/^[0-9a-f]{64}$/.test(paymentHash)) {
+      throw new DriverRemoteError(
+        'lookupInvoice requires a 32-byte hex payment hash'
+      )
+    }
+    return withSpan('nwc.lookup_invoice', async () => {
+      const bridge = await resolveListenerBridge()
+      if (bridge.enabled) {
+        try {
+          const res = await listenerNwcRequest<Nip47InvoiceLookup>(bridge, {
+            connectionString: config.connectionString,
+            method: 'lookup_invoice',
+            params: { payment_hash: paymentHash }
+          })
+          return toLookupResult(res)
+        } catch (err) {
+          if (!(err instanceof ListenerUnavailableError)) throw err
+          logger.warn(
+            { err },
+            'nwc.listener_bridge_unavailable — falling back to direct NWC'
+          )
+        }
+      }
+      try {
+        const client = await getServerNwcClient(config.connectionString)
+        const res = await client.lookupInvoice({ payment_hash: paymentHash })
+        return toLookupResult(res)
+      } catch (err) {
+        if (err instanceof DriverRemoteError) throw err
+        throw new DriverRemoteError('NWC lookup_invoice failed', { cause: err })
+      }
+    })
+  }
+}
+
+/** The subset of `Nip47Transaction` settlement needs. */
+interface Nip47InvoiceLookup {
+  state?: string
+  preimage?: string | null
+  settled_at?: number | null
+}
+
+/**
+ * `settled` requires the preimage, not just the state: it is the proof callers
+ * hand back over LUD-21 and copy into a NIP-57 receipt, and a wallet that
+ * reports `settled` without one leaves nothing to verify against.
+ */
+function toLookupResult(tx: Nip47InvoiceLookup): LookupInvoiceResult {
+  const settled = tx.state === 'settled' && Boolean(tx.preimage)
+  return {
+    settled,
+    preimage: settled ? (tx.preimage as string) : null,
+    // NWC reports settlement in unix seconds; normalise to ms (or null).
+    settledAt: typeof tx.settled_at === 'number' ? tx.settled_at * 1000 : null
   }
 }
 

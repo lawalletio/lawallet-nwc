@@ -178,6 +178,9 @@ LISTENER_AUTH_SECRET=$listener_auth_secret
 LISTENER_REQUEST_AUTH_SECRET=$listener_request_auth_secret
 NWC_VAULT_SECRET=$nwc_vault_secret
 PROXY_RECONCILE_INTERVAL_MS=600000
+# Polls pending zap invoices to settlement, so NIP-57 receipts also work on
+# wallets that implement no NIP-47 notifications. 0 disables.
+ZAP_SETTLE_INTERVAL_MS=20000
 
 # The listener never receives the NIP-57 receipt signer nsec.
 EOF

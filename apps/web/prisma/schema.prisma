@@ -872,6 +872,14 @@ model Invoice {
   zapReceiptLeaseOwner     String?
   zapReceiptLeaseExpiresAt DateTime?
   zapReceiptNextRetryAt    DateTime?
+  /// When this invoice may next be polled with `lookup_invoice`. Zap invoices
+  /// are settled by the listener's `payment_received` notification, which a
+  /// wallet is free not to implement — the sweep polls those to settlement
+  /// instead. Doubles as the claim marker: an `updateMany` guarded on
+  /// `<= now` is an atomic claim under Postgres row locking.
+  settlementNextPollAt     DateTime?
+  /// Poll count, used only to widen the sweep's backoff as an invoice ages.
+  settlementPollAttempts   Int            @default(0)
   expiresAt                DateTime
   paidAt                   DateTime?
   createdAt                DateTime       @default(now())
@@ -881,6 +889,7 @@ model Invoice {
   @@index([remoteWalletId])
   @@index([status])
   @@index([status, zapReceiptNextRetryAt])
+  @@index([status, settlementNextPollAt])
   @@index([purpose, status])
 }
 

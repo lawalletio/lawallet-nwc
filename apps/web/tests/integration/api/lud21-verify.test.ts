@@ -4,6 +4,22 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 import { encryptRemoteWalletEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
 
+const afterMock = vi.hoisted(() =>
+  vi.fn((callback: () => unknown) => {
+    void callback()
+  })
+)
+const publishZapReceiptMock = vi.hoisted(() => vi.fn())
+
+vi.mock('next/server', async importActual => ({
+  ...(await importActual<typeof import('next/server')>()),
+  after: afterMock
+}))
+
+vi.mock('@/lib/nostr/zap-receipts', () => ({
+  publishInvoiceZapReceipt: publishZapReceiptMock
+}))
+
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
@@ -42,6 +58,7 @@ import {
   OPTIONS
 } from '@/app/api/lud16/[username]/verify/[paymentHash]/route'
 import { NWCClient } from '@getalby/sdk'
+import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 
 const VALID_HASH = 'a'.repeat(64)
 const FUTURE = new Date(Date.now() + 60 * 60 * 1000)
@@ -49,7 +66,11 @@ const PAST = new Date(Date.now() - 60 * 60 * 1000)
 
 const WALLET_ID = 'wallet-1'
 const VAULT_SECRET = 'test-vault-secret-with-at-least-32-chars!'
-const PLAINTEXT_CONN = 'nostr+walletconnect://abc'
+// Settlement now runs through the driver registry, which validates the stored
+// config against the NWC driver's Zod schema before any relay work — so the
+// fixture has to be a real pairing URI, exactly like the one the mint path
+// (`driverForWallet` in the /cb route) already required to create this invoice.
+const PLAINTEXT_CONN = `nostr+walletconnect://${'a'.repeat(64)}?relay=${encodeURIComponent('wss://relay.test.com')}&secret=${'b'.repeat(64)}`
 // A `lwrw1:` ciphertext envelope exactly as production persists it when
 // NWC_VAULT_SECRET is set (see lib/wallet/migrate-remote-wallet-vault.ts,
 // which asserts no NWC row survives without one). The verify route must
@@ -116,6 +137,10 @@ const primaryWalletAddress = {
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  // The driver caches one NWCClient per connection string; clear it so each
+  // test's constructor assertions see a fresh call rather than a cache hit
+  // from a prior test.
+  closeAllServerNwcClients()
   vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
     primaryWalletAddress as any
   )
@@ -171,6 +196,24 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(res.status).toBe(404)
   })
 
+  it('returns 404 when the hash belongs to a user without that address', async () => {
+    // The include filters on `username`, so this is the shape a real
+    // cross-account probe produces: the invoice exists, the address does not.
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      user: { id: 'user-1', lightningAddresses: [] }
+    } as any)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const res = await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+
+    expect(res.status).toBe(404)
+    expect(lookupInvoiceMock).not.toHaveBeenCalled()
+  })
+
   it('returns cached preimage when invoice already PAID', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
@@ -193,6 +236,44 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     })
     // Should not query NWC when already cached
     expect(lookupInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('retries the zap receipt when an already-paid zap invoice is verified', async () => {
+    // The payer polling verify is the one signal that arrives even when relays
+    // rejected the receipt earlier, so it doubles as a publish retry. The
+    // publish itself is idempotent — it no-ops once an event id is stored.
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      status: 'PAID',
+      preimage: 'b'.repeat(64),
+      zapRequest: { kind: 9734 }
+    } as any)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const res = await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+    await assertResponse(res, 200)
+
+    expect(publishZapReceiptMock).toHaveBeenCalledWith(baseInvoice.id)
+  })
+
+  it('does not attempt a receipt for an already-paid ordinary invoice', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      status: 'PAID',
+      preimage: 'b'.repeat(64),
+      zapRequest: null
+    } as any)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+
+    expect(publishZapReceiptMock).not.toHaveBeenCalled()
   })
 
   it('returns settled when the listener confirmed payment without a preimage', async () => {
@@ -261,9 +342,11 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(body.settled).toBe(true)
     expect(body.preimage).toBe('c'.repeat(64))
     expect(lookupInvoiceMock).toHaveBeenCalledWith({ payment_hash: VALID_HASH })
-    expect(prismaMock.invoice.update).toHaveBeenCalledWith(
+    // Guarded on PENDING: the listener webhook races this poll for the same
+    // invoice, and whoever loses must not overwrite the winner's `paidAt`.
+    expect(prismaMock.invoice.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { paymentHash: VALID_HASH },
+        where: { paymentHash: VALID_HASH, status: 'PENDING' },
         data: expect.objectContaining({
           status: 'PAID',
           preimage: 'c'.repeat(64)
@@ -278,7 +361,10 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(eventBus.emit).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'invoices:updated' })
     )
-    expect(nwcCloseMock).toHaveBeenCalled()
+    // The driver shares one memoised NWCClient per connection string, so a
+    // single lookup must never close it — that would drop the relay
+    // subscription out from under every other caller of the same wallet.
+    expect(nwcCloseMock).not.toHaveBeenCalled()
   })
 
   it('does not emit invoices:updated on repeat verify of an already-paid invoice', async () => {

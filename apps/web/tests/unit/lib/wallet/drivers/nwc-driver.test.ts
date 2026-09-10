@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const getBalanceMock = vi.fn()
 const payInvoiceMock = vi.fn()
 const makeInvoiceMock = vi.fn()
+const lookupInvoiceMock = vi.fn()
 const closeMock = vi.fn()
 const nwcCtor = vi.fn()
 
@@ -20,6 +21,7 @@ vi.mock('@getalby/sdk', () => {
     getBalance = getBalanceMock
     payInvoice = payInvoiceMock
     makeInvoice = makeInvoiceMock
+    lookupInvoice = lookupInvoiceMock
     close = closeMock
   }
   return { NWCClient: FakeNWCClient }
@@ -74,6 +76,7 @@ describe('nwcDriver', () => {
     getBalanceMock.mockReset()
     payInvoiceMock.mockReset()
     makeInvoiceMock.mockReset()
+    lookupInvoiceMock.mockReset()
     closeMock.mockReset()
     nwcCtor.mockReset()
     bridge.enabled = false
@@ -362,6 +365,127 @@ describe('nwcDriver', () => {
       await expect(
         nwcDriver.makeInvoice(CONFIG, { amountSats: 50 })
       ).rejects.toBeInstanceOf(DriverRemoteError)
+    })
+  })
+
+  describe('lookupInvoice', () => {
+    const HASH = 'd'.repeat(64)
+    const SETTLED = {
+      state: 'settled',
+      preimage: 'e'.repeat(64),
+      settled_at: 1_700_000_000 // unix seconds
+    }
+
+    it('reports settlement, normalising settled_at s → ms', async () => {
+      lookupInvoiceMock.mockResolvedValueOnce(SETTLED)
+      await expect(
+        nwcDriver.lookupInvoice!(CONFIG, { paymentHash: HASH })
+      ).resolves.toEqual({
+        settled: true,
+        preimage: 'e'.repeat(64),
+        settledAt: 1_700_000_000_000
+      })
+      expect(lookupInvoiceMock).toHaveBeenCalledWith({ payment_hash: HASH })
+    })
+
+    it('reports pending without a preimage', async () => {
+      lookupInvoiceMock.mockResolvedValueOnce({ state: 'pending' })
+      await expect(
+        nwcDriver.lookupInvoice!(CONFIG, { paymentHash: HASH })
+      ).resolves.toEqual({ settled: false, preimage: null, settledAt: null })
+    })
+
+    it('refuses to call a settled invoice settled without a preimage', async () => {
+      // The preimage is the proof callers hand back over LUD-21 and copy into
+      // a NIP-57 receipt — "settled" with nothing to verify is not settled.
+      lookupInvoiceMock.mockResolvedValueOnce({
+        state: 'settled',
+        preimage: null,
+        settled_at: 1_700_000_000
+      })
+      const res = await nwcDriver.lookupInvoice!(CONFIG, { paymentHash: HASH })
+      expect(res.settled).toBe(false)
+      expect(res.preimage).toBeNull()
+    })
+
+    it('rejects a malformed payment hash without hitting the SDK', async () => {
+      await expect(
+        nwcDriver.lookupInvoice!(CONFIG, { paymentHash: 'nope' })
+      ).rejects.toBeInstanceOf(DriverRemoteError)
+      expect(lookupInvoiceMock).not.toHaveBeenCalled()
+    })
+
+    it('lowercases the payment hash before querying', async () => {
+      lookupInvoiceMock.mockResolvedValueOnce(SETTLED)
+      await nwcDriver.lookupInvoice!(CONFIG, {
+        paymentHash: HASH.toUpperCase()
+      })
+      expect(lookupInvoiceMock).toHaveBeenCalledWith({ payment_hash: HASH })
+    })
+
+    it('wraps SDK errors in DriverRemoteError', async () => {
+      lookupInvoiceMock.mockRejectedValueOnce(new Error('relay timeout'))
+      await expect(
+        nwcDriver.lookupInvoice!(CONFIG, { paymentHash: HASH })
+      ).rejects.toBeInstanceOf(DriverRemoteError)
+    })
+
+    it('prefers the listener bridge when enabled', async () => {
+      bridge.enabled = true
+      bridge.request.mockResolvedValueOnce(SETTLED)
+
+      const res = await nwcDriver.lookupInvoice!(CONFIG, { paymentHash: HASH })
+
+      expect(res.settled).toBe(true)
+      expect(bridge.request).toHaveBeenCalledWith({
+        connectionString: VALID_URI,
+        method: 'lookup_invoice',
+        params: { payment_hash: HASH }
+      })
+      // The bridge answered, so no direct relay connection was opened.
+      expect(nwcCtor).not.toHaveBeenCalled()
+      expect(lookupInvoiceMock).not.toHaveBeenCalled()
+    })
+
+    it('falls back to a direct connection when the bridge is unavailable', async () => {
+      bridge.enabled = true
+      const { ListenerUnavailableError } =
+        await import('@/lib/wallet/drivers/listener-transport')
+      bridge.request.mockRejectedValueOnce(
+        new ListenerUnavailableError('listener down')
+      )
+      lookupInvoiceMock.mockResolvedValueOnce(SETTLED)
+
+      const res = await nwcDriver.lookupInvoice!(CONFIG, { paymentHash: HASH })
+
+      expect(res.settled).toBe(true)
+      expect(lookupInvoiceMock).toHaveBeenCalledWith({ payment_hash: HASH })
+    })
+
+    it('does not fall back when the wallet itself rejected the lookup', async () => {
+      // A wallet rejection is final — retrying it directly would just ask the
+      // same wallet the same question over a slower path.
+      bridge.enabled = true
+      bridge.request.mockRejectedValueOnce(
+        new DriverRemoteError('lookup_invoice not supported')
+      )
+
+      await expect(
+        nwcDriver.lookupInvoice!(CONFIG, { paymentHash: HASH })
+      ).rejects.toBeInstanceOf(DriverRemoteError)
+      expect(lookupInvoiceMock).not.toHaveBeenCalled()
+    })
+
+    it('surfaces a direct wallet rejection without re-wrapping it', async () => {
+      // Settlement reads the message to tell a relay timeout from a wallet
+      // refusal; a second wrapper would bury the reason one level deeper.
+      lookupInvoiceMock.mockRejectedValueOnce(
+        new DriverRemoteError('lookup_invoice not supported')
+      )
+
+      await expect(
+        nwcDriver.lookupInvoice!(CONFIG, { paymentHash: HASH })
+      ).rejects.toThrow('lookup_invoice not supported')
     })
   })
 

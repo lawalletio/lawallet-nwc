@@ -51,6 +51,16 @@ startup/10-minute scheduler HMAC-signs
 `payment_received`/`payment_sent` notifications continue through the existing
 webhook.
 
+A second scheduler HMAC-signs `POST /api/internal/zaps/settle` every
+`ZAP_SETTLE_INTERVAL_MS` (default 20s, `0` disables). NIP-47 makes
+`notifications` **optional**, so a wallet is free never to emit
+`payment_received` — for those wallets a zap invoice would stay pending and its
+NIP-57 kind:9735 receipt would never be published. The tick lets web poll those
+invoices with `lookup_invoice` instead of waiting to be told. The listener
+carries no settlement opinion and names no invoice: web selects the candidates,
+bounds the relay traffic with its own per-invoice backoff, and decides what
+counts as settled.
+
 A Prisma migration in `apps/web` installs a trigger on `"RemoteWallet"`:
 every INSERT/UPDATE/DELETE fires `pg_notify('remote_wallet_changed',
 '{"id": "...", "op": "..."}')` on COMMIT. The listener reconciles the
@@ -387,6 +397,8 @@ a successful late delivery logs `webhook.recovered`.
 | `WEB_ORIGIN`                    | apps/web base URL for webhooks                                                                 | (required)                           |
 | `LOG_LEVEL` / `LOG_PRETTY`      | Same conventions as web                                                                        | `info` / `false`                     |
 | `RECONCILE_INTERVAL_MS`         | Full-reconcile safety net                                                                      | `300000`                             |
+| `PROXY_RECONCILE_INTERVAL_MS`   | Deferred LUD-16 proxy recovery sweep                                                           | `600000`                             |
+| `ZAP_SETTLE_INTERVAL_MS`        | Zap settlement poll tick — covers wallets with no NIP-47 notifications (0 disables)            | `20000`                              |
 | `NWC_REQUEST_TIMEOUT_MS`        | Default /nwc/request timeout                                                                   | `30000`                              |
 | `WEBHOOK_MAX_ATTEMPTS`          | Inline delivery attempts                                                                       | `5`                                  |
 | `EVENT_RETENTION_DAYS`          | Dedup/feed retention                                                                           | `30`                                 |
