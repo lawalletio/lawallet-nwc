@@ -49,6 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Codecov needs the previous commit to compute coverage diffs.
+          fetch-depth: 2
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
@@ -56,10 +59,20 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run test:coverage
+      # Step 4: Add Codecov to your GitHub Actions workflow yaml file
+      # https://docs.codecov.com/docs/quick-start
+      # Requires the CODECOV_TOKEN repository secret (Settings → Secrets → Actions).
       - name: Upload coverage reports to Codecov
+        if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: apps/web/coverage/lcov.info
+          disable_search: true
+          flags: web
+          name: lawallet-nwc
+          slug: lawalletio/lawallet-nwc
+          fail_ci_if_error: true
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v7

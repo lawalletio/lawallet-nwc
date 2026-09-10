@@ -422,7 +422,7 @@ The numbers above are a floor, not a target. New API routes and lib utilities sh
 
 ## CI Integration
 
-GitHub Actions runs `lint → typecheck → test` on every PR. Branch protection requires green status checks before merge to `main`. Coverage reports are uploaded to Codecov (planned).
+GitHub Actions runs `lint → typecheck → test` on every PR. Branch protection requires green status checks before merge to `main`. Vitest writes `apps/web/coverage/lcov.info`; the Test job uploads it to [Codecov](https://codecov.io/gh/lawalletio/lawallet-nwc) via `codecov/codecov-action`. That upload needs the `CODECOV_TOKEN` repository secret (Codecov repo settings → GitHub Actions secrets).
 
 Locally, the pre-flight check before opening a PR:
 
