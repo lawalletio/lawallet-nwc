@@ -89,19 +89,68 @@ const UMBREL_PERSISTED_SECRET_CONTRACT = {
   ]
 }
 
-async function readRemote(relativePath) {
+async function readRemoteUrl(url) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 10_000)
   try {
-    const response = await fetch(`${UMBREL_RAW_BASE}/${relativePath}`, {
-      signal: controller.signal
-    })
+    const response = await fetch(url, { signal: controller.signal })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     return await response.text()
   } finally {
     clearTimeout(timer)
   }
 }
+
+async function readRemote(relativePath) {
+  return readRemoteUrl(`${UMBREL_RAW_BASE}/${relativePath}`)
+}
+
+function minOccurrenceFailure(contents, value, minimum, label) {
+  const count = contents.split(value).length - 1
+  if (count >= minimum) return null
+  return `${label} (found ${count}, expected at least ${minimum})`
+}
+
+const START9_PACKAGES = [
+  {
+    name: 'lawalletio/lawallet-startos',
+    rawBase:
+      'https://raw.githubusercontent.com/lawalletio/lawallet-startos/master'
+  },
+  {
+    name: 'Start9-Community/lawallet-startos',
+    rawBase:
+      'https://raw.githubusercontent.com/Start9-Community/lawallet-startos/master'
+  }
+]
+
+const START9_SECRET_CONTRACT = [
+  {
+    path: 'startos/main.ts',
+    checks: [
+      {
+        value: 'NWC_VAULT_SECRET',
+        minimum: 2,
+        label: 'must pass NWC_VAULT_SECRET to web and listener'
+      },
+      {
+        value: 'LISTENER_REQUEST_AUTH_SECRET',
+        minimum: 2,
+        label: 'must pass LISTENER_REQUEST_AUTH_SECRET to web and listener'
+      }
+    ]
+  },
+  {
+    path: 'startos/init/generateSecrets.ts',
+    checks: [
+      {
+        value: 'nwcVaultSecret',
+        minimum: 2,
+        label: 'must generate and persist nwcVaultSecret on install/update'
+      }
+    ]
+  }
+]
 
 function parseDotenv(contents) {
   return Object.fromEntries(
@@ -173,6 +222,10 @@ for (const [contents, label] of [
 // unreadable. Those exact domain tags are therefore a persisted-data contract,
 // not merely presence checks.
 //
+// StartOS packages get the same treatment below: presence of NWC_VAULT_SECRET
+// on web and listener, plus generateSecrets persistence. Advisory on PRs,
+// strict on release.
+//
 // Strict only where it matters — the release gate sets
 // STRICT_EXTERNAL_PACKAGES=1. On ordinary PRs this stays advisory: the Umbrel
 // package is a different repository, and its drift must not block unrelated
@@ -210,6 +263,45 @@ for (const packagePath of UMBREL_PACKAGE_FILES) {
   console.warn(
     `WARNING: ${failures.join('; ')}. Releases stay blocked until lawalletio/umbrel-app-store is updated.`
   )
+}
+
+// StartOS packages live in separate repos (sideload vs Community marketplace)
+// and are only rewritten by their own automation. v2.6.0 made NWC_VAULT_SECRET
+// required on the listener; a tag-only bump of either package crash-loops
+// Payment Listener. The two tracks share package id `lawallet-nwc` but not
+// volume layout, so this gate only checks the secret contract, not mounts.
+for (const start9Package of START9_PACKAGES) {
+  for (const { path: packagePath, checks } of START9_SECRET_CONTRACT) {
+    let contents
+    try {
+      contents = await readRemoteUrl(`${start9Package.rawBase}/${packagePath}`)
+    } catch (error) {
+      console.warn(
+        `Skipped Start9 package check for ${start9Package.name} ${packagePath}: ${error.message}`
+      )
+      continue
+    }
+    const failures = checks
+      .map(contract =>
+        minOccurrenceFailure(
+          contents,
+          contract.value,
+          contract.minimum,
+          `Start9 package ${start9Package.name} ${packagePath} ${contract.label}`
+        )
+      )
+      .filter(Boolean)
+    if (failures.length === 0) continue
+
+    if (strictExternalPackages) {
+      throw new Error(
+        `Deployment environment check failed: ${failures.join('; ')}`
+      )
+    }
+    console.warn(
+      `WARNING: ${failures.join('; ')}. Releases stay blocked until ${start9Package.name} is updated.`
+    )
+  }
 }
 
 requireMatch(
