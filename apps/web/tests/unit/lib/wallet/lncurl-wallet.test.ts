@@ -199,6 +199,50 @@ describe('createLncurlRemoteWallet', () => {
     )
     expect(prismaMock.remoteWallet.create).not.toHaveBeenCalled()
   })
+
+  it('uses an injected mint and does not call the provider again', async () => {
+    await createLncurlRemoteWallet({
+      userId: USER_ID,
+      mint: { connectionString: LNCURL_URI, mode: 'SEND_RECEIVE' }
+    })
+
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWallet.create).toHaveBeenCalled()
+  })
+
+  it('binds the primary address inside the create transaction when isDefault is true', async () => {
+    vi.mocked(prismaMock.lightningAddress.findFirst)
+      .mockResolvedValueOnce({ username: 'alice' } as never)
+      .mockResolvedValueOnce({
+        mode: 'CUSTOM_NWC',
+        remoteWalletId: 'new-wallet'
+      } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    const created = await createLncurlRemoteWallet({
+      userId: USER_ID,
+      isDefault: true
+    })
+
+    expect(created.isDefault).toBe(true)
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
+    expect(prismaMock.lightningAddress.update).toHaveBeenCalledWith({
+      where: { username: 'alice' },
+      data: {
+        mode: 'CUSTOM_NWC',
+        redirect: null,
+        remoteWalletId: 'new-wallet'
+      }
+    })
+  })
+
+  it('does not bind the primary address unless isDefault is requested', async () => {
+    await createLncurlRemoteWallet({ userId: USER_ID })
+
+    expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
+  })
 })
 
 describe('lncurlHealTarget', () => {
@@ -244,10 +288,7 @@ describe('lncurlHealTarget', () => {
 
   it('auto-create alone provisions a first wallet (no-wallet case)', () => {
     expect(
-      lncurlHealTarget(
-        { mode: 'CUSTOM_NWC', boundWallet: null },
-        CREATE_ONLY
-      )
+      lncurlHealTarget({ mode: 'CUSTOM_NWC', boundWallet: null }, CREATE_ONLY)
     ).toEqual({ previousWalletId: null })
   })
 
@@ -260,22 +301,15 @@ describe('lncurlHealTarget', () => {
     ).toBeNull()
   })
 
-
   it('CUSTOM_NWC with no bound wallet → create fresh (previousWalletId null)', () => {
     expect(
-      lncurlHealTarget(
-        { mode: 'CUSTOM_NWC', boundWallet: null },
-        ON
-      )
+      lncurlHealTarget({ mode: 'CUSTOM_NWC', boundWallet: null }, ON)
     ).toEqual({ previousWalletId: null })
   })
 
   it('DEFAULT_NWC with a DEAD lncurl default → recreate that wallet', () => {
     expect(
-      lncurlHealTarget(
-        { mode: 'CUSTOM_NWC', boundWallet: deadLncurl },
-        ON
-      )
+      lncurlHealTarget({ mode: 'CUSTOM_NWC', boundWallet: deadLncurl }, ON)
     ).toEqual({ previousWalletId: 'w-dead' })
   })
 
@@ -286,17 +320,9 @@ describe('lncurlHealTarget', () => {
   })
 
   it('never auto-heals IDLE or ALIAS addresses', () => {
+    expect(lncurlHealTarget({ mode: 'IDLE', boundWallet: null }, ON)).toBeNull()
     expect(
-      lncurlHealTarget(
-        { mode: 'IDLE', boundWallet: null },
-        ON
-      )
-    ).toBeNull()
-    expect(
-      lncurlHealTarget(
-        { mode: 'ALIAS', boundWallet: null },
-        ON
-      )
+      lncurlHealTarget({ mode: 'ALIAS', boundWallet: null }, ON)
     ).toBeNull()
   })
 

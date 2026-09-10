@@ -10,7 +10,11 @@ import { AuthenticationError } from '@/types/server/errors'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
-    requestLimits: { maxBodySize: 1_048_576, maxJsonSize: 1_048_576 }
+    requestLimits: { maxBodySize: 1_048_576, maxJsonSize: 1_048_576 },
+    nwcVault: {
+      secret: 'test-nwc-vault-secret-0123456789abcdef',
+      enabled: true
+    }
   }))
 }))
 
@@ -35,14 +39,20 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn()
 }))
 
-vi.mock('@/lib/wallet/lncurl-wallet', () => ({
-  createLncurlRemoteWallet: vi.fn()
+const LNCURL_URI = `nostr+walletconnect://${'b'.repeat(64)}?relay=wss%3A%2F%2Fr.example&secret=${'c'.repeat(64)}`
+
+vi.mock('@/lib/lncurl', () => ({
+  createLncurlWallet: vi.fn(async () => ({
+    connectionString: LNCURL_URI,
+    mode: 'SEND_RECEIVE' as const
+  })),
+  DEFAULT_LNCURL_SERVER: 'https://lncurl.lol/'
 }))
 
 import { POST as createHandler } from '@/app/api/remote-wallets/lncurl/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { getSettings } from '@/lib/settings'
-import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
+import { createLncurlWallet } from '@/lib/lncurl'
 
 const USER_PUBKEY = 'a'.repeat(64)
 
@@ -58,9 +68,27 @@ function mockUnauthenticated() {
   vi.mocked(authenticate).mockRejectedValue(new AuthenticationError('No auth'))
 }
 
+function mockCreatedWallet(
+  userId: string,
+  overrides: { id?: string; name?: string; isDefault?: boolean } = {}
+) {
+  const created = createRemoteWalletFixture({
+    id: overrides.id ?? 'lncurl-1',
+    userId,
+    name: overrides.name ?? 'LNCurl wallet',
+    isDefault: overrides.isDefault ?? false
+  })
+  vi.mocked(prismaMock.remoteWallet.create).mockResolvedValue(created as never)
+  vi.mocked(prismaMock.remoteWallet.findUniqueOrThrow).mockResolvedValue(
+    created as never
+  )
+  return created
+}
+
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([] as never)
 })
 
 describe('POST /api/remote-wallets/lncurl', () => {
@@ -78,7 +106,8 @@ describe('POST /api/remote-wallets/lncurl', () => {
     )
 
     expect(res.status).toBe(400)
-    expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWallet.create).not.toHaveBeenCalled()
   })
 
   it('returns 400 when the setting is simply absent', async () => {
@@ -95,6 +124,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
     )
 
     expect(res.status).toBe(400)
+    expect(createLncurlWallet).not.toHaveBeenCalled()
   })
 
   it('provisions a wallet and returns 201 with the DTO shape (no config)', async () => {
@@ -102,14 +132,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     vi.mocked(getSettings).mockResolvedValue({ lncurl_enabled: 'true' })
-
-    const created = createRemoteWalletFixture({
-      id: 'lncurl-1',
-      userId: user.id,
-      name: 'LNCurl wallet',
-      isDefault: false
-    })
-    vi.mocked(createLncurlRemoteWallet).mockResolvedValue(created as never)
+    mockCreatedWallet(user.id)
 
     const res = await createHandler(
       createNextRequest('/api/remote-wallets/lncurl', {
@@ -133,7 +156,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
     expect(body).not.toHaveProperty('userId')
   })
 
-  it('passes the optional name and serverUrl to the LNCurl wallet helper', async () => {
+  it('passes the optional name and serverUrl through mint + persist', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
@@ -141,9 +164,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
       lncurl_enabled: 'true',
       lncurl_server_url: 'https://my.lncurl.example'
     })
-    vi.mocked(createLncurlRemoteWallet).mockResolvedValue(
-      createRemoteWalletFixture({ userId: user.id, isDefault: false }) as never
-    )
+    mockCreatedWallet(user.id, { name: 'Pocket' })
 
     await createHandler(
       createNextRequest('/api/remote-wallets/lncurl', {
@@ -152,12 +173,13 @@ describe('POST /api/remote-wallets/lncurl', () => {
       })
     )
 
-    expect(createLncurlRemoteWallet).toHaveBeenCalledWith(
+    expect(createLncurlWallet).toHaveBeenCalledWith('https://my.lncurl.example')
+    expect(prismaMock.remoteWallet.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        userId: user.id,
-        name: 'Pocket',
-        revokePrevious: false,
-        serverUrl: 'https://my.lncurl.example'
+        data: expect.objectContaining({
+          userId: user.id,
+          name: 'Pocket'
+        })
       })
     )
   })
@@ -167,13 +189,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     vi.mocked(getSettings).mockResolvedValue({ lncurl_enabled: 'true' })
-    vi.mocked(createLncurlRemoteWallet).mockResolvedValue(
-      createRemoteWalletFixture({
-        id: 'lncurl-1',
-        userId: user.id,
-        isDefault: false
-      }) as never
-    )
+    mockCreatedWallet(user.id, { id: 'lncurl-1' })
     vi.mocked(prismaMock.lightningAddress.findFirst)
       .mockResolvedValueOnce({ username: 'alice' } as never)
       .mockResolvedValueOnce({
@@ -202,6 +218,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
       }
     })
     expect(prismaMock.card.updateMany).not.toHaveBeenCalled()
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1)
   })
 
   it('does not bind the primary address unless requested', async () => {
@@ -209,13 +226,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     vi.mocked(getSettings).mockResolvedValue({ lncurl_enabled: 'true' })
-    vi.mocked(createLncurlRemoteWallet).mockResolvedValue(
-      createRemoteWalletFixture({
-        id: 'lncurl-2',
-        userId: user.id,
-        isDefault: false
-      }) as never
-    )
+    mockCreatedWallet(user.id, { id: 'lncurl-2' })
 
     const res = await createHandler(
       createNextRequest('/api/remote-wallets/lncurl', {
@@ -226,7 +237,6 @@ describe('POST /api/remote-wallets/lncurl', () => {
     const body = (await assertResponse(res, 201)) as { isDefault: boolean }
 
     expect(body.isDefault).toBe(false)
-    expect(prismaMock.lightningAddress.findFirst).not.toHaveBeenCalled()
     expect(prismaMock.lightningAddress.update).not.toHaveBeenCalled()
   })
 
@@ -238,13 +248,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
     vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
       null as never
     )
-    vi.mocked(createLncurlRemoteWallet).mockResolvedValue(
-      createRemoteWalletFixture({
-        id: 'lncurl-2',
-        userId: user.id,
-        isDefault: false
-      }) as never
-    )
+    mockCreatedWallet(user.id, { id: 'lncurl-2' })
 
     const res = await createHandler(
       createNextRequest('/api/remote-wallets/lncurl', {
@@ -263,7 +267,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
     const user = createUserFixture({ pubkey: USER_PUBKEY })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
     vi.mocked(getSettings).mockResolvedValue({ lncurl_enabled: 'true' })
-    vi.mocked(createLncurlRemoteWallet).mockRejectedValue(
+    vi.mocked(createLncurlWallet).mockRejectedValueOnce(
       new Error('LNCurl unreachable')
     )
 
@@ -275,6 +279,70 @@ describe('POST /api/remote-wallets/lncurl', () => {
     )
 
     expect(res.status).toBe(503)
+    expect(prismaMock.remoteWallet.create).not.toHaveBeenCalled()
+  })
+
+  it('returns 409 when the (userId, name) unique index fires', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(getSettings).mockResolvedValue({ lncurl_enabled: 'true' })
+    vi.mocked(prismaMock.remoteWallet.create).mockRejectedValue(
+      Object.assign(new Error('unique violation'), { code: 'P2002' })
+    )
+
+    const res = await createHandler(
+      createNextRequest('/api/remote-wallets/lncurl', {
+        method: 'POST',
+        body: { name: 'Duplicate' }
+      })
+    )
+
+    expect(res.status).toBe(409)
+  })
+
+  it('rethrows non-P2002 DB errors as a 500, not a 503', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(getSettings).mockResolvedValue({ lncurl_enabled: 'true' })
+    vi.mocked(prismaMock.remoteWallet.create).mockRejectedValue(
+      new Error('connection reset')
+    )
+
+    const res = await createHandler(
+      createNextRequest('/api/remote-wallets/lncurl', {
+        method: 'POST',
+        body: {}
+      })
+    )
+
+    expect(res.status).toBe(500)
+  })
+
+  it('does not map a bind failure after a successful mint to 503', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(getSettings).mockResolvedValue({ lncurl_enabled: 'true' })
+    mockCreatedWallet(user.id, { id: 'lncurl-1' })
+    vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue({
+      username: 'alice'
+    } as never)
+    vi.mocked(prismaMock.lightningAddress.update).mockRejectedValue(
+      new Error('connection reset')
+    )
+
+    const res = await createHandler(
+      createNextRequest('/api/remote-wallets/lncurl', {
+        method: 'POST',
+        body: { isDefault: true }
+      })
+    )
+
+    expect(createLncurlWallet).toHaveBeenCalled()
+    expect(prismaMock.remoteWallet.create).toHaveBeenCalled()
+    expect(res.status).toBe(500)
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -288,6 +356,7 @@ describe('POST /api/remote-wallets/lncurl', () => {
     )
 
     expect(res.status).toBe(401)
-    expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
+    expect(createLncurlWallet).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWallet.create).not.toHaveBeenCalled()
   })
 })
