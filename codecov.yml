@@ -1,0 +1,35 @@
+# Validate: curl --data-binary @codecov.yml https://codecov.io/validate
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: 'diff, flags, files'
+  behavior: default
+  require_changes: false
+
+ignore:
+  - 'apps/web/tests/**'
+  - 'apps/web/mocks/**'
+  - 'apps/web/prisma/**'
+  - 'apps/web/lib/generated/**'
+  - 'apps/docs/**'
+  - 'apps/cli/**'
+  - '**/*.d.ts'
+  - '**/*.config.*'
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
+  - '**/*.spec.ts'
+  - '**/*.spec.tsx'
+
+flags:
+  web:
+    paths:
+      - apps/web/
+    carryforward: true
