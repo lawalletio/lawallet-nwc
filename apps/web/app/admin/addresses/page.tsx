@@ -276,7 +276,7 @@ export default function AdminAddressesPage() {
                 {loading ? (
                   <TableRow>
                     <TableCell
-                      colSpan={adminView ? 4 : 3}
+                      colSpan={adminView ? 5 : 4}
                       className="py-12 text-center"
                     >
                       <Spinner size={24} />
@@ -285,7 +285,7 @@ export default function AdminAddressesPage() {
                 ) : !displayedAddresses || displayedAddresses.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={adminView ? 4 : 3}
+                      colSpan={adminView ? 5 : 4}
                       className="py-12 text-center text-sm text-muted-foreground"
                     >
                       {adminView ? (
