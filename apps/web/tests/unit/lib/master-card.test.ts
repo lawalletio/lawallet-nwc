@@ -39,38 +39,42 @@ describe('setMasterCard', () => {
     vi.mocked(prismaMock.card.findFirst).mockResolvedValue({
       id: 'card-old'
     } as any)
-    vi.mocked(prismaMock.card.updateMany).mockImplementation((async () => {
-      calls.push('demote')
+    vi.mocked(prismaMock.card.updateMany).mockImplementation((async (
+      args: any
+    ) => {
+      calls.push(args?.data?.kind === 'MASTER' ? 'promote' : 'demote')
       return { count: 1 }
-    }) as any)
-    vi.mocked(prismaMock.card.update).mockImplementation((async () => {
-      calls.push('promote')
-      return {} as any
     }) as any)
 
     const result = await setMasterCard('user-1', 'card-new')
 
     expect(calls).toEqual(['demote', 'promote'])
     expect(result.previousMasterCardId).toBe('card-old')
-    expect(prismaMock.card.updateMany).toHaveBeenCalledWith({
+    expect(prismaMock.card.updateMany).toHaveBeenNthCalledWith(1, {
       where: { userId: 'user-1', kind: 'MASTER', id: { not: 'card-new' } },
       data: { kind: 'SIMPLE' }
     })
-    expect(prismaMock.card.update).toHaveBeenCalledWith({
-      where: { id: 'card-new' },
+    expect(prismaMock.card.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: 'card-new', userId: 'user-1' },
       data: { kind: 'MASTER' }
     })
   })
 
   it('promotes without demoting when the holder had no master', async () => {
     vi.mocked(prismaMock.card.findFirst).mockResolvedValue(null as any)
-    vi.mocked(prismaMock.card.updateMany).mockResolvedValue({ count: 0 } as any)
-    vi.mocked(prismaMock.card.update).mockResolvedValue({} as any)
+    vi.mocked(prismaMock.card.updateMany).mockImplementation((async (
+      args: any
+    ) => {
+      return { count: args?.data?.kind === 'MASTER' ? 1 : 0 }
+    }) as any)
 
     const result = await setMasterCard('user-1', 'card-new')
 
     expect(result.previousMasterCardId).toBeNull()
-    expect(prismaMock.card.update).toHaveBeenCalled()
+    expect(prismaMock.card.updateMany).toHaveBeenCalledWith({
+      where: { id: 'card-new', userId: 'user-1' },
+      data: { kind: 'MASTER' }
+    })
   })
 
   it('is a no-op when the card is already the master', async () => {
@@ -83,6 +87,18 @@ describe('setMasterCard', () => {
     expect(result.previousMasterCardId).toBeNull()
     expect(prismaMock.card.updateMany).not.toHaveBeenCalled()
     expect(prismaMock.card.update).not.toHaveBeenCalled()
+  })
+
+  it('refuses to promote when the card no longer belongs to the holder', async () => {
+    vi.mocked(prismaMock.card.findFirst).mockResolvedValue(null as any)
+    vi.mocked(prismaMock.card.updateMany).mockImplementation((async () => {
+      return { count: 0 }
+    }) as any)
+
+    await expect(setMasterCard('user-1', 'card-new')).rejects.toMatchObject({
+      statusCode: 409,
+      message: 'Card is no longer assigned to this holder'
+    })
   })
 })
 

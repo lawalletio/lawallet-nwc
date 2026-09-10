@@ -353,12 +353,10 @@ describe('PATCH /api/cards/[id] — master card designation', () => {
       where: { userId: 'user-1', kind: 'MASTER', id: { not: card.id } },
       data: { kind: 'SIMPLE' }
     })
-    expect(prismaMock.card.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: card.id },
-        data: { kind: 'MASTER' }
-      })
-    )
+    expect(prismaMock.card.updateMany).toHaveBeenCalledWith({
+      where: { id: card.id, userId: 'user-1' },
+      data: { kind: 'MASTER' }
+    })
   })
 
   it('leaves the wallet binding untouched on a kind-only PATCH', async () => {
