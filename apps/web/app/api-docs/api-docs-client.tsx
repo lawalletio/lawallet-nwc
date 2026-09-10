@@ -8,6 +8,7 @@ import { ServerSelector, loadStoredServer } from './server-selector'
 import { Nip07Connect, type Nip07Connection } from './nip07-connect'
 import { LawalletLogo } from './lawallet-logo'
 import { createNip98Token } from '@/lib/nip98-client'
+import { normalizeRequest, shouldAutoSign } from './normalize-request'
 
 type RequiredRole = 'PUBLIC' | 'USER' | 'VIEWER' | 'OPERATOR' | 'ADMIN'
 
@@ -196,7 +197,7 @@ export function ApiDocsClient() {
     const originalFetch = window.fetch.bind(window)
     window.fetch = async (input, init) => {
       try {
-        const req = normalizeRequest(input, init)
+        const req = await normalizeRequest(input, init)
         if (req && shouldAutoSign(req, nip98Routes)) {
           const signed = await createNip98Token(
             req.url,
@@ -552,77 +553,4 @@ export function ApiDocsClient() {
       )}
     </div>
   )
-}
-
-// ── fetch-interceptor helpers ─────────────────────────────────────────────
-
-interface NormalizedRequest {
-  url: string
-  method: string
-  headers: Headers
-  /** What we feed back to the underlying `fetch` after rewriting the header. */
-  realBody: BodyInit | null | undefined
-  /** What we feed to `createNip98Token` for the payload hash. */
-  bodyForHash: BodyInit | null | undefined
-}
-
-function normalizeRequest(
-  input: RequestInfo | URL,
-  init?: RequestInit
-): NormalizedRequest | null {
-  // Request objects are immutable for body so we can only re-send if we
-  // clone first. Skip them — Scalar's Try-It feature uses plain (input, init).
-  if (input instanceof Request) {
-    return {
-      url: input.url,
-      method: input.method,
-      headers: new Headers(input.headers),
-      realBody: undefined,
-      bodyForHash: undefined
-    }
-  }
-  const urlString = typeof input === 'string' ? input : input.toString()
-  const method = (init?.method ?? 'GET').toUpperCase()
-  const headers = new Headers(init?.headers ?? {})
-  return {
-    url: urlString,
-    method,
-    headers,
-    realBody: init?.body ?? null,
-    bodyForHash: init?.body ?? undefined
-  }
-}
-
-function shouldAutoSign(
-  req: NormalizedRequest,
-  nip98Routes: Set<string>
-): boolean {
-  let pathname: string
-  try {
-    pathname = new URL(req.url, window.location.origin).pathname
-  } catch {
-    return false
-  }
-  // Direct match.
-  if (nip98Routes.has(`${req.method} ${pathname}`)) return true
-  // Match parameterized paths (e.g. /api/cards/{id}) by treating each spec
-  // segment that looks like `{xxx}` as a wildcard.
-  for (const route of nip98Routes) {
-    const [m, p] = route.split(' ')
-    if (m !== req.method) continue
-    if (matchTemplate(p, pathname)) return true
-  }
-  return false
-}
-
-function matchTemplate(template: string, actual: string): boolean {
-  const tParts = template.split('/')
-  const aParts = actual.split('/')
-  if (tParts.length !== aParts.length) return false
-  for (let i = 0; i < tParts.length; i++) {
-    const t = tParts[i]
-    if (t.startsWith('{') && t.endsWith('}')) continue
-    if (t !== aParts[i]) return false
-  }
-  return true
 }
