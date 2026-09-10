@@ -353,20 +353,18 @@ describe('GET /api/remote-wallets/forwarding-map', () => {
     ]
 
     vi.mocked(prismaMock.remoteWalletReceiveAction.findMany).mockImplementation(
-      async args => {
-        const notIn = (
-          args as {
-            where?: { remoteWallet?: { status?: { notIn?: string[] } } }
-          }
-        )?.where?.remoteWallet?.status?.notIn
+      (async (args: {
+        where?: { remoteWallet?: { status?: { notIn?: string[] } } }
+      }) => {
+        const notIn = args?.where?.remoteWallet?.status?.notIn
         return rows
           .filter(row => !notIn?.includes(row.status))
           .map(row => ({
             remoteWalletId: row.remoteWalletId,
             enabled: row.enabled,
             currentRevision: row.currentRevision
-          })) as never
-      }
+          }))
+      }) as any
     )
 
     const response = await forwardingMapHandler(
