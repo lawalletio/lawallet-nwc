@@ -266,4 +266,96 @@ describe('putReceiveAction', () => {
     ).rejects.toMatchObject({ statusCode: 400 })
     expect(prismaMock.$executeRaw).not.toHaveBeenCalled()
   })
+
+  it('keeps residual routing-reserve legs when revising an open receipt', async () => {
+    vi.mocked(
+      prismaMock.remoteWalletReceiveAction.findUnique
+    ).mockResolvedValue({
+      id: 'action-1',
+      enabled: true,
+      enabledAt,
+      currentRevision: {
+        id: 'revision-1',
+        revision: 1,
+        feeBps: 50,
+        baseFeeMsats: BigInt(1_000),
+        destinations: [
+          {
+            address: 'alice@example.com',
+            allocationBps: 10_000,
+            position: 0
+          }
+        ]
+      }
+    } as never)
+    vi.mocked(prismaMock.remoteWalletForwardAttempt.count).mockResolvedValue(0)
+    vi.mocked(
+      prismaMock.remoteWalletReceiveActionRevision.aggregate
+    ).mockResolvedValue({ _max: { revision: 1 } } as never)
+    vi.mocked(
+      prismaMock.remoteWalletReceiveActionRevision.create
+    ).mockResolvedValue({ id: 'revision-2' } as never)
+    vi.mocked(prismaMock.remoteWalletForwardReceipt.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: 'receipt-1',
+          grossAmountMsats: BigInt(100_000),
+          legs: [
+            {
+              id: 'leg-succeeded',
+              position: 0,
+              residual: false,
+              status: 'SUCCEEDED',
+              requestedAmountMsats: BigInt(90_000),
+              forwardedAmountMsats: BigInt(90_000),
+              routingReserveMsats: BigInt(0)
+            },
+            {
+              id: 'leg-residual',
+              position: 1,
+              residual: true,
+              status: 'READY',
+              requestedAmountMsats: BigInt(5_000),
+              forwardedAmountMsats: null,
+              routingReserveMsats: BigInt(0)
+            }
+          ]
+        }
+      ] as never)
+      .mockResolvedValue([] as never)
+    vi.mocked(prismaMock.remoteWalletForwardLeg.updateMany).mockResolvedValue({
+      count: 0
+    } as never)
+    vi.mocked(prismaMock.remoteWalletForwardLeg.createMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    await putReceiveAction('wallet-1', 'user-1', input)
+
+    expect(prismaMock.remoteWalletForwardLeg.updateMany).toHaveBeenCalledWith({
+      where: {
+        receiptId: 'receipt-1',
+        residual: false,
+        status: { not: 'SUCCEEDED' }
+      },
+      data: { status: 'SUPERSEDED', supersededAt: expect.any(Date) }
+    })
+    expect(prismaMock.remoteWalletForwardLeg.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          receiptId: 'receipt-1',
+          destination: 'alice@example.com',
+          requestedAmountMsats: BigInt(3_500)
+        })
+      ]
+    })
+    expect(prismaMock.remoteWalletForwardReceipt.update).toHaveBeenCalledWith({
+      where: { id: 'receipt-1' },
+      data: expect.objectContaining({
+        status: 'PARTIAL',
+        completedAt: null,
+        targetAmountMsats: BigInt(98_500)
+      })
+    })
+  })
 })

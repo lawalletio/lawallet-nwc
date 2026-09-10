@@ -317,9 +317,26 @@ export async function putReceiveAction(
         (sum, leg) => sum + leg.requestedAmountMsats,
         BigInt(0)
       )
+      // Residual legs carry unused routing reserve still owed to a
+      // destination. They stay live across config edits so the reconciler
+      // can pay them; only non-residual open legs are superseded.
+      const residualHeld = receipt.legs.reduce((sum, leg) => {
+        if (
+          !leg.residual ||
+          leg.status === 'SUCCEEDED' ||
+          leg.status === 'SUPERSEDED'
+        ) {
+          return sum
+        }
+        return sum + leg.requestedAmountMsats
+      }, BigInt(0))
       if (receipt.grossAmountMsats === BigInt(0)) {
         await tx.remoteWalletForwardLeg.updateMany({
-          where: { receiptId: receipt.id, status: { not: 'SUCCEEDED' } },
+          where: {
+            receiptId: receipt.id,
+            residual: false,
+            status: { not: 'SUCCEEDED' }
+          },
           data: { status: 'SUPERSEDED', supersededAt: new Date() }
         })
         await tx.remoteWalletForwardReceipt.update({
@@ -341,18 +358,24 @@ export async function putReceiveAction(
         feeBps,
         baseFeeMsats
       )
-      if (amounts.targetAmountMsats < fulfilled) {
+      const committed = fulfilled + residualHeld
+      if (amounts.targetAmountMsats < committed) {
         throw new ConflictError(
           'The new fee would make an existing receipt owe less than its completed legs'
         )
       }
       await tx.remoteWalletForwardLeg.updateMany({
-        where: { receiptId: receipt.id, status: { not: 'SUCCEEDED' } },
+        where: {
+          receiptId: receipt.id,
+          residual: false,
+          status: { not: 'SUCCEEDED' }
+        },
         data: { status: 'SUPERSEDED', supersededAt: new Date() }
       })
       // A destination shortfall (up to 10 sats) is retained and audited; it
       // has already fulfilled that leg and must not be redistributed.
-      const remaining = amounts.targetAmountMsats - fulfilled
+      // Residual requestedAmountMsats stays parked on those legs.
+      const remaining = amounts.targetAmountMsats - committed
       const nextPosition =
         receipt.legs.reduce((max, leg) => Math.max(max, leg.position), -1) + 1
       const allocations = allocateForwardingAmounts(
@@ -385,18 +408,23 @@ export async function putReceiveAction(
             BigInt(0)
           ),
           status:
-            remaining === BigInt(0)
+            remaining === BigInt(0) && residualHeld === BigInt(0)
               ? 'COMPLETED'
-              : canCreateLegs
-                ? paid > BigInt(0)
-                  ? 'PARTIAL'
-                  : 'RECEIVED'
-                : 'RECEIVED',
+              : remaining === BigInt(0) && residualHeld > BigInt(0)
+                ? 'PARTIAL'
+                : canCreateLegs
+                  ? paid > BigInt(0)
+                    ? 'PARTIAL'
+                    : 'RECEIVED'
+                  : 'RECEIVED',
           lastError: null,
           nextRetryAt: new Date(),
           leaseOwner: null,
           leaseExpiresAt: null,
-          completedAt: remaining === BigInt(0) ? new Date() : null
+          completedAt:
+            remaining === BigInt(0) && residualHeld === BigInt(0)
+              ? new Date()
+              : null
         }
       })
     }
