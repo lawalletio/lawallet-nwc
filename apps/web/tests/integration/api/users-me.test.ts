@@ -67,8 +67,7 @@ describe('GET /api/users/me', () => {
           nwcConnectionId: null,
           nwcConnection: null
         }
-      ],
-      albySubAccount: null
+      ]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -88,8 +87,7 @@ describe('GET /api/users/me', () => {
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(null)
     const newUser = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddresses: [],
-      albySubAccount: null
+      lightningAddresses: []
     })
     vi.mocked(createNewUser).mockResolvedValue(newUser as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -106,8 +104,7 @@ describe('GET /api/users/me', () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
-      lightningAddresses: [],
-      albySubAccount: null
+      lightningAddresses: []
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
@@ -132,8 +129,7 @@ describe('GET /api/users/me', () => {
           remoteWalletId: null,
           remoteWallet: null
         }
-      ],
-      albySubAccount: null
+      ]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
     vi.mocked(getSettings).mockResolvedValue({})
@@ -154,16 +150,11 @@ describe('GET /api/users/me', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns alby sub account data without deriving nwcString from remoteWallets alone', async () => {
+  it('does not derive nwcString from remoteWallets alone', async () => {
     mockAuth()
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddresses: [],
-      albySubAccount: {
-        appId: 'app123',
-        nwcUri: 'nostr+walletconnect://test',
-        username: 'alice'
-      },
       // A RemoteWallet is not primary unless the primary address links to it.
       remoteWallets: [
         {
@@ -201,11 +192,7 @@ describe('GET /api/users/me', () => {
       })
     )
     expect((query as any)?.include).not.toHaveProperty('remoteWallets')
-    expect(body.albySubAccount).toEqual({
-      appId: 'app123',
-      nwcUri: 'nostr+walletconnect://test',
-      username: 'alice'
-    })
+    expect(body).not.toHaveProperty('albySubAccount')
     expect(body.nwcString).toBe('')
   })
 
@@ -243,7 +230,6 @@ describe('GET /api/users/me', () => {
           remoteWallet: null
         }
       ],
-      albySubAccount: null,
       remoteWallets: [defaultWallet(primaryConnUri)]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
@@ -272,7 +258,6 @@ describe('GET /api/users/me', () => {
           remoteWallet: null
         }
       ],
-      albySubAccount: null,
       remoteWallets: [] // no default wallet
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
@@ -303,7 +288,6 @@ describe('GET /api/users/me', () => {
           }
         }
       ],
-      albySubAccount: null,
       remoteWallets: [defaultWallet(primaryConnUri)]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
@@ -330,7 +314,6 @@ describe('GET /api/users/me', () => {
           remoteWallet: null
         }
       ],
-      albySubAccount: null,
       remoteWallets: [defaultWallet(primaryConnUri)]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
@@ -360,7 +343,6 @@ describe('GET /api/users/me', () => {
           remoteWallet: null
         }
       ],
-      albySubAccount: null,
       remoteWallets: [defaultWallet(primaryConnUri)]
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
@@ -378,7 +360,6 @@ describe('GET /api/users/me', () => {
     const user = createUserFixture({
       pubkey: mockPubkey,
       lightningAddresses: [],
-      albySubAccount: null,
       remoteWallets: []
     })
     vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)

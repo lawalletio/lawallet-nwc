@@ -154,7 +154,6 @@ const PREVIEW: AccountMergePreviewResponse = {
       displayName: 'Alice',
       picture: 'https://img/alice.png'
     },
-    hasAlbySubAccount: false,
     hasManagedKey: false,
     managedKeyExported: false
   },
@@ -172,7 +171,6 @@ const PREVIEW: AccountMergePreviewResponse = {
     invoices: 0,
     relays: ['wss://b.example', 'wss://c.example'],
     profile: { displayName: 'Bob', picture: 'https://img/bob.png' },
-    hasAlbySubAccount: true,
     hasManagedKey: true,
     managedKeyExported: true
   },

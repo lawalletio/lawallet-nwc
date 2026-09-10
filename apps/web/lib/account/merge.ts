@@ -37,7 +37,6 @@ export interface AccountResourceSummary {
    * Lets the wizard offer per-field (avatar / display name) choices.
    */
   profile: { name?: string; displayName?: string; picture?: string } | null
-  hasAlbySubAccount: boolean
   hasManagedKey: boolean
   managedKeyExported: boolean
 }
@@ -46,7 +45,6 @@ export interface MergeCollision {
   kind:
     | 'managed-key-unexported'
     | 'managed-key-dropped'
-    | 'alby-subaccount-dropped'
     | 'wallet-name-renamed'
     | 'primary-address-kept'
     | 'default-wallet-kept'
@@ -75,7 +73,6 @@ async function summarizeAccount(
         orderBy: { createdAt: 'asc' }
       },
       managedNostrKey: { select: { exportedAt: true } },
-      albySubAccount: { select: { appId: true } },
       lightningAddresses: { select: { username: true, isPrimary: true } },
       remoteWallets: {
         select: { id: true, name: true, isDefault: true },
@@ -124,7 +121,6 @@ async function summarizeAccount(
     invoices: user._count.invoices,
     relays: parseStoredRelays(user.relays),
     profile,
-    hasAlbySubAccount: !!user.albySubAccount,
     hasManagedKey: !!user.managedNostrKey,
     managedKeyExported: !!user.managedNostrKey?.exportedAt
   }
@@ -162,14 +158,6 @@ export async function previewMerge(
       kind: 'managed-key-dropped',
       detail:
         "Both accounts have a custodied key; the current account's key is kept and the other (already exported) is removed."
-    })
-  }
-
-  if (absorbed.hasAlbySubAccount && survivor.hasAlbySubAccount) {
-    collisions.push({
-      kind: 'alby-subaccount-dropped',
-      detail:
-        "Both accounts have an Alby sub-account (one per account); the other account's link is dropped. Its wallet connection is kept as a regular remote wallet."
     })
   }
 
@@ -283,7 +271,6 @@ export async function mergeAccounts(params: {
           pubkey: true,
           relays: true,
           managedNostrKey: { select: { exportedAt: true } },
-          albySubAccount: { select: { appId: true } },
           lightningAddresses: { select: { username: true, isPrimary: true } },
           remoteWallets: { select: { id: true, isDefault: true } }
         }
@@ -295,7 +282,6 @@ export async function mergeAccounts(params: {
           pubkey: true,
           relays: true,
           managedNostrKey: { select: { exportedAt: true } },
-          albySubAccount: { select: { appId: true } },
           nostrIdentities: { select: { pubkey: true } },
           lightningAddresses: { select: { username: true } },
           remoteWallets: { select: { id: true, name: true } }
@@ -360,18 +346,6 @@ export async function mergeAccounts(params: {
       // the absorbed userId — re-homing it without re-encryption would
       // produce an undecryptable row.
       await tx.managedNostrKey.delete({ where: { userId: absorbedId } })
-    }
-    if (absorbed.albySubAccount) {
-      if (survivor.albySubAccount) {
-        // One sub-account per user; the wallet connection itself lives on as
-        // a RemoteWallet row (moved below), so only the 1:1 link is dropped.
-        await tx.albySubAccount.delete({ where: { userId: absorbedId } })
-      } else {
-        await tx.albySubAccount.update({
-          where: { userId: absorbedId },
-          data: { userId: survivorId }
-        })
-      }
     }
 
     // ── Partial-unique flags: survivor keeps primacy (default). The user's

@@ -26,7 +26,6 @@ const TABLE_NOUNS: Record<BackupTableName, string> = {
   lightningAddresses: 'lightning address',
   cards: 'card',
   cardActivationTokens: 'activation token',
-  albySubAccounts: 'Alby account',
   invoices: 'invoice',
   activityLogs: 'activity log',
   settings: 'setting',

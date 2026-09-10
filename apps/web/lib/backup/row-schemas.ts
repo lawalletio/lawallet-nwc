@@ -20,7 +20,7 @@ const lightningAddressMode = z.enum([
   'IDLE',
   'ALIAS',
   'PROXY_ALIAS',
-  'CUSTOM_NWC',
+  'CUSTOM_NWC'
 ])
 const remoteWalletType = z.enum(['NWC', 'LND', 'CLN', 'BTCPAY'])
 const remoteWalletStatus = z.enum(['ACTIVE', 'DISABLED', 'REVOKED', 'DEAD'])
@@ -58,7 +58,6 @@ const userRow = z.object({
   id: z.string().min(1),
   pubkey: z.string().min(1),
   createdAt: date,
-  albyEnabled: z.boolean(),
   role: userRole,
   relays: z.string().nullable(),
   relaysUpdatedAt: nullableDate,
@@ -143,15 +142,6 @@ const cardActivationTokenRow = z.object({
   expiresAt: nullableDate,
   claimedAt: nullableDate,
   claimedByUserId: z.string().nullable(),
-  createdAt: date
-})
-
-const albySubAccountRow = z.object({
-  appId: z.number().int(),
-  userId: z.string().min(1),
-  username: z.string().nullable(),
-  nwcUri: z.string(),
-  nostrPubkey: z.string().nullable(),
   createdAt: date
 })
 
@@ -246,7 +236,6 @@ export const ROW_SCHEMAS: Record<
   lightningAddresses: lightningAddressRow,
   cards: cardRow,
   cardActivationTokens: cardActivationTokenRow,
-  albySubAccounts: albySubAccountRow,
   invoices: invoiceRow,
   activityLogs: activityLogRow,
   settings: settingsRow,

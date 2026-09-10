@@ -20,7 +20,6 @@ const USER = {
   id: 'user-1',
   pubkey: 'a'.repeat(64),
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
-  albyEnabled: false,
   role: 'ADMIN',
   relays: null,
   relaysUpdatedAt: null
@@ -117,9 +116,6 @@ function seedCoreTables() {
   ;(
     prismaMock.cardActivationToken.findMany as ReturnType<typeof vi.fn>
   ).mockResolvedValue([])
-  ;(
-    prismaMock.albySubAccount.findMany as ReturnType<typeof vi.fn>
-  ).mockResolvedValue([])
 }
 
 beforeEach(() => {
@@ -149,7 +145,6 @@ describe('backup export (buildBackup)', () => {
     expect(manifest.tables.lightningAddresses?.count).toBe(1)
     expect(manifest.tables.cards?.count).toBe(1)
     expect(manifest.tables.cardActivationTokens?.count).toBe(0)
-    expect(manifest.tables.albySubAccounts?.count).toBe(0)
     // Only the core tables are present.
     expect(Object.keys(manifest.tables).sort()).toEqual(
       [
@@ -159,8 +154,7 @@ describe('backup export (buildBackup)', () => {
         'remoteWallets',
         'lightningAddresses',
         'cards',
-        'cardActivationTokens',
-        'albySubAccounts'
+        'cardActivationTokens'
       ].sort()
     )
   })
@@ -185,7 +179,6 @@ describe('backup export (buildBackup)', () => {
     expect(parsed.tables.users).toHaveLength(1)
     expect(parsed.tables.cardDesigns).toHaveLength(1)
     expect(parsed.tables.cardActivationTokens).toHaveLength(0)
-    expect(parsed.tables.albySubAccounts).toHaveLength(0)
     expect(
       (
         parsed.tables.remoteWallets as {

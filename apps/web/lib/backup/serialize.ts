@@ -73,7 +73,6 @@ This archive may contain SECRETS in plaintext, including:
   • Remote wallet connection details (NWC URIs, LND macaroons) — RemoteWallet.config
   • NTAG424 card key material (k0..k4) — Ntag424
   • One-time card programming tokens — Card.writeToken / Card.otc
-  • Alby NWC URIs — AlbySubAccount.nwcUri
   • Lightning invoice preimages — Invoice.preimage
 
 Treat this file like a password vault:

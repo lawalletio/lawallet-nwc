@@ -13,7 +13,6 @@ export const BACKUP_TABLE_ORDER: BackupTableName[] = [
   'lightningAddresses',
   'cards',
   'cardActivationTokens',
-  'albySubAccounts',
   'invoices',
   'activityLogs',
   'settings',
@@ -31,8 +30,7 @@ export const CATEGORY_TABLES: Record<BackupCategory, BackupTableName[]> = {
     'remoteWallets',
     'lightningAddresses',
     'cards',
-    'cardActivationTokens',
-    'albySubAccounts'
+    'cardActivationTokens'
   ],
   settings: ['settings'],
   plugins: ['pluginRecords'],
@@ -106,8 +104,6 @@ export interface TableDescriptor {
   model: string
   /** Primary-key field(s). */
   pk: string[]
-  /** True when the sole PK is numeric (AlbySubAccount.appId). */
-  numericPk?: boolean
   secondaryUniques: SecondaryUnique[]
   fks: FkDescriptor[]
   softRefs: SoftRef[]
@@ -224,19 +220,6 @@ export const TABLE_DESCRIPTORS: Record<BackupTableName, TableDescriptor> = {
         where: { field: 'status', equals: 'PENDING' }
       }
     ],
-    jsonNullableFields: []
-  },
-  albySubAccounts: {
-    name: 'albySubAccounts',
-    model: 'albySubAccount',
-    pk: ['appId'],
-    numericPk: true,
-    secondaryUniques: [
-      { fields: ['userId'], label: 'Alby account (one per user)' }
-    ],
-    fks: [{ field: 'userId', target: 'users', required: true }],
-    softRefs: [],
-    partialUniques: [],
     jsonNullableFields: []
   },
   invoices: {

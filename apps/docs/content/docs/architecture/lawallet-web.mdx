@@ -21,7 +21,7 @@ The main application in `lawallet-nwc` serves the frontend, REST API, and LUD-16
 - Serve frontend (React + Tailwind/shadcn)
 - Expose REST API for cards, card designs, users, settings, JWT auth, and remote connections
 - Resolve lightning addresses via `/api/lud16/[username]`
-- Optionally create Alby Hub sub-accounts during user creation
+- Optionally provision courtesy NWC wallets via LNCurl during user creation
 - Serve placeholder landing, admin, and wallet pages
 
 Not implemented in the current repo:
@@ -105,10 +105,5 @@ Not implemented in the current repo:
 
 ## External Integrations
 
-- **Alby Hub**: Optional REST integration used during user creation when automatic provisioning is enabled
+- **LNCurl**: Optional courtesy-wallet provisioning during user creation when auto-create is enabled
 - **PostgreSQL**: Primary datastore
-
-Planned but not currently wired into this repo:
-
-- `lncurl` courtesy-wallet provisioning
-- `lawallet-listener` payment listener integration

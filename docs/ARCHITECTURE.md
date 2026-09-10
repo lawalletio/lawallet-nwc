@@ -107,7 +107,6 @@ The web application is organized into clearly separated modules:
 | **Config**        | `lib/config/`               | Environment validation, cached config      |
 | **Database**      | `lib/prisma.ts` + `prisma/` | Prisma client, schema, migrations          |
 | **NTAG424**       | `lib/ntag424.ts`            | NFC card crypto, signature validation      |
-| **Alby Hub**      | `lib/albyhub.ts`            | Alby API client for NWC provisioning       |
 | **Logger**        | `lib/logger.ts`             | Pino structured logging, request IDs       |
 | **Errors**        | `types/server/`             | Error hierarchy, error handler HOF         |
 | **Client Hooks**  | `lib/client/hooks/`         | React hooks for API consumption            |
@@ -140,7 +139,7 @@ The web application is organized into clearly separated modules:
        ▼
 ┌──────────────────────────────────────────┐
 │              Core Services               │
-│  prisma (DB)  │  albyhub  │  ntag424    │
+│  prisma (DB)  │  ntag424  │  logger     │
 │  logger       │  config   │  settings   │
 └──────────────────────────────────────────┘
 ```
@@ -400,10 +399,7 @@ PostgreSQL via Prisma ORM. 7 models + 1 enum.
 │          │────────────▶│ LightningAddress │   │ ctr        │
 │          │             │ username (PK)    │   └────────────┘
 │          │             └──────────────────┘
-│          │     1:1     ┌──────────────────┐
-│          │────────────▶│ AlbySubAccount   │
-└──────────┘             │ appId (PK)       │
-                         └──────────────────┘
+└──────────┘
 
 ┌──────────┐
 │ Settings │  (standalone key-value store)
@@ -421,7 +417,6 @@ PostgreSQL via Prisma ORM. 7 models + 1 enum.
 | **Card**             | `id` (UUID)     | NFC card instances. Links to a design and optionally an NTAG424 chip.  |
 | **Ntag424**          | `cid` (chip ID) | NTAG424 cryptographic keys (k0–k4) and monotonic counter.              |
 | **LightningAddress** | `username`      | Maps a username to a user. One address per user.                       |
-| **AlbySubAccount**   | `appId` (int)   | Alby NWC provisioning data. One per user.                              |
 | **Settings**         | `name`          | Key-value store for platform configuration (domain, root pubkey, etc.) |
 
 **File:** `apps/web/prisma/schema.prisma`
@@ -442,9 +437,6 @@ All environment variables are validated at startup via Zod schema in `lib/config
 | `LISTENER_URL`                   |          | Private or public listener base URL                                    |
 | `LISTENER_AUTH_SECRET`           |          | Listener webhook HMAC secret                                           |
 | `LISTENER_REQUEST_AUTH_SECRET`   |          | Optional separate web-to-listener request secret                       |
-| `ALBY_API_URL`                   |          | Alby Hub endpoint                                                      |
-| `ALBY_BEARER_TOKEN`              |          | Alby API authentication                                                |
-| `AUTO_GENERATE_ALBY_SUBACCOUNTS` |          | Auto-provision wallets on signup                                       |
 | `MAINTENANCE_MODE`               |          | Enable 503 for non-admins                                              |
 | `LOG_LEVEL`                      |          | Pino log level (default: `info`)                                       |
 | `LOG_PRETTY`                     |          | Human-readable logs (dev)                                              |
@@ -461,7 +453,6 @@ All environment variables are validated at startup via Zod schema in `lib/config
 const config = getConfig()
 config.jwt.secret // JWT_SECRET
 config.nwcVault.secret // NWC_VAULT_SECRET
-config.alby.apiUrl // ALBY_API_URL
 config.server.port // PORT
 config.rateLimit.window // RATE_LIMIT_WINDOW_MS
 config.maintenance.enabled // MAINTENANCE_MODE
@@ -472,19 +463,6 @@ Config is validated once at startup and cached for the process lifetime. Use `re
 ---
 
 ## External Integrations
-
-### Alby Hub
-
-HTTP client for provisioning NWC subaccounts and lightning addresses.
-
-| Method                                    | Purpose                            |
-| ----------------------------------------- | ---------------------------------- |
-| `createSubAccount(name)`                  | Provisions isolated NWC subaccount |
-| `createLightningAddress(username, appId)` | Maps address to Alby app           |
-
-When `AUTO_GENERATE_ALBY_SUBACCOUNTS=true`, new users automatically get a courtesy NWC wallet via Alby on signup.
-
-**File:** `lib/albyhub.ts`
 
 ### Lightning Network (via NWC)
 
@@ -672,9 +650,7 @@ Sender Wallet                        lawallet-web
 
 1. Client authenticates via NIP-98 or JWT
 2. `GET /api/users/me` → creates User record if new (auto-generated UUID)
-3. If `AUTO_GENERATE_ALBY_SUBACCOUNTS=true`:
-   - `AlbyHub.createSubAccount()` → get NWC URI
-   - Store in `AlbySubAccount` model, set on User
+3. If `lncurl_auto_create` is enabled, a courtesy NWC wallet is provisioned via LNCurl and stored as a RemoteWallet
 4. User gets a lightning address, then upgrades through the progressive self-custody model
 
 See: [ONBOARDING.md](./ONBOARDING.md)

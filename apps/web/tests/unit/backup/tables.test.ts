@@ -21,8 +21,7 @@ describe('backup tables', () => {
         'remoteWallets',
         'lightningAddresses',
         'cards',
-        'cardActivationTokens',
-        'albySubAccounts'
+        'cardActivationTokens'
       ])
       // Order matches the canonical order filtered to the wanted set.
       const orderIndex = (t: (typeof resolved)[number]) =>
@@ -141,7 +140,6 @@ describe('backup row-schemas', () => {
     id: 'user-1',
     pubkey: 'a'.repeat(64),
     createdAt: '2026-07-06T12:00:00.000Z',
-    albyEnabled: false,
     role: 'ADMIN',
     relays: null,
     relaysUpdatedAt: null
@@ -168,6 +166,17 @@ describe('backup row-schemas', () => {
     expect(
       ROW_SCHEMAS.users.safeParse({ ...validUser, role: 'SUPERADMIN' }).success
     ).toBe(false)
+  })
+
+  it('strips leftover albyEnabled from older user rows', () => {
+    const result = ROW_SCHEMAS.users.safeParse({
+      ...validUser,
+      albyEnabled: true
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).not.toHaveProperty('albyEnabled')
+    }
   })
 
   describe('toPrismaData', () => {

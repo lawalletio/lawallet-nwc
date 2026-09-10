@@ -804,7 +804,6 @@ export const backupTableName = z.enum([
   'lightningAddresses',
   'cards',
   'cardActivationTokens',
-  'albySubAccounts',
   'invoices',
   'activityLogs',
   'settings',
@@ -820,7 +819,7 @@ export type BackupTableName = z.infer<typeof backupTableName>
  * operational state; the rest are opt-in.
  */
 export const backupCategoryEnum = z.enum([
-  'core', // users, cardDesigns, ntag424s, remoteWallets, lightningAddresses, cards, cardActivationTokens, albySubAccounts
+  'core', // users, cardDesigns, ntag424s, remoteWallets, lightningAddresses, cards, cardActivationTokens
   'settings',
   'plugins',
   'activityLogs',
@@ -868,7 +867,20 @@ export const backupManifestSchema = z.object({
   exportedAt: z.string(),
   encrypted: z.boolean().default(false),
   categories: z.array(backupCategoryEnum),
-  tables: z.record(backupTableName, backupTableMetaSchema)
+  // Unknown table names (e.g. the retired `albySubAccounts`) are dropped so
+  // archives from earlier schema versions still restore.
+  tables: z.record(z.string(), backupTableMetaSchema).transform(tables => {
+    const known = new Set<string>(backupTableName.options)
+    const next: Partial<
+      Record<BackupTableName, z.infer<typeof backupTableMetaSchema>>
+    > = {}
+    for (const name in tables) {
+      if (known.has(name)) {
+        next[name as BackupTableName] = tables[name]
+      }
+    }
+    return next
+  })
 })
 export type BackupManifest = z.infer<typeof backupManifestSchema>
 
@@ -1156,7 +1168,6 @@ export const accountMergeCollisionSchema = z.object({
   kind: z.enum([
     'managed-key-unexported',
     'managed-key-dropped',
-    'alby-subaccount-dropped',
     'wallet-name-renamed',
     'primary-address-kept',
     'default-wallet-kept'
@@ -1196,7 +1207,6 @@ export const accountResourceSummarySchema = z.object({
       picture: z.string().optional()
     })
     .nullable(),
-  hasAlbySubAccount: z.boolean(),
   hasManagedKey: z.boolean(),
   managedKeyExported: z.boolean()
 })

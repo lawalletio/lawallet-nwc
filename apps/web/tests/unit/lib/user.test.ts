@@ -26,15 +26,6 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn()
 }))
 
-// Alby Hub client — stubbed so signup never hits the network. createSubAccount
-// is configured per-test; default is "not called" (alby_auto_generate off).
-const createSubAccountMock = vi.fn()
-vi.mock('@/lib/albyhub', () => ({
-  AlbyHub: vi.fn().mockImplementation(() => ({
-    createSubAccount: createSubAccountMock
-  }))
-}))
-
 vi.mock('@/lib/wallet/lncurl-wallet', () => ({
   createLncurlRemoteWallet: vi.fn()
 }))
@@ -58,16 +49,14 @@ beforeEach(() => {
   vi.mocked(prismaMock.user.create).mockResolvedValue(
     createUserFixture({
       pubkey: PUBKEY,
-      albyEnabled: false,
       remoteWallets: []
     }) as never
   )
 })
 
 describe('createNewUser — LNCurl auto-create', () => {
-  it('provisions a default LNCurl wallet when auto-create is on and Alby is off', async () => {
+  it('provisions a default LNCurl wallet when auto-create is on', async () => {
     vi.mocked(getSettings).mockResolvedValue({
-      alby_auto_generate: 'false',
       lncurl_auto_create: 'true',
       lncurl_server_url: 'https://my.lncurl.example'
     })
@@ -79,7 +68,6 @@ describe('createNewUser — LNCurl auto-create', () => {
 
     const user = await createNewUser(PUBKEY)
 
-    expect(createSubAccountMock).not.toHaveBeenCalled()
     expect(createLncurlRemoteWallet).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: user.id,
@@ -94,25 +82,7 @@ describe('createNewUser — LNCurl auto-create', () => {
 
   it('does NOT auto-create when lncurl_auto_create is not "true"', async () => {
     vi.mocked(getSettings).mockResolvedValue({
-      alby_auto_generate: 'false',
       lncurl_auto_create: 'false'
-    })
-
-    await createNewUser(PUBKEY)
-
-    expect(createLncurlRemoteWallet).not.toHaveBeenCalled()
-  })
-
-  it('does NOT auto-create when an Alby sub-account was provisioned', async () => {
-    vi.mocked(getSettings).mockResolvedValue({
-      alby_auto_generate: 'true',
-      lncurl_auto_create: 'true'
-    })
-    createSubAccountMock.mockResolvedValue({
-      id: 99,
-      pairingUri: 'nostr+walletconnect://alby',
-      lud16: 'sub@alby',
-      walletPubkey: 'd'.repeat(64)
     })
 
     await createNewUser(PUBKEY)
@@ -122,7 +92,6 @@ describe('createNewUser — LNCurl auto-create', () => {
 
   it('swallows an LNCurl failure — signup still succeeds with no wallet', async () => {
     vi.mocked(getSettings).mockResolvedValue({
-      alby_auto_generate: 'false',
       lncurl_auto_create: 'true'
     })
     vi.mocked(createLncurlRemoteWallet).mockRejectedValue(

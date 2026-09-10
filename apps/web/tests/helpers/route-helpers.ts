@@ -17,12 +17,6 @@ export function createDefaultConfig(
     logPretty: false,
     database: { url: 'postgresql://test' },
     jwt: { secret: 'test-jwt-secret', enabled: true },
-    alby: {
-      apiUrl: undefined,
-      bearerToken: undefined,
-      autoGenerateSubAccounts: false,
-      enabled: false
-    },
     server: { port: 3000 },
     github: { token: undefined, projectNumber: undefined, enabled: false },
     maintenance: { enabled: false },

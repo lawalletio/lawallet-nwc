@@ -1,26 +1,18 @@
 import { randomUUID } from 'crypto'
-import type { Prisma } from './generated/prisma'
-import { AlbyHub } from './albyhub'
 import { prisma } from './prisma'
 import { getSettings } from './settings'
 import { ActivityEvent, logActivity } from './activity-log'
 import { logger } from './logger'
 import { createLncurlRemoteWallet } from './wallet/lncurl-wallet'
-import { encryptRemoteWalletConfig } from './wallet/remote-wallet-vault'
 
 /**
  * Creates a brand-new `User` record for an authenticated pubkey, optionally
- * provisioning an Alby Hub sub-account when `alby_auto_generate` is enabled
- * and Alby credentials are configured.
+ * provisioning an LNCurl courtesy wallet when `lncurl_auto_create` is enabled.
  *
  * The returned shape mirrors what `findUnique` callers (notably
  * `/api/users/me`) expect — the primary `LightningAddress` with its bound
  * `remoteWallet`. RemoteWallet rows created before a primary address exists
  * are candidates for that future address, not primary by themselves.
- *
- * When an Alby sub-account is provisioned, its pairing URI is stored as the
- * a RemoteWallet (RemoteWallet is the single source of truth for wallets —
- * there's no separate `User.nwc` / `NWCConnection`).
  *
  * Also fires (best-effort, non-blocking) a `USER_SIGNUP` activity log entry.
  */
@@ -35,35 +27,11 @@ export async function createNewUser(
     userId?: string
   }
 ) {
-  const {
-    alby_api_url,
-    alby_bearer_token,
-    alby_auto_generate,
-    lncurl_auto_create,
-    lncurl_server_url
-  } = await getSettings([
-    'alby_api_url',
-    'alby_bearer_token',
-    'alby_auto_generate',
+  const { lncurl_auto_create, lncurl_server_url } = await getSettings([
     'lncurl_auto_create',
     'lncurl_server_url'
   ])
   const userId = opts?.userId ?? randomUUID()
-
-  const albyHub = new AlbyHub(alby_api_url, alby_bearer_token)
-
-  const subAccount =
-    alby_auto_generate === 'true'
-      ? await albyHub.createSubAccount(`LaWallet-${userId}`)
-      : null
-  const remoteWalletId = subAccount ? randomUUID() : null
-  const remoteWalletConfig =
-    subAccount && remoteWalletId
-      ? encryptRemoteWalletConfig(remoteWalletId, 'NWC', {
-          connectionString: subAccount.pairingUri,
-          mode: 'SEND_RECEIVE'
-        })
-      : null
 
   const user = await prisma.user.create({
     data: {
@@ -74,33 +42,7 @@ export async function createNewUser(
       // User.pubkey stays a denormalized mirror of it (see NostrIdentity).
       nostrIdentities: {
         create: { pubkey, isPrimary: true }
-      },
-      albyEnabled: !!subAccount,
-      albySubAccount: subAccount
-        ? {
-            create: {
-              appId: subAccount.id,
-              nwcUri: subAccount.pairingUri,
-              username: subAccount.lud16,
-              nostrPubkey: subAccount.walletPubkey
-            }
-          }
-        : undefined,
-      // Provisioned Alby wallet waits for the user's primary address to bind
-      // to it; `isDefault` is synchronized from that address link.
-      remoteWallets: subAccount
-        ? {
-            create: {
-              id: remoteWalletId!,
-              name: 'NWC Wallet',
-              type: 'NWC',
-              config: remoteWalletConfig! as Prisma.InputJsonValue,
-              nwcConfigEncryptedAt: new Date(),
-              status: 'ACTIVE',
-              isDefault: false
-            }
-          }
-        : undefined
+      }
     },
     include: {
       // Pull only the primary address (at most one). Include its bound
@@ -111,17 +53,16 @@ export async function createNewUser(
         take: 1,
         include: { remoteWallet: true }
       },
-      albySubAccount: true,
       // Compatibility/display primary RemoteWallet, if already synchronized.
       remoteWallets: { where: { isDefault: true }, take: 1 }
     }
   })
 
-  // When there's no Alby sub-account but LNCurl auto-provisioning is on,
-  // prepare a wallet candidate for the first primary address to bind to.
-  // Best-effort: any failure (LNCurl down, etc.) must NOT break signup — we
-  // swallow it and the user simply starts with no wallet.
-  if (!subAccount && lncurl_auto_create === 'true') {
+  // When LNCurl auto-provisioning is on, prepare a wallet candidate for the
+  // first primary address to bind to. Best-effort: any failure (LNCurl down,
+  // etc.) must NOT break signup — we swallow it and the user simply starts
+  // with no wallet.
+  if (lncurl_auto_create === 'true') {
     try {
       const lncurlWallet = await createLncurlRemoteWallet({
         userId: user.id,
@@ -143,7 +84,7 @@ export async function createNewUser(
     event: ActivityEvent.USER_SIGNUP,
     message: `New user signed up (${pubkey.slice(0, 8)}…)`,
     userId: user.id,
-    metadata: { pubkey, albyEnabled: user.albyEnabled }
+    metadata: { pubkey }
   })
 
   return user
