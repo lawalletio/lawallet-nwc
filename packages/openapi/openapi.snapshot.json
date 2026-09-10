@@ -18269,6 +18269,74 @@
         }
       }
     },
+    "/api/internal/zaps/settle": {
+      "post": {
+        "tags": [
+          "Nostr"
+        ],
+        "summary": "Request a NIP-57 zap settlement pass.",
+        "description": "Internal listener-only endpoint. `notifications` is optional in NIP-47, so a wallet may never report a payment — this tick lets the server poll pending zap invoices with `lookup_invoice` and publish their kind:9735 receipts. The listener signs an empty JSON body with HMAC-SHA256 over `<timestamp>.<body>` and supplies x-lawallet-timestamp plus x-lawallet-signature. The body is ignored: the server selects the candidates itself. The response is immediate; the sweep runs after the response. Returns 404 when no listener is configured.",
+        "operationId": "nostr.internal.zapsSettle",
+        "security": [
+          {
+            "ListenerHmac": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settlement pass accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accepted"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vouchers": {
       "post": {
         "x-required-role": "USER",
