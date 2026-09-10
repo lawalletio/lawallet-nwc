@@ -49,8 +49,7 @@ vi.mock('light-bolt11-decoder', () => ({
 
 import { POST } from '@/app/api/invoices/route'
 import { getSettings } from '@/lib/settings'
-
-const originalFetch = global.fetch
+import { stubFetch } from '@/tests/helpers/stub-fetch'
 
 beforeEach(() => {
   resetPrismaMock()
@@ -62,7 +61,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  global.fetch = originalFetch
+  vi.unstubAllGlobals()
 })
 
 describe('POST /api/invoices', () => {
@@ -170,7 +169,7 @@ describe('POST /api/invoices', () => {
     } as any)
 
     // Two fetches: LUD-16 metadata + callback
-    global.fetch = vi.fn(async (input: string | URL | Request) => {
+    stubFetch(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input.toString()
       if (url.includes('/.well-known/lnurlp/')) {
         return {
@@ -229,7 +228,7 @@ describe('POST /api/invoices', () => {
     })
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
 
-    global.fetch = vi.fn(async () => ({ ok: false, status: 404 }) as any)
+    stubFetch(async () => ({ ok: false, status: 404 }))
 
     const req = createNextRequest('/api/invoices', {
       method: 'POST',
@@ -276,7 +275,7 @@ describe('POST /api/invoices', () => {
       expiresAt: new Date('2026-04-22T00:00:00Z')
     } as any)
 
-    global.fetch = vi.fn(async (input: string | URL | Request) => {
+    stubFetch(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input.toString()
       if (url.includes('/.well-known/lnurlp/')) {
         return {
@@ -326,7 +325,7 @@ describe('POST /api/invoices', () => {
     })
     vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
 
-    global.fetch = vi.fn(async (input: string | URL | Request) => {
+    stubFetch(async (input: string | URL | Request) => {
       const url = typeof input === 'string' ? input : input.toString()
       if (url.includes('/.well-known/lnurlp/')) {
         return {

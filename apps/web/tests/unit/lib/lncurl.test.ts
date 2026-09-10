@@ -11,22 +11,19 @@ vi.mock('@/lib/logger', () => ({
 }))
 
 import { createLncurlWallet, DEFAULT_LNCURL_SERVER } from '@/lib/lncurl'
+import { stubFetch } from '@/tests/helpers/stub-fetch'
 
 const VALID_NWC = `nostr+walletconnect://${'b'.repeat(64)}?relay=wss%3A%2F%2Fr.example&secret=${'c'.repeat(64)}`
-
-const originalFetch = global.fetch
 
 /** Build a `fetch`-compatible mock that resolves to a text-bodied Response. */
 function mockFetch(body: string, init: { status?: number; ok?: boolean } = {}) {
   const status = init.status ?? 200
   const ok = init.ok ?? (status >= 200 && status < 300)
-  const fn = vi.fn(async () => ({
+  return stubFetch(async () => ({
     ok,
     status,
     text: async () => body
-  })) as unknown as typeof fetch
-  global.fetch = fn
-  return fn
+  }))
 }
 
 beforeEach(() => {
@@ -34,7 +31,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  global.fetch = originalFetch
+  vi.unstubAllGlobals()
 })
 
 describe('createLncurlWallet', () => {
@@ -118,9 +115,9 @@ describe('createLncurlWallet', () => {
   })
 
   it('throws when fetch itself rejects (server unreachable)', async () => {
-    global.fetch = vi.fn(async () => {
+    stubFetch(async () => {
       throw new Error('ECONNREFUSED')
-    }) as unknown as typeof fetch
+    })
 
     await expect(createLncurlWallet()).rejects.toThrow(/unreachable/i)
   })

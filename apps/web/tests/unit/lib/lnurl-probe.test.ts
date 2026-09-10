@@ -1,23 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { stubFetch } from '@/tests/helpers/stub-fetch'
 import {
   probeLightningAddressCapabilities,
   probeLud21Support,
   resolveInvoice
 } from '@/lib/lnurl-probe'
 
-const originalFetch = global.fetch
-
 beforeEach(() => {
   vi.clearAllMocks()
 })
 
 afterEach(() => {
-  global.fetch = originalFetch
+  vi.unstubAllGlobals()
 })
 
 function mockFetchSequence(handlers: Array<() => Partial<Response>>) {
   let i = 0
-  global.fetch = vi.fn(async () => handlers[i++]() as Response) as any
+  stubFetch(async () => handlers[i++]() as Response)
 }
 
 describe('probeLud21Support', () => {
@@ -100,7 +99,7 @@ describe('probeLud21Support', () => {
   })
 
   it('rejects on network error reaching the metadata endpoint', async () => {
-    global.fetch = vi.fn(async () => {
+    stubFetch(async () => {
       throw new Error('ENETUNREACH')
     }) as any
 
@@ -254,7 +253,7 @@ describe('resolveInvoice', () => {
 
   it('retries the callback once when the provider times out', async () => {
     let call = 0
-    global.fetch = vi.fn(async () => {
+    stubFetch(async () => {
       call++
       if (call === 1) return metadataResponse() as Response
       if (call === 2) throw new Error('This operation was aborted')
@@ -268,7 +267,7 @@ describe('resolveInvoice', () => {
   })
 
   it('gives up with the provider error once the retries are spent', async () => {
-    global.fetch = vi.fn(async (url: string) => {
+    stubFetch(async (url: string) => {
       if (String(url).includes('/.well-known/')) {
         return metadataResponse() as Response
       }
@@ -282,7 +281,7 @@ describe('resolveInvoice', () => {
 
   it('does not retry a provider verdict (HTTP 400)', async () => {
     let callbackCalls = 0
-    global.fetch = vi.fn(async (url: string) => {
+    stubFetch(async (url: string) => {
       if (String(url).includes('/.well-known/')) {
         return metadataResponse() as Response
       }
@@ -297,7 +296,7 @@ describe('resolveInvoice', () => {
   })
 
   it("carries the provider's own reason into the error message", async () => {
-    global.fetch = vi.fn(async (url: string) => {
+    stubFetch(async (url: string) => {
       if (String(url).includes('/.well-known/')) {
         return metadataResponse() as Response
       }

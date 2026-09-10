@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createNextRequest, assertResponse } from '@/tests/helpers/api-helpers'
 import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
+import { stubFetch } from '@/tests/helpers/stub-fetch'
 
 // Mock dependencies
 vi.mock('@/lib/config', () => ({
@@ -381,9 +382,8 @@ describe('POST /api/settings', () => {
   })
 
   describe('paid registration precondition', () => {
-    const originalFetch = global.fetch
     afterEach(() => {
-      global.fetch = originalFetch
+      vi.unstubAllGlobals()
     })
 
     it('rejects when enabling paid registration with an empty LN address', async () => {
@@ -407,7 +407,7 @@ describe('POST /api/settings', () => {
     it('rejects when the configured LN address does not expose LUD-21 verify', async () => {
       vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
       vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
-      global.fetch = vi.fn(async (input: string | URL | Request) => {
+      stubFetch(async (input: string | URL | Request) => {
         const url = typeof input === 'string' ? input : input.toString()
         if (url.includes('/.well-known/lnurlp/')) {
           return {
@@ -446,7 +446,7 @@ describe('POST /api/settings', () => {
       vi.mocked(validateNip98Auth).mockResolvedValue(mockPubkey)
       vi.mocked(getSettings).mockResolvedValue({ root: mockPubkey })
       vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
-      global.fetch = vi.fn(async (input: string | URL | Request) => {
+      stubFetch(async (input: string | URL | Request) => {
         const url = typeof input === 'string' ? input : input.toString()
         if (url.includes('/.well-known/lnurlp/')) {
           return {
@@ -489,8 +489,7 @@ describe('POST /api/settings', () => {
         registration_ln_enabled: 'false'
       })
       vi.mocked(prismaMock.settings.upsert).mockResolvedValue({} as any)
-      const fetchSpy = vi.fn()
-      global.fetch = fetchSpy as any
+      const fetchSpy = stubFetch()
 
       const req = createNextRequest('/api/settings', {
         method: 'POST',

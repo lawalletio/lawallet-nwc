@@ -14,18 +14,23 @@ import { logger } from '@/lib/logger'
 import { redactPathBearerTokens } from '@/lib/observability/pii'
 import { checkMaintenance } from '@/lib/middleware/maintenance'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
-import type { ActivityCategory, ActivityLevel } from '@/lib/generated/prisma'
 import {
-  PrismaClientInitializationError,
-  PrismaClientKnownRequestError,
-  PrismaClientRustPanicError,
-  PrismaClientUnknownRequestError,
-  PrismaClientValidationError
-} from '@prisma/client-runtime-utils'
+  Prisma,
+  type ActivityCategory,
+  type ActivityLevel
+} from '@/lib/generated/prisma'
 import {
   TransactionTimeoutError,
   TransactionConnectionError
 } from '@/lib/prisma-transaction'
+
+const {
+  PrismaClientKnownRequestError,
+  PrismaClientValidationError,
+  PrismaClientUnknownRequestError,
+  PrismaClientInitializationError,
+  PrismaClientRustPanicError
+} = Prisma
 
 export const toApiError = (error: unknown): ApiError => {
   if (error instanceof ApiError) {

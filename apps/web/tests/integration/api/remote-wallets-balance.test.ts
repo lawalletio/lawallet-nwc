@@ -31,12 +31,13 @@ vi.mock('@/lib/auth/unified-auth', () => ({ authenticate: vi.fn() }))
 // getServerNwcClient → @getalby/sdk NWCClient.getBalance. Mock it so we
 // never hit a relay; getBalance returns msats.
 const getBalanceMock = vi.fn()
-vi.mock('@getalby/sdk', () => ({
-  NWCClient: vi.fn().mockImplementation(() => ({
-    getBalance: getBalanceMock,
-    close: vi.fn()
-  }))
-}))
+vi.mock('@getalby/sdk', () => {
+  class FakeNWCClient {
+    getBalance = getBalanceMock
+    close = vi.fn()
+  }
+  return { NWCClient: FakeNWCClient }
+})
 
 import { GET as balanceHandler } from '@/app/api/remote-wallets/[id]/balance/route'
 import { authenticate } from '@/lib/auth/unified-auth'

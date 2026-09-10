@@ -36,7 +36,6 @@
     "@nostrify/nostrify": "npm:@jsr/nostrify__nostrify@^0.46.5",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
-    "@prisma/client-runtime-utils": "^7.10.0",
     "@radix-ui/react-accordion": "latest",
     "@radix-ui/react-alert-dialog": "latest",
     "@radix-ui/react-aspect-ratio": "latest",
