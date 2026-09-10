@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 
-# ── Build base: Node.js 22 (Debian Trixie Slim) + pnpm via corepack ────
+# ── Build base: Node.js 24 (Debian Trixie Slim) + pnpm via corepack ────
 # corepack activates the exact pnpm pinned in package.json's "packageManager"
 # field — no floating `npm i -g pnpm@latest` version drift between builds.
-FROM node:22-trixie-slim AS base
+FROM node:24-trixie-slim AS base
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 
@@ -53,9 +53,9 @@ RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
     sh -c 'pnpm exec prisma generate && pnpm run build'
 
 # ── runner: minimal runtime image (no pnpm, no build toolchain) ────────
-FROM node:22-trixie-slim AS runner
+FROM node:24-trixie-slim AS runner
 WORKDIR /app
-ARG PRISMA_VERSION=6.19.2
+ARG PRISMA_VERSION=7.10.0
 
 # curl: the docker-compose healthcheck curls /api/health from inside the
 # container. Create the non-root user in the same layer to keep it lean.
@@ -70,6 +70,7 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/apps/web/prisma ./apps/web/prisma
+COPY --from=builder /app/apps/web/prisma.config.ts ./apps/web/prisma.config.ts
 COPY --from=builder /app/apps/web/lib/generated ./apps/web/lib/generated
 
 # Prisma CLI for `migrate deploy` at startup (the runtime image carries no

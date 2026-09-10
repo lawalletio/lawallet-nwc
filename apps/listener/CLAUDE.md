@@ -1,6 +1,6 @@
 # apps/listener — NWC relay bridge (transport-only)
 
-Long-running Node 22 service. Holds one live `NWCClient` (`@getalby/sdk`) per
+Long-running Node 24 service. Holds one live `NWCClient` (`@getalby/sdk`) per
 ACTIVE NWC `RemoteWallet` read from the shared Postgres, forwards NIP-47
 notifications to apps/web as HMAC-signed webhooks, and proxies NWC requests
 over the open connections (`POST /nwc/request`) so web avoids a relay

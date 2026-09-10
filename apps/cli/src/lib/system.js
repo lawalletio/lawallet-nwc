@@ -131,7 +131,7 @@ export async function ensurePnpmInstalled() {
 
   if (commandExists('corepack')) {
     await runCommand('corepack', ['enable'])
-    await runCommand('corepack', ['prepare', 'pnpm@10.11.0', '--activate'])
+    await runCommand('corepack', ['prepare', 'pnpm@11.26.0', '--activate'])
     return
   }
 
@@ -141,7 +141,7 @@ export async function ensurePnpmInstalled() {
     )
   }
 
-  await runCommand('npm', ['install', '--global', 'pnpm@10.11.0'])
+  await runCommand('npm', ['install', '--global', 'pnpm@11.26.0'])
 }
 
 export async function ensureWorkspaceInstalled(repoRoot) {

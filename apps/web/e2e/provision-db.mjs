@@ -100,11 +100,12 @@ async function ensureDatabaseExists() {
   const adminUrl = new URL(databaseUrl)
   adminUrl.pathname = targetUrl.pathname.replace(/_e2e$/, '')
 
+  const { PrismaPg } = require('@prisma/adapter-pg')
   const { PrismaClient } = require(
     path.join(webRoot, 'lib', 'generated', 'prisma', 'index.js')
   )
   const prisma = new PrismaClient({
-    datasources: { db: { url: adminUrl.toString() } }
+    adapter: new PrismaPg({ connectionString: adminUrl.toString() })
   })
 
   try {
@@ -122,10 +123,13 @@ async function ensureDatabaseExists() {
 }
 
 async function truncateAllTables() {
+  const { PrismaPg } = require('@prisma/adapter-pg')
   const { PrismaClient } = require(
     path.join(webRoot, 'lib', 'generated', 'prisma', 'index.js')
   )
-  const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: databaseUrl })
+  })
 
   try {
     const tables = await prisma.$queryRawUnsafe(

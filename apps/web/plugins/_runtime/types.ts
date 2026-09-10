@@ -68,7 +68,7 @@ export interface LawalletPlugin<TConfig = unknown> {
    * Validates this plugin's config JSON (stored as a PluginRecord with
    * kind 'config'). Use `.default()`s so an absent config still parses.
    */
-  readonly configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>
+  readonly configSchema: z.ZodType<TConfig>
 
   /** Enabled before an admin ever touches the toggle. Defaults to false. */
   readonly defaultEnabled?: boolean

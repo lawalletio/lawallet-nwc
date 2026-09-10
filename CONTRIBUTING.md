@@ -52,14 +52,14 @@ before working on anything non-trivial.
 
 | Tool       | Version    | Notes                                                                 |
 | ---------- | ---------- | --------------------------------------------------------------------- |
-| Node.js    | `v22.14.0` | Pinned in [`.nvmrc`](./.nvmrc); `nvm use` to match                    |
-| pnpm       | `10.11.0`  | Pinned via `packageManager` field in [`package.json`](./package.json) |
+| Node.js    | `v24.21.0` | Pinned in [`.nvmrc`](./.nvmrc); `nvm use` to match                    |
+| pnpm       | `11.26.0`  | Pinned via `packageManager` field in [`package.json`](./package.json) |
 | PostgreSQL | 15+        | Use the bundled `docker-compose.yml` if you don't have one running    |
 | Git        | any recent | Hooks rely on a normal `pre-commit`-friendly setup                    |
 
 If you have [Corepack](https://nodejs.org/api/corepack.html) enabled, pnpm
 will be activated automatically. Otherwise install it with
-`npm install -g pnpm@10.11.0`.
+`npm install -g pnpm@11.26.0`.
 
 ---
 
@@ -352,7 +352,7 @@ rm -rf .turbo/cache
 
 ## Running Tests
 
-The backend uses [Vitest 3.2](https://vitest.dev/) + [MSW](https://mswjs.io/) +
+The backend uses [Vitest 5](https://vitest.dev/) + [MSW](https://mswjs.io/) +
 `happy-dom`. Config: [`apps/web/vitest.config.ts`](./apps/web/vitest.config.ts).
 
 ```bash

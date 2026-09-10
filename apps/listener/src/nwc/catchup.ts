@@ -274,7 +274,13 @@ export class CatchupRunner {
                 })()
               )
             },
+            // Alby SDK 8 dropped `oneose` from SubscribeManyParams (the
+            // reconnecting pool keeps the REQ open). Tests and any pool that
+            // still emits EOSE use this to finish the one-shot replay
+            // immediately; production still has RELAY_REPLAY_TIMEOUT_MS.
             oneose: finish
+          } as Parameters<NWCClient['pool']['subscribe']>[2] & {
+            oneose?: () => void
           }
         )
       } catch (err) {

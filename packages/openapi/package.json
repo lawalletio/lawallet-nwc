@@ -14,14 +14,14 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@asteasolutions/zod-to-openapi": "^7.3.4",
+    "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@lawallet-nwc/shared": "workspace:*",
-    "openapi3-ts": "^4.5.0",
-    "zod": "^3.25.76"
+    "openapi3-ts": "^4.6.1",
+    "zod": "^4.6.1"
   },
   "devDependencies": {
-    "tsx": "^4.20.4",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.6"
+    "vitest": "^5.0.0"
   }
 }

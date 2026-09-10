@@ -207,30 +207,30 @@ const envSchema = z.object({
   // Request Size Limits
   REQUEST_MAX_BODY_SIZE: z
     .string()
+    .default('1048576')
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().positive())
-    .default('1048576')
     .describe('Maximum request body size in bytes (default: 1MB)'),
 
   REQUEST_MAX_JSON_SIZE: z
     .string()
+    .default('102400')
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().positive())
-    .default('102400')
     .describe('Maximum JSON payload size in bytes (default: 100KB)'),
 
   REQUEST_MAX_FILE_SIZE: z
     .string()
+    .default('5242880')
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().positive())
-    .default('5242880')
     .describe('Maximum single file upload size in bytes (default: 5MB)'),
 
   REQUEST_MAX_FILES: z
     .string()
+    .default('10')
     .transform(val => parseInt(val, 10))
     .pipe(z.number().int().positive())
-    .default('10')
     .describe('Maximum number of files per upload request (default: 10)'),
 
   // Sentry error monitoring (optional — nothing initializes without a DSN)
@@ -287,7 +287,7 @@ export function getEnv(strict: boolean = true): Env {
 
   if (!result.success) {
     if (strict) {
-      const errors = result.error.errors.map(err => {
+      const errors = result.error.issues.map(err => {
         const path = err.path.join('.')
         return `  - ${path}: ${err.message}`
       })
@@ -312,7 +312,7 @@ export function getEnv(strict: boolean = true): Env {
 
       // If still failing, throw in non-strict mode too for critical errors
       throw new Error(
-        `Critical environment variable validation failed: ${result.error.errors[0]?.message}`
+        `Critical environment variable validation failed: ${result.error.issues[0]?.message}`
       )
     }
   }

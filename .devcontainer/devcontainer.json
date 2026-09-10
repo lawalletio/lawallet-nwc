@@ -1,11 +1,11 @@
 {
   "name": "LaWallet NWC",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
   "forwardPorts": [3000, 3001, 5432],
-  "postCreateCommand": "corepack enable && corepack prepare pnpm@10.11.0 --activate && pnpm dev:setup",
+  "postCreateCommand": "corepack enable && corepack prepare pnpm@11.26.0 --activate && pnpm dev:setup",
   "customizations": {
     "vscode": {
       "extensions": [

@@ -16,7 +16,7 @@ export async function putRecord<T>(
   pluginId: string,
   kind: string,
   key: string,
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  schema: z.ZodType<T>,
   data: T
 ): Promise<void> {
   const parsed = schema.parse(data)
@@ -32,7 +32,7 @@ export async function getRecord<T>(
   pluginId: string,
   kind: string,
   key: string,
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>
+  schema: z.ZodType<T>
 ): Promise<T | null> {
   const row = await prisma.pluginRecord.findUnique({
     where: { pluginId_kind_key: { pluginId, kind, key } }
@@ -46,7 +46,7 @@ export async function getRecord<T>(
 export async function listRecords<T>(
   pluginId: string,
   kind: string,
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>
+  schema: z.ZodType<T>
 ): Promise<Array<{ key: string; data: T }>> {
   const rows = await prisma.pluginRecord.findMany({
     where: { pluginId, kind },

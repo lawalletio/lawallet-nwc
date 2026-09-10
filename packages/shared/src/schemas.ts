@@ -25,7 +25,7 @@ export const MEDIA_URL_MAX_LENGTH = 2048
 /**
  * Media URL accepted from API input (card design create/update).
  *
- * Zod 3's `.url()` is a bare `new URL()` constructor check, so on its own it
+ * Zod's `.url()` is a bare `new URL()` constructor check, so on its own it
  * happily accepts `javascript:`, `data:`, `file:` and every other scheme. It
  * is kept in the chain because it is what makes the generated OpenAPI emit
  * `format: uri`; the `.refine()` below is what actually constrains the
@@ -465,7 +465,7 @@ export const settingsBodySchema = z.record(
       /^[a-z0-9_-]+$/,
       'Setting name can only contain lowercase letters, numbers, hyphens, and underscores'
     ),
-  z.string({ required_error: 'Value must be a string' })
+  z.string({ error: 'Value must be a string' })
 )
 
 // ── Remote Connections ──────────────────────────────────────────────────────
@@ -839,7 +839,7 @@ export const backupExportOptionsSchema = z
       .default(100_000),
     activityLogSince: z.string().datetime().optional()
   })
-  .default({})
+  .default({ activityLogLimit: 100_000 })
 
 export const backupExportRequestSchema = z.object({
   categories: z
@@ -947,7 +947,7 @@ export const backupTableAnalysisSchema = z.object({
 
 export const backupAnalyzeResponseSchema = z.object({
   manifest: backupManifestSchema,
-  tables: z.record(backupTableName, backupTableAnalysisSchema),
+  tables: z.partialRecord(backupTableName, backupTableAnalysisSchema),
   warnings: z.array(z.string()),
   analyzedAt: z.string()
 })
@@ -988,7 +988,7 @@ export const backupImportTableResultSchema = z.object({
 
 export const backupImportResultSchema = z.object({
   mode: backupImportMode,
-  tables: z.record(backupTableName, backupImportTableResultSchema),
+  tables: z.partialRecord(backupTableName, backupImportTableResultSchema),
   hadErrors: z.boolean(),
   errors: z.array(
     z.object({
@@ -1038,7 +1038,7 @@ export const webauthnRegistrationResponseSchema = z
         transports: z.array(z.string()).optional()
       })
       .passthrough(),
-    clientExtensionResults: z.record(z.unknown()).default({}),
+    clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
     authenticatorAttachment: z.string().optional()
   })
   .passthrough()
@@ -1373,7 +1373,7 @@ export const depositVoucherSchema = z.object({
    * The protocol `Benefit` plus any extra conditions. Deliberately opaque —
    * the benefit union grows upstream and this instance only renders it.
    */
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   /** Expiry as unix seconds, matching the protocol's `expiration` tag. */
   expiresAt: z.number().int().positive().optional(),
   /**
@@ -1381,7 +1381,7 @@ export const depositVoucherSchema = z.object({
    * verified and its values win over the plain fields above — a signature
    * beats an assertion.
    */
-  voucherEvent: z.record(z.unknown()).optional()
+  voucherEvent: z.record(z.string(), z.unknown()).optional()
 })
 export type DepositVoucherRequest = z.infer<typeof depositVoucherSchema>
 
@@ -1485,7 +1485,7 @@ export const voucherTransferSchema = z.object({
       `Nonce must be ${VOUCHER_NONCE_LENGTH} characters`
     ),
   /** The CMS-signed kind-20402. Required here — an unsigned transfer is unverifiable. */
-  voucher: z.record(z.unknown()),
+  voucher: z.record(z.string(), z.unknown()),
   comment: z.string().trim().max(LUD12_MAX_COMMENT_LENGTH).optional()
 })
 export type VoucherTransferRequest = z.infer<typeof voucherTransferSchema>
@@ -1512,7 +1512,7 @@ export const couponRefreshResponseSchema = z
     nonce: z.string().trim().min(1),
     couponId: z.string().nullish(),
     expiresAt: z.union([z.string(), z.number()]).nullish(),
-    voucher: z.record(z.unknown()).optional(),
+    voucher: z.record(z.string(), z.unknown()).optional(),
     // Mint-shaped, so the replacement describes itself. These are what the
     // recipient renders: taking them from the *sender* would let them choose
     // what the recipient sees, and taking them from some older row of the

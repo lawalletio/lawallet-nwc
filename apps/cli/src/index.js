@@ -39,9 +39,9 @@ function validateNodeVersion() {
 async function main(argv) {
   const version = validateNodeVersion()
 
-  if (version.major < 22 || (version.major === 22 && version.minor < 14)) {
+  if (version.major < 24 || (version.major === 24 && version.minor < 21)) {
     console.warn(
-      'Note: the LaWallet repo is pinned to Node.js 22.14.0 in .nvmrc; continuing with the current Node runtime for the CLI.'
+      'Note: the LaWallet repo is pinned to Node.js 24.21.0 in .nvmrc; continuing with the current Node runtime for the CLI.'
     )
   }
 

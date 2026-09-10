@@ -97,7 +97,7 @@ async function createFixtureRepo(parentDir) {
       {
         name: 'lawallet-fixture',
         private: true,
-        packageManager: 'pnpm@10.11.0'
+        packageManager: 'pnpm@11.26.0'
       },
       null,
       2

@@ -15,7 +15,13 @@ import { redactPathBearerTokens } from '@/lib/observability/pii'
 import { checkMaintenance } from '@/lib/middleware/maintenance'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import type { ActivityCategory, ActivityLevel } from '@/lib/generated/prisma'
-import { Prisma } from '@/lib/generated/prisma'
+import {
+  PrismaClientInitializationError,
+  PrismaClientKnownRequestError,
+  PrismaClientRustPanicError,
+  PrismaClientUnknownRequestError,
+  PrismaClientValidationError
+} from '@prisma/client-runtime-utils'
 import {
   TransactionTimeoutError,
   TransactionConnectionError
@@ -42,7 +48,7 @@ export const toApiError = (error: unknown): ApiError => {
   // Prisma error messages embed schema and query details — never serialize
   // them to clients. Map the well-known codes to proper status codes and keep
   // the original error as `cause` for logs/Sentry.
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+  if (error instanceof PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {
       return new ConflictError('A record with this value already exists')
     }
@@ -52,10 +58,10 @@ export const toApiError = (error: unknown): ApiError => {
     return new InternalServerError('Database error', { cause: error })
   }
   if (
-    error instanceof Prisma.PrismaClientValidationError ||
-    error instanceof Prisma.PrismaClientUnknownRequestError ||
-    error instanceof Prisma.PrismaClientInitializationError ||
-    error instanceof Prisma.PrismaClientRustPanicError
+    error instanceof PrismaClientValidationError ||
+    error instanceof PrismaClientUnknownRequestError ||
+    error instanceof PrismaClientInitializationError ||
+    error instanceof PrismaClientRustPanicError
   ) {
     return new InternalServerError('Database error', { cause: error })
   }
@@ -204,10 +210,10 @@ export const handleApiError = (
   if (shouldLog) {
     const isServerError = statusCode >= 500
     const isDbError =
-      error instanceof Prisma.PrismaClientKnownRequestError ||
-      error instanceof Prisma.PrismaClientValidationError ||
-      error instanceof Prisma.PrismaClientUnknownRequestError ||
-      error instanceof Prisma.PrismaClientRustPanicError ||
+      error instanceof PrismaClientKnownRequestError ||
+      error instanceof PrismaClientValidationError ||
+      error instanceof PrismaClientUnknownRequestError ||
+      error instanceof PrismaClientRustPanicError ||
       error instanceof TransactionTimeoutError ||
       error instanceof TransactionConnectionError
     const category: ActivityCategory = isDbError

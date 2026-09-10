@@ -65,10 +65,10 @@ describe('Validation Middleware', () => {
           body: '{"name": "Alice"'
         })
 
-      const error = await validateBody(
+      const error = (await validateBody(
         createMalformedRequest(),
         testSchema
-      ).catch(e => e)
+      ).catch((e: unknown) => e)) as JsonParseError
       expect(error).toBeInstanceOf(JsonParseError)
       expect(error).toBeInstanceOf(ValidationError)
       expect(error.statusCode).toBe(400)
@@ -82,7 +82,9 @@ describe('Validation Middleware', () => {
         headers: { 'Content-Type': 'application/json' },
         body: '{"pubkeys": ["abc", "def"'
       })
-      const error = await validateBody(request, arraySchema).catch(e => e)
+      const error = (await validateBody(request, arraySchema).catch(
+        (e: unknown) => e
+      )) as JsonParseError
       expect(error).toBeInstanceOf(JsonParseError)
       expect(error).toBeInstanceOf(ValidationError)
       expect(error.statusCode).toBe(400)
@@ -95,7 +97,9 @@ describe('Validation Middleware', () => {
         headers: { 'Content-Type': 'application/json' },
         body: ''
       })
-      const error = await validateBody(request, testSchema).catch(e => e)
+      const error = (await validateBody(request, testSchema).catch(
+        (e: unknown) => e
+      )) as JsonParseError
       expect(error).toBeInstanceOf(JsonParseError)
       expect(error).toBeInstanceOf(ValidationError)
       expect(error.statusCode).toBe(400)

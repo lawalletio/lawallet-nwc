@@ -471,7 +471,7 @@ export const PasskeyOptionsResponse = registry.register(
   'PasskeyOptionsResponse',
   z
     .object({
-      options: z.record(z.unknown()).openapi({
+      options: z.record(z.string(), z.unknown()).openapi({
         description:
           'WebAuthn PublicKeyCredential options JSON — pass to ' +
           '@simplewebauthn/browser (`startRegistration` / `startAuthentication`) unchanged.'

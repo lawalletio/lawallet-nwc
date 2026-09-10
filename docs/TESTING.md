@@ -45,7 +45,7 @@ All scripts are defined in [apps/web/package.json](../apps/web/package.json). Te
 
 | Tool                                                                     | Role                                                     |
 | ------------------------------------------------------------------------ | -------------------------------------------------------- |
-| [Vitest 3.2](https://vitest.dev)                                         | Test runner, assertion library, watch mode, UI, coverage |
+| [Vitest 5](https://vitest.dev)                                           | Test runner, assertion library, watch mode, UI, coverage |
 | [happy-dom](https://github.com/capricorn86/happy-dom)                    | Lightweight DOM for hook/component tests                 |
 | [MSW](https://mswjs.io)                                                  | HTTP mocking for outbound calls (Alby, third-party)      |
 | [@faker-js/faker](https://fakerjs.dev)                                   | Random fixture data                                      |

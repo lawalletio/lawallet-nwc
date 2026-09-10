@@ -11,19 +11,18 @@ loadEnvFile(resolve(configDir, '.env.local'), { override: true })
 // NOTE: `env('DATABASE_URL')` from `prisma/config` throws at config-load
 // time when the variable is missing, which breaks `prisma generate` in
 // environments that legitimately don't have DB access (CI install step,
-// fresh clones without .env). Generate only needs the schema; the real
-// URL is resolved from the env at runtime via the schema's own
-// `env("DATABASE_URL")` binding, so falling back to a placeholder here
-// keeps generate working without masking a real misconfiguration.
+// fresh clones without .env). Generate only needs the schema; Prisma 7
+// reads the URL from this config (not the schema), so falling back to a
+// placeholder here keeps generate working without masking a real
+// misconfiguration.
 // `E2E_DATABASE_URL` wins when present: the E2E provisioner targets a dedicated
 // `_e2e` database, but the `.env.local` override above would otherwise clobber
 // the `DATABASE_URL` it passes to `prisma migrate deploy`, silently migrating
 // the dev DB instead. This mirrors the precedence in `e2e/env.ts`. No effect on
 // normal dev/CI, where `E2E_DATABASE_URL` is unset.
-// Setting `datasource.url` below is NOT enough: `prisma migrate deploy`
-// resolves the connection from the schema's `env("DATABASE_URL")` binding
-// (i.e. from process.env), so the E2E value must be written back there too
-// or the `.env.local` override wins and the dev DB gets migrated.
+// Setting `datasource.url` below is not enough on its own: the E2E
+// provisioner also needs `process.env.DATABASE_URL` rewritten so later
+// Prisma CLI commands in the same process see the `_e2e` database.
 if (process.env.E2E_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.E2E_DATABASE_URL
 }

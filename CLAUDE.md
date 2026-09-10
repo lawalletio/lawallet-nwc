@@ -14,7 +14,7 @@ Nostr identity on custom domains, on a progressive self-custody model.
 
 ## Monorepo Structure
 
-pnpm workspaces + Turborepo. Node v22.14.0 (`.nvmrc`), pnpm 10.11.0.
+pnpm workspaces + Turborepo. Node v24.21.0 (`.nvmrc`), pnpm 11.26.0.
 
 ```
 apps/

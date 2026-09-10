@@ -243,7 +243,7 @@ export function getEnv(): ListenerEnv {
 
   const result = envSchema.safeParse(process.env)
   if (!result.success) {
-    const errors = result.error.errors.map(
+    const errors = result.error.issues.map(
       err => `  - ${err.path.join('.')}: ${err.message}`
     )
     throw new Error(

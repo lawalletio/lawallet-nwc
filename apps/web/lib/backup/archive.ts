@@ -72,7 +72,7 @@ export async function parseBackupFile(
   if (!parsedManifest.success) {
     throw new ValidationError(
       'Backup manifest is invalid.',
-      parsedManifest.error.errors
+      parsedManifest.error.issues
     )
   }
   const manifest = parsedManifest.data

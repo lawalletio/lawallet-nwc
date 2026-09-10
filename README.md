@@ -15,7 +15,7 @@
 [![Status: Pre-Alpha](https://img.shields.io/badge/status-pre--alpha-orange)](./README.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
-[![Node](https://img.shields.io/badge/node-%E2%89%A522.14-339933?logo=node.js&logoColor=white)](./.nvmrc)
+[![Node](https://img.shields.io/badge/node-%E2%89%A524.21-339933?logo=node.js&logoColor=white)](./.nvmrc)
 [![⚡ Lightning](https://img.shields.io/badge/⚡-Lightning_Network-792EE5)](https://lightning.network)
 [![Nostr](https://img.shields.io/badge/Nostr-Protocol-8E44AD)](https://nostr.com)
 [![Funded by OpenSats](https://img.shields.io/badge/Funded_by-OpenSats-F7931A)](https://opensats.org)
@@ -117,12 +117,12 @@ Three independent containerized services with no shared infrastructure:
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Language        | [TypeScript 5.9](https://www.typescriptlang.org/)                                                                                                                     |
 | Framework       | [Next.js 16](https://nextjs.org/) (App Router)                                                                                                                        |
-| Database        | [PostgreSQL](https://www.postgresql.org/) via [Prisma 6.19](https://www.prisma.io/)                                                                                   |
+| Database        | [PostgreSQL](https://www.postgresql.org/) via [Prisma 7.10](https://www.prisma.io/)                                                                                   |
 | Styling         | [Tailwind CSS 3.4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix UI](https://www.radix-ui.com/)                                            |
-| Lightning / NWC | [Alby SDK 7](https://github.com/getAlby/js-sdk), [nostr-tools](https://github.com/nbd-wtf/nostr-tools), [@nostrify/nostrify](https://gitlab.com/soapbox-pub/nostrify) |
-| Testing         | [Vitest 3.2](https://vitest.dev/) + [MSW](https://mswjs.io/) + [happy-dom](https://github.com/capricorn86/happy-dom)                                                  |
-| Tooling         | [pnpm 10](https://pnpm.io/) workspaces + [Turborepo 2](https://turbo.build/)                                                                                          |
-| Runtime         | [Node.js ≥22.14](./.nvmrc)                                                                                                                                            |
+| Lightning / NWC | [Alby SDK 8](https://github.com/getAlby/js-sdk), [nostr-tools](https://github.com/nbd-wtf/nostr-tools), [@nostrify/nostrify](https://gitlab.com/soapbox-pub/nostrify) |
+| Testing         | [Vitest 5](https://vitest.dev/) + [MSW](https://mswjs.io/) + [happy-dom](https://github.com/capricorn86/happy-dom)                                                    |
+| Tooling         | [pnpm 11](https://pnpm.io/) workspaces + [Turborepo 2](https://turbo.build/)                                                                                          |
+| Runtime         | [Node.js ≥24.21](./.nvmrc)                                                                                                                                            |
 
 ---
 
@@ -145,7 +145,7 @@ Three independent containerized services with no shared infrastructure:
 
 ### Quick Start (development)
 
-Prerequisites: [Node v22.14](./.nvmrc) (`nvm use`), pnpm 10 (via Corepack), and Docker.
+Prerequisites: [Node v24.21](./.nvmrc) (`nvm use`), pnpm 11 (via Corepack), and Docker.
 
 ```bash
 git clone https://github.com/lawalletio/lawallet-nwc.git

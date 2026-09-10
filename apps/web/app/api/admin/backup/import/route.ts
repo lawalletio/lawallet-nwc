@@ -52,7 +52,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   if (!parsedResolution.success) {
     throw new ValidationError(
       'Invalid restore options.',
-      parsedResolution.error.errors
+      parsedResolution.error.issues
     )
   }
   const resolution = parsedResolution.data
