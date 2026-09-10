@@ -64,6 +64,15 @@ const envSchema = z.object({
     .pipe(z.number().int().positive())
     .describe('How often the deferred LUD-16 proxy pipeline is reconciled'),
 
+  ZAP_SETTLE_INTERVAL_MS: z
+    .string()
+    .default('20000')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().nonnegative())
+    .describe(
+      'How often web polls pending zap invoices to settlement, covering wallets that emit no NIP-47 notifications (0 disables)'
+    ),
+
   LOG_LEVEL: z
     .string()
     .default('info')

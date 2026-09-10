@@ -34,6 +34,7 @@ import {
 } from './store'
 import { WebhookDispatcher } from './webhook'
 import { requestProxyReconcile } from './proxy-reconcile'
+import { requestZapSettlement } from './zap-settle'
 import { createProcessErrorReporter } from './process-errors'
 import {
   captureException,
@@ -352,6 +353,16 @@ async function main(): Promise<void> {
       )
     }, env.PROXY_RECONCILE_INTERVAL_MS)
   ]
+  if (env.ZAP_SETTLE_INTERVAL_MS > 0) {
+    // Zap receipts are only useful while the sender is still looking, so this
+    // ticks far more often than the proxy reconciler. Web bounds the actual
+    // relay traffic with its own per-invoice backoff.
+    timers.push(
+      setInterval(() => {
+        void requestZapSettlement(env, createLogger({ module: 'zap-settle' }))
+      }, env.ZAP_SETTLE_INTERVAL_MS)
+    )
+  }
   if (env.CATCHUP_ENABLED && env.CATCHUP_INTERVAL_MS > 0) {
     // Safety net for gaps neither the subscribe hook nor the reconnect
     // watcher caught (e.g. silent SDK resubscribes between watcher samples).

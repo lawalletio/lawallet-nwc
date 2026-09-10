@@ -100,6 +100,7 @@ Every generated secret is independent. Do not use `JWT_SECRET`,
 | `PORT`                        | Web               | Optional                | Web HTTP port; the container default is `2288`.                                      |
 | `LAWALLET_TAG`                | Published Compose | Optional                | Docker image version; defaults to `latest`. Pin a release for controlled upgrades.   |
 | `PROXY_RECONCILE_INTERVAL_MS` | Listener          | Optional                | Recovery sweep interval for proxy settlements; defaults to `600000` (ten minutes).   |
+| `ZAP_SETTLE_INTERVAL_MS`      | Listener          | Optional                | Zap settlement poll tick; defaults to `20000`. `0` disables.                         |
 
 The complete list of lower-level tuning variables is documented in
 [`apps/web/.env.example`](https://github.com/lawalletio/lawallet-nwc/blob/main/apps/web/.env.example)

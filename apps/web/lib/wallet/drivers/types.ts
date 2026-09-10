@@ -82,6 +82,26 @@ export interface MakeInvoiceInput {
   descriptionHash?: string
 }
 
+/** Request handed to {@link RemoteWalletDriver.lookupInvoice}. */
+export interface LookupInvoiceInput {
+  /** BOLT-11 payment hash, lowercase hex. */
+  paymentHash: string
+}
+
+/** Settlement state of an invoice the wallet minted earlier. */
+export interface LookupInvoiceResult {
+  /** True only when the wallet reports the invoice settled AND has a preimage. */
+  settled: boolean
+  /** Payment preimage, hex-encoded. Null while unsettled. */
+  preimage: string | null
+  /**
+   * Settlement time as a unix-**ms** timestamp, or `null` if the wallet didn't
+   * report one. Normalised at the driver boundary like
+   * {@link MakeInvoiceResult.expiresAt} — NWC reports unix seconds.
+   */
+  settledAt: number | null
+}
+
 /** Result of a successful {@link RemoteWalletDriver.makeInvoice} call. */
 export interface MakeInvoiceResult {
   /** BOLT11 invoice string to hand back to the payer. */
@@ -156,4 +176,18 @@ export interface RemoteWalletDriver<TConfig = unknown> {
     config: TConfig,
     input: MakeInvoiceInput
   ): Promise<MakeInvoiceResult>
+
+  /**
+   * Read the settlement state of an invoice this wallet minted.
+   *
+   * Optional because not every protocol exposes a lookup by payment hash;
+   * callers that poll for settlement (LUD-21 verify, the NIP-57 zap settlement
+   * sweep) must skip wallets whose driver omits it rather than assume unpaid.
+   *
+   * @throws {DriverError} on validation, protocol, or remote errors.
+   */
+  lookupInvoice?(
+    config: TConfig,
+    input: LookupInvoiceInput
+  ): Promise<LookupInvoiceResult>
 }
