@@ -357,7 +357,7 @@ async function releaseRejected(
 }
 
 function isSafePreflightFailure(message: string): boolean {
-  return /(must use HTTPS|must not contain credentials|resolves to a private network|getaddrinfo ENOTFOUND)/i.test(
+  return /(must use HTTPS|must not contain credentials|resolves to a private network|getaddrinfo (?:ENOTFOUND|EAI_AGAIN|EAI_FAIL|EAI_NODATA)|DNS lookup timed out)/i.test(
     message
   )
 }
