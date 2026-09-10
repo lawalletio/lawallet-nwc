@@ -4,6 +4,22 @@ import { prismaMock, resetPrismaMock } from '@/tests/helpers/prisma-mock'
 import { createParamsPromise } from '@/tests/helpers/route-helpers'
 import { encryptRemoteWalletEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
 
+const afterMock = vi.hoisted(() =>
+  vi.fn((callback: () => unknown) => {
+    void callback()
+  })
+)
+const publishZapReceiptMock = vi.hoisted(() => vi.fn())
+
+vi.mock('next/server', async importActual => ({
+  ...(await importActual<typeof import('next/server')>()),
+  after: afterMock
+}))
+
+vi.mock('@/lib/nostr/zap-receipts', () => ({
+  publishInvoiceZapReceipt: publishZapReceiptMock
+}))
+
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
@@ -202,6 +218,44 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     })
     // Should not query NWC when already cached
     expect(lookupInvoiceMock).not.toHaveBeenCalled()
+  })
+
+  it('retries the zap receipt when an already-paid zap invoice is verified', async () => {
+    // The payer polling verify is the one signal that arrives even when relays
+    // rejected the receipt earlier, so it doubles as a publish retry. The
+    // publish itself is idempotent — it no-ops once an event id is stored.
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      status: 'PAID',
+      preimage: 'b'.repeat(64),
+      zapRequest: { kind: 9734 }
+    } as any)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const res = await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+    await assertResponse(res, 200)
+
+    expect(publishZapReceiptMock).toHaveBeenCalledWith(baseInvoice.id)
+  })
+
+  it('does not attempt a receipt for an already-paid ordinary invoice', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      status: 'PAID',
+      preimage: 'b'.repeat(64),
+      zapRequest: null
+    } as any)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+
+    expect(publishZapReceiptMock).not.toHaveBeenCalled()
   })
 
   it('returns settled when the listener confirmed payment without a preimage', async () => {

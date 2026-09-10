@@ -475,6 +475,18 @@ describe('nwcDriver', () => {
       ).rejects.toBeInstanceOf(DriverRemoteError)
       expect(lookupInvoiceMock).not.toHaveBeenCalled()
     })
+
+    it('surfaces a direct wallet rejection without re-wrapping it', async () => {
+      // Settlement reads the message to tell a relay timeout from a wallet
+      // refusal; a second wrapper would bury the reason one level deeper.
+      lookupInvoiceMock.mockRejectedValueOnce(
+        new DriverRemoteError('lookup_invoice not supported')
+      )
+
+      await expect(
+        nwcDriver.lookupInvoice!(CONFIG, { paymentHash: HASH })
+      ).rejects.toThrow('lookup_invoice not supported')
+    })
   })
 
   describe('listener bridge', () => {

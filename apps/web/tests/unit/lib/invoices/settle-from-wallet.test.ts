@@ -163,6 +163,56 @@ describe('settleInvoiceFromWallet', () => {
     )
   })
 
+  it('stamps settlement now when the wallet omits settled_at', async () => {
+    // `settled_at` is optional in NIP-47. The value lands in `paidAt` and is
+    // copied into the zap receipt, so it has to be a real time either way.
+    lookupInvoiceMock.mockResolvedValue({
+      settled: true,
+      preimage: PREIMAGE,
+      settledAt: null
+    })
+
+    const before = Date.now()
+    const result = await settleInvoiceFromWallet(invoice(), {
+      source: 'zap_settlement_sweep'
+    })
+
+    expect(result.outcome).toBe('settled')
+    const paidAt = (result as { paidAt: Date }).paidAt.getTime()
+    expect(paidAt).toBeGreaterThanOrEqual(before)
+    expect(paidAt).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('asks an unsaved wallet without inventing a row id', async () => {
+    // Legacy rows can carry a wallet with no id. Passing `null` through as an
+    // id would make the driver try to decrypt a vault envelope that isn't
+    // keyed to any row.
+    await settleInvoiceFromWallet(
+      invoice({ remoteWallet: { ...WALLET, id: null } }),
+      { source: 'zap_settlement_sweep' }
+    )
+
+    expect(driverForWalletMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: undefined, type: 'NWC' })
+    )
+  })
+
+  it('describes a thrown non-Error rather than logging [object Object]', async () => {
+    lookupInvoiceMock.mockRejectedValue('relay socket closed')
+
+    const result = await settleInvoiceFromWallet(invoice(), {
+      source: 'lud21_verify'
+    })
+
+    expect(result).toEqual({ outcome: 'unavailable' })
+    expect(logActivity.fireAndForget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: ActivityEvent.NWC_CONNECTION_ERROR,
+        metadata: expect.objectContaining({ error: 'relay socket closed' })
+      })
+    )
+  })
+
   it('publishes the zap receipt for a zap invoice', async () => {
     await settleInvoiceFromWallet(invoice(), {
       source: 'zap_settlement_sweep'
