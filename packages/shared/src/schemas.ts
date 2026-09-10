@@ -399,6 +399,12 @@ export const probeAliasAddressSchema = z.object({
     .transform(value => value.toLowerCase())
 })
 
+/**
+ * Body for POST /api/lightning-addresses/verify-protocols.
+ * Admin maintenance: re-probe one address and persist alias protocol results.
+ */
+export const verifyAddressProtocolsSchema = walletAddressUsernameParam
+
 // ── Users ───────────────────────────────────────────────────────────────────
 
 export const updateRoleSchema = z.object({

@@ -31,6 +31,17 @@ export interface AddressData {
   }
 }
 
+export interface VerifyAddressProtocolsResult {
+  username: string
+  mode: LightningAddressMode
+  redirect: string | null
+  probed: boolean
+  persisted: boolean
+  error: string | null
+  previous: NonNullable<AddressData['protocols']>
+  protocols: NonNullable<AddressData['protocols']>
+}
+
 export interface AddressCounts {
   total: number
   withNWC: number

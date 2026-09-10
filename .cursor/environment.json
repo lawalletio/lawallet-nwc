@@ -8,5 +8,5 @@
       "command": "bash scripts/cloud-agent/dev-web.sh"
     }
   ],
-  "ports": [3332]
+  "ports": [{ "port": 3332 }]
 }
