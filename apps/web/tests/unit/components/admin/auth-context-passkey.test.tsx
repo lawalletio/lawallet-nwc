@@ -265,3 +265,104 @@ describe('AuthProvider passkey sessions (PRF model)', () => {
     })
   })
 })
+
+function fireVisibilityChange(state: DocumentVisibilityState = 'visible') {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => state
+  })
+  document.dispatchEvent(new Event('visibilitychange'))
+}
+
+describe('AuthProvider visibility recheck', () => {
+  it('keeps a live in-memory signer and does not rebuild it', async () => {
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+
+    await act(async () => {
+      await held.ctx!.login(STUB_SIGNER, 'bunker', {
+        secret: 'bunker://relay.example'
+      })
+    })
+
+    expect(screen.getByTestId('signer')).toHaveTextContent('yes')
+    const liveSigner = held.ctx!.signer
+    mocks.createBunkerSigner.mockClear()
+    mocks.createNsecSigner.mockClear()
+
+    // A hanging restore would previously clobber the live bunker signer and
+    // leave requestSigner() empty until the 15s timeout finished.
+    mocks.createBunkerSigner.mockReturnValue(new Promise(() => {}))
+
+    await act(async () => {
+      fireVisibilityChange('visible')
+    })
+
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    expect(screen.getByTestId('signer')).toHaveTextContent('yes')
+    expect(held.ctx!.signer).toBe(liveSigner)
+    expect(mocks.createBunkerSigner).not.toHaveBeenCalled()
+    expect(mocks.createNsecSigner).not.toHaveBeenCalled()
+
+    let requested: NostrSigner | null = null
+    await act(async () => {
+      requested = await held.ctx!.requestSigner()
+    })
+    expect(requested).toBe(liveSigner)
+  })
+
+  it('still restores a missing signer when the tab becomes visible', async () => {
+    localStorage.setItem(JWT_KEY, 'stored-tok')
+    localStorage.setItem(METHOD_KEY, 'bunker')
+
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
+    await flush()
+    expect(screen.getByTestId('signer')).toHaveTextContent('no')
+
+    localStorage.setItem(SECRET_KEY, 'bunker://relay.example')
+    mocks.createBunkerSigner.mockResolvedValue(STUB_SIGNER)
+
+    await act(async () => {
+      fireVisibilityChange('visible')
+    })
+
+    await waitFor(() =>
+      expect(screen.getByTestId('signer')).toHaveTextContent('yes')
+    )
+    expect(mocks.createBunkerSigner).toHaveBeenCalledWith(
+      'bunker://relay.example',
+      { timeout: 15_000 }
+    )
+  })
+
+  it('clears the in-memory signer when the stored JWT is invalid', async () => {
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+
+    await act(async () => {
+      await held.ctx!.login(STUB_SIGNER, 'bunker', {
+        secret: 'bunker://relay.example'
+      })
+    })
+    expect(screen.getByTestId('signer')).toHaveTextContent('yes')
+
+    mocks.validateJwt.mockRejectedValueOnce(new Error('invalid token'))
+
+    await act(async () => {
+      fireVisibilityChange('visible')
+    })
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+    expect(screen.getByTestId('signer')).toHaveTextContent('no')
+    expect(held.ctx!.signer).toBeNull()
+  })
+})

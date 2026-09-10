@@ -397,7 +397,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!storedToken) {
         if (cancelled) return
-        setState(prev => ({ ...prev, status: 'unauthenticated' }))
+        setState(prev => ({
+          ...prev,
+          status: 'unauthenticated',
+          signer: null
+        }))
         return
       }
 
@@ -405,17 +409,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const validation = await validateJwt(storedToken)
         if (cancelled) return
 
-        setState({
+        const existingSigner = signerRef.current
+
+        setState(prev => ({
+          ...prev,
           status: 'authenticated',
           jwt: storedToken,
           pubkey: validation.pubkey,
           role: validation.role,
           permissions: validation.permissions,
-          signer: null,
+          signer: prev.signer,
           loginMethod: storedMethod
-        })
+        }))
 
-        scheduleRefresh(validation.expiresAt, null)
+        scheduleRefresh(validation.expiresAt, existingSigner)
+
+        // A live in-memory signer (e.g. an already-connected bunker) must
+        // survive JWT rechecks on tab focus. Restoring is only needed when
+        // nothing is in memory yet — typically the initial mount.
+        if (existingSigner) return
 
         // Try to restore the signer based on the stored method:
         // - extension: rebuild from `window.nostr` if still installed
@@ -441,7 +453,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem(IMPERSONATOR_RETURN_KEY)
         void clearSessionCaches()
         if (cancelled) return
-        setState(prev => ({ ...prev, status: 'unauthenticated' }))
+        setState(prev => ({
+          ...prev,
+          status: 'unauthenticated',
+          jwt: null,
+          pubkey: null,
+          role: null,
+          permissions: null,
+          signer: null,
+          loginMethod: null
+        }))
       }
     }
 
