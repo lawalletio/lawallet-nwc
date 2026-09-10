@@ -227,7 +227,11 @@ describe('scrubEvent', () => {
   })
 
   it('leaves missing or non-string transaction trace attributes alone', () => {
-    expect(scrubEvent({}).contexts).toBeUndefined()
+    expect(
+      scrubEvent<{
+        contexts?: { trace?: { data?: Record<string, unknown> } }
+      }>({}).contexts
+    ).toBeUndefined()
     expect(
       scrubEvent({
         contexts: { trace: { data: { 'http.status_code': 500 } } }
