@@ -445,6 +445,11 @@ export async function insertEventIfNew(
   return (result.rowCount ?? 0) > 0
 }
 
+/**
+ * Persist a delivery outcome. Returns true when this call claimed the row.
+ * Already-delivered rows are left untouched so a concurrent sweep cannot
+ * overwrite success or double-count metrics.
+ */
 export async function markDelivery(
   pool: pg.Pool,
   eventKey: string,
@@ -453,17 +458,19 @@ export async function markDelivery(
   lastError?: string,
   /** When to next attempt a failed delivery (null clears the gate). */
   nextAttemptAt?: Date | null
-): Promise<void> {
-  await pool.query(
+): Promise<boolean> {
+  const result = await pool.query(
     `UPDATE listener.processed_events
         SET webhook_status = $2,
             webhook_attempts = $3,
             webhook_last_error = $4,
             delivered_at = CASE WHEN $2 = 'delivered' THEN now() ELSE delivered_at END,
             webhook_next_attempt_at = $5
-      WHERE event_key = $1`,
+      WHERE event_key = $1
+        AND webhook_status <> 'delivered'`,
     [eventKey, status, attempts, lastError ?? null, nextAttemptAt ?? null]
   )
+  return (result.rowCount ?? 0) > 0
 }
 
 /** Undelivered-webhook backlog — count + age of the oldest — for observability. */
@@ -584,9 +591,10 @@ export async function lastEventAtByWallet(
 }
 
 /**
- * Rows the sweep should re-attempt: not yet delivered, under the attempt cap,
- * and not touched in the last `olderThanMs` (so the inline retry loop and the
- * sweep don't race on fresh events).
+ * Rows the sweep should re-attempt: not yet delivered, older than
+ * `olderThanMs` (must exceed the inline retry loop's worst-case duration so
+ * sweep and `dispatch()` don't race on fresh events), and not gated by
+ * `webhook_next_attempt_at`.
  */
 export async function undeliveredEvents(
   pool: pg.Pool,

@@ -3,7 +3,13 @@ import pino from 'pino'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type pg from 'pg'
 import type { ListenerEnv } from '../src/env'
-import { signWebhook, WebhookDispatcher } from '../src/webhook'
+import {
+  inlineDispatchMaxDurationMs,
+  signWebhook,
+  sweepOlderThanMs,
+  WEBHOOK_POST_TIMEOUT_MS,
+  WebhookDispatcher
+} from '../src/webhook'
 import type { StoredEvent } from '../src/store'
 
 const SECRET = 'listener-shared-secret-0123456789abcdef'
@@ -79,6 +85,24 @@ const freshMetrics = () => ({
   deadProbesRun: 0,
   deadProbesTimedOut: 0,
   walletsDeclaredDead: 0
+})
+
+describe('sweepOlderThanMs', () => {
+  it('exceeds the worst-case inline retry loop, including the old 2-minute gate', () => {
+    // Default WEBHOOK_MAX_ATTEMPTS=5: 5×10s timeouts + (1+5+25+60)s sleeps.
+    expect(WEBHOOK_POST_TIMEOUT_MS).toBe(10_000)
+    expect(inlineDispatchMaxDurationMs(5)).toBe(141_000)
+    expect(sweepOlderThanMs(5)).toBeGreaterThan(inlineDispatchMaxDurationMs(5))
+    expect(sweepOlderThanMs(5)).toBeGreaterThan(2 * 60 * 1000)
+  })
+
+  it('scales with WEBHOOK_MAX_ATTEMPTS, using the last backoff once delays run out', () => {
+    expect(inlineDispatchMaxDurationMs(1)).toBe(WEBHOOK_POST_TIMEOUT_MS)
+    expect(inlineDispatchMaxDurationMs(3)).toBe(3 * 10_000 + 1000 + 5000)
+    expect(inlineDispatchMaxDurationMs(6)).toBe(
+      inlineDispatchMaxDurationMs(5) + WEBHOOK_POST_TIMEOUT_MS + 120_000
+    )
+  })
 })
 
 describe('signWebhook', () => {
@@ -225,6 +249,18 @@ describe('WebhookDispatcher.dispatch', () => {
       expect(payload.payment.feesPaidMsats).toBeUndefined()
     }
   })
+
+  it('does not increment delivered when another writer already claimed the row', async () => {
+    query.mockResolvedValue({ rows: [], rowCount: 0 })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    )
+
+    await dispatcher.dispatch(storedEvent)
+
+    expect(metrics.webhooksDelivered).toBe(0)
+  })
 })
 
 describe('WebhookDispatcher.sweep', () => {
@@ -305,5 +341,36 @@ describe('WebhookDispatcher.sweep', () => {
     await dispatcher.sweep()
 
     expect(metrics.webhooksPending).toBe(3)
+  })
+
+  it('selects only events older than the inline retry loop', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce(backlogRow(0, null))
+
+    await dispatcher.sweep()
+
+    const select = query.mock.calls.find(([sql]) =>
+      String(sql).includes("webhook_status <> 'delivered'")
+    )
+    expect(select?.[1][0]).toBe(sweepOlderThanMs(env.WEBHOOK_MAX_ATTEMPTS))
+    expect(select?.[1][0]).toBeGreaterThan(
+      inlineDispatchMaxDurationMs(env.WEBHOOK_MAX_ATTEMPTS)
+    )
+  })
+
+  it('does not increment recovered metrics when the row is already delivered', async () => {
+    query
+      .mockResolvedValueOnce({ rows: [rowFor(failed)] })
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValueOnce(backlogRow(0, null))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    )
+
+    await dispatcher.sweep()
+
+    expect(metrics.webhooksDelivered).toBe(0)
   })
 })

@@ -68,10 +68,13 @@ describe('insertEventIfNew', () => {
 describe('markDelivery', () => {
   it('updates status, attempts and error in the listener schema', async () => {
     const { pool, query } = poolWith({ rowCount: 1 })
-    await markDelivery(pool, 'key-1', 'failed', 3, 'HTTP 500')
+    await expect(
+      markDelivery(pool, 'key-1', 'failed', 3, 'HTTP 500')
+    ).resolves.toBe(true)
     const [sql, params] = query.mock.calls[0]
     expect(sql).toContain('UPDATE listener.processed_events')
     expect(sql).toContain('webhook_next_attempt_at = $5')
+    expect(sql).toContain("webhook_status <> 'delivered'")
     expect(params).toEqual(['key-1', 'failed', 3, 'HTTP 500', null])
   })
 
@@ -81,6 +84,15 @@ describe('markDelivery', () => {
     await markDelivery(pool, 'key-1', 'failed', 3, 'HTTP 500', next)
     const [, params] = query.mock.calls[0]
     expect(params).toEqual(['key-1', 'failed', 3, 'HTTP 500', next])
+  })
+
+  it('is a no-op when the row is already delivered', async () => {
+    const { pool, query } = poolWith({ rowCount: 0 })
+    await expect(markDelivery(pool, 'key-1', 'delivered', 4)).resolves.toBe(
+      false
+    )
+    const [sql] = query.mock.calls[0]
+    expect(sql).toContain("webhook_status <> 'delivered'")
   })
 })
 
