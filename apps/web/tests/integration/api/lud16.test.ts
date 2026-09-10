@@ -9,7 +9,13 @@ const { createProxyPayRequestMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
+  getConfig: vi.fn(() => ({
+    maintenance: { enabled: false },
+    nwcVault: {
+      secret: 'test-lud16-nwc-vault-secret-0123456789abcdef',
+      enabled: true
+    }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -988,6 +994,39 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
 
     expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Wallet is currently unavailable')
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('returns 503 when the bound wallet vault config cannot be decrypted', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWallet: {
+        ...DEFAULT_WALLET,
+        config: {
+          connectionString: 'lwrw1:not-a-valid-envelope',
+          mode: 'SEND_RECEIVE'
+        }
+      },
+      nwcConnection: null,
+      user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
+    } as any)
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000' }
+    })
+    const res = await Lud16CbGet(
+      req,
+      createParamsPromise({ username: 'alice' })
+    )
+
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Wallet is currently unavailable')
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
     expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
   })
 

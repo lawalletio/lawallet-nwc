@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import {
   DriverConfigError,
@@ -12,6 +12,16 @@ import {
   unregisterDriver
 } from '@/lib/wallet/drivers/registry'
 import type { RemoteWalletDriver } from '@/lib/wallet/drivers/types'
+import { getConfig } from '@/lib/config'
+
+vi.mock('@/lib/config', () => ({
+  getConfig: vi.fn(() => ({
+    nwcVault: {
+      secret: 'test-registry-nwc-vault-secret-0123456789abcdef',
+      enabled: true
+    }
+  }))
+}))
 
 /**
  * Minimal stub driver used to exercise the registry without pulling in the
@@ -112,6 +122,48 @@ describe('driver registry', () => {
       expect(() => driverForWallet({ type: 'BTCPAY', config: {} })).toThrow(
         UnsupportedDriverError
       )
+    })
+
+    it('throws DriverConfigError when a persisted vault envelope cannot be decrypted', () => {
+      registerDriver(makeStubDriver())
+      expect(() =>
+        driverForWallet({
+          id: 'w1',
+          type: 'NWC',
+          config: { connectionString: 'lwrw1:not-a-valid-envelope' }
+        })
+      ).toThrow(DriverConfigError)
+    })
+
+    it('throws DriverConfigError when a persisted NWC row has no connectionString', () => {
+      registerDriver(makeStubDriver())
+      expect(() =>
+        driverForWallet({
+          id: 'w1',
+          type: 'NWC',
+          config: { token: 'abc' }
+        })
+      ).toThrow(DriverConfigError)
+    })
+
+    it('does not wrap a missing NWC_VAULT_SECRET as DriverConfigError', () => {
+      registerDriver(makeStubDriver())
+      vi.mocked(getConfig).mockReturnValueOnce({
+        nwcVault: { secret: undefined, enabled: false }
+      } as never)
+      try {
+        driverForWallet({
+          id: 'w1',
+          type: 'NWC',
+          config: { connectionString: 'lwrw1:not-a-valid-envelope' }
+        })
+        throw new Error('should have thrown')
+      } catch (err) {
+        expect(err).not.toBeInstanceOf(DriverConfigError)
+        expect((err as Error).message).toBe(
+          'NWC_VAULT_SECRET is not configured'
+        )
+      }
     })
   })
 })
