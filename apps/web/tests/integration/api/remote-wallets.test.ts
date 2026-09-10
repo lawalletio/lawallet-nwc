@@ -307,10 +307,84 @@ describe('GET /api/remote-wallets/forwarding-map', () => {
     expect(prismaMock.remoteWalletReceiveAction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          remoteWallet: { userId: user.id },
+          remoteWallet: {
+            userId: user.id,
+            status: { notIn: ['REVOKED', 'DEAD'] }
+          },
           currentRevisionId: { not: null }
         }
       })
+    )
+  })
+
+  it('does not return a REVOKED wallet receive action', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+
+    type MapRow = {
+      remoteWalletId: string
+      enabled: boolean
+      status: 'ACTIVE' | 'REVOKED' | 'DEAD'
+      currentRevision: {
+        destinations: Array<{ address: string; allocationBps: number }>
+      }
+    }
+
+    const rows: MapRow[] = [
+      {
+        remoteWalletId: 'active-wallet',
+        enabled: true,
+        status: 'ACTIVE',
+        currentRevision: {
+          destinations: [
+            { address: 'alice@example.com', allocationBps: 10_000 }
+          ]
+        }
+      },
+      {
+        remoteWalletId: 'revoked-wallet',
+        enabled: false,
+        status: 'REVOKED',
+        currentRevision: {
+          destinations: [{ address: 'bob@example.com', allocationBps: 10_000 }]
+        }
+      }
+    ]
+
+    vi.mocked(prismaMock.remoteWalletReceiveAction.findMany).mockImplementation(
+      async args => {
+        const notIn = (
+          args as {
+            where?: { remoteWallet?: { status?: { notIn?: string[] } } }
+          }
+        )?.where?.remoteWallet?.status?.notIn
+        return rows
+          .filter(row => !notIn?.includes(row.status))
+          .map(row => ({
+            remoteWalletId: row.remoteWalletId,
+            enabled: row.enabled,
+            currentRevision: row.currentRevision
+          })) as never
+      }
+    )
+
+    const response = await forwardingMapHandler(
+      createNextRequest('/api/remote-wallets/forwarding-map')
+    )
+    const body = (await assertResponse(response, 200)) as {
+      actions: Array<{ walletId: string }>
+    }
+
+    expect(body.actions).toEqual([
+      {
+        walletId: 'active-wallet',
+        enabled: true,
+        destinations: [{ address: 'alice@example.com', allocationBps: 10_000 }]
+      }
+    ])
+    expect(body.actions).not.toContainEqual(
+      expect.objectContaining({ walletId: 'revoked-wallet' })
     )
   })
 })
