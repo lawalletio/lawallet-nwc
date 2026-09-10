@@ -81,8 +81,11 @@ export const GET = withErrorHandling(
         throw new NotFoundError('Invoice not found')
       }
 
-      // Ensure the payment hash belongs to this username (prevent cross-user lookups)
-      if (invoice.user.lightningAddresses[0]?.username !== username) {
+      // Ensure the payment hash belongs to this username (prevent cross-user
+      // lookups). The include filters on `username`, so a hash belonging to
+      // someone else comes back with no address at all.
+      const address = invoice.user.lightningAddresses[0]
+      if (!address || address.username !== username) {
         throw new NotFoundError('Invoice not found for this username')
       }
 
@@ -117,10 +120,9 @@ export const GET = withErrorHandling(
       // the answer means subsequent polls skip the NWC round-trip. Lookup and
       // settlement are shared with the NIP-57 sweep so the two can't disagree
       // about what counts as paid.
-      const address = invoice.user.lightningAddresses[0]
       const settlement = await settleInvoiceFromWallet(invoice, {
         source: 'lud21_verify',
-        address: address ?? null,
+        address,
         schedule: task => after(task)
       })
 

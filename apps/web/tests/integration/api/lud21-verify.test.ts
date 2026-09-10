@@ -196,6 +196,24 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
     expect(res.status).toBe(404)
   })
 
+  it('returns 404 when the hash belongs to a user without that address', async () => {
+    // The include filters on `username`, so this is the shape a real
+    // cross-account probe produces: the invoice exists, the address does not.
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
+      ...baseInvoice,
+      user: { id: 'user-1', lightningAddresses: [] }
+    } as any)
+
+    const req = createNextRequest(`/api/lud16/alice/verify/${VALID_HASH}`)
+    const res = await GET(
+      req,
+      createParamsPromise({ username: 'alice', paymentHash: VALID_HASH })
+    )
+
+    expect(res.status).toBe(404)
+    expect(lookupInvoiceMock).not.toHaveBeenCalled()
+  })
+
   it('returns cached preimage when invoice already PAID', async () => {
     vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue({
       ...baseInvoice,
