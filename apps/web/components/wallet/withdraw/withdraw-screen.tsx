@@ -36,6 +36,10 @@ const SETTLE_POLL_MS = 3_000
 
 type Phase = 'confirm' | 'claiming' | 'success'
 
+// Deferred so React Strict Mode's sync unmount/remount in development does
+// not wipe a freshly scanned voucher before the confirm screen can read it.
+let pendingWithdrawReset: ReturnType<typeof setTimeout> | null = null
+
 export function WithdrawScreen() {
   const router = useRouter()
   const flow = useWithdrawFlow()
@@ -46,16 +50,28 @@ export function WithdrawScreen() {
   const fixed =
     !!params && params.minWithdrawableSats === params.maxWithdrawableSats
 
-  const [phase, setPhase] = useState<Phase>('confirm')
+  const [phase, setPhase] = useState<Phase>(() =>
+    flow.result ? 'success' : 'confirm'
+  )
   const [value, setValue] = useState<string>(() =>
     params ? String(params.maxWithdrawableSats) : '0'
   )
   const [error, setError] = useState<string | null>(null)
   const cancelledRef = useRef(false)
+  const claimingRef = useRef(false)
 
   useEffect(() => {
+    cancelledRef.current = false
+    if (pendingWithdrawReset) {
+      clearTimeout(pendingWithdrawReset)
+      pendingWithdrawReset = null
+    }
     return () => {
       cancelledRef.current = true
+      pendingWithdrawReset = setTimeout(() => {
+        withdrawActions.reset()
+        pendingWithdrawReset = null
+      }, 0)
     }
   }, [])
 
@@ -84,8 +100,9 @@ export function WithdrawScreen() {
 
   async function claim() {
     if (!params || amountSats === null || !amountValid) return
-    if (!nwc) return
+    if (!nwc || flow.result || claimingRef.current) return
 
+    claimingRef.current = true
     setError(null)
     setPhase('claiming')
     withdrawActions.setAmount(amountSats)
@@ -102,6 +119,7 @@ export function WithdrawScreen() {
       setPhase('success')
       trackEvent(AnalyticsEvent.WALLET_RECEIVE_COMPLETED)
     } catch (err) {
+      claimingRef.current = false
       if (cancelledRef.current) return
       const message =
         err instanceof LnurlError ? err.message : describeNwcError(err)
@@ -111,7 +129,7 @@ export function WithdrawScreen() {
     }
   }
 
-  if (phase === 'success') {
+  if (phase === 'success' || flow.result) {
     return (
       <WithdrawSuccess
         amountSats={flow.result?.amountSats ?? amountSats ?? 0}
@@ -175,7 +193,7 @@ export function WithdrawScreen() {
             <Button
               type="button"
               onClick={claim}
-              disabled={!amountValid || phase === 'claiming'}
+              disabled={!amountValid || phase === 'claiming' || !!flow.result}
               className="h-12 w-full"
             >
               {phase === 'claiming' ? (
