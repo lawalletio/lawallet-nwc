@@ -114,7 +114,7 @@ export interface PublishedZapReceipt {
  * the same receipt id is produced after a crash or relay timeout, so a retry
  * cannot create a second zap receipt for the same payment.
  */
-function createZapReceipt(input: {
+export function createZapReceipt(input: {
   zapRequest: Event
   zapRequestJson: string
   payerInvoice: string
@@ -126,6 +126,7 @@ function createZapReceipt(input: {
   const copiedTags = input.zapRequest.tags.filter(tag =>
     ['e', 'p', 'a'].includes(tag[0])
   )
+  // Receipt `P` is the sender: zapRequest.pubkey, not a copied tag (NIP-57).
   return finalizeEvent(
     {
       kind: 9735,
@@ -133,6 +134,7 @@ function createZapReceipt(input: {
       content: '',
       tags: [
         ...copiedTags,
+        ['P', input.zapRequest.pubkey],
         ['bolt11', input.payerInvoice],
         ['description', input.zapRequestJson],
         ...(input.payerPreimage ? [['preimage', input.payerPreimage]] : [])
