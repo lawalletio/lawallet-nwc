@@ -1,5 +1,6 @@
 import type { RemoteWalletType } from '@/lib/generated/prisma'
 import { getConfig } from '@/lib/config'
+import { DriverConfigError } from '@/lib/wallet/drivers/errors'
 import {
   decryptRemoteWalletEnvelope,
   encryptRemoteWalletEnvelope,
@@ -8,6 +9,8 @@ import {
 } from '@/lib/wallet/remote-wallet-vault-core'
 
 export { RemoteWalletVaultDecryptError }
+
+const VAULT_SECRET_UNCONFIGURED = 'NWC_VAULT_SECRET is not configured'
 
 function asConfigObject(config: unknown): Record<string, unknown> {
   if (!config || typeof config !== 'object' || Array.isArray(config)) {
@@ -86,5 +89,35 @@ export function decryptRemoteWalletConfig(
       connectionString,
       walletId
     )
+  }
+}
+
+/**
+ * Decrypt a persisted row for driver / payment-route use. Per-row corruption
+ * (tampered envelope, malformed JSON, missing NWC URI) becomes
+ * {@link DriverConfigError} so API routes that already catch `DriverError`
+ * can map it to 503. A missing `NWC_VAULT_SECRET` stays a plain Error so it
+ * remains a 500 + Sentry page.
+ */
+export function decryptRemoteWalletConfigForDriver(
+  walletId: string,
+  type: RemoteWalletType,
+  config: unknown
+): Record<string, unknown> {
+  try {
+    return decryptRemoteWalletConfig(walletId, type, config)
+  } catch (err) {
+    if (err instanceof Error && err.message === VAULT_SECRET_UNCONFIGURED) {
+      throw err
+    }
+    if (
+      err instanceof RemoteWalletVaultDecryptError ||
+      (err instanceof Error &&
+        (err.message === 'Remote wallet config must be a JSON object' ||
+          err.message === 'NWC remote wallet config has no connectionString'))
+    ) {
+      throw new DriverConfigError(type, err.message)
+    }
+    throw err
   }
 }

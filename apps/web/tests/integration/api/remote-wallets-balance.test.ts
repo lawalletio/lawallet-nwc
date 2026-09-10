@@ -161,6 +161,38 @@ describe('GET /api/remote-wallets/[id]/balance', () => {
       createParamsPromise({ id: 'w1' })
     )
     expect(res.status).toBe(503)
+    const body = (await res.json()) as {
+      error: { message: string }
+    }
+    expect(body.error.message).toBe('Wallet balance is currently unavailable')
+  })
+
+  it('returns 503 when the stored vault envelope cannot be decrypted', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      createRemoteWalletFixture({
+        id: 'w1',
+        userId: user.id,
+        status: 'ACTIVE',
+        config: {
+          connectionString: 'lwrw1:not-a-valid-envelope',
+          mode: 'RECEIVE'
+        }
+      }) as never
+    )
+
+    const res = await balanceHandler(
+      createNextRequest('/api/remote-wallets/w1/balance'),
+      createParamsPromise({ id: 'w1' })
+    )
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as {
+      error: { message: string }
+    }
+    expect(body.error.message).toBe('Wallet balance is currently unavailable')
+    expect(getBalanceMock).not.toHaveBeenCalled()
   })
 
   it('returns 401 when unauthenticated', async () => {

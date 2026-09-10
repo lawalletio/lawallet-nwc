@@ -9,7 +9,13 @@ const { createProxyPayRequestMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/config', () => ({
-  getConfig: vi.fn(() => ({ maintenance: { enabled: false } }))
+  getConfig: vi.fn(() => ({
+    maintenance: { enabled: false },
+    nwcVault: {
+      secret: 'test-lud16-nwc-vault-secret-0123456789abcdef',
+      enabled: true
+    }
+  }))
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -51,6 +57,25 @@ vi.mock('@/lib/proxy/lnurl', () => ({
 vi.mock('@/lib/proxy/pay-request', () => ({
   createProxyPayRequest: createProxyPayRequestMock
 }))
+
+const resolveWalletRouteHarness = vi.hoisted(() => ({
+  mock: vi.fn(),
+  restoreActual: () => {
+    /* assigned after the module mock loads */
+  }
+}))
+vi.mock('@/lib/wallet/resolve-payment-route', async importActual => {
+  const actual =
+    await importActual<typeof import('@/lib/wallet/resolve-payment-route')>()
+  resolveWalletRouteHarness.restoreActual = () => {
+    resolveWalletRouteHarness.mock.mockImplementation(actual.resolveWalletRoute)
+  }
+  resolveWalletRouteHarness.restoreActual()
+  return {
+    ...actual,
+    resolveWalletRoute: resolveWalletRouteHarness.mock
+  }
+})
 
 // LNCurl re-provisioning is exercised in dedicated suites; here we stub it so
 // the cb route's self-heal branch is testable without a network call.
@@ -107,6 +132,7 @@ import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 import { getSettings } from '@/lib/settings'
 import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
 import { DEV_ADMIN_USER_ID } from '@/lib/dev-identity'
+import { logger } from '@/lib/logger'
 
 function nwcUri(walletKey: string, secret: string, relay: string): string {
   return `nostr+walletconnect://${walletKey.repeat(64)}?relay=${encodeURIComponent(`wss://${relay}`)}&secret=${secret.repeat(64)}`
@@ -143,6 +169,7 @@ function mockPrimaryAddressWallet(
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
+  resolveWalletRouteHarness.restoreActual()
   // Sane default so every route that reads settings gets an object, not
   // `undefined`. The LUD-16 routes now consult the `lncurl_*` flags before
   // 404ing an unroutable address (lazy auto-heal), so the 404 paths exercise
@@ -1016,7 +1043,71 @@ describe('GET /api/lud16/[username]/cb', () => {
     )
 
     expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Wallet is currently unavailable')
     expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('returns 503 when the bound wallet vault config cannot be decrypted', async () => {
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWallet: {
+        ...DEFAULT_WALLET,
+        config: {
+          connectionString: 'lwrw1:not-a-valid-envelope',
+          mode: 'SEND_RECEIVE'
+        }
+      },
+      nwcConnection: null,
+      user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
+    } as any)
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000' }
+    })
+    const res = await Lud16CbGet(
+      req,
+      createParamsPromise({ username: 'alice' })
+    )
+
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Wallet is currently unavailable')
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ username: 'alice' }),
+      'LUD16 wallet route resolution failed'
+    )
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
+    expect(prismaMock.invoice.upsert).not.toHaveBeenCalled()
+  })
+
+  it('does not map non-driver route errors to a 503', async () => {
+    resolveWalletRouteHarness.mock.mockImplementation(() => {
+      throw new Error('unexpected routing failure')
+    })
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue({
+      username: 'alice',
+      mode: 'CUSTOM_NWC',
+      redirect: null,
+      remoteWallet: DEFAULT_WALLET,
+      nwcConnection: null,
+      user: { id: 'user-1', remoteWallets: [DEFAULT_WALLET] }
+    } as any)
+
+    const req = createNextRequest('/api/lud16/alice/cb', {
+      searchParams: { amount: '10000' }
+    })
+    const res = await Lud16CbGet(
+      req,
+      createParamsPromise({ username: 'alice' })
+    )
+
+    expect(res.status).toBe(500)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Internal server error')
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
   })
 
   it('returns 404 for IDLE addresses on the callback', async () => {
