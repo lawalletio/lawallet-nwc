@@ -49,13 +49,18 @@ const signerConfig = {
   receiptPubkey: 'b'.repeat(64)
 }
 
+const zapSenderPubkey = 'c'.repeat(64)
 const zapInvoice = {
   id: 'invoice-1',
   status: 'PAID',
   bolt11: 'lnbc100n1payer',
   preimage: 'a'.repeat(64),
   paidAt: new Date('2026-08-03T12:00:00.000Z'),
-  zapRequest: { kind: 9734, tags: [['relays', 'wss://relay.example']] },
+  zapRequest: {
+    kind: 9734,
+    pubkey: zapSenderPubkey,
+    tags: [['relays', 'wss://relay.example']]
+  },
   zapRequestJson: '{"kind":9734}',
   zapReceiptEventId: null
 }
@@ -107,7 +112,8 @@ describe('RemoteWallet NIP-57 receipts', () => {
       expect.objectContaining({
         payerInvoice: zapInvoice.bolt11,
         payerPreimage: zapInvoice.preimage,
-        privateKeyHex: '1'.repeat(64)
+        privateKeyHex: '1'.repeat(64),
+        zapRequest: expect.objectContaining({ pubkey: zapSenderPubkey })
       })
     )
     expect(prismaMock.invoice.updateMany).toHaveBeenLastCalledWith(

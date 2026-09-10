@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { bech32 } from 'bech32'
-import { finalizeEvent } from 'nostr-tools/pure'
-import { receiptPubkey, validateZapRequest } from '@/lib/proxy/nostr'
+import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
+import {
+  createZapReceipt,
+  receiptPubkey,
+  validateZapRequest
+} from '@/lib/proxy/nostr'
 
 const senderKey = Uint8Array.from({ length: 32 }, (_, index) => index + 1)
 const recipientKey = 'ab'.repeat(32)
@@ -13,7 +17,11 @@ const encodedLnurl = bech32.encode(
 )
 
 function zapRequest(
-  overrides: { amount?: string; lnurl?: string | null } = {}
+  overrides: {
+    amount?: string
+    lnurl?: string | null
+    extraTags?: string[][]
+  } = {}
 ) {
   const lnurl = 'lnurl' in overrides ? overrides.lnurl : encodedLnurl
   return finalizeEvent(
@@ -25,7 +33,8 @@ function zapRequest(
         ['p', recipientKey],
         ['amount', overrides.amount ?? '100000'],
         ...(lnurl ? [['lnurl', lnurl]] : []),
-        ['relays', 'wss://relay.example']
+        ['relays', 'wss://relay.example'],
+        ...(overrides.extraTags ?? [])
       ]
     },
     senderKey
@@ -136,5 +145,52 @@ describe('proxy NIP-57 validation', () => {
     expect(receiptPubkey(Buffer.from(senderKey).toString('hex'))).toHaveLength(
       64
     )
+  })
+})
+
+const receiptSignerKey = Uint8Array.from(
+  { length: 32 },
+  (_, index) => index + 50
+)
+
+describe('createZapReceipt', () => {
+  function receiptFor(request = zapRequest()) {
+    return createZapReceipt({
+      zapRequest: request,
+      zapRequestJson: JSON.stringify(request),
+      payerInvoice: 'lnbc1test',
+      payerPreimage: 'aa'.repeat(32),
+      privateKeyHex: Buffer.from(receiptSignerKey).toString('hex'),
+      createdAtSeconds: 1_700_000_100
+    })
+  }
+
+  it('includes exactly one sender P tag from the zap request pubkey', () => {
+    const request = zapRequest()
+    const senderPTags = receiptFor(request).tags.filter(tag => tag[0] === 'P')
+    expect(senderPTags).toHaveLength(1)
+    expect(senderPTags[0]).toEqual(['P', request.pubkey])
+    expect(request.pubkey).toBe(getPublicKey(senderKey))
+  })
+
+  it('copies recipient p/e/a tags and ignores a request P tag', () => {
+    const eventId = 'cd'.repeat(32)
+    const addressable = `30023:${recipientKey}:post`
+    const request = zapRequest({
+      extraTags: [
+        ['e', eventId],
+        ['a', addressable],
+        ['P', 'ff'.repeat(32)]
+      ]
+    })
+    const receipt = receiptFor(request)
+    expect(receipt.tags.filter(tag => tag[0] === 'p')).toEqual([
+      ['p', recipientKey]
+    ])
+    expect(receipt.tags).toContainEqual(['e', eventId])
+    expect(receipt.tags).toContainEqual(['a', addressable])
+    expect(receipt.tags.filter(tag => tag[0] === 'P')).toEqual([
+      ['P', request.pubkey]
+    ])
   })
 })
