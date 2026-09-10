@@ -10,6 +10,7 @@ import {
   Forward,
   MoreHorizontal,
   Plus,
+  ScanSearch,
   Star
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -49,6 +50,7 @@ import {
   type AddressData
 } from '@/lib/client/hooks/use-addresses'
 import { NewAddressDialog } from '@/components/wallet/new-address-dialog'
+import { VerifyProtocolsDialog } from '@/components/admin/verify-protocols-dialog'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/components/admin/auth-context'
@@ -118,6 +120,7 @@ export default function AdminAddressesPage() {
 
   const { setAsPrimary, settingPrimary } = useAddressMutations()
   const [createOpen, setCreateOpen] = useState(false)
+  const [verifyOpen, setVerifyOpen] = useState(false)
 
   const domain = settings?.domain || 'your-domain'
   const userRegistrationEnabled =
@@ -210,6 +213,12 @@ export default function AdminAddressesPage() {
         }
         actions={
           <div className="flex items-center gap-3">
+            {isAdmin && (
+              <Button variant="outline" onClick={() => setVerifyOpen(true)}>
+                <ScanSearch data-icon="inline-start" />
+                Verify Protocols
+              </Button>
+            )}
             {isAdmin && (
               <div className="flex items-center gap-2">
                 <Switch
@@ -522,6 +531,16 @@ export default function AdminAddressesPage() {
         open={createOpen && !creationRestricted}
         onOpenChange={setCreateOpen}
         onCreated={refetch}
+      />
+
+      <VerifyProtocolsDialog
+        open={verifyOpen}
+        onOpenChange={setVerifyOpen}
+        domain={domain}
+        onComplete={() => {
+          void all.refetch()
+          void mine.refetch()
+        }}
       />
     </div>
   )

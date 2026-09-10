@@ -112,6 +112,56 @@ registry.registerPath({
 })
 
 registry.registerPath({
+  ...withRole('ADMIN'),
+  method: 'post',
+  path: '/api/lightning-addresses/verify-protocols',
+  tags: [TAG],
+  summary: 'Re-verify one address’s protocols.',
+  description:
+    'Admin maintenance: re-resolve the protocols a lightning address currently speaks. Alias targets are probed over the network and the result is persisted, which repairs addresses created before LUD-16 verification existed. Requires ADMIN.',
+  operationId: 'lightningAddresses.verifyProtocols',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: schemas.VerifyAddressProtocolsRequest
+        }
+      }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Verification result.',
+      z
+        .object({
+          username: z.string(),
+          mode: z.string(),
+          redirect: z.string().nullable(),
+          probed: z.boolean(),
+          persisted: z.boolean(),
+          error: z.string().nullable(),
+          previous: z.object({
+            protocols: z.record(z.string(), z.boolean().nullable()),
+            source: z.enum(['proxy', 'wallet', 'alias', 'unavailable']),
+            reason: z.string().nullable(),
+            provider: z.string().nullable()
+          }),
+          protocols: z.object({
+            protocols: z.record(z.string(), z.boolean().nullable()),
+            source: z.enum(['proxy', 'wallet', 'alias', 'unavailable']),
+            reason: z.string().nullable(),
+            provider: z.string().nullable()
+          })
+        })
+        .passthrough()
+    ),
+    404: responses.notFound,
+    ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
   ...withRole('PUBLIC'),
   method: 'get',
   path: '/api/lightning-addresses/relays',
