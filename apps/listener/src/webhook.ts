@@ -29,12 +29,38 @@ export function signWebhook(
 
 /** Backoff between inline attempts; sweep picks up whatever outlives these. */
 const RETRY_DELAYS_MS = [1000, 5000, 25000, 60000, 120000]
+/** Per-attempt fetch timeout. Must stay in lockstep with the sweep gate. */
+export const WEBHOOK_POST_TIMEOUT_MS = 10_000
+/** Slack after the last inline attempt so `markDelivery` can commit first. */
+const SWEEP_GATE_BUFFER_MS = 15_000
 /** Sweep-retry backoff: doubles each failed round, capped — but NEVER caps out
  *  the retries themselves. A payment webhook keeps retrying until it lands. */
 const SWEEP_BACKOFF_BASE_MS = 120_000
 const SWEEP_BACKOFF_MAX_MS = 60 * 60_000
 /** Warn once the oldest undelivered webhook has been stuck this long. */
 const BACKLOG_WARN_AFTER_MS = 10 * 60_000
+
+/**
+ * Worst-case wall clock of `dispatch()`: every attempt times out, then we
+ * sleep the configured backoff between them (N attempts → N-1 sleeps).
+ * Default 5 attempts: 5×10s + (1+5+25+60)s = 141s.
+ */
+export function inlineDispatchMaxDurationMs(maxAttempts: number): number {
+  const attempts = Math.max(1, maxAttempts)
+  let sleeps = 0
+  for (let i = 0; i < attempts - 1; i++) {
+    sleeps += RETRY_DELAYS_MS[Math.min(i, RETRY_DELAYS_MS.length - 1)]
+  }
+  return attempts * WEBHOOK_POST_TIMEOUT_MS + sleeps
+}
+
+/**
+ * Sweep eligibility age. MUST exceed `inlineDispatchMaxDurationMs` so the
+ * sweep cannot POST while the inline retry loop is still running (#186).
+ */
+export function sweepOlderThanMs(maxAttempts: number): number {
+  return inlineDispatchMaxDurationMs(maxAttempts) + SWEEP_GATE_BUFFER_MS
+}
 
 interface Transactionish {
   type?: string
@@ -110,11 +136,15 @@ export class WebhookDispatcher {
       const outcome = await this.post(body)
 
       if (outcome.delivered) {
-        metrics.webhooksDelivered++
-        if (event.webhookAttempts > 0) {
-          log.info({ eventKey: event.eventKey, attempts }, 'webhook.recovered')
+        if (await markDelivery(pool, event.eventKey, 'delivered', attempts)) {
+          metrics.webhooksDelivered++
+          if (event.webhookAttempts > 0) {
+            log.info(
+              { eventKey: event.eventKey, attempts },
+              'webhook.recovered'
+            )
+          }
         }
-        await markDelivery(pool, event.eventKey, 'delivered', attempts)
         return
       }
 
@@ -124,16 +154,19 @@ export class WebhookDispatcher {
       )
 
       if (!outcome.retryable || i === env.WEBHOOK_MAX_ATTEMPTS - 1) {
-        metrics.webhooksFailed++
         // Defer, don't drop — the sweep keeps retrying until it lands.
-        await markDelivery(
-          pool,
-          event.eventKey,
-          'failed',
-          attempts,
-          outcome.error,
-          this.nextAttemptAt(attempts)
-        )
+        if (
+          await markDelivery(
+            pool,
+            event.eventKey,
+            'failed',
+            attempts,
+            outcome.error,
+            this.nextAttemptAt(attempts)
+          )
+        ) {
+          metrics.webhooksFailed++
+        }
         return
       }
 
@@ -213,7 +246,7 @@ export class WebhookDispatcher {
     this.sweeping = true
     try {
       const events = await undeliveredEvents(this.deps.pool, {
-        olderThanMs: 2 * 60 * 1000,
+        olderThanMs: sweepOlderThanMs(this.deps.env.WEBHOOK_MAX_ATTEMPTS),
         limit: 50
       })
       for (const event of events) {
@@ -241,20 +274,24 @@ export class WebhookDispatcher {
     const attempts = event.webhookAttempts + 1
     const outcome = await this.post(JSON.stringify(this.buildPayload(event)))
     if (outcome.delivered) {
-      metrics.webhooksDelivered++
-      log.info({ eventKey: event.eventKey, attempts }, 'webhook.recovered')
-      await markDelivery(pool, event.eventKey, 'delivered', attempts)
+      if (await markDelivery(pool, event.eventKey, 'delivered', attempts)) {
+        metrics.webhooksDelivered++
+        log.info({ eventKey: event.eventKey, attempts }, 'webhook.recovered')
+      }
       return
     }
-    metrics.webhooksFailed++
-    await markDelivery(
-      pool,
-      event.eventKey,
-      'failed',
-      attempts,
-      outcome.error,
-      this.nextAttemptAt(attempts)
-    )
+    if (
+      await markDelivery(
+        pool,
+        event.eventKey,
+        'failed',
+        attempts,
+        outcome.error,
+        this.nextAttemptAt(attempts)
+      )
+    ) {
+      metrics.webhooksFailed++
+    }
   }
 
   /** Refresh the pending gauge and warn loudly on a persistent backlog. */
@@ -296,7 +333,7 @@ export class WebhookDispatcher {
             signWebhook(this.deps.env.LISTENER_AUTH_SECRET, timestamp, body)
         },
         body,
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(WEBHOOK_POST_TIMEOUT_MS)
       })
       if (res.ok) return { delivered: true, retryable: false }
       const retryable = res.status >= 500 || res.status === 429
