@@ -296,6 +296,7 @@ class Nip46Signer {
 
     return new Promise<Nip46Signer>((resolve, reject) => {
       let settled = false
+      let timer: ReturnType<typeof setTimeout> | undefined
 
       const sub = signer.pool.subscribe(
         relays,
@@ -317,6 +318,7 @@ class Nip46Signer {
               if (response.result === expectedSecret) {
                 settled = true
                 sub.close()
+                clearTimeout(timer)
 
                 // Configure the signer with the detected encryption version
                 signer.bp = {
@@ -336,34 +338,40 @@ class Nip46Signer {
             }
           },
           onclose: () => {
-            if (!settled)
+            if (!settled) {
+              settled = true
+              clearTimeout(timer)
               reject(
                 new Error(
                   'Subscription closed before connection was established'
                 )
               )
+            }
           }
         }
       )
 
-      // Handle timeout / abort
+      // Timeout and abort must coexist: callers always pass both.
       const timeoutMs = opts.timeout ?? 60_000
+      timer = setTimeout(() => {
+        if (!settled) {
+          settled = true
+          sub.close()
+          reject(new Error('Connection timed out'))
+        }
+      }, timeoutMs)
+
+      const onAbort = () => {
+        if (!settled) {
+          settled = true
+          sub.close()
+          clearTimeout(timer)
+          reject(new Error('Connection aborted'))
+        }
+      }
       if (opts.signal) {
-        opts.signal.addEventListener('abort', () => {
-          if (!settled) {
-            settled = true
-            sub.close()
-            reject(new Error('Connection aborted'))
-          }
-        })
-      } else {
-        setTimeout(() => {
-          if (!settled) {
-            settled = true
-            sub.close()
-            reject(new Error('Connection timed out'))
-          }
-        }, timeoutMs)
+        if (opts.signal.aborted) onAbort()
+        else opts.signal.addEventListener('abort', onAbort, { once: true })
       }
     })
   }
