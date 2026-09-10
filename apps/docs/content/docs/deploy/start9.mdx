@@ -6,22 +6,45 @@ description: 'Run LaWallet NWC on your Start9 server (StartOS) as a self-contain
 [StartOS](https://start9.com) is the sovereign-server OS behind Start9. LaWallet
 NWC ships as a StartOS **service package** (`.s9pk`) that bundles the web app,
 NWC listener, and its own PostgreSQL database into one installable app —
-nothing external to wire up. The package lives in its own repo,
-[`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos),
-and wraps the same published image as every other target,
-[`masize/lawallet-nwc`](https://hub.docker.com/r/masize/lawallet-nwc).
+nothing external to wire up. It wraps the same published images as every other
+target: [`masize/lawallet-nwc`](https://hub.docker.com/r/masize/lawallet-nwc)
+and [`masize/lawallet-nwc-listener`](https://hub.docker.com/r/masize/lawallet-nwc-listener).
 
-| Property      | Value                                                         |
-| ------------- | ------------------------------------------------------------- |
-| Package id    | `lawallet-nwc`                                                |
-| Images        | `masize/lawallet-nwc` (web) + listener + `postgres:15-alpine` |
-| Architectures | `x86_64`, `aarch64`                                           |
-| Web UI        | port `2288` (LAN, `.local`, Tor, or a custom domain)          |
+There are **two package tracks** with the same package id (`lawallet-nwc`).
+They are not interchangeable:
 
-## Install the current release
+| Track | Repo | Volume layout | How you install |
+| ----- | ---- | ------------- | --------------- |
+| Start9 Community | [`Start9-Community/lawallet-startos`](https://github.com/Start9-Community/lawallet-startos) | `main` (app data) + `db` (Postgres dump) | Community marketplace |
+| Sideload | [`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos) | Postgres on `main` subpath `postgresql` | Download the `.s9pk` |
 
-LaWallet NWC is **not yet listed in the Start9 Marketplace**. Until the
-listing is available, install the current release by sideloading its package:
+Do **not** switch an existing install from one track to the other. Same
+package id, incompatible data directories — uninstall and start fresh, or
+restore a backup taken on the same track.
+
+| Property      | Value                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------- |
+| Package id    | `lawallet-nwc`                                                                         |
+| Images        | `masize/lawallet-nwc` + `masize/lawallet-nwc-listener` + `postgres:15-alpine`           |
+| Architectures | `x86_64`, `aarch64`                                                                    |
+| Web UI        | port `2288` (LAN, `.local`, Tor, or a custom domain)                                     |
+
+## Install from the Start9 Community registry
+
+The Community listing is the supported path for new StartOS installs. Open
+**Marketplace → Community** and install **LaWallet NWC**.
+
+The listed wrapper `2.0.0:1` predates the NWC vault. LaWallet NWC 2.6.0 needs
+a persisted `NWC_VAULT_SECRET` on both web and listener — without it the
+Payment Listener stays unhealthy. The Community update that adds that key is
+[`Start9-Community/lawallet-startos#2`](https://github.com/Start9-Community/lawallet-startos/pull/2)
+(`2.6.0:1`). Until that lands, sideload the matching revision from the
+lawalletio package (below) rather than bumping images by hand.
+
+## Sideload the current release
+
+Use this if you already sideloaded from lawalletio, or if you need a `.s9pk`
+before the Community update publishes:
 
 1. Download the universal package —
    [`lawallet-nwc.s9pk`](https://github.com/lawalletio/lawallet-startos/releases/latest/download/lawallet-nwc.s9pk).
@@ -33,16 +56,19 @@ listing is available, install the current release by sideloading its package:
    applies pending Prisma migrations and starts automatically.
 4. Open the service's **Web UI** from the StartOS dashboard.
 
-The `releases/latest` download always resolves to the newest package release.
-When LaWallet NWC is added to the Start9 Marketplace, you will be able to
-install and update it from the Marketplace instead.
+Sideload `2.6.0:0` still runs start-sdk 1.5 and can regenerate secrets if
+`store.json` is missing. The packaging revision that fixes that, without moving
+Postgres off `main`, is
+[`lawalletio/lawallet-startos#2`](https://github.com/lawalletio/lawallet-startos/pull/2)
+(`2.6.0:1`). After it is merged, dispatch or tag a new `.s9pk` and sideload
+that revision.
 
 ## Build the package yourself
 
 Build from [`lawalletio/lawallet-startos`](https://github.com/lawalletio/lawallet-startos)
-when you need to inspect or change the package, or prefer not to use a released
-artifact. The build machine needs the [StartOS SDK](https://docs.start9.com/),
-including `start-cli`, plus Node.js, Docker, and `make`.
+when you need to inspect or change the sideload package. The build machine needs
+the [StartOS SDK](https://docs.start9.com/), including `start-cli`, plus
+Node.js, Docker, and `make`.
 
 ```bash
 git clone https://github.com/lawalletio/lawallet-startos.git
@@ -73,38 +99,49 @@ There is **no admin password**. LaWallet NWC authenticates with **Nostr**:
 
 ## Make lightning addresses resolve on your domain
 
-LaWallet NWC serves three public `.well-known` endpoints that your domain must
-forward to the service so lightning addresses and Nostr identity resolve:
+LaWallet NWC serves public `.well-known` endpoints that your domain must
+forward to the service so lightning addresses and Nostr identity resolve.
+The onboarding wizard probes these three:
 
 - `/.well-known/lnurlp/<username>` — LUD-16 lightning address callback
 - `/.well-known/nostr.json` — NIP-05 identity
-- `/.well-known/verify` — LUD-21 verification
+- `/.well-known/lawallet.json` — instance discovery
 
-Point your domain at the StartOS interface for the service and forward those
-paths. The in-app onboarding wizard prints copy-paste rewrite recipes
-(Cloudflare, Nginx, Caddy, Vercel, and more).
+LUD-21 payment verification still lives at `/.well-known/verify`. Forwarding
+the whole `/.well-known/` prefix (the recipes the wizard prints) covers that
+path too.
+
+Point your domain at the StartOS interface for the service. The in-app
+onboarding wizard prints copy-paste rewrite recipes (Cloudflare, Nginx, Caddy,
+Vercel, and more).
 
 ## What's managed for you
 
-The package generates and persists JWT, listener authentication, NWC vault, and
-PostgreSQL secrets on first install (stored on the service's `main` volume),
-and sets the runtime environment automatically:
+The package generates and persists six independent secrets on first install
+and sets the runtime environment automatically. Sideload stores them on the
+`main` volume; Community stores them on `main` and dumps Postgres from `db`.
 
-| Variable               | Value                                                        |
-| ---------------------- | ------------------------------------------------------------ |
-| `DATABASE_URL`         | bundled localhost Postgres                                   |
-| `JWT_SECRET`           | generated on install                                         |
-| `LISTENER_AUTH_SECRET` | generated once; shared by web/listener                       |
-| `NWC_VAULT_SECRET`     | encrypts RemoteWallet/proxy NWC data; shared by web/listener |
-| `LISTENER_URL`         | private bundled listener                                     |
-| `NODE_ENV`             | `production`                                                 |
-| `PORT` / `HOSTNAME`    | `2288` / `0.0.0.0`                                           |
+| Variable                        | Value                                                        |
+| ------------------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`                  | bundled localhost Postgres                                   |
+| `JWT_SECRET`                    | generated on install                                         |
+| `KEY_VAULT_SECRET`              | encrypts server-custodied Nostr keys; independent of NWC   |
+| `LISTENER_AUTH_SECRET`          | generated once; shared by web/listener                      |
+| `LISTENER_REQUEST_AUTH_SECRET`  | generated once; web→listener bearer, distinct from webhook   |
+| `NWC_VAULT_SECRET`              | encrypts RemoteWallet/proxy NWC data; shared by web/listener |
+| `LISTENER_URL`                  | private bundled listener                                     |
+| `NODE_ENV`                      | `production`                                                 |
+| `PORT` / `HOSTNAME`              | `2288` / `0.0.0.0`                                           |
 
-Existing installs are upgraded safely: if the listener or NWC vault secrets are
-missing from an older `store.json`, the package generates and persists them
-once. Configure the NIP-57 receipt signer `nsec` in **Admin → Settings → NWC
-Services**. It is encrypted with the generated vault key and is not a StartOS
-environment variable.
+Do not reuse `KEY_VAULT_SECRET` as `NWC_VAULT_SECRET`. They encrypt different
+data.
+
+Existing installs are upgraded safely: if the listener-request or NWC vault
+secrets are missing from an older `store.json`, the package generates and
+persists them once. Postgres and JWT secrets are never regenerated. Configure
+the NIP-57 receipt signer `nsec` in **Admin → Settings → NWC Services**. It is
+encrypted with the generated vault key and is not a StartOS environment
+variable.
 
 The web startup pass encrypts any legacy plaintext RemoteWallet NWC rows before
 its health check becomes ready. The listener waits for that health check and
@@ -116,10 +153,11 @@ For the full env-var reference (used when self-hosting outside StartOS), see
 ## Health & backups
 
 - **Health check:** the service reports healthy once `GET /api/health` responds
-  (it verifies the database connection).
-- **Backups:** StartOS backs up the `main` volume — database, cached Nostr
-  profiles, and the generated secrets — so a restore reproduces the instance
-  exactly.
+  (it verifies the database connection). The Payment Listener has its own
+  check on `GET /health`.
+- **Backups:** restore only a backup taken on the same package track. Sideload
+  captures the `main` volume (Postgres files, app data, secrets). Community
+  dumps Postgres logically from `db` and copies `main`.
 
 ## Limitation
 
@@ -128,7 +166,8 @@ published image at build time). Your admin dashboard and wallet work regardless.
 
 ## Updating
 
-The package's `web` image tag and version are bumped automatically whenever
-LaWallet NWC publishes a release — see
+Sideload image tags plus package version are bumped automatically when LaWallet
+NWC publishes a release — see
 [UPDATING.md](https://github.com/lawalletio/lawallet-startos/blob/master/UPDATING.md)
-in the package repo.
+in the sideload package repo. Community listing updates go through
+[`Start9-Community/lawallet-startos`](https://github.com/Start9-Community/lawallet-startos).
