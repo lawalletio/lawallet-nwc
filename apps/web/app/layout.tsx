@@ -1,6 +1,7 @@
 import type React from 'react'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { Providers } from './providers'
 import { GoogleAnalytics } from '@/components/analytics/google-analytics'
 import { DevBanner } from '@/components/dev-banner'
@@ -46,6 +47,7 @@ export default async function RootLayout({
         {process.env.NODE_ENV !== 'production' && <DevBanner />}
         <GoogleAnalytics gtagId={gtagId} />
         <Providers>{children}</Providers>
+        <SpeedInsights />
       </body>
     </html>
   )

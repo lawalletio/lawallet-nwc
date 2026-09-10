@@ -169,7 +169,7 @@ importers:
         version: 7.0.0(typescript@5.9.3)
       '@hookform/resolvers':
         specifier: ^5.2.2
-        version: 5.2.2(react-hook-form@7.85.0(react@19.2.4))
+        version: 5.2.2(react-hook-form@7.87.0(react@19.2.4))
       '@lawallet-nwc/openapi':
         specifier: workspace:*
         version: link:../../packages/openapi
@@ -278,6 +278,9 @@ importers:
       '@types/jsonwebtoken':
         specifier: ^9.0.10
         version: 9.0.10
+      '@vercel/speed-insights':
+        specifier: ^2.0.0
+        version: 2.0.0(next@16.3.4(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(@types/node@25.6.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(vue@3.5.33(typescript@5.9.3))
       '@xyflow/react':
         specifier: ^12.10.2
         version: 12.10.2(@types/react@19.2.14)(immer@11.1.11)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -322,7 +325,7 @@ importers:
         version: 2.3.8
       input-otp:
         specifier: latest
-        version: 1.4.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 1.5.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
@@ -340,7 +343,7 @@ importers:
         version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       nostr-tools:
         specifier: latest
-        version: 2.24.2(typescript@5.9.3)
+        version: 2.25.2(typescript@5.9.3)
       pino:
         specifier: ^10.3.0
         version: 10.3.0
@@ -361,7 +364,7 @@ importers:
         version: 19.2.4(react@19.2.4)
       react-hook-form:
         specifier: latest
-        version: 7.85.0(react@19.2.4)
+        version: 7.87.0(react@19.2.4)
       react-image-crop:
         specifier: ^11.0.10
         version: 11.0.10(react@19.2.4)
@@ -370,7 +373,7 @@ importers:
         version: 1.0.0-alpha.11(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react-resizable-panels:
         specifier: latest
-        version: 4.12.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 4.12.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       recharts:
         specifier: latest
         version: 3.10.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react-is@17.0.2)(react@19.2.4)(redux@5.0.1)
@@ -544,7 +547,7 @@ importers:
     dependencies:
       nostr-tools:
         specifier: ^2.24.1
-        version: 2.24.2(typescript@5.9.3)
+        version: 2.25.2(typescript@5.9.3)
     devDependencies:
       msw:
         specifier: ^2.12.8
@@ -715,6 +718,7 @@ packages:
   '@cashu/cashu-ts@2.9.0':
     resolution: {integrity: sha512-UesYcBkkJAGPbob2I/SX0aht4MQlfxUVPzI+NQqLKSg2l3m0EnmMznvnXZQnDZnhGy0Hd6rkgwAJTVOYcr0v/Q==}
     engines: {node: '>=22.4.0'}
+    deprecated: 'Unsupported: v2 and earlier are obsolete and are not compatible with current mints. Upgrade with: npm i @cashu/cashu-ts@^4'
 
   '@codemirror/autocomplete@6.20.1':
     resolution: {integrity: sha512-1cvg3Vz1dSSToCNlJfRA2WSI4ht3K+WplO0UMOgmUYPivCyy2oueZY6Lx7M9wThm7SDUBViRmuT+OG/i8+ON9A==}
@@ -3286,6 +3290,32 @@ packages:
     resolution: {integrity: sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w==}
     engines: {node: '>= 20'}
 
+  '@vercel/speed-insights@2.0.0':
+    resolution: {integrity: sha512-jwkNcrTeafWxjmWq4AHBaptSqZiJkYU5adLC9QBSqeim0GcqDMgN5Ievh8OG1rJ6W3A4l1oiP7qr9CWxGuzu3w==}
+    peerDependencies:
+      '@sveltejs/kit': ^1 || ^2
+      next: '>= 13'
+      nuxt: '>= 3'
+      react: ^18 || ^19 || ^19.0.0-rc
+      svelte: '>= 4'
+      vue: ^3
+      vue-router: ^4
+    peerDependenciesMeta:
+      '@sveltejs/kit':
+        optional: true
+      next:
+        optional: true
+      nuxt:
+        optional: true
+      react:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+      vue-router:
+        optional: true
+
   '@vitest/coverage-v8@3.2.6':
     resolution: {integrity: sha512-LsAdmUapA0qSN306d8+zOyawM0hFm2m2Hg9IwVNIKBm+qJV8cijiq2c+gxKZcB1HCfIWAy+0qEZDCUQA58A1cw==}
     peerDependencies:
@@ -4402,6 +4432,7 @@ packages:
   eslint@9.39.2:
     resolution: {integrity: sha512-LEyamqS7W5HB3ujJyvi0HQK/dtVINZvd5mAAp9eT5S/ujByGjiZLCzPcHVzuXbpJDJF/cxwHlfceVUDZ2lnSTw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -4987,8 +5018,8 @@ packages:
   inline-style-parser@0.2.7:
     resolution: {integrity: sha512-Nb2ctOyNR8DqQoR0OwRG95uNWIC0C1lCgf5Naz5H6Ji72KZ8OcFZLz2P5sNgwlyoJ8Yif11oMuYs5pBQa86csA==}
 
-  input-otp@1.4.2:
-    resolution: {integrity: sha512-l3jWwYNvrEa6NTCt7BECfCm48GvwuZzkoeG3gBL2w4CHeOXW3eKFmf9UNYkNfYc3mxMrthMnxjIE07MT0zLBQA==}
+  input-otp@1.5.0:
+    resolution: {integrity: sha512-3AcfdW1sNG0FmSA5hHMBXG7jNW5CdcdKs8ln8JOmn6S2SRkoXoJx+2UwC+ZvjflfnOdHJx0SfQ9/YjlxVYLtGQ==}
     peerDependencies:
       react: ^16.8 || ^17.0 || ^18.0 || ^19.0.0 || ^19.0.0-rc
       react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0.0 || ^19.0.0-rc
@@ -5842,16 +5873,8 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
-  nostr-tools@2.24.1:
-    resolution: {integrity: sha512-KdrKjC74n/rr6J3eCSfZj8dcbZFvolHYe4S22SefNZ5YWbhHiB0KL/mmJjEZ0u6B9mZK0YcQtl+WQ46KzwapeQ==}
-    peerDependencies:
-      typescript: '>=5.0.0'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  nostr-tools@2.24.2:
-    resolution: {integrity: sha512-nVf8tvsDPsZvvtT5csRTrMrdrhTId8wl3IgDHt1BWCuL6J+IlmBOW68SCl7SQ6K0PoxenpLPHSKLo4yj49JybA==}
+  nostr-tools@2.25.2:
+    resolution: {integrity: sha512-7JAx+brEPmqGz1yzaK9MOxvis/Nl1B38j9hVsBSRDMRmxk5XSc0+5LlPEYbzeiUyk41RURBDcfuMzmaT754HAg==}
     peerDependencies:
       typescript: '>=5.0.0'
     peerDependenciesMeta:
@@ -6249,8 +6272,8 @@ packages:
     peerDependencies:
       react: ^19.2.4
 
-  react-hook-form@7.85.0:
-    resolution: {integrity: sha512-U2MTriFXnclmV4rOE20p2DcRFv5WEg3FIcBFOKcOLFHDVvGIMPvLTkTWefUsonmlaVy23khVDxDWym6uJVGOzw==}
+  react-hook-form@7.87.0:
+    resolution: {integrity: sha512-zhFzWvLxNHH+8839OnZcUxgMZw88ah2jZWDWvKWgF3Tpbnd0vKL+dlcuU3nZVWESZQjd81EW8K+wU+cYfYAc0w==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -6304,8 +6327,8 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@4.12.3:
-    resolution: {integrity: sha512-GHMJWnDXui/3RX4bT+cgBP+N3N2nkwcoZATr/2xLFpqQQe7TlBrE0cGM0dUa9ceT7A90tUrSRsiqgRG+g0/2AA==}
+  react-resizable-panels@4.12.4:
+    resolution: {integrity: sha512-SOsSj4e9U7vxL15MbgTfl35IO4vxSW4Xb0b1gtJVbRPWv7FOezcgOA00Mi0jP8XqC3y7jOQxpsGs/9zLKHPitA==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
@@ -7959,7 +7982,7 @@ snapshots:
   '@getalby/sdk@7.0.0(typescript@5.9.3)':
     dependencies:
       '@getalby/lightning-tools': 6.1.0
-      nostr-tools: 2.24.1(typescript@5.9.3)
+      nostr-tools: 2.25.2(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
 
@@ -7974,10 +7997,10 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hookform/resolvers@5.2.2(react-hook-form@7.85.0(react@19.2.4))':
+  '@hookform/resolvers@5.2.2(react-hook-form@7.87.0(react@19.2.4))':
     dependencies:
       '@standard-schema/utils': 0.3.0
-      react-hook-form: 7.85.0(react@19.2.4)
+      react-hook-form: 7.87.0(react@19.2.4)
 
   '@humanfs/core@0.19.1': {}
 
@@ -8179,7 +8202,7 @@ snapshots:
       '@jsr/scure__base': 1.2.6
       '@jsr/std__encoding': 0.224.3
       lru-cache: 10.4.3
-      nostr-tools: 2.24.2(typescript@5.9.3)
+      nostr-tools: 2.25.2(typescript@5.9.3)
       websocket-ts: 2.2.1
       zod: 3.25.76
     transitivePeerDependencies:
@@ -10485,6 +10508,12 @@ snapshots:
 
   '@vercel/oidc@3.1.0': {}
 
+  '@vercel/speed-insights@2.0.0(next@16.3.4(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(@types/node@25.6.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(vue@3.5.33(typescript@5.9.3))':
+    optionalDependencies:
+      next: 16.3.4(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(@types/node@25.6.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react: 19.2.4
+      vue: 3.5.33(typescript@5.9.3)
+
   '@vitest/coverage-v8@3.2.6(vitest@3.2.6)':
     dependencies:
       '@ampproject/remapping': 2.3.0
@@ -12555,7 +12584,7 @@ snapshots:
 
   inline-style-parser@0.2.7: {}
 
-  input-otp@1.4.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  input-otp@1.5.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
@@ -13594,19 +13623,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-tools@2.24.1(typescript@5.9.3):
-    dependencies:
-      '@noble/ciphers': 2.1.1
-      '@noble/curves': 2.0.1
-      '@noble/hashes': 2.0.1
-      '@scure/base': 2.0.0
-      '@scure/bip32': 2.0.1
-      '@scure/bip39': 2.0.1
-      nostr-wasm: 0.1.0
-    optionalDependencies:
-      typescript: 5.9.3
-
-  nostr-tools@2.24.2(typescript@5.9.3):
+  nostr-tools@2.25.2(typescript@5.9.3):
     dependencies:
       '@noble/ciphers': 2.1.1
       '@noble/curves': 2.0.1
@@ -14033,7 +14050,7 @@ snapshots:
       react: 19.2.4
       scheduler: 0.27.0
 
-  react-hook-form@7.85.0(react@19.2.4):
+  react-hook-form@7.87.0(react@19.2.4):
     dependencies:
       react: 19.2.4
 
@@ -14080,7 +14097,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.14
 
-  react-resizable-panels@4.12.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  react-resizable-panels@4.12.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)

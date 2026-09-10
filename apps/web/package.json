@@ -67,6 +67,7 @@
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.2",
     "@types/jsonwebtoken": "^9.0.10",
+    "@vercel/speed-insights": "^2.0.0",
     "@xyflow/react": "^12.10.2",
     "@zxing/library": "^0.21.3",
     "aes-cmac": "^4.0.0",
