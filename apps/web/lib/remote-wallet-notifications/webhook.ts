@@ -7,6 +7,7 @@ import {
   type SafeAddress
 } from '@/lib/proxy/lnurl'
 
+const FETCH_TIMEOUT_MS = 7000
 const TIMEOUT_MS = 10_000
 const MAX_RESPONSE_BYTES = 32 * 1024
 
@@ -88,7 +89,13 @@ async function resolveSafeAddress(hostname: string): Promise<SafeAddress> {
   const family = isIP(normalized)
   const addresses: SafeAddress[] = family
     ? [{ address: normalized, family: family as 4 | 6 }]
-    : (await lookup(normalized, { all: true, verbatim: true })).map(item => ({
+    : (
+        await withTimeout(
+          lookup(normalized, { all: true, verbatim: true }),
+          FETCH_TIMEOUT_MS,
+          'Webhook DNS lookup timed out'
+        )
+      ).map(item => ({
         address: item.address,
         family: item.family as 4 | 6
       }))
@@ -99,4 +106,23 @@ async function resolveSafeAddress(hostname: string): Promise<SafeAddress> {
     throw new Error('Webhook URL resolves to a private network')
   }
   return addresses[0]
+}
+
+async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  message: string
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs)
+        timer.unref?.()
+      })
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
