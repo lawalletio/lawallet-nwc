@@ -102,7 +102,7 @@ export default async function pay(
 
   if (route.kind === 'proxyAlias') {
     const amountMsats = Number(amount)
-    if (!/^\d+$/.test(amount) || !Number.isSafeInteger(amountMsats)) {
+    if (!/^[1-9]\d*$/.test(amount) || !Number.isSafeInteger(amountMsats)) {
       throw new ValidationError('Invalid payment amount')
     }
     const [publicEndpoint, apiUrl] = await Promise.all([

@@ -6,9 +6,21 @@ import { parseExactPaymentInvoice } from '@/lib/invoice-utils'
 import { driverForWallet } from '@/lib/wallet/drivers'
 import { ServiceUnavailableError, ValidationError } from '@/types/server/errors'
 import { getActiveProxyConfig } from './config'
-import { calculateProxyAmounts } from './money'
+import { calculateProxyAmounts, ceilDivide } from './money'
 import { fetchDestinationMetadata } from './lnurl'
 import { validateZapRequest } from './nostr'
+
+function assertPayableProxyAmount(amountMsats: number, feeBps: number) {
+  if (!Number.isSafeInteger(amountMsats) || amountMsats <= 0) {
+    throw new ValidationError('Invalid payment amount')
+  }
+  const destinationAmountMsats =
+    amountMsats -
+    Number(ceilDivide(BigInt(amountMsats) * BigInt(feeBps), BigInt(10_000)))
+  if (destinationAmountMsats <= 0) {
+    throw new ValidationError('Amount is too small after proxy fee')
+  }
+}
 
 export async function createProxyPayRequest(input: {
   username: string
@@ -34,6 +46,7 @@ export async function createProxyPayRequest(input: {
     )
   }
 
+  assertPayableProxyAmount(input.amountMsats, config.row.feeBps)
   const amounts = calculateProxyAmounts(input.amountMsats, config.row.feeBps)
   const metadata = await fetchDestinationMetadata(input.destination, {
     blockedHosts: input.blockedHosts
