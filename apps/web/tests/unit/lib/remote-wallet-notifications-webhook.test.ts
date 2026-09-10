@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { lookupMock } = vi.hoisted(() => ({
-  lookupMock: vi.fn()
+const { lookupMock, httpsRequestMock } = vi.hoisted(() => ({
+  lookupMock: vi.fn(),
+  httpsRequestMock: vi.fn()
 }))
 
 vi.mock('node:dns/promises', async importOriginal => {
@@ -10,6 +11,15 @@ vi.mock('node:dns/promises', async importOriginal => {
     ...actual,
     lookup: lookupMock,
     default: { ...actual, lookup: lookupMock }
+  }
+})
+
+vi.mock('node:https', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:https')>()
+  return {
+    ...actual,
+    request: httpsRequestMock,
+    default: { ...actual, request: httpsRequestMock }
   }
 })
 
@@ -22,9 +32,34 @@ const webhookInput = {
   body: '{}'
 }
 
+function mockHttpsResponse(status: number, body: string) {
+  httpsRequestMock.mockImplementation(
+    (_url: unknown, _opts: unknown, onResponse: (res: unknown) => void) => ({
+      once() {
+        return this
+      },
+      end() {
+        const res = {
+          statusCode: status,
+          on(event: string, handler: (chunk: Buffer) => void) {
+            if (event === 'data') handler(Buffer.from(body))
+            return res
+          },
+          once(event: string, handler: () => void) {
+            if (event === 'end') handler()
+            return res
+          }
+        }
+        onResponse(res)
+      }
+    })
+  )
+}
+
 describe('postNotificationWebhook DNS lookup', () => {
   beforeEach(() => {
     lookupMock.mockReset()
+    httpsRequestMock.mockReset()
   })
 
   afterEach(() => {
@@ -58,6 +93,34 @@ describe('postNotificationWebhook DNS lookup', () => {
 
     await expect(postNotificationWebhook(webhookInput)).rejects.toThrow(
       /getaddrinfo EAI_AGAIN/
+    )
+  })
+
+  it('maps a successful public lookup onto the pinned HTTPS request', async () => {
+    lookupMock.mockResolvedValue([{ address: '1.1.1.1', family: 4 }])
+    mockHttpsResponse(204, 'ok')
+
+    await expect(postNotificationWebhook(webhookInput)).resolves.toEqual({
+      status: 204,
+      body: 'ok'
+    })
+    expect(httpsRequestMock).toHaveBeenCalled()
+  })
+
+  it('rejects when DNS resolves to a private address', async () => {
+    lookupMock.mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
+
+    await expect(postNotificationWebhook(webhookInput)).rejects.toThrow(
+      'Webhook URL resolves to a private network'
+    )
+    expect(httpsRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when DNS returns no addresses', async () => {
+    lookupMock.mockResolvedValue([])
+
+    await expect(postNotificationWebhook(webhookInput)).rejects.toThrow(
+      'Webhook URL resolves to a private network'
     )
   })
 })
