@@ -14,7 +14,8 @@ if (dsn) {
     dsn,
     tracesSampleRate: 0.1,
     sendDefaultPii: false,
-    beforeSend: event => scrubEvent(event)
+    beforeSend: event => scrubEvent(event),
+    beforeSendTransaction: event => scrubEvent(event)
   })
 }
 

@@ -86,6 +86,10 @@ export const BEARER_TOKEN_PATH_PATTERNS: {
  * by their `[param]` placeholder. Non-matching paths come back unchanged.
  * `undefined` stays `undefined`.
  */
+export function redactPathBearerTokens(pathname: string): string
+export function redactPathBearerTokens(
+  pathname: string | undefined
+): string | undefined
 export function redactPathBearerTokens(
   pathname: string | undefined
 ): string | undefined {
@@ -113,9 +117,15 @@ type SentryEventLike = {
   // only string values are subject to substring scrubbing — same shape as
   // `breadcrumbs.data` above.
   tags?: Record<string, unknown>
+  // Transaction events (`event.type === 'transaction'`) copy OpenTelemetry
+  // span attributes into `contexts.trace.data`. Next.js writes `req.url`
+  // (raw path + query) as `http.target` on the root request span — that
+  // channel is what `beforeSendTransaction` must scrub, because `beforeSend`
+  // never runs for transactions.
+  contexts?: { trace?: { data?: Record<string, unknown> } }
 }
 
-/** Sentry `beforeSend`-compatible scrubber. Mutates and returns the event. */
+/** Sentry `beforeSend` / `beforeSendTransaction`-compatible scrubber. Mutates and returns the event. */
 export function scrubEvent<T extends SentryEventLike>(event: T): T {
   if (event.message) event.message = scrubPii(event.message)
   if (event.transaction) event.transaction = scrubPii(event.transaction)
@@ -136,7 +146,7 @@ export function scrubEvent<T extends SentryEventLike>(event: T): T {
     // route-prefix discriminator works correctly, then re-embed it.
     try {
       const parsed = new URL(event.request.url)
-      parsed.pathname = redactPathBearerTokens(parsed.pathname) ?? parsed.pathname
+      parsed.pathname = redactPathBearerTokens(parsed.pathname)
       event.request.url = scrubPii(parsed.toString())
     } catch {
       event.request.url = scrubPii(event.request.url)
@@ -152,6 +162,12 @@ export function scrubEvent<T extends SentryEventLike>(event: T): T {
     for (const [key, value] of Object.entries(event.tags)) {
       if (typeof value === 'string') event.tags[key] = scrubPii(value)
     }
+  }
+  for (const [key, value] of Object.entries(
+    event.contexts?.trace?.data ?? {}
+  )) {
+    if (typeof value === 'string')
+      event.contexts!.trace!.data![key] = scrubPii(value)
   }
   return event
 }

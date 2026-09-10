@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import {
   scrubPii,
@@ -153,13 +155,13 @@ describe('scrubEvent', () => {
       request: { url: `https://example.com/api/cards/otc/${otc}` }
     }
     const otcOut = scrubEvent(otcEvent)
-    expect(otcOut.request!.url).toBe(
-      'https://example.com/api/cards/otc/[otc]'
-    )
+    expect(otcOut.request!.url).toBe('https://example.com/api/cards/otc/[otc]')
     expect(otcOut.request!.url).not.toContain(otc)
 
     const edkEvent = {
-      request: { url: `https://example.com/api/remote-connections/${edk}/cards` }
+      request: {
+        url: `https://example.com/api/remote-connections/${edk}/cards`
+      }
     }
     const edkOut = scrubEvent(edkEvent)
     expect(edkOut.request!.url).toBe(
@@ -187,6 +189,92 @@ describe('scrubEvent', () => {
     const out = scrubEvent(event)
     // /api/cards/[id] is an authenticated route — not a bearer-token path
     expect(out.request!.url).toBe(`https://example.com/api/cards/${cardId}`)
+  })
+
+  it('scrubs 64-hex pubkeys and LUD-16 addresses in transaction http.target', () => {
+    // Mirrors the Sentry transaction payload Next.js emits for sampled
+    // App-Router requests: `event.type === 'transaction'` and the raw
+    // `req.url` (path + query) lives in `contexts.trace.data['http.target']`.
+    // `beforeSend` never sees this shape — `beforeSendTransaction` does.
+    const event = {
+      type: 'transaction' as const,
+      transaction: `/api/account/identities/${HEX_A}`,
+      contexts: {
+        trace: {
+          data: {
+            'http.target': `/api/lud16/alice@example.com?pubkey=${HEX_A}`,
+            'http.url': `/api/account/identities/${HEX_A}`,
+            'http.method': 'GET',
+            'http.status_code': 200
+          }
+        }
+      }
+    }
+
+    const out = scrubEvent(event)
+
+    expect(out.transaction).toBe('/api/account/identities/[redacted]')
+    expect(out.contexts!.trace!.data!['http.target']).toBe(
+      '/api/lud16/[redacted]?pubkey=[redacted]'
+    )
+    expect(out.contexts!.trace!.data!['http.url']).toBe(
+      '/api/account/identities/[redacted]'
+    )
+    expect(out.contexts!.trace!.data!['http.method']).toBe('GET')
+    expect(out.contexts!.trace!.data!['http.status_code']).toBe(200)
+    expect(JSON.stringify(out)).not.toContain(HEX_A)
+    expect(JSON.stringify(out)).not.toContain('alice@example.com')
+  })
+
+  it('leaves missing or non-string transaction trace attributes alone', () => {
+    expect(
+      scrubEvent<{
+        contexts?: { trace?: { data?: Record<string, unknown> } }
+      }>({}).contexts
+    ).toBeUndefined()
+    expect(
+      scrubEvent({
+        contexts: { trace: { data: { 'http.status_code': 500 } } }
+      }).contexts!.trace!.data
+    ).toEqual({ 'http.status_code': 500 })
+  })
+
+  it('scrubs query strings, span descriptions, and unparseable request URLs', () => {
+    const nsec = `nsec1${'q'.repeat(58)}`
+    const out = scrubEvent({
+      request: {
+        url: 'not a url nsec1' + 'q'.repeat(58),
+        query_string: `secret=${nsec}`
+      },
+      spans: [{ description: `pay ${NWC_URI}` }, { description: 'idle' }]
+    })
+
+    expect(out.request!.url).toBe('not a url [redacted]')
+    expect(out.request!.query_string).toBe('secret=[redacted]')
+    expect(out.spans![0]!.description).toBe('pay [redacted]')
+    expect(out.spans![1]!.description).toBe('idle')
+  })
+})
+
+describe('Sentry instrumentation wiring', () => {
+  it('registers beforeSendTransaction next to beforeSend', () => {
+    const server = readFileSync(
+      join(process.cwd(), 'instrumentation.ts'),
+      'utf8'
+    )
+    const client = readFileSync(
+      join(process.cwd(), 'instrumentation-client.ts'),
+      'utf8'
+    )
+
+    expect(server).toMatch(/beforeSend:\s*event\s*=>\s*scrubEvent\(event\)/)
+    expect(server).toMatch(
+      /beforeSendTransaction:\s*event\s*=>\s*scrubEvent\(event\)/
+    )
+    expect(client).toMatch(/beforeSend:\s*event\s*=>\s*scrubEvent\(event\)/)
+    expect(client).toMatch(
+      /beforeSendTransaction:\s*event\s*=>\s*scrubEvent\(event\)/
+    )
   })
 })
 
