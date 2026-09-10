@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@/lib/generated/prisma'
+import { ConflictError } from '@/types/server/errors'
 
 type PrismaLike = typeof prisma | Prisma.TransactionClient
 
@@ -72,10 +73,16 @@ export async function setMasterCard(
 
   // Demote first — the partial unique index is checked mid-transaction.
   await demoteOtherMasterCards(userId, cardId, client)
-  await client.card.update({
-    where: { id: cardId },
+  // Scope by holder, not just id: callers check ownership outside this
+  // transaction, so a concurrent holder-change must not stamp MASTER onto
+  // someone else's (or an unpaired) card.
+  const promoted = await client.card.updateMany({
+    where: { id: cardId, userId },
     data: { kind: 'MASTER' }
   })
+  if (promoted.count === 0) {
+    throw new ConflictError('Card is no longer assigned to this holder')
+  }
 
   return { previousMasterCardId }
 }
