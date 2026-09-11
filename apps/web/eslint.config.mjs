@@ -10,7 +10,12 @@ const eslintConfig = [
       'dist/**',
       'node_modules/**',
       'next-env.d.ts',
-      'pnpm-lock.yaml'
+      'pnpm-lock.yaml',
+      // Prisma's generated client: ~78k lines including a 2.9MB index.d.ts.
+      // Linting it costs ~8s per run and can only ever report on code we
+      // don't own (it was the source of the "unused eslint-disable" warnings).
+      'lib/generated/**',
+      'coverage/**'
     ]
   },
 
