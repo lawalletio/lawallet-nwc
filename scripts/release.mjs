@@ -3,6 +3,11 @@
 // Release version bump + changelog scaffold.
 //
 //   node scripts/release.mjs --bump patch|minor|major [--dry]
+//   node scripts/release.mjs --dispatch --bump patch|minor|major [--dry]
+//
+// `--dispatch` triggers the Release workflow instead of bumping locally; it is
+// what `pnpm release <patch|minor|major>` runs. Everything below describes the
+// local mode, which is the one release.yml itself drives on CI.
 //
 // What it does (the release.yml workflow drives this in CI):
 //   1. Resolves the base version: the HIGHER of the root package.json
@@ -28,12 +33,26 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 const args = process.argv.slice(2)
 const dry = args.includes('--dry')
+const dispatch = args.includes('--dispatch')
 const bumpIndex = args.indexOf('--bump')
 const bump = bumpIndex >= 0 ? args[bumpIndex + 1] : null
 
-if (!['patch', 'minor', 'major'].includes(bump)) {
+// Reject unrecognised options instead of ignoring them. `--dry-run` is the
+// reflex spelling of `--dry`, and dropping it silently turns an intended
+// preview into a real version bump across all four lockstep packages.
+const consumed =
+  bumpIndex >= 0 ? new Set([bumpIndex, bumpIndex + 1]) : new Set()
+const unknown = args.filter(
+  (arg, i) => !consumed.has(i) && arg !== '--dry' && arg !== '--dispatch'
+)
+
+if (!['patch', 'minor', 'major'].includes(bump) || unknown.length > 0) {
+  if (unknown.length > 0) {
+    console.error(`Unknown option(s): ${unknown.join(' ')}`)
+  }
   console.error(
-    'Usage: node scripts/release.mjs --bump patch|minor|major [--dry]'
+    'Usage: pnpm release <patch|minor|major> [--dry]\n' +
+      '       node scripts/release.mjs --bump patch|minor|major [--dry]'
   )
   process.exit(1)
 }
@@ -142,6 +161,33 @@ console.log(`Lockstep bumps: ${LOCKSTEP_PACKAGES.join(', ')}`)
 console.log(
   `Merged PRs since ${lastTagName ?? 'the beginning'}: ${prLines.length}`
 )
+
+// `--dispatch` hands the release to CI. The numbers printed above come from
+// this checkout, while the workflow recomputes them from `main` — they only
+// agree when this checkout is level with origin/main.
+if (dispatch) {
+  if (dry) {
+    console.log(
+      `\n--dry: would dispatch release.yml with bump=${bump}. Changelog preview:\n`
+    )
+    console.log(prLines.join('\n') || '(none)')
+    process.exit(0)
+  }
+  console.log(`\nDispatching release.yml (bump=${bump}) against main…`)
+  try {
+    execSync(`gh workflow run release.yml -f bump=${bump}`, {
+      cwd: root,
+      stdio: 'inherit'
+    })
+  } catch {
+    // gh has already printed the reason (not installed, not authenticated, or
+    // a token without workflow scope). A stack trace on top adds nothing.
+    console.error('\n✗ Could not dispatch release.yml — see the error above.')
+    process.exit(1)
+  }
+  console.log('Dispatched. Watch it: gh run watch --workflow=release.yml')
+  process.exit(0)
+}
 
 if (dry) {
   console.log('\n--dry: no files written. Changelog preview:\n')

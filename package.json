@@ -31,6 +31,7 @@
     "deploy:env:cloud": "bash scripts/generate-deployment-env.sh --mode cloud",
     "deploy:check": "node scripts/check-deployment-env.mjs",
     "deploy:fly": "bash scripts/deploy-listener-fly.sh",
+    "release": "node scripts/release.mjs --dispatch --bump",
     "studio": "pnpm --filter @lawallet-nwc/web exec prisma studio",
     "plugin:new": "node scripts/plugin-new.mjs"
   },
