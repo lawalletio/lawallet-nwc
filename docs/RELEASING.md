@@ -4,10 +4,13 @@ Releases are cut by the **Release** workflow
 (`.github/workflows/release.yml`) — one dispatch, no local steps:
 
 ```bash
-pnpm release:patch    # or release:minor / release:major
+pnpm release minor    # or: pnpm release patch / pnpm release major
 # equivalent: gh workflow run release.yml -f bump=minor
 # or: GitHub → Actions → Release → Run workflow
 ```
+
+Needs a `gh` login whose token carries the `workflow` scope; without it the
+dispatch is rejected and nothing is released.
 
 The workflow, in order:
 
@@ -48,8 +51,11 @@ Pre-1.0 semantics: **minor** for feature releases (the normal case),
 ## Local preview
 
 ```bash
-pnpm release:dry      # shows the next version + the PR list, writes nothing
+pnpm release minor --dry   # next version + PR list; dispatches nothing, writes nothing
 ```
+
+The numbers come from your checkout, while the workflow recomputes them from
+`main` — so preview from an up-to-date `main` if you want them to match.
 
 ## After the release
 
