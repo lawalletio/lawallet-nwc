@@ -5,14 +5,17 @@ import {
   randomBytes
 } from 'node:crypto'
 
-export const REMOTE_WALLET_ENVELOPE_PREFIX = 'lwrw1:'
+export const NWC_VAULT_ENVELOPE_PREFIX = 'lwrw1:'
+/** @deprecated Use {@link NWC_VAULT_ENVELOPE_PREFIX}. */
+export const REMOTE_WALLET_ENVELOPE_PREFIX = NWC_VAULT_ENVELOPE_PREFIX
+export const NWC_CONNECTION_STRING_FIELD = 'connection-string'
+
 const MAGIC = Buffer.from('LWRW01', 'utf8')
 const SALT_LEN = 16
 const IV_LEN = 12
 const TAG_LEN = 16
 const KEY_LEN = 32
 const HKDF_INFO = 'lawallet-remote-wallet-nwc-v1'
-const FIELD = 'connection-string'
 
 export class RemoteWalletVaultDecryptError extends Error {
   constructor(message = 'Remote wallet NWC vault decryption failed') {
@@ -25,29 +28,33 @@ function deriveKey(secret: string, salt: Buffer): Buffer {
   return Buffer.from(hkdfSync('sha256', secret, salt, HKDF_INFO, KEY_LEN))
 }
 
-function aad(walletId: string): Buffer {
-  return Buffer.from(`${walletId}:${FIELD}`, 'utf8')
+function aad(recordId: string, field: string): Buffer {
+  return Buffer.from(`${recordId}:${field}`, 'utf8')
 }
 
-export function isRemoteWalletVaultEnvelope(value: unknown): value is string {
+export function isNwcVaultEnvelope(value: unknown): value is string {
   return (
-    typeof value === 'string' && value.startsWith(REMOTE_WALLET_ENVELOPE_PREFIX)
+    typeof value === 'string' && value.startsWith(NWC_VAULT_ENVELOPE_PREFIX)
   )
 }
 
-export function encryptRemoteWalletEnvelope(
+export function isRemoteWalletVaultEnvelope(value: unknown): value is string {
+  return isNwcVaultEnvelope(value)
+}
+
+export function encryptNwcVaultEnvelope(
   plaintext: string,
-  walletId: string,
+  recordId: string,
+  field: string,
   secret: string
 ): string {
-  if (!plaintext)
-    throw new Error('Remote wallet NWC connection cannot be empty')
+  if (!plaintext) throw new Error('NWC vault plaintext cannot be empty')
   if (!secret) throw new Error('NWC_VAULT_SECRET is not configured')
 
   const salt = randomBytes(SALT_LEN)
   const iv = randomBytes(IV_LEN)
   const cipher = createCipheriv('aes-256-gcm', deriveKey(secret, salt), iv)
-  cipher.setAAD(aad(walletId))
+  cipher.setAAD(aad(recordId, field))
   const ciphertext = Buffer.concat([
     cipher.update(Buffer.from(plaintext, 'utf8')),
     cipher.final()
@@ -59,15 +66,16 @@ export function encryptRemoteWalletEnvelope(
     cipher.getAuthTag(),
     ciphertext
   ])
-  return `${REMOTE_WALLET_ENVELOPE_PREFIX}${envelope.toString('base64url')}`
+  return `${NWC_VAULT_ENVELOPE_PREFIX}${envelope.toString('base64url')}`
 }
 
-export function decryptRemoteWalletEnvelope(
+export function decryptNwcVaultEnvelope(
   stored: string,
-  walletId: string,
+  recordId: string,
+  field: string,
   secrets: string[]
 ): string {
-  if (!isRemoteWalletVaultEnvelope(stored)) return stored
+  if (!isNwcVaultEnvelope(stored)) return stored
   if (secrets.length === 0) {
     throw new Error('NWC_VAULT_SECRET is not configured')
   }
@@ -75,7 +83,7 @@ export function decryptRemoteWalletEnvelope(
   let buf: Buffer
   try {
     buf = Buffer.from(
-      stored.slice(REMOTE_WALLET_ENVELOPE_PREFIX.length),
+      stored.slice(NWC_VAULT_ENVELOPE_PREFIX.length),
       'base64url'
     )
   } catch {
@@ -100,7 +108,7 @@ export function decryptRemoteWalletEnvelope(
         deriveKey(candidate, salt),
         iv
       )
-      decipher.setAAD(aad(walletId))
+      decipher.setAAD(aad(recordId, field))
       decipher.setAuthTag(tag)
       return Buffer.concat([
         decipher.update(ciphertext),
@@ -111,4 +119,33 @@ export function decryptRemoteWalletEnvelope(
     }
   }
   throw new RemoteWalletVaultDecryptError()
+}
+
+export function encryptRemoteWalletEnvelope(
+  plaintext: string,
+  walletId: string,
+  secret: string
+): string {
+  if (!plaintext) {
+    throw new Error('Remote wallet NWC connection cannot be empty')
+  }
+  return encryptNwcVaultEnvelope(
+    plaintext,
+    walletId,
+    NWC_CONNECTION_STRING_FIELD,
+    secret
+  )
+}
+
+export function decryptRemoteWalletEnvelope(
+  stored: string,
+  walletId: string,
+  secrets: string[]
+): string {
+  return decryptNwcVaultEnvelope(
+    stored,
+    walletId,
+    NWC_CONNECTION_STRING_FIELD,
+    secrets
+  )
 }

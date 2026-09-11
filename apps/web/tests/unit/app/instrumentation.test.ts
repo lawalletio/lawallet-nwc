@@ -2,11 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   migrateRemoteWalletNwcConfigs: vi.fn(),
+  migrateProxyNwcVault: vi.fn(),
   initializeProxyReceiptSigner: vi.fn()
 }))
 
 vi.mock('@/lib/wallet/migrate-remote-wallet-vault', () => ({
   migrateRemoteWalletNwcConfigs: mocks.migrateRemoteWalletNwcConfigs
+}))
+
+vi.mock('@/lib/proxy/migrate-nwc-vault', () => ({
+  migrateProxyNwcVault: mocks.migrateProxyNwcVault
 }))
 
 vi.mock('@/lib/proxy/initialize-receipt-signer', () => ({
@@ -23,6 +28,7 @@ beforeEach(() => {
   delete process.env.NEXT_RUNTIME
   delete process.env.NEXT_PHASE
   mocks.migrateRemoteWalletNwcConfigs.mockResolvedValue(0)
+  mocks.migrateProxyNwcVault.mockResolvedValue(undefined)
   mocks.initializeProxyReceiptSigner.mockResolvedValue(false)
 })
 
@@ -38,10 +44,12 @@ describe('server instrumentation', () => {
     await register()
 
     expect(mocks.migrateRemoteWalletNwcConfigs).toHaveBeenCalledOnce()
+    expect(mocks.migrateProxyNwcVault).toHaveBeenCalledOnce()
     expect(mocks.initializeProxyReceiptSigner).toHaveBeenCalledOnce()
     expect(
       mocks.migrateRemoteWalletNwcConfigs.mock.invocationCallOrder[0]
-    ).toBeLessThan(
+    ).toBeLessThan(mocks.migrateProxyNwcVault.mock.invocationCallOrder[0])
+    expect(mocks.migrateProxyNwcVault.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.initializeProxyReceiptSigner.mock.invocationCallOrder[0]
     )
   })
@@ -52,6 +60,7 @@ describe('server instrumentation', () => {
     await register()
 
     expect(mocks.migrateRemoteWalletNwcConfigs).not.toHaveBeenCalled()
+    expect(mocks.migrateProxyNwcVault).not.toHaveBeenCalled()
     expect(mocks.initializeProxyReceiptSigner).not.toHaveBeenCalled()
   })
 })

@@ -139,10 +139,14 @@ These values are intentionally **not** generated as environment variables:
 | NIP-57 receipt signer nsec | Admin → Settings → NWC Services | Write-only, encrypted with `NWC_VAULT_SECRET`             |
 | Proxy fee percentage       | Admin → Settings → NWC Services | Database setting, snapshotted onto each new payer invoice |
 
-User and LNCurl RemoteWallet NWC connection strings are also encrypted with
-`NWC_VAULT_SECRET`. A post-migration startup pass encrypts legacy plaintext
-rows idempotently and refuses to start if those rows exist but the key is
-missing. The listener must use the same key so it can open the connections.
+User and LNCurl RemoteWallet NWC connection strings, the proxy NWC URI, and
+the receipt signer nsec all use the same `lwrw1:` envelope under
+`NWC_VAULT_SECRET`. A startup pass encrypts leftover plaintext RemoteWallet
+rows, converts leftover `LWPX01` proxy blobs when they still decrypt, verifies
+existing envelopes against the current secret, and refuses to start if NWC
+rows or proxy NWC exist but the key is missing or the ciphertext will not
+open. An unreadable receipt nsec is left in place and NIP-57 degrades. The
+listener must use the same key so it can open the connections.
 
 The listener receives the NWC vault key because it must decrypt RemoteWallet
 and proxy NWC connections. It never receives the NIP-57 `nsec`.

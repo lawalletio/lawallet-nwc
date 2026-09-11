@@ -44,9 +44,12 @@ Then open **Admin → Settings → NWC Services → Lightning Address proxy**:
 - test capabilities and balance; and
 - enable deferred forwarding.
 
-Secrets are AES-256-GCM encrypted in `ProxyServiceConfig`, are write-only in
-the API, and are not part of generic Settings backups. They cannot be removed
-or rotated while an invoice intent or settlement remains outstanding.
+Secrets are stored in the same `lwrw1:` AES-256-GCM envelope as RemoteWallet
+NWC URIs (`NWC_VAULT_SECRET`, field AAD `default:nwc` /
+`default:receipt-nsec`). Startup converts leftover `LWPX01` proxy blobs when
+they still decrypt. They are write-only in the API and are not part of generic
+Settings backups. They cannot be removed or rotated while an invoice intent or
+settlement remains outstanding.
 
 ## Routes
 

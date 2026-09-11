@@ -69,6 +69,29 @@ describe('RemoteWallet NWC startup migration', () => {
     })
   })
 
+  it('fails closed when an existing envelope cannot be opened', async () => {
+    const stored = encryptRemoteWalletEnvelope(
+      NWC_URI,
+      'wallet-1',
+      'other-remote-wallet-secret-0123456789abcdef0123456789abcdef'
+    )
+    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([
+        {
+          id: 'wallet-1',
+          config: { connectionString: stored, mode: 'RECEIVE' },
+          nwcConfigEncryptedAt: new Date()
+        }
+      ] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).rejects.toThrow(
+      'cannot be decrypted with the current NWC_VAULT_SECRET'
+    )
+    expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
+  })
+
   it('does not rewrite an already encrypted and stamped row', async () => {
     const stored = encryptRemoteWalletEnvelope(
       NWC_URI,

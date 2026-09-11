@@ -43,8 +43,9 @@ apps/web ──►┤ POST /v1/nwc/payments    (idempotent card/proxy payment ov
 ```
 
 The pool decrypts each encrypted `RemoteWallet.config.connectionString` with
-the same `NWC_VAULT_SECRET` used by web. When deferred LUD-16 settlement is
-enabled, it also loads the encrypted system wallet from `ProxyServiceConfig`.
+the same `NWC_VAULT_SECRET` used by web (`lwrw1:` envelopes). When deferred
+LUD-16 settlement is enabled, it also loads the system wallet from
+`ProxyServiceConfig` (`lwrw1:` or leftover `LWPX01` during conversion).
 The listener never receives the zap-receipt signer. A
 startup/10-minute scheduler HMAC-signs
 `POST /api/internal/lud16-proxy/reconcile`, while ordinary

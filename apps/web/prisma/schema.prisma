@@ -444,9 +444,9 @@ model RemoteWallet {
   name                 String
   type                 RemoteWalletType
   config               Json
-  /// Set after an NWC config has been encrypted with NWC_VAULT_SECRET. The
-  /// envelope itself remains inside config.connectionString so other
-  /// driver-specific config fields stay queryable.
+  /// Set after an NWC config has been encrypted with NWC_VAULT_SECRET as
+  /// `lwrw1:` inside config.connectionString. Other driver-specific fields
+  /// stay queryable.
   nwcConfigEncryptedAt DateTime?
   status               RemoteWalletStatus @default(ACTIVE)
   isDefault            Boolean            @default(false)
@@ -882,8 +882,9 @@ model Invoice {
 }
 
 /// Singleton operator configuration for the deferred LUD-16 proxy. Secrets
-/// are AES-256-GCM envelopes encrypted with NWC_VAULT_SECRET; neither value
-/// is exposed by the generic Settings API or included in Settings backups.
+/// are the same `lwrw1:` AES-256-GCM envelopes used by RemoteWallet NWC
+/// URIs (`NWC_VAULT_SECRET`). Startup converts leftover `LWPX01` blobs.
+/// Neither value is exposed by the generic Settings API or Settings backups.
 model ProxyServiceConfig {
   id                    String    @id @default("default")
   enabled               Boolean   @default(false)

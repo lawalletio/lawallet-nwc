@@ -9,6 +9,7 @@ import {
   type TransactionClient
 } from '@/lib/prisma-transaction'
 import {
+  decryptRemoteWalletConnectionString,
   encryptRemoteWalletConfig,
   isEncryptedRemoteWalletConnectionString
 } from '@/lib/wallet/remote-wallet-vault'
@@ -61,12 +62,34 @@ function validateRow(row: NwcWalletRow): void {
   }
 }
 
-function needsEncryption(row: NwcWalletRow): boolean {
+function connectionStringOf(row: NwcWalletRow): string {
   const source = row.config as Record<string, unknown> | null
   const stored = source?.connectionString
   if (typeof stored !== 'string' || !stored) {
-    return false
+    throw new Error(
+      `NWC RemoteWallet ${row.id} has no valid config.connectionString`
+    )
   }
+  return stored
+}
+
+function verifyEncryptedRow(row: NwcWalletRow): void {
+  const stored = connectionStringOf(row)
+  if (!isEncryptedRemoteWalletConnectionString(stored)) {
+    return
+  }
+  try {
+    decryptRemoteWalletConnectionString(stored, row.id)
+  } catch (error) {
+    throw new Error(
+      `Remote wallet ${row.id} NWC vault ciphertext cannot be decrypted with the current NWC_VAULT_SECRET. Restore the secret that sealed this row, or reconnect the wallet.`,
+      { cause: error }
+    )
+  }
+}
+
+function needsEncryption(row: NwcWalletRow): boolean {
+  const stored = connectionStringOf(row)
   const needsRewrite = !isEncryptedRemoteWalletConnectionString(stored)
   return needsRewrite || row.nwcConfigEncryptedAt === null
 }
@@ -109,6 +132,7 @@ async function processBatch(
 
       for (const row of rows) {
         validateRow(row)
+        verifyEncryptedRow(row)
       }
 
       let changed = 0

@@ -35,6 +35,9 @@ export async function register() {
     const { migrateRemoteWalletNwcConfigs } =
       await import('@/lib/wallet/migrate-remote-wallet-vault')
     await migrateRemoteWalletNwcConfigs()
+    const { migrateProxyNwcVault } =
+      await import('@/lib/proxy/migrate-nwc-vault')
+    await migrateProxyNwcVault()
   } catch (error) {
     const { createLogger } = await import('@/lib/logger')
     const log = createLogger({ module: 'instrumentation' })
@@ -44,7 +47,7 @@ export async function register() {
       try {
         const Sentry = await import('@sentry/nextjs')
         Sentry.captureException(error, {
-          tags: { phase: 'instrumentation', migration: 'remote-wallet-nwc' }
+          tags: { phase: 'instrumentation', migration: 'nwc-vault' }
         })
       } catch {
         // Sentry failure must not block startup
