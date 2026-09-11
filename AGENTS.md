@@ -38,6 +38,13 @@ pnpm test                       # Test all packages
 pnpm format                     # Prettier format all files
 ```
 
+**`pnpm build` does not type check.** `apps/web` sets
+`typescript.ignoreBuildErrors` so `next build` doesn't re-run the compiler over
+a program `pnpm typecheck` already covers. `pnpm typecheck` runs
+`next typegen && tsc --noEmit`, so it checks app code, tests, e2e, _and_ the
+generated `.next/types` route validator. Type errors surface there, not in the
+build.
+
 ### Filtered (single app/package)
 
 ```bash

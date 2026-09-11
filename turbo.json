@@ -33,7 +33,17 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "!tests/**",
-        "!**/*.test.*"
+        "!**/*.test.*",
+        "!**/*.spec.*",
+        "!**/*.bench.*",
+        "!e2e/**",
+        "!mocks/**",
+        "!coverage/**",
+        "!vitest.config.ts",
+        "!vitest.bench.config.ts",
+        "!playwright.config.ts",
+        "!eslint.config.mjs",
+        "!.eslintcache"
       ],
       "outputs": [
         ".next/**",
