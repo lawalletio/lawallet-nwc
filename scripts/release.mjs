@@ -31,7 +31,17 @@ const dry = args.includes('--dry')
 const bumpIndex = args.indexOf('--bump')
 const bump = bumpIndex >= 0 ? args[bumpIndex + 1] : null
 
-if (!['patch', 'minor', 'major'].includes(bump)) {
+// Reject unrecognised options instead of ignoring them. `--dry-run` is the
+// reflex spelling of `--dry`, and dropping it silently turns an intended
+// preview into a real version bump across all four lockstep packages.
+const consumed =
+  bumpIndex >= 0 ? new Set([bumpIndex, bumpIndex + 1]) : new Set()
+const unknown = args.filter((arg, i) => !consumed.has(i) && arg !== '--dry')
+
+if (!['patch', 'minor', 'major'].includes(bump) || unknown.length > 0) {
+  if (unknown.length > 0) {
+    console.error(`Unknown option(s): ${unknown.join(' ')}`)
+  }
   console.error(
     'Usage: node scripts/release.mjs --bump patch|minor|major [--dry]'
   )

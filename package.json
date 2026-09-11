@@ -31,6 +31,10 @@
     "deploy:env:cloud": "bash scripts/generate-deployment-env.sh --mode cloud",
     "deploy:check": "node scripts/check-deployment-env.mjs",
     "deploy:fly": "bash scripts/deploy-listener-fly.sh",
+    "release:dry": "node scripts/release.mjs --bump minor --dry",
+    "release:patch": "gh workflow run release.yml -f bump=patch",
+    "release:minor": "gh workflow run release.yml -f bump=minor",
+    "release:major": "gh workflow run release.yml -f bump=major",
     "studio": "pnpm --filter @lawallet-nwc/web exec prisma studio",
     "plugin:new": "node scripts/plugin-new.mjs"
   },
