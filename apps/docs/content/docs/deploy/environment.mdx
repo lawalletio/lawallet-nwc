@@ -112,11 +112,11 @@ Sentry integration is **entirely optional and off by default**. Self-hosters
 who do not use Sentry leave all three variables unset — nothing is collected
 and no Sentry code is activated.
 
-| Variable                 | Service        | Required when | Purpose                                                                                     |
-| ------------------------ | -------------- | ------------- | ------------------------------------------------------------------------------------------- |
-| `SENTRY_DSN`             | Web + listener | Optional      | Enables server-side error reporting to Sentry.                                              |
-| `NEXT_PUBLIC_SENTRY_DSN` | Web            | Optional      | Enables browser error reporting. Inlined at build time, so set it before building the web app. |
-| `SENTRY_AUTH_TOKEN`      | Build only     | Optional      | Used only during the build to upload sourcemaps to Sentry. Never needed at runtime.         |
+| Variable                 | Service        | Required when | Purpose                                                                                                                                                                                         |
+| ------------------------ | -------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SENTRY_DSN`             | Web + listener | Optional      | Enables server-side error reporting to Sentry.                                                                                                                                                  |
+| `NEXT_PUBLIC_SENTRY_DSN` | Web            | Optional      | Enables browser error reporting. Inlined at build time, so set it before building the web app.                                                                                                  |
+| `SENTRY_AUTH_TOKEN`      | Build only     | Optional      | Used only during the build to upload sourcemaps to Sentry. Never needed at runtime.                                                                                                             |
 | `SENTRY_RELEASE`         | Listener       | Optional      | Commit the running image was built from. Baked in by `--build-arg SENTRY_RELEASE=<sha>`; enables release health (crash-free sessions). The web app detects its release automatically on Vercel. |
 
 ## Key rotation
@@ -142,11 +142,21 @@ These values are intentionally **not** generated as environment variables:
 User and LNCurl RemoteWallet NWC connection strings, the proxy NWC URI, and
 the receipt signer nsec all use the same `lwrw1:` envelope under
 `NWC_VAULT_SECRET`. A startup pass encrypts leftover plaintext RemoteWallet
-rows, converts leftover `LWPX01` proxy blobs when they still decrypt, verifies
-existing envelopes against the current secret, and refuses to start if NWC
-rows or proxy NWC exist but the key is missing or the ciphertext will not
-open. An unreadable receipt nsec is left in place and NIP-57 degrades. The
-listener must use the same key so it can open the connections.
+rows and converts leftover `LWPX01` proxy blobs, then reports anything the
+active secret cannot open. Startup still refuses to begin when NWC
+RemoteWallets exist and the key is missing entirely, but a single credential
+sealed under a retired secret is a per-credential fault, not an outage: that
+wallet returns 503 on its own payment paths and the rest of the instance
+serves normally. The listener must use the same key so it can open the
+connections.
+
+The NIP-57 receipt signer is the exception, because one unreadable signer
+turns zaps off for _every_ NWC wallet. Since it is a key the platform
+generates for itself and nothing can recover the old one, startup replaces it
+with a fresh key and updates the advertised pubkey — but only after another
+NWC credential has proved the active secret is the right one, so a
+temporarily misconfigured `NWC_VAULT_SECRET` can never destroy a recoverable
+key. Watch for `proxy.receipt_signer.replaced_unreadable` in the logs.
 
 The listener receives the NWC vault key because it must decrypt RemoteWallet
 and proxy NWC connections. It never receives the NIP-57 `nsec`.

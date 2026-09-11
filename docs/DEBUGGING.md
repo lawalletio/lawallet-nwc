@@ -54,6 +54,25 @@ Set `0` to disable, or lower it while hunting a regression.
 | 403 `AUTHORIZATION_ERROR`    | Authenticated but missing the permission — check `lib/auth/permissions.ts` mapping and the user's role in the DB (or the role claim in the JWT).                                                                      |
 | 503 from `/api/health`       | The server is up but can't reach the database — see below.                                                                                                                                                            |
 
+## NWC vault credentials
+
+Every NWC credential at rest (`RemoteWallet.config.connectionString`, the proxy
+NWC URI, the NIP-57 receipt nsec) is the same `lwrw1:` AES-256-GCM envelope
+under `NWC_VAULT_SECRET`. A startup pass reports anything the active secret
+cannot open, so the first place to look is the boot log.
+
+| Log message                                          | Meaning / fix                                                                                                                                                                            |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `remote_wallet_nwc_encryption.unreadable_rows`       | Those `walletIds` were sealed under a different `NWC_VAULT_SECRET`. Restore the original secret, or have the owner reconnect the wallet. Only those wallets fail (503 on payment paths). |
+| `proxy.nwc_vault.nwc_unreadable`                     | The proxy NWC URI cannot be opened, so deferred forwarding cannot pay out. Re-enter it in Admin → Settings → NWC Services.                                                               |
+| `proxy.nwc_vault.converted_to_lwrw1`                 | Informational — a legacy `LWPX01` proxy blob was re-sealed in canonical form.                                                                                                            |
+| `proxy.receipt_signer.replaced_unreadable`           | The receipt signer was unrecoverable and has been replaced; `previousReceiptPubkey` → `receiptPubkey` records the change. Zaps work again from this boot on.                             |
+| `proxy.nwc_vault.receipt_signer_unreadable_unproven` | The signer cannot be opened **and** no other NWC credential proves the active secret, so it was left untouched. Check `NWC_VAULT_SECRET` is the right one, then restart.                 |
+| `nip57.receipt_signer_unavailable`                   | Served at request time whenever the signer cannot be decrypted — LUD-16 then omits `allowsNostr`/`nostrPubkey` for every address. Pair it with the startup lines above.                  |
+
+`NWC_VAULT_SECRET` has no previous-key fallback, so a rotated or lost secret is
+not recoverable from the database alone.
+
 ## Card tap payments
 
 The BoltCard spend path (`app/api/cards/[id]/scan/cb/actions/pay.ts`) validates

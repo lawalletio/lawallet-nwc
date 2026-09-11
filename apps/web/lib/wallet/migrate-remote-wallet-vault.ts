@@ -73,25 +73,23 @@ function connectionStringOf(row: NwcWalletRow): string {
   return stored
 }
 
-function verifyEncryptedRow(row: NwcWalletRow): void {
+type RowVerdict = 'plaintext' | 'readable' | 'unreadable'
+
+/**
+ * Classify one row without throwing. A row sealed under a secret this
+ * deployment no longer has is a per-row fault, not a deployment fault: the
+ * driver path already degrades it to a 503 for that wallet alone, so it must
+ * not take the whole instance down.
+ */
+function classifyRow(row: NwcWalletRow): RowVerdict {
   const stored = connectionStringOf(row)
-  if (!isEncryptedRemoteWalletConnectionString(stored)) {
-    return
-  }
+  if (!isEncryptedRemoteWalletConnectionString(stored)) return 'plaintext'
   try {
     decryptRemoteWalletConnectionString(stored, row.id)
-  } catch (error) {
-    throw new Error(
-      `Remote wallet ${row.id} NWC vault ciphertext cannot be decrypted with the current NWC_VAULT_SECRET. Restore the secret that sealed this row, or reconnect the wallet.`,
-      { cause: error }
-    )
+    return 'readable'
+  } catch {
+    return 'unreadable'
   }
-}
-
-function needsEncryption(row: NwcWalletRow): boolean {
-  const stored = connectionStringOf(row)
-  const needsRewrite = !isEncryptedRemoteWalletConnectionString(stored)
-  return needsRewrite || row.nwcConfigEncryptedAt === null
 }
 
 async function encryptRow(
@@ -116,10 +114,29 @@ async function encryptRow(
   })
 }
 
-async function processBatch(
-  vaultSecret: string,
-  offset: number
-): Promise<{ processed: number; hasMore: boolean }> {
+/**
+ * The timestamp records that the envelope was written, not that this
+ * deployment can still open it — so an unreadable row is stamped too and
+ * reported separately instead of being retried on every boot.
+ */
+async function stampRow(
+  tx: TransactionClient,
+  row: NwcWalletRow
+): Promise<void> {
+  await tx.remoteWallet.update({
+    where: { id: row.id },
+    data: { nwcConfigEncryptedAt: new Date() }
+  })
+}
+
+interface BatchResult {
+  processed: number
+  unreadable: string[]
+  readable: number
+  hasMore: boolean
+}
+
+async function processBatch(offset: number): Promise<BatchResult> {
   return safeTransaction(
     prisma,
     async tx => {
@@ -127,34 +144,48 @@ async function processBatch(
       const rows = await fetchBatchForUpdate(tx, offset, BATCH_SIZE)
 
       if (rows.length === 0) {
-        return { processed: 0, hasMore: false }
+        return { processed: 0, unreadable: [], readable: 0, hasMore: false }
       }
 
       for (const row of rows) {
         validateRow(row)
-        verifyEncryptedRow(row)
       }
 
       let changed = 0
+      let readable = 0
+      const unreadable: string[] = []
       for (const row of rows) {
-        if (!needsEncryption(row)) continue
-        await encryptRow(tx, row)
-        changed++
+        const verdict = classifyRow(row)
+        if (verdict === 'plaintext') {
+          await encryptRow(tx, row)
+          changed++
+          continue
+        }
+        if (verdict === 'readable') readable++
+        else unreadable.push(row.id)
+        if (row.nwcConfigEncryptedAt === null) {
+          await stampRow(tx, row)
+          changed++
+        }
       }
 
-      return { processed: changed, hasMore: rows.length === BATCH_SIZE }
+      return {
+        processed: changed,
+        unreadable,
+        readable,
+        hasMore: rows.length === BATCH_SIZE
+      }
     },
     { timeout: BATCH_TIMEOUT_MS, maxWait: MAX_WAIT_MS }
   )
 }
 
 async function processBatchWithRetry(
-  vaultSecret: string,
   offset: number,
   attempt: number = 1
-): Promise<{ processed: number; hasMore: boolean }> {
+): Promise<BatchResult> {
   try {
-    return await processBatch(vaultSecret, offset)
+    return await processBatch(offset)
   } catch (error) {
     const isRetryable =
       error instanceof TransactionTimeoutError ||
@@ -168,7 +199,7 @@ async function processBatchWithRetry(
       await new Promise(resolve =>
         setTimeout(resolve, RETRY_DELAY_MS * attempt)
       )
-      return processBatchWithRetry(vaultSecret, offset, attempt + 1)
+      return processBatchWithRetry(offset, attempt + 1)
     }
 
     throw error
@@ -215,29 +246,41 @@ export async function migrateRemoteWalletNwcConfigs(): Promise<number> {
   }
 
   let totalMigrated = 0
+  let totalReadable = 0
+  const unreadable: string[] = []
   let offset = 0
 
   log.info({ totalRows: count }, 'remote_wallet_nwc_encryption.starting')
 
   while (true) {
-    const { processed, hasMore } = await processBatchWithRetry(
-      vaultSecret,
-      offset
-    )
-    totalMigrated += processed
+    const batch = await processBatchWithRetry(offset)
+    totalMigrated += batch.processed
+    totalReadable += batch.readable
+    unreadable.push(...batch.unreadable)
     offset += BATCH_SIZE
 
-    if (processed > 0) {
+    if (batch.processed > 0) {
       log.debug(
-        { batchProcessed: processed, totalMigrated, offset },
+        { batchProcessed: batch.processed, totalMigrated, offset },
         'remote_wallet_nwc_encryption.batch_complete'
       )
     }
 
-    if (!hasMore) break
+    if (!batch.hasMore) break
   }
 
   await verifyMigrationComplete()
+
+  if (unreadable.length > 0) {
+    log.error(
+      {
+        unreadableCount: unreadable.length,
+        readableCount: totalReadable,
+        walletIds: unreadable.slice(0, 20)
+      },
+      'remote_wallet_nwc_encryption.unreadable_rows'
+    )
+  }
 
   if (totalMigrated > 0) {
     log.info(

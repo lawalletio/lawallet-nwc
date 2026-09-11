@@ -13,13 +13,25 @@ vi.mock('@/lib/logger', () => ({
     debug: vi.fn()
   }))
 }))
+vi.mock('@/lib/nostr', () => ({
+  generatePrivateKey: vi.fn(() => 'c'.repeat(64))
+}))
+vi.mock('@/lib/proxy/nostr', () => ({
+  receiptPubkey: vi.fn(() => 'd'.repeat(64))
+}))
 
 import { getConfig } from '@/lib/config'
 import { migrateProxyNwcVault } from '@/lib/proxy/migrate-nwc-vault'
-import { encryptNwcVaultEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
+import { decryptProxySecret } from '@/lib/proxy/vault'
+import {
+  encryptNwcVaultEnvelope,
+  encryptRemoteWalletEnvelope
+} from '@/lib/wallet/remote-wallet-vault-core'
 
 const ACTIVE_SECRET =
   'active-proxy-vault-secret-0123456789abcdef0123456789abcdef'
+const OTHER_SECRET =
+  'retired-proxy-vault-secret-0123456789abcdef0123456789abcdef'
 const NWC_URI =
   'nostr+walletconnect://' +
   'a'.repeat(64) +
@@ -30,18 +42,27 @@ const NSEC_HEX = '1'.repeat(64)
 function mockVault(secret: string | null = ACTIVE_SECRET) {
   const configured = secret ?? undefined
   vi.mocked(getConfig).mockReturnValue({
-    nwcVault: {
-      secret: configured,
-      enabled: !!configured
-    }
+    nwcVault: { secret: configured, enabled: !!configured }
   } as never)
 }
 
-function encryptLegacyProxy(
+function canonical(
   plaintext: string,
-  recordId: string,
   field: string,
-  secret: string
+  secret = ACTIVE_SECRET
+): Uint8Array {
+  return Uint8Array.from(
+    Buffer.from(
+      encryptNwcVaultEnvelope(plaintext, 'default', field, secret),
+      'utf8'
+    )
+  )
+}
+
+function legacy(
+  plaintext: string,
+  field: string,
+  secret = ACTIVE_SECRET
 ): Uint8Array {
   const salt = randomBytes(16)
   const iv = randomBytes(12)
@@ -49,7 +70,7 @@ function encryptLegacyProxy(
     hkdfSync('sha256', secret, salt, 'lawallet-proxy-vault-v1', 32)
   )
   const cipher = createCipheriv('aes-256-gcm', key, iv)
-  cipher.setAAD(Buffer.from(`${recordId}:${field}`, 'utf8'))
+  cipher.setAAD(Buffer.from(`default:${field}`, 'utf8'))
   const ciphertext = Buffer.concat([
     cipher.update(Buffer.from(plaintext, 'utf8')),
     cipher.final()
@@ -65,104 +86,174 @@ function encryptLegacyProxy(
   )
 }
 
+function mockRow(row: {
+  nwcCiphertext?: Uint8Array | null
+  receiptNsecCiphertext?: Uint8Array | null
+  receiptPubkey?: string | null
+}) {
+  vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+    id: 'default',
+    nwcCiphertext: row.nwcCiphertext ?? null,
+    receiptNsecCiphertext: row.receiptNsecCiphertext ?? null,
+    receiptPubkey: row.receiptPubkey ?? null
+  } as never)
+}
+
 beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   mockVault()
+  vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([] as never)
+  vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
+    count: 1
+  } as never)
 })
 
 describe('ProxyServiceConfig NWC vault migration', () => {
-  it('converts a legacy LWPX01 NWC blob to lwrw1', async () => {
-    const legacy = encryptLegacyProxy(NWC_URI, 'default', 'nwc', ACTIVE_SECRET)
-    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
-      id: 'default',
-      nwcCiphertext: legacy,
-      receiptNsecCiphertext: null
-    } as never)
+  it('converts a legacy LWPX01 NWC blob to the canonical envelope', async () => {
+    mockRow({ nwcCiphertext: legacy(NWC_URI, 'nwc') })
 
     await migrateProxyNwcVault()
 
-    expect(prismaMock.proxyServiceConfig.update).toHaveBeenCalledWith({
-      where: { id: 'default' },
-      data: {
-        nwcCiphertext: expect.any(Uint8Array)
-      }
-    })
     const written = vi.mocked(prismaMock.proxyServiceConfig.update).mock
       .calls[0][0].data.nwcCiphertext as Uint8Array
     expect(Buffer.from(written).toString('utf8').startsWith('lwrw1:')).toBe(
       true
     )
+    expect(decryptProxySecret(written, 'default', 'nwc')).toBe(NWC_URI)
   })
 
-  it('does not rewrite a canonical lwrw1 envelope', async () => {
-    const canonical = Uint8Array.from(
-      Buffer.from(
-        encryptNwcVaultEnvelope(NWC_URI, 'default', 'nwc', ACTIVE_SECRET),
-        'utf8'
-      )
-    )
-    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
-      id: 'default',
-      nwcCiphertext: canonical,
-      receiptNsecCiphertext: null
-    } as never)
+  it('leaves an already canonical envelope untouched', async () => {
+    mockRow({
+      nwcCiphertext: canonical(NWC_URI, 'nwc'),
+      receiptNsecCiphertext: canonical(NSEC_HEX, 'receipt-nsec'),
+      receiptPubkey: 'a'.repeat(64)
+    })
 
     await migrateProxyNwcVault()
+
+    expect(prismaMock.proxyServiceConfig.update).not.toHaveBeenCalled()
+    expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('converts a legacy receipt nsec without replacing the signer', async () => {
+    mockRow({
+      receiptNsecCiphertext: legacy(NSEC_HEX, 'receipt-nsec'),
+      receiptPubkey: 'a'.repeat(64)
+    })
+
+    await migrateProxyNwcVault()
+
+    const written = vi.mocked(prismaMock.proxyServiceConfig.update).mock
+      .calls[0][0].data.receiptNsecCiphertext as Uint8Array
+    expect(decryptProxySecret(written, 'default', 'receipt-nsec')).toBe(
+      NSEC_HEX
+    )
+    expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('restores NIP-57 by replacing a signer the active secret cannot open', async () => {
+    const stale = legacy(NSEC_HEX, 'receipt-nsec', OTHER_SECRET)
+    mockRow({
+      nwcCiphertext: canonical(NWC_URI, 'nwc'),
+      receiptNsecCiphertext: stale,
+      receiptPubkey: 'a'.repeat(64)
+    })
+
+    await migrateProxyNwcVault()
+
+    const call = vi.mocked(prismaMock.proxyServiceConfig.updateMany).mock
+      .calls[0][0]
+    // Guarded on the ciphertext we read, so concurrent cold starts cannot
+    // each install a different key.
+    expect(call.where).toEqual({
+      id: 'default',
+      receiptNsecCiphertext: stale
+    })
+    expect(call.data.receiptPubkey).toBe('d'.repeat(64))
+    expect(
+      decryptProxySecret(
+        call.data.receiptNsecCiphertext as Uint8Array,
+        'default',
+        'receipt-nsec'
+      )
+    ).toBe('c'.repeat(64))
+  })
+
+  it('accepts a readable RemoteWallet as proof of the active secret', async () => {
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      {
+        id: 'wallet-1',
+        config: {
+          connectionString: encryptRemoteWalletEnvelope(
+            NWC_URI,
+            'wallet-1',
+            ACTIVE_SECRET
+          )
+        }
+      }
+    ] as never)
+    mockRow({
+      receiptNsecCiphertext: legacy(NSEC_HEX, 'receipt-nsec', OTHER_SECRET),
+      receiptPubkey: 'a'.repeat(64)
+    })
+
+    await migrateProxyNwcVault()
+
+    expect(prismaMock.proxyServiceConfig.updateMany).toHaveBeenCalledOnce()
+  })
+
+  it('keeps an unreadable signer when no credential proves the active secret', async () => {
+    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
+      {
+        id: 'wallet-1',
+        config: {
+          connectionString: encryptRemoteWalletEnvelope(
+            NWC_URI,
+            'wallet-1',
+            OTHER_SECRET
+          )
+        }
+      }
+    ] as never)
+    mockRow({
+      nwcCiphertext: legacy(NWC_URI, 'nwc', OTHER_SECRET),
+      receiptNsecCiphertext: legacy(NSEC_HEX, 'receipt-nsec', OTHER_SECRET),
+      receiptPubkey: 'a'.repeat(64)
+    })
+
+    // A temporarily wrong NWC_VAULT_SECRET must never destroy a key the
+    // correct secret could still open.
+    await migrateProxyNwcVault()
+
+    expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
     expect(prismaMock.proxyServiceConfig.update).not.toHaveBeenCalled()
   })
 
-  it('fails closed when proxy NWC cannot be decrypted', async () => {
-    const sealed = encryptLegacyProxy(
-      NWC_URI,
-      'default',
-      'nwc',
-      'other-proxy-vault-secret-0123456789abcdef0123456789abcdef'
-    )
-    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
-      id: 'default',
-      nwcCiphertext: sealed,
-      receiptNsecCiphertext: null
-    } as never)
-
-    await expect(migrateProxyNwcVault()).rejects.toThrow(
-      'cannot be decrypted with the current NWC_VAULT_SECRET'
-    )
-  })
-
-  it('skips an unreadable receipt nsec without failing boot', async () => {
-    const nwc = Uint8Array.from(
-      Buffer.from(
-        encryptNwcVaultEnvelope(NWC_URI, 'default', 'nwc', ACTIVE_SECRET),
-        'utf8'
-      )
-    )
-    const badNsec = encryptLegacyProxy(
-      NSEC_HEX,
-      'default',
-      'receipt-nsec',
-      'other-proxy-vault-secret-0123456789abcdef0123456789abcdef'
-    )
-    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
-      id: 'default',
-      nwcCiphertext: nwc,
-      receiptNsecCiphertext: badNsec
-    } as never)
+  it('does not fail startup when the proxy NWC URI is unreadable', async () => {
+    mockRow({ nwcCiphertext: legacy(NWC_URI, 'nwc', OTHER_SECRET) })
 
     await expect(migrateProxyNwcVault()).resolves.toBeUndefined()
-    expect(prismaMock.proxyServiceConfig.update).not.toHaveBeenCalled()
   })
 
-  it('fails closed when ciphertext exists without the vault key', async () => {
-    mockVault(null)
-    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
-      id: 'default',
-      nwcCiphertext: Uint8Array.from([1]),
-      receiptNsecCiphertext: null
-    } as never)
+  it('respects a deliberately cleared signer', async () => {
+    mockRow({ nwcCiphertext: canonical(NWC_URI, 'nwc') })
 
-    await expect(migrateProxyNwcVault()).rejects.toThrow(
-      'NWC_VAULT_SECRET is not configured'
+    await migrateProxyNwcVault()
+
+    expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('is a no-op without a vault secret and without a proxy row', async () => {
+    mockVault(null)
+    await migrateProxyNwcVault()
+    expect(prismaMock.proxyServiceConfig.findUnique).not.toHaveBeenCalled()
+
+    mockVault()
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue(
+      null as never
     )
+    await migrateProxyNwcVault()
+    expect(prismaMock.proxyServiceConfig.update).not.toHaveBeenCalled()
   })
 })

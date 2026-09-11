@@ -51,6 +51,14 @@ they still decrypt. They are write-only in the API and are not part of generic
 Settings backups. They cannot be removed or rotated while an invoice intent or
 settlement remains outstanding.
 
+A receipt signer the active secret cannot open is replaced with a fresh key at
+startup, because a broken signer disables NIP-57 for every NWC wallet on the
+instance and the original key is unrecoverable. Replacement is gated on
+another NWC credential proving the active secret, and rewrites
+`receiptPubkey` in the same statement so `.well-known/nostr.json` and every
+advertised `nostrPubkey` keep matching the key that signs receipts. Receipts
+already published stay verifiable against the key that signed them.
+
 ## Routes
 
 - `GET/PUT /api/settings/lud16-proxy`
