@@ -53,6 +53,11 @@ pnpm studio             # Prisma Studio
 
 `/check` runs the full pre-PR gate (typecheck + lint + tests).
 
+`pnpm build` does **not** type check — `apps/web` sets
+`typescript.ignoreBuildErrors` so the build skips a compiler pass `typecheck`
+already covers. `pnpm typecheck` runs `next typegen && tsc --noEmit`, covering
+app code, tests, e2e, and the generated `.next/types` route validator.
+
 ## Worktree Dev Loop
 
 Each git worktree provisions itself: the SessionStart hook materializes
