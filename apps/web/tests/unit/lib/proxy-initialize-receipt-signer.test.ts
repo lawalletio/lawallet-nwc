@@ -133,7 +133,7 @@ describe('zap receipt signer health', () => {
     expect(mocks.generatePrivateKey).not.toHaveBeenCalled()
   })
 
-  it('replaces a signer no configured secret can open, retaining it', async () => {
+  it('replaces a signer the secret cannot open', async () => {
     mocks.decrypt.mockImplementation(() => {
       throw new Error('Proxy vault decryption failed')
     })
@@ -145,16 +145,23 @@ describe('zap receipt signer health', () => {
 
     await expect(ensureZapReceiptSigner()).resolves.toBe(true)
 
-    const call = vi.mocked(prismaMock.proxyServiceConfig.updateMany).mock
-      .calls[0][0]
-    expect(call.where).toEqual({
-      id: 'default',
-      receiptNsecCiphertext: SEALED
+    expect(prismaMock.proxyServiceConfig.updateMany).toHaveBeenCalledWith({
+      // Guarded on the ciphertext we read, so concurrent cold starts cannot
+      // each install a different key.
+      where: { id: 'default', receiptNsecCiphertext: SEALED },
+      data: {
+        receiptNsecCiphertext: Uint8Array.from([1, 2, 3]),
+        receiptPubkey: '2'.repeat(64)
+      }
     })
-    expect(call.data.receiptPubkey).toBe('2'.repeat(64))
-    expect(call.data.receiptNsecRetiredCiphertext).toBe(SEALED)
-    expect(call.data.receiptPubkeyRetired).toBe('a'.repeat(64))
-    expect(call.data.receiptSignerReplacedAt).toBeInstanceOf(Date)
+    expect(mocks.logWarn).toHaveBeenCalledWith(
+      {
+        proxyConfigId: 'default',
+        previousReceiptPubkey: 'a'.repeat(64),
+        receiptPubkey: '2'.repeat(64)
+      },
+      'proxy_receipt_signer.replaced_unreadable'
+    )
   })
 
   it('waits for NWC_VAULT_SECRET instead of storing plaintext', async () => {

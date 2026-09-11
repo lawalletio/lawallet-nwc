@@ -200,15 +200,6 @@ describe.skipIf(!runDatabaseTests)(
       expect(isCanonical(proxy.receiptNsecCiphertext)).toBe(true)
     })
 
-    it('retains the displaced signer so the old identity stays recoverable', async () => {
-      const proxy = await prisma.proxyServiceConfig.findUniqueOrThrow({
-        where: { id: PROXY_CONFIG_ID }
-      })
-      expect(proxy.receiptPubkeyRetired).toBe(originalPubkey)
-      expect(proxy.receiptSignerReplacedAt).not.toBeNull()
-      expect(proxy.receiptNsecRetiredCiphertext).not.toBeNull()
-    })
-
     it('generates a signer for a config row that has none', async () => {
       await seedProxyConfig(null, null)
       expect(await getZapReceiptSigner()).toBeNull()
@@ -233,9 +224,6 @@ describe.skipIf(!runDatabaseTests)(
         where: { id: PROXY_CONFIG_ID }
       })
       expect(after.receiptPubkey).toBe(before.receiptPubkey)
-      expect(after.receiptSignerReplacedAt).toEqual(
-        before.receiptSignerReplacedAt
-      )
       expect(Buffer.from(after.receiptNsecCiphertext!)).toEqual(
         Buffer.from(before.receiptNsecCiphertext!)
       )

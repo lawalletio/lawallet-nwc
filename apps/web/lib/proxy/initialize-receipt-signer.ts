@@ -25,9 +25,7 @@ const log = createLogger({ module: 'proxy-receipt-signer' })
  * - row present but no signer: generate one (the row is created by the
  *   settings route too, which can leave the signer empty);
  * - signer readable but no published pubkey: derive it from the key;
- * - signer `NWC_VAULT_SECRET` cannot open: replace it, keeping the displaced
- *   ciphertext so restoring the secret that sealed it can still recover the
- *   instance's original `_` identity.
+ * - signer `NWC_VAULT_SECRET` cannot open: replace it.
  *
  * Returns whether anything was written. Every write is guarded so concurrent
  * cold starts cannot install different keys.
@@ -141,11 +139,12 @@ async function restoreMissingPubkey(
 }
 
 /**
- * `receiptPubkey` is rewritten in the same statement so
- * `.well-known/nostr.json` and every advertised `nostrPubkey` keep matching
- * the key that will sign receipts, and the update is guarded on the
- * ciphertext we read so concurrent cold starts cannot each install a
- * different key.
+ * The displaced key is unrecoverable by anyone, so it is overwritten rather
+ * than archived; the log line is the audit trail. `receiptPubkey` is
+ * rewritten in the same statement so `.well-known/nostr.json` and every
+ * advertised `nostrPubkey` keep matching the key that will sign receipts, and
+ * the update is guarded on the ciphertext we read so concurrent cold starts
+ * cannot each install a different key.
  */
 async function replaceUnreadableSigner(
   id: string,
@@ -163,10 +162,7 @@ async function replaceUnreadableSigner(
         id,
         'receipt-nsec'
       ),
-      receiptPubkey: publicKeyHex,
-      receiptNsecRetiredCiphertext: expectedCiphertext,
-      receiptPubkeyRetired: previousPubkey,
-      receiptSignerReplacedAt: new Date()
+      receiptPubkey: publicKeyHex
     }
   })
   if (claimed.count === 0) return false

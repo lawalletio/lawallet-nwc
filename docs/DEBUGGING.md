@@ -89,14 +89,11 @@ misconfiguration. Check, in order:
    observe settlement.
 
 A signer the secret cannot open is replaced on the next boot, so zaps recover
-on their own — but the advertised `nostrPubkey` changes with it. To keep the
-instance's original `_` identity, re-enter the original nsec through Admin →
-Settings → NWC Services; that re-seals it under the current secret.
-
-A replacement is reversible: the displaced key is in
-`ProxyServiceConfig.receiptNsecRetiredCiphertext` with its pubkey in
-`receiptPubkeyRetired`. Decrypt it with the secret that sealed it and re-enter
-it the same way.
+on their own — but the advertised `nostrPubkey` changes with it, and the
+displaced key is not kept (it was already unopenable). To preserve the
+instance's `_` identity across a secret change, re-enter that nsec through
+Admin → Settings → NWC Services before the instance restarts; that re-seals it
+under the current secret and no replacement happens.
 
 Already-settled zap invoices keep their stored `zapRequest`, so once the
 capability flips true the receipt sweep (`reconcileInvoiceZapReceipts`)
