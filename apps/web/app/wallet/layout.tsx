@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { Metadata, Viewport } from 'next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
   title: 'Wallet - LaWallet',
@@ -31,5 +32,10 @@ export default function WalletLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <>{children}</>
+  return (
+    <>
+      {children}
+      <SpeedInsights />
+    </>
+  )
 }
