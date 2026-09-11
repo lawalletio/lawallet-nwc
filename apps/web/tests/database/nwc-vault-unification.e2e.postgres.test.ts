@@ -1,4 +1,10 @@
-import { createCipheriv, hkdfSync, randomBytes, randomUUID } from 'node:crypto'
+import {
+  createCipheriv,
+  createDecipheriv,
+  hkdfSync,
+  randomBytes,
+  randomUUID
+} from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const databaseUrl = process.env.NWC_VAULT_TEST_DATABASE_URL
@@ -68,6 +74,28 @@ function legacyProxyEnvelope(
       ciphertext
     ])
   )
+}
+
+/** Reads a retained `LWPX01` blob back under the secret that sealed it. */
+function decryptLegacyProxySecret(
+  envelope: Buffer,
+  field: string,
+  secret: string
+): string {
+  let offset = 'LWPX01'.length
+  const salt = envelope.subarray(offset, (offset += 16))
+  const iv = envelope.subarray(offset, (offset += 12))
+  const tag = envelope.subarray(offset, (offset += 16))
+  const key = Buffer.from(
+    hkdfSync('sha256', secret, salt, 'lawallet-proxy-vault-v1', 32)
+  )
+  const decipher = createDecipheriv('aes-256-gcm', key, iv)
+  decipher.setAAD(Buffer.from(`${PROXY_CONFIG_ID}:${field}`, 'utf8'))
+  decipher.setAuthTag(tag)
+  return Buffer.concat([
+    decipher.update(envelope.subarray(offset)),
+    decipher.final()
+  ]).toString('utf8')
 }
 
 function isCanonical(value: Uint8Array | null): boolean {
@@ -215,7 +243,25 @@ describe.skipIf(!runDatabaseTests)(
       expect(capability.reason).toBeNull()
     })
 
-    it('is idempotent: a second boot changes nothing', async () => {
+    it('retains the displaced signer so the old identity stays recoverable', async () => {
+      const proxy = await prisma.proxyServiceConfig.findUniqueOrThrow({
+        where: { id: PROXY_CONFIG_ID }
+      })
+      expect(proxy.receiptPubkeyRetired).toBe(retiredPubkey)
+      expect(proxy.receiptSignerReplacedAt).not.toBeNull()
+
+      // Byte-identical to what was stored, and it still opens under the
+      // secret that sealed it.
+      expect(
+        decryptLegacyProxySecret(
+          Buffer.from(proxy.receiptNsecRetiredCiphertext!),
+          'receipt-nsec',
+          RETIRED_SECRET
+        )
+      ).toBe(retiredNsec)
+    })
+
+    it('is idempotent: a second boot does not churn the signer again', async () => {
       const before = await prisma.proxyServiceConfig.findUniqueOrThrow({
         where: { id: PROXY_CONFIG_ID }
       })
@@ -227,6 +273,10 @@ describe.skipIf(!runDatabaseTests)(
         where: { id: PROXY_CONFIG_ID }
       })
       expect(after.receiptPubkey).toBe(before.receiptPubkey)
+      expect(after.receiptSignerReplacedAt).toEqual(
+        before.receiptSignerReplacedAt
+      )
+      expect(after.receiptPubkeyRetired).toBe(retiredPubkey)
       expect(Buffer.from(after.receiptNsecCiphertext!)).toEqual(
         Buffer.from(before.receiptNsecCiphertext!)
       )

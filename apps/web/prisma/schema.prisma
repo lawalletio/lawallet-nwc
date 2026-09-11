@@ -886,21 +886,27 @@ model Invoice {
 /// URIs (`NWC_VAULT_SECRET`). Startup converts leftover `LWPX01` blobs.
 /// Neither value is exposed by the generic Settings API or Settings backups.
 model ProxyServiceConfig {
-  id                    String    @id @default("default")
-  enabled               Boolean   @default(false)
-  feeBps                Int       @default(50)
-  walletId              String    @unique @default("__lawallet_proxy__")
-  nwcCiphertext         Bytes?
-  receiptNsecCiphertext Bytes?
-  receiptPubkey         String?
-  capabilities          Json?
-  balanceMsats          BigInt?
-  lastProbeAt           DateTime?
-  lastProbeError        String?
-  lastListenerSeenAt    DateTime?
-  lastCronAt            DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  id                           String    @id @default("default")
+  enabled                      Boolean   @default(false)
+  feeBps                       Int       @default(50)
+  walletId                     String    @unique @default("__lawallet_proxy__")
+  nwcCiphertext                Bytes?
+  receiptNsecCiphertext        Bytes?
+  receiptPubkey                String?
+  /// The receipt signer displaced when startup found `receiptNsecCiphertext`
+  /// unreadable. Kept verbatim — it is the only copy — so restoring the
+  /// secret that sealed it can recover the instance's original `_` identity.
+  receiptNsecRetiredCiphertext Bytes?
+  receiptPubkeyRetired         String?
+  receiptSignerReplacedAt      DateTime?
+  capabilities                 Json?
+  balanceMsats                 BigInt?
+  lastProbeAt                  DateTime?
+  lastProbeError               String?
+  lastListenerSeenAt           DateTime?
+  lastCronAt                   DateTime?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
 }
 
 /// Pre-issuance commitment for NIP-57 and fee/destination inputs. The row is

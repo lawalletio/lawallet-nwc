@@ -151,12 +151,16 @@ serves normally. The listener must use the same key so it can open the
 connections.
 
 The NIP-57 receipt signer is the exception, because one unreadable signer
-turns zaps off for _every_ NWC wallet. Since it is a key the platform
-generates for itself and nothing can recover the old one, startup replaces it
-with a fresh key and updates the advertised pubkey — but only after another
-NWC credential has proved the active secret is the right one, so a
-temporarily misconfigured `NWC_VAULT_SECRET` can never destroy a recoverable
-key. Watch for `proxy.receipt_signer.replaced_unreadable` in the logs.
+turns zaps off for _every_ NWC wallet. It is a key the platform generates for
+itself, so startup always replaces an unreadable one with a fresh key and
+updates the advertised pubkey — zaps recover on the next boot with no
+operator action. Nothing is destroyed doing that: the displaced ciphertext is
+kept verbatim in `receiptNsecRetiredCiphertext`, alongside
+`receiptPubkeyRetired` and `receiptSignerReplacedAt`. If the replacement was
+triggered by a misconfigured `NWC_VAULT_SECRET` rather than a genuinely lost
+one, restoring the correct secret still recovers the instance's original `_`
+identity from that column. Watch for
+`proxy.receipt_signer.replaced_unreadable` in the logs.
 
 The listener receives the NWC vault key because it must decrypt RemoteWallet
 and proxy NWC connections. It never receives the NIP-57 `nsec`.

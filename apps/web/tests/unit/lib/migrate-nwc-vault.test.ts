@@ -23,10 +23,7 @@ vi.mock('@/lib/proxy/nostr', () => ({
 import { getConfig } from '@/lib/config'
 import { migrateProxyNwcVault } from '@/lib/proxy/migrate-nwc-vault'
 import { decryptProxySecret } from '@/lib/proxy/vault'
-import {
-  encryptNwcVaultEnvelope,
-  encryptRemoteWalletEnvelope
-} from '@/lib/wallet/remote-wallet-vault-core'
+import { encryptNwcVaultEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
 
 const ACTIVE_SECRET =
   'active-proxy-vault-secret-0123456789abcdef0123456789abcdef'
@@ -103,7 +100,6 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   mockVault()
-  vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([] as never)
   vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
     count: 1
   } as never)
@@ -180,54 +176,49 @@ describe('ProxyServiceConfig NWC vault migration', () => {
     ).toBe('c'.repeat(64))
   })
 
-  it('accepts a readable RemoteWallet as proof of the active secret', async () => {
-    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
-      {
-        id: 'wallet-1',
-        config: {
-          connectionString: encryptRemoteWalletEnvelope(
-            NWC_URI,
-            'wallet-1',
-            ACTIVE_SECRET
-          )
-        }
-      }
-    ] as never)
+  it('retains the displaced signer instead of overwriting it', async () => {
+    const stale = legacy(NSEC_HEX, 'receipt-nsec', OTHER_SECRET)
     mockRow({
-      receiptNsecCiphertext: legacy(NSEC_HEX, 'receipt-nsec', OTHER_SECRET),
+      receiptNsecCiphertext: stale,
       receiptPubkey: 'a'.repeat(64)
     })
 
     await migrateProxyNwcVault()
 
-    expect(prismaMock.proxyServiceConfig.updateMany).toHaveBeenCalledOnce()
+    const { data } = vi.mocked(prismaMock.proxyServiceConfig.updateMany).mock
+      .calls[0][0]
+    expect(data.receiptNsecRetiredCiphertext).toBe(stale)
+    expect(data.receiptPubkeyRetired).toBe('a'.repeat(64))
+    expect(data.receiptSignerReplacedAt).toBeInstanceOf(Date)
   })
 
-  it('keeps an unreadable signer when no credential proves the active secret', async () => {
-    vi.mocked(prismaMock.remoteWallet.findMany).mockResolvedValue([
-      {
-        id: 'wallet-1',
-        config: {
-          connectionString: encryptRemoteWalletEnvelope(
-            NWC_URI,
-            'wallet-1',
-            OTHER_SECRET
-          )
-        }
-      }
-    ] as never)
+  it('replaces the signer even when nothing else proves the active secret', async () => {
     mockRow({
       nwcCiphertext: legacy(NWC_URI, 'nwc', OTHER_SECRET),
       receiptNsecCiphertext: legacy(NSEC_HEX, 'receipt-nsec', OTHER_SECRET),
       receiptPubkey: 'a'.repeat(64)
     })
 
-    // A temporarily wrong NWC_VAULT_SECRET must never destroy a key the
-    // correct secret could still open.
+    // Zaps are platform-wide, so recovery cannot be conditional on some other
+    // credential happening to exist. Retention is what keeps this safe.
     await migrateProxyNwcVault()
 
+    expect(prismaMock.proxyServiceConfig.updateMany).toHaveBeenCalledOnce()
+  })
+
+  it('derives a missing pubkey rather than replacing a readable signer', async () => {
+    mockRow({
+      receiptNsecCiphertext: canonical(NSEC_HEX, 'receipt-nsec'),
+      receiptPubkey: null
+    })
+
+    await migrateProxyNwcVault()
+
+    expect(prismaMock.proxyServiceConfig.update).toHaveBeenCalledWith({
+      where: { id: 'default' },
+      data: { receiptPubkey: 'd'.repeat(64) }
+    })
     expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
-    expect(prismaMock.proxyServiceConfig.update).not.toHaveBeenCalled()
   })
 
   it('does not fail startup when the proxy NWC URI is unreadable', async () => {

@@ -61,17 +61,37 @@ NWC URI, the NIP-57 receipt nsec) is the same `lwrw1:` AES-256-GCM envelope
 under `NWC_VAULT_SECRET`. A startup pass reports anything the active secret
 cannot open, so the first place to look is the boot log.
 
-| Log message                                          | Meaning / fix                                                                                                                                                                            |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `remote_wallet_nwc_encryption.unreadable_rows`       | Those `walletIds` were sealed under a different `NWC_VAULT_SECRET`. Restore the original secret, or have the owner reconnect the wallet. Only those wallets fail (503 on payment paths). |
-| `proxy.nwc_vault.nwc_unreadable`                     | The proxy NWC URI cannot be opened, so deferred forwarding cannot pay out. Re-enter it in Admin → Settings → NWC Services.                                                               |
-| `proxy.nwc_vault.converted_to_lwrw1`                 | Informational — a legacy `LWPX01` proxy blob was re-sealed in canonical form.                                                                                                            |
-| `proxy.receipt_signer.replaced_unreadable`           | The receipt signer was unrecoverable and has been replaced; `previousReceiptPubkey` → `receiptPubkey` records the change. Zaps work again from this boot on.                             |
-| `proxy.nwc_vault.receipt_signer_unreadable_unproven` | The signer cannot be opened **and** no other NWC credential proves the active secret, so it was left untouched. Check `NWC_VAULT_SECRET` is the right one, then restart.                 |
-| `nip57.receipt_signer_unavailable`                   | Served at request time whenever the signer cannot be decrypted — LUD-16 then omits `allowsNostr`/`nostrPubkey` for every address. Pair it with the startup lines above.                  |
+| Log message                                    | Meaning / fix                                                                                                                                                                             |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `remote_wallet_nwc_encryption.unreadable_rows` | Those `walletIds` were sealed under a different `NWC_VAULT_SECRET`. Restore the original secret, or have the owner reconnect the wallet. Only those wallets fail (503 on payment paths).  |
+| `proxy.nwc_vault.nwc_unreadable`               | The proxy NWC URI cannot be opened, so deferred forwarding cannot pay out. Re-enter it in Admin → Settings → NWC Services.                                                                |
+| `proxy.nwc_vault.converted_to_lwrw1`           | Informational — a legacy `LWPX01` proxy blob was re-sealed in canonical form.                                                                                                             |
+| `proxy.receipt_signer.replaced_unreadable`     | The signer could not be opened and has been replaced; `previousReceiptPubkey` → `receiptPubkey` records the change. Zaps work again from this boot on, and the displaced key is retained. |
+| `proxy.receipt_signer.pubkey_restored`         | The signer was readable but had no published pubkey, so it was derived from the key. No key change.                                                                                       |
+| `nip57.receipt_signer_unavailable`             | Served at request time whenever the signer cannot be decrypted — LUD-16 then omits `allowsNostr`/`nostrPubkey` for every address. Pair it with the startup lines above.                   |
 
 `NWC_VAULT_SECRET` has no previous-key fallback, so a rotated or lost secret is
 not recoverable from the database alone.
+
+### Zaps are missing platform-wide
+
+`getZapReceiptCapability()` is the only gate on `allowsNostr` / `nostrPubkey`
+in the LUD-16 payRequest, and it needs **both** an enabled listener and a
+decryptable receipt signer. So a payRequest with `commentAllowed` but no
+`allowsNostr` on _every_ address is an instance-level fault, not an address
+misconfiguration. Check, in order:
+
+1. `nip57.receipt_signer_unavailable` in the request log → signer problem, see
+   the table above. Startup repairs this on the next boot.
+2. Listener reachable and paired (`POST /api/webhooks/nwc` should answer 401,
+   not 404) → otherwise NIP-57 stays off by design, because nothing would
+   observe settlement.
+
+If a signer was replaced by mistake — a deploy that booted with the wrong
+`NWC_VAULT_SECRET` — the original is still in
+`ProxyServiceConfig.receiptNsecRetiredCiphertext`, with its pubkey in
+`receiptPubkeyRetired`. Restore the correct secret and re-enter that key
+through Admin → Settings → NWC Services to get the original `_` identity back.
 
 ## Card tap payments
 
