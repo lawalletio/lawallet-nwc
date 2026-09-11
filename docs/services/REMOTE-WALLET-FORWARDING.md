@@ -68,10 +68,11 @@ invoice from satisfying two forwarding obligations.
 ## Configuration and retries
 
 Changing destinations or fees is atomic and does not require pausing the
-action. It is rejected while any attempt is `PENDING`/`UNKNOWN`. Paid legs stay
-immutable; unpaid legs are superseded and the remaining amount is allocated
-under the new revision. A revision is rejected if its new target is less than
-the amount already paid.
+action. It is rejected while any attempt is `PENDING`/`UNKNOWN`. Paid legs
+stay immutable; non-residual open legs are superseded and the remaining
+amount is allocated under the new revision, while residual legs stay
+payable. A revision is rejected if its new target is less than the amount
+already paid plus outstanding residual balances.
 
 Disabling or archiving a wallet pauses its action. Automatic retries use the
 listener's existing ten-minute reconciliation wake-up. Manual retry only
@@ -200,9 +201,10 @@ For a delivery failure, first inspect **Forwarding** and the receipt detail:
 `Retry` on an individual receipt only advances safe, unpaid legs. It is useful
 for a corrected address or a rejected/expired invoice. A configuration change
 creates a new immutable revision: paid legs remain attached to their original
-revision and unpaid legs are superseded then redistributed. The change is
-rejected while a payment result is uncertain, or if it would make the new
-target lower than what has already been sent.
+revision and non-residual open legs are superseded then redistributed, while
+residual legs stay payable. The change is rejected while a payment result is
+uncertain, or if it would make the new target lower than what has already
+been sent plus outstanding residual balances.
 
 ### Wallet notifications
 
