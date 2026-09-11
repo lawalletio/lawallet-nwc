@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from './zod'
 
 // ── NWC Listener contracts ──────────────────────────────────────────────────
 //
@@ -61,7 +61,7 @@ export const nwcWebhookPaymentSchema = z.object({
   invoice: z.string().optional(),
   description: z.string().optional(),
   /** Raw Nip47Transaction passthrough. */
-  transaction: z.record(z.unknown())
+  transaction: z.record(z.string(), z.unknown())
 })
 
 /**
@@ -139,7 +139,7 @@ export const nwcProxyRequestSchema = z.object({
   walletId: z.string().min(1).optional(),
   method: nwcProxyMethodSchema,
   /** Raw NIP-47 params — msat-speaking, passed to the SDK untouched. */
-  params: z.record(z.unknown()).default({}),
+  params: z.record(z.string(), z.unknown()).default({}),
   timeoutMs: z.number().int().min(1000).max(120000).optional()
 })
 export type NwcProxyRequest = z.infer<typeof nwcProxyRequestSchema>
@@ -161,7 +161,7 @@ export const nwcProxyErrorCodeSchema = z.enum([
 export type NwcProxyErrorCode = z.infer<typeof nwcProxyErrorCodeSchema>
 
 export const nwcProxyResponseSchema = z.union([
-  z.object({ ok: z.literal(true), result: z.record(z.unknown()) }),
+  z.object({ ok: z.literal(true), result: z.record(z.string(), z.unknown()) }),
   z.object({
     ok: z.literal(false),
     error: z.object({

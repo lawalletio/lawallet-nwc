@@ -24,7 +24,7 @@ export const POST = withErrorHandling(async (request: Request) => {
   }
   const parsed = bodySchema.safeParse(json)
   if (!parsed.success) {
-    throw new ValidationError('Invalid request data', parsed.error.errors)
+    throw new ValidationError('Invalid request data', parsed.error.issues)
   }
   after(async () => {
     await Promise.all([

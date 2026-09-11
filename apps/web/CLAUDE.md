@@ -69,7 +69,7 @@ Migrations run against the per-checkout DB from `.env.local`
   `EVENT_PERMISSION_MAP` (a total Record — adding an event type without a map
   entry is a compile error).
 
-## Testing (Vitest 3.2 + MSW + happy-dom)
+## Testing (Vitest 5 + MSW + happy-dom)
 
 - Unit `tests/unit/`, integration `tests/integration/api/`, component tests
   colocated under `tests/unit/components/`

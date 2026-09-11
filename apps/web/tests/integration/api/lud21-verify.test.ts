@@ -45,19 +45,23 @@ vi.mock('@/lib/events/event-bus', () => ({
 
 const lookupInvoiceMock = vi.fn()
 const nwcCloseMock = vi.fn()
+const nwcCtorMock = vi.fn()
 
-vi.mock('@getalby/sdk', () => ({
-  NWCClient: vi.fn().mockImplementation(() => ({
-    lookupInvoice: lookupInvoiceMock,
-    close: nwcCloseMock
-  }))
-}))
+vi.mock('@getalby/sdk', () => {
+  class FakeNWCClient {
+    constructor(opts: { nostrWalletConnectUrl: string }) {
+      nwcCtorMock(opts)
+    }
+    lookupInvoice = lookupInvoiceMock
+    close = nwcCloseMock
+  }
+  return { NWCClient: FakeNWCClient }
+})
 
 import {
   GET,
   OPTIONS
 } from '@/app/api/lud16/[username]/verify/[paymentHash]/route'
-import { NWCClient } from '@getalby/sdk'
 import { closeAllServerNwcClients } from '@/lib/wallet/drivers/nwc-client-cache'
 
 const VALID_HASH = 'a'.repeat(64)
@@ -486,8 +490,8 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
 
     // NWCClient must receive the decrypted `nostr+walletconnect://` URI,
     // never the `lwrw1:` ciphertext envelope that's persisted in the DB.
-    expect(NWCClient).toHaveBeenCalledTimes(1)
-    const ctorArg = vi.mocked(NWCClient).mock.calls[0][0] as {
+    expect(nwcCtorMock).toHaveBeenCalledTimes(1)
+    const ctorArg = nwcCtorMock.mock.calls[0][0] as {
       nostrWalletConnectUrl: string
     }
     expect(ctorArg.nostrWalletConnectUrl).toBe(PLAINTEXT_CONN)
@@ -547,7 +551,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
       preimage: null,
       pr: 'lnbc100n1test'
     })
-    expect(NWCClient).not.toHaveBeenCalled()
+    expect(nwcCtorMock).not.toHaveBeenCalled()
     expect(lookupInvoiceMock).not.toHaveBeenCalled()
   })
 
@@ -574,8 +578,8 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
 
     expect(body.settled).toBe(true)
     expect(body.preimage).toBe('c'.repeat(64))
-    expect(NWCClient).toHaveBeenCalledTimes(1)
-    const ctorArg = vi.mocked(NWCClient).mock.calls[0][0] as {
+    expect(nwcCtorMock).toHaveBeenCalledTimes(1)
+    const ctorArg = nwcCtorMock.mock.calls[0][0] as {
       nostrWalletConnectUrl: string
     }
     expect(ctorArg.nostrWalletConnectUrl).toBe(PLAINTEXT_CONN)
@@ -627,7 +631,7 @@ describe('GET /api/lud16/[username]/verify/[paymentHash]', () => {
 
     expect(body.settled).toBe(true)
     expect(body.preimage).toBe('c'.repeat(64))
-    const ctorArg = vi.mocked(NWCClient).mock.calls[0][0] as {
+    const ctorArg = nwcCtorMock.mock.calls[0][0] as {
       nostrWalletConnectUrl: string
     }
     expect(ctorArg.nostrWalletConnectUrl).toBe(PLAINTEXT_CONN)

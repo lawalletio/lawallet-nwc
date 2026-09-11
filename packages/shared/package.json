@@ -11,7 +11,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "zod": "^3.25.76"
+    "zod": "^4.6.1",
+    "@asteasolutions/zod-to-openapi": "^9.1.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

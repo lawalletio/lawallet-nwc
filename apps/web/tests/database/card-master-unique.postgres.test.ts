@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PrismaClient } from '@/lib/generated/prisma'
+import { createPrismaClient } from '@/lib/create-prisma-client'
 
 const databaseUrl = process.env.CARD_PAYMENT_TEST_DATABASE_URL
 const databaseName = databaseUrl ? new URL(databaseUrl).pathname.slice(1) : ''
@@ -24,7 +25,7 @@ describe.skipIf(!runDatabaseTests)(
 
     beforeAll(async () => {
       if (!runDatabaseTests) return
-      prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } })
+      prisma = createPrismaClient(databaseUrl!)
 
       await prisma.cardDesign.create({
         data: {

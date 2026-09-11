@@ -7,7 +7,7 @@ LaWallet NWC is open source (MIT) and pre-alpha. Whether you're integrating it i
 
 ## The repository
 
-It's a pnpm + Turborepo monorepo. Node v22.14.0 (`.nvmrc`).
+It's a pnpm + Turborepo monorepo. Node v24.21.0 (`.nvmrc`).
 
 ```
 apps/
@@ -24,7 +24,7 @@ The NWC proxy is **not vendored** — it's an external service provisioned via L
 
 ## Local development
 
-1. `nvm use` (Node 22.14)
+1. `nvm use` (Node 24.21)
 2. `pnpm install`
 3. `pnpm dev` — runs every app in parallel
 4. Web app is at `localhost:3000`, this docs site is at `localhost:3001`
@@ -49,4 +49,4 @@ Prettier (no semicolons, single quotes, no trailing commas, arrow parens: avoid)
 
 ## Testing
 
-Vitest 3.2 + MSW + happy-dom in `apps/web`. Unit tests live in `tests/unit/lib/`, integration tests in `tests/integration/api/`. See the [Testing guide](/docs/guides) for patterns.
+Vitest 5 + MSW + happy-dom in `apps/web`. Unit tests live in `tests/unit/lib/`, integration tests in `tests/integration/api/`. See the [Testing guide](/docs/guides) for patterns.

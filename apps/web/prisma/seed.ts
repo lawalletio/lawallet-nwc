@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { PrismaClient } from '../lib/generated/prisma'
+import { createPrismaClient } from '../lib/create-prisma-client'
 import { encryptRemoteWalletEnvelope } from '../lib/wallet/remote-wallet-vault-core'
 import { DEV_ADMIN_USER_ID } from '../lib/dev-identity'
 import { mockUserData } from '../mocks/user'
@@ -7,7 +7,7 @@ import { mockLightningAddressData } from '../mocks/lightning-address'
 import { mockNtag424Data } from '../mocks/ntag424'
 import { mockCardDesignData } from '../mocks/card-design'
 
-const prisma = new PrismaClient()
+const prisma = createPrismaClient(process.env.DATABASE_URL ?? '')
 
 async function main() {
   const nwcVaultSecret = process.env.NWC_VAULT_SECRET

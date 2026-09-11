@@ -23,8 +23,11 @@ if (!process.env.DATABASE_URL) {
 }
 
 const require = createRequire(import.meta.url)
+const { PrismaPg } = require('@prisma/adapter-pg')
 const { PrismaClient } = require('../lib/generated/prisma')
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL })
+})
 const databaseLabel = describeDatabaseUrl(process.env.DATABASE_URL)
 
 try {

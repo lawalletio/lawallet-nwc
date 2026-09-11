@@ -4,7 +4,7 @@
 
 LaWallet NWC is composed of **three fully independent, containerized services**. Each runs in its own Docker container with its own database/storage. There is no shared infrastructure between services. They communicate exclusively via HTTP APIs and WebSocket events.
 
-The monorepo uses pnpm workspaces + Turborepo. Node v22.14.0 (see `.nvmrc`).
+The monorepo uses pnpm workspaces + Turborepo. Node v24.21.0 (see `.nvmrc`).
 
 ```
 lawallet-nwc/

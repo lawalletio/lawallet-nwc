@@ -23,7 +23,7 @@ export function getOpenApiDocument(
 ): OpenAPIObject {
   const generator = new OpenApiGeneratorV31(registry.definitions)
 
-  return generator.generateDocument({
+  const document = generator.generateDocument({
     openapi: '3.1.0',
     info: {
       title: 'LaWallet NWC API',
@@ -161,4 +161,25 @@ export function getOpenApiDocument(
       }
     ]
   })
+
+  // Zod 4 stringifies `.regex(/.../i)` as `${source}/i`. JSON Schema `pattern`
+  // has no flags, so a trailing `/i` would be taken literally. Strip JS regex
+  // flags; the runtime schema still applies them.
+  stripJsRegexFlagsFromPatterns(document)
+  return document
+}
+
+function stripJsRegexFlagsFromPatterns(node: unknown): void {
+  if (Array.isArray(node)) {
+    for (const item of node) stripJsRegexFlagsFromPatterns(item)
+    return
+  }
+  if (!node || typeof node !== 'object') return
+  const obj = node as Record<string, unknown>
+  if (typeof obj.pattern === 'string') {
+    obj.pattern = obj.pattern.replace(/\/[gimsuy]*$/, '')
+  }
+  for (const key of Object.keys(obj)) {
+    stripJsRegexFlagsFromPatterns(obj[key])
+  }
 }

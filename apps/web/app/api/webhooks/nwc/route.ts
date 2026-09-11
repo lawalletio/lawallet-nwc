@@ -105,7 +105,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
   const parsed = nwcWebhookPayloadSchema.safeParse(json)
   if (!parsed.success) {
-    throw new ValidationError('Invalid request data', parsed.error.errors)
+    throw new ValidationError('Invalid request data', parsed.error.issues)
   }
   const event = parsed.data
 

@@ -1,7 +1,4 @@
-import type {
-  AuthenticatorTransportFuture,
-  WebAuthnCredential
-} from '@simplewebauthn/server'
+import type { WebAuthnCredential } from '@simplewebauthn/server'
 import type { PasskeyCredential, WebAuthnFlow } from '@/lib/generated/prisma'
 import { prisma } from '@/lib/prisma'
 import { resolveApiUrl } from '@/lib/public-url'
@@ -115,9 +112,7 @@ export async function consumeWebAuthnChallenge(
 }
 
 /** JSON round-trip for `PasskeyCredential.transports`. */
-export function parseTransports(
-  raw: string | null
-): AuthenticatorTransportFuture[] | undefined {
+export function parseTransports(raw: string | null): string[] | undefined {
   if (!raw) return undefined
   try {
     const parsed = JSON.parse(raw)

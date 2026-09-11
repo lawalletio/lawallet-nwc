@@ -141,7 +141,7 @@ export interface RemoteWalletDriver<TConfig = unknown> {
    * valid output. Input is `unknown` because callers pass raw JSON that
    * may omit defaulted fields like `mode` on the NWC driver.
    */
-  readonly configSchema: z.ZodType<TConfig, z.ZodTypeDef, unknown>
+  readonly configSchema: z.ZodType<TConfig>
 
   /**
    * Read the wallet's current spendable balance. Network round-trip; expect

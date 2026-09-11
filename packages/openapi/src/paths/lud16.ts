@@ -110,7 +110,7 @@ registry.registerPath({
           schema: z.object({
             action: z.literal('voucher'),
             nonce: z.string().length(22),
-            voucher: z.record(z.unknown()),
+            voucher: z.record(z.string(), z.unknown()),
             comment: z.string().max(200).optional()
           })
         }

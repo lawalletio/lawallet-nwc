@@ -32,8 +32,8 @@ const runDatabaseTests = !!databaseUrl && /(?:_e2e|_test)$/.test(databaseName)
 vi.mock('@/lib/prisma', async () => {
   const url = process.env.CARD_PAYMENT_TEST_DATABASE_URL
   if (!url) return { prisma: {} }
-  const { PrismaClient } = await import('@/lib/generated/prisma')
-  const prisma = new PrismaClient({ datasources: { db: { url } } })
+  const { createPrismaClient } = await import('@/lib/create-prisma-client')
+  const prisma = createPrismaClient(url)
   return { prisma }
 })
 

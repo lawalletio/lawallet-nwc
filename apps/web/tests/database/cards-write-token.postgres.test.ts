@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { PrismaClient } from '@/lib/generated/prisma'
+import { createPrismaClient } from '@/lib/create-prisma-client'
 
 const databaseUrl = process.env.CARD_PAYMENT_TEST_DATABASE_URL
 const databaseName = databaseUrl ? new URL(databaseUrl).pathname.slice(1) : ''
@@ -23,9 +24,7 @@ describe.skipIf(!runDatabaseTests)(
 
     beforeAll(async () => {
       if (!databaseUrl || !runDatabaseTests) return
-      prisma = new PrismaClient({
-        datasources: { db: { url: databaseUrl } }
-      })
+      prisma = createPrismaClient(databaseUrl)
       vi.resetModules()
       vi.doMock('@/lib/prisma', () => ({ prisma }))
       // Public URL + settings stubs: the route calls resolveApiUrl(req) and

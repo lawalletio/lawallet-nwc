@@ -99,14 +99,16 @@ const makeInvoiceMock = vi.fn().mockResolvedValue({
 })
 const nwcCtorMock = vi.fn()
 
-vi.mock('@getalby/sdk', () => ({
-  NWCClient: vi
-    .fn()
-    .mockImplementation((opts: { nostrWalletConnectUrl: string }) => {
+vi.mock('@getalby/sdk', () => {
+  class FakeNWCClient {
+    constructor(opts: { nostrWalletConnectUrl: string }) {
       nwcCtorMock(opts)
-      return { makeInvoice: makeInvoiceMock, close: vi.fn() }
-    })
-}))
+    }
+    makeInvoice = makeInvoiceMock
+    close = vi.fn()
+  }
+  return { NWCClient: FakeNWCClient }
+})
 
 vi.mock('light-bolt11-decoder', () => ({
   decode: vi.fn().mockReturnValue({
@@ -152,8 +154,7 @@ const DEFAULT_WALLET = {
 
 function mockPrimaryAddressWallet(
   wallet:
-    | (typeof DEFAULT_WALLET & Record<string, unknown>)
-    | null = DEFAULT_WALLET
+    (typeof DEFAULT_WALLET & Record<string, unknown>) | null = DEFAULT_WALLET
 ) {
   vi.mocked(prismaMock.lightningAddress.findFirst).mockResolvedValue(
     wallet

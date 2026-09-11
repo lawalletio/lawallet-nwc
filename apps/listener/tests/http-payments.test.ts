@@ -7,6 +7,7 @@ import type { ListenerEnv } from '../src/env'
 import { createHttpServer } from '../src/http/server'
 import { metrics as baseMetrics, type Metrics } from '../src/metrics'
 import type { NwcPool } from '../src/nwc/pool'
+import type { NwcPaymentService } from '../src/nwc/payments'
 import { listenerStatusResponseSchema } from '@lawallet-nwc/shared'
 import packageJson from '../package.json'
 
@@ -70,7 +71,10 @@ describe('idempotent payment HTTP API', () => {
         relaySummary: vi.fn(() => []),
         snapshot: vi.fn(() => [])
       } as unknown as NwcPool,
-      nwcPayments: payments,
+      nwcPayments: payments as unknown as Pick<
+        NwcPaymentService,
+        'submit' | 'status'
+      >,
       healthDbTimeoutMs: options.healthDbTimeoutMs,
       statusDbTimeoutMs: options.statusDbTimeoutMs
     })

@@ -7,8 +7,7 @@ import {
   submitLnurlWithdraw,
   LnurlError
 } from '@/lib/client/lnurl-scan'
-
-const originalFetch = global.fetch
+import { stubFetch } from '@/tests/helpers/stub-fetch'
 
 function encodeLnurl(url: string): string {
   const words = bech32.toWords(new TextEncoder().encode(url))
@@ -16,11 +15,11 @@ function encodeLnurl(url: string): string {
 }
 
 function mockFetchOnce(body: unknown, ok = true, status = 200) {
-  global.fetch = vi.fn(async () => ({
+  return stubFetch(async () => ({
     ok,
     status,
     json: async () => body
-  })) as unknown as typeof fetch
+  }))
 }
 
 beforeEach(() => {
@@ -28,7 +27,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  global.fetch = originalFetch
+  vi.unstubAllGlobals()
 })
 
 describe('lnurlToHttpUrl', () => {
@@ -127,9 +126,9 @@ describe('resolveLnurl', () => {
   })
 
   it('returns null (no fetch) for a non-LNURL input', async () => {
-    global.fetch = vi.fn() as unknown as typeof fetch
+    const fetchMock = stubFetch()
     expect(await resolveLnurl('lnbc1abc')).toBeNull()
-    expect(global.fetch).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('throws on an ERROR status response', async () => {
@@ -161,12 +160,11 @@ describe('resolveLnurl', () => {
 
 describe('submitLnurlWithdraw', () => {
   it('posts k1 + pr to the callback and resolves on OK', async () => {
-    const fetchMock = vi.fn(async () => ({
+    const fetchMock = stubFetch(async () => ({
       ok: true,
       status: 200,
       json: async () => ({ status: 'OK' })
-    })) as unknown as typeof fetch
-    global.fetch = fetchMock
+    }))
 
     await submitLnurlWithdraw(
       'https://example.com/cb?voucher=1',
@@ -174,8 +172,7 @@ describe('submitLnurlWithdraw', () => {
       'lnbc1invoice'
     )
 
-    const calledUrl = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock
-      .calls[0][0] as string
+    const calledUrl = fetchMock.mock.calls[0][0] as string
     const u = new URL(calledUrl)
     expect(u.searchParams.get('k1')).toBe('my-k1')
     expect(u.searchParams.get('pr')).toBe('lnbc1invoice')

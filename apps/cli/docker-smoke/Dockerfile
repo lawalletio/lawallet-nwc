@@ -7,7 +7,7 @@ RUN apk add --no-cache \
     nodejs \
     npm
 
-RUN npm install --global pnpm@10.11.0
+RUN npm install --global pnpm@11.26.0
 
 WORKDIR /workspace
 

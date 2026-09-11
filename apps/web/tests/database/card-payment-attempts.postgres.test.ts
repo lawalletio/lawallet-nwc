@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PrismaClient } from '@/lib/generated/prisma'
+import { createPrismaClient } from '@/lib/create-prisma-client'
 import type {
   ClaimCardPaymentAttemptInput,
   ClaimCardPaymentAttemptResult
@@ -24,9 +25,7 @@ describe.skipIf(!runDatabaseTests)(
 
     beforeAll(async () => {
       if (!databaseUrl || !runDatabaseTests) return
-      prisma = new PrismaClient({
-        datasources: { db: { url: databaseUrl } }
-      })
+      prisma = createPrismaClient(databaseUrl)
       vi.resetModules()
       vi.doMock('@/lib/prisma', () => ({ prisma }))
       ;({ claimCardPaymentAttempt } =

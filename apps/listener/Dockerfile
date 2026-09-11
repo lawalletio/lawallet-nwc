@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# ── Build base: Node.js 22 (Debian Trixie Slim) + pnpm via corepack ────
-FROM node:22-trixie-slim AS base
+# ── Build base: Node.js 24 (Debian Trixie Slim) + pnpm via corepack ────
+FROM node:24-trixie-slim AS base
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 
@@ -32,7 +32,7 @@ COPY packages/shared ./packages/shared
 RUN pnpm --filter=@lawallet-nwc/listener build
 
 # ── runner: minimal runtime (node + prod deps + dist bundle) ───────────
-FROM node:22-trixie-slim AS runner
+FROM node:24-trixie-slim AS runner
 WORKDIR /app
 
 # curl: the docker-compose healthcheck curls /health from inside the container.
