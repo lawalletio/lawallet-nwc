@@ -81,4 +81,4 @@ Migrations run against the per-checkout DB from `.env.local`
 - **Logger gotcha**: `lib/logger.ts` calls `getConfig()` at module load — mock
   config BEFORE importing anything that imports the logger
 - App Router params: `createParamsPromise()` from route-helpers
-- Coverage gates: statements 60 / branches 75 / functions 70 / lines 60
+- Coverage gates: statements 60 / branches 70 / functions 70 / lines 60
