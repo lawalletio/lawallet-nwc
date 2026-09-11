@@ -111,19 +111,33 @@ function minOccurrenceFailure(contents, value, minimum, label) {
   return `${label} (found ${count}, expected at least ${minimum})`
 }
 
+// `owned: false` marks a listing in someone else's registry. We can open a PR
+// there but not merge it, so its adoption lag must never gate our releases —
+// otherwise cutting a version depends on a third party's review queue. Those
+// packages stay advisory even under STRICT_EXTERNAL_PACKAGES; the ones we own
+// still block, because for those "not adopted yet" means we forgot.
 const START9_PACKAGES = [
   {
     name: 'lawalletio/lawallet-startos',
+    owned: true,
     rawBase:
       'https://raw.githubusercontent.com/lawalletio/lawallet-startos/master'
   },
   {
     name: 'Start9-Community/lawallet-startos',
+    owned: false,
     rawBase:
       'https://raw.githubusercontent.com/Start9-Community/lawallet-startos/master'
   }
 ]
 
+// Only NWC_VAULT_SECRET is checked here. It is non-optional in
+// apps/listener/src/env.ts, so a StartOS package that never sets it ships a
+// listener that exits on boot. LISTENER_REQUEST_AUTH_SECRET is deliberately
+// NOT in this contract: it is `.optional()` in both apps/web/lib/config/env.ts
+// and apps/listener/src/env.ts and documented to fall back to
+// LISTENER_AUTH_SECRET, so requiring it here would assert a constraint the app
+// does not have.
 const START9_SECRET_CONTRACT = [
   {
     path: 'startos/main.ts',
@@ -132,11 +146,6 @@ const START9_SECRET_CONTRACT = [
         value: 'NWC_VAULT_SECRET',
         minimum: 2,
         label: 'must pass NWC_VAULT_SECRET to web and listener'
-      },
-      {
-        value: 'LISTENER_REQUEST_AUTH_SECRET',
-        minimum: 2,
-        label: 'must pass LISTENER_REQUEST_AUTH_SECRET to web and listener'
       }
     ]
   },
@@ -224,7 +233,8 @@ for (const [contents, label] of [
 //
 // StartOS packages get the same treatment below: presence of NWC_VAULT_SECRET
 // on web and listener, plus generateSecrets persistence. Advisory on PRs,
-// strict on release.
+// strict on release — but only for the packages we can actually merge into
+// (see START9_PACKAGES).
 //
 // Strict only where it matters — the release gate sets
 // STRICT_EXTERNAL_PACKAGES=1. On ordinary PRs this stays advisory: the Umbrel
@@ -293,13 +303,15 @@ for (const start9Package of START9_PACKAGES) {
       .filter(Boolean)
     if (failures.length === 0) continue
 
-    if (strictExternalPackages) {
+    if (strictExternalPackages && start9Package.owned) {
       throw new Error(
         `Deployment environment check failed: ${failures.join('; ')}`
       )
     }
     console.warn(
-      `WARNING: ${failures.join('; ')}. Releases stay blocked until ${start9Package.name} is updated.`
+      start9Package.owned
+        ? `WARNING: ${failures.join('; ')}. Releases stay blocked until ${start9Package.name} is updated.`
+        : `WARNING: ${failures.join('; ')}. ${start9Package.name} is a third-party registry we cannot merge into, so this never blocks a release — operators on that listing should sideload instead until it adopts the contract.`
     )
   }
 }
