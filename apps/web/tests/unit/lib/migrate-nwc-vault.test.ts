@@ -21,8 +21,6 @@ import { encryptNwcVaultEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
 
 const ACTIVE_SECRET =
   'active-proxy-vault-secret-0123456789abcdef0123456789abcdef'
-const PREVIOUS_SECRET =
-  'retired-proxy-vault-secret-0123456789abcdef0123456789abcdef'
 const FOREIGN_SECRET =
   'foreign-proxy-vault-secret-0123456789abcdef0123456789abcdef'
 const NWC_URI =
@@ -32,13 +30,10 @@ const NWC_URI =
   'b'.repeat(64)
 const NSEC_HEX = '1'.repeat(64)
 
-function mockVault(
-  secret: string | null = ACTIVE_SECRET,
-  previousSecrets: string[] = []
-) {
+function mockVault(secret: string | null = ACTIVE_SECRET) {
   const configured = secret ?? undefined
   vi.mocked(getConfig).mockReturnValue({
-    nwcVault: { secret: configured, previousSecrets, enabled: !!configured }
+    nwcVault: { secret: configured, enabled: !!configured }
   } as never)
 }
 
@@ -129,43 +124,6 @@ describe('ProxyServiceConfig NWC vault convergence', () => {
     await migrateProxyNwcVault()
 
     expect(prismaMock.proxyServiceConfig.update).not.toHaveBeenCalled()
-  })
-
-  it('re-seals a signer that only opens under a previous secret', async () => {
-    // The production case: the key is intact, the secret moved on. Recovering
-    // it here is what brings NIP-57 back without touching the key.
-    mockVault(ACTIVE_SECRET, [PREVIOUS_SECRET])
-    mockRow({
-      receiptNsecCiphertext: canonical(
-        NSEC_HEX,
-        'receipt-nsec',
-        PREVIOUS_SECRET
-      )
-    })
-
-    await migrateProxyNwcVault()
-
-    const written = writtenField(0, 'receiptNsecCiphertext')
-    expect(decryptProxySecret(written, 'default', 'receipt-nsec')).toBe(
-      NSEC_HEX
-    )
-    // Re-sealed under the active secret alone, so the previous one can be
-    // dropped from the environment.
-    mockVault(ACTIVE_SECRET)
-    expect(decryptProxySecret(written, 'default', 'receipt-nsec')).toBe(
-      NSEC_HEX
-    )
-  })
-
-  it('re-seals a legacy NWC blob sealed under a previous secret', async () => {
-    mockVault(ACTIVE_SECRET, [PREVIOUS_SECRET])
-    mockRow({ nwcCiphertext: legacy(NWC_URI, 'nwc', PREVIOUS_SECRET) })
-
-    await migrateProxyNwcVault()
-
-    const written = writtenField(0, 'nwcCiphertext')
-    mockVault(ACTIVE_SECRET)
-    expect(decryptProxySecret(written, 'default', 'nwc')).toBe(NWC_URI)
   })
 
   it('leaves a credential no configured secret can open', async () => {

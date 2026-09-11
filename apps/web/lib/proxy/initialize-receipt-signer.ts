@@ -25,13 +25,9 @@ const log = createLogger({ module: 'proxy-receipt-signer' })
  * - row present but no signer: generate one (the row is created by the
  *   settings route too, which can leave the signer empty);
  * - signer readable but no published pubkey: derive it from the key;
- * - signer unreadable under every configured secret: replace it, keeping the
- *   displaced ciphertext so restoring the right secret can still recover the
+ * - signer `NWC_VAULT_SECRET` cannot open: replace it, keeping the displaced
+ *   ciphertext so restoring the secret that sealed it can still recover the
  *   instance's original `_` identity.
- *
- * Format and secret convergence runs first (`migrateProxyNwcVault`), so a
- * signer that only opened under `NWC_VAULT_SECRET_PREVIOUS` has already been
- * re-sealed and reads as healthy here. Replacement is the last resort.
  *
  * Returns whether anything was written. Every write is guarded so concurrent
  * cold starts cannot install different keys.

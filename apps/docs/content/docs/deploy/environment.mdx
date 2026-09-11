@@ -119,21 +119,24 @@ and no Sentry code is activated.
 | `SENTRY_AUTH_TOKEN`      | Build only     | Optional      | Used only during the build to upload sourcemaps to Sentry. Never needed at runtime.                                                                                                             |
 | `SENTRY_RELEASE`         | Listener       | Optional      | Commit the running image was built from. Baked in by `--build-arg SENTRY_RELEASE=<sha>`; enables release health (crash-free sessions). The web app detects its release automatically on Vercel. |
 
-## Key rotation
+## Vault secrets are not rotatable
 
-`KEY_VAULT_SECRET_PREVIOUS` accepts comma-separated previous server-custody
-key-vault secrets during a controlled rotation.
+`KEY_VAULT_SECRET` and `NWC_VAULT_SECRET` each have exactly one value, and it
+is the only key that opens what it sealed. There is no previous-secret
+fallback: changing either one makes the existing ciphertext unreadable.
 
-`NWC_VAULT_SECRET_PREVIOUS` does the same for the NWC vault: set the old
-secret (or a comma-separated list) alongside the new `NWC_VAULT_SECRET`, and
-startup re-seals every credential it can open under the active secret. Once
-the boot log shows no unreadable credentials, the previous value can be
-dropped on the following deploy. Set it on the listener too — it may boot
-before web finishes re-sealing.
+Back both up and keep them stable. Recovery from a changed secret is per
+credential, not automatic:
 
-Rotating without it is what makes existing RemoteWallet and proxy credentials
-unreadable, so keep the old value until the re-seal has run. Do not rotate or
-remove proxy credentials while non-completed proxy payments exist.
+| Credential                 | If the secret changed                                           |
+| -------------------------- | --------------------------------------------------------------- |
+| Custodied Nostr keys       | Unrecoverable. Affected passkey users lose that Nostr identity. |
+| RemoteWallet NWC URI       | The owner reconnects the wallet.                                |
+| Proxy NWC URI              | Re-enter it in Admin → Settings → NWC Services.                 |
+| NIP-57 receipt signer nsec | Re-enter it, or let startup issue a new one (see below).        |
+
+Do not change or remove proxy credentials while non-completed proxy payments
+exist.
 
 ## Values configured in Admin Settings
 
@@ -159,15 +162,15 @@ connections.
 The NIP-57 receipt signer is the exception, because one unusable signer turns
 zaps off for _every_ NWC wallet. Startup guarantees a usable one: it generates
 a signer when the config row has none, derives a missing pubkey from a
-readable key, and — only when no configured secret can open the stored key —
-replaces it and updates the advertised pubkey.
+readable key, and — when `NWC_VAULT_SECRET` cannot open the stored key —
+replaces it and updates the advertised pubkey, so zaps recover with no
+operator action.
 
-Prefer recovery over replacement: set `NWC_VAULT_SECRET_PREVIOUS` and the
-original key is re-sealed under the active secret, keeping the instance's `_`
-identity. Replacement is the last resort, and even then nothing is destroyed —
-the displaced ciphertext is kept verbatim in `receiptNsecRetiredCiphertext`
-alongside `receiptPubkeyRetired` and `receiptSignerReplacedAt`, so restoring
-the right secret can still recover the original identity. Watch for
+A replacement changes the instance's `_` identity but destroys nothing: the
+displaced ciphertext is kept verbatim in `receiptNsecRetiredCiphertext`
+alongside `receiptPubkeyRetired` and `receiptSignerReplacedAt`. If you still
+have the secret that sealed it, decrypt that column and re-enter the key in
+Admin → Settings → NWC Services to restore the original identity. Watch for
 `proxy_receipt_signer.replaced_unreadable` in the logs.
 
 The listener receives the NWC vault key because it must decrypt RemoteWallet

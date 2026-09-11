@@ -39,16 +39,6 @@ const envSchema = z.object({
       )
   ),
 
-  KEY_VAULT_SECRET_PREVIOUS: z.preprocess(
-    emptyEnvToUndefined,
-    z
-      .string()
-      .optional()
-      .describe(
-        'Comma-separated previous KEY_VAULT_SECRET values still accepted for decryption during rotation'
-      )
-  ),
-
   // NWC connection vault. Kept separate from the user-key vault so the
   // listener never needs access to passkey-custody key material.
   NWC_VAULT_SECRET: z.preprocess(
@@ -59,16 +49,6 @@ const envSchema = z.object({
       .optional()
       .describe(
         'Master secret encrypting RemoteWallet NWC connection strings, the settings-managed proxy NWC URI, and the zap receipt signer'
-      )
-  ),
-
-  NWC_VAULT_SECRET_PREVIOUS: z.preprocess(
-    emptyEnvToUndefined,
-    z
-      .string()
-      .optional()
-      .describe(
-        'Comma-separated previous NWC_VAULT_SECRET values still accepted for decryption; startup re-seals what they open under the active secret'
       )
   ),
 

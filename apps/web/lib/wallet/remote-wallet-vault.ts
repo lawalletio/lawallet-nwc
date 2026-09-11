@@ -34,39 +34,16 @@ export function encryptRemoteWalletConnectionString(
   return encryptRemoteWalletEnvelope(plaintext, walletId, secret)
 }
 
-/**
- * Active secret first, then each `NWC_VAULT_SECRET_PREVIOUS` entry, so a
- * rotation can be completed online instead of stranding every credential.
- */
-function vaultSecretChain(): string[] {
-  const { secret, previousSecrets } = getConfig().nwcVault
-  return secret ? [secret, ...previousSecrets] : []
-}
-
 export function decryptRemoteWalletConnectionString(
   stored: string,
   walletId: string
 ): string {
   if (!isEncryptedRemoteWalletConnectionString(stored)) return stored
-  return decryptRemoteWalletEnvelope(stored, walletId, vaultSecretChain())
-}
-
-/**
- * Whether the envelope opens under the *active* secret specifically. Rows that
- * only open under a previous secret still work, but startup re-seals them.
- */
-export function opensWithActiveNwcSecret(
-  stored: string,
-  walletId: string
-): boolean {
-  const { secret } = getConfig().nwcVault
-  if (!secret) return false
-  try {
-    decryptRemoteWalletEnvelope(stored, walletId, [secret])
-    return true
-  } catch {
-    return false
-  }
+  return decryptRemoteWalletEnvelope(
+    stored,
+    walletId,
+    getConfig().nwcVault.secret
+  )
 }
 
 /** Encrypts only NWC's secret field while preserving queryable config fields. */

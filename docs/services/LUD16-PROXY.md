@@ -53,14 +53,12 @@ settlement remains outstanding.
 
 Startup guarantees a usable receipt signer, because a broken one disables
 NIP-57 for every NWC wallet on the instance: it generates one when the row has
-none, derives a missing pubkey from a readable key, and re-seals a key that
-only opened under `NWC_VAULT_SECRET_PREVIOUS`. Replacing the key is the last
-resort, used only when no configured secret opens it; then `receiptPubkey` is
-rewritten in the same statement so `.well-known/nostr.json` and every
-advertised `nostrPubkey` keep matching the signing key, and the displaced
-ciphertext moves to `receiptNsecRetiredCiphertext` rather than being
-overwritten. Receipts already published stay verifiable against the key that
-signed them.
+none, derives a missing pubkey from a readable key, and replaces a key
+`NWC_VAULT_SECRET` cannot open. On a replacement, `receiptPubkey` is rewritten
+in the same statement so `.well-known/nostr.json` and every advertised
+`nostrPubkey` keep matching the signing key, and the displaced ciphertext
+moves to `receiptNsecRetiredCiphertext` rather than being overwritten.
+Receipts already published stay verifiable against the key that signed them.
 
 ## Routes
 

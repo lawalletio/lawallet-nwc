@@ -13,7 +13,6 @@ import type { BackupImportRequest } from '@/lib/validation/schemas'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     nwcVault: {
-      previousSecrets: [],
       secret: 'test-backup-nwc-vault-secret-0123456789abcdef',
       enabled: true
     }

@@ -12,7 +12,6 @@ vi.mock('@/lib/config', () => ({
     maintenance: { enabled: false },
     requestLimits: { maxBodySize: 1_048_576, maxJsonSize: 1_048_576 },
     nwcVault: {
-      previousSecrets: [],
       secret: 'test-nwc-vault-secret-0123456789abcdef',
       enabled: true
     }

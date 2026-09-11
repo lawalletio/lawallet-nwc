@@ -24,14 +24,10 @@ export function isProxyVaultConfigured(): boolean {
   return Boolean(getConfig(false).nwcVault?.enabled)
 }
 
-/**
- * Active secret first, then each `NWC_VAULT_SECRET_PREVIOUS` entry, so a
- * rotation can be completed online instead of stranding every credential.
- */
-function vaultSecretChain(): string[] {
-  const { secret, previousSecrets } = getConfig().nwcVault
+function requireSecret(): string {
+  const { secret } = getConfig().nwcVault
   if (!secret) throw new Error('NWC_VAULT_SECRET is not configured')
-  return [secret, ...previousSecrets]
+  return secret
 }
 
 function deriveLegacyKey(secret: string, salt: Buffer): Buffer {
@@ -48,6 +44,7 @@ function isLegacyProxyEnvelope(buf: Buffer): boolean {
   )
 }
 
+/** Whether the bytes are already what {@link encryptProxySecret} writes. */
 export function isCanonicalNwcVaultBytes(value: Uint8Array): boolean {
   return isNwcVaultEnvelope(Buffer.from(value).toString('utf8'))
 }
@@ -57,23 +54,22 @@ export function encryptProxySecret(
   recordId: string,
   field: string
 ): Uint8Array<ArrayBuffer> {
-  const { secret } = getConfig().nwcVault
-  if (!secret) throw new Error('NWC_VAULT_SECRET is not configured')
   if (!plaintext) throw new Error('Proxy secret cannot be empty')
   return Uint8Array.from(
     Buffer.from(
-      encryptNwcVaultEnvelope(plaintext, recordId, field, secret),
+      encryptNwcVaultEnvelope(plaintext, recordId, field, requireSecret()),
       'utf8'
     )
   )
 }
 
-function tryDecryptLegacy(
+/** The pre-unification envelope: raw `LWPX01` bytes with their own HKDF info. */
+function decryptLegacyProxySecret(
   buf: Buffer,
   recordId: string,
   field: string,
   secret: string
-): string | null {
+): string {
   let offset = LEGACY_MAGIC.length
   const salt = buf.subarray(offset, (offset += SALT_LEN))
   const iv = buf.subarray(offset, (offset += IV_LEN))
@@ -92,32 +88,8 @@ function tryDecryptLegacy(
       decipher.final()
     ]).toString('utf8')
   } catch {
-    return null
-  }
-}
-
-function decryptWith(
-  buf: Buffer,
-  recordId: string,
-  field: string,
-  secrets: string[]
-): string {
-  const asText = buf.toString('utf8')
-  if (isNwcVaultEnvelope(asText)) {
-    try {
-      return decryptNwcVaultEnvelope(asText, recordId, field, secrets)
-    } catch {
-      throw new ProxyVaultDecryptError()
-    }
-  }
-  if (isLegacyProxyEnvelope(buf)) {
-    for (const secret of secrets) {
-      const plaintext = tryDecryptLegacy(buf, recordId, field, secret)
-      if (plaintext !== null) return plaintext
-    }
     throw new ProxyVaultDecryptError()
   }
-  throw new ProxyVaultDecryptError('Malformed proxy vault envelope')
 }
 
 export function decryptProxySecret(
@@ -125,28 +97,19 @@ export function decryptProxySecret(
   recordId: string,
   field: string
 ): string {
-  return decryptWith(Buffer.from(envelope), recordId, field, vaultSecretChain())
-}
-
-/**
- * Whether the stored bytes are already what {@link encryptProxySecret} would
- * write today: the canonical envelope, sealed with the *active* secret. False
- * for a legacy envelope or one that only opens under a previous secret — both
- * are readable, and both get re-sealed at startup.
- */
-export function isProxySecretCurrent(
-  envelope: Uint8Array,
-  recordId: string,
-  field: string
-): boolean {
-  const { secret } = getConfig().nwcVault
-  if (!secret) return false
+  const secret = requireSecret()
   const buf = Buffer.from(envelope)
-  if (!isCanonicalNwcVaultBytes(buf)) return false
-  try {
-    decryptWith(buf, recordId, field, [secret])
-    return true
-  } catch {
-    return false
+  const asText = buf.toString('utf8')
+
+  if (isNwcVaultEnvelope(asText)) {
+    try {
+      return decryptNwcVaultEnvelope(asText, recordId, field, secret)
+    } catch {
+      throw new ProxyVaultDecryptError()
+    }
   }
+  if (isLegacyProxyEnvelope(buf)) {
+    return decryptLegacyProxySecret(buf, recordId, field, secret)
+  }
+  throw new ProxyVaultDecryptError('Malformed proxy vault envelope')
 }

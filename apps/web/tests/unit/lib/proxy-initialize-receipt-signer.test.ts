@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
-    nwcVault: { previousSecrets: [], enabled: true, secret: 'vault-secret' }
+    nwcVault: { enabled: true, secret: 'vault-secret' }
   }))
 }))
 
@@ -42,7 +42,7 @@ beforeEach(() => {
   resetPrismaMock()
   vi.clearAllMocks()
   vi.mocked(getConfig).mockReturnValue({
-    nwcVault: { previousSecrets: [], enabled: true, secret: 'vault-secret' }
+    nwcVault: { enabled: true, secret: 'vault-secret' }
   } as never)
   mocks.decrypt.mockReturnValue('1'.repeat(64))
   vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
@@ -159,7 +159,7 @@ describe('zap receipt signer health', () => {
 
   it('waits for NWC_VAULT_SECRET instead of storing plaintext', async () => {
     vi.mocked(getConfig).mockReturnValue({
-      nwcVault: { previousSecrets: [], enabled: false, secret: undefined }
+      nwcVault: { enabled: false, secret: undefined }
     } as never)
 
     await expect(ensureZapReceiptSigner()).resolves.toBe(false)

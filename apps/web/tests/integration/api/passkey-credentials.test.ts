@@ -6,7 +6,7 @@ import { createParamsPromise } from '@/tests/helpers/route-helpers'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     jwt: { secret: 'a'.repeat(48), enabled: true },
-    keyVault: { secret: 'b'.repeat(48), previousSecrets: [], enabled: true },
+    keyVault: { secret: 'b'.repeat(48), enabled: true },
     maintenance: { enabled: false },
     rateLimit: { enabled: false },
     requestLimits: { maxJsonSize: 102400, maxBodySize: 1048576 },

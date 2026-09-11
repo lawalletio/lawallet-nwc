@@ -24,7 +24,6 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
     nwcVault: {
-      previousSecrets: [],
       enabled: true,
       secret: 'test-vault-secret-with-at-least-32-chars!'
     }

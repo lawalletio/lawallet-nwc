@@ -51,7 +51,7 @@ function encryptLegacyProxy(
 
 function mockVault(secret: string | undefined) {
   vi.mocked(getConfig).mockReturnValue({
-    nwcVault: { previousSecrets: [], secret, enabled: !!secret }
+    nwcVault: { secret, enabled: !!secret }
   } as never)
 }
 

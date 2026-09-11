@@ -71,22 +71,6 @@ describe('listener proxy integration', () => {
     ).toBe(NWC_URI)
   })
 
-  it('opens a proxy envelope sealed under the previous secret', () => {
-    const previous = 'retired-proxy-vault-secret-0123456789abcdef0123456789'
-    const legacy = envelope(NWC_URI, previous)
-    const canonical = Buffer.from(
-      encryptNwcVaultEnvelope(NWC_URI, 'default', 'nwc', previous),
-      'utf8'
-    )
-    const rotating = env({ NWC_VAULT_SECRET_PREVIOUS: previous })
-
-    expect(() => decryptProxyNwcUri(legacy, 'default', env())).toThrow(
-      'decryption failed'
-    )
-    expect(decryptProxyNwcUri(legacy, 'default', rotating)).toBe(NWC_URI)
-    expect(decryptProxyNwcUri(canonical, 'default', rotating)).toBe(NWC_URI)
-  })
-
   it('HMAC-signs the ten-minute reconciliation wakeup', async () => {
     const fetchMock = vi
       .fn()

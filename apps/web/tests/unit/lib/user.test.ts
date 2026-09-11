@@ -10,7 +10,6 @@ vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     maintenance: { enabled: false },
     nwcVault: {
-      previousSecrets: [],
       secret: 'test-nwc-vault-secret-0123456789abcdef',
       enabled: true
     }

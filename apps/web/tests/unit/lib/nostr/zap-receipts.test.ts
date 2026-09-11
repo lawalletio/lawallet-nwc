@@ -7,7 +7,6 @@ const publishZapReceiptMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     nwcVault: {
-      previousSecrets: [],
       enabled: true,
       secret: 'test-vault-secret'
     }
