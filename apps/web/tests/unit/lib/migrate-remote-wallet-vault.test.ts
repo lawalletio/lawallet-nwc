@@ -15,7 +15,10 @@ vi.mock('@/lib/logger', () => ({
 
 import { getConfig } from '@/lib/config'
 import { migrateRemoteWalletNwcConfigs } from '@/lib/wallet/migrate-remote-wallet-vault'
-import { encryptRemoteWalletEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
+import {
+  decryptRemoteWalletEnvelope,
+  encryptRemoteWalletEnvelope
+} from '@/lib/wallet/remote-wallet-vault-core'
 
 const ACTIVE_SECRET =
   'active-remote-wallet-secret-0123456789abcdef0123456789abcdef'
@@ -25,13 +28,13 @@ const NWC_URI =
   '?relay=wss%3A%2F%2Frelay.example&secret=' +
   'b'.repeat(64)
 
-function mockVault(secret: string | null = ACTIVE_SECRET) {
+function mockVault(
+  secret: string | null = ACTIVE_SECRET,
+  previousSecrets: string[] = []
+) {
   const configured = secret ?? undefined
   vi.mocked(getConfig).mockReturnValue({
-    nwcVault: {
-      secret: configured,
-      enabled: !!configured
-    }
+    nwcVault: { previousSecrets, secret: configured, enabled: !!configured }
   } as never)
 }
 
@@ -67,6 +70,36 @@ describe('RemoteWallet NWC startup migration', () => {
         nwcConfigEncryptedAt: expect.any(Date)
       }
     })
+  })
+
+  it('re-seals a row that only opens under a previous secret', async () => {
+    const previous = 'retired-remote-wallet-secret-0123456789abcdef01234567'
+    mockVault(ACTIVE_SECRET, [previous])
+    const stored = encryptRemoteWalletEnvelope(NWC_URI, 'wallet-1', previous)
+    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([
+        {
+          id: 'wallet-1',
+          config: { connectionString: stored, mode: 'RECEIVE' },
+          nwcConfigEncryptedAt: new Date()
+        }
+      ] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(1)
+
+    const written = vi.mocked(prismaMock.remoteWallet.update).mock.calls[0][0]
+      .data.config as { connectionString: string }
+    expect(written.connectionString).not.toBe(stored)
+    // Readable under the active secret alone, so the rotation can finish.
+    mockVault(ACTIVE_SECRET)
+    expect(
+      decryptRemoteWalletEnvelope(written.connectionString, 'wallet-1', [
+        ACTIVE_SECRET
+      ])
+    ).toBe(NWC_URI)
   })
 
   it('reports a row sealed under another secret without failing startup', async () => {

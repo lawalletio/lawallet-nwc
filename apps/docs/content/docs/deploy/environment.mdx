@@ -124,10 +124,16 @@ and no Sentry code is activated.
 `KEY_VAULT_SECRET_PREVIOUS` accepts comma-separated previous server-custody
 key-vault secrets during a controlled rotation.
 
-`NWC_VAULT_SECRET` does not have a previous-key fallback. Keep it stable across
-upgrades and backups: changing it makes existing RemoteWallet and proxy
-credentials unreadable. Do not rotate or remove proxy credentials while
-non-completed proxy payments exist.
+`NWC_VAULT_SECRET_PREVIOUS` does the same for the NWC vault: set the old
+secret (or a comma-separated list) alongside the new `NWC_VAULT_SECRET`, and
+startup re-seals every credential it can open under the active secret. Once
+the boot log shows no unreadable credentials, the previous value can be
+dropped on the following deploy. Set it on the listener too — it may boot
+before web finishes re-sealing.
+
+Rotating without it is what makes existing RemoteWallet and proxy credentials
+unreadable, so keep the old value until the re-seal has run. Do not rotate or
+remove proxy credentials while non-completed proxy payments exist.
 
 ## Values configured in Admin Settings
 
@@ -150,17 +156,19 @@ wallet returns 503 on its own payment paths and the rest of the instance
 serves normally. The listener must use the same key so it can open the
 connections.
 
-The NIP-57 receipt signer is the exception, because one unreadable signer
-turns zaps off for _every_ NWC wallet. It is a key the platform generates for
-itself, so startup always replaces an unreadable one with a fresh key and
-updates the advertised pubkey — zaps recover on the next boot with no
-operator action. Nothing is destroyed doing that: the displaced ciphertext is
-kept verbatim in `receiptNsecRetiredCiphertext`, alongside
-`receiptPubkeyRetired` and `receiptSignerReplacedAt`. If the replacement was
-triggered by a misconfigured `NWC_VAULT_SECRET` rather than a genuinely lost
-one, restoring the correct secret still recovers the instance's original `_`
-identity from that column. Watch for
-`proxy.receipt_signer.replaced_unreadable` in the logs.
+The NIP-57 receipt signer is the exception, because one unusable signer turns
+zaps off for _every_ NWC wallet. Startup guarantees a usable one: it generates
+a signer when the config row has none, derives a missing pubkey from a
+readable key, and — only when no configured secret can open the stored key —
+replaces it and updates the advertised pubkey.
+
+Prefer recovery over replacement: set `NWC_VAULT_SECRET_PREVIOUS` and the
+original key is re-sealed under the active secret, keeping the instance's `_`
+identity. Replacement is the last resort, and even then nothing is destroyed —
+the displaced ciphertext is kept verbatim in `receiptNsecRetiredCiphertext`
+alongside `receiptPubkeyRetired` and `receiptSignerReplacedAt`, so restoring
+the right secret can still recover the original identity. Watch for
+`proxy_receipt_signer.replaced_unreadable` in the logs.
 
 The listener receives the NWC vault key because it must decrypt RemoteWallet
 and proxy NWC connections. It never receives the NIP-57 `nsec`.

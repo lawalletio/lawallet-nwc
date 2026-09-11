@@ -11,6 +11,7 @@ import { DriverConfigError } from '@/lib/wallet/drivers/errors'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     nwcVault: {
+      previousSecrets: [],
       secret: 'test-route-nwc-vault-secret-0123456789abcdef',
       enabled: true
     }

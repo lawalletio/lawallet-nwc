@@ -17,6 +17,7 @@ import { getConfig } from '@/lib/config'
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     nwcVault: {
+      previousSecrets: [],
       secret: 'test-registry-nwc-vault-secret-0123456789abcdef',
       enabled: true
     }
@@ -149,7 +150,7 @@ describe('driver registry', () => {
     it('does not wrap a missing NWC_VAULT_SECRET as DriverConfigError', () => {
       registerDriver(makeStubDriver())
       vi.mocked(getConfig).mockReturnValueOnce({
-        nwcVault: { secret: undefined, enabled: false }
+        nwcVault: { previousSecrets: [], secret: undefined, enabled: false }
       } as never)
       try {
         driverForWallet({

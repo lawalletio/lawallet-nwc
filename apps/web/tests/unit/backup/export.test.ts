@@ -9,6 +9,7 @@ import { encryptRemoteWalletEnvelope } from '@/lib/wallet/remote-wallet-vault-co
 vi.mock('@/lib/config', () => ({
   getConfig: vi.fn(() => ({
     nwcVault: {
+      previousSecrets: [],
       secret: 'test-backup-nwc-vault-secret-0123456789abcdef',
       enabled: true
     }

@@ -51,17 +51,16 @@ they still decrypt. They are write-only in the API and are not part of generic
 Settings backups. They cannot be removed or rotated while an invoice intent or
 settlement remains outstanding.
 
-A receipt signer the active secret cannot open is replaced with a fresh key at
-startup, because a broken signer disables NIP-57 for every NWC wallet on the
-instance. `receiptPubkey` is rewritten in the same statement so
-`.well-known/nostr.json` and every advertised `nostrPubkey` keep matching the
-key that signs receipts, and the displaced ciphertext moves to
-`receiptNsecRetiredCiphertext` rather than being overwritten — restoring the
-secret that sealed it recovers the original identity. Receipts already
-published stay verifiable against the key that signed them.
-
-Clearing the signer in settings is still the way to turn NIP-57 off; startup
-only ever replaces a signer that exists and cannot be read.
+Startup guarantees a usable receipt signer, because a broken one disables
+NIP-57 for every NWC wallet on the instance: it generates one when the row has
+none, derives a missing pubkey from a readable key, and re-seals a key that
+only opened under `NWC_VAULT_SECRET_PREVIOUS`. Replacing the key is the last
+resort, used only when no configured secret opens it; then `receiptPubkey` is
+rewritten in the same statement so `.well-known/nostr.json` and every
+advertised `nostrPubkey` keep matching the signing key, and the displaced
+ciphertext moves to `receiptNsecRetiredCiphertext` rather than being
+overwritten. Receipts already published stay verifiable against the key that
+signed them.
 
 ## Routes
 

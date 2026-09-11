@@ -62,6 +62,16 @@ const envSchema = z.object({
       )
   ),
 
+  NWC_VAULT_SECRET_PREVIOUS: z.preprocess(
+    emptyEnvToUndefined,
+    z
+      .string()
+      .optional()
+      .describe(
+        'Comma-separated previous NWC_VAULT_SECRET values still accepted for decryption; startup re-seals what they open under the active secret'
+      )
+  ),
+
   // NWC Listener service (optional — web runs without it)
   LISTENER_URL: z.preprocess(
     emptyEnvToUndefined,

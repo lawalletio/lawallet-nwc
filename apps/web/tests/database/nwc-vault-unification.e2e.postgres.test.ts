@@ -1,34 +1,47 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  hkdfSync,
-  randomBytes,
-  randomUUID
-} from 'node:crypto'
+import { createCipheriv, hkdfSync, randomBytes, randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const databaseUrl = process.env.NWC_VAULT_TEST_DATABASE_URL
 const databaseName = databaseUrl ? new URL(databaseUrl).pathname.slice(1) : ''
 const runDatabaseTests = !!databaseUrl && /(?:_e2e|_test)$/.test(databaseName)
 
-// The suite runs against the real config, so the active secret is whatever
-// NWC_VAULT_SECRET this process was started with.
+// The suite drives the real env → config plumbing, so the active secret is
+// whatever NWC_VAULT_SECRET this process was started with.
 const ACTIVE_SECRET = process.env.NWC_VAULT_SECRET ?? ''
 const RETIRED_SECRET =
   'retired-nwc-vault-secret-0123456789abcdef0123456789abcdef'
+const LOST_SECRET = 'lost-nwc-vault-secret-0123456789abcdef0123456789abcdef'
 
 // Only the listener bridge is stubbed — NIP-57 legitimately requires a
 // listener to observe settlement, and there is no relay in this environment.
 // Every vault read/write, the startup passes, and the capability gate run
 // against the real Postgres with real AES-256-GCM.
-const { getListenerConfig } = vi.hoisted(() => ({
-  getListenerConfig: vi.fn()
+const { getListenerConfig, vault } = vi.hoisted(() => ({
+  getListenerConfig: vi.fn(),
+  // `getEnv()` memoizes independently of `resetConfig()`, so the secret chain
+  // is injected here rather than through process.env.
+  vault: { secret: '', previousSecrets: [] as string[] }
 }))
 
 vi.mock('@/lib/listener-config', async importActual => ({
   ...(await importActual<typeof import('@/lib/listener-config')>()),
   getListenerConfig
 }))
+
+vi.mock('@/lib/config', async importActual => {
+  const actual = await importActual<typeof import('@/lib/config')>()
+  return {
+    ...actual,
+    getConfig: (strict?: boolean) => ({
+      ...actual.getConfig(strict),
+      nwcVault: {
+        secret: vault.secret || undefined,
+        previousSecrets: vault.previousSecrets,
+        enabled: !!vault.secret
+      }
+    })
+  }
+})
 
 import { prisma } from '@/lib/prisma'
 import {
@@ -38,6 +51,7 @@ import {
 import { PROXY_CONFIG_ID } from '@/lib/proxy/constants'
 import { generatePrivateKey } from '@/lib/nostr'
 import { receiptPubkey } from '@/lib/proxy/nostr'
+import { ensureZapReceiptSigner } from '@/lib/proxy/initialize-receipt-signer'
 import { migrateProxyNwcVault } from '@/lib/proxy/migrate-nwc-vault'
 import { migrateRemoteWalletNwcConfigs } from '@/lib/wallet/migrate-remote-wallet-vault'
 import { encryptRemoteWalletEnvelope } from '@/lib/wallet/remote-wallet-vault-core'
@@ -76,30 +90,19 @@ function legacyProxyEnvelope(
   )
 }
 
-/** Reads a retained `LWPX01` blob back under the secret that sealed it. */
-function decryptLegacyProxySecret(
-  envelope: Buffer,
-  field: string,
-  secret: string
-): string {
-  let offset = 'LWPX01'.length
-  const salt = envelope.subarray(offset, (offset += 16))
-  const iv = envelope.subarray(offset, (offset += 12))
-  const tag = envelope.subarray(offset, (offset += 16))
-  const key = Buffer.from(
-    hkdfSync('sha256', secret, salt, 'lawallet-proxy-vault-v1', 32)
-  )
-  const decipher = createDecipheriv('aes-256-gcm', key, iv)
-  decipher.setAAD(Buffer.from(`${PROXY_CONFIG_ID}:${field}`, 'utf8'))
-  decipher.setAuthTag(tag)
-  return Buffer.concat([
-    decipher.update(envelope.subarray(offset)),
-    decipher.final()
-  ]).toString('utf8')
-}
-
 function isCanonical(value: Uint8Array | null): boolean {
   return !!value && Buffer.from(value).toString('utf8').startsWith('lwrw1:')
+}
+
+/** Mirrors what `NWC_VAULT_SECRET_PREVIOUS` resolves to. */
+function setPreviousSecrets(...secrets: string[]): void {
+  vault.previousSecrets = secrets
+}
+
+async function runStartupPasses(): Promise<void> {
+  await migrateRemoteWalletNwcConfigs()
+  await migrateProxyNwcVault()
+  await ensureZapReceiptSigner()
 }
 
 describe.skipIf(!runDatabaseTests)(
@@ -107,41 +110,56 @@ describe.skipIf(!runDatabaseTests)(
   () => {
     const suffix = randomUUID()
     const userId = `vault-user-${suffix}`
-    const walletId = `vault-wallet-${suffix}`
+    const staleWalletId = `vault-stale-${suffix}`
     const plaintextWalletId = `vault-plain-${suffix}`
-    const retiredNsec = generatePrivateKey()
-    const retiredPubkey = receiptPubkey(retiredNsec)
+    const originalNsec = generatePrivateKey()
+    const originalPubkey = receiptPubkey(originalNsec)
+
+    async function seedProxyConfig(
+      receiptNsecCiphertext: Uint8Array<ArrayBuffer> | null,
+      receiptPubkeyValue: string | null
+    ): Promise<void> {
+      await prisma.proxyServiceConfig.deleteMany({
+        where: { id: PROXY_CONFIG_ID }
+      })
+      await prisma.proxyServiceConfig.create({
+        data: {
+          id: PROXY_CONFIG_ID,
+          walletId: `proxy-${suffix}`,
+          enabled: false,
+          // Legacy format, current secret: only the envelope needs changing.
+          nwcCiphertext: legacyProxyEnvelope(NWC_URI, 'nwc', ACTIVE_SECRET),
+          receiptNsecCiphertext,
+          receiptPubkey: receiptPubkeyValue
+        }
+      })
+    }
 
     beforeAll(async () => {
       getListenerConfig.mockResolvedValue({
         enabled: true,
         url: 'http://listener.test'
       })
-
-      // ProxyServiceConfig is a fixed-id singleton, so any vault test has to
-      // own it. Everything else is suffixed and cleaned up in afterAll.
-      await prisma.proxyServiceConfig.deleteMany({
-        where: { id: PROXY_CONFIG_ID }
-      })
+      vault.secret = ACTIVE_SECRET
+      setPreviousSecrets()
 
       const pubkey = (randomUUID() + randomUUID())
         .replaceAll('-', '')
         .slice(0, 64)
       await prisma.user.create({ data: { id: userId, pubkey } })
 
-      // A wallet already sealed under the active secret: this is the proof
-      // that makes replacing the unreadable signer safe.
+      // Canonical envelope, retired secret: the rotation case.
       await prisma.remoteWallet.create({
         data: {
-          id: walletId,
+          id: staleWalletId,
           userId,
-          name: `Sealed-${suffix}`,
+          name: `Stale-${suffix}`,
           type: 'NWC',
           config: {
             connectionString: encryptRemoteWalletEnvelope(
               NWC_URI,
-              walletId,
-              ACTIVE_SECRET
+              staleWalletId,
+              RETIRED_SECRET
             ),
             mode: 'SEND_RECEIVE'
           },
@@ -164,29 +182,13 @@ describe.skipIf(!runDatabaseTests)(
           isDefault: false
         }
       })
-
-      // Production shape: proxy NWC still in the legacy envelope under the
-      // active secret, receipt signer sealed under a secret that is gone.
-      await prisma.proxyServiceConfig.create({
-        data: {
-          id: PROXY_CONFIG_ID,
-          walletId: `proxy-${suffix}`,
-          enabled: false,
-          nwcCiphertext: legacyProxyEnvelope(NWC_URI, 'nwc', ACTIVE_SECRET),
-          receiptNsecCiphertext: legacyProxyEnvelope(
-            retiredNsec,
-            'receipt-nsec',
-            RETIRED_SECRET
-          ),
-          receiptPubkey: retiredPubkey
-        }
-      })
     })
 
     afterAll(async () => {
       if (!runDatabaseTests) return
+      setPreviousSecrets()
       await prisma.remoteWallet.deleteMany({
-        where: { id: { in: [walletId, plaintextWalletId] } }
+        where: { id: { in: [staleWalletId, plaintextWalletId] } }
       })
       await prisma.user.deleteMany({ where: { id: userId } })
       await prisma.proxyServiceConfig.deleteMany({
@@ -194,19 +196,36 @@ describe.skipIf(!runDatabaseTests)(
       })
     })
 
-    it('reproduces the outage: no signer, so NIP-57 is advertised nowhere', async () => {
+    it('reproduces the outage: a rotated secret hides the signer entirely', async () => {
+      await seedProxyConfig(
+        legacyProxyEnvelope(originalNsec, 'receipt-nsec', RETIRED_SECRET),
+        originalPubkey
+      )
+
       expect(await getZapReceiptSigner()).toBeNull()
       const capability = await getZapReceiptCapability()
       expect(capability.nip57).toBe(false)
       expect(capability.receiptPubkey).toBeNull()
     })
 
-    it('stores every NWC credential in the one canonical envelope', async () => {
-      await migrateRemoteWalletNwcConfigs()
-      await migrateProxyNwcVault()
+    it('recovers the original key from NWC_VAULT_SECRET_PREVIOUS, unchanged', async () => {
+      setPreviousSecrets(RETIRED_SECRET)
+
+      const signer = await getZapReceiptSigner()
+      expect(signer?.privateKeyHex).toBe(originalNsec)
+      // Same key, so the instance keeps the `_` identity it published.
+      expect(signer?.pubkey).toBe(originalPubkey)
+
+      const capability = await getZapReceiptCapability()
+      expect(capability.nip57).toBe(true)
+      expect(capability.receiptPubkey).toBe(originalPubkey)
+    })
+
+    it('re-seals every credential under the active secret', async () => {
+      await runStartupPasses()
 
       const wallets = await prisma.remoteWallet.findMany({
-        where: { id: { in: [walletId, plaintextWalletId] } },
+        where: { id: { in: [staleWalletId, plaintextWalletId] } },
         select: { id: true, config: true, nwcConfigEncryptedAt: true }
       })
       expect(wallets).toHaveLength(2)
@@ -222,52 +241,82 @@ describe.skipIf(!runDatabaseTests)(
       })
       expect(isCanonical(proxy.nwcCiphertext)).toBe(true)
       expect(isCanonical(proxy.receiptNsecCiphertext)).toBe(true)
+      // Recovered, not replaced.
+      expect(proxy.receiptPubkey).toBe(originalPubkey)
+      expect(proxy.receiptSignerReplacedAt).toBeNull()
     })
 
-    it('restores NIP-57 for every NWC wallet with a usable signer', async () => {
-      const signer = await getZapReceiptSigner()
-      expect(signer).not.toBeNull()
+    it('keeps NIP-57 working once the previous secret is dropped', async () => {
+      // The point of re-sealing: the rotation is complete, so the operator can
+      // remove NWC_VAULT_SECRET_PREVIOUS.
+      setPreviousSecrets()
 
-      const proxy = await prisma.proxyServiceConfig.findUniqueOrThrow({
-        where: { id: PROXY_CONFIG_ID }
-      })
-      // The unrecoverable key was replaced, and the advertised pubkey moved
-      // with it so receipts verify against what payers are told.
-      expect(proxy.receiptPubkey).not.toBe(retiredPubkey)
-      expect(signer!.pubkey).toBe(proxy.receiptPubkey)
-      expect(receiptPubkey(signer!.privateKeyHex)).toBe(proxy.receiptPubkey)
+      const signer = await getZapReceiptSigner()
+      expect(signer?.privateKeyHex).toBe(originalNsec)
 
       const capability = await getZapReceiptCapability()
       expect(capability.nip57).toBe(true)
-      expect(capability.receiptPubkey).toBe(proxy.receiptPubkey)
-      expect(capability.reason).toBeNull()
+      expect(capability.receiptPubkey).toBe(originalPubkey)
+
+      const wallet = await prisma.remoteWallet.findUniqueOrThrow({
+        where: { id: staleWalletId },
+        select: { id: true, type: true, config: true }
+      })
+      const { decryptRemoteWalletConfig } =
+        await import('@/lib/wallet/remote-wallet-vault')
+      expect(
+        decryptRemoteWalletConfig(wallet.id, wallet.type, wallet.config)
+          .connectionString
+      ).toBe(NWC_URI)
     })
 
-    it('retains the displaced signer so the old identity stays recoverable', async () => {
+    it('generates a signer for a config row that has none', async () => {
+      await seedProxyConfig(null, null)
+      expect(await getZapReceiptSigner()).toBeNull()
+
+      await ensureZapReceiptSigner()
+
+      const signer = await getZapReceiptSigner()
+      expect(signer).not.toBeNull()
+      expect((await getZapReceiptCapability()).nip57).toBe(true)
+    })
+
+    it('replaces a signer no configured secret can open, retaining it', async () => {
+      const lost = legacyProxyEnvelope(
+        originalNsec,
+        'receipt-nsec',
+        LOST_SECRET
+      )
+      await seedProxyConfig(lost, originalPubkey)
+      expect(await getZapReceiptSigner()).toBeNull()
+
+      await runStartupPasses()
+
+      const signer = await getZapReceiptSigner()
+      expect(signer).not.toBeNull()
+      expect(signer!.privateKeyHex).not.toBe(originalNsec)
+
       const proxy = await prisma.proxyServiceConfig.findUniqueOrThrow({
         where: { id: PROXY_CONFIG_ID }
       })
-      expect(proxy.receiptPubkeyRetired).toBe(retiredPubkey)
-      expect(proxy.receiptSignerReplacedAt).not.toBeNull()
+      expect(signer!.pubkey).toBe(proxy.receiptPubkey)
+      expect(receiptPubkey(signer!.privateKeyHex)).toBe(proxy.receiptPubkey)
+      expect((await getZapReceiptCapability()).nip57).toBe(true)
 
-      // Byte-identical to what was stored, and it still opens under the
-      // secret that sealed it.
-      expect(
-        decryptLegacyProxySecret(
-          Buffer.from(proxy.receiptNsecRetiredCiphertext!),
-          'receipt-nsec',
-          RETIRED_SECRET
-        )
-      ).toBe(retiredNsec)
+      // Byte-identical, so restoring the lost secret still recovers it.
+      expect(Buffer.from(proxy.receiptNsecRetiredCiphertext!)).toEqual(
+        Buffer.from(lost)
+      )
+      expect(proxy.receiptPubkeyRetired).toBe(originalPubkey)
+      expect(proxy.receiptSignerReplacedAt).not.toBeNull()
     })
 
-    it('is idempotent: a second boot does not churn the signer again', async () => {
+    it('is idempotent: a second boot does not churn the signer', async () => {
       const before = await prisma.proxyServiceConfig.findUniqueOrThrow({
         where: { id: PROXY_CONFIG_ID }
       })
 
-      await migrateRemoteWalletNwcConfigs()
-      await migrateProxyNwcVault()
+      await runStartupPasses()
 
       const after = await prisma.proxyServiceConfig.findUniqueOrThrow({
         where: { id: PROXY_CONFIG_ID }
@@ -276,7 +325,6 @@ describe.skipIf(!runDatabaseTests)(
       expect(after.receiptSignerReplacedAt).toEqual(
         before.receiptSignerReplacedAt
       )
-      expect(after.receiptPubkeyRetired).toBe(retiredPubkey)
       expect(Buffer.from(after.receiptNsecCiphertext!)).toEqual(
         Buffer.from(before.receiptNsecCiphertext!)
       )

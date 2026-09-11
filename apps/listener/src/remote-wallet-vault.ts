@@ -13,6 +13,20 @@ function deriveKey(secret: string, salt: Buffer): Buffer {
   return Buffer.from(hkdfSync('sha256', secret, salt, HKDF_INFO, KEY_LEN))
 }
 
+/**
+ * Active secret first, then each `NWC_VAULT_SECRET_PREVIOUS` entry. Web
+ * re-seals everything under the active secret at startup, but the listener
+ * can boot first, so it has to accept the same chain.
+ */
+export function vaultSecretChain(env?: ListenerEnv): string[] {
+  if (!env?.NWC_VAULT_SECRET) return []
+  const previous = (env.NWC_VAULT_SECRET_PREVIOUS ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+  return [env.NWC_VAULT_SECRET, ...previous]
+}
+
 export function decryptNwcVaultEnvelope(
   stored: string,
   recordId: string,
@@ -24,7 +38,8 @@ export function decryptNwcVaultEnvelope(
     // backfill. Newly persisted rows are always encrypted.
     return stored
   }
-  if (!env?.NWC_VAULT_SECRET) {
+  const secrets = vaultSecretChain(env)
+  if (secrets.length === 0) {
     throw new Error('NWC_VAULT_SECRET is not configured')
   }
 
@@ -42,21 +57,25 @@ export function decryptNwcVaultEnvelope(
   const iv = buf.subarray(offset, (offset += IV_LEN))
   const tag = buf.subarray(offset, (offset += TAG_LEN))
   const ciphertext = buf.subarray(offset)
-  try {
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      deriveKey(env.NWC_VAULT_SECRET, salt),
-      iv
-    )
-    decipher.setAAD(Buffer.from(`${recordId}:${field}`, 'utf8'))
-    decipher.setAuthTag(tag)
-    return Buffer.concat([
-      decipher.update(ciphertext),
-      decipher.final()
-    ]).toString('utf8')
-  } catch {
-    throw new Error('NWC vault decryption failed')
+
+  for (const secret of secrets) {
+    try {
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        deriveKey(secret, salt),
+        iv
+      )
+      decipher.setAAD(Buffer.from(`${recordId}:${field}`, 'utf8'))
+      decipher.setAuthTag(tag)
+      return Buffer.concat([
+        decipher.update(ciphertext),
+        decipher.final()
+      ]).toString('utf8')
+    } catch {
+      // Try the next rotation key.
+    }
   }
+  throw new Error('NWC vault decryption failed')
 }
 
 export function decryptRemoteWalletNwcUri(

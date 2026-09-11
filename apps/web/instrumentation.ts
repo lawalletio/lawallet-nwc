@@ -58,9 +58,9 @@ export async function register() {
   }
 
   try {
-    const { initializeProxyReceiptSigner } =
+    const { ensureZapReceiptSigner } =
       await import('@/lib/proxy/initialize-receipt-signer')
-    await initializeProxyReceiptSigner()
+    await ensureZapReceiptSigner()
   } catch (error) {
     const { createLogger } = await import('@/lib/logger')
     const log = createLogger({ module: 'instrumentation' })

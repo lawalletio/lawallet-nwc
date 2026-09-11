@@ -44,4 +44,20 @@ describe('listener remote wallet vault', () => {
   it('accepts plaintext only for rolling-deploy compatibility', () => {
     expect(decryptRemoteWalletNwcUri(NWC_URI, 'legacy-wallet')).toBe(NWC_URI)
   })
+
+  it('opens an envelope web has not re-sealed yet via the previous secret', () => {
+    const previous = 'retired-remote-wallet-secret-0123456789abcdef01234567'
+    const stored = encryptRemoteWalletEnvelope(NWC_URI, 'wallet-1', previous)
+
+    expect(() => decryptRemoteWalletNwcUri(stored, 'wallet-1', env())).toThrow(
+      'decryption failed'
+    )
+    expect(
+      decryptRemoteWalletNwcUri(
+        stored,
+        'wallet-1',
+        env({ NWC_VAULT_SECRET_PREVIOUS: `  ${previous} ,` })
+      )
+    ).toBe(NWC_URI)
+  })
 })

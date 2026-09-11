@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   migrateRemoteWalletNwcConfigs: vi.fn(),
   migrateProxyNwcVault: vi.fn(),
-  initializeProxyReceiptSigner: vi.fn()
+  ensureZapReceiptSigner: vi.fn()
 }))
 
 vi.mock('@/lib/wallet/migrate-remote-wallet-vault', () => ({
@@ -15,7 +15,7 @@ vi.mock('@/lib/proxy/migrate-nwc-vault', () => ({
 }))
 
 vi.mock('@/lib/proxy/initialize-receipt-signer', () => ({
-  initializeProxyReceiptSigner: mocks.initializeProxyReceiptSigner
+  ensureZapReceiptSigner: mocks.ensureZapReceiptSigner
 }))
 
 import { register } from '@/instrumentation'
@@ -29,7 +29,7 @@ beforeEach(() => {
   delete process.env.NEXT_PHASE
   mocks.migrateRemoteWalletNwcConfigs.mockResolvedValue(0)
   mocks.migrateProxyNwcVault.mockResolvedValue(undefined)
-  mocks.initializeProxyReceiptSigner.mockResolvedValue(false)
+  mocks.ensureZapReceiptSigner.mockResolvedValue(false)
 })
 
 afterEach(() => {
@@ -45,12 +45,12 @@ describe('server instrumentation', () => {
 
     expect(mocks.migrateRemoteWalletNwcConfigs).toHaveBeenCalledOnce()
     expect(mocks.migrateProxyNwcVault).toHaveBeenCalledOnce()
-    expect(mocks.initializeProxyReceiptSigner).toHaveBeenCalledOnce()
+    expect(mocks.ensureZapReceiptSigner).toHaveBeenCalledOnce()
     expect(
       mocks.migrateRemoteWalletNwcConfigs.mock.invocationCallOrder[0]
     ).toBeLessThan(mocks.migrateProxyNwcVault.mock.invocationCallOrder[0])
     expect(mocks.migrateProxyNwcVault.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.initializeProxyReceiptSigner.mock.invocationCallOrder[0]
+      mocks.ensureZapReceiptSigner.mock.invocationCallOrder[0]
     )
   })
 
@@ -61,6 +61,6 @@ describe('server instrumentation', () => {
 
     expect(mocks.migrateRemoteWalletNwcConfigs).not.toHaveBeenCalled()
     expect(mocks.migrateProxyNwcVault).not.toHaveBeenCalled()
-    expect(mocks.initializeProxyReceiptSigner).not.toHaveBeenCalled()
+    expect(mocks.ensureZapReceiptSigner).not.toHaveBeenCalled()
   })
 })

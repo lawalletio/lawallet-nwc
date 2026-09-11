@@ -26,7 +26,7 @@ const NWC_URI =
 
 function mockVault(secret: string | undefined) {
   vi.mocked(getConfig).mockReturnValue({
-    nwcVault: { secret, enabled: !!secret }
+    nwcVault: { previousSecrets: [], secret, enabled: !!secret }
   } as never)
 }
 

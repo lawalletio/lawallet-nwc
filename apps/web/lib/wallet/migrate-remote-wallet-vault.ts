@@ -11,7 +11,8 @@ import {
 import {
   decryptRemoteWalletConnectionString,
   encryptRemoteWalletConfig,
-  isEncryptedRemoteWalletConnectionString
+  isEncryptedRemoteWalletConnectionString,
+  opensWithActiveNwcSecret
 } from '@/lib/wallet/remote-wallet-vault'
 
 const log = createLogger({ module: 'remote-wallet-vault-migration' })
@@ -73,7 +74,7 @@ function connectionStringOf(row: NwcWalletRow): string {
   return stored
 }
 
-type RowVerdict = 'plaintext' | 'readable' | 'unreadable'
+type RowVerdict = 'plaintext' | 'stale-secret' | 'current' | 'unreadable'
 
 /**
  * Classify one row without throwing. A row sealed under a secret this
@@ -84,9 +85,12 @@ type RowVerdict = 'plaintext' | 'readable' | 'unreadable'
 function classifyRow(row: NwcWalletRow): RowVerdict {
   const stored = connectionStringOf(row)
   if (!isEncryptedRemoteWalletConnectionString(stored)) return 'plaintext'
+  if (opensWithActiveNwcSecret(stored, row.id)) return 'current'
   try {
     decryptRemoteWalletConnectionString(stored, row.id)
-    return 'readable'
+    // Opened with an NWC_VAULT_SECRET_PREVIOUS entry — re-seal it so the
+    // rotation can finish and the previous secret can be dropped.
+    return 'stale-secret'
   } catch {
     return 'unreadable'
   }
@@ -94,7 +98,8 @@ function classifyRow(row: NwcWalletRow): RowVerdict {
 
 async function encryptRow(
   tx: TransactionClient,
-  row: NwcWalletRow
+  row: NwcWalletRow,
+  reseal = false
 ): Promise<void> {
   const source = row.config as Record<string, unknown> | null
   const stored = source?.connectionString
@@ -104,7 +109,16 @@ async function encryptRow(
     )
   }
 
-  const config = encryptRemoteWalletConfig(row.id, 'NWC', row.config)
+  // `encryptRemoteWalletConfig` leaves an existing envelope alone, so a row
+  // sealed under a previous secret has to be opened before it can be re-sealed.
+  const plaintextConfig = reseal
+    ? {
+        ...source,
+        connectionString: decryptRemoteWalletConnectionString(stored, row.id)
+      }
+    : row.config
+
+  const config = encryptRemoteWalletConfig(row.id, 'NWC', plaintextConfig)
   await tx.remoteWallet.update({
     where: { id: row.id },
     data: {
@@ -156,12 +170,12 @@ async function processBatch(offset: number): Promise<BatchResult> {
       const unreadable: string[] = []
       for (const row of rows) {
         const verdict = classifyRow(row)
-        if (verdict === 'plaintext') {
-          await encryptRow(tx, row)
+        if (verdict === 'plaintext' || verdict === 'stale-secret') {
+          await encryptRow(tx, row, verdict === 'stale-secret')
           changed++
           continue
         }
-        if (verdict === 'readable') readable++
+        if (verdict === 'current') readable++
         else unreadable.push(row.id)
         if (row.nwcConfigEncryptedAt === null) {
           await stampRow(tx, row)
