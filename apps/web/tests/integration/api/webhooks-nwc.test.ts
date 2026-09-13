@@ -623,10 +623,111 @@ describe('POST /api/webhooks/nwc', () => {
     expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
   })
 
-  it('rejects a wallet_dead payload with relaysConnected:false (schema pins it true)', async () => {
+  it('ignores a probe-confirmed report whose relays were down', async () => {
     const res = await POST(
       signedRequest({ ...walletDead, relaysConnected: false })
     )
-    expect(res.status).toBe(400)
+    await assertResponse(res, 200)
+    expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
+    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
+  })
+
+  // Issue #279: a wallet whose NWC warm-up never succeeded emits no
+  // notifications and can't be probed, so >48h of idleness is its only signal —
+  // and it is archived regardless of provider.
+  it('archives any wallet after 48h idle with a failed warm-up', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-1',
+      userId: 'user-1',
+      status: 'ACTIVE',
+      config: { provider: 'nwc' },
+      name: 'My Alby'
+    } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    const res = await POST(
+      signedRequest({
+        ...walletDead,
+        unresponsiveSeconds: 50 * 3600,
+        relaysConnected: false,
+        reason: 'warmup_failed',
+        lastState: 'error',
+        everReady: false
+      })
+    )
+    await assertResponse(res, 200)
+    expect(prismaMock.remoteWallet.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'DEAD',
+          diedReason: 'warmup_failed'
+        })
+      })
+    )
+  })
+
+  it('refuses an idle report that has not reached 48h', async () => {
+    const res = await POST(
+      signedRequest({
+        ...walletDead,
+        unresponsiveSeconds: 40 * 3600,
+        relaysConnected: false,
+        reason: 'idle'
+      })
+    )
+    await assertResponse(res, 200)
+    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('archives the LUD-16 proxy wallet when no RemoteWallet owns the id', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+    vi.mocked(prismaMock.proxyServiceConfig.findFirst).mockResolvedValue({
+      id: 'default',
+      archivedAt: null,
+      lastListenerSeenAt: null
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    const res = await POST(
+      signedRequest({
+        ...walletDead,
+        walletId: '0f6f6f2a-8f7d-4f2e-9d3a-3e6f1a2b4c5d',
+        unresponsiveSeconds: 60 * 3600,
+        relaysConnected: false,
+        reason: 'idle',
+        everReady: true
+      })
+    )
+    await assertResponse(res, 200)
+    expect(prismaMock.proxyServiceConfig.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          enabled: false,
+          archivedReason: 'idle'
+        })
+      })
+    )
+  })
+
+  it('does not stamp lastListenerSeenAt from a wallet_dead report', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-1',
+      userId: 'user-1',
+      status: 'DEAD',
+      config: { provider: 'lncurl' },
+      name: 'LNCurl wallet'
+    } as never)
+
+    const res = await POST(signedRequest(walletDead))
+    await assertResponse(res, 200)
+    // The listener answering proves nothing about the WALLET, and stamping it
+    // would make the archive rule's own contradiction check always fire.
+    expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
   })
 })

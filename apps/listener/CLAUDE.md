@@ -36,10 +36,18 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
   The process installs `unhandledRejection` / `uncaughtException` backstops
   (log, don't exit) and the pg `Pool` has an `error` handler — a relay
   reconnect storm or a dropped idle DB client must never crash the daemon.
-- **Dead-wallet detection is transport-only too.** The prober OBSERVES a
-  wallet going dark (relays up, no `get_info` reply for the threshold) and
-  reports `wallet_dead`; the archival write (status DEAD + `diedAt`, LNCurl
-  only) lives in apps/web. Never mark a wallet dead from here.
+- **Auto-archival is transport-only too.** The prober OBSERVES (relays up, no
+  `get_info` reply for `DEAD_THRESHOLD_HOURS`; or no sign of life at all for
+  `WALLET_ARCHIVE_IDLE_HOURS`, which is the only signal a never-`ready` wallet
+  can give) and reports `wallet_dead`; the archival write lives in apps/web
+  (`lib/wallet/archive-dead-wallet.ts` — RemoteWallet DEAD + `diedAt`, or
+  `ProxyServiceConfig.archivedAt`). Never mark a wallet dead from here.
+- **The idle clock is in Postgres, not `WalletConnection`.**
+  `listener.wallet_cursors.last_active_at` / `ready_at` /
+  `archive_reported_at`, so a restart neither resets idleness nor re-reports a
+  wallet (which is also what keeps warmup failures out of Sentry a second
+  time). `last_seen_at` stays the catch-up anchor — never write it from a
+  liveness path.
 
 ## Module map (src/)
 
@@ -55,10 +63,13 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
 - `nwc/catchup.ts` — downtime recovery: pure `planCatchupWindow` +
   `CatchupRunner` (list_transactions pagination primary, relay `since`-replay
   best-effort), anchored on `listener.wallet_cursors`
-- `nwc/dead-prober.ts` — `DeadWalletProber`: detects a destroyed disposable
-  LNCurl wallet (silent past `DEAD_THRESHOLD_HOURS` while relays stay up,
-  confirmed by a `get_info` probe) and REPORTS it via a `wallet_dead` webhook.
-  Never writes RemoteWallet — web decides whether to archive (LNCurl only)
+- `nwc/dead-prober.ts` — `DeadWalletProber`: two report paths, both via a
+  `wallet_dead` webhook, neither writing RemoteWallet. (1) a destroyed
+  disposable LNCurl wallet (silent past `DEAD_THRESHOLD_HOURS` while relays stay
+  up, confirmed by a `get_info` probe). (2) any wallet idle past
+  `WALLET_ARCHIVE_IDLE_HOURS` (48h) using the persisted clock — this is the path
+  warmup-stuck wallets take, since they never become probe candidates. Reported
+  wallets are parked via `NwcPool.parkWallet` so the 60s retry storm ends
 - `webhook.ts` — HMAC signing, delivery retry, sweep (web-down recovery)
 - `http/` — bearer auth + node:http routes (/health, /status, /nwc/request)
 

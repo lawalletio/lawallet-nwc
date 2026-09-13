@@ -47,6 +47,24 @@ export async function bootstrapStore(pool: pg.Pool): Promise<void> {
       updated_at   timestamptz NOT NULL DEFAULT now()
     );
 
+    -- Per-wallet liveness ledger, added alongside the catch-up cursor so there
+    -- is exactly ONE persisted per-wallet clock row (issue #279).
+    --   last_active_at      last proof of life (ready / notification / probe /
+    --                       proxied call); on first sighting it is anchored to
+    --                       the existing cursor, or to now for a brand-new
+    --                       wallet, so a warmup-stuck wallet still ages.
+    --   ready_at            last completed NWC warmup. NULL = never ready.
+    --   archive_reported_at last delivered wallet_dead report. Throttles
+    --                       re-reports and mutes Sentry ACROSS RESTARTS.
+    -- last_seen_at is deliberately untouched by these writes: it is the
+    -- catch-up window anchor, and moving it forward would skip event recovery.
+    ALTER TABLE listener.wallet_cursors
+      ADD COLUMN IF NOT EXISTS last_active_at timestamptz;
+    ALTER TABLE listener.wallet_cursors
+      ADD COLUMN IF NOT EXISTS ready_at timestamptz;
+    ALTER TABLE listener.wallet_cursors
+      ADD COLUMN IF NOT EXISTS archive_reported_at timestamptz;
+
     CREATE TABLE IF NOT EXISTS listener.nwc_requests (
       request_id        text PRIMARY KEY,
       wallet_id         text NOT NULL,
@@ -374,6 +392,145 @@ export async function advanceCursor(
            updated_at = now()`,
     [walletId, at]
   )
+}
+
+// ── Wallet liveness ledger (auto-archive clock) ─────────────────────────────
+
+/** Persisted liveness for one wallet — the clock the 48h archive rule reads. */
+export interface WalletLiveness {
+  walletId: string
+  /**
+   * Last proof of life, or (for a wallet that has never proven anything) the
+   * moment the listener first saw it. Never null once a row exists, so a
+   * warmup-stuck wallet ages from first sighting instead of never ageing.
+   */
+  lastActiveAt: Date
+  /** Last completed NWC warmup. Null = the wallet has never been `ready`. */
+  readyAt: Date | null
+  /** Last delivered `wallet_dead` report, or null if never reported. */
+  archiveReportedAt: Date | null
+}
+
+interface WalletLivenessRow {
+  wallet_id: string
+  last_active_at: Date
+  ready_at: Date | null
+  archive_reported_at: Date | null
+}
+
+/**
+ * Anchors the idle clock for a wallet the pool just picked up, WITHOUT ever
+ * moving an existing anchor — that is what makes the clock survive restarts.
+ * An existing row that predates this ledger inherits its catch-up cursor
+ * (`last_seen_at`) rather than being reset to now, so a wallet that has been
+ * failing warmup since before the upgrade is already old on first sweep.
+ */
+export async function anchorWalletActivity(
+  pool: pg.Pool,
+  walletId: string,
+  at: Date
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO listener.wallet_cursors (wallet_id, last_seen_at, last_active_at)
+     VALUES ($1, $2, $2)
+     ON CONFLICT (wallet_id) DO UPDATE
+       SET last_active_at = listener.wallet_cursors.last_seen_at,
+           updated_at = now()
+      WHERE listener.wallet_cursors.last_active_at IS NULL`,
+    [walletId, at]
+  )
+}
+
+/**
+ * Records proof of life. `ready` also stamps `ready_at`, which is what tells
+ * a merely-idle wallet apart from one that never completed warmup.
+ * Monotonic (GREATEST) so a late flush can't rewind the clock.
+ */
+export async function recordWalletActivity(
+  pool: pg.Pool,
+  walletId: string,
+  at: Date,
+  ready = false
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO listener.wallet_cursors
+       (wallet_id, last_seen_at, last_active_at, ready_at)
+     VALUES ($1, $2, $2, CASE WHEN $3 THEN $2 ELSE NULL END)
+     ON CONFLICT (wallet_id) DO UPDATE
+       SET last_active_at = GREATEST(
+             COALESCE(listener.wallet_cursors.last_active_at, EXCLUDED.last_active_at),
+             EXCLUDED.last_active_at
+           ),
+           ready_at = CASE
+             WHEN $3 THEN GREATEST(
+               COALESCE(listener.wallet_cursors.ready_at, EXCLUDED.last_active_at),
+               EXCLUDED.last_active_at
+             )
+             ELSE listener.wallet_cursors.ready_at
+           END,
+           updated_at = now()`,
+    [walletId, at, ready]
+  )
+}
+
+/** Durable record that web was told this wallet is dead (throttle + Sentry mute). */
+export async function markWalletArchiveReported(
+  pool: pg.Pool,
+  walletId: string,
+  at: Date
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO listener.wallet_cursors
+       (wallet_id, last_seen_at, last_active_at, archive_reported_at)
+     VALUES ($1, $2, $2, $2)
+     ON CONFLICT (wallet_id) DO UPDATE
+       SET archive_reported_at = $2, updated_at = now()`,
+    [walletId, at]
+  )
+}
+
+/** Liveness rows for the given wallets (missing rows are simply absent). */
+export async function loadWalletLiveness(
+  pool: pg.Pool,
+  walletIds: string[]
+): Promise<Map<string, WalletLiveness>> {
+  if (walletIds.length === 0) return new Map()
+  const { rows } = await pool.query<WalletLivenessRow>(
+    `SELECT wallet_id,
+            COALESCE(last_active_at, last_seen_at) AS last_active_at,
+            ready_at,
+            archive_reported_at
+       FROM listener.wallet_cursors
+      WHERE wallet_id = ANY($1::text[])`,
+    [walletIds]
+  )
+  return new Map(
+    rows.map(row => [
+      row.wallet_id,
+      {
+        walletId: row.wallet_id,
+        lastActiveAt: row.last_active_at,
+        readyAt: row.ready_at,
+        archiveReportedAt: row.archive_reported_at
+      }
+    ])
+  )
+}
+
+/**
+ * Wallets already reported dead in an earlier process lifetime. Loaded at
+ * startup so a restart cannot re-storm Sentry with the same warmup failures
+ * (LAWALLET-LISTENER-1/2).
+ */
+export async function loadArchiveReportedWalletIds(
+  pool: pg.Pool
+): Promise<string[]> {
+  const { rows } = await pool.query<{ wallet_id: string }>(
+    `SELECT wallet_id
+       FROM listener.wallet_cursors
+      WHERE archive_reported_at IS NOT NULL`
+  )
+  return rows.map(row => row.wallet_id)
 }
 
 /**

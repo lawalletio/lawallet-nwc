@@ -47,6 +47,12 @@ received.
   (`get_info`) and, after `DEAD_THRESHOLD_HOURS` (default 4) of no reply with
   relays connected, reports a `wallet_dead` webhook; web archives it as `DEAD`
   (LNCurl-provider wallets only), which reconciles it out of the pool.
+- **Idle auto-archive** — a wallet with no sign of life for
+  `WALLET_ARCHIVE_IDLE_HOURS` (48) is reported for archival even when it can't
+  be probed at all, which is the only signal a wallet whose NWC warm-up never
+  succeeded can ever give. The clock lives in Postgres, so a restart neither
+  resets it nor re-reports the wallet, and a reported wallet is parked instead
+  of reconnecting every 60s forever.
 - **Resilient by design** — `GET /status` never 5xx's (each part degrades
   independently), and `unhandledRejection` / `uncaughtException` / pg-pool
   error backstops keep the daemon alive through relay churn and DB blips.

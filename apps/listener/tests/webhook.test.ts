@@ -84,7 +84,87 @@ const freshMetrics = () => ({
   catchupErrors: 0,
   deadProbesRun: 0,
   deadProbesTimedOut: 0,
-  walletsDeclaredDead: 0
+  walletsDeclaredDead: 0,
+  walletsArchiveRequested: 0
+})
+
+describe('WebhookDispatcher.sendWalletDead', () => {
+  const makeDispatcher = () =>
+    new WebhookDispatcher({
+      env,
+      log: pino({ level: 'silent' }),
+      pool: { query: vi.fn() } as unknown as pg.Pool,
+      metrics: freshMetrics()
+    })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('carries the archive reason and pool state for a warmup-stuck wallet', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      makeDispatcher().sendWalletDead('wallet-1', 48 * 3600, {
+        reason: 'warmup_failed',
+        relaysConnected: false,
+        lastState: 'error',
+        everReady: false
+      })
+    ).resolves.toBe(true)
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body).toMatchObject({
+      type: 'wallet_dead',
+      walletId: 'wallet-1',
+      unresponsiveSeconds: 48 * 3600,
+      reason: 'warmup_failed',
+      // A wallet that never warmed up has no relay connection to report.
+      relaysConnected: false,
+      lastState: 'error',
+      everReady: false
+    })
+  })
+
+  it('defaults to the probe-confirmed shape (relays up) when told nothing', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await makeDispatcher().sendWalletDead('wallet-1', 4 * 3600)
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(body).toMatchObject({
+      reason: 'unresponsive',
+      relaysConnected: true
+    })
+  })
+
+  it('uses a reason-scoped event key so an idle report is not a dedup hit', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const dispatcher = makeDispatcher()
+    await dispatcher.sendWalletDead('wallet-1', 4 * 3600, {
+      reason: 'unresponsive',
+      relaysConnected: true
+    })
+    await dispatcher.sendWalletDead('wallet-1', 48 * 3600, {
+      reason: 'idle',
+      relaysConnected: true
+    })
+
+    const keys = fetchMock.mock.calls.map(
+      ([, init]) => JSON.parse(init.body as string).eventKey
+    )
+    expect(keys[0]).not.toBe(keys[1])
+  })
 })
 
 describe('sweepOlderThanMs', () => {

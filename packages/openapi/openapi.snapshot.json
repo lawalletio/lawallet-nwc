@@ -11890,7 +11890,20 @@
                           "null"
                         ],
                         "format": "date-time",
-                        "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                        "description": "When an archived (DEAD) wallet was detected dead; null otherwise."
+                      },
+                      "diedReason": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "unresponsive",
+                          "idle",
+                          "warmup_failed",
+                          null
+                        ],
+                        "description": "Why the wallet was archived: 'unresponsive' (probe-confirmed silence with relays up), 'idle' (more than 48h with no sign of life) or 'warmup_failed' (more than 48h and NWC warm-up never succeeded). Null unless DEAD."
                       },
                       "provider": {
                         "type": [
@@ -11920,6 +11933,7 @@
                       "createdAt",
                       "updatedAt",
                       "diedAt",
+                      "diedReason",
                       "provider",
                       "lncurlServerUrl"
                     ],
@@ -12054,7 +12068,20 @@
                         "null"
                       ],
                       "format": "date-time",
-                      "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                      "description": "When an archived (DEAD) wallet was detected dead; null otherwise."
+                    },
+                    "diedReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "unresponsive",
+                        "idle",
+                        "warmup_failed",
+                        null
+                      ],
+                      "description": "Why the wallet was archived: 'unresponsive' (probe-confirmed silence with relays up), 'idle' (more than 48h with no sign of life) or 'warmup_failed' (more than 48h and NWC warm-up never succeeded). Null unless DEAD."
                     },
                     "provider": {
                       "type": [
@@ -12084,6 +12111,7 @@
                     "createdAt",
                     "updatedAt",
                     "diedAt",
+                    "diedReason",
                     "provider",
                     "lncurlServerUrl"
                   ],
@@ -16101,7 +16129,20 @@
                         "null"
                       ],
                       "format": "date-time",
-                      "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                      "description": "When an archived (DEAD) wallet was detected dead; null otherwise."
+                    },
+                    "diedReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "unresponsive",
+                        "idle",
+                        "warmup_failed",
+                        null
+                      ],
+                      "description": "Why the wallet was archived: 'unresponsive' (probe-confirmed silence with relays up), 'idle' (more than 48h with no sign of life) or 'warmup_failed' (more than 48h and NWC warm-up never succeeded). Null unless DEAD."
                     },
                     "provider": {
                       "type": [
@@ -16131,6 +16172,7 @@
                     "createdAt",
                     "updatedAt",
                     "diedAt",
+                    "diedReason",
                     "provider",
                     "lncurlServerUrl"
                   ],
@@ -16278,7 +16320,20 @@
                         "null"
                       ],
                       "format": "date-time",
-                      "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                      "description": "When an archived (DEAD) wallet was detected dead; null otherwise."
+                    },
+                    "diedReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "unresponsive",
+                        "idle",
+                        "warmup_failed",
+                        null
+                      ],
+                      "description": "Why the wallet was archived: 'unresponsive' (probe-confirmed silence with relays up), 'idle' (more than 48h with no sign of life) or 'warmup_failed' (more than 48h and NWC warm-up never succeeded). Null unless DEAD."
                     },
                     "provider": {
                       "type": [
@@ -16308,6 +16363,7 @@
                     "createdAt",
                     "updatedAt",
                     "diedAt",
+                    "diedReason",
                     "provider",
                     "lncurlServerUrl"
                   ],
@@ -16452,7 +16508,20 @@
                         "null"
                       ],
                       "format": "date-time",
-                      "description": "When an archived (DEAD) disposable wallet was detected dead; null otherwise."
+                      "description": "When an archived (DEAD) wallet was detected dead; null otherwise."
+                    },
+                    "diedReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "unresponsive",
+                        "idle",
+                        "warmup_failed",
+                        null
+                      ],
+                      "description": "Why the wallet was archived: 'unresponsive' (probe-confirmed silence with relays up), 'idle' (more than 48h with no sign of life) or 'warmup_failed' (more than 48h and NWC warm-up never succeeded). Null unless DEAD."
                     },
                     "provider": {
                       "type": [
@@ -16482,6 +16551,7 @@
                     "createdAt",
                     "updatedAt",
                     "diedAt",
+                    "diedReason",
                     "provider",
                     "lncurlServerUrl"
                   ],
@@ -16976,6 +17046,9 @@
                                       "string",
                                       "null"
                                     ]
+                                  },
+                                  "parked": {
+                                    "type": "boolean"
                                   }
                                 },
                                 "required": [
@@ -17053,6 +17126,10 @@
                                   "minimum": 0
                                 },
                                 "walletsDeclaredDead": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "walletsArchiveRequested": {
                                   "type": "integer",
                                   "minimum": 0
                                 }

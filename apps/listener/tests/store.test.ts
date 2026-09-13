@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import type pg from 'pg'
 import {
   advanceCursor,
+  anchorWalletActivity,
   bootstrapStore,
+  loadArchiveReportedWalletIds,
+  loadWalletLiveness,
+  markWalletArchiveReported,
+  recordWalletActivity,
   computeEventKey,
   computeNwcRequestPayloadHash,
   countUndelivered,
@@ -152,6 +157,89 @@ describe('bootstrapStore', () => {
     expect(sql).toContain('CREATE TABLE IF NOT EXISTS listener.nwc_requests')
     expect(sql).toContain('nwc_requests_unresolved_idx')
     expect(sql).toContain('ADD COLUMN IF NOT EXISTS recovered')
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS last_active_at')
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS ready_at')
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS archive_reported_at')
+  })
+})
+
+describe('wallet liveness ledger', () => {
+  const at = new Date('2026-09-13T00:00:00Z')
+
+  it('anchors a first sighting without overwriting an existing anchor', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await anchorWalletActivity(pool, 'wallet-1', at)
+    const [sql, params] = query.mock.calls[0]
+    // Only fires when the wallet has no anchor yet, and inherits the existing
+    // catch-up cursor rather than resetting the clock to now.
+    expect(sql).toContain(
+      'WHERE listener.wallet_cursors.last_active_at IS NULL'
+    )
+    expect(sql).toContain(
+      'SET last_active_at = listener.wallet_cursors.last_seen_at'
+    )
+    expect(params).toEqual(['wallet-1', at])
+  })
+
+  it('advances last_active_at monotonically and leaves the cursor alone', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await recordWalletActivity(pool, 'wallet-1', at)
+    const [sql, params] = query.mock.calls[0]
+    expect(sql).toContain('GREATEST')
+    // last_seen_at is the catch-up anchor — never moved by a liveness write.
+    expect(sql).not.toContain('SET last_seen_at')
+    expect(params).toEqual(['wallet-1', at, false])
+  })
+
+  it('stamps ready_at only when the wallet completed warm-up', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await recordWalletActivity(pool, 'wallet-1', at, true)
+    expect(query.mock.calls[0][1]).toEqual(['wallet-1', at, true])
+    expect(query.mock.calls[0][0]).toContain('ready_at = CASE')
+  })
+
+  it('persists the archive report so a restart cannot re-report', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await markWalletArchiveReported(pool, 'wallet-1', at)
+    const [sql, params] = query.mock.calls[0]
+    expect(sql).toContain('archive_reported_at = $2')
+    expect(params).toEqual(['wallet-1', at])
+  })
+
+  it('falls back to the catch-up cursor for rows written before the ledger', async () => {
+    const { pool, query } = poolWith({
+      rows: [
+        {
+          wallet_id: 'wallet-1',
+          last_active_at: at,
+          ready_at: null,
+          archive_reported_at: null
+        }
+      ]
+    })
+    const liveness = await loadWalletLiveness(pool, ['wallet-1'])
+    expect(query.mock.calls[0][0]).toContain(
+      'COALESCE(last_active_at, last_seen_at)'
+    )
+    expect(liveness.get('wallet-1')).toEqual({
+      walletId: 'wallet-1',
+      lastActiveAt: at,
+      readyAt: null,
+      archiveReportedAt: null
+    })
+  })
+
+  it('skips the query entirely for an empty wallet list', async () => {
+    const { pool, query } = poolWith({ rows: [] })
+    await expect(loadWalletLiveness(pool, [])).resolves.toEqual(new Map())
+    expect(query).not.toHaveBeenCalled()
+  })
+
+  it('lists wallets already reported dead in an earlier lifetime', async () => {
+    const { pool } = poolWith({ rows: [{ wallet_id: 'wallet-1' }] })
+    await expect(loadArchiveReportedWalletIds(pool)).resolves.toEqual([
+      'wallet-1'
+    ])
   })
 })
 
