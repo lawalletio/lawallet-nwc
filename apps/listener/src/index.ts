@@ -93,6 +93,19 @@ async function main(): Promise<void> {
   }
   log.info('store.bootstrapped')
 
+  // The archive policy is the one piece of config an operator is most likely
+  // to be surprised by, so state the effective values rather than making them
+  // infer the defaults from an absent variable.
+  log.info(
+    {
+      enabled: env.DEAD_WALLET_DETECTION_ENABLED,
+      idleHours: env.WALLET_ARCHIVE_IDLE_HOURS,
+      deadThresholdHours: env.DEAD_THRESHOLD_HOURS,
+      retryMs: env.WALLET_ARCHIVE_RETRY_MS
+    },
+    'archive.policy'
+  )
+
   const dispatcher = new WebhookDispatcher({
     env,
     log: createLogger({ module: 'webhook' }),
