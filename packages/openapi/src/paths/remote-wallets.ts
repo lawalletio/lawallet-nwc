@@ -26,8 +26,15 @@ const remoteWalletSchema = z
     updatedAt: z.string().datetime(),
     diedAt: z.string().datetime().nullable().openapi({
       description:
-        'When an archived (DEAD) disposable wallet was detected dead; null otherwise.'
+        'When an archived (DEAD) wallet was detected dead; null otherwise.'
     }),
+    diedReason: z
+      .enum(['unresponsive', 'idle', 'warmup_failed'])
+      .nullable()
+      .openapi({
+        description:
+          "Why the wallet was archived: 'unresponsive' (probe-confirmed silence with relays up), 'idle' (more than 48h with no sign of life) or 'warmup_failed' (more than 48h and NWC warm-up never succeeded). Null unless DEAD."
+      }),
     provider: z.enum(['lncurl']).nullable().openapi({
       description:
         "'lncurl' for a disposable LNCurl wallet; null for a user-supplied connection."

@@ -93,7 +93,11 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     lastProbeAt: config?.lastProbeAt?.toISOString() ?? null,
     lastProbeError: config?.lastProbeError ?? null,
     lastListenerSeenAt: config?.lastListenerSeenAt?.toISOString() ?? null,
-    lastCronAt: config?.lastCronAt?.toISOString() ?? null
+    lastCronAt: config?.lastCronAt?.toISOString() ?? null,
+    // Non-null when the listener reported the proxy's NWC wallet dead and web
+    // archived it: intake is off until the operator re-enables the proxy.
+    archivedAt: config?.archivedAt?.toISOString() ?? null,
+    archivedReason: config?.archivedReason ?? null
   })
 })
 
@@ -190,6 +194,11 @@ export const PUT = withErrorHandling(async (request: NextRequest) => {
     },
     update: {
       ...(body.enabled !== undefined ? { enabled } : {}),
+      // Re-enabling, or swapping in a fresh credential, un-archives the proxy
+      // wallet: the operator has answered the auto-archive.
+      ...(enabled || (body.nwcUri !== undefined && nextNwc !== currentNwc)
+        ? { archivedAt: null, archivedReason: null }
+        : {}),
       ...(body.feeBps !== undefined ? { feeBps: body.feeBps } : {}),
       ...(body.nwcUri !== undefined
         ? {

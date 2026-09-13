@@ -64,7 +64,8 @@ const freshMetrics = () => ({
   catchupErrors: 0,
   deadProbesRun: 0,
   deadProbesTimedOut: 0,
-  walletsDeclaredDead: 0
+  walletsDeclaredDead: 0,
+  walletsArchiveRequested: 0
 })
 
 const settledTx = (

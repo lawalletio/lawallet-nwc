@@ -5,6 +5,8 @@ import {
   NWC_WEBHOOK_SIGNATURE_HEADER,
   NWC_WEBHOOK_SIGNATURE_PREFIX,
   NWC_WEBHOOK_TIMESTAMP_HEADER,
+  type ListenerConnection,
+  type NwcWalletDeadReason,
   type NwcWebhookPayload
 } from '@lawallet-nwc/shared'
 import type { ListenerEnv } from './env'
@@ -15,6 +17,8 @@ import {
   undeliveredEvents,
   type StoredEvent
 } from './store'
+
+type ListenerWalletState = ListenerConnection['state']
 
 /** HMAC-SHA256 over `${timestamp}.${body}` — web verifies the same recipe. */
 export function signWebhook(
@@ -203,32 +207,42 @@ export class WebhookDispatcher {
   }
 
   /**
-   * One-shot `wallet_dead` webhook: the listener saw a wallet go silent past
-   * the threshold while its relays stayed connected. Web decides whether to
-   * archive it (only LNCurl-provider wallets become DEAD). Not persisted and
-   * not retried here — the prober re-detects on its next sweep if this failed.
-   * Returns whether web accepted it (2xx) so the prober only marks reported on
-   * success.
+   * One-shot `wallet_dead` webhook: either a probe-confirmed silent wallet
+   * (`reason: 'unresponsive'`, relays up) or one idle past the 48h archive
+   * window — including a wallet that never completed warmup, which has no
+   * client left to probe. Web decides whether to archive and owns the write.
+   * Not persisted and not retried here — the prober re-reports on a later sweep
+   * if this failed. Returns whether web accepted it (2xx) so the prober only
+   * marks it reported on success.
    */
   async sendWalletDead(
     walletId: string,
-    unresponsiveSeconds: number
+    unresponsiveSeconds: number,
+    opts: {
+      reason: NwcWalletDeadReason
+      relaysConnected: boolean
+      lastState?: ListenerWalletState
+      everReady?: boolean
+    } = { reason: 'unresponsive', relaysConnected: true }
   ): Promise<boolean> {
     const now = Date.now()
     const payload: NwcWebhookPayload = {
       type: 'wallet_dead',
       eventKey: createHash('sha256')
-        .update(`${walletId}|wallet_dead`)
+        .update(`${walletId}|wallet_dead|${opts.reason}`)
         .digest('hex'),
       walletId,
       receivedAt: now,
       unresponsiveSeconds,
-      relaysConnected: true
+      relaysConnected: opts.relaysConnected,
+      reason: opts.reason,
+      ...(opts.lastState ? { lastState: opts.lastState } : {}),
+      ...(opts.everReady === undefined ? {} : { everReady: opts.everReady })
     }
     const outcome = await this.post(JSON.stringify(payload))
     if (!outcome.delivered) {
       this.deps.log.warn(
-        { walletId, error: outcome.error },
+        { walletId, reason: opts.reason, error: outcome.error },
         'webhook.wallet_dead_not_delivered'
       )
     }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { WALLET_ARCHIVE_IDLE_HOURS } from '@lawallet-nwc/shared'
 
 const emptyEnvToUndefined = (value: unknown): unknown =>
   typeof value === 'string' && value.trim() === '' ? undefined : value
@@ -219,6 +220,24 @@ const envSchema = z.object({
     .pipe(z.number().int().positive())
     .describe(
       'Consecutive failing probes (relays up) required before declaring a wallet dead — guards against a single transient slow reply'
+    ),
+
+  WALLET_ARCHIVE_IDLE_HOURS: z
+    .string()
+    .default(String(WALLET_ARCHIVE_IDLE_HOURS))
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .describe(
+      'Hours without any proof of life before a wallet is reported for archival, probe or no probe — covers wallets that never completed warmup (product rule: 48h)'
+    ),
+
+  WALLET_ARCHIVE_RETRY_MS: z
+    .string()
+    .default('21600000')
+    .transform(val => parseInt(val, 10))
+    .pipe(z.number().int().positive())
+    .describe(
+      'How long a wallet stays parked after a wallet_dead report — its reconnect backoff and the next report attempt (default 6h)'
     )
 })
 
