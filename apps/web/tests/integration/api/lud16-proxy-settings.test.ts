@@ -48,6 +48,8 @@ vi.mock('@/lib/wallet/drivers/nwc-client-cache', () => ({
 
 import { GET, PUT } from '@/app/api/settings/lud16-proxy/route'
 import { decryptProxySecret, encryptProxySecret } from '@/lib/proxy/vault'
+import { closeServerNwcClient } from '@/lib/wallet/drivers/nwc-client-cache'
+import { DEFAULT_PROXY_FEE_BPS, PROXY_WALLET_ID } from '@/lib/proxy/constants'
 
 const config = {
   id: 'default',
@@ -71,6 +73,9 @@ describe('admin LUD-16 proxy settings', () => {
   beforeEach(() => {
     resetPrismaMock()
     vi.clearAllMocks()
+    // `clearAllMocks` keeps implementations, so a test that made the vault
+    // throw would otherwise leak that into every test declared after it.
+    vi.mocked(decryptProxySecret).mockReturnValue('old-nwc-uri')
     vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue(
       config as never
     )
@@ -90,6 +95,50 @@ describe('admin LUD-16 proxy settings', () => {
     expect(body).not.toHaveProperty('nwcUri')
     expect(body).not.toHaveProperty('receiptNsec')
     expect(JSON.stringify(body)).not.toContain('old-nwc-uri')
+  })
+
+  it('answers with the defaults before a proxy has ever been configured', async () => {
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue(
+      null as never
+    )
+
+    const body = (await assertResponse(
+      await GET(createNextRequest('/api/settings/lud16-proxy')),
+      200
+    )) as Record<string, unknown>
+
+    expect(body).toMatchObject({
+      enabled: false,
+      feeBps: DEFAULT_PROXY_FEE_BPS,
+      walletId: PROXY_WALLET_ID,
+      hasNwc: false,
+      hasReceiptNsec: false,
+      receiptPubkey: null,
+      capabilities: null,
+      balanceMsats: null,
+      lastProbeAt: null,
+      lastListenerSeenAt: null,
+      lastCronAt: null,
+      archivedAt: null,
+      archivedReason: null
+    })
+  })
+
+  it('surfaces the auto-archive so the settings tab can explain the outage', async () => {
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+      ...config,
+      enabled: false,
+      archivedAt: new Date('2026-07-29T09:00:00Z'),
+      archivedReason: 'warmup_failed'
+    } as never)
+
+    const body = (await assertResponse(
+      await GET(createNextRequest('/api/settings/lud16-proxy')),
+      200
+    )) as Record<string, unknown>
+
+    expect(body.archivedAt).toBe('2026-07-29T09:00:00.000Z')
+    expect(body.archivedReason).toBe('warmup_failed')
   })
 
   it('blocks proxy NWC rotation while a settlement is outstanding', async () => {
@@ -199,5 +248,110 @@ describe('admin LUD-16 proxy settings', () => {
 
     expect(response.status).toBe(409)
     expect(prismaMock.proxyServiceConfig.upsert).not.toHaveBeenCalled()
+  })
+
+  // The listener archives the proxy's NWC wallet after 48h of silence, which
+  // flips `enabled` off and stamps `archivedAt`. Only an operator answering
+  // that — re-enabling, or supplying a different credential — clears it. An
+  // unrelated edit must leave the archive standing, or the settings tab loses
+  // the only explanation it has for why intake stopped.
+  describe('answering the auto-archive', () => {
+    const archived = {
+      ...config,
+      enabled: false,
+      archivedAt: new Date('2026-07-29T09:00:00Z'),
+      archivedReason: 'warmup_failed'
+    }
+
+    function lastUpsertUpdate(): Record<string, unknown> {
+      const call = vi
+        .mocked(prismaMock.proxyServiceConfig.upsert)
+        .mock.calls.at(-1)
+      return (call?.[0] as unknown as { update: Record<string, unknown> })
+        .update
+    }
+
+    beforeEach(() => {
+      vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue(
+        archived as never
+      )
+      vi.mocked(prismaMock.proxyServiceConfig.upsert).mockResolvedValue(
+        archived as never
+      )
+    })
+
+    it('clears the archive when the operator re-enables the proxy', async () => {
+      await assertResponse(
+        await PUT(
+          createNextRequest('/api/settings/lud16-proxy', {
+            method: 'PUT',
+            body: { enabled: true }
+          })
+        ),
+        200
+      )
+
+      expect(lastUpsertUpdate()).toMatchObject({
+        enabled: true,
+        archivedAt: null,
+        archivedReason: null
+      })
+    })
+
+    it('clears the archive when a fresh NWC URI arrives, still disabled', async () => {
+      // Replacing a dead wallet is an answer too: the operator gets the
+      // credential in first and enables afterwards, once it is verified.
+      await assertResponse(
+        await PUT(
+          createNextRequest('/api/settings/lud16-proxy', {
+            method: 'PUT',
+            body: { nwcUri: 'nostr+walletconnect://fresh' }
+          })
+        ),
+        200
+      )
+
+      const update = lastUpsertUpdate()
+      expect(update).toMatchObject({ archivedAt: null, archivedReason: null })
+      expect(update).not.toHaveProperty('enabled')
+      // The replaced credential's pooled client is dropped.
+      expect(closeServerNwcClient).toHaveBeenCalledWith('old-nwc-uri')
+    })
+
+    it('leaves the archive alone when the same NWC URI is re-saved', async () => {
+      // Re-submitting the settings form without touching the field is not an
+      // answer — the wallet is still the dead one.
+      await assertResponse(
+        await PUT(
+          createNextRequest('/api/settings/lud16-proxy', {
+            method: 'PUT',
+            body: { nwcUri: 'old-nwc-uri' }
+          })
+        ),
+        200
+      )
+
+      const update = lastUpsertUpdate()
+      expect(update).not.toHaveProperty('archivedAt')
+      expect(update).not.toHaveProperty('archivedReason')
+      expect(closeServerNwcClient).not.toHaveBeenCalled()
+    })
+
+    it('leaves the archive alone on a fee-only edit', async () => {
+      await assertResponse(
+        await PUT(
+          createNextRequest('/api/settings/lud16-proxy', {
+            method: 'PUT',
+            body: { feeBps: 25 }
+          })
+        ),
+        200
+      )
+
+      const update = lastUpsertUpdate()
+      expect(update).toMatchObject({ feeBps: 25 })
+      expect(update).not.toHaveProperty('archivedAt')
+      expect(update).not.toHaveProperty('archivedReason')
+    })
   })
 })

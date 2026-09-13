@@ -33,6 +33,7 @@ import {
   meetsIdleArchiveWindow,
   type WalletDeadEvent
 } from '@/lib/wallet/archive-dead-wallet'
+import { logger } from '@/lib/logger'
 
 const HOUR = 3600
 
@@ -205,6 +206,22 @@ describe('archiveDeadWallet — probe-confirmed death', () => {
     ).resolves.toBe('ignored')
     expect(prismaMock.remoteWallet.findUnique).not.toHaveBeenCalled()
   })
+
+  it('refuses a wallet whose config records no provider at all', async () => {
+    // A config that predates the provider field, or one that failed to parse,
+    // must not be read as "disposable" — the probe signal only archives
+    // wallets we know we minted.
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      remoteWallet({ config: null }) as never
+    )
+
+    await expect(archiveDeadWallet(unresponsive)).resolves.toBe('ignored')
+    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      { walletId: 'wallet-1', provider: null },
+      'nwc.wallet_dead_ignored_non_lncurl'
+    )
+  })
 })
 
 describe('archiveDeadWallet — the LUD-16 proxy wallet', () => {
@@ -264,6 +281,61 @@ describe('archiveDeadWallet — the LUD-16 proxy wallet', () => {
 
     await expect(archiveDeadWallet(walletDead())).resolves.toBe('ignored')
     expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('treats a proxy archived mid-flight by another report as a no-op', async () => {
+    // Both the sweep and an inline retry can carry the same report. The
+    // second one finds `archivedAt: null` still true when it reads, and loses
+    // the conditional update — no second activity entry, no second SSE nudge.
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+    vi.mocked(prismaMock.proxyServiceConfig.findFirst).mockResolvedValue({
+      id: 'default',
+      archivedAt: null,
+      lastListenerSeenAt: null
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
+      count: 0
+    } as never)
+
+    await expect(archiveDeadWallet(walletDead())).resolves.toBe('noop')
+    expect(fireAndForgetMock).not.toHaveBeenCalled()
+  })
+
+  it('records the missing diagnostics as null when an older listener omits them', async () => {
+    // `lastState` / `everReady` arrived with the idle path; a listener that
+    // predates it sends neither, and the activity entry has to survive that.
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+    vi.mocked(prismaMock.proxyServiceConfig.findFirst).mockResolvedValue({
+      id: 'default',
+      archivedAt: null,
+      lastListenerSeenAt: null
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    await expect(
+      archiveDeadWallet(
+        walletDead({
+          reason: 'unresponsive',
+          relaysConnected: true,
+          unresponsiveSeconds: 4 * HOUR,
+          lastState: undefined,
+          everReady: undefined
+        })
+      )
+    ).resolves.toBe('archived')
+    expect(fireAndForgetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          'LUD-16 proxy wallet archived — unresponsive ~4h with relays up',
+        metadata: expect.objectContaining({ lastState: null, everReady: null })
+      })
+    )
   })
 
   it('reports an unknown wallet id instead of silently succeeding', async () => {
