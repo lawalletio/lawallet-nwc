@@ -1,3 +1,4 @@
+import { createCipheriv, hkdfSync, randomBytes } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/config', () => ({
@@ -20,6 +21,34 @@ const NWC_URI =
   '?relay=wss%3A%2F%2Frelay.example&secret=' +
   'b'.repeat(64)
 
+function encryptLegacyProxy(
+  plaintext: string,
+  recordId: string,
+  field: string,
+  secret: string
+): Uint8Array {
+  const salt = randomBytes(16)
+  const iv = randomBytes(12)
+  const key = Buffer.from(
+    hkdfSync('sha256', secret, salt, 'lawallet-proxy-vault-v1', 32)
+  )
+  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  cipher.setAAD(Buffer.from(`${recordId}:${field}`, 'utf8'))
+  const ciphertext = Buffer.concat([
+    cipher.update(Buffer.from(plaintext, 'utf8')),
+    cipher.final()
+  ])
+  return Uint8Array.from(
+    Buffer.concat([
+      Buffer.from('LWPX01', 'utf8'),
+      salt,
+      iv,
+      cipher.getAuthTag(),
+      ciphertext
+    ])
+  )
+}
+
 function mockVault(secret: string | undefined) {
   vi.mocked(getConfig).mockReturnValue({
     nwcVault: { secret, enabled: !!secret }
@@ -32,10 +61,23 @@ describe('proxy vault', () => {
     mockVault(ACTIVE_SECRET)
   })
 
-  it('round-trips a write-only proxy credential', () => {
+  it('round-trips a write-only proxy credential as lwrw1', () => {
     const envelope = encryptProxySecret(NWC_URI, 'default', 'nwc')
+    expect(Buffer.from(envelope).toString('utf8').startsWith('lwrw1:')).toBe(
+      true
+    )
     expect(decryptProxySecret(envelope, 'default', 'nwc')).toBe(NWC_URI)
     expect(isProxyVaultConfigured()).toBe(true)
+  })
+
+  it('still decrypts a legacy LWPX01 envelope', () => {
+    const envelope = encryptLegacyProxy(
+      NWC_URI,
+      'default',
+      'nwc',
+      ACTIVE_SECRET
+    )
+    expect(decryptProxySecret(envelope, 'default', 'nwc')).toBe(NWC_URI)
   })
 
   it('binds ciphertext to the record and field through authenticated data', () => {

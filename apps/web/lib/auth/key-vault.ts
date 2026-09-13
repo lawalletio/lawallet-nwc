@@ -18,10 +18,9 @@ import { getConfig } from '@/lib/config'
  * DB id is bound as GCM additional authenticated data — moving a ciphertext
  * to another user's row fails the auth tag.
  *
- * Rotation: encrypt always uses the active secret; decrypt falls back through
- * `KEY_VAULT_SECRET_PREVIOUS` entries so operators can rotate by re-encrypting
- * online. Losing every secret makes custodied keys unrecoverable — never
- * delete ciphertext on a decrypt failure.
+ * `KEY_VAULT_SECRET` is the only key that opens these envelopes. Losing it
+ * makes custodied keys unrecoverable — never delete ciphertext on a decrypt
+ * failure.
  */
 
 const MAGIC = Buffer.from('LWKV01', 'utf8') // 6 bytes
@@ -33,7 +32,7 @@ const HKDF_INFO = 'lawallet-nsec-vault-v1'
 
 const PRIVKEY_HEX = /^[0-9a-f]{64}$/
 
-/** Thrown when no configured vault secret decrypts an envelope. */
+/** Thrown when the vault secret does not decrypt an envelope. */
 export class VaultDecryptError extends Error {
   constructor(message = 'Key vault decryption failed') {
     super(message)
@@ -73,34 +72,14 @@ export function encryptNsec(privkeyHex: string, userId: string): Buffer {
   return Buffer.concat([MAGIC, salt, iv, tag, ciphertext])
 }
 
-function tryDecrypt(
-  secret: string,
-  salt: Buffer,
-  iv: Buffer,
-  tag: Buffer,
-  ciphertext: Buffer,
-  userId: string
-): Buffer | null {
-  try {
-    const key = deriveKey(secret, salt)
-    const decipher = createDecipheriv('aes-256-gcm', key, iv)
-    decipher.setAAD(Buffer.from(userId, 'utf8'))
-    decipher.setAuthTag(tag)
-    return Buffer.concat([decipher.update(ciphertext), decipher.final()])
-  } catch {
-    return null
-  }
-}
-
 /**
- * Reverses {@link encryptNsec}, returning the 64-char hex private key. Tries
- * the active secret first, then each `KEY_VAULT_SECRET_PREVIOUS` entry.
+ * Reverses {@link encryptNsec}, returning the 64-char hex private key.
  *
- * @throws {VaultDecryptError} When the envelope is malformed or no configured
- *   secret authenticates it (wrong secret, tampering, or userId mismatch).
+ * @throws {VaultDecryptError} When the envelope is malformed or the secret
+ *   does not authenticate it (wrong secret, tampering, or userId mismatch).
  */
 export function decryptNsec(envelope: Uint8Array, userId: string): string {
-  const { secret, previousSecrets } = getConfig().keyVault
+  const { secret } = getConfig().keyVault
   if (!secret) {
     throw new Error('KEY_VAULT_SECRET is not configured')
   }
@@ -117,18 +96,19 @@ export function decryptNsec(envelope: Uint8Array, userId: string): string {
   const tag = buf.subarray(offset, (offset += TAG_LEN))
   const ciphertext = buf.subarray(offset)
 
-  for (const candidate of [secret, ...previousSecrets]) {
-    const plain = tryDecrypt(candidate, salt, iv, tag, ciphertext, userId)
-    if (plain) return plain.toString('hex')
+  try {
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      deriveKey(secret, salt),
+      iv
+    )
+    decipher.setAAD(Buffer.from(userId, 'utf8'))
+    decipher.setAuthTag(tag)
+    return Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final()
+    ]).toString('hex')
+  } catch {
+    throw new VaultDecryptError()
   }
-
-  throw new VaultDecryptError()
-}
-
-/**
- * Re-encrypts an envelope under the active secret (rotation helper). Accepts
- * envelopes readable via any configured previous secret.
- */
-export function rotateEnvelope(envelope: Uint8Array, userId: string): Buffer {
-  return encryptNsec(decryptNsec(envelope, userId), userId)
 }

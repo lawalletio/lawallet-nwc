@@ -2,6 +2,7 @@ import { createCipheriv, createHmac, hkdfSync, randomBytes } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Logger } from 'pino'
 import { decryptProxyNwcUri } from '../src/proxy-vault'
+import { encryptNwcVaultEnvelope } from '../../web/lib/wallet/remote-wallet-vault-core'
 import { requestProxyReconcile } from '../src/proxy-reconcile'
 import type { ListenerEnv } from '../src/env'
 
@@ -52,9 +53,21 @@ afterEach(() => {
 })
 
 describe('listener proxy integration', () => {
-  it('decrypts the web-compatible proxy NWC envelope', () => {
+  it('decrypts a legacy LWPX01 proxy NWC envelope', () => {
     expect(
       decryptProxyNwcUri(envelope(NWC_URI, ACTIVE_SECRET), 'default', env())
+    ).toBe(NWC_URI)
+  })
+
+  it('decrypts the canonical lwrw1 proxy NWC envelope', () => {
+    const stored = encryptNwcVaultEnvelope(
+      NWC_URI,
+      'default',
+      'nwc',
+      ACTIVE_SECRET
+    )
+    expect(
+      decryptProxyNwcUri(Buffer.from(stored, 'utf8'), 'default', env())
     ).toBe(NWC_URI)
   })
 

@@ -24,6 +24,7 @@ import {
   isProxyVaultConfigured
 } from '@/lib/proxy/vault'
 import { normalizeNostrPrivateKey, receiptPubkey } from '@/lib/proxy/nostr'
+import { logger } from '@/lib/logger'
 
 const updateSchema = z
   .object({
@@ -37,6 +38,32 @@ const updateSchema = z
   .refine(value => Object.keys(value).length > 0, {
     message: 'At least one field is required'
   })
+
+/**
+ * Read a stored credential, treating one this deployment can no longer open
+ * as unknown rather than throwing.
+ *
+ * The old value is only needed to tell whether the operator is rotating the
+ * credential. If an unreadable envelope propagated, the whole PUT would 500
+ * and replacing it through this endpoint — the documented recovery after a
+ * lost `NWC_VAULT_SECRET` — would be impossible.
+ */
+function readStoredSecret(
+  ciphertext: Uint8Array | null,
+  recordId: string,
+  field: 'nwc' | 'receipt-nsec'
+): string | null {
+  if (!ciphertext || !isProxyVaultConfigured()) return null
+  try {
+    return decryptProxySecret(ciphertext, recordId, field)
+  } catch (err) {
+    logger.warn(
+      { err, proxyConfigId: recordId, field },
+      'proxy_settings.stored_secret_unreadable'
+    )
+    return null
+  }
+}
 
 export const GET = withErrorHandling(async (request: NextRequest) => {
   await authenticateSettingsReadRequest(request)
@@ -93,18 +120,16 @@ export const PUT = withErrorHandling(async (request: NextRequest) => {
     })
   ])
   const outstanding = outstandingPayments + pendingIntents
-  const currentNwc =
-    current?.nwcCiphertext && isProxyVaultConfigured()
-      ? decryptProxySecret(current.nwcCiphertext, current.id, 'nwc')
-      : null
-  const currentNsec =
-    current?.receiptNsecCiphertext && isProxyVaultConfigured()
-      ? decryptProxySecret(
-          current.receiptNsecCiphertext,
-          current.id,
-          'receipt-nsec'
-        )
-      : null
+  const currentNwc = current
+    ? readStoredSecret(current.nwcCiphertext, current.id, 'nwc')
+    : null
+  const currentNsec = current
+    ? readStoredSecret(
+        current.receiptNsecCiphertext,
+        current.id,
+        'receipt-nsec'
+      )
+    : null
   const nextNwc =
     body.nwcUri === undefined ? currentNwc : body.nwcUri.trim() || null
   let nextNsec = currentNsec

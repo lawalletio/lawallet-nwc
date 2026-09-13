@@ -25,7 +25,6 @@ export interface AppConfig {
   // Nostr key vault — at-rest encryption of custodied keys (passkey accounts)
   keyVault: {
     secret: string | undefined
-    previousSecrets: string[]
     enabled: boolean
   }
 
@@ -133,10 +132,6 @@ export function getConfig(strict: boolean = true): AppConfig {
 
     keyVault: {
       secret: env.KEY_VAULT_SECRET,
-      previousSecrets: (env.KEY_VAULT_SECRET_PREVIOUS ?? '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean),
       enabled: !!env.KEY_VAULT_SECRET
     },
 

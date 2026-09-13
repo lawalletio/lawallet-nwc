@@ -47,7 +47,7 @@ vi.mock('@/lib/wallet/drivers/nwc-client-cache', () => ({
 }))
 
 import { GET, PUT } from '@/app/api/settings/lud16-proxy/route'
-import { encryptProxySecret } from '@/lib/proxy/vault'
+import { decryptProxySecret, encryptProxySecret } from '@/lib/proxy/vault'
 
 const config = {
   id: 'default',
@@ -134,5 +134,70 @@ describe('admin LUD-16 proxy settings', () => {
         })
       })
     )
+  })
+
+  it('still replaces a stored signer this deployment can no longer open', async () => {
+    // Re-entering the nsec is the documented recovery after a lost
+    // NWC_VAULT_SECRET, so reading the dead envelope must not 500 the write.
+    vi.mocked(decryptProxySecret).mockImplementation(() => {
+      throw new Error('Proxy vault decryption failed')
+    })
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+      ...config,
+      enabled: false
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.upsert).mockResolvedValue({
+      ...config,
+      enabled: false
+    } as never)
+
+    const response = await PUT(
+      createNextRequest('/api/settings/lud16-proxy', {
+        method: 'PUT',
+        body: { receiptNsec: 'c'.repeat(64) }
+      })
+    )
+
+    await assertResponse(response, 200)
+    expect(encryptProxySecret).toHaveBeenCalledWith(
+      'c'.repeat(64),
+      'default',
+      'receipt-nsec'
+    )
+  })
+
+  it('asks an enabled proxy for its NWC URI too when that one is unreadable', async () => {
+    // Deferred forwarding cannot run on a credential nothing can open, so
+    // enabling demands both halves rather than silently half-working.
+    vi.mocked(decryptProxySecret).mockImplementation(() => {
+      throw new Error('Proxy vault decryption failed')
+    })
+
+    const response = await PUT(
+      createNextRequest('/api/settings/lud16-proxy', {
+        method: 'PUT',
+        body: { receiptNsec: 'c'.repeat(64) }
+      })
+    )
+
+    expect(response.status).toBe(400)
+    expect(prismaMock.proxyServiceConfig.upsert).not.toHaveBeenCalled()
+  })
+
+  it('still guards an unreadable credential against mid-settlement rotation', async () => {
+    vi.mocked(decryptProxySecret).mockImplementation(() => {
+      throw new Error('Proxy vault decryption failed')
+    })
+    vi.mocked(prismaMock.proxyPayment.count).mockResolvedValue(1)
+
+    const response = await PUT(
+      createNextRequest('/api/settings/lud16-proxy', {
+        method: 'PUT',
+        body: { receiptNsec: 'c'.repeat(64) }
+      })
+    )
+
+    expect(response.status).toBe(409)
+    expect(prismaMock.proxyServiceConfig.upsert).not.toHaveBeenCalled()
   })
 })

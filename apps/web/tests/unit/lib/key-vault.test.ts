@@ -8,19 +8,18 @@ import {
   decryptNsec,
   encryptNsec,
   isVaultConfigured,
-  rotateEnvelope,
   VaultDecryptError
 } from '@/lib/auth/key-vault'
 import { getConfig } from '@/lib/config'
 
 const ACTIVE_SECRET = 'active-vault-secret-0123456789abcdef0123456789abcdef'
-const OLD_SECRET = 'previous-vault-secret-0123456789abcdef0123456789abcd'
+const OTHER_SECRET = 'another-vault-secret-0123456789abcdef0123456789abcd'
 const USER_ID = '9c5b94b1-35ad-49bb-b118-8e8fc24abf80'
 const PRIVKEY = 'a'.repeat(32) + '0123456789abcdef0123456789abcdef'
 
-function mockVault(secret: string | undefined, previousSecrets: string[] = []) {
+function mockVault(secret: string | undefined) {
   vi.mocked(getConfig).mockReturnValue({
-    keyVault: { secret, previousSecrets, enabled: !!secret }
+    keyVault: { secret, enabled: !!secret }
   } as any)
 }
 
@@ -70,7 +69,7 @@ describe('key-vault', () => {
 
   it('fails on a wrong secret', () => {
     const envelope = encryptNsec(PRIVKEY, USER_ID)
-    mockVault(OLD_SECRET)
+    mockVault(OTHER_SECRET)
     expect(() => decryptNsec(envelope, USER_ID)).toThrow(VaultDecryptError)
   })
 
@@ -88,26 +87,5 @@ describe('key-vault', () => {
     const envelope = encryptNsec(PRIVKEY, USER_ID)
     envelope.write('XXXXXX', 0, 'utf8') // clobber the magic
     expect(() => decryptNsec(envelope, USER_ID)).toThrow(VaultDecryptError)
-  })
-
-  it('falls back to previous secrets during rotation', () => {
-    mockVault(OLD_SECRET)
-    const envelope = encryptNsec(PRIVKEY, USER_ID)
-
-    mockVault(ACTIVE_SECRET, [OLD_SECRET])
-    expect(decryptNsec(envelope, USER_ID)).toBe(PRIVKEY)
-  })
-
-  it('rotateEnvelope re-encrypts under the active secret', () => {
-    mockVault(OLD_SECRET)
-    const oldEnvelope = encryptNsec(PRIVKEY, USER_ID)
-
-    mockVault(ACTIVE_SECRET, [OLD_SECRET])
-    const rotated = rotateEnvelope(oldEnvelope, USER_ID)
-
-    // The rotated envelope must decrypt WITHOUT the previous secret.
-    mockVault(ACTIVE_SECRET)
-    expect(decryptNsec(rotated, USER_ID)).toBe(PRIVKEY)
-    expect(() => decryptNsec(oldEnvelope, USER_ID)).toThrow(VaultDecryptError)
   })
 })

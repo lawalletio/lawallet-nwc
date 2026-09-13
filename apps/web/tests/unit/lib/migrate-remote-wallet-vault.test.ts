@@ -28,10 +28,7 @@ const NWC_URI =
 function mockVault(secret: string | null = ACTIVE_SECRET) {
   const configured = secret ?? undefined
   vi.mocked(getConfig).mockReturnValue({
-    nwcVault: {
-      secret: configured,
-      enabled: !!configured
-    }
+    nwcVault: { secret: configured, enabled: !!configured }
   } as never)
 }
 
@@ -66,6 +63,55 @@ describe('RemoteWallet NWC startup migration', () => {
         },
         nwcConfigEncryptedAt: expect.any(Date)
       }
+    })
+  })
+
+  it('reports a row sealed under another secret without failing startup', async () => {
+    const stored = encryptRemoteWalletEnvelope(
+      NWC_URI,
+      'wallet-1',
+      'other-remote-wallet-secret-0123456789abcdef0123456789abcdef'
+    )
+    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([
+        {
+          id: 'wallet-1',
+          config: { connectionString: stored, mode: 'RECEIVE' },
+          nwcConfigEncryptedAt: new Date()
+        }
+      ] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    // One user's unrecoverable wallet degrades to a 503 on that wallet's
+    // driver path; it must not take the whole instance down.
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(0)
+    expect(prismaMock.remoteWallet.update).not.toHaveBeenCalled()
+  })
+
+  it('stamps an unreadable envelope instead of retrying it every boot', async () => {
+    const stored = encryptRemoteWalletEnvelope(
+      NWC_URI,
+      'wallet-1',
+      'other-remote-wallet-secret-0123456789abcdef0123456789abcdef'
+    )
+    vi.mocked(prismaMock.remoteWallet.count).mockResolvedValue(1)
+    vi.mocked(prismaMock.$queryRaw)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([
+        {
+          id: 'wallet-1',
+          config: { connectionString: stored, mode: 'RECEIVE' },
+          nwcConfigEncryptedAt: null
+        }
+      ] as never)
+      .mockResolvedValueOnce([{ count: BigInt(0) }] as never)
+
+    await expect(migrateRemoteWalletNwcConfigs()).resolves.toBe(1)
+    expect(prismaMock.remoteWallet.update).toHaveBeenCalledWith({
+      where: { id: 'wallet-1' },
+      data: { nwcConfigEncryptedAt: expect.any(Date) }
     })
   })
 

@@ -43,8 +43,9 @@ apps/web ──►┤ POST /v1/nwc/payments    (idempotent card/proxy payment ov
 ```
 
 The pool decrypts each encrypted `RemoteWallet.config.connectionString` with
-the same `NWC_VAULT_SECRET` used by web. When deferred LUD-16 settlement is
-enabled, it also loads the encrypted system wallet from `ProxyServiceConfig`.
+the same `NWC_VAULT_SECRET` used by web (`lwrw1:` envelopes). When deferred
+LUD-16 settlement is enabled, it also loads the system wallet from
+`ProxyServiceConfig` (`lwrw1:` or leftover `LWPX01` during conversion).
 The listener never receives the zap-receipt signer. A
 startup/10-minute scheduler HMAC-signs
 `POST /api/internal/lud16-proxy/reconcile`, while ordinary
@@ -487,6 +488,13 @@ Three constraints bite on managed platforms:
   given, and the only recovery is re-encrypting from a deployment that still
   holds the outgoing key. `pnpm deploy:fly --from-vercel` relies on the value
   being readable.
+- **Upgrade the listener before web when the proxy envelope format changes.**
+  Web writes the proxy NWC URI in the `lwrw1:` envelope and converts a leftover
+  `LWPX01` blob on boot. A listener old enough to only understand `LWPX01`
+  cannot open the converted value, so deferred LUD-16 settlement stalls until
+  it is redeployed. Both services ship from the same commit, so a merge that
+  deploys both is fine; a web-only deploy is not. RemoteWallet connection
+  strings are unaffected — every listener version reads `lwrw1:` for those.
 - **Disable scale-to-zero and stay at one machine.** The process is a daemon
   holding a relay websocket per ACTIVE wallet; suspending it on HTTP idleness
   drops every subscription while `/health` still looks fine. Two instances

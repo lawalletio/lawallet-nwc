@@ -54,6 +54,51 @@ Set `0` to disable, or lower it while hunting a regression.
 | 403 `AUTHORIZATION_ERROR`    | Authenticated but missing the permission — check `lib/auth/permissions.ts` mapping and the user's role in the DB (or the role claim in the JWT).                                                                      |
 | 503 from `/api/health`       | The server is up but can't reach the database — see below.                                                                                                                                                            |
 
+## NWC vault credentials
+
+Every NWC credential at rest (`RemoteWallet.config.connectionString`, the proxy
+NWC URI, the NIP-57 receipt nsec) is the same `lwrw1:` AES-256-GCM envelope
+under `NWC_VAULT_SECRET`. Startup converts legacy envelopes and reports
+anything the secret cannot open, so the boot log is the first place to look.
+
+| Log message                                          | Meaning / fix                                                                                                                                                                    |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `remote_wallet_nwc_encryption.unreadable_rows`       | Those `walletIds` were sealed under a different `NWC_VAULT_SECRET`. Restore that secret, or have the owner reconnect the wallet. Only those wallets fail (503 on payment paths). |
+| `proxy.nwc_vault.nwc_unreadable`                     | The proxy NWC URI cannot be opened, so deferred forwarding cannot pay out. Restore the secret that sealed it, or re-enter the URI in Admin → Settings → NWC Services.            |
+| `proxy.nwc_vault.converted_to_lwrw1`                 | Informational — a credential still in the legacy `LWPX01` envelope was rewritten in canonical form.                                                                              |
+| `proxy_receipt_signer.replaced_unreadable`           | The secret could not open the signer, so it was replaced; `previousReceiptPubkey` → `receiptPubkey` records the change. Zaps work again from this boot on — see below.           |
+| `proxy_receipt_signer.generated_for_existing_config` | The config row existed with no signer at all, so one was generated. Zaps were off platform-wide until this ran.                                                                  |
+| `proxy_receipt_signer.pubkey_restored`               | The signer was readable but had no published pubkey, so it was derived from the key. No key change.                                                                              |
+| `nip57.receipt_signer_unavailable`                   | Served at request time whenever the signer cannot be decrypted — LUD-16 then omits `allowsNostr`/`nostrPubkey` for every address. Pair it with the startup lines above.          |
+
+`NWC_VAULT_SECRET` has one value and no fallback, so changing it is what makes
+existing credentials unreadable. Keep it stable and backed up.
+
+### Zaps are missing platform-wide
+
+`getZapReceiptCapability()` is the only gate on `allowsNostr` / `nostrPubkey`
+in the LUD-16 payRequest, and it needs **both** an enabled listener and a
+decryptable receipt signer. So a payRequest with `commentAllowed` but no
+`allowsNostr` on _every_ address is an instance-level fault, not an address
+misconfiguration. Check, in order:
+
+1. `nip57.receipt_signer_unavailable` in the request log → signer problem, see
+   the table above. Startup repairs this on the next boot.
+2. Listener reachable and paired (`POST /api/webhooks/nwc` should answer 401,
+   not 404) → otherwise NIP-57 stays off by design, because nothing would
+   observe settlement.
+
+A signer the secret cannot open is replaced on the next boot, so zaps recover
+on their own — but the advertised `nostrPubkey` changes with it, and the
+displaced key is not kept (it was already unopenable). To preserve the
+instance's `_` identity across a secret change, re-enter that nsec through
+Admin → Settings → NWC Services before the instance restarts; that re-seals it
+under the current secret and no replacement happens.
+
+Already-settled zap invoices keep their stored `zapRequest`, so once the
+capability flips true the receipt sweep (`reconcileInvoiceZapReceipts`)
+publishes the backlog — no receipts are lost to the outage window.
+
 ## Card tap payments
 
 The BoltCard spend path (`app/api/cards/[id]/scan/cb/actions/pay.ts`) validates

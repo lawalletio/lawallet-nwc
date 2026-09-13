@@ -39,16 +39,6 @@ const envSchema = z.object({
       )
   ),
 
-  KEY_VAULT_SECRET_PREVIOUS: z.preprocess(
-    emptyEnvToUndefined,
-    z
-      .string()
-      .optional()
-      .describe(
-        'Comma-separated previous KEY_VAULT_SECRET values still accepted for decryption during rotation'
-      )
-  ),
-
   // NWC connection vault. Kept separate from the user-key vault so the
   // listener never needs access to passkey-custody key material.
   NWC_VAULT_SECRET: z.preprocess(

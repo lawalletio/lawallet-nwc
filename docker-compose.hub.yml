@@ -36,7 +36,6 @@ services:
       # passkey account creation. Back the value up — losing it makes
       # custodied keys unrecoverable.
       KEY_VAULT_SECRET: ${KEY_VAULT_SECRET:-}
-      KEY_VAULT_SECRET_PREVIOUS: ${KEY_VAULT_SECRET_PREVIOUS:-}
       # Encrypts RemoteWallet NWC URIs, the proxy NWC URI, and NIP-57 signer.
       # Use one stable value on both web and listener. The signer nsec itself is
       # entered through Admin Settings and is never an environment variable.

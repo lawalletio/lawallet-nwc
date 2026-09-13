@@ -1,17 +1,17 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  hkdfSync,
-  randomBytes
-} from 'node:crypto'
+import { createDecipheriv, hkdfSync } from 'node:crypto'
 import { getConfig } from '@/lib/config'
+import {
+  decryptNwcVaultEnvelope,
+  encryptNwcVaultEnvelope,
+  isNwcVaultEnvelope
+} from '@/lib/wallet/remote-wallet-vault-core'
 
-const MAGIC = Buffer.from('LWPX01', 'utf8')
+const LEGACY_MAGIC = Buffer.from('LWPX01', 'utf8')
 const SALT_LEN = 16
 const IV_LEN = 12
 const TAG_LEN = 16
 const KEY_LEN = 32
-const HKDF_INFO = 'lawallet-proxy-vault-v1'
+const LEGACY_HKDF_INFO = 'lawallet-proxy-vault-v1'
 
 export class ProxyVaultDecryptError extends Error {
   constructor(message = 'Proxy vault decryption failed') {
@@ -24,12 +24,29 @@ export function isProxyVaultConfigured(): boolean {
   return Boolean(getConfig(false).nwcVault?.enabled)
 }
 
-function deriveKey(secret: string, salt: Buffer): Buffer {
-  return Buffer.from(hkdfSync('sha256', secret, salt, HKDF_INFO, KEY_LEN))
+function requireSecret(): string {
+  const { secret } = getConfig().nwcVault
+  if (!secret) throw new Error('NWC_VAULT_SECRET is not configured')
+  return secret
 }
 
-function aad(recordId: string, field: string): Buffer {
-  return Buffer.from(`${recordId}:${field}`, 'utf8')
+function deriveLegacyKey(secret: string, salt: Buffer): Buffer {
+  return Buffer.from(
+    hkdfSync('sha256', secret, salt, LEGACY_HKDF_INFO, KEY_LEN)
+  )
+}
+
+function isLegacyProxyEnvelope(buf: Buffer): boolean {
+  const minimum = LEGACY_MAGIC.length + SALT_LEN + IV_LEN + TAG_LEN + 1
+  return (
+    buf.length >= minimum &&
+    buf.subarray(0, LEGACY_MAGIC.length).equals(LEGACY_MAGIC)
+  )
+}
+
+/** Whether the bytes are already what {@link encryptProxySecret} writes. */
+export function isCanonicalNwcVaultBytes(value: Uint8Array): boolean {
+  return isNwcVaultEnvelope(Buffer.from(value).toString('utf8'))
 }
 
 export function encryptProxySecret(
@@ -37,50 +54,34 @@ export function encryptProxySecret(
   recordId: string,
   field: string
 ): Uint8Array<ArrayBuffer> {
-  const { secret } = getConfig().nwcVault
-  if (!secret) throw new Error('NWC_VAULT_SECRET is not configured')
   if (!plaintext) throw new Error('Proxy secret cannot be empty')
-
-  const salt = randomBytes(SALT_LEN)
-  const iv = randomBytes(IV_LEN)
-  const cipher = createCipheriv('aes-256-gcm', deriveKey(secret, salt), iv)
-  cipher.setAAD(aad(recordId, field))
-  const ciphertext = Buffer.concat([
-    cipher.update(Buffer.from(plaintext, 'utf8')),
-    cipher.final()
-  ])
   return Uint8Array.from(
-    Buffer.concat([MAGIC, salt, iv, cipher.getAuthTag(), ciphertext])
+    Buffer.from(
+      encryptNwcVaultEnvelope(plaintext, recordId, field, requireSecret()),
+      'utf8'
+    )
   )
 }
 
-export function decryptProxySecret(
-  envelope: Uint8Array,
+/** The pre-unification envelope: raw `LWPX01` bytes with their own HKDF info. */
+function decryptLegacyProxySecret(
+  buf: Buffer,
   recordId: string,
-  field: string
+  field: string,
+  secret: string
 ): string {
-  const { secret } = getConfig().nwcVault
-  if (!secret) throw new Error('NWC_VAULT_SECRET is not configured')
-
-  const buf = Buffer.from(envelope)
-  const minimum = MAGIC.length + SALT_LEN + IV_LEN + TAG_LEN + 1
-  if (buf.length < minimum || !buf.subarray(0, MAGIC.length).equals(MAGIC)) {
-    throw new ProxyVaultDecryptError('Malformed proxy vault envelope')
-  }
-
-  let offset = MAGIC.length
+  let offset = LEGACY_MAGIC.length
   const salt = buf.subarray(offset, (offset += SALT_LEN))
   const iv = buf.subarray(offset, (offset += IV_LEN))
   const tag = buf.subarray(offset, (offset += TAG_LEN))
   const ciphertext = buf.subarray(offset)
-
   try {
     const decipher = createDecipheriv(
       'aes-256-gcm',
-      deriveKey(secret, salt),
+      deriveLegacyKey(secret, salt),
       iv
     )
-    decipher.setAAD(aad(recordId, field))
+    decipher.setAAD(Buffer.from(`${recordId}:${field}`, 'utf8'))
     decipher.setAuthTag(tag)
     return Buffer.concat([
       decipher.update(ciphertext),
@@ -89,4 +90,26 @@ export function decryptProxySecret(
   } catch {
     throw new ProxyVaultDecryptError()
   }
+}
+
+export function decryptProxySecret(
+  envelope: Uint8Array,
+  recordId: string,
+  field: string
+): string {
+  const secret = requireSecret()
+  const buf = Buffer.from(envelope)
+  const asText = buf.toString('utf8')
+
+  if (isNwcVaultEnvelope(asText)) {
+    try {
+      return decryptNwcVaultEnvelope(asText, recordId, field, secret)
+    } catch {
+      throw new ProxyVaultDecryptError()
+    }
+  }
+  if (isLegacyProxyEnvelope(buf)) {
+    return decryptLegacyProxySecret(buf, recordId, field, secret)
+  }
+  throw new ProxyVaultDecryptError('Malformed proxy vault envelope')
 }

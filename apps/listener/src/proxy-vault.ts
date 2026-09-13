@@ -1,32 +1,38 @@
 import { createDecipheriv, hkdfSync } from 'node:crypto'
 import type { ListenerEnv } from './env'
+import {
+  decryptNwcVaultEnvelope,
+  NWC_VAULT_ENVELOPE_PREFIX
+} from './remote-wallet-vault'
 
-const MAGIC = Buffer.from('LWPX01', 'utf8')
+const LEGACY_MAGIC = Buffer.from('LWPX01', 'utf8')
 const SALT_LEN = 16
 const IV_LEN = 12
 const TAG_LEN = 16
 const KEY_LEN = 32
-const HKDF_INFO = 'lawallet-proxy-vault-v1'
+const LEGACY_HKDF_INFO = 'lawallet-proxy-vault-v1'
 
-function deriveKey(secret: string, salt: Buffer): Buffer {
-  return Buffer.from(hkdfSync('sha256', secret, salt, HKDF_INFO, KEY_LEN))
+function deriveLegacyKey(secret: string, salt: Buffer): Buffer {
+  return Buffer.from(
+    hkdfSync('sha256', secret, salt, LEGACY_HKDF_INFO, KEY_LEN)
+  )
 }
 
-export function decryptProxyNwcUri(
-  envelope: Uint8Array,
+/** The pre-unification envelope, still readable while web converts it. */
+function decryptLegacyProxyNwcUri(
+  buf: Buffer,
   recordId: string,
-  env: ListenerEnv
+  secret: string
 ): string {
-  if (!env.NWC_VAULT_SECRET) {
-    throw new Error('NWC_VAULT_SECRET is not configured')
-  }
-  const buf = Buffer.from(envelope)
-  const minimum = MAGIC.length + SALT_LEN + IV_LEN + TAG_LEN + 1
-  if (buf.length < minimum || !buf.subarray(0, MAGIC.length).equals(MAGIC)) {
+  const minimum = LEGACY_MAGIC.length + SALT_LEN + IV_LEN + TAG_LEN + 1
+  if (
+    buf.length < minimum ||
+    !buf.subarray(0, LEGACY_MAGIC.length).equals(LEGACY_MAGIC)
+  ) {
     throw new Error('Malformed proxy NWC vault envelope')
   }
 
-  let offset = MAGIC.length
+  let offset = LEGACY_MAGIC.length
   const salt = buf.subarray(offset, (offset += SALT_LEN))
   const iv = buf.subarray(offset, (offset += IV_LEN))
   const tag = buf.subarray(offset, (offset += TAG_LEN))
@@ -34,7 +40,7 @@ export function decryptProxyNwcUri(
   try {
     const decipher = createDecipheriv(
       'aes-256-gcm',
-      deriveKey(env.NWC_VAULT_SECRET, salt),
+      deriveLegacyKey(secret, salt),
       iv
     )
     decipher.setAAD(Buffer.from(`${recordId}:nwc`, 'utf8'))
@@ -46,4 +52,24 @@ export function decryptProxyNwcUri(
   } catch {
     throw new Error('Proxy NWC vault decryption failed')
   }
+}
+
+export function decryptProxyNwcUri(
+  envelope: Uint8Array,
+  recordId: string,
+  env: ListenerEnv
+): string {
+  if (!env.NWC_VAULT_SECRET) {
+    throw new Error('NWC_VAULT_SECRET is not configured')
+  }
+  const buf = Buffer.from(envelope)
+  const asText = buf.toString('utf8')
+  if (asText.startsWith(NWC_VAULT_ENVELOPE_PREFIX)) {
+    try {
+      return decryptNwcVaultEnvelope(asText, recordId, 'nwc', env)
+    } catch {
+      throw new Error('Proxy NWC vault decryption failed')
+    }
+  }
+  return decryptLegacyProxyNwcUri(buf, recordId, env.NWC_VAULT_SECRET)
 }
