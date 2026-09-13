@@ -93,6 +93,7 @@ describe('NwcPool — warmup-stuck wallets reach the archive path', () => {
 
   it('retries a failing warm-up until parked, then only once per archive window', async () => {
     control.warmupError = WARMUP_FAILURE
+    const PARK_MS = 6 * 60 * 60 * 1000
     const pool = new NwcPool({ log, onNotification: vi.fn() })
     await pool.reconcile([wallet])
     await vi.advanceTimersByTimeAsync(0)
@@ -102,15 +103,20 @@ describe('NwcPool — warmup-stuck wallets reach the archive path', () => {
     const beforePark = control.connects
     expect(beforePark).toBeGreaterThan(3)
 
-    pool.parkWallet('wallet-1', 6 * 60 * 60 * 1000)
+    pool.parkWallet('wallet-1', PARK_MS)
     expect(pool.livenessSnapshot()[0].parked).toBe(true)
 
-    // An hour of wall clock, no reconnect attempts at all.
-    await vi.advanceTimersByTimeAsync(60 * 60_000)
+    // Nothing at all for the whole window — no relay traffic, no Sentry churn.
+    await vi.advanceTimersByTimeAsync(PARK_MS - 1000)
     expect(control.connects).toBe(beforePark)
 
-    // One attempt when the archive window elapses.
-    await vi.advanceTimersByTimeAsync(5 * 60 * 60_000 + 1000)
+    // Exactly one attempt when the window elapses.
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(control.connects).toBe(beforePark + 1)
+
+    // That attempt fails too, and the backoff resumes at its 60s ceiling
+    // instead of restarting from 1s — the pre-park storm must not come back.
+    await vi.advanceTimersByTimeAsync(30_000)
     expect(control.connects).toBe(beforePark + 1)
 
     await pool.closeAll()

@@ -455,13 +455,13 @@ a successful late delivery logs `webhook.recovered`.
 | `CATCHUP_MAX_WINDOW_HOURS`      | Furthest back a catch-up looks                                                                 | `24`                                 |
 | `CATCHUP_OVERLAP_SECONDS`       | Overlap subtracted from the cursor                                                             | `300`                                |
 | `CATCHUP_INTERVAL_MS`           | Periodic safety catch-up (0 disables)                                                          | `900000`                             |
-| `DEAD_WALLET_DETECTION_ENABLED` | Auto-archival on/off (both the probe path and the idle path)                                    | `true`                               |
+| `DEAD_WALLET_DETECTION_ENABLED` | Auto-archival on/off (both the probe path and the idle path)                                   | `true`                               |
 | `DEAD_THRESHOLD_HOURS`          | Silence (relays up) before a wallet is declared dead                                           | `4`                                  |
 | `DEAD_PROBE_INTERVAL_MS`        | How often the dead-wallet prober sweeps                                                        | `900000`                             |
 | `DEAD_PROBE_TIMEOUT_MS`         | Per-probe `get_info` timeout (< `NWC_REQUEST_TIMEOUT_MS`)                                      | `10000`                              |
 | `DEAD_CONFIRMATION_PROBES`      | Consecutive failing probes required before archiving (guards against one transient slow reply) | `3`                                  |
-| `WALLET_ARCHIVE_IDLE_HOURS`     | Idleness (no sign of life, probe or not) before a wallet is reported for archival               | `48`                                 |
-| `WALLET_ARCHIVE_RETRY_MS`       | How long a reported wallet stays parked — its reconnect backoff and report retry                | `21600000`                           |
+| `WALLET_ARCHIVE_IDLE_HOURS`     | Idleness (no sign of life, probe or not) before a wallet is reported for archival              | `48`                                 |
+| `WALLET_ARCHIVE_RETRY_MS`       | How long a reported wallet stays parked — its reconnect backoff and report retry               | `21600000`                           |
 
 Web's side of the pairing: `LISTENER_URL`, `LISTENER_AUTH_SECRET`, and
 optionally the same `LISTENER_REQUEST_AUTH_SECRET` (+ optional

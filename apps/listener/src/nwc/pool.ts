@@ -82,6 +82,13 @@ export interface WalletLivenessSnapshot {
   everReady: boolean
   lastResponsiveAt: Date | null
   parked: boolean
+  /**
+   * Consecutive failed connect attempts. Non-zero means this wallet is in a
+   * retry cycle, which matters because a warmup-stuck wallet spends part of
+   * every cycle back in `connecting` — indistinguishable from a fresh startup
+   * handshake by state alone.
+   */
+  retryAttempt: number
 }
 
 // The SDK methods take typed NIP-47 request objects; proxied params arrive as
@@ -222,7 +229,8 @@ export class NwcPool {
       state: conn.state,
       everReady: conn.everReady,
       lastResponsiveAt: conn.lastResponsiveAt,
-      parked: conn.parked
+      parked: conn.parked,
+      retryAttempt: conn.retryAttempt
     }))
   }
 
@@ -244,10 +252,13 @@ export class NwcPool {
     }
     if (conn.state !== 'ready') this.teardownClient(conn)
     this.resolveReadyWaiters(walletId, false)
+    // `retryAttempt` is deliberately NOT reset: if the un-park attempt fails
+    // too, the normal backoff resumes at its 60s ceiling instead of restarting
+    // from 1s, so the pre-park storm can't come back for the window between
+    // this attempt and the next archive sweep.
     conn.retryTimer = setTimeout(() => {
       conn.retryTimer = null
       conn.parked = false
-      conn.retryAttempt = 0
       this.enqueueConnect(conn, false)
     }, retryAfterMs)
     conn.retryTimer.unref()
@@ -739,7 +750,6 @@ export class NwcPool {
         clearTimeout(conn.retryTimer)
         conn.retryTimer = null
       }
-      conn.retryAttempt = 0
       this.enqueueConnect(conn, true)
       return
     }

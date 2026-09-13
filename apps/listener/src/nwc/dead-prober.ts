@@ -213,15 +213,21 @@ export class DeadWalletProber {
     const { db, env, log, metrics, pool, dispatcher } = this.deps
     const idleMs = env.WALLET_ARCHIVE_IDLE_HOURS * 60 * 60 * 1000
     const retryMs = env.WALLET_ARCHIVE_RETRY_MS
-    const snapshot = pool.livenessSnapshot().filter(
-      entry =>
-        // `ready` belongs to the probe path: those wallets still have a live
-        // client and relay state to reason about, and archiving one on silence
-        // alone would skip that confirmation. `connecting`/`negotiating` are
-        // in-flight (a queued startup warm-up looks exactly like this) — wait
-        // for them to settle rather than archiving mid-handshake.
-        entry.state === 'error' || entry.state === 'disconnected'
-    )
+    const snapshot = pool.livenessSnapshot().filter(entry => {
+      // `ready` belongs to the probe path: those wallets still have a live
+      // client and relay state to reason about, and archiving one on silence
+      // alone would skip that confirmation.
+      if (entry.state === 'ready') return false
+      // A wallet in a retry cycle spends part of every cycle back in
+      // `connecting`, so state alone would make candidacy a coin flip — hence
+      // the retry counter. A wallet still on its FIRST handshake (attempt 0,
+      // e.g. a queued startup warm-up) is left alone until it settles.
+      return (
+        entry.state === 'error' ||
+        entry.state === 'disconnected' ||
+        entry.retryAttempt > 0
+      )
+    })
     if (snapshot.length === 0) return
 
     const liveness = await loadWalletLiveness(
@@ -249,6 +255,11 @@ export class DeadWalletProber {
         pool.parkWallet(walletId, retryMs)
         continue
       }
+
+      // Final re-check: an in-flight retry may have completed while we were
+      // reading the ledger, and a wallet that just answered must not be
+      // archived on a snapshot taken a moment earlier.
+      if (pool.isReady(walletId)) continue
 
       const everReady = entry.everReady || !!row?.readyAt
       const reason: NwcWalletDeadReason = everReady ? 'idle' : 'warmup_failed'

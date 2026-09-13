@@ -99,6 +99,42 @@ Already-settled zap invoices keep their stored `zapRequest`, so once the
 capability flips true the receipt sweep (`reconcileInvoiceZapReceipts`)
 publishes the backlog — no receipts are lost to the outage window.
 
+## A wallet was auto-archived (status `DEAD`)
+
+Two rules archive a wallet, and `RemoteWallet.diedReason` says which one fired
+(the archived-wallets table in the admin UI shows it too):
+
+| `diedReason`    | Rule                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------- |
+| `unresponsive`  | LNCurl wallet only: silent for `DEAD_THRESHOLD_HOURS` (4) with relays UP, confirmed by 3 `get_info` timeouts. |
+| `idle`          | Any wallet: no sign of life for 48h, after having been `ready` at some point.                                 |
+| `warmup_failed` | Any wallet: no sign of life for 48h and NWC warm-up never succeeded — the wallet was never reachable at all.  |
+
+`warmup_failed` almost always means the connection string is dead upstream (the
+user revoked it, or the provider retired the wallet). Confirm before blaming the
+listener: the archive clock is the listener's own persisted one, so read it
+directly rather than inferring from logs.
+
+```sql
+-- Why the listener thinks this wallet is idle. archive_reported_at non-null
+-- means web has already been told; last_seen_at is the CATCH-UP cursor, not the
+-- liveness clock.
+SELECT last_active_at, ready_at, archive_reported_at, last_seen_at
+FROM listener.wallet_cursors WHERE wallet_id = '<wallet-id>';
+```
+
+A reported wallet is _parked_ in the pool: `GET /status` shows
+`parked: true`, it reconnects every `WALLET_ARCHIVE_RETRY_MS` (6h) instead of
+every 60s, and its warm-up errors stop reaching Sentry. That state survives a
+restart on purpose — if you expected a Sentry alert for a stuck wallet and got
+none, check `archive_reported_at` first.
+
+The owner can `PATCH /api/remote-wallets/<id>` back to `ACTIVE` once the wallet
+works again. For the LUD-16 proxy wallet the archive lands on
+`ProxyServiceConfig.archivedAt` with `enabled = false`; re-enabling the proxy
+(or storing a fresh NWC URI) clears it. Outstanding proxy settlements keep
+running while archived — they read the credential regardless of `enabled`.
+
 ## Card tap payments
 
 The BoltCard spend path (`app/api/cards/[id]/scan/cb/actions/pay.ts`) validates

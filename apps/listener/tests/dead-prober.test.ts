@@ -81,6 +81,7 @@ function livenessEntry(
     everReady: false,
     lastResponsiveAt: null,
     parked: false,
+    retryAttempt: 1,
     ...overrides
   }
 }
@@ -96,6 +97,8 @@ function fakePool(opts: {
   holdsClient?: boolean
   foregroundPayment?: boolean
   liveness?: WalletLivenessSnapshot[]
+  /** What `isReady()` reports at report time (the final anti-race re-check). */
+  ready?: boolean
 }) {
   const subscribed = opts.candidates.map(c => ({
     wallet: c.wallet,
@@ -109,7 +112,8 @@ function fakePool(opts: {
     hasForegroundPayment: vi.fn(() => opts.foregroundPayment ?? false),
     markResponsive: vi.fn(),
     livenessSnapshot: vi.fn(() => opts.liveness ?? []),
-    parkWallet: vi.fn()
+    parkWallet: vi.fn(),
+    isReady: vi.fn(() => opts.ready ?? false)
   }
 }
 
@@ -367,7 +371,8 @@ describe('DeadWalletProber.evaluate', () => {
       hasForegroundPayment: vi.fn(() => false),
       markResponsive: vi.fn(),
       livenessSnapshot: vi.fn(() => []),
-      parkWallet: vi.fn()
+      parkWallet: vi.fn(),
+      isReady: vi.fn(() => false)
     }
     const prober = makeProber(pool, dispatcher, { DEAD_CONFIRMATION_PROBES: 3 })
 
@@ -573,11 +578,55 @@ describe('DeadWalletProber — 48h idle archive', () => {
     expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
   })
 
-  it('never archives mid-handshake (connecting / negotiating are in-flight)', async () => {
+  it('never archives a wallet still on its first handshake', async () => {
     const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
     const pool = fakePool({
       candidates: [],
-      liveness: [livenessEntry({ state: 'connecting' })]
+      liveness: [livenessEntry({ state: 'connecting', retryAttempt: 0 })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+  })
+
+  // A warmup-stuck wallet spends part of every retry cycle back in
+  // `connecting`, so candidacy must not depend on catching it in `error`.
+  it('archives a retrying wallet even when the sweep lands mid-reconnect', async () => {
+    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'connecting', retryAttempt: 7 })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts the report if the retry succeeded while the ledger was read', async () => {
+    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'connecting', retryAttempt: 7 })],
+      // The wallet answered between the snapshot and the report.
+      ready: true
     })
     const { db } = fakeDb([
       {
