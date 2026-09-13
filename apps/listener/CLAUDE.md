@@ -21,6 +21,13 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
   Change shapes there, never inline.
 - **apps/web must run without this service.** Anything new on the web side
   has to stay behind the optional `LISTENER_URL`/`LISTENER_AUTH_SECRET` envs.
+- **Only four env vars are the operator's** (`DATABASE_URL`,
+  `LISTENER_AUTH_SECRET`, `WEB_ORIGIN`, `NWC_VAULT_SECRET`). Every new one is
+  a tunable with a default, declared through `intEnv`/`boolEnv`/`blankIsUnset`
+  in `src/env.ts` so a blank `VAR=` (what rendered templates emit for an empty
+  field) means unset rather than NaN-at-boot or a silently-false feature flag.
+  An upgrade must never require an environment change; `tests/env.test.ts`
+  enforces it.
 - **Dedup key is derived**, not a Nostr event id (`sha256(walletId|type|`
   `payment_hash)`) — the SDK's `subscribeNotifications` callback never
   exposes raw events. Don't "fix" this without replacing the subscription

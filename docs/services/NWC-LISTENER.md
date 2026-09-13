@@ -437,6 +437,13 @@ a successful late delivery logs `webhook.recovered`.
 
 ## Environment
 
+Four variables are an operator's responsibility: `DATABASE_URL`,
+`LISTENER_AUTH_SECRET`, `WEB_ORIGIN` and `NWC_VAULT_SECRET`. Everything below
+them is a tunable with a default, and a blank value (`VAR=`, which rendered
+templates produce for any field left empty) is treated the same as unset.
+Upgrading into a release that adds one never means editing a deployment —
+`apps/listener/tests/env.test.ts` holds that line.
+
 | Variable                        | Description                                                                                    | Default                              |
 | ------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
 | `DATABASE_URL`                  | Shared Postgres (same DB as web)                                                               | (required)                           |
@@ -444,6 +451,7 @@ a successful late delivery logs `webhook.recovered`.
 | `LISTENER_AUTH_SECRET`          | Webhook HMAC secret and bearer compatibility fallback, min 32 chars                            | (required)                           |
 | `LISTENER_REQUEST_AUTH_SECRET`  | Dedicated web→listener bearer secret, min 32 chars                                             | falls back to `LISTENER_AUTH_SECRET` |
 | `WEB_ORIGIN`                    | apps/web base URL for webhooks                                                                 | (required)                           |
+| `NWC_VAULT_SECRET`              | Decrypts RemoteWallet and proxy NWC URIs, min 32 chars — same value as web                     | (required)                           |
 | `LOG_LEVEL` / `LOG_PRETTY`      | Same conventions as web                                                                        | `info` / `false`                     |
 | `RECONCILE_INTERVAL_MS`         | Full-reconcile safety net                                                                      | `300000`                             |
 | `PROXY_RECONCILE_INTERVAL_MS`   | Deferred LUD-16 proxy recovery sweep                                                           | `600000`                             |
