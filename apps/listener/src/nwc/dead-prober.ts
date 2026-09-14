@@ -71,6 +71,15 @@ export class DeadWalletProber {
   private readonly timeoutStreak = new Map<string, number>()
   /** Wallets whose liveness anchor is already in Postgres (skips a re-INSERT). */
   private readonly anchored = new Set<string>()
+  /**
+   * When web last REFUSED a report (`ignored` / `unknown_wallet`). Purely an
+   * in-memory rate limit on re-reporting: the wallet is NOT archived, so it must
+   * not be parked and its warmup errors must keep reaching Sentry — but a
+   * decision web will keep making (wrong provider, contradicted by a payment)
+   * does not need re-asking every sweep. Deliberately not persisted, so a
+   * restart re-asks once.
+   */
+  private readonly refusedAt = new Map<string, number>()
   private running = false
 
   constructor(deps: DeadProberDeps) {
@@ -82,6 +91,7 @@ export class DeadWalletProber {
     if (this.running) return
     this.running = true
     try {
+      this.pruneDepartedWallets()
       await this.persistLiveness()
       await this.probeSilentWallets()
       await this.archiveIdleWallets()
@@ -89,6 +99,24 @@ export class DeadWalletProber {
       this.deps.log.error({ err }, 'dead_prober.sweep_error')
     } finally {
       this.running = false
+    }
+  }
+
+  /**
+   * Drops per-wallet bookkeeping for wallets the pool no longer holds (archived,
+   * removed, or rotated), so a long-lived process doesn't accumulate state for
+   * wallets that are gone — and a re-added wallet starts from a clean slate.
+   */
+  private pruneDepartedWallets(): void {
+    const pooled = new Set(
+      this.deps.pool.livenessSnapshot().map(entry => entry.wallet.id)
+    )
+    if (pooled.size === 0) return
+    for (const id of this.refusedAt.keys()) {
+      if (!pooled.has(id)) this.refusedAt.delete(id)
+    }
+    for (const id of this.anchored) {
+      if (!pooled.has(id)) this.anchored.delete(id)
     }
   }
 
@@ -141,6 +169,7 @@ export class DeadWalletProber {
 
     for (const { wallet, client, unresponsiveMs } of candidates) {
       if (this.reported.has(wallet.id)) continue
+      if (this.refusedRecently(wallet.id)) continue
       // A foreground card payment is the highest-priority NWC round-trip.
       // It is itself a liveness probe, so do not contend with it using a
       // parallel maintenance get_info request.
@@ -188,16 +217,24 @@ export class DeadWalletProber {
         { walletId: wallet.id, unresponsiveSeconds, streak },
         'dead_prober.declaring_dead'
       )
-      const delivered = await dispatcher.sendWalletDead(
+      const ack = await dispatcher.sendWalletDead(
         wallet.id,
         unresponsiveSeconds,
         { reason: 'unresponsive', relaysConnected: true, everReady: true }
       )
-      if (delivered) {
+      if (ack.applied) {
         this.reported.add(wallet.id)
         this.timeoutStreak.delete(wallet.id)
         metrics.walletsDeclaredDead++
         await this.noteReported(wallet.id)
+        continue
+      }
+      if (ack.delivered) {
+        // Web refused (e.g. this is the user's own Alby, not a disposable
+        // LNCurl wallet). The wallet stays live and un-muted; only stop asking
+        // for a while, so a permanently-refused report is not a per-sweep POST.
+        this.noteRefused(wallet.id)
+        this.timeoutStreak.delete(wallet.id)
       }
       // Not delivered → leave unreported (streak stays) so the next sweep
       // retries the report.
@@ -256,6 +293,10 @@ export class DeadWalletProber {
         continue
       }
 
+      // Web already refused this report; nothing about the wallet has changed
+      // since (it is still idle), so don't re-ask until the retry window.
+      if (this.refusedRecently(walletId)) continue
+
       // Final re-check: an in-flight retry may have completed while we were
       // reading the ledger, and a wallet that just answered must not be
       // archived on a snapshot taken a moment earlier.
@@ -268,7 +309,7 @@ export class DeadWalletProber {
         { walletId, unresponsiveSeconds, reason, state: entry.state },
         'dead_prober.declaring_idle'
       )
-      const delivered = await dispatcher.sendWalletDead(
+      const ack = await dispatcher.sendWalletDead(
         walletId,
         unresponsiveSeconds,
         {
@@ -278,7 +319,13 @@ export class DeadWalletProber {
           everReady
         }
       )
-      if (!delivered) continue
+      if (!ack.applied) {
+        // Refused, not archived: leave the wallet on its normal reconnect
+        // cadence with its errors still visible, and just stop re-asking every
+        // sweep. Undelivered reports keep retrying on the next one.
+        if (ack.delivered) this.noteRefused(walletId)
+        continue
+      }
 
       metrics.walletsArchiveRequested++
       await this.noteReported(walletId)
@@ -286,6 +333,19 @@ export class DeadWalletProber {
       // archives the row, `remote_wallet_changed` drops it from the pool.
       pool.parkWallet(walletId, retryMs)
     }
+  }
+
+  /** True while web's refusal of this wallet's report is still fresh. */
+  private refusedRecently(walletId: string): boolean {
+    const at = this.refusedAt.get(walletId)
+    if (at === undefined) return false
+    if (Date.now() - at < this.deps.env.WALLET_ARCHIVE_RETRY_MS) return true
+    this.refusedAt.delete(walletId)
+    return false
+  }
+
+  private noteRefused(walletId: string): void {
+    this.refusedAt.set(walletId, Date.now())
   }
 
   /** Persist + broadcast "web knows this wallet is dead". */

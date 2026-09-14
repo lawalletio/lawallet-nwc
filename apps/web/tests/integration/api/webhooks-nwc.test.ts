@@ -715,6 +715,100 @@ describe('POST /api/webhooks/nwc', () => {
     )
   })
 
+  // The listener parks the wallet and mutes its warmup errors on the strength
+  // of the ack. A 2xx alone means "report accepted"; only `walletDeadOutcome`
+  // says whether web actually archived anything.
+  it('reports `archived` in the ack when it archived the wallet', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-1',
+      userId: 'user-1',
+      status: 'ACTIVE',
+      config: { provider: 'lncurl' },
+      name: 'LNCurl wallet'
+    } as never)
+    vi.mocked(prismaMock.remoteWallet.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    const res = await POST(signedRequest(walletDead))
+    expect(await assertResponse(res, 200)).toMatchObject({
+      received: true,
+      walletDeadOutcome: 'archived'
+    })
+  })
+
+  it('reports `ignored` — a refused report must not read as an archive', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-1',
+      userId: 'user-1',
+      status: 'ACTIVE',
+      config: { provider: 'nwc' },
+      name: 'My Alby'
+    } as never)
+
+    const res = await POST(signedRequest(walletDead))
+    expect(await assertResponse(res, 200)).toMatchObject({
+      walletDeadOutcome: 'ignored'
+    })
+    expect(prismaMock.remoteWallet.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('reports `noop` for an already-archived wallet', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
+      id: 'wallet-1',
+      userId: 'user-1',
+      status: 'DEAD',
+      config: { provider: 'lncurl' },
+      name: 'LNCurl wallet'
+    } as never)
+
+    const res = await POST(signedRequest(walletDead))
+    expect(await assertResponse(res, 200)).toMatchObject({
+      walletDeadOutcome: 'noop'
+    })
+  })
+
+  it('reports `unknown_wallet` rather than a silent success', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+    vi.mocked(prismaMock.proxyServiceConfig.findFirst).mockResolvedValue(
+      null as never
+    )
+
+    const res = await POST(
+      signedRequest({
+        ...walletDead,
+        unresponsiveSeconds: 60 * 3600,
+        reason: 'idle'
+      })
+    )
+    expect(await assertResponse(res, 200)).toMatchObject({
+      walletDeadOutcome: 'unknown_wallet'
+    })
+  })
+
+  it('omits the outcome entirely for a payment webhook', async () => {
+    vi.mocked(prismaMock.invoice.findUnique).mockResolvedValue(null as never)
+
+    const res = await POST(
+      signedRequest({
+        type: 'payment_received',
+        eventKey: 'evt-outcome',
+        walletId: 'wallet-1',
+        receivedAt: Date.now(),
+        payment: {
+          paymentHash: 'a'.repeat(64),
+          amountMsats: 1000,
+          transaction: {}
+        }
+      })
+    )
+    const body = (await assertResponse(res, 200)) as Record<string, unknown>
+    expect(body.received).toBe(true)
+    expect(body).not.toHaveProperty('walletDeadOutcome')
+  })
+
   it('does not stamp lastListenerSeenAt from a wallet_dead report', async () => {
     vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
       id: 'wallet-1',

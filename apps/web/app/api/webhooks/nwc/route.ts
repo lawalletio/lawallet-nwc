@@ -25,7 +25,10 @@ import {
   logActivity
 } from '@/lib/activity-log'
 import { logger } from '@/lib/logger'
-import { archiveDeadWallet } from '@/lib/wallet/archive-dead-wallet'
+import {
+  archiveDeadWallet,
+  type ArchiveOutcome
+} from '@/lib/wallet/archive-dead-wallet'
 import {
   preimageMatchesPaymentHash,
   succeedCardPaymentAttempt
@@ -127,6 +130,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const settlementIds: string[] = []
   const forwardingReceiptIds: string[] = []
   const notificationDeliveryIds: string[] = []
+  // What web DID with a wallet_dead report. The listener parks the wallet and
+  // mutes its warmup errors on the strength of this, so a report web refused
+  // must not read as an archive just because the HTTP call succeeded.
+  let walletDeadOutcome: ArchiveOutcome | null = null
   switch (event.type) {
     case 'payment_received':
       {
@@ -167,7 +174,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       })
       break
     case 'wallet_dead':
-      await archiveDeadWallet(event)
+      walletDeadOutcome = await archiveDeadWallet(event)
       break
   }
 
@@ -190,8 +197,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Object shape (not a bare boolean) so the planned "web returns Nostr
   // events for the listener to publish" extension isn't a breaking change.
+  //
+  // Still 200 for a refused wallet_dead report: the delivery itself succeeded
+  // and a non-2xx would put the listener's retry machinery (shared with payment
+  // webhooks) to work on a decision that will not change. The outcome field is
+  // the contract — see `nwcWalletDeadOutcomeSchema`.
   return NextResponse.json({
     received: true,
+    ...(walletDeadOutcome ? { walletDeadOutcome } : {}),
     ...(settlementIds.length > 0 ? { settlementIds } : {}),
     ...(forwardingReceiptIds.length > 0 ? { forwardingReceiptIds } : {}),
     ...(notificationDeliveryIds.length > 0 ? { notificationDeliveryIds } : {})

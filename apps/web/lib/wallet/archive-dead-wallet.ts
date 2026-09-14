@@ -5,6 +5,7 @@ import { ActivityEvent, logActivity } from '@/lib/activity-log'
 import { clearPrimaryWalletLinkToWallet } from '@/lib/wallet/primary-wallet'
 import {
   WALLET_ARCHIVE_IDLE_MS,
+  type NwcWalletDeadOutcome,
   type NwcWebhookPayload
 } from '@/lib/validation/schemas'
 
@@ -18,8 +19,11 @@ export type WalletDeadEvent = Extract<
  * `noop` — already archived, or another concurrent call won the race.
  * `ignored` — the report did not meet web's rules (see {@link archiveDeadWallet}).
  * `unknown_wallet` — no RemoteWallet and no proxy config owns this wallet id.
+ *
+ * Returned to the listener verbatim (`walletDeadOutcome` in the webhook ack): it
+ * only parks a wallet and mutes its warmup errors for `archived` / `noop`.
  */
-export type ArchiveOutcome = 'archived' | 'noop' | 'ignored' | 'unknown_wallet'
+export type ArchiveOutcome = NwcWalletDeadOutcome
 
 /**
  * Hours of idleness the listener must have observed before web honours an

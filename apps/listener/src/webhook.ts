@@ -2,10 +2,13 @@ import { createHash, createHmac } from 'node:crypto'
 import type pg from 'pg'
 import type { Logger } from 'pino'
 import {
+  NWC_WALLET_DEAD_APPLIED_OUTCOMES,
   NWC_WEBHOOK_SIGNATURE_HEADER,
   NWC_WEBHOOK_SIGNATURE_PREFIX,
   NWC_WEBHOOK_TIMESTAMP_HEADER,
+  nwcWebhookAckSchema,
   type ListenerConnection,
+  type NwcWalletDeadOutcome,
   type NwcWalletDeadReason,
   type NwcWebhookPayload
 } from '@lawallet-nwc/shared'
@@ -212,8 +215,12 @@ export class WebhookDispatcher {
    * window — including a wallet that never completed warmup, which has no
    * client left to probe. Web decides whether to archive and owns the write.
    * Not persisted and not retried here — the prober re-reports on a later sweep
-   * if this failed. Returns whether web accepted it (2xx) so the prober only
-   * marks it reported on success.
+   * if this failed.
+   *
+   * A 2xx only means web ACCEPTED the report; web re-checks the product rules
+   * and refuses reports that don't meet them. `applied` is the answer that
+   * matters — the prober only records the report and parks the wallet when web
+   * actually archived it.
    */
   async sendWalletDead(
     walletId: string,
@@ -224,7 +231,7 @@ export class WebhookDispatcher {
       lastState?: ListenerWalletState
       everReady?: boolean
     } = { reason: 'unresponsive', relaysConnected: true }
-  ): Promise<boolean> {
+  ): Promise<WalletDeadAck> {
     const now = Date.now()
     const payload: NwcWebhookPayload = {
       type: 'wallet_dead',
@@ -239,14 +246,28 @@ export class WebhookDispatcher {
       ...(opts.lastState ? { lastState: opts.lastState } : {}),
       ...(opts.everReady === undefined ? {} : { everReady: opts.everReady })
     }
-    const outcome = await this.post(JSON.stringify(payload))
-    if (!outcome.delivered) {
+    const result = await this.post(JSON.stringify(payload), true)
+    if (!result.delivered) {
       this.deps.log.warn(
-        { walletId, reason: opts.reason, error: outcome.error },
+        { walletId, reason: opts.reason, error: result.error },
         'webhook.wallet_dead_not_delivered'
       )
+      return { delivered: false, applied: false, outcome: null }
     }
-    return outcome.delivered
+
+    const outcome = parseWalletDeadOutcome(result.body)
+    // No field at all: a web build that predates the outcome contract, which
+    // archived unconditionally on a 200. Preserve that meaning rather than
+    // looping forever against it.
+    const applied =
+      outcome === null || NWC_WALLET_DEAD_APPLIED_OUTCOMES.includes(outcome)
+    if (!applied) {
+      this.deps.log.warn(
+        { walletId, reason: opts.reason, outcome },
+        'webhook.wallet_dead_not_archived'
+      )
+    }
+    return { delivered: true, applied, outcome }
   }
 
   /**
@@ -333,8 +354,15 @@ export class WebhookDispatcher {
   }
 
   private async post(
-    body: string
-  ): Promise<{ delivered: boolean; retryable: boolean; error?: string }> {
+    body: string,
+    /** Read the ack body — only `wallet_dead` needs it (web's decision). */
+    wantBody = false
+  ): Promise<{
+    delivered: boolean
+    retryable: boolean
+    error?: string
+    body?: unknown
+  }> {
     const timestamp = String(Date.now())
     try {
       const res = await fetch(this.webhookUrl, {
@@ -349,7 +377,14 @@ export class WebhookDispatcher {
         body,
         signal: AbortSignal.timeout(WEBHOOK_POST_TIMEOUT_MS)
       })
-      if (res.ok) return { delivered: true, retryable: false }
+      if (res.ok) {
+        // A body we can't read must never turn a delivered webhook into a
+        // failure — the caller falls back to the legacy "2xx means applied".
+        const ack = wantBody
+          ? await res.json().catch(() => undefined)
+          : undefined
+        return { delivered: true, retryable: false, body: ack }
+      }
       const retryable = res.status >= 500 || res.status === 429
       return { delivered: false, retryable, error: `HTTP ${res.status}` }
     } catch (err) {
@@ -360,6 +395,24 @@ export class WebhookDispatcher {
       }
     }
   }
+}
+
+/** What web did with a `wallet_dead` report — see {@link WebhookDispatcher.sendWalletDead}. */
+export interface WalletDeadAck {
+  /** Web accepted the HTTP request (2xx). */
+  delivered: boolean
+  /**
+   * Web archived the wallet, or confirmed it was already archived. The only
+   * case in which the prober may record the report and park the wallet.
+   */
+  applied: boolean
+  /** Web's explicit outcome; null when it sent none (pre-contract build). */
+  outcome: NwcWalletDeadOutcome | null
+}
+
+function parseWalletDeadOutcome(body: unknown): NwcWalletDeadOutcome | null {
+  const parsed = nwcWebhookAckSchema.safeParse(body)
+  return parsed.success ? (parsed.data.walletDeadOutcome ?? null) : null
 }
 
 function nonnegativeSafeInteger(value: unknown): number | undefined {

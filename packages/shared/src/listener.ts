@@ -167,6 +167,48 @@ export const nwcWebhookPayloadSchema = z.discriminatedUnion('type', [
 ])
 export type NwcWebhookPayload = z.infer<typeof nwcWebhookPayloadSchema>
 
+/**
+ * What web actually did with a `wallet_dead` report. A 2xx alone means "the
+ * report was accepted for processing", NOT "the wallet was archived" — web
+ * re-checks the product rules and refuses reports that don't meet them, so the
+ * listener MUST read this before treating a wallet as archived.
+ *
+ *  - `archived` — web flipped the row to its archived state.
+ *  - `noop` — already archived (or a concurrent report won the race). Equivalent
+ *    to `archived` for the listener: the wallet is in the state it reported.
+ *  - `ignored` — the report did not meet web's rules (relays down, inside the
+ *    48h window, wrong provider for the probe signal, or contradicted by web's
+ *    own record of a recent payment). The wallet is still ACTIVE. The listener
+ *    must NOT park it and must NOT mute its warmup errors.
+ *  - `unknown_wallet` — no `RemoteWallet` and no proxy config owns this id.
+ *    Also not an archive: something is out of sync, and silencing it would hide
+ *    that.
+ */
+export const nwcWalletDeadOutcomeSchema = z.enum([
+  'archived',
+  'noop',
+  'ignored',
+  'unknown_wallet'
+])
+export type NwcWalletDeadOutcome = z.infer<typeof nwcWalletDeadOutcomeSchema>
+
+/** Outcomes that mean "the wallet is archived" — the only ones that may park it. */
+export const NWC_WALLET_DEAD_APPLIED_OUTCOMES: readonly NwcWalletDeadOutcome[] =
+  ['archived', 'noop']
+
+/**
+ * Web's acknowledgement body. Deliberately permissive on the extra keys web
+ * already returns (settlement/receipt ids) — the listener only reads
+ * `walletDeadOutcome`, and a `wallet_dead` ack from a web build that predates
+ * the field simply omits it (treated as applied, which is what that build did).
+ */
+export const nwcWebhookAckSchema = z.object({
+  received: z.boolean().optional(),
+  /** Present only in the ack of a `wallet_dead` report. */
+  walletDeadOutcome: nwcWalletDeadOutcomeSchema.optional()
+})
+export type NwcWebhookAck = z.infer<typeof nwcWebhookAckSchema>
+
 // ── POST {listener}/nwc/request — proxy NWC calls over the live pool ────────
 
 export const nwcProxyMethodSchema = z.enum([
