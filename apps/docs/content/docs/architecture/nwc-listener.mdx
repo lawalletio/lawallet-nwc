@@ -52,7 +52,8 @@ received.
   be probed at all, which is the only signal a wallet whose NWC warm-up never
   succeeded can ever give. The clock lives in Postgres, so a restart neither
   resets it nor re-reports the wallet, and a reported wallet is parked instead
-  of reconnecting every 60s forever.
+  of reconnecting every 60s forever. Listener downtime is discounted from the
+  measurement, so an outage longer than the window never mass-archives the pool.
 - **Resilient by design** — `GET /status` never 5xx's (each part degrades
   independently), and `unhandledRejection` / `uncaughtException` / pg-pool
   error backstops keep the daemon alive through relay churn and DB blips.

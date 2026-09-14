@@ -55,6 +55,16 @@ handshake per call. Full contract + ops doc: `docs/services/NWC-LISTENER.md`.
   wallet (which is also what keeps warmup failures out of Sentry a second
   time). `last_seen_at` stays the catch-up anchor — never write it from a
   liveness path.
+- **Downtime is not idleness.** Boot reads `max(updated_at)` over
+  `wallet_cursors` (BEFORE the pool writes to it) and discounts the outage from
+  every idle measurement, so an outage longer than the archive window can't
+  mass-archive the pool on the first sweep. Never "fix" this by resetting
+  `last_active_at` at boot — that breaks restart-cannot-reset-idleness. Clocks
+  are only reset by a TARGETED reconcile (one NOTIFY), never the bulk one.
+- **A 2xx from web is not an archive.** `sendWalletDead` reads
+  `walletDeadOutcome` from the ack; only `archived` / `noop` may record the
+  report, park the wallet or mute its Sentry errors. `ignored` /
+  `unknown_wallet` mean the wallet is still live.
 
 ## Module map (src/)
 

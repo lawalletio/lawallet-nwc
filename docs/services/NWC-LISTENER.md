@@ -197,7 +197,9 @@ and writes**.
 
 Disposable LNCurl wallets are destroyed by their provider when they run out of
 sats. Only `provider: 'lncurl'` wallets are archived on this signal — a few
-hours of silence from a user's own NWC is not death.
+hours of silence from a user's own NWC is not death, and **neither is silence
+from the LUD-16 proxy's credential**, which is the operator's own Alby or
+self-hosted node. Both take the 48h path instead.
 
 - **The rule:** a wallet is a candidate when it's `ready`, its relays are
   **currently connected** (so this is the wallet going silent, not a network
@@ -232,6 +234,15 @@ archival (issue #279, LAWALLET-LISTENER-1/2).
   is untouched — moving it would skip event recovery). A restart therefore
   neither resets the idle clock nor re-reports a wallet, and warmup errors for
   an already-reported wallet stay out of Sentry.
+- **Listener downtime is not wallet idleness.** At boot the service reads its own
+  liveness watermark (`max(updated_at)` over `listener.wallet_cursors`) and
+  discounts the outage from every idle measurement — otherwise a listener that
+  was off for three days would see the whole pool as idle on its first sweep
+  (~60s after boot) and mass-archive it, primary Lightning Address links
+  included. A fast restart discounts ~nothing, so restarting still cannot reset
+  idleness. Idleness accrued _before_ the outage still counts, so a wallet only
+  needs the remainder of the 48h in observed time. When downtime is unreadable,
+  the whole pre-boot stretch is treated as unobserved (fail safe).
 - **A reported wallet is parked**: its reconnect backoff jumps from the 60s
   ceiling to `WALLET_ARCHIVE_RETRY_MS` (default 6h), which is also when the
   report is retried if web declined it. A foreground card payment un-parks it.
@@ -247,16 +258,43 @@ relaysConnected, reason, lastState?, everReady? }`). Web
 - **`RemoteWallet`** → `status = DEAD`, `diedAt = now`, `diedReason = reason`,
   `isDefault = false` (idempotent on `status = 'ACTIVE'`). That fires
   `remote_wallet_changed` → the listener reconciles the wallet out of the pool,
-  ending the churn. The owner can PATCH it back to `ACTIVE`.
+  ending the churn. The owner can PATCH it back to `ACTIVE`, which clears
+  `diedAt` / `diedReason`.
 - **`ProxyServiceConfig`** (the LUD-16 proxy's own wallet id, which is not a
   `RemoteWallet` row) → `archivedAt`, `archivedReason`, `enabled = false`. New
   proxy intake stops; outstanding settlements still finish, since those read the
   stored credential regardless of `enabled`. Re-enabling the proxy — or storing a
-  fresh NWC URI — clears the archive.
+  fresh NWC URI — clears the archive. **Only the 48h rule archives the proxy**:
+  its credential is operator-owned, so an `unresponsive` probe report is refused
+  outright, and the 48h contradiction check is repeated inside the conditional
+  update so a payment landing mid-decision cannot lose the race.
 
 Web refuses reports that don't meet its own rules: an `unresponsive` report with
-`relaysConnected: false`, an `idle`/`warmup_failed` report below 48h, or a proxy
-report contradicted by a `lastListenerSeenAt` inside the window.
+`relaysConnected: false`, an `unresponsive` report about the LUD-16 proxy wallet,
+an `idle`/`warmup_failed` report below 48h, or a proxy report contradicted by a
+`lastListenerSeenAt` inside the window.
+
+**A 2xx is not an archive.** The ack body carries `walletDeadOutcome`:
+`archived` / `noop` mean the wallet is in the reported state, `ignored` /
+`unknown_wallet` mean web refused. Only the first two let the listener record the
+report, park the wallet and mute its warmup errors; a refusal leaves the wallet on
+its normal reconnect cadence with its errors still reaching Sentry, and is only
+rate-limited in memory so the same refusal isn't re-asked every sweep.
+
+### Coming back from an archive
+
+A wallet web brings back must not inherit the age that got it archived, or the
+Sentry mute. On a **targeted** reconcile (one `remote_wallet_changed` NOTIFY —
+never the bulk startup reconcile, which would let a restart erase idleness) the
+listener resets `last_active_at` and clears `archive_reported_at`:
+
+- a wallet re-entering the pool or rotating its credential (DEAD → ACTIVE, a new
+  NWC URI, an un-archived proxy) gets a fresh 48h window unconditionally;
+- a wallet that never left the pool (an archived LUD-16 proxy still settling) is
+  only reset if it had actually been reported, so unrelated config writes cost
+  nothing;
+- a previously-reported wallet that completes warm-up clears its own report, so
+  its next failure reaches Sentry instead of being muted forever.
 
 Disable the whole feature per deployment with
 `DEAD_WALLET_DETECTION_ENABLED=false`.
@@ -411,8 +449,11 @@ invoice?, description?, transaction }` where `transaction` is the raw
   (`'unresponsive' | 'idle' | 'warmup_failed'`, defaulting to `'unresponsive'`
   for older listeners) and, for context, `lastState?` / `everReady?`. Web
   re-checks its own rules: `'unresponsive'` archives only an ACTIVE
-  LNCurl-provider wallet and only with `relaysConnected: true`; `'idle'` and
-  `'warmup_failed'` archive any ACTIVE wallet but only past 48h.
+  LNCurl-provider wallet and only with `relaysConnected: true` (never the LUD-16
+  proxy wallet); `'idle'` and `'warmup_failed'` archive any ACTIVE wallet but
+  only past 48h. The ack adds `walletDeadOutcome`
+  (`'archived' | 'noop' | 'ignored' | 'unknown_wallet'`) — the listener must read
+  it rather than inferring an archive from the 2xx.
 
 Web is idempotent on `eventKey` and by invoice/wallet state; replays return
 `{received: true}` without side effects. Responses: `200` ok · `401` bad

@@ -130,10 +130,58 @@ restart on purpose — if you expected a Sentry alert for a stuck wallet and got
 none, check `archive_reported_at` first.
 
 The owner can `PATCH /api/remote-wallets/<id>` back to `ACTIVE` once the wallet
-works again. For the LUD-16 proxy wallet the archive lands on
-`ProxyServiceConfig.archivedAt` with `enabled = false`; re-enabling the proxy
-(or storing a fresh NWC URI) clears it. Outstanding proxy settlements keep
-running while archived — they read the credential regardless of `enabled`.
+works again; that clears `diedAt` / `diedReason`, and the reconcile it triggers
+resets `last_active_at` and `archive_reported_at` so the wallet gets a fresh 48h
+window instead of being re-archived on the next sweep. A previously-reported
+wallet that simply starts working again clears its own report the moment warm-up
+succeeds.
+
+For the LUD-16 proxy wallet the archive lands on `ProxyServiceConfig.archivedAt`
+with `enabled = false`; re-enabling the proxy (or storing a fresh NWC URI) clears
+it and resets the same ledger row. Outstanding proxy settlements keep running
+while archived — they read the credential regardless of `enabled`.
+**Only the 48h rule can archive the proxy**: the credential is the operator's own
+Alby or self-hosted node, so a `reason: 'unresponsive'` probe report about it is
+refused (`nwc.proxy_wallet_dead_ignored_probe_signal`) no matter how long the
+silence lasted.
+
+## The listener came back after a long outage — will it archive everything?
+
+No. Downtime is not wallet idleness. At boot the listener reads its own liveness
+watermark and discounts the outage from every idle measurement:
+
+```sql
+-- What the listener will consider "unobserved" this lifetime.
+SELECT max(updated_at) AS listener_last_alive FROM listener.wallet_cursors;
+```
+
+Look for `archive.policy` at startup (`downtimeSeconds`) and, on the first
+sweeps, `dead_prober.idle_discounted_listener_downtime` — that line means a wallet
+cleared 48h of total silence but not 48h of _observed_ silence, so it was left
+alone. A wallet that was already quiet before the outage only needs the remainder
+of the window in uptime.
+
+## A wallet_dead report keeps repeating
+
+Web refuses reports that don't meet its rules and says so in the webhook ack
+(`walletDeadOutcome`). `ignored` / `unknown_wallet` deliberately do **not** park
+the wallet or mute its errors, so the wallet stays live — that is the intended
+outcome for, say, a user's own Alby node going quiet for an afternoon. Grep web
+for the reason:
+
+| Log                                                     | Meaning                                             |
+| ------------------------------------------------------- | --------------------------------------------------- |
+| `nwc.wallet_dead_ignored_relays_down`                   | Probe report during a relay outage.                 |
+| `nwc.wallet_dead_ignored_non_lncurl`                    | Probe signal against a wallet we didn't mint.       |
+| `nwc.proxy_wallet_dead_ignored_probe_signal`            | Probe signal against the LUD-16 proxy credential.   |
+| `nwc.wallet_dead_ignored_below_idle_window`             | Idle report under 48h.                              |
+| `nwc.proxy_wallet_dead_contradicted_by_recent_activity` | Proxy paid inside the window — the report is stale. |
+| `nwc.wallet_dead_unknown_wallet_id`                     | No `RemoteWallet` and no proxy config owns the id.  |
+
+The listener rate-limits a refused report in memory (one ask per
+`WALLET_ARCHIVE_RETRY_MS`), so a repeat every 15 min means the report is being
+_re-derived_, not retried — check whether the wallet is flapping in and out of the
+pool.
 
 ## Card tap payments
 
