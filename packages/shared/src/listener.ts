@@ -44,6 +44,46 @@ const hex64 = z
   .regex(/^[0-9a-f]{64}$/i, 'Must be a 64-char hex string')
 
 /**
+ * Lifecycle of one pooled NWC connection. Declared here (above the webhook
+ * union) because `wallet_dead` reports the state the wallet was parked in.
+ */
+export const listenerWalletStateSchema = z.enum([
+  'connecting',
+  'negotiating',
+  'ready',
+  'disconnected',
+  'error',
+  'closed'
+])
+
+/**
+ * Why the listener declared a wallet dead:
+ *
+ *  - `unresponsive` — it was subscribed and negotiated (`ready`), then went
+ *    silent past `DEAD_THRESHOLD_HOURS` while its relays stayed CONNECTED, and
+ *    an active `get_info` probe confirmed the silence. `relaysConnected` is
+ *    always `true` here; web rejects the report otherwise.
+ *  - `idle` — it reached `ready` at some point but has shown no proof of life
+ *    for longer than the archive window (>48h), so it is archived without a
+ *    probe (there may be no live client left to probe with).
+ *  - `warmup_failed` — it NEVER reached `ready`: warmup kept failing past the
+ *    archive window. This is the LAWALLET-LISTENER-1/2 case — those wallets
+ *    emit no notifications, so idleness is the only signal they can ever give.
+ *
+ * Older listeners send no `reason`; it defaults to `unresponsive`.
+ */
+export const nwcWalletDeadReasonSchema = z.enum([
+  'unresponsive',
+  'idle',
+  'warmup_failed'
+])
+export type NwcWalletDeadReason = z.infer<typeof nwcWalletDeadReasonSchema>
+
+/** Wallets idle longer than this are auto-archived (product rule, issue #279). */
+export const WALLET_ARCHIVE_IDLE_HOURS = 48
+export const WALLET_ARCHIVE_IDLE_MS = WALLET_ARCHIVE_IDLE_HOURS * 60 * 60 * 1000
+
+/**
  * Normalized payment details lifted from the NIP-47 notification. Everything
  * the wallet reported travels untouched in `transaction` — web owns all
  * business interpretation, the listener never filters fields.
@@ -100,22 +140,74 @@ export const nwcWebhookPayloadSchema = z.discriminatedUnion('type', [
     })
   }),
   /**
-   * The listener observed a wallet go unresponsive for a sustained window
-   * WHILE its relays stayed connected — the signature of a disposable LNCurl
-   * wallet whose provider destroyed it. Purely an observation: web decides
-   * whether to archive it (only LNCurl-provider wallets are archived as DEAD).
-   * `relaysConnected` is pinned to `true` so a network outage can never be
-   * misread as death.
+   * The listener observed a wallet stop proving it is alive. Purely an
+   * observation — web owns the archive decision and re-checks the window
+   * itself (`lib/wallet/archive-dead-wallet.ts`).
+   *
+   * `reason` carries the safety semantics that `relaysConnected: true` used to
+   * carry alone: a probe-confirmed `unresponsive` report is only honoured when
+   * the relays were up (a network outage must never read as death), while the
+   * >48h `idle` / `warmup_failed` reports are honoured regardless because a
+   * wallet that has answered nothing for two days is idle by definition —
+   * including one that never completed warmup and therefore has no client left
+   * to probe with.
    */
   nwcWebhookBase.extend({
     type: z.literal('wallet_dead'),
     walletId: z.string().min(1),
     /** Seconds since the wallet last responded (event / proxied call / probe). */
     unresponsiveSeconds: z.number().int().nonnegative(),
-    relaysConnected: z.literal(true)
+    relaysConnected: z.boolean(),
+    reason: nwcWalletDeadReasonSchema.default('unresponsive'),
+    /** Pool state when the report was made — activity-log context only. */
+    lastState: listenerWalletStateSchema.optional(),
+    /** False when the wallet never completed NWC warmup in this deployment. */
+    everReady: z.boolean().optional()
   })
 ])
 export type NwcWebhookPayload = z.infer<typeof nwcWebhookPayloadSchema>
+
+/**
+ * What web actually did with a `wallet_dead` report. A 2xx alone means "the
+ * report was accepted for processing", NOT "the wallet was archived" — web
+ * re-checks the product rules and refuses reports that don't meet them, so the
+ * listener MUST read this before treating a wallet as archived.
+ *
+ *  - `archived` — web flipped the row to its archived state.
+ *  - `noop` — already archived (or a concurrent report won the race). Equivalent
+ *    to `archived` for the listener: the wallet is in the state it reported.
+ *  - `ignored` — the report did not meet web's rules (relays down, inside the
+ *    48h window, wrong provider for the probe signal, or contradicted by web's
+ *    own record of a recent payment). The wallet is still ACTIVE. The listener
+ *    must NOT park it and must NOT mute its warmup errors.
+ *  - `unknown_wallet` — no `RemoteWallet` and no proxy config owns this id.
+ *    Also not an archive: something is out of sync, and silencing it would hide
+ *    that.
+ */
+export const nwcWalletDeadOutcomeSchema = z.enum([
+  'archived',
+  'noop',
+  'ignored',
+  'unknown_wallet'
+])
+export type NwcWalletDeadOutcome = z.infer<typeof nwcWalletDeadOutcomeSchema>
+
+/** Outcomes that mean "the wallet is archived" — the only ones that may park it. */
+export const NWC_WALLET_DEAD_APPLIED_OUTCOMES: readonly NwcWalletDeadOutcome[] =
+  ['archived', 'noop']
+
+/**
+ * Web's acknowledgement body. Deliberately permissive on the extra keys web
+ * already returns (settlement/receipt ids) — the listener only reads
+ * `walletDeadOutcome`, and a `wallet_dead` ack from a web build that predates
+ * the field simply omits it (treated as applied, which is what that build did).
+ */
+export const nwcWebhookAckSchema = z.object({
+  received: z.boolean().optional(),
+  /** Present only in the ack of a `wallet_dead` report. */
+  walletDeadOutcome: nwcWalletDeadOutcomeSchema.optional()
+})
+export type NwcWebhookAck = z.infer<typeof nwcWebhookAckSchema>
 
 // ── POST {listener}/nwc/request — proxy NWC calls over the live pool ────────
 
@@ -238,15 +330,6 @@ export type NwcPaymentResponse = z.infer<typeof nwcPaymentResponseSchema>
 
 // ── GET {listener}/status ────────────────────────────────────────────────────
 
-export const listenerWalletStateSchema = z.enum([
-  'connecting',
-  'negotiating',
-  'ready',
-  'disconnected',
-  'error',
-  'closed'
-])
-
 export const listenerConnectionSchema = z.object({
   walletId: z.string(),
   walletName: z.string().nullish(),
@@ -259,7 +342,14 @@ export const listenerConnectionSchema = z.object({
   lastErrorAt: z.string().nullable(),
   lastError: z.string().nullable(),
   /** ISO timestamp of the last completed missed-event catch-up run. */
-  lastCatchupAt: z.string().nullish()
+  lastCatchupAt: z.string().nullish(),
+  /**
+   * True while the wallet is parked because web was told it is dead: reconnects
+   * back off to the archive retry interval instead of the 60s ceiling and
+   * warmup errors stop reaching Sentry. Optional so an older web still parses a
+   * newer listener's status.
+   */
+  parked: z.boolean().optional()
 })
 export type ListenerConnection = z.infer<typeof listenerConnectionSchema>
 
@@ -327,7 +417,9 @@ export const listenerStatusResponseSchema = z.object({
     catchupErrors: z.number().int().nonnegative().optional(),
     deadProbesRun: z.number().int().nonnegative().optional(),
     deadProbesTimedOut: z.number().int().nonnegative().optional(),
-    walletsDeclaredDead: z.number().int().nonnegative().optional()
+    walletsDeclaredDead: z.number().int().nonnegative().optional(),
+    /** `wallet_dead` reports raised by the >48h idle rule (no probe possible). */
+    walletsArchiveRequested: z.number().int().nonnegative().optional()
   }),
   recentEvents: z.array(listenerRecentEventSchema).max(100),
   /**

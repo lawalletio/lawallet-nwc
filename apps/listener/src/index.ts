@@ -20,15 +20,19 @@ import {
 import { NwcPool } from './nwc/pool'
 import { verifyPaymentPreimage } from './nwc/payments'
 import { CatchupRunner } from './nwc/catchup'
-import { DeadWalletProber } from './nwc/dead-prober'
+import { DeadWalletProber, type ListenerDowntime } from './nwc/dead-prober'
 import {
   advanceCursor,
   bootstrapStore,
   computeEventKey,
   insertEventIfNew,
   lastEventAtByWallet,
+  loadArchiveReportedWalletIds,
+  loadListenerLastAliveAt,
   pruneEvents,
+  recordWalletActivity,
   recoverInterruptedNwcRequests,
+  resetWalletArchiveClock,
   resolveNwcRequestFromNotification,
   type StoredEvent
 } from './store'
@@ -42,6 +46,33 @@ import {
   flushSentry,
   initSentry
 } from './sentry'
+
+/** Minimum gap between durable liveness writes for the same wallet. */
+const LIVENESS_WRITE_INTERVAL_MS = 60_000
+/** Grace period after boot before the first archive sweep runs. */
+const FIRST_ARCHIVE_SWEEP_DELAY_MS = 60_000
+
+/**
+ * How long the service was down, from the ledger's `updated_at` watermark. Must
+ * run before the pool starts, since every liveness write moves that watermark.
+ *
+ * On a read failure we assume the WHOLE pre-boot stretch was unobserved
+ * (`lastAliveAt` at the epoch): the wallets then have to accumulate the archive
+ * window in observed uptime. Delaying an archive is recoverable; mass-archiving
+ * a pool because one query failed is not.
+ */
+async function loadListenerDowntime(
+  pool: Parameters<typeof loadListenerLastAliveAt>[0],
+  log: ReturnType<typeof createLogger>
+): Promise<ListenerDowntime> {
+  const bootedAt = new Date()
+  try {
+    return { bootedAt, lastAliveAt: await loadListenerLastAliveAt(pool) }
+  } catch (err) {
+    log.warn({ err }, 'archive.downtime_unknown')
+    return { bootedAt, lastAliveAt: new Date(0) }
+  }
+}
 
 async function main(): Promise<void> {
   // @getalby/sdk's relay layer needs the global WebSocket (Node >= 22).
@@ -85,6 +116,31 @@ async function main(): Promise<void> {
     log.warn({ count: interrupted }, 'nwc_payment.interrupted_recovered')
   }
   log.info('store.bootstrapped')
+
+  // How long this service was down, read BEFORE the pool writes anything to the
+  // ledger (every liveness write moves the same `updated_at` watermark). The
+  // idle rule discounts it: wallets cannot be observed idle while nothing is
+  // watching, and after a multi-day outage the entire pool looks silent.
+  const downtime = await loadListenerDowntime(pgPool, log)
+
+  // The archive policy is the one piece of config an operator is most likely
+  // to be surprised by, so state the effective values rather than making them
+  // infer the defaults from an absent variable.
+  log.info(
+    {
+      enabled: env.DEAD_WALLET_DETECTION_ENABLED,
+      idleHours: env.WALLET_ARCHIVE_IDLE_HOURS,
+      deadThresholdHours: env.DEAD_THRESHOLD_HOURS,
+      retryMs: env.WALLET_ARCHIVE_RETRY_MS,
+      downtimeSeconds: downtime.lastAliveAt
+        ? Math.floor(
+            (downtime.bootedAt.getTime() - downtime.lastAliveAt.getTime()) /
+              1000
+          )
+        : null
+    },
+    'archive.policy'
+  )
 
   const dispatcher = new WebhookDispatcher({
     env,
@@ -239,6 +295,51 @@ async function main(): Promise<void> {
       )
   }
 
+  // Wallets already reported dead in an earlier process lifetime. Loaded from
+  // Postgres so a restart cannot re-storm Sentry with warmup failures we have
+  // already declared terminal (LAWALLET-LISTENER-1/2).
+  const archiveReported = new Set(await loadArchiveReportedWalletIds(pgPool))
+
+  /**
+   * Clears the durable "web knows this wallet is dead" mark and gives the wallet
+   * a fresh idle window. `onlyIfReported` keeps it a no-op for wallets that were
+   * never reported, so it is safe to call on any targeted reconcile.
+   */
+  const resetArchiveClock = (
+    walletId: string,
+    opts: { onlyIfReported?: boolean } = {}
+  ) => {
+    void resetWalletArchiveClock(pgPool, walletId, new Date(), opts)
+      .then(reset => {
+        if (!reset) return
+        archiveReported.delete(walletId)
+        // A wallet parked at the 6h archive backoff must not wait it out after
+        // being brought back — reconnect it now.
+        nwcPool.prioritizeWallet(walletId)
+        log.info({ walletId }, 'archive.clock_reset')
+      })
+      .catch(err => log.warn({ err, walletId }, 'archive.clock_reset_failed'))
+  }
+
+  // Proof of life is mirrored to Postgres so the 48h archive clock survives
+  // restarts. Throttled per wallet: a busy wallet proves itself constantly and
+  // the clock only needs to be roughly right.
+  const livenessWrittenAt = new Map<string, number>()
+  const persistLiveness = (walletId: string, at: Date, ready: boolean) => {
+    // A wallet that completes warmup after being reported dead is demonstrably
+    // back: drop the report so its next failure reaches Sentry again instead of
+    // being muted forever (the mute is what makes a restart quiet).
+    if (ready && archiveReported.has(walletId)) {
+      resetArchiveClock(walletId, { onlyIfReported: true })
+    }
+    const last = livenessWrittenAt.get(walletId) ?? 0
+    if (!ready && Date.now() - last < LIVENESS_WRITE_INTERVAL_MS) return
+    livenessWrittenAt.set(walletId, Date.now())
+    void recordWalletActivity(pgPool, walletId, at, ready).catch(err =>
+      log.debug({ err, walletId }, 'liveness.persist_failed')
+    )
+  }
+
   const nwcPool = new NwcPool({
     log: createLogger({ module: 'pool' }),
     onNotification,
@@ -248,6 +349,13 @@ async function main(): Promise<void> {
         .sendListenerError(wallet.id, 'connection_failed', error.message)
         .catch(() => {})
     },
+    isArchiveReported: walletId => archiveReported.has(walletId),
+    onLiveness: persistLiveness,
+    // A wallet web brought back (DEAD → ACTIVE, a rotated credential, an
+    // un-archived proxy) must not inherit the age that got it archived — nor the
+    // Sentry mute. Targeted reconciles only; never the bulk boot reconcile.
+    onWalletRestored: (walletId, { readded }) =>
+      resetArchiveClock(walletId, { onlyIfReported: !readded }),
     // With catch-up disabled no recovery hooks are registered; the pool still
     // watches relay connectivity because payment readiness depends on it.
     ...(env.CATCHUP_ENABLED
@@ -255,15 +363,19 @@ async function main(): Promise<void> {
       : {})
   })
 
-  // Detects destroyed disposable (LNCurl) wallets — silent past the threshold
-  // while relays stay up — and reports them to web for archival.
+  // Reports wallets web should archive: probe-confirmed dead disposable
+  // (LNCurl) wallets, and any wallet idle past WALLET_ARCHIVE_IDLE_HOURS —
+  // including ones that never completed warmup and can't be probed at all.
   const deadProber = env.DEAD_WALLET_DETECTION_ENABLED
     ? new DeadWalletProber({
         env,
         log: createLogger({ module: 'dead-prober' }),
         pool: nwcPool,
         dispatcher,
-        metrics
+        metrics,
+        db: pgPool,
+        onArchiveReported: walletId => archiveReported.add(walletId),
+        downtime
       })
     : null
 
@@ -381,6 +493,15 @@ async function main(): Promise<void> {
       setInterval(() => {
         void deadProber.evaluate()
       }, env.DEAD_PROBE_INTERVAL_MS)
+    )
+    // One early sweep so wallets already reported dead are parked (and their
+    // reconnect backoff widened) shortly after a restart, instead of retrying
+    // every 60s until the first interval lands. Long enough for the startup
+    // warm-ups to settle out of `connecting`.
+    timers.push(
+      setTimeout(() => {
+        void deadProber.evaluate()
+      }, FIRST_ARCHIVE_SWEEP_DELAY_MS)
     )
   }
   for (const timer of timers) timer.unref()

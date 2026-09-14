@@ -186,14 +186,20 @@ CATCHUP_MAX_WINDOW_HOURS)`, `until = now` (after the live subscription is
 - The cursor only advances after a successful run — failures retry the same
   window next time. Live events also advance it (`GREATEST`, never backward).
 
-## Dead-wallet detection (disposable LNCurl auto-archival)
+## Auto-archival (dead and idle wallets)
+
+A wallet that will never answer again must not drive an endless reconnect loop.
+The listener detects two flavours of that and asks web to archive the row.
+Detection is **transport-only**: the listener observes and reports; **web decides
+and writes**.
+
+### Path 1 — probe-confirmed death (`reason: 'unresponsive'`)
 
 Disposable LNCurl wallets are destroyed by their provider when they run out of
-sats. The listener detects that and asks web to archive the row so a dead
-wallet stops driving an endless reconnect loop. Detection is **transport-only**:
-the listener observes and reports; **web decides and writes** (only
-`provider: 'lncurl'` wallets ever become DEAD — a user's own NWC is never
-auto-archived).
+sats. Only `provider: 'lncurl'` wallets are archived on this signal — a few
+hours of silence from a user's own NWC is not death, and **neither is silence
+from the LUD-16 proxy's credential**, which is the operator's own Alby or
+self-hosted node. Both take the 48h path instead.
 
 - **The rule:** a wallet is a candidate when it's `ready`, its relays are
   **currently connected** (so this is the wallet going silent, not a network
@@ -209,12 +215,89 @@ auto-archived).
   row — a single slow reply can never archive a live wallet. Total
   time-to-archive ≈ `DEAD_THRESHOLD_HOURS` + `(DEAD_CONFIRMATION_PROBES − 1) ×
 DEAD_PROBE_INTERVAL_MS` (~4h30m with the defaults).
-- **Report → archive → reconcile:** on confirmation the listener POSTs a
-  `wallet_dead` webhook (`{ walletId, unresponsiveSeconds, relaysConnected: true }`).
-  Web sets `status = DEAD`, `diedAt = now`, `isDefault = false` (idempotent on
-  `status = 'ACTIVE'`), which fires `remote_wallet_changed` → the listener
-  reconciles the wallet out of the pool, ending the churn.
-- Disable per deployment with `DEAD_WALLET_DETECTION_ENABLED=false`.
+
+### Path 2 — idle past the archive window (`reason: 'idle' | 'warmup_failed'`)
+
+Path 1 can only see `ready` wallets. A wallet whose NWC warm-up keeps failing
+never gets there: it stays `state: 'error'`, emits no notifications, and cannot
+be probed — so before this path it retried every 60s forever and never reached
+archival (issue #279, LAWALLET-LISTENER-1/2).
+
+- **The rule (product policy):** more than `WALLET_ARCHIVE_IDLE_HOURS`
+  (**48h**, and web enforces the same 48h independently) with no sign of life at
+  all → report. `warmup_failed` when the wallet has never been `ready` in any
+  process lifetime, `idle` when it has. Unlike path 1 this applies to **every**
+  wallet regardless of provider, and needs no probe.
+- **The clock is in Postgres**, not process memory:
+  `listener.wallet_cursors.last_active_at` / `ready_at` /
+  `archive_reported_at`, written alongside the catch-up cursor (`last_seen_at`
+  is untouched — moving it would skip event recovery). A restart therefore
+  neither resets the idle clock nor re-reports a wallet, and warmup errors for
+  an already-reported wallet stay out of Sentry.
+- **Listener downtime is not wallet idleness.** At boot the service reads its own
+  liveness watermark (`max(updated_at)` over `listener.wallet_cursors`) and
+  discounts the outage from every idle measurement — otherwise a listener that
+  was off for three days would see the whole pool as idle on its first sweep
+  (~60s after boot) and mass-archive it, primary Lightning Address links
+  included. A fast restart discounts ~nothing, so restarting still cannot reset
+  idleness. Idleness accrued _before_ the outage still counts, so a wallet only
+  needs the remainder of the 48h in observed time. When downtime is unreadable,
+  the whole pre-boot stretch is treated as unobserved (fail safe).
+- **A reported wallet is parked**: its reconnect backoff jumps from the 60s
+  ceiling to `WALLET_ARCHIVE_RETRY_MS` (default 6h), which is also when the
+  report is retried if web declined it. A foreground card payment un-parks it.
+  Wallets in `connecting` / `negotiating` are never archived — a queued startup
+  warm-up looks exactly like that.
+
+### Report → archive → reconcile
+
+The listener POSTs a `wallet_dead` webhook (`{ walletId, unresponsiveSeconds,
+relaysConnected, reason, lastState?, everReady? }`). Web
+(`lib/wallet/archive-dead-wallet.ts`) re-checks the rules and writes:
+
+- **`RemoteWallet`** → `status = DEAD`, `diedAt = now`, `diedReason = reason`,
+  `isDefault = false` (idempotent on `status = 'ACTIVE'`). That fires
+  `remote_wallet_changed` → the listener reconciles the wallet out of the pool,
+  ending the churn. The owner can PATCH it back to `ACTIVE`, which clears
+  `diedAt` / `diedReason`.
+- **`ProxyServiceConfig`** (the LUD-16 proxy's own wallet id, which is not a
+  `RemoteWallet` row) → `archivedAt`, `archivedReason`, `enabled = false`. New
+  proxy intake stops; outstanding settlements still finish, since those read the
+  stored credential regardless of `enabled`. Re-enabling the proxy — or storing a
+  fresh NWC URI — clears the archive. **Only the 48h rule archives the proxy**:
+  its credential is operator-owned, so an `unresponsive` probe report is refused
+  outright, and the 48h contradiction check is repeated inside the conditional
+  update so a payment landing mid-decision cannot lose the race.
+
+Web refuses reports that don't meet its own rules: an `unresponsive` report with
+`relaysConnected: false`, an `unresponsive` report about the LUD-16 proxy wallet,
+an `idle`/`warmup_failed` report below 48h, or a proxy report contradicted by a
+`lastListenerSeenAt` inside the window.
+
+**A 2xx is not an archive.** The ack body carries `walletDeadOutcome`:
+`archived` / `noop` mean the wallet is in the reported state, `ignored` /
+`unknown_wallet` mean web refused. Only the first two let the listener record the
+report, park the wallet and mute its warmup errors; a refusal leaves the wallet on
+its normal reconnect cadence with its errors still reaching Sentry, and is only
+rate-limited in memory so the same refusal isn't re-asked every sweep.
+
+### Coming back from an archive
+
+A wallet web brings back must not inherit the age that got it archived, or the
+Sentry mute. On a **targeted** reconcile (one `remote_wallet_changed` NOTIFY —
+never the bulk startup reconcile, which would let a restart erase idleness) the
+listener resets `last_active_at` and clears `archive_reported_at`:
+
+- a wallet re-entering the pool or rotating its credential (DEAD → ACTIVE, a new
+  NWC URI, an un-archived proxy) gets a fresh 48h window unconditionally;
+- a wallet that never left the pool (an archived LUD-16 proxy still settling) is
+  only reset if it had actually been reported, so unrelated config writes cost
+  nothing;
+- a previously-reported wallet that completes warm-up clears its own report, so
+  its next failure reaches Sentry instead of being muted forever.
+
+Disable the whole feature per deployment with
+`DEAD_WALLET_DETECTION_ENABLED=false`.
 
 ## HTTP API
 
@@ -361,10 +444,16 @@ invoice?, description?, transaction }` where `transaction` is the raw
   `Nip47Transaction` passthrough (web owns all business interpretation).
 - **`listener_error`** — `walletId` becomes optional (a connection-level
   error may not belong to a single wallet); adds `error: { code, message }`.
-- **`wallet_dead`** — the listener saw a wallet go silent past the threshold
-  while its relays stayed up (see "Dead-wallet detection"); adds
-  `unresponsiveSeconds` and `relaysConnected: true`. Web archives it as DEAD
-  only when it's an ACTIVE LNCurl-provider wallet.
+- **`wallet_dead`** — the listener wants a wallet archived (see
+  "Auto-archival"); adds `unresponsiveSeconds`, `relaysConnected`, `reason`
+  (`'unresponsive' | 'idle' | 'warmup_failed'`, defaulting to `'unresponsive'`
+  for older listeners) and, for context, `lastState?` / `everReady?`. Web
+  re-checks its own rules: `'unresponsive'` archives only an ACTIVE
+  LNCurl-provider wallet and only with `relaysConnected: true` (never the LUD-16
+  proxy wallet); `'idle'` and `'warmup_failed'` archive any ACTIVE wallet but
+  only past 48h. The ack adds `walletDeadOutcome`
+  (`'archived' | 'noop' | 'ignored' | 'unknown_wallet'`) — the listener must read
+  it rather than inferring an archive from the 2xx.
 
 Web is idempotent on `eventKey` and by invoice/wallet state; replays return
 `{received: true}` without side effects. Responses: `200` ok · `401` bad
@@ -389,6 +478,13 @@ a successful late delivery logs `webhook.recovered`.
 
 ## Environment
 
+Four variables are an operator's responsibility: `DATABASE_URL`,
+`LISTENER_AUTH_SECRET`, `WEB_ORIGIN` and `NWC_VAULT_SECRET`. Everything below
+them is a tunable with a default, and a blank value (`VAR=`, which rendered
+templates produce for any field left empty) is treated the same as unset.
+Upgrading into a release that adds one never means editing a deployment —
+`apps/listener/tests/env.test.ts` holds that line.
+
 | Variable                        | Description                                                                                    | Default                              |
 | ------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
 | `DATABASE_URL`                  | Shared Postgres (same DB as web)                                                               | (required)                           |
@@ -396,6 +492,7 @@ a successful late delivery logs `webhook.recovered`.
 | `LISTENER_AUTH_SECRET`          | Webhook HMAC secret and bearer compatibility fallback, min 32 chars                            | (required)                           |
 | `LISTENER_REQUEST_AUTH_SECRET`  | Dedicated web→listener bearer secret, min 32 chars                                             | falls back to `LISTENER_AUTH_SECRET` |
 | `WEB_ORIGIN`                    | apps/web base URL for webhooks                                                                 | (required)                           |
+| `NWC_VAULT_SECRET`              | Decrypts RemoteWallet and proxy NWC URIs, min 32 chars — same value as web                     | (required)                           |
 | `LOG_LEVEL` / `LOG_PRETTY`      | Same conventions as web                                                                        | `info` / `false`                     |
 | `RECONCILE_INTERVAL_MS`         | Full-reconcile safety net                                                                      | `300000`                             |
 | `PROXY_RECONCILE_INTERVAL_MS`   | Deferred LUD-16 proxy recovery sweep                                                           | `600000`                             |
@@ -407,11 +504,13 @@ a successful late delivery logs `webhook.recovered`.
 | `CATCHUP_MAX_WINDOW_HOURS`      | Furthest back a catch-up looks                                                                 | `24`                                 |
 | `CATCHUP_OVERLAP_SECONDS`       | Overlap subtracted from the cursor                                                             | `300`                                |
 | `CATCHUP_INTERVAL_MS`           | Periodic safety catch-up (0 disables)                                                          | `900000`                             |
-| `DEAD_WALLET_DETECTION_ENABLED` | Archive unresponsive disposable wallets as DEAD                                                | `true`                               |
+| `DEAD_WALLET_DETECTION_ENABLED` | Auto-archival on/off (both the probe path and the idle path)                                   | `true`                               |
 | `DEAD_THRESHOLD_HOURS`          | Silence (relays up) before a wallet is declared dead                                           | `4`                                  |
 | `DEAD_PROBE_INTERVAL_MS`        | How often the dead-wallet prober sweeps                                                        | `900000`                             |
 | `DEAD_PROBE_TIMEOUT_MS`         | Per-probe `get_info` timeout (< `NWC_REQUEST_TIMEOUT_MS`)                                      | `10000`                              |
 | `DEAD_CONFIRMATION_PROBES`      | Consecutive failing probes required before archiving (guards against one transient slow reply) | `3`                                  |
+| `WALLET_ARCHIVE_IDLE_HOURS`     | Idleness (no sign of life, probe or not) before a wallet is reported for archival              | `48`                                 |
+| `WALLET_ARCHIVE_RETRY_MS`       | How long a reported wallet stays parked — its reconnect backoff and report retry               | `21600000`                           |
 
 Web's side of the pairing: `LISTENER_URL`, `LISTENER_AUTH_SECRET`, and
 optionally the same `LISTENER_REQUEST_AUTH_SECRET` (+ optional

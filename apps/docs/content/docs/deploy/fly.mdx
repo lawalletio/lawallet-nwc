@@ -179,8 +179,12 @@ lockfile, `pnpm-workspace.yaml`, and `packages/shared`.
 the wallet's own NWC provider stopped responding. For disposable LNCurl
 wallets this is expected end-of-life: the dead-wallet prober archives them as
 `DEAD` after `DEAD_THRESHOLD_HOURS` (default 4) of silence while relays stay
-up. Non-LNCurl wallets are **never** auto-archived and are worth investigating
-— the user likely revoked the connection upstream.
+up. A wallet stuck in `error` for longer than `WALLET_ARCHIVE_IDLE_HOURS`
+(48h) is archived whatever its provider — warm-up never succeeded, so there is
+nothing left to probe — and is then parked rather than retried every 60s. A
+non-LNCurl wallet reaching that point is worth investigating first: the user
+likely revoked the connection upstream. Its owner can move it back to `ACTIVE`
+once the wallet is reachable again.
 
 ## Reference
 

@@ -25,7 +25,9 @@ export const metrics = {
   catchupErrors: 0,
   deadProbesRun: 0,
   deadProbesTimedOut: 0,
-  walletsDeclaredDead: 0
+  walletsDeclaredDead: 0,
+  /** `wallet_dead` reports raised by the 48h idle rule (no probe possible). */
+  walletsArchiveRequested: 0
 }
 
 export type Metrics = typeof metrics

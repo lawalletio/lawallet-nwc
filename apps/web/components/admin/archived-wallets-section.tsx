@@ -35,10 +35,13 @@ import {
 } from '@/components/wallet/shared/cursor-pagination'
 
 /**
- * The "graveyard" for disposable LNCurl wallets that ran out of sats and were
- * destroyed by the provider (status `DEAD`). They're read-only tombstones:
- * they can't receive or be assigned to anything, and exist only so the user
- * can see how long each one lived before permanently removing it.
+ * The "graveyard" for archived wallets (status `DEAD`): disposable LNCurl
+ * wallets that ran out of sats and were destroyed by the provider, plus any
+ * wallet the listener saw go more than 48h without a single sign of life —
+ * including one whose NWC warm-up never succeeded. They're read-only
+ * tombstones: they can't receive or be assigned to anything, and exist only so
+ * the user can see how long each one lived (and why it went) before permanently
+ * removing it.
  *
  * Fetched separately from the live list (the API hides DEAD by default), so
  * the section only renders when there's at least one archived wallet.
@@ -62,10 +65,10 @@ export function ArchivedWalletsSection({
         <h2 className="text-lg font-semibold">Archived wallets</h2>
       </div>
       <p className="text-sm text-muted-foreground">
-        Disposable LNCurl wallets that ran out of sats and were destroyed. They
-        can’t receive payments or be assigned to anything — they’re kept only so
-        you can see how long they lived. Remove them permanently when you’re
-        done.
+        Wallets that were destroyed by their provider, or that went more than 48
+        hours without a single sign of life. They can’t receive payments or be
+        assigned to anything — they’re kept only so you can see how long they
+        lived. Remove them permanently when you’re done.
       </p>
       <div className="rounded-md border">
         <Table>
@@ -74,6 +77,7 @@ export function ArchivedWalletsSection({
               <TableHead>Name</TableHead>
               <TableHead>Born</TableHead>
               <TableHead>Died</TableHead>
+              <TableHead>Reason</TableHead>
               <TableHead>Lifespan</TableHead>
               <TableHead className="w-0 text-right">
                 <span className="sr-only">Actions</span>
@@ -94,6 +98,9 @@ export function ArchivedWalletsSection({
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {w.diedAt ? formatDateTime(w.diedAt) : '—'}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatDiedReason(w.diedReason)}
                 </TableCell>
                 <TableCell className="tabular-nums">
                   {w.diedAt ? formatLifespan(w.createdAt, w.diedAt) : '—'}
@@ -190,6 +197,20 @@ function RemovePermanently({
       </AlertDialog>
     </>
   )
+}
+
+/** Listener archive reasons, spelled out. Older rows carry no reason. */
+function formatDiedReason(reason: string | null | undefined): string {
+  switch (reason) {
+    case 'unresponsive':
+      return 'Stopped answering'
+    case 'idle':
+      return 'Idle over 48h'
+    case 'warmup_failed':
+      return 'Never connected'
+    default:
+      return '—'
+  }
 }
 
 function formatDateTime(iso: string): string {

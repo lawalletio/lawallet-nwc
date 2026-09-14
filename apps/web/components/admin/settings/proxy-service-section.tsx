@@ -38,6 +38,9 @@ interface ProxyConfig {
   lastProbeError: string | null
   lastListenerSeenAt: string | null
   lastCronAt: string | null
+  /** Non-null once the listener reported the proxy wallet dead (auto-archive). */
+  archivedAt?: string | null
+  archivedReason?: string | null
 }
 
 interface ProxyPaymentRow {
@@ -271,6 +274,20 @@ export function ProxyServiceSection() {
               Refresh
             </Button>
           </div>
+          {config.archivedAt && (
+            <p
+              role="status"
+              className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive"
+            >
+              Proxy wallet auto-archived on{' '}
+              {new Date(config.archivedAt).toLocaleString()}
+              {config.archivedReason === 'warmup_failed'
+                ? ' — its NWC connection never completed warm-up.'
+                : ' — it went more than 48 hours without a sign of life.'}{' '}
+              Intake is off. Fix or replace the NWC URI, then enable the proxy
+              again.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
             <Badge variant="outline">
               {config.outstandingPayments} outstanding

@@ -45,8 +45,15 @@ vi.mock('@getalby/sdk', () => {
 
 import { Nip47Error, Nip47TimeoutError } from '@getalby/sdk'
 import type { NWCClient } from '@getalby/sdk'
-import { NwcPool } from '../src/nwc/pool'
-import { DeadWalletProber } from '../src/nwc/dead-prober'
+import type pg from 'pg'
+import type { NwcWalletDeadOutcome } from '@lawallet-nwc/shared'
+import { NwcPool, type WalletLivenessSnapshot } from '../src/nwc/pool'
+import {
+  DeadWalletProber,
+  unobservedIdleMs,
+  type ListenerDowntime
+} from '../src/nwc/dead-prober'
+import type { WalletDeadAck } from '../src/webhook'
 import { metrics } from '../src/metrics'
 
 const log = pino({ level: 'silent' })
@@ -63,7 +70,48 @@ const wallet: DesiredWallet = {
 const fakeEnv = {
   DEAD_THRESHOLD_HOURS: 4,
   DEAD_PROBE_TIMEOUT_MS: 30,
-  DEAD_CONFIRMATION_PROBES: 1
+  DEAD_CONFIRMATION_PROBES: 1,
+  WALLET_ARCHIVE_IDLE_HOURS: 48,
+  WALLET_ARCHIVE_RETRY_MS: 6 * 60 * 60 * 1000
+}
+
+const HOUR_MS = 60 * 60 * 1000
+
+/**
+ * `sendWalletDead` answers with what web DID, not just whether the POST landed.
+ * `archived`/`noop` are the only outcomes the prober may act on.
+ */
+function ack(
+  outcome: NwcWalletDeadOutcome | null,
+  delivered = true
+): WalletDeadAck {
+  return {
+    delivered,
+    applied:
+      delivered &&
+      (outcome === null || outcome === 'archived' || outcome === 'noop'),
+    outcome
+  }
+}
+
+/** A dispatcher whose web archives everything it is told about. */
+function archivingDispatcher() {
+  return { sendWalletDead: vi.fn().mockResolvedValue(ack('archived')) }
+}
+
+/** One `livenessSnapshot()` entry for a wallet the pool is holding. */
+function livenessEntry(
+  overrides: Partial<WalletLivenessSnapshot> = {}
+): WalletLivenessSnapshot {
+  return {
+    wallet,
+    state: 'error',
+    everReady: false,
+    lastResponsiveAt: null,
+    parked: false,
+    retryAttempt: 1,
+    ...overrides
+  }
 }
 
 // A minimal NwcPool stand-in exposing only what the prober touches.
@@ -76,6 +124,9 @@ function fakePool(opts: {
   relaysConnected?: boolean
   holdsClient?: boolean
   foregroundPayment?: boolean
+  liveness?: WalletLivenessSnapshot[]
+  /** What `isReady()` reports at report time (the final anti-race re-check). */
+  ready?: boolean
 }) {
   const subscribed = opts.candidates.map(c => ({
     wallet: c.wallet,
@@ -87,14 +138,42 @@ function fakePool(opts: {
     relaysConnected: vi.fn(() => opts.relaysConnected ?? true),
     holdsClient: vi.fn(() => opts.holdsClient ?? true),
     hasForegroundPayment: vi.fn(() => opts.foregroundPayment ?? false),
-    markResponsive: vi.fn()
+    markResponsive: vi.fn(),
+    livenessSnapshot: vi.fn(() => opts.liveness ?? []),
+    parkWallet: vi.fn(),
+    isReady: vi.fn(() => opts.ready ?? false)
   }
+}
+
+/**
+ * Stand-in for the shared Postgres. `liveness` seeds what
+ * `loadWalletLiveness` returns; every write is recorded so tests can assert
+ * the durable clock is being kept.
+ */
+function fakeDb(
+  liveness: Array<{
+    wallet_id: string
+    last_active_at: Date
+    ready_at: Date | null
+    archive_reported_at: Date | null
+  }> = []
+) {
+  const query = vi.fn(async (sql: string) => {
+    if (sql.includes('FROM listener.wallet_cursors')) {
+      return { rows: liveness, rowCount: liveness.length }
+    }
+    return { rows: [], rowCount: 1 }
+  })
+  return { db: { query } as unknown as pg.Pool, query }
 }
 
 function makeProber(
   pool: unknown,
   dispatcher: unknown,
-  envOverride?: Record<string, number>
+  envOverride?: Record<string, number>,
+  db: pg.Pool = fakeDb().db,
+  onArchiveReported?: (walletId: string) => void,
+  downtime?: ListenerDowntime
 ) {
   return new DeadWalletProber({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,7 +183,10 @@ function makeProber(
     pool: pool as any,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     dispatcher: dispatcher as any,
-    metrics
+    metrics,
+    db,
+    onArchiveReported,
+    downtime
   })
 }
 
@@ -118,6 +200,7 @@ function resetMetrics() {
   metrics.deadProbesRun = 0
   metrics.deadProbesTimedOut = 0
   metrics.walletsDeclaredDead = 0
+  metrics.walletsArchiveRequested = 0
 }
 
 describe('DeadWalletProber.evaluate', () => {
@@ -129,7 +212,7 @@ describe('DeadWalletProber.evaluate', () => {
 
   it('reports wallet_dead once when a probe times out with relays up', async () => {
     control.getInfo.mockReturnValue(new Promise(() => {})) // never replies
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({ candidates: [candidate(client)] })
@@ -137,7 +220,15 @@ describe('DeadWalletProber.evaluate', () => {
 
     await prober.evaluate()
     expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
-    expect(dispatcher.sendWalletDead).toHaveBeenCalledWith('wallet-1', 5 * 3600)
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledWith(
+      'wallet-1',
+      5 * 3600,
+      {
+        reason: 'unresponsive',
+        relaysConnected: true,
+        everReady: true
+      }
+    )
     expect(metrics.walletsDeclaredDead).toBe(1)
     expect(metrics.deadProbesTimedOut).toBe(1)
 
@@ -148,7 +239,7 @@ describe('DeadWalletProber.evaluate', () => {
 
   it('never reports when relays are down (network fault, not death)', async () => {
     control.getInfo.mockReturnValue(new Promise(() => {}))
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({
@@ -164,7 +255,7 @@ describe('DeadWalletProber.evaluate', () => {
 
   it('treats a successful probe as alive and bumps the liveness clock', async () => {
     control.getInfo.mockResolvedValue({ methods: ['pay_invoice'] })
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({ candidates: [candidate(client)] })
@@ -177,7 +268,7 @@ describe('DeadWalletProber.evaluate', () => {
 
   it('defers maintenance probes while a card payment is in flight', async () => {
     control.getInfo.mockResolvedValue({ methods: ['pay_invoice'] })
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({
@@ -195,7 +286,7 @@ describe('DeadWalletProber.evaluate', () => {
     control.getInfo.mockRejectedValue(
       new Nip47Error('restricted', 'RESTRICTED')
     )
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({ candidates: [candidate(client)] })
@@ -210,7 +301,7 @@ describe('DeadWalletProber.evaluate', () => {
     control.getInfo.mockRejectedValue(
       new Nip47TimeoutError('no reply', 'TIMEOUT')
     )
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({ candidates: [candidate(client)] })
@@ -222,7 +313,9 @@ describe('DeadWalletProber.evaluate', () => {
 
   it('retries next sweep when web did not accept the report', async () => {
     control.getInfo.mockReturnValue(new Promise(() => {}))
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(false) }
+    const dispatcher = {
+      sendWalletDead: vi.fn().mockResolvedValue(ack(null, false))
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({ candidates: [candidate(client)] })
@@ -236,7 +329,7 @@ describe('DeadWalletProber.evaluate', () => {
 
   it('does not treat a transport error as death (inconclusive)', async () => {
     control.getInfo.mockRejectedValue(new Error('websocket closed'))
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({ candidates: [candidate(client)] })
@@ -249,7 +342,7 @@ describe('DeadWalletProber.evaluate', () => {
 
   it('requires DEAD_CONFIRMATION_PROBES consecutive timeouts before reporting', async () => {
     control.getInfo.mockReturnValue(new Promise(() => {})) // always times out
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({ candidates: [candidate(client)] })
@@ -263,7 +356,7 @@ describe('DeadWalletProber.evaluate', () => {
   })
 
   it('resets the streak when a probe shows life (no false archive on a blip)', async () => {
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     const pool = fakePool({ candidates: [candidate(client)] })
@@ -282,7 +375,7 @@ describe('DeadWalletProber.evaluate', () => {
 
   it('never reports on a timeout if the pool rotated the client mid-probe', async () => {
     control.getInfo.mockReturnValue(new Promise(() => {}))
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     // holdsClient=false → the captured client is stale (wallet was rotated).
@@ -298,7 +391,7 @@ describe('DeadWalletProber.evaluate', () => {
 
   it('a dropped relay mid-streak resets the confirmation count', async () => {
     control.getInfo.mockReturnValue(new Promise(() => {})) // always times out
-    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(true) }
+    const dispatcher = archivingDispatcher()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = { getInfo: () => control.getInfo() } as any
     let relaysUp = true
@@ -308,7 +401,10 @@ describe('DeadWalletProber.evaluate', () => {
       relaysConnected: vi.fn(() => relaysUp),
       holdsClient: vi.fn(() => true),
       hasForegroundPayment: vi.fn(() => false),
-      markResponsive: vi.fn()
+      markResponsive: vi.fn(),
+      livenessSnapshot: vi.fn(() => []),
+      parkWallet: vi.fn(),
+      isReady: vi.fn(() => false)
     }
     const prober = makeProber(pool, dispatcher, { DEAD_CONFIRMATION_PROBES: 3 })
 
@@ -322,6 +418,600 @@ describe('DeadWalletProber.evaluate', () => {
     expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
     await prober.evaluate() // streak 3 → confirmed dead
     expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * The 48h rule (issue #279). These wallets are NOT probe candidates — a
+ * warmup-stuck wallet has no live client at all — so before this path they
+ * retried every 60s forever and never reached archival.
+ */
+describe('DeadWalletProber — 48h idle archive', () => {
+  beforeEach(() => {
+    control.connected = true
+    control.getInfo.mockReset()
+    resetMetrics()
+  })
+
+  it('archives a warmup-stuck wallet (error, never ready) idle past 48h', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error' })]
+    })
+    const { db, query } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 49 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    const reported: string[] = []
+    const prober = makeProber(pool, dispatcher, undefined, db, id =>
+      reported.push(id)
+    )
+
+    await prober.evaluate()
+
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+    const [walletId, seconds, opts] = dispatcher.sendWalletDead.mock.calls[0]
+    expect(walletId).toBe('wallet-1')
+    expect(seconds).toBeGreaterThanOrEqual(49 * 3600)
+    expect(opts).toMatchObject({ reason: 'warmup_failed', everReady: false })
+    expect(metrics.walletsArchiveRequested).toBe(1)
+    // Retry storm stops: the wallet is parked at the archive retry interval.
+    expect(pool.parkWallet).toHaveBeenCalledWith(
+      'wallet-1',
+      fakeEnv.WALLET_ARCHIVE_RETRY_MS
+    )
+    // The report is durable, so a restart doesn't re-report (or re-Sentry).
+    expect(reported).toEqual(['wallet-1'])
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes('archive_reported_at = $2')
+      )
+    ).toBe(true)
+  })
+
+  it('reports `idle` (not `warmup_failed`) for a wallet that was ready before', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'disconnected' })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: new Date(Date.now() - 80 * HOUR_MS),
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead.mock.calls[0][2]).toMatchObject({
+      reason: 'idle',
+      everReady: true
+    })
+  })
+
+  it('leaves a wallet alone until the 48h window is cleared', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error' })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 47 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+    expect(pool.parkWallet).not.toHaveBeenCalled()
+  })
+
+  it('uses the PERSISTED clock, so a restart cannot reset idleness', async () => {
+    const dispatcher = archivingDispatcher()
+    // Fresh process: nothing in memory has ever proven this wallet alive.
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error', lastResponsiveAt: null })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 5 * 24 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('honours in-memory proof of life over a stale persisted clock', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [
+        livenessEntry({
+          state: 'disconnected',
+          everReady: true,
+          lastResponsiveAt: new Date(Date.now() - 60_000)
+        })
+      ]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 5 * 24 * HOUR_MS),
+        ready_at: new Date(Date.now() - 5 * 24 * HOUR_MS),
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+  })
+
+  it('does not re-report inside the persisted throttle window (restart-safe)', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error' })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: new Date(Date.now() - 60_000)
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+    // Still parked, so the wallet isn't hammering relays while it waits.
+    expect(pool.parkWallet).toHaveBeenCalledWith(
+      'wallet-1',
+      fakeEnv.WALLET_ARCHIVE_RETRY_MS
+    )
+  })
+
+  it('re-reports once the throttle window has elapsed', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error' })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: new Date(Date.now() - 7 * HOUR_MS)
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('never archives a wallet still on its first handshake', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'connecting', retryAttempt: 0 })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+  })
+
+  // A warmup-stuck wallet spends part of every retry cycle back in
+  // `connecting`, so candidacy must not depend on catching it in `error`.
+  it('archives a retrying wallet even when the sweep lands mid-reconnect', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'connecting', retryAttempt: 7 })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts the report if the retry succeeded while the ledger was read', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'connecting', retryAttempt: 7 })],
+      // The wallet answered between the snapshot and the report.
+      ready: true
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+  })
+
+  it('does not park when web refused the report', async () => {
+    const dispatcher = {
+      sendWalletDead: vi.fn().mockResolvedValue(ack(null, false))
+    }
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error' })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(pool.parkWallet).not.toHaveBeenCalled()
+    expect(metrics.walletsArchiveRequested).toBe(0)
+  })
+
+  it('defers to an in-flight card payment', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      foregroundPayment: true,
+      liveness: [livenessEntry({ state: 'disconnected', everReady: true })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: new Date(Date.now() - 72 * HOUR_MS),
+        archive_reported_at: null
+      }
+    ])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+  })
+
+  it('anchors the idle clock for a wallet that has never proven anything', async () => {
+    const dispatcher = archivingDispatcher()
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error' })]
+    })
+    // No persisted row yet — a brand-new wallet failing its first warm-up.
+    const { db, query } = fakeDb([])
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes('last_active_at IS NULL')
+      )
+    ).toBe(true)
+    // Nothing to archive: the clock starts now, not 48h ago.
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Listener downtime is not wallet idleness. Without this, a listener that was
+ * off for more than the archive window sees the WHOLE pool as idle on its first
+ * sweep (~60s after boot) and mass-archives it — primary Lightning Address links
+ * included.
+ */
+describe('DeadWalletProber — listener downtime is not idleness', () => {
+  beforeEach(() => {
+    control.connected = true
+    control.getInfo.mockReset()
+    resetMetrics()
+  })
+
+  /** A wallet idle `idleHours` whose ledger row says so, plus a pool holding it. */
+  function idleFor(idleHours: number) {
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error' })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - idleHours * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    return { pool, db }
+  }
+
+  function downtimeOf(hours: number): ListenerDowntime {
+    const bootedAt = new Date()
+    return { bootedAt, lastAliveAt: new Date(Date.now() - hours * HOUR_MS) }
+  }
+
+  it('does not archive a pool that only looks idle because we were off', async () => {
+    // Down for 10 days; every wallet has been "silent" for 10 days as a result.
+    const dispatcher = archivingDispatcher()
+    const { pool, db } = idleFor(10 * 24)
+    const prober = makeProber(
+      pool,
+      dispatcher,
+      undefined,
+      db,
+      undefined,
+      downtimeOf(10 * 24)
+    )
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+    expect(pool.parkWallet).not.toHaveBeenCalled()
+  })
+
+  it('still archives idleness the listener actually observed', async () => {
+    // Down 10 days, but this wallet went quiet 3 days BEFORE the outage: 72h of
+    // observed silence already clears the window.
+    const dispatcher = archivingDispatcher()
+    const { pool, db } = idleFor(10 * 24 + 72)
+    const prober = makeProber(
+      pool,
+      dispatcher,
+      undefined,
+      db,
+      undefined,
+      downtimeOf(10 * 24)
+    )
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('a fast restart discounts nothing, so it cannot reset idleness', async () => {
+    const dispatcher = archivingDispatcher()
+    const { pool, db } = idleFor(72)
+    const prober = makeProber(pool, dispatcher, undefined, db, undefined, {
+      bootedAt: new Date(),
+      lastAliveAt: new Date(Date.now() - 30_000)
+    })
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports the full idle age, not the observed remainder', async () => {
+    // Web re-checks the 48h rule against this number, and total idleness is what
+    // the operator sees in the activity log.
+    const dispatcher = archivingDispatcher()
+    const { pool, db } = idleFor(10 * 24 + 72)
+    const prober = makeProber(
+      pool,
+      dispatcher,
+      undefined,
+      db,
+      undefined,
+      downtimeOf(10 * 24)
+    )
+
+    await prober.evaluate()
+    const [, seconds] = dispatcher.sendWalletDead.mock.calls[0]
+    expect(seconds).toBeGreaterThanOrEqual((10 * 24 + 72) * 3600)
+  })
+
+  describe('unobservedIdleMs', () => {
+    const bootedAt = new Date('2026-09-14T00:00:00Z')
+
+    it('is zero with no prior process (fresh install)', () => {
+      expect(
+        unobservedIdleMs(
+          { bootedAt, lastAliveAt: null },
+          new Date('2026-09-01T00:00:00Z')
+        )
+      ).toBe(0)
+    })
+
+    it('is zero when the prober has no downtime information at all', () => {
+      expect(
+        unobservedIdleMs(undefined, new Date('2026-09-01T00:00:00Z'))
+      ).toBe(0)
+    })
+
+    it('is the whole outage for a wallet last active before it', () => {
+      expect(
+        unobservedIdleMs(
+          { bootedAt, lastAliveAt: new Date('2026-09-12T00:00:00Z') },
+          new Date('2026-09-01T00:00:00Z')
+        )
+      ).toBe(2 * 24 * HOUR_MS)
+    })
+
+    it('only counts from the wallet anchor when that is inside the outage', () => {
+      // Nothing was watching from the 12th, but this wallet was last active on
+      // the 13th (a cursor row written by an even older process) — only the
+      // final day is unobserved.
+      expect(
+        unobservedIdleMs(
+          { bootedAt, lastAliveAt: new Date('2026-09-12T00:00:00Z') },
+          new Date('2026-09-13T00:00:00Z')
+        )
+      ).toBe(24 * HOUR_MS)
+    })
+
+    it('is zero for a wallet first seen after boot', () => {
+      expect(
+        unobservedIdleMs(
+          { bootedAt, lastAliveAt: new Date('2026-09-04T00:00:00Z') },
+          new Date('2026-09-14T01:00:00Z')
+        )
+      ).toBe(0)
+    })
+  })
+})
+
+/**
+ * A 2xx from web means "report accepted", not "wallet archived". Web re-checks
+ * the product rules; a refusal must not park the wallet or mute its errors.
+ */
+describe('DeadWalletProber — web refused the report', () => {
+  beforeEach(() => {
+    control.connected = true
+    control.getInfo.mockReset()
+    resetMetrics()
+  })
+
+  function idlePool() {
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error' })]
+    })
+    const { db, query } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - 72 * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    return { pool, db, query }
+  }
+
+  it('does not park, mark or mute an ignored idle report', async () => {
+    const dispatcher = {
+      sendWalletDead: vi.fn().mockResolvedValue(ack('ignored'))
+    }
+    const { pool, db, query } = idlePool()
+    const reported: string[] = []
+    const prober = makeProber(pool, dispatcher, undefined, db, id =>
+      reported.push(id)
+    )
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+    expect(pool.parkWallet).not.toHaveBeenCalled()
+    expect(metrics.walletsArchiveRequested).toBe(0)
+    // No Sentry mute and no durable mark — the wallet is still ACTIVE.
+    expect(reported).toEqual([])
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes('archive_reported_at = $2')
+      )
+    ).toBe(false)
+  })
+
+  it('does not park or mute an unknown_wallet report either', async () => {
+    const dispatcher = {
+      sendWalletDead: vi.fn().mockResolvedValue(ack('unknown_wallet'))
+    }
+    const { pool, db } = idlePool()
+    const reported: string[] = []
+    const prober = makeProber(pool, dispatcher, undefined, db, id =>
+      reported.push(id)
+    )
+
+    await prober.evaluate()
+    expect(pool.parkWallet).not.toHaveBeenCalled()
+    expect(reported).toEqual([])
+  })
+
+  it('stops re-asking a refused report every sweep', async () => {
+    const dispatcher = {
+      sendWalletDead: vi.fn().mockResolvedValue(ack('ignored'))
+    }
+    const { pool, db } = idlePool()
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    await prober.evaluate()
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('parks and marks a noop — web confirms the wallet is already archived', async () => {
+    const dispatcher = {
+      sendWalletDead: vi.fn().mockResolvedValue(ack('noop'))
+    }
+    const { pool, db } = idlePool()
+    const reported: string[] = []
+    const prober = makeProber(pool, dispatcher, undefined, db, id =>
+      reported.push(id)
+    )
+
+    await prober.evaluate()
+    expect(pool.parkWallet).toHaveBeenCalledWith(
+      'wallet-1',
+      fakeEnv.WALLET_ARCHIVE_RETRY_MS
+    )
+    expect(reported).toEqual(['wallet-1'])
+  })
+
+  it('treats an ack with no outcome as applied (pre-contract web build)', async () => {
+    const dispatcher = { sendWalletDead: vi.fn().mockResolvedValue(ack(null)) }
+    const { pool, db } = idlePool()
+    const prober = makeProber(pool, dispatcher, undefined, db)
+
+    await prober.evaluate()
+    expect(pool.parkWallet).toHaveBeenCalled()
+  })
+
+  it('keeps probing but stops reporting when web refuses a probe report', async () => {
+    // The classic case: a user's own Alby wallet goes silent for 4h. Web only
+    // archives LNCurl wallets on the probe signal, so this stays ACTIVE.
+    control.getInfo.mockReturnValue(new Promise(() => {}))
+    const dispatcher = {
+      sendWalletDead: vi.fn().mockResolvedValue(ack('ignored'))
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = { getInfo: () => control.getInfo() } as any
+    const pool = fakePool({ candidates: [candidate(client)] })
+    const prober = makeProber(pool, dispatcher)
+
+    await prober.evaluate()
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+    expect(metrics.walletsDeclaredDead).toBe(0)
   })
 })
 

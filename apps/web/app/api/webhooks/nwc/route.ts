@@ -25,7 +25,10 @@ import {
   logActivity
 } from '@/lib/activity-log'
 import { logger } from '@/lib/logger'
-import { clearPrimaryWalletLinkToWallet } from '@/lib/wallet/primary-wallet'
+import {
+  archiveDeadWallet,
+  type ArchiveOutcome
+} from '@/lib/wallet/archive-dead-wallet'
 import {
   preimageMatchesPaymentHash,
   succeedCardPaymentAttempt
@@ -109,7 +112,15 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   }
   const event = parsed.data
 
-  if ('walletId' in event && event.walletId) {
+  // Payment events only: this is web's own record of the proxy wallet ANSWERING,
+  // and the auto-archive rule reads it as a contradiction check. A
+  // `wallet_dead` / `listener_error` report proves the listener is alive, not
+  // the wallet, and stamping it here would make every archive report refute
+  // itself.
+  if (
+    (event.type === 'payment_received' || event.type === 'payment_sent') &&
+    event.walletId
+  ) {
     await prisma.proxyServiceConfig.updateMany({
       where: { walletId: event.walletId },
       data: { lastListenerSeenAt: new Date() }
@@ -119,6 +130,10 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
   const settlementIds: string[] = []
   const forwardingReceiptIds: string[] = []
   const notificationDeliveryIds: string[] = []
+  // What web DID with a wallet_dead report. The listener parks the wallet and
+  // mutes its warmup errors on the strength of this, so a report web refused
+  // must not read as an archive just because the HTTP call succeeded.
+  let walletDeadOutcome: ArchiveOutcome | null = null
   switch (event.type) {
     case 'payment_received':
       {
@@ -159,7 +174,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
       })
       break
     case 'wallet_dead':
-      await archiveDeadWallet(event)
+      walletDeadOutcome = await archiveDeadWallet(event)
       break
   }
 
@@ -182,8 +197,14 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
 
   // Object shape (not a bare boolean) so the planned "web returns Nostr
   // events for the listener to publish" extension isn't a breaking change.
+  //
+  // Still 200 for a refused wallet_dead report: the delivery itself succeeded
+  // and a non-2xx would put the listener's retry machinery (shared with payment
+  // webhooks) to work on a decision that will not change. The outcome field is
+  // the contract — see `nwcWalletDeadOutcomeSchema`.
   return NextResponse.json({
     received: true,
+    ...(walletDeadOutcome ? { walletDeadOutcome } : {}),
     ...(settlementIds.length > 0 ? { settlementIds } : {}),
     ...(forwardingReceiptIds.length > 0 ? { forwardingReceiptIds } : {}),
     ...(notificationDeliveryIds.length > 0 ? { notificationDeliveryIds } : {})
@@ -526,67 +547,4 @@ function webhookLogMetadata(
 
 function msatsToSats(msats: number | undefined): number {
   return Math.floor((msats ?? 0) / 1000)
-}
-
-type WalletDeadEvent = Extract<NwcWebhookPayload, { type: 'wallet_dead' }>
-
-/**
- * The listener observed an NWC wallet go unresponsive for a sustained window
- * while its relays stayed connected — the fingerprint of a destroyed
- * disposable LNCurl wallet. Archive it as DEAD, but ONLY when it is still
- * ACTIVE and was provisioned by LNCurl. Any other wallet — a user's own
- * Alby/Mutiny NWC, or an already-retired row — is left untouched: a transient
- * outage must never archive a wallet the user still controls. The provider
- * decision lives here (web owns business logic); the listener only observes.
- *
- * Idempotent: the `status: 'ACTIVE'` predicate makes a replayed webhook a
- * no-op. After the write, the `remote_wallet_changed` trigger drops the wallet
- * from the listener pool, ending the reconnect churn.
- */
-async function archiveDeadWallet(event: WalletDeadEvent): Promise<void> {
-  const wallet = await prisma.remoteWallet.findUnique({
-    where: { id: event.walletId },
-    select: { id: true, userId: true, status: true, config: true, name: true }
-  })
-  if (!wallet || wallet.status !== 'ACTIVE') return
-
-  const provider = (wallet.config as { provider?: unknown } | null)?.provider
-  if (provider !== 'lncurl') {
-    logger.warn(
-      { walletId: wallet.id, provider: provider ?? null },
-      'nwc.wallet_dead_ignored_non_lncurl'
-    )
-    return
-  }
-
-  const result = await prisma.$transaction(async tx => {
-    const archived = await tx.remoteWallet.updateMany({
-      where: { id: wallet.id, status: 'ACTIVE' },
-      data: { status: 'DEAD', diedAt: new Date(), isDefault: false }
-    })
-    if (archived.count > 0) {
-      await clearPrimaryWalletLinkToWallet(wallet.userId, wallet.id, tx)
-    }
-    return archived
-  })
-  // Lost a race (already transitioned) — replayed webhook is a clean no-op.
-  if (result.count === 0) return
-
-  const hours = Math.round(event.unresponsiveSeconds / 3600)
-  logger.info({ walletId: wallet.id }, 'nwc.wallet_archived_dead')
-  eventBus.emit({ type: 'addresses:updated', timestamp: Date.now() })
-  eventBus.emit({ type: 'users:updated', timestamp: Date.now() })
-  logActivity.fireAndForget({
-    category: 'NWC',
-    event: ActivityEvent.NWC_WALLET_DEAD,
-    level: 'WARN',
-    message: `NWC wallet "${wallet.name}" archived as dead (unresponsive ~${hours}h, relays up)`,
-    userId: wallet.userId,
-    metadata: {
-      walletId: wallet.id,
-      unresponsiveSeconds: event.unresponsiveSeconds,
-      relaysConnected: event.relaysConnected,
-      source: 'nwc_listener'
-    }
-  })
 }

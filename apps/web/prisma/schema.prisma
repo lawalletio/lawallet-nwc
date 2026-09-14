@@ -44,10 +44,13 @@ enum RemoteWalletStatus {
   ACTIVE
   DISABLED
   REVOKED
-  /// Terminal "archived" state for a disposable LNCurl wallet that ran out of
-  /// sats and was destroyed by the provider. The row is kept (with `diedAt`)
-  /// so the user can see its death stats; it can't be bound to anything and
-  /// can be permanently removed.
+  /// "Archived" state, reached two ways: a disposable LNCurl wallet that ran
+  /// out of sats and was destroyed by its provider (probe-confirmed), or ANY
+  /// wallet the listener saw go more than 48h without a single sign of life —
+  /// including one that never completed NWC warmup. The row is kept (with
+  /// `diedAt`) so the user can see its death stats; it can't be bound to
+  /// anything and can be permanently removed. A user can still PATCH it back
+  /// to ACTIVE if their wallet comes back.
   DEAD
 }
 
@@ -446,9 +449,14 @@ model RemoteWallet {
   isDefault            Boolean            @default(false)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
-  /// When a disposable LNCurl wallet was detected dead and archived (status
-  /// DEAD). Null for every other wallet. Drives the "graveyard" death stats.
+  /// When the wallet was archived (status DEAD) — either a disposable LNCurl
+  /// wallet detected dead or any wallet idle past the 48h archive window. Null
+  /// for every live wallet. Drives the "graveyard" death stats.
   diedAt               DateTime?
+  /// Why it was archived, as reported by the listener: `unresponsive`
+  /// (probe-confirmed silence with relays up), `idle` (>48h with no sign of
+  /// life), `warmup_failed` (>48h and it never completed NWC warmup at all).
+  diedReason           String?
 
   lightningAddresses     LightningAddress[]
   cards                  Card[]
@@ -894,6 +902,13 @@ model ProxyServiceConfig {
   lastProbeError        String?
   lastListenerSeenAt    DateTime?
   lastCronAt            DateTime?
+  /// Set when the listener reported the proxy's own NWC wallet dead (>48h with
+  /// no sign of life, or probe-confirmed silence). New proxy intake is disabled
+  /// with it — outstanding settlements still finish, since those read the
+  /// credential regardless of `enabled`. Clearing it re-enables the proxy.
+  archivedAt            DateTime?
+  /// `unresponsive` | `idle` | `warmup_failed` — the listener's reason.
+  archivedReason        String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 }

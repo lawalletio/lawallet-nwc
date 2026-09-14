@@ -852,6 +852,87 @@ describe('PATCH /api/remote-wallets/[id]', () => {
     })
   })
 
+  // Restoring an auto-archived wallet has to clear the death record: the
+  // archived-wallets UI keys off `diedAt`, and a stale `diedReason` would keep
+  // describing a wallet that works again. The listener's own idle clock is reset
+  // by the `remote_wallet_changed` reconcile that this write triggers.
+  it('clears diedAt/diedReason when an archived wallet is restored', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: user.id,
+      status: 'DEAD',
+      diedAt: new Date('2026-09-01T00:00:00Z'),
+      diedReason: 'warmup_failed'
+    })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue({
+      ...wallet,
+      status: 'ACTIVE',
+      diedAt: null,
+      diedReason: null
+    } as never)
+
+    const res = await patchHandler(
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { status: 'ACTIVE' }
+      }),
+      createParamsPromise({ id: 'w1' })
+    )
+    const body = (await assertResponse(res, 200)) as {
+      status: string
+      diedAt: string | null
+      diedReason: string | null
+    }
+    expect(body).toMatchObject({
+      status: 'ACTIVE',
+      diedAt: null,
+      diedReason: null
+    })
+    expect(prismaMock.remoteWallet.update).toHaveBeenCalledWith({
+      where: { id: 'w1' },
+      data: expect.objectContaining({
+        status: 'ACTIVE',
+        diedAt: null,
+        diedReason: null
+      })
+    })
+  })
+
+  it('leaves the death record alone when the status is not restored', async () => {
+    mockAuth()
+    const user = createUserFixture({ pubkey: USER_PUBKEY })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as never)
+    const wallet = createRemoteWalletFixture({
+      id: 'w1',
+      userId: user.id,
+      status: 'DEAD',
+      diedAt: new Date('2026-09-01T00:00:00Z'),
+      diedReason: 'idle'
+    })
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      wallet as never
+    )
+    vi.mocked(prismaMock.remoteWallet.update).mockResolvedValue(wallet as never)
+
+    await patchHandler(
+      createNextRequest('/api/remote-wallets/w1', {
+        method: 'PATCH',
+        body: { name: 'Renamed while archived' }
+      }),
+      createParamsPromise({ id: 'w1' })
+    )
+    const data = vi.mocked(prismaMock.remoteWallet.update).mock.calls[0][0]
+      .data as Record<string, unknown>
+    expect(data).not.toHaveProperty('diedAt')
+    expect(data).not.toHaveProperty('diedReason')
+  })
+
   it('changes status to DISABLED', async () => {
     mockAuth()
     const user = createUserFixture({ pubkey: USER_PUBKEY })

@@ -197,6 +197,12 @@ export interface RemoteWallet {
   createdAt: string
   updatedAt: string
   diedAt: string | null
+  /**
+   * Why the wallet was archived: `'unresponsive'` (probe-confirmed silence with
+   * relays up), `'idle'` (>48h with no sign of life) or `'warmup_failed'` (>48h
+   * and NWC warm-up never succeeded). Null unless the status is `DEAD`.
+   */
+  diedReason?: 'unresponsive' | 'idle' | 'warmup_failed' | null
   /** `'lncurl'` for a disposable server-minted wallet; null otherwise. */
   provider: 'lncurl' | null
   lncurlServerUrl: string | null

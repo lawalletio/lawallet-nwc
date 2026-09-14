@@ -47,6 +47,8 @@ interface RemoteWalletDto {
   updatedAt: string
   /** Set only for archived (DEAD) wallets — when the wallet was detected dead. */
   diedAt: string | null
+  /** Why it was archived: `unresponsive`, `idle` or `warmup_failed`. Null unless DEAD. */
+  diedReason: string | null
   /** `'lncurl'` for a disposable LNCurl-provisioned wallet, else null. Drives the UI tag + countdown. */
   provider: 'lncurl' | null
   /** For LNCurl wallets, the server that minted THIS wallet (stored per-wallet, so a later settings change doesn't move it). Null otherwise. */
@@ -68,6 +70,7 @@ function toDto(w: RemoteWallet): RemoteWalletDto {
     createdAt: w.createdAt.toISOString(),
     updatedAt: w.updatedAt.toISOString(),
     diedAt: w.diedAt ? w.diedAt.toISOString() : null,
+    diedReason: w.diedReason,
     provider: isLncurl ? 'lncurl' : null,
     lncurlServerUrl:
       isLncurl && typeof cfg?.lncurlServerUrl === 'string'

@@ -173,7 +173,8 @@ export function createHttpServer(deps: HttpServerDeps): http.Server {
           catchupErrors: metrics.catchupErrors,
           deadProbesRun: metrics.deadProbesRun,
           deadProbesTimedOut: metrics.deadProbesTimedOut,
-          walletsDeclaredDead: metrics.walletsDeclaredDead
+          walletsDeclaredDead: metrics.walletsDeclaredDead,
+          walletsArchiveRequested: metrics.walletsArchiveRequested
         },
         recentEvents: events.map(event => {
           // invoice / fees / preimage live only in the raw NIP-47 payload.

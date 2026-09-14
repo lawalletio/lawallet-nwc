@@ -23,6 +23,12 @@ export interface RemoteWalletData {
   updatedAt: string
   /** Always present; non-null only for archived (DEAD) wallets — when it was detected dead. */
   diedAt: string | null
+  /**
+   * Why it was archived: `unresponsive` (probe-confirmed silence with relays
+   * up), `idle` (>48h with no sign of life) or `warmup_failed` (>48h and it
+   * never completed NWC warm-up). Absent on older responses.
+   */
+  diedReason?: string | null
   /** `'lncurl'` for a disposable LNCurl wallet (drives the tag + countdown); null otherwise. */
   provider: 'lncurl' | null
   /** For LNCurl wallets, the server that minted it (the tag links here); null otherwise. */
