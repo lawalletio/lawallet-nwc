@@ -14,6 +14,27 @@ import {
   recordWalletActivity
 } from '../store'
 
+/**
+ * How long this service was NOT running before the current process. Idleness
+ * can only be counted while something was watching: after a multi-day outage
+ * the whole pool looks silent, and without this the first sweep (~60s after
+ * boot) would mass-archive it — links to primary Lightning Addresses included.
+ *
+ * Measured from the ledger's own `updated_at` watermark
+ * ({@link loadListenerLastAliveAt}), read at boot before the pool writes
+ * anything. A fast restart yields ~0, which keeps the restart-cannot-reset-
+ * idleness property intact.
+ */
+export interface ListenerDowntime {
+  /** When this process read the watermark (≈ process start). */
+  bootedAt: Date
+  /**
+   * Last ledger write by an earlier process. `null` on a fresh install (no
+   * downtime to discount — nothing is old enough to archive either).
+   */
+  lastAliveAt: Date | null
+}
+
 export interface DeadProberDeps {
   env: ListenerEnv
   log: Logger
@@ -24,6 +45,35 @@ export interface DeadProberDeps {
   db: pg.Pool
   /** Called after a delivered report so warmup errors stop reaching Sentry. */
   onArchiveReported?: (walletId: string) => void
+  /**
+   * Downtime to discount from every idle measurement. Omitted only in tests
+   * that predate the discount; a real boot always supplies it.
+   */
+  downtime?: ListenerDowntime
+}
+
+/**
+ * Idle time the listener was NOT around to observe, for one wallet.
+ *
+ * The outage window is `[lastAliveAt, bootedAt]`; the wallet's silence window is
+ * `[lastActiveAt, now]`. The discount is their overlap, so:
+ *
+ *  - a wallet last active BEFORE the outage only has to accumulate the rest of
+ *    the 48h in observed time (pre-outage silence still counts);
+ *  - a wallet added AFTER boot discounts nothing — its anchor is already inside
+ *    the observed window;
+ *  - a fast restart discounts ~nothing, so restarting can never reset the clock.
+ */
+export function unobservedIdleMs(
+  downtime: ListenerDowntime | undefined,
+  lastActiveAt: Date
+): number {
+  if (!downtime?.lastAliveAt) return 0
+  const outageStart = Math.max(
+    downtime.lastAliveAt.getTime(),
+    lastActiveAt.getTime()
+  )
+  return Math.max(0, downtime.bootedAt.getTime() - outageStart)
 }
 
 type ProbeResult =
@@ -282,7 +332,23 @@ export class DeadWalletProber {
       const lastActiveAt = latest(row?.lastActiveAt, entry.lastResponsiveAt)
       if (!lastActiveAt) continue
       const unresponsiveMs = now - lastActiveAt.getTime()
-      if (unresponsiveMs < idleMs) continue
+      // Listener downtime is not wallet idleness: discount the stretch nothing
+      // was watching, so a multi-day outage can't mass-archive the pool on the
+      // first sweep after boot.
+      const unobservedMs = unobservedIdleMs(this.deps.downtime, lastActiveAt)
+      if (unresponsiveMs - unobservedMs < idleMs) {
+        if (unresponsiveMs >= idleMs) {
+          log.info(
+            {
+              walletId,
+              unresponsiveSeconds: Math.floor(unresponsiveMs / 1000),
+              downtimeSeconds: Math.floor(unobservedMs / 1000)
+            },
+            'dead_prober.idle_discounted_listener_downtime'
+          )
+        }
+        continue
+      }
 
       // Already reported: stay parked and hold the report until the retry
       // window elapses. This is the restart-safe throttle — the timestamp is

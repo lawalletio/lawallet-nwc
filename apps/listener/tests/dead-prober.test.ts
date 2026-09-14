@@ -48,7 +48,11 @@ import type { NWCClient } from '@getalby/sdk'
 import type pg from 'pg'
 import type { NwcWalletDeadOutcome } from '@lawallet-nwc/shared'
 import { NwcPool, type WalletLivenessSnapshot } from '../src/nwc/pool'
-import { DeadWalletProber } from '../src/nwc/dead-prober'
+import {
+  DeadWalletProber,
+  unobservedIdleMs,
+  type ListenerDowntime
+} from '../src/nwc/dead-prober'
 import type { WalletDeadAck } from '../src/webhook'
 import { metrics } from '../src/metrics'
 
@@ -168,7 +172,8 @@ function makeProber(
   dispatcher: unknown,
   envOverride?: Record<string, number>,
   db: pg.Pool = fakeDb().db,
-  onArchiveReported?: (walletId: string) => void
+  onArchiveReported?: (walletId: string) => void,
+  downtime?: ListenerDowntime
 ) {
   return new DeadWalletProber({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -180,7 +185,8 @@ function makeProber(
     dispatcher: dispatcher as any,
     metrics,
     db,
-    onArchiveReported
+    onArchiveReported,
+    downtime
   })
 }
 
@@ -730,6 +736,158 @@ describe('DeadWalletProber — 48h idle archive', () => {
     ).toBe(true)
     // Nothing to archive: the clock starts now, not 48h ago.
     expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Listener downtime is not wallet idleness. Without this, a listener that was
+ * off for more than the archive window sees the WHOLE pool as idle on its first
+ * sweep (~60s after boot) and mass-archives it — primary Lightning Address links
+ * included.
+ */
+describe('DeadWalletProber — listener downtime is not idleness', () => {
+  beforeEach(() => {
+    control.connected = true
+    control.getInfo.mockReset()
+    resetMetrics()
+  })
+
+  /** A wallet idle `idleHours` whose ledger row says so, plus a pool holding it. */
+  function idleFor(idleHours: number) {
+    const pool = fakePool({
+      candidates: [],
+      liveness: [livenessEntry({ state: 'error' })]
+    })
+    const { db } = fakeDb([
+      {
+        wallet_id: 'wallet-1',
+        last_active_at: new Date(Date.now() - idleHours * HOUR_MS),
+        ready_at: null,
+        archive_reported_at: null
+      }
+    ])
+    return { pool, db }
+  }
+
+  function downtimeOf(hours: number): ListenerDowntime {
+    const bootedAt = new Date()
+    return { bootedAt, lastAliveAt: new Date(Date.now() - hours * HOUR_MS) }
+  }
+
+  it('does not archive a pool that only looks idle because we were off', async () => {
+    // Down for 10 days; every wallet has been "silent" for 10 days as a result.
+    const dispatcher = archivingDispatcher()
+    const { pool, db } = idleFor(10 * 24)
+    const prober = makeProber(
+      pool,
+      dispatcher,
+      undefined,
+      db,
+      undefined,
+      downtimeOf(10 * 24)
+    )
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).not.toHaveBeenCalled()
+    expect(pool.parkWallet).not.toHaveBeenCalled()
+  })
+
+  it('still archives idleness the listener actually observed', async () => {
+    // Down 10 days, but this wallet went quiet 3 days BEFORE the outage: 72h of
+    // observed silence already clears the window.
+    const dispatcher = archivingDispatcher()
+    const { pool, db } = idleFor(10 * 24 + 72)
+    const prober = makeProber(
+      pool,
+      dispatcher,
+      undefined,
+      db,
+      undefined,
+      downtimeOf(10 * 24)
+    )
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('a fast restart discounts nothing, so it cannot reset idleness', async () => {
+    const dispatcher = archivingDispatcher()
+    const { pool, db } = idleFor(72)
+    const prober = makeProber(pool, dispatcher, undefined, db, undefined, {
+      bootedAt: new Date(),
+      lastAliveAt: new Date(Date.now() - 30_000)
+    })
+
+    await prober.evaluate()
+    expect(dispatcher.sendWalletDead).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports the full idle age, not the observed remainder', async () => {
+    // Web re-checks the 48h rule against this number, and total idleness is what
+    // the operator sees in the activity log.
+    const dispatcher = archivingDispatcher()
+    const { pool, db } = idleFor(10 * 24 + 72)
+    const prober = makeProber(
+      pool,
+      dispatcher,
+      undefined,
+      db,
+      undefined,
+      downtimeOf(10 * 24)
+    )
+
+    await prober.evaluate()
+    const [, seconds] = dispatcher.sendWalletDead.mock.calls[0]
+    expect(seconds).toBeGreaterThanOrEqual((10 * 24 + 72) * 3600)
+  })
+
+  describe('unobservedIdleMs', () => {
+    const bootedAt = new Date('2026-09-14T00:00:00Z')
+
+    it('is zero with no prior process (fresh install)', () => {
+      expect(
+        unobservedIdleMs(
+          { bootedAt, lastAliveAt: null },
+          new Date('2026-09-01T00:00:00Z')
+        )
+      ).toBe(0)
+    })
+
+    it('is zero when the prober has no downtime information at all', () => {
+      expect(
+        unobservedIdleMs(undefined, new Date('2026-09-01T00:00:00Z'))
+      ).toBe(0)
+    })
+
+    it('is the whole outage for a wallet last active before it', () => {
+      expect(
+        unobservedIdleMs(
+          { bootedAt, lastAliveAt: new Date('2026-09-12T00:00:00Z') },
+          new Date('2026-09-01T00:00:00Z')
+        )
+      ).toBe(2 * 24 * HOUR_MS)
+    })
+
+    it('only counts from the wallet anchor when that is inside the outage', () => {
+      // Nothing was watching from the 12th, but this wallet was last active on
+      // the 13th (a cursor row written by an even older process) — only the
+      // final day is unobserved.
+      expect(
+        unobservedIdleMs(
+          { bootedAt, lastAliveAt: new Date('2026-09-12T00:00:00Z') },
+          new Date('2026-09-13T00:00:00Z')
+        )
+      ).toBe(24 * HOUR_MS)
+    })
+
+    it('is zero for a wallet first seen after boot', () => {
+      expect(
+        unobservedIdleMs(
+          { bootedAt, lastAliveAt: new Date('2026-09-04T00:00:00Z') },
+          new Date('2026-09-14T01:00:00Z')
+        )
+      ).toBe(0)
+    })
   })
 })
 

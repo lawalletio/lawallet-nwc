@@ -5,6 +5,7 @@ import {
   anchorWalletActivity,
   bootstrapStore,
   loadArchiveReportedWalletIds,
+  loadListenerLastAliveAt,
   loadWalletLiveness,
   markWalletArchiveReported,
   recordWalletActivity,
@@ -240,6 +241,27 @@ describe('wallet liveness ledger', () => {
     await expect(loadArchiveReportedWalletIds(pool)).resolves.toEqual([
       'wallet-1'
     ])
+  })
+})
+
+/**
+ * The "listener was alive" watermark. Downtime is not wallet idleness, so the
+ * idle rule needs to know how long nothing was watching.
+ */
+describe('loadListenerLastAliveAt', () => {
+  it('reads the newest ledger write across every wallet', async () => {
+    const at = new Date('2026-09-13T00:00:00Z')
+    const { pool, query } = poolWith({ rows: [{ last_alive_at: at }] })
+    await expect(loadListenerLastAliveAt(pool)).resolves.toEqual(at)
+    expect(query.mock.calls[0][0]).toContain('max(updated_at)')
+  })
+
+  it('is null on a fresh install (no rows yet)', async () => {
+    const { pool } = poolWith({ rows: [{ last_alive_at: null }] })
+    await expect(loadListenerLastAliveAt(pool)).resolves.toBeNull()
+
+    const { pool: empty } = poolWith({ rows: [] })
+    await expect(loadListenerLastAliveAt(empty)).resolves.toBeNull()
   })
 })
 

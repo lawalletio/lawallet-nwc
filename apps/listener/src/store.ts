@@ -518,6 +518,25 @@ export async function loadWalletLiveness(
 }
 
 /**
+ * Last moment ANY listener process touched the ledger — the "listener was
+ * alive" marker. Every liveness/cursor/report write stamps `updated_at`, so the
+ * newest one is when this service last ran. Read ONCE at boot, before the pool
+ * starts writing, to size the downtime the idle clock must discount: a wallet
+ * cannot be observed idle while nothing was watching it.
+ *
+ * Null on a fresh install (no rows yet), which is also the case where nothing
+ * can be archived anyway — every wallet is anchored at first sighting.
+ */
+export async function loadListenerLastAliveAt(
+  pool: pg.Pool
+): Promise<Date | null> {
+  const { rows } = await pool.query<{ last_alive_at: Date | null }>(
+    `SELECT max(updated_at) AS last_alive_at FROM listener.wallet_cursors`
+  )
+  return rows[0]?.last_alive_at ?? null
+}
+
+/**
  * Wallets already reported dead in an earlier process lifetime. Loaded at
  * startup so a restart cannot re-storm Sentry with the same warmup failures
  * (LAWALLET-LISTENER-1/2).

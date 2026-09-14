@@ -20,7 +20,7 @@ import {
 import { NwcPool } from './nwc/pool'
 import { verifyPaymentPreimage } from './nwc/payments'
 import { CatchupRunner } from './nwc/catchup'
-import { DeadWalletProber } from './nwc/dead-prober'
+import { DeadWalletProber, type ListenerDowntime } from './nwc/dead-prober'
 import {
   advanceCursor,
   bootstrapStore,
@@ -28,6 +28,7 @@ import {
   insertEventIfNew,
   lastEventAtByWallet,
   loadArchiveReportedWalletIds,
+  loadListenerLastAliveAt,
   pruneEvents,
   recordWalletActivity,
   recoverInterruptedNwcRequests,
@@ -49,6 +50,28 @@ import {
 const LIVENESS_WRITE_INTERVAL_MS = 60_000
 /** Grace period after boot before the first archive sweep runs. */
 const FIRST_ARCHIVE_SWEEP_DELAY_MS = 60_000
+
+/**
+ * How long the service was down, from the ledger's `updated_at` watermark. Must
+ * run before the pool starts, since every liveness write moves that watermark.
+ *
+ * On a read failure we assume the WHOLE pre-boot stretch was unobserved
+ * (`lastAliveAt` at the epoch): the wallets then have to accumulate the archive
+ * window in observed uptime. Delaying an archive is recoverable; mass-archiving
+ * a pool because one query failed is not.
+ */
+async function loadListenerDowntime(
+  pool: Parameters<typeof loadListenerLastAliveAt>[0],
+  log: ReturnType<typeof createLogger>
+): Promise<ListenerDowntime> {
+  const bootedAt = new Date()
+  try {
+    return { bootedAt, lastAliveAt: await loadListenerLastAliveAt(pool) }
+  } catch (err) {
+    log.warn({ err }, 'archive.downtime_unknown')
+    return { bootedAt, lastAliveAt: new Date(0) }
+  }
+}
 
 async function main(): Promise<void> {
   // @getalby/sdk's relay layer needs the global WebSocket (Node >= 22).
@@ -93,6 +116,12 @@ async function main(): Promise<void> {
   }
   log.info('store.bootstrapped')
 
+  // How long this service was down, read BEFORE the pool writes anything to the
+  // ledger (every liveness write moves the same `updated_at` watermark). The
+  // idle rule discounts it: wallets cannot be observed idle while nothing is
+  // watching, and after a multi-day outage the entire pool looks silent.
+  const downtime = await loadListenerDowntime(pgPool, log)
+
   // The archive policy is the one piece of config an operator is most likely
   // to be surprised by, so state the effective values rather than making them
   // infer the defaults from an absent variable.
@@ -101,7 +130,13 @@ async function main(): Promise<void> {
       enabled: env.DEAD_WALLET_DETECTION_ENABLED,
       idleHours: env.WALLET_ARCHIVE_IDLE_HOURS,
       deadThresholdHours: env.DEAD_THRESHOLD_HOURS,
-      retryMs: env.WALLET_ARCHIVE_RETRY_MS
+      retryMs: env.WALLET_ARCHIVE_RETRY_MS,
+      downtimeSeconds: downtime.lastAliveAt
+        ? Math.floor(
+            (downtime.bootedAt.getTime() - downtime.lastAliveAt.getTime()) /
+              1000
+          )
+        : null
     },
     'archive.policy'
   )
@@ -306,7 +341,8 @@ async function main(): Promise<void> {
         dispatcher,
         metrics,
         db: pgPool,
-        onArchiveReported: walletId => archiveReported.add(walletId)
+        onArchiveReported: walletId => archiveReported.add(walletId),
+        downtime
       })
     : null
 
