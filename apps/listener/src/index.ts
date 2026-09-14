@@ -32,6 +32,7 @@ import {
   pruneEvents,
   recordWalletActivity,
   recoverInterruptedNwcRequests,
+  resetWalletArchiveClock,
   resolveNwcRequestFromNotification,
   type StoredEvent
 } from './store'
@@ -299,11 +300,38 @@ async function main(): Promise<void> {
   // already declared terminal (LAWALLET-LISTENER-1/2).
   const archiveReported = new Set(await loadArchiveReportedWalletIds(pgPool))
 
+  /**
+   * Clears the durable "web knows this wallet is dead" mark and gives the wallet
+   * a fresh idle window. `onlyIfReported` keeps it a no-op for wallets that were
+   * never reported, so it is safe to call on any targeted reconcile.
+   */
+  const resetArchiveClock = (
+    walletId: string,
+    opts: { onlyIfReported?: boolean } = {}
+  ) => {
+    void resetWalletArchiveClock(pgPool, walletId, new Date(), opts)
+      .then(reset => {
+        if (!reset) return
+        archiveReported.delete(walletId)
+        // A wallet parked at the 6h archive backoff must not wait it out after
+        // being brought back — reconnect it now.
+        nwcPool.prioritizeWallet(walletId)
+        log.info({ walletId }, 'archive.clock_reset')
+      })
+      .catch(err => log.warn({ err, walletId }, 'archive.clock_reset_failed'))
+  }
+
   // Proof of life is mirrored to Postgres so the 48h archive clock survives
   // restarts. Throttled per wallet: a busy wallet proves itself constantly and
   // the clock only needs to be roughly right.
   const livenessWrittenAt = new Map<string, number>()
   const persistLiveness = (walletId: string, at: Date, ready: boolean) => {
+    // A wallet that completes warmup after being reported dead is demonstrably
+    // back: drop the report so its next failure reaches Sentry again instead of
+    // being muted forever (the mute is what makes a restart quiet).
+    if (ready && archiveReported.has(walletId)) {
+      resetArchiveClock(walletId, { onlyIfReported: true })
+    }
     const last = livenessWrittenAt.get(walletId) ?? 0
     if (!ready && Date.now() - last < LIVENESS_WRITE_INTERVAL_MS) return
     livenessWrittenAt.set(walletId, Date.now())
@@ -323,6 +351,11 @@ async function main(): Promise<void> {
     },
     isArchiveReported: walletId => archiveReported.has(walletId),
     onLiveness: persistLiveness,
+    // A wallet web brought back (DEAD → ACTIVE, a rotated credential, an
+    // un-archived proxy) must not inherit the age that got it archived — nor the
+    // Sentry mute. Targeted reconciles only; never the bulk boot reconcile.
+    onWalletRestored: (walletId, { readded }) =>
+      resetArchiveClock(walletId, { onlyIfReported: !readded }),
     // With catch-up disabled no recovery hooks are registered; the pool still
     // watches relay connectivity because payment readiness depends on it.
     ...(env.CATCHUP_ENABLED

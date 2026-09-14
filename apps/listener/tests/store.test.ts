@@ -8,6 +8,7 @@ import {
   loadListenerLastAliveAt,
   loadWalletLiveness,
   markWalletArchiveReported,
+  resetWalletArchiveClock,
   recordWalletActivity,
   computeEventKey,
   computeNwcRequestPayloadHash,
@@ -262,6 +263,40 @@ describe('loadListenerLastAliveAt', () => {
 
     const { pool: empty } = poolWith({ rows: [] })
     await expect(loadListenerLastAliveAt(empty)).resolves.toBeNull()
+  })
+})
+
+describe('resetWalletArchiveClock', () => {
+  const at = new Date('2026-09-14T00:00:00Z')
+
+  it('gives a re-added wallet a fresh window and drops the report', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await expect(resetWalletArchiveClock(pool, 'wallet-1', at)).resolves.toBe(
+      true
+    )
+    const [sql, params] = query.mock.calls[0]
+    expect(sql).toContain('archive_reported_at = NULL')
+    expect(sql).toContain('GREATEST(COALESCE(last_active_at, $2), $2)')
+    // Unconditional form: the row is reset whether or not it was reported.
+    expect(params).toEqual(['wallet-1', at, true])
+  })
+
+  it('narrows to already-reported wallets when asked', async () => {
+    // The safe form for a wallet that never left the pool (an archived LUD-16
+    // proxy still settling): after the first reset it is a no-op.
+    const { pool, query } = poolWith({ rowCount: 0 })
+    await expect(
+      resetWalletArchiveClock(pool, 'wallet-1', at, { onlyIfReported: true })
+    ).resolves.toBe(false)
+    const [sql, params] = query.mock.calls[0]
+    expect(sql).toContain('archive_reported_at IS NOT NULL')
+    expect(params).toEqual(['wallet-1', at, false])
+  })
+
+  it('never touches the catch-up cursor', async () => {
+    const { pool, query } = poolWith({ rowCount: 1 })
+    await resetWalletArchiveClock(pool, 'wallet-1', at)
+    expect(query.mock.calls[0][0]).not.toContain('last_seen_at')
   })
 })
 

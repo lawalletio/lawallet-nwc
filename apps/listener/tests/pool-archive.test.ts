@@ -177,6 +177,78 @@ describe('NwcPool — warmup-stuck wallets reach the archive path', () => {
     await pool.closeAll()
   })
 
+  /**
+   * A wallet web brought back (DEAD → ACTIVE, rotated credential, un-archived
+   * proxy) must not inherit the age that got it archived. Targeted reconciles
+   * only: resetting the whole pool at boot is exactly what must never happen.
+   */
+  it('flags a re-added wallet so its archive clock can be reset', async () => {
+    const onWalletRestored = vi.fn()
+    const pool = new NwcPool({
+      log,
+      onNotification: vi.fn(),
+      onWalletRestored
+    })
+
+    // Boot: the bulk reconcile must NOT look like a restore.
+    await pool.reconcile([wallet])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onWalletRestored).not.toHaveBeenCalled()
+
+    // Wallet archived → dropped from the pool.
+    await pool.reconcileOne('wallet-1', null)
+    expect(onWalletRestored).not.toHaveBeenCalled()
+
+    // Restored: it comes back through the targeted path.
+    await pool.reconcileOne('wallet-1', wallet)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onWalletRestored).toHaveBeenCalledWith('wallet-1', { readded: true })
+
+    await pool.closeAll()
+  })
+
+  it('flags a rotated credential as a re-add', async () => {
+    const onWalletRestored = vi.fn()
+    const pool = new NwcPool({
+      log,
+      onNotification: vi.fn(),
+      onWalletRestored
+    })
+    await pool.reconcile([wallet])
+    await vi.advanceTimersByTimeAsync(0)
+
+    await pool.reconcileOne('wallet-1', {
+      ...wallet,
+      connectionString:
+        'nostr+walletconnect://pk2?relay=wss://relay.test&secret=s2'
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onWalletRestored).toHaveBeenCalledWith('wallet-1', { readded: true })
+
+    await pool.closeAll()
+  })
+
+  it('reports a plain metadata refresh as NOT a re-add', async () => {
+    // The LUD-16 proxy never leaves the pool while settlements are in flight, so
+    // a re-enable arrives as a refresh. That may only clear an existing archive
+    // report — it must not hand every unrelated config write a fresh 48h.
+    const onWalletRestored = vi.fn()
+    const pool = new NwcPool({
+      log,
+      onNotification: vi.fn(),
+      onWalletRestored
+    })
+    await pool.reconcile([wallet])
+    await vi.advanceTimersByTimeAsync(0)
+
+    await pool.reconcileOne('wallet-1', { ...wallet, name: 'Renamed' })
+    expect(onWalletRestored).toHaveBeenCalledWith('wallet-1', {
+      readded: false
+    })
+
+    await pool.closeAll()
+  })
+
   it('un-parks on a foreground demand for the wallet', async () => {
     control.warmupError = WARMUP_FAILURE
     const pool = new NwcPool({ log, onNotification: vi.fn() })

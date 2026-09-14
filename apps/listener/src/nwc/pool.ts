@@ -127,6 +127,19 @@ export interface NwcPoolDeps {
    * its own in-memory clock regardless; this is the durable mirror.
    */
   onLiveness?: (walletId: string, at: Date, ready: boolean) => void
+  /**
+   * Fired by a TARGETED reconcile (one `remote_wallet_changed` NOTIFY), never by
+   * the bulk startup/periodic reconcile — resetting the whole pool at boot is
+   * exactly what must not happen to the idle clock.
+   *
+   * `readded: true` means the wallet entered the pool or had its credential
+   * rotated (a DEAD → ACTIVE restore, an un-archived proxy, a new NWC URI):
+   * whatever idleness it accrued while it was gone is not its own, so it earns a
+   * fresh archive window. `readded: false` is a plain metadata refresh of a
+   * wallet that never left — the clock only resets there if web had already been
+   * told the wallet was dead, i.e. web un-archived it.
+   */
+  onWalletRestored?: (walletId: string, opts: { readded: boolean }) => void
   /** Fired after a wallet's live subscription is established (startup, add, rotation). */
   onSubscribed?: (wallet: DesiredWallet, client: NWCClient) => void
   /**
@@ -386,14 +399,20 @@ export class NwcPool {
     }
     if (!existing) {
       this.addWallet(row, true)
+      this.deps.onWalletRestored?.(walletId, { readded: true })
       return
     }
     if (existing.wallet.connectionString !== row.connectionString) {
       this.removeWallet(walletId)
       this.addWallet(row, true)
+      this.deps.onWalletRestored?.(walletId, { readded: true })
       return
     }
     existing.wallet = { ...row }
+    // Still pooled: only interesting if web had already been told this wallet is
+    // dead and has since un-archived it (an LUD-16 proxy with settlements in
+    // flight never leaves the pool, so a re-enable arrives as a plain refresh).
+    this.deps.onWalletRestored?.(walletId, { readded: false })
   }
 
   private addWallet(wallet: DesiredWallet, priority = false): void {

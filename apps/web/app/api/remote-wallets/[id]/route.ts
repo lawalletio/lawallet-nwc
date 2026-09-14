@@ -157,7 +157,15 @@ export const PATCH = withErrorHandling(
           where: { id },
           data: {
             name: body.name,
-            status: body.status
+            status: body.status,
+            // Restoring a wallet clears the death record: the archived-wallets
+            // UI keys off `diedAt`, and a stale `diedReason` would keep
+            // describing a wallet that works again. An ACTIVE wallet never
+            // carries one. The listener gives the row a fresh idle window when
+            // it reappears as ACTIVE (its `remote_wallet_changed` reconcile).
+            ...(body.status === 'ACTIVE'
+              ? { diedAt: null, diedReason: null }
+              : {})
           }
         })
 

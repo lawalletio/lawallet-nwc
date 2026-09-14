@@ -537,6 +537,40 @@ export async function loadListenerLastAliveAt(
 }
 
 /**
+ * Gives a wallet a fresh archive window: the operator (or web) brought it back,
+ * so whatever idleness it accumulated while dead is no longer its own.
+ *
+ * Called on a TARGETED reconcile only (a `remote_wallet_changed` NOTIFY for one
+ * wallet: re-add, credential rotation, proxy re-enable), never on the bulk
+ * startup reconcile — resetting the whole pool at boot is exactly the thing
+ * that would let a restart erase idleness.
+ *
+ * `onlyIfReported` narrows it to wallets web was already told about, which is
+ * the safe form to run on every targeted reconcile of a wallet that never left
+ * the pool (an archived LUD-16 proxy with settlements still in flight): after
+ * the first reset `archive_reported_at` is NULL, so repeats are no-ops.
+ *
+ * Returns true when a row was actually reset.
+ */
+export async function resetWalletArchiveClock(
+  pool: pg.Pool,
+  walletId: string,
+  at: Date,
+  opts: { onlyIfReported?: boolean } = {}
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE listener.wallet_cursors
+        SET last_active_at = GREATEST(COALESCE(last_active_at, $2), $2),
+            archive_reported_at = NULL,
+            updated_at = now()
+      WHERE wallet_id = $1
+        AND ($3::boolean OR archive_reported_at IS NOT NULL)`,
+    [walletId, at, !opts.onlyIfReported]
+  )
+  return (result.rowCount ?? 0) > 0
+}
+
+/**
  * Wallets already reported dead in an earlier process lifetime. Loaded at
  * startup so a restart cannot re-storm Sentry with the same warmup failures
  * (LAWALLET-LISTENER-1/2).
