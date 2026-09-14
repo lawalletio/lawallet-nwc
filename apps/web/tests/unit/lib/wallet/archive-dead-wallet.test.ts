@@ -245,7 +245,7 @@ describe('archiveDeadWallet — the LUD-16 proxy wallet', () => {
     ).resolves.toBe('archived')
     expect(prismaMock.proxyServiceConfig.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'default', archivedAt: null },
+        where: expect.objectContaining({ id: 'default', archivedAt: null }),
         data: expect.objectContaining({
           archivedReason: 'warmup_failed',
           // New intake stops; outstanding settlements still finish.
@@ -298,6 +298,10 @@ describe('archiveDeadWallet — the LUD-16 proxy wallet', () => {
     vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
       count: 0
     } as never)
+    // Re-read shows it archived — the other report won.
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+      archivedAt: new Date()
+    } as never)
 
     await expect(archiveDeadWallet(walletDead())).resolves.toBe('noop')
     expect(fireAndForgetMock).not.toHaveBeenCalled()
@@ -321,9 +325,9 @@ describe('archiveDeadWallet — the LUD-16 proxy wallet', () => {
     await expect(
       archiveDeadWallet(
         walletDead({
-          reason: 'unresponsive',
+          reason: 'idle',
           relaysConnected: true,
-          unresponsiveSeconds: 4 * HOUR,
+          unresponsiveSeconds: 50 * HOUR,
           lastState: undefined,
           everReady: undefined
         })
@@ -331,11 +335,127 @@ describe('archiveDeadWallet — the LUD-16 proxy wallet', () => {
     ).resolves.toBe('archived')
     expect(fireAndForgetMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        message:
-          'LUD-16 proxy wallet archived — unresponsive ~4h with relays up',
+        message: 'LUD-16 proxy wallet archived — no sign of life for ~50h',
         metadata: expect.objectContaining({ lastState: null, everReady: null })
       })
     )
+  })
+
+  // The proxy credential is the OPERATOR's Alby or self-hosted node — the same
+  // class as a user's own NWC, which the probe path already refuses. A few hours
+  // of `get_info` silence is a node that stopped answering probes, not a dead
+  // wallet, and disabling LUD-16 intake for the whole deployment on that signal
+  // is the worst possible false positive.
+  it('refuses the short probe signal, whatever the wallet answered', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+
+    await expect(
+      archiveDeadWallet(
+        walletDead({
+          reason: 'unresponsive',
+          relaysConnected: true,
+          everReady: true,
+          lastState: 'ready',
+          unresponsiveSeconds: 4 * HOUR
+        })
+      )
+    ).resolves.toBe('ignored')
+    // Refused before web even looks the proxy config up.
+    expect(prismaMock.proxyServiceConfig.findFirst).not.toHaveBeenCalled()
+    expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ walletId: 'wallet-1' }),
+      'nwc.proxy_wallet_dead_ignored_probe_signal'
+    )
+  })
+
+  it('still refuses the probe signal after days of silence', async () => {
+    // A long-unresponsive probe report is not an idle report: only the listener's
+    // own 48h rule (`idle` / `warmup_failed`) may archive the proxy.
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+
+    await expect(
+      archiveDeadWallet(
+        walletDead({
+          reason: 'unresponsive',
+          relaysConnected: true,
+          unresponsiveSeconds: 96 * HOUR
+        })
+      )
+    ).resolves.toBe('ignored')
+    expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('archives a genuinely dead proxy once the 48h rule fires', async () => {
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+    vi.mocked(prismaMock.proxyServiceConfig.findFirst).mockResolvedValue({
+      id: 'default',
+      archivedAt: null,
+      lastListenerSeenAt: null
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    await expect(
+      archiveDeadWallet(
+        walletDead({ reason: 'idle', unresponsiveSeconds: 50 * HOUR })
+      )
+    ).resolves.toBe('archived')
+  })
+
+  it('re-checks the contradiction inside the conditional update (TOCTOU)', async () => {
+    // A payment webhook can land between the read and the write. The where
+    // clause carries the same guard, so losing that race cannot disable a proxy
+    // that just proved it works.
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+    vi.mocked(prismaMock.proxyServiceConfig.findFirst).mockResolvedValue({
+      id: 'default',
+      archivedAt: null,
+      lastListenerSeenAt: null
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
+      count: 1
+    } as never)
+
+    await archiveDeadWallet(walletDead())
+    const where = vi.mocked(prismaMock.proxyServiceConfig.updateMany).mock
+      .calls[0][0].where as Record<string, unknown>
+    expect(where.archivedAt).toBeNull()
+    expect(where.OR).toEqual([
+      { lastListenerSeenAt: null },
+      { lastListenerSeenAt: { lte: expect.any(Date) } }
+    ])
+  })
+
+  it('calls a lost conditional update `ignored` when nothing archived it', async () => {
+    // count 0 with the row still un-archived means the contradiction guard
+    // matched, not that another report won — the listener must keep watching.
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+    vi.mocked(prismaMock.proxyServiceConfig.findFirst).mockResolvedValue({
+      id: 'default',
+      archivedAt: null,
+      lastListenerSeenAt: null
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.updateMany).mockResolvedValue({
+      count: 0
+    } as never)
+    vi.mocked(prismaMock.proxyServiceConfig.findUnique).mockResolvedValue({
+      archivedAt: null
+    } as never)
+
+    await expect(archiveDeadWallet(walletDead())).resolves.toBe('ignored')
+    expect(fireAndForgetMock).not.toHaveBeenCalled()
   })
 
   it('reports an unknown wallet id instead of silently succeeding', async () => {

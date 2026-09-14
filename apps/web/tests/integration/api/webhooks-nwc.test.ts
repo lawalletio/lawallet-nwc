@@ -809,6 +809,27 @@ describe('POST /api/webhooks/nwc', () => {
     expect(body).not.toHaveProperty('walletDeadOutcome')
   })
 
+  it('refuses to archive the LUD-16 proxy on the short probe signal', async () => {
+    // The proxy credential is the operator's own Alby/self-hosted node — the
+    // same class the probe path already refuses for a user's wallet. Archiving
+    // it disables LUD-16 intake for the whole deployment.
+    vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue(
+      null as never
+    )
+
+    const res = await POST(
+      signedRequest({
+        ...walletDead,
+        walletId: '0f6f6f2a-8f7d-4f2e-9d3a-3e6f1a2b4c5d',
+        reason: 'unresponsive'
+      })
+    )
+    expect(await assertResponse(res, 200)).toMatchObject({
+      walletDeadOutcome: 'ignored'
+    })
+    expect(prismaMock.proxyServiceConfig.updateMany).not.toHaveBeenCalled()
+  })
+
   it('does not stamp lastListenerSeenAt from a wallet_dead report', async () => {
     vi.mocked(prismaMock.remoteWallet.findUnique).mockResolvedValue({
       id: 'wallet-1',

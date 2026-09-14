@@ -49,8 +49,9 @@ export function meetsIdleArchiveWindow(unresponsiveSeconds: number): boolean {
  *
  *  - `reason: 'unresponsive'` — a probe-confirmed silent wallet whose relays
  *    stayed up. Only disposable LNCurl wallets are archived on this signal (a
- *    few hours of silence from a user's own Alby/Mutiny node is not death), and
- *    only when `relaysConnected` is true, so a relay outage can't be misread.
+ *    few hours of silence from a user's own Alby/Mutiny node — or from the
+ *    operator's own proxy credential, which is the same class — is not death),
+ *    and only when `relaysConnected` is true, so a relay outage can't be misread.
  *  - `reason: 'idle' | 'warmup_failed'` — more than 48h with no sign of life at
  *    all. Product rule (issue #279): those are archived regardless of provider,
  *    including wallets that never completed NWC warmup and therefore could
@@ -169,10 +170,28 @@ async function archiveRemoteWallet(
  * `__lawallet_proxy__` default or an operator-set UUID). Archiving it stops new
  * proxy intake while leaving outstanding settlements to finish: those read the
  * stored credential regardless of `enabled`.
+ *
+ * Only the 48h idle rule can archive it. The proxy credential is an
+ * operator-owned Alby or self-hosted node — the same class as a user's own NWC,
+ * which `archiveRemoteWallet` already refuses to archive on the short
+ * probe signal — so a few hours of `get_info` silence is not death, it is a node
+ * that stopped answering maintenance probes. A proxy that really is gone still
+ * archives, via `idle` / `warmup_failed`, once it clears the 48h window.
  */
 async function archiveProxyWallet(
   event: WalletDeadEvent
 ): Promise<ArchiveOutcome> {
+  if (event.reason === 'unresponsive') {
+    logger.warn(
+      {
+        walletId: event.walletId,
+        unresponsiveSeconds: event.unresponsiveSeconds
+      },
+      'nwc.proxy_wallet_dead_ignored_probe_signal'
+    )
+    return 'ignored'
+  }
+
   const config = await prisma.proxyServiceConfig.findFirst({
     where: { walletId: event.walletId },
     select: { id: true, archivedAt: true, lastListenerSeenAt: true }
@@ -189,8 +208,9 @@ async function archiveProxyWallet(
   // Web's own record of the wallet answering. A payment webhook inside the idle
   // window contradicts the report, so refuse rather than disable a working
   // proxy on a stale observation.
+  const contradictedBefore = new Date(Date.now() - ARCHIVE_IDLE_MS)
   const seenAt = config.lastListenerSeenAt
-  if (seenAt && Date.now() - seenAt.getTime() < ARCHIVE_IDLE_MS) {
+  if (seenAt && seenAt.getTime() > contradictedBefore.getTime()) {
     logger.warn(
       { walletId: event.walletId, lastListenerSeenAt: seenAt.toISOString() },
       'nwc.proxy_wallet_dead_contradicted_by_recent_activity'
@@ -200,10 +220,20 @@ async function archiveProxyWallet(
 
   const archivedAt = new Date()
   const result = await prisma.proxyServiceConfig.updateMany({
-    where: { id: config.id, archivedAt: null },
+    // The contradiction check is repeated inside the where clause: a payment
+    // webhook can land between the read above and this write, and losing that
+    // race must not disable a proxy that just proved it works.
+    where: {
+      id: config.id,
+      archivedAt: null,
+      OR: [
+        { lastListenerSeenAt: null },
+        { lastListenerSeenAt: { lte: contradictedBefore } }
+      ]
+    },
     data: { archivedAt, archivedReason: event.reason, enabled: false }
   })
-  if (result.count === 0) return 'noop'
+  if (result.count === 0) return proxyRaceOutcome(config.id, event.walletId)
 
   logger.warn(
     { walletId: event.walletId, reason: event.reason },
@@ -227,6 +257,28 @@ async function archiveProxyWallet(
     }
   })
   return 'archived'
+}
+
+/**
+ * The conditional update matched nothing. Either a concurrent report already
+ * archived the proxy (`noop` — the listener may stop reporting) or a payment
+ * landed inside the idle window while we were deciding (`ignored` — the report
+ * was wrong and the listener must keep watching).
+ */
+async function proxyRaceOutcome(
+  configId: string,
+  walletId: string
+): Promise<ArchiveOutcome> {
+  const current = await prisma.proxyServiceConfig.findUnique({
+    where: { id: configId },
+    select: { archivedAt: true }
+  })
+  if (current?.archivedAt) return 'noop'
+  logger.warn(
+    { walletId },
+    'nwc.proxy_wallet_dead_contradicted_by_recent_activity'
+  )
+  return 'ignored'
 }
 
 function describeReason(event: WalletDeadEvent): string {
