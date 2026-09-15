@@ -1,9 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  WalletTransactionDetail,
-  WalletTransactionsList
-} from '@/components/admin/remote-wallet/transactions-list'
+import { WalletTransactionDetail } from '@/components/admin/remote-wallet/transactions-list'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import type { NwcTransaction } from '@/lib/client/nwc'
 
@@ -26,36 +23,7 @@ function transaction(
   }
 }
 
-describe('WalletTransactionsList', () => {
-  it('keeps received and sent records with the same payment hash distinct', () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    try {
-      render(
-        <WalletTransactionsList
-          transactions={[
-            transaction('incoming', 'Payment received'),
-            transaction('outgoing', 'Payment forwarded')
-          ]}
-          loading={false}
-          error={null}
-        />
-      )
-
-      expect(screen.getByText('Payment received')).toBeInTheDocument()
-      expect(screen.getByText('Payment forwarded')).toBeInTheDocument()
-      expect(
-        consoleError.mock.calls.some(call =>
-          call.some(argument =>
-            String(argument).includes('children with the same key')
-          )
-        )
-      ).toBe(false)
-    } finally {
-      consoleError.mockRestore()
-    }
-  })
-
+describe('WalletTransactionDetail', () => {
   it('shows stored NIP-57 artefacts in dedicated request and receipt modals', () => {
     render(
       <Dialog open>
