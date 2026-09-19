@@ -34,12 +34,15 @@ restore a backup taken on the same track.
 The Community listing is the supported path for new StartOS installs. Open
 **Marketplace → Community** and install **LaWallet NWC**.
 
-The listed wrapper `2.0.0:1` predates the NWC vault. LaWallet NWC 2.6.0 needs
-a persisted `NWC_VAULT_SECRET` on both web and listener — without it the
-Payment Listener stays unhealthy. The Community update that adds that key is
-[`Start9-Community/lawallet-startos#2`](https://github.com/Start9-Community/lawallet-startos/pull/2)
-(`2.6.0:1`). Until that lands, sideload the matching revision from the
-lawalletio package (below) rather than bumping images by hand.
+The listed wrapper `2.0.0:1` predates the NWC vault. LaWallet NWC 2.6.0 and
+later need a persisted `NWC_VAULT_SECRET` on both web and listener — without it
+the Payment Listener stays unhealthy. The Community update that adds that key is
+[`Start9-Community/lawallet-startos#2`](https://github.com/Start9-Community/lawallet-startos/pull/2),
+which is still in review in that registry.
+
+**Until it merges, install the sideload package below instead.** Do not bump the
+listing's image tags by hand: the app will start, and the listener will exit on
+boot because the vault key it requires was never generated.
 
 ## Sideload the current release
 
@@ -56,12 +59,15 @@ before the Community update publishes:
    applies pending Prisma migrations and starts automatically.
 4. Open the service's **Web UI** from the StartOS dashboard.
 
-Sideload `2.6.0:0` still runs start-sdk 1.5 and can regenerate secrets if
-`store.json` is missing. The packaging revision that fixes that, without moving
-Postgres off `main`, is
-[`lawalletio/lawallet-startos#2`](https://github.com/lawalletio/lawallet-startos/pull/2)
-(`2.6.0:1`). After it is merged, dispatch or tag a new `.s9pk` and sideload
-that revision.
+The sideload package was migrated to **start-sdk 2.0** in
+[`lawalletio/lawallet-startos#2`](https://github.com/lawalletio/lawallet-startos/pull/2):
+it no longer regenerates secrets when `store.json` is missing, it persists the
+NWC vault key, and it keeps Postgres on the `main` volume so existing installs
+keep their data.
+
+That revision ships with the **v2.7.0** package and later. The `v2.6.0` asset
+predates it — a `.s9pk` is only built when a release is published, and the SDK
+migration merged after `v2.6.0` was cut. Take the newest release, not `v2.6.0`.
 
 ## Build the package yourself
 
