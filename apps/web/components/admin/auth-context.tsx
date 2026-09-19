@@ -55,6 +55,14 @@ const LOGIN_METHOD_KEY = 'lawallet-login-method'
 const SIGNER_SECRET_KEY = 'lawallet-signer-secret'
 const IMPERSONATOR_RETURN_KEY = 'lawallet-impersonator-return'
 
+function hasRecoverableSession(): boolean {
+  return Boolean(
+    localStorage.getItem(SIGNER_SECRET_KEY) ||
+    localStorage.getItem(LOGIN_METHOD_KEY) ||
+    localStorage.getItem(IMPERSONATOR_RETURN_KEY)
+  )
+}
+
 async function restoreStoredSigner(
   storedMethod: LoginMethod | null
 ): Promise<NostrSigner | null> {
@@ -242,6 +250,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
+  // Drop the JWT but keep signer credentials so the next hydrate can remint.
+  // Used when a silent refresh fails and when another tab expires the token
+  // without an explicit logout. Must not call logout() — that wipes secrets.
+  const endSessionKeepCredentials = useCallback(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = null
+    }
+    localStorage.removeItem(JWT_STORAGE_KEY)
+    void clearSessionCaches()
+    signerRef.current = null
+    setState({
+      status: 'unauthenticated',
+      jwt: null,
+      pubkey: null,
+      role: null,
+      permissions: null,
+      signer: null,
+      loginMethod: null
+    })
+  }, [])
+
   // Schedule a silent remint before expiry. Mobile PWAs suspend JS timers
   // while backgrounded, so this is a best-effort foreground helper — the
   // resume path in ensureFreshSession is what actually keeps the session.
@@ -353,9 +383,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signerRef.current = state.signer
   }, [state.signer])
 
-  // localStorage is shared across tabs. If one tab logs out, immediately tear
-  // down the session in every other open tab as well so none can repopulate
-  // user caches with requests from the identity that just signed out.
+  // localStorage is shared across tabs. An explicit logout (JWT and
+  // credentials both gone) must tear down every tab. A silent remint
+  // failure only removes the JWT — keep credentials so hydrate can retry.
   useEffect(() => {
     function handleCrossTabLogout(event: StorageEvent) {
       if (
@@ -363,13 +393,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         event.key === JWT_STORAGE_KEY &&
         event.newValue === null
       ) {
-        logout()
+        if (hasRecoverableSession()) {
+          endSessionKeepCredentials()
+        } else {
+          logout()
+        }
       }
     }
 
     window.addEventListener('storage', handleCrossTabLogout)
     return () => window.removeEventListener('storage', handleCrossTabLogout)
-  }, [logout])
+  }, [logout, endSessionKeepCredentials])
 
   // Hydrate the session on mount and remint on resume. JWT expiry must not
   // wipe signer credentials — that's what made mobile PWAs look "logged out"
@@ -381,23 +415,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let inFlight: Promise<void> | null = null
 
     function dropJwtKeepCredentials() {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current)
-        refreshTimerRef.current = null
-      }
-      localStorage.removeItem(JWT_STORAGE_KEY)
-      void clearSessionCaches()
-      if (cancelled) return
-      signerRef.current = null
-      setState({
-        status: 'unauthenticated',
-        jwt: null,
-        pubkey: null,
-        role: null,
-        permissions: null,
-        signer: null,
-        loginMethod: null
-      })
+      endSessionKeepCredentials()
     }
 
     async function remint(
@@ -670,13 +688,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   // API client bound to current JWT
+  const handleUnauthorized = useCallback(() => {
+    if (hasRecoverableSession()) {
+      endSessionKeepCredentials()
+      return
+    }
+    logout()
+  }, [endSessionKeepCredentials, logout])
+
   const apiClient = React.useMemo(
     () =>
       createApiClient({
         getToken: () => state.jwt,
-        onUnauthorized: logout
+        onUnauthorized: handleUnauthorized
       }),
-    [state.jwt, logout]
+    [state.jwt, handleUnauthorized]
   )
 
   const value: AuthContextValue = {

@@ -490,4 +490,36 @@ describe('AuthProvider silent JWT remint', () => {
     expect(mocks.exchangeNip98ForJwt).not.toHaveBeenCalled()
     expect(localStorage.getItem('lawallet-impersonator-return')).not.toBeNull()
   })
+
+  it('keeps signer credentials when another tab drops only the JWT', async () => {
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+
+    await act(async () => {
+      await held.ctx!.login(STUB_SIGNER, 'passkey', {
+        secret: DERIVED_SECRET
+      })
+    })
+    expect(localStorage.getItem(SECRET_KEY)).toBe(DERIVED_SECRET)
+
+    localStorage.removeItem(JWT_KEY)
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: JWT_KEY,
+          oldValue: 'tok',
+          newValue: null,
+          storageArea: window.localStorage
+        })
+      )
+    })
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+    expect(localStorage.getItem(SECRET_KEY)).toBe(DERIVED_SECRET)
+    expect(localStorage.getItem(METHOD_KEY)).toBe('passkey')
+  })
 })
