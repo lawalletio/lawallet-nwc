@@ -15,6 +15,14 @@ import {
   SettingInputGroup
 } from '@/components/admin/settings/auto-save-controls'
 import { DEFAULT_LNCURL_SERVER } from '@/lib/lncurl'
+import { useRemoteWallets } from '@/lib/client/hooks/use-remote-wallets'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 
 export function WalletTab() {
   const { data: settings, loading: settingsLoading } = useSettings()
@@ -31,6 +39,12 @@ export function WalletTab() {
   const [lncurlAutoCreate, setLncurlAutoCreate] = useState(false)
   const [lncurlAutoRecreate, setLncurlAutoRecreate] = useState(false)
   const [paidToggleSaving, setPaidToggleSaving] = useState(false)
+  const [cardFreeLnEnabled, setCardFreeLnEnabled] = useState(true)
+  const [cardSatsEnabled, setCardSatsEnabled] = useState(false)
+  const [cardSatsAmount, setCardSatsAmount] = useState('1000')
+  const [cardSatsWalletId, setCardSatsWalletId] = useState('')
+  const [satsToggleSaving, setSatsToggleSaving] = useState(false)
+  const { data: adminWallets } = useRemoteWallets({ status: 'ACTIVE' })
 
   // Restore local form state from the currently stored settings. With per-field
   // auto-save there's no Cancel/reset path, so we hydrate exactly once — re-running
@@ -51,6 +65,10 @@ export function WalletTab() {
     setLncurlServerUrl(settings.lncurl_server_url ?? DEFAULT_LNCURL_SERVER)
     setLncurlAutoCreate(settings.lncurl_auto_create === 'true')
     setLncurlAutoRecreate(settings.lncurl_auto_recreate === 'true')
+    setCardFreeLnEnabled((settings.card_free_ln_enabled ?? 'true') === 'true')
+    setCardSatsEnabled(settings.card_sats_bonus_enabled === 'true')
+    setCardSatsAmount(settings.card_sats_bonus_amount ?? '1000')
+    setCardSatsWalletId(settings.card_sats_bonus_wallet_id ?? '')
   }, [settings])
 
   const hydratedRef = useRef(false)
@@ -102,7 +120,50 @@ export function WalletTab() {
     }
   }
 
+  const persistSats = useCallback(
+    async (patch: {
+      enabled?: boolean
+      amount?: string
+      walletId?: string
+    }) => {
+      const enabled = patch.enabled ?? cardSatsEnabled
+      const amount = (patch.amount ?? cardSatsAmount) || '1000'
+      const walletId = (patch.walletId ?? cardSatsWalletId).trim()
+      if (enabled && (!walletId || Number.parseInt(amount, 10) <= 0)) {
+        await saveSetting({ card_sats_bonus_enabled: 'false' })
+        return
+      }
+      await saveSetting({
+        card_sats_bonus_enabled: enabled ? 'true' : 'false',
+        card_sats_bonus_amount: amount,
+        card_sats_bonus_wallet_id: walletId
+      })
+    },
+    [saveSetting, cardSatsEnabled, cardSatsAmount, cardSatsWalletId]
+  )
+
+  async function handleSatsToggle(next: boolean) {
+    const prev = cardSatsEnabled
+    setCardSatsEnabled(next)
+    if (next && !cardSatsWalletId.trim()) return
+    setSatsToggleSaving(true)
+    try {
+      await persistSats({ enabled: next })
+    } catch (err) {
+      setCardSatsEnabled(prev)
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update setting'
+      )
+    } finally {
+      setSatsToggleSaving(false)
+    }
+  }
+
   const paidNeedsAddress = registrationEnabled && !registrationLnAddress.trim()
+  const satsNeedsWallet = cardSatsEnabled && !cardSatsWalletId.trim()
+  const activeWallets = (adminWallets ?? []).filter(
+    wallet => wallet.status === 'ACTIVE'
+  )
 
   if (settingsLoading) {
     return (
@@ -248,6 +309,114 @@ export function WalletTab() {
                     })
                   }
                 />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
+        <div>
+          <h3 className="text-sm font-semibold">Card activation bonuses</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            First-time card activation can grant a free Lightning Address and
+            optionally fund the new wallet from an admin treasury.
+          </p>
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Free Lightning Address</p>
+              <p className="text-sm text-muted-foreground">
+                The first activation of a never-paired card lets that user
+                register one Lightning Address for free. Each card and each
+                account can use this bonus once.
+              </p>
+            </div>
+            <SettingSwitch
+              checked={cardFreeLnEnabled}
+              onCheckedChange={setCardFreeLnEnabled}
+              save={next =>
+                saveSetting({
+                  card_free_ln_enabled: next ? 'true' : 'false'
+                })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Sats bonus</p>
+              <p className="text-sm text-muted-foreground">
+                Send sats from a treasury Remote Wallet the first time a card
+                is activated. Delivered once per card.
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-2">
+              {satsToggleSaving && (
+                <Spinner size={16} className="text-muted-foreground" />
+              )}
+              <Switch
+                checked={cardSatsEnabled}
+                disabled={satsToggleSaving}
+                onCheckedChange={handleSatsToggle}
+              />
+            </span>
+          </div>
+          {cardSatsEnabled && (
+            <>
+              <div className="space-y-1">
+                <Label>Amount</Label>
+                <SettingInputGroup
+                  type="number"
+                  placeholder="1000"
+                  min={1}
+                  value={cardSatsAmount}
+                  onValueChange={setCardSatsAmount}
+                  save={amount => persistSats({ amount })}
+                  suffix="sats"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Treasury wallet</Label>
+                <Select
+                  value={cardSatsWalletId || undefined}
+                  onValueChange={async next => {
+                    setCardSatsWalletId(next)
+                    try {
+                      await persistSats({ walletId: next })
+                    } catch (err) {
+                      toast.error(
+                        err instanceof Error
+                          ? err.message
+                          : 'Failed to update setting'
+                      )
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a Remote Wallet" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeWallets.map(wallet => (
+                      <SelectItem key={wallet.id} value={wallet.id}>
+                        {wallet.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p
+                  className={
+                    satsNeedsWallet
+                      ? 'text-xs text-amber-500'
+                      : 'text-xs text-muted-foreground'
+                  }
+                >
+                  {satsNeedsWallet
+                    ? 'Select a funded Remote Wallet to activate the sats bonus.'
+                    : 'Funds are taken from this wallet and paid into the newly activated card wallet.'}
+                </p>
               </div>
             </>
           )}

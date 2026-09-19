@@ -435,6 +435,41 @@ describe('POST /api/wallet/addresses', () => {
     expect(prismaMock.lightningAddress.create).not.toHaveBeenCalled()
   })
 
+  it('skips paid registration when the caller has a reserved card-activation address', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      registration_ln_enabled: 'true',
+      registration_ln_address: 'admin@provider.com',
+      registration_admin_bypass: 'true'
+    })
+    mockAuth()
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user-1'
+    } as any)
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue({
+      id: 'grant-1'
+    } as any)
+    vi.mocked(prismaMock.lightningAddress.findUnique).mockResolvedValue(null)
+    vi.mocked(prismaMock.lightningAddress.count).mockResolvedValue(0)
+    vi.mocked(prismaMock.lightningAddress.create).mockResolvedValue(
+      makeAddress({ username: 'bob', isPrimary: true }) as any
+    )
+    vi.mocked(prismaMock.remoteWallet.findFirst).mockResolvedValue(null)
+
+    const res = await ListPost(
+      createNextRequest('/api/wallet/addresses', {
+        method: 'POST',
+        body: { username: 'bob' }
+      })
+    )
+    await assertResponse(res, 201)
+    expect(prismaMock.cardActivationBonus.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'grant-1' },
+        data: { status: 'REDEEMED' }
+      })
+    )
+  })
+
   it('lets ADMIN bypass payment when admin bypass toggle is on', async () => {
     vi.mocked(getSettings).mockResolvedValueOnce({
       registration_ln_enabled: 'true',

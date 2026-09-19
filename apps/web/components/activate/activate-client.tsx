@@ -37,6 +37,8 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
     ActivationPreview['card'] | null
   >(null)
   const [autoActivate, setAutoActivate] = useState(false)
+  const [nextPath, setNextPath] = useState('/wallet')
+  const [claimAddress, setClaimAddress] = useState(false)
 
   // Public preview — no auth required. Surfaces claimed/expired via `status`.
   const loadPreview = useCallback(async () => {
@@ -71,8 +73,20 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
         {
           remoteWalletId: null
         }
-      )) as { card?: ActivationPreview['card'] }
+      )) as {
+        card?: ActivationPreview['card']
+        needsLightningAddress?: boolean
+        bonuses?: { freeLightningAddress?: boolean }
+      }
       setClaimedCard(res?.card ?? null)
+      if (res?.needsLightningAddress) {
+        const bonus = res.bonuses?.freeLightningAddress ? '&bonus=1' : ''
+        setNextPath(`/wallet/claim-username?from=activate${bonus}`)
+        setClaimAddress(true)
+      } else {
+        setNextPath('/wallet')
+        setClaimAddress(false)
+      }
       setClaimState('success')
     } catch (err) {
       setClaimError(err instanceof Error ? err.message : 'Activation failed.')
@@ -136,7 +150,12 @@ export function ActivateClient({ tokenId }: { tokenId: string }) {
 
       {phase === 'ready' &&
         (claimState === 'success' ? (
-          <ActivationSuccess imageUrl={design?.imageUrl} title={title} />
+          <ActivationSuccess
+            imageUrl={design?.imageUrl}
+            title={title}
+            nextPath={nextPath}
+            claimAddress={claimAddress}
+          />
         ) : (
           <div className="flex flex-1 flex-col">
             <header className="pb-2 pt-6 text-center">

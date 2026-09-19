@@ -23,10 +23,14 @@ const CONFETTI_COLORS = [
  */
 export function ActivationSuccess({
   imageUrl,
-  title
+  title,
+  nextPath = '/wallet',
+  claimAddress = false
 }: {
   imageUrl?: string | null
   title?: string
+  nextPath?: string
+  claimAddress?: boolean
 }) {
   const router = useRouter()
 
@@ -105,14 +109,18 @@ export function ActivationSuccess({
         Card activated!
       </h1>
       <p className="animate-fade-in mt-2 max-w-xs text-sm text-muted-foreground">
-        {title ? (
-          <>
-            <span className="font-medium text-foreground">{title}</span> is now
-            linked to your wallet and ready to tap-to-pay.
-          </>
-        ) : (
-          'Your card is now linked to your wallet and ready to tap-to-pay.'
-        )}
+        {claimAddress
+          ? title
+            ? `${title} is linked to your wallet. Pick a Lightning address so you can receive right away.`
+            : 'Your card is linked to your wallet. Pick a Lightning address so you can receive right away.'
+          : title ? (
+              <>
+                <span className="font-medium text-foreground">{title}</span> is
+                now linked to your wallet and ready to tap-to-pay.
+              </>
+            ) : (
+              'Your card is now linked to your wallet and ready to tap-to-pay.'
+            )}
       </p>
 
       <div className="my-8 scale-90">
@@ -121,9 +129,9 @@ export function ActivationSuccess({
 
       <Button
         className="h-12 w-full max-w-xs"
-        onClick={() => router.push('/wallet')}
+        onClick={() => router.push(nextPath)}
       >
-        Open wallet
+        {claimAddress ? 'Claim your address' : 'Open wallet'}
       </Button>
     </div>
   )
