@@ -18,7 +18,7 @@ export function ReceiveInvoiceStep() {
       tx.paymentHash === flow.invoice.paymentHash &&
       tx.settledAt !== null
     ) {
-      receiveActions.markSettled(tx.paymentHash)
+      receiveActions.markSettled(tx.paymentHash, tx.settledAt)
       router.replace('/wallet/receive/summary')
     }
   })

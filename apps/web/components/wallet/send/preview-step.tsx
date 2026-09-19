@@ -26,6 +26,7 @@ import {
   quotePayment,
   type PaymentQuote
 } from '@/lib/client/nwc'
+import { paymentHashFromBolt11 } from '@/lib/client/payment-receipt'
 import {
   useActiveCurrencies,
   type Currency
@@ -209,7 +210,11 @@ export function SendPreviewStep() {
         preimage: result.preimage,
         feesPaidSats: result.feesPaidSats,
         amountSats: flow.amountSats!,
-        recipient: recipientLabel
+        recipient: recipientLabel,
+        paymentHash: paymentHashFromBolt11(currentQuote.quote.paymentRequest),
+        destination: destinationForReceipt(flow.recipient),
+        comment: flow.comment.trim() ? flow.comment.trim() : null,
+        settledAt: Date.now()
       })
       router.replace('/wallet/send/summary')
     } catch (err) {
@@ -567,6 +572,19 @@ function buildRecipientDetails(
     subtitle: address ?? labelForRecipient(recipient),
     avatarUrl: contact?.avatarUrl ?? recipient.profile?.image ?? fallbackAvatar
   }
+}
+
+function destinationForReceipt(
+  recipient: ResolvedRecipient | null
+): string | null {
+  if (!recipient) return null
+  if (recipient.destination.kind === 'lnurl-pay') {
+    return recipient.destination.address ?? recipient.raw
+  }
+  if (recipient.destination.kind === 'invoice') {
+    return recipient.destination.description
+  }
+  return recipient.raw
 }
 
 function getLightningAddress(

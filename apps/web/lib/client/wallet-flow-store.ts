@@ -23,16 +23,25 @@ export interface ResolvedRecipient {
   }
 }
 
+export interface SendFlowResult {
+  preimage: string
+  feesPaidSats: number
+  amountSats: number
+  recipient: string
+  /** Invoice payment hash when the quote decoded; null if the wallet omitted it. */
+  paymentHash: string | null
+  /** Lightning address, invoice memo, or other destination label. */
+  destination: string | null
+  comment: string | null
+  /** Unix millis when the payment settled on this device. */
+  settledAt: number
+}
+
 export interface SendFlowState {
   recipient: ResolvedRecipient | null
   amountSats: number | null
   comment: string
-  result: {
-    preimage: string
-    feesPaidSats: number
-    amountSats: number
-    recipient: string
-  } | null
+  result: SendFlowResult | null
   error: string | null
 }
 
@@ -47,6 +56,8 @@ export interface ReceiveFlowState {
     expiresAt: number | null
   } | null
   settledPreimage: string | null
+  /** Unix millis when the inbound payment settled on this device. */
+  settledAt: number | null
   error: string | null
 }
 
@@ -82,6 +93,7 @@ const INITIAL_STATE: WalletFlowState = {
     description: '',
     invoice: null,
     settledPreimage: null,
+    settledAt: null,
     error: null
   },
   withdraw: {
@@ -188,10 +200,10 @@ export const receiveActions = {
     state = { ...state, receive: { ...state.receive, invoice, error: null } }
     emit()
   },
-  markSettled(preimage: string) {
+  markSettled(preimage: string, settledAt: number = Date.now()) {
     state = {
       ...state,
-      receive: { ...state.receive, settledPreimage: preimage }
+      receive: { ...state.receive, settledPreimage: preimage, settledAt }
     }
     emit()
   },
