@@ -1,5 +1,7 @@
+import type { NostrSigner } from '@nostrify/nostrify'
 import { describe, expect, it, vi } from 'vitest'
-import { bodyToPayload, createNip98Token } from '@/lib/nip98-client'
+import { bodyToPayload } from '@/lib/nip98-client'
+import { createAutoSignFetch } from '@/app/api-docs/auto-sign-fetch'
 import {
   normalizeRequest,
   shouldAutoSign
@@ -138,7 +140,7 @@ describe('regression: body drop on Request inputs', () => {
   it('delivers the original JSON body to a downstream handler', async () => {
     const req = await normalizeRequest(scalarRequest())
     // The interceptor re-issues a fresh request with the normalized body,
-    // exactly as `api-docs-client.tsx` does inside the patched `fetch`.
+    // exactly as `createAutoSignFetch` does inside the patched `fetch`.
     const downstream = new Request(req!.url, {
       method: req!.method,
       headers: req!.headers,
@@ -159,41 +161,15 @@ describe('regression: body drop on Request inputs', () => {
 describe('interceptor end-to-end (patched window.fetch)', () => {
   const SCALAR_BODY = JSON.stringify({ id: 'card-1', designId: 'design-1' })
 
-  function makeIntercept(
-    originalFetch: (
-      input: RequestInfo | URL,
-      init?: RequestInit
-    ) => Promise<Response>,
-    nip98Routes: Set<string>,
-    signer: {
-      signEvent: (
-        e: Record<string, unknown>
-      ) => Promise<Record<string, unknown>>
-    }
-  ) {
-    return async (
-      input: RequestInfo | URL,
-      init?: RequestInit
-    ): Promise<Response> => {
-      try {
-        const req = await normalizeRequest(input, init)
-        if (req && shouldAutoSign(req, nip98Routes)) {
-          const signed = await createNip98Token(
-            req.url,
-            { method: req.method, body: req.bodyForHash },
-            signer as never
-          )
-          req.headers.set('Authorization', signed)
-          return originalFetch(req.url, {
-            method: req.method,
-            headers: req.headers,
-            body: req.realBody
-          })
-        }
-      } catch {
-        // fall through
-      }
-      return originalFetch(input as RequestInfo, init)
+  function stubSigner() {
+    return {
+      signEvent: vi.fn(async (e: Record<string, unknown>) => ({
+        ...e,
+        id: 'fake-id',
+        sig: 'fake-sig'
+      }))
+    } as unknown as NostrSigner & {
+      signEvent: ReturnType<typeof vi.fn>
     }
   }
 
@@ -208,14 +184,8 @@ describe('interceptor end-to-end (patched window.fetch)', () => {
         })
       }
     )
-    const signer = {
-      signEvent: vi.fn(async (e: Record<string, unknown>) => ({
-        ...e,
-        id: 'fake-id',
-        sig: 'fake-sig'
-      }))
-    }
-    const intercept = makeIntercept(
+    const signer = stubSigner()
+    const intercept = createAutoSignFetch(
       originalFetch,
       new Set(['POST /api/cards']),
       signer
@@ -255,14 +225,8 @@ describe('interceptor end-to-end (patched window.fetch)', () => {
       async (input: RequestInfo | URL, init?: RequestInit) =>
         new Response('{}', { status: 200 })
     )
-    const signer = {
-      signEvent: vi.fn(async (e: Record<string, unknown>) => ({
-        ...e,
-        id: 'fake-id',
-        sig: 'fake-sig'
-      }))
-    }
-    const intercept = makeIntercept(
+    const signer = stubSigner()
+    const intercept = createAutoSignFetch(
       originalFetch,
       new Set(['POST /api/cards']),
       signer
@@ -277,5 +241,35 @@ describe('interceptor end-to-end (patched window.fetch)', () => {
         method: 'GET'
       }
     )
+  })
+
+  it('falls through to the original fetch if signing throws', async () => {
+    const originalFetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) =>
+        new Response('{}', { status: 200 })
+    )
+    const signer = {
+      signEvent: vi.fn(async () => {
+        throw new Error('no signer')
+      })
+    } as unknown as NostrSigner & {
+      signEvent: ReturnType<typeof vi.fn>
+    }
+    const intercept = createAutoSignFetch(
+      originalFetch,
+      new Set(['POST /api/cards']),
+      signer
+    )
+    const input = new Request('http://localhost:3000/api/cards', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: SCALAR_BODY
+    })
+
+    await intercept(input)
+
+    expect(originalFetch).toHaveBeenCalledWith(input, undefined)
+    const [, init] = originalFetch.mock.calls[0]
+    expect(init).toBeUndefined()
   })
 })
