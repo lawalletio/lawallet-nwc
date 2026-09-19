@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { NostrSigner } from '@nostrify/nostrify'
 
 // happy-dom has no WebAuthn API and the provider pulls a wide import graph —
@@ -67,17 +67,27 @@ const STUB_SIGNER = {
   signEvent: vi.fn()
 } as unknown as NostrSigner
 
-function validation(expiresInMs = 60_000) {
+function validation(expiresInMs = 24 * 60 * 60 * 1000) {
   return {
     valid: true,
     pubkey: PUBKEY,
     role: Role.USER,
     permissions: [],
     issuedAt: new Date().toISOString(),
-    // Under the 5-minute refresh buffer on purpose so no refresh timer is
-    // ever scheduled during these tests.
     expiresAt: new Date(Date.now() + expiresInMs).toISOString()
   }
+}
+
+function jwtWithExp(expSecondsFromNow: number): string {
+  const header = Buffer.from(
+    JSON.stringify({ alg: 'none', typ: 'JWT' })
+  ).toString('base64url')
+  const payload = Buffer.from(
+    JSON.stringify({
+      exp: Math.floor(Date.now() / 1000) + expSecondsFromNow
+    })
+  ).toString('base64url')
+  return `${header}.${payload}.sig`
 }
 
 // Holder object so the capture component writes a property rather than
@@ -120,6 +130,10 @@ beforeEach(() => {
   mocks.exchangeNip98ForJwt.mockResolvedValue({ token: 'tok' })
   mocks.createNsecSigner.mockReturnValue(STUB_SIGNER)
   mocks.hasBrowserExtension.mockReturnValue(false)
+})
+
+afterEach(() => {
+  cleanup()
 })
 
 describe('AuthProvider passkey sessions (PRF model)', () => {
@@ -340,7 +354,7 @@ describe('AuthProvider visibility recheck', () => {
     )
   })
 
-  it('clears the in-memory signer when the stored JWT is invalid', async () => {
+  it('silently remints when the stored JWT is invalid but a signer is available', async () => {
     renderProvider()
     await waitFor(() =>
       expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
@@ -352,8 +366,40 @@ describe('AuthProvider visibility recheck', () => {
       })
     })
     expect(screen.getByTestId('signer')).toHaveTextContent('yes')
+    expect(localStorage.getItem(SECRET_KEY)).toBe('bunker://relay.example')
 
     mocks.validateJwt.mockRejectedValueOnce(new Error('invalid token'))
+    mocks.exchangeNip98ForJwt.mockClear()
+    mocks.exchangeNip98ForJwt.mockResolvedValue({ token: 'fresh-tok' })
+
+    await act(async () => {
+      fireVisibilityChange('visible')
+    })
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
+    expect(screen.getByTestId('signer')).toHaveTextContent('yes')
+    expect(held.ctx!.signer).toBe(STUB_SIGNER)
+    expect(mocks.exchangeNip98ForJwt).toHaveBeenCalledWith(STUB_SIGNER)
+    expect(localStorage.getItem(JWT_KEY)).toBe('fresh-tok')
+    expect(localStorage.getItem(SECRET_KEY)).toBe('bunker://relay.example')
+  })
+
+  it('signs out without wiping signer credentials when remint fails', async () => {
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+
+    await act(async () => {
+      await held.ctx!.login(STUB_SIGNER, 'bunker', {
+        secret: 'bunker://relay.example'
+      })
+    })
+
+    mocks.validateJwt.mockRejectedValue(new Error('invalid token'))
+    mocks.exchangeNip98ForJwt.mockRejectedValue(new Error('nip98 failed'))
 
     await act(async () => {
       fireVisibilityChange('visible')
@@ -363,6 +409,117 @@ describe('AuthProvider visibility recheck', () => {
       expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
     )
     expect(screen.getByTestId('signer')).toHaveTextContent('no')
-    expect(held.ctx!.signer).toBeNull()
+    expect(localStorage.getItem(JWT_KEY)).toBeNull()
+    expect(localStorage.getItem(METHOD_KEY)).toBe('bunker')
+    expect(localStorage.getItem(SECRET_KEY)).toBe('bunker://relay.example')
+  })
+})
+
+describe('AuthProvider silent JWT remint', () => {
+  it('remints from a stored passkey secret when the JWT is already expired', async () => {
+    const expired = jwtWithExp(-60)
+    localStorage.setItem(JWT_KEY, expired)
+    localStorage.setItem(METHOD_KEY, 'passkey')
+    localStorage.setItem(SECRET_KEY, DERIVED_SECRET)
+    mocks.exchangeNip98ForJwt.mockResolvedValue({ token: 'fresh-tok' })
+
+    renderProvider()
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
+    expect(mocks.exchangeNip98ForJwt).toHaveBeenCalledWith(STUB_SIGNER)
+    expect(mocks.createNsecSigner).toHaveBeenCalledWith(DERIVED_SECRET)
+    expect(localStorage.getItem(JWT_KEY)).toBe('fresh-tok')
+    expect(localStorage.getItem(SECRET_KEY)).toBe(DERIVED_SECRET)
+    expect(screen.getByTestId('signer')).toHaveTextContent('yes')
+    expect(mocks.validateJwt).not.toHaveBeenCalledWith(expired)
+    expect(mocks.validateJwt).toHaveBeenCalledWith('fresh-tok')
+  })
+
+  it('remints on visibility when the JWT is inside the refresh buffer', async () => {
+    localStorage.setItem(JWT_KEY, jwtWithExp(120))
+    localStorage.setItem(METHOD_KEY, 'passkey')
+    localStorage.setItem(SECRET_KEY, DERIVED_SECRET)
+
+    renderProvider()
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
+    expect(localStorage.getItem(JWT_KEY)).toBe('tok')
+    expect(mocks.exchangeNip98ForJwt).toHaveBeenCalled()
+
+    mocks.exchangeNip98ForJwt.mockClear()
+    mocks.exchangeNip98ForJwt.mockResolvedValue({ token: 'newer-tok' })
+    localStorage.setItem(JWT_KEY, jwtWithExp(90))
+
+    await act(async () => {
+      fireVisibilityChange('visible')
+    })
+
+    await waitFor(() => expect(localStorage.getItem(JWT_KEY)).toBe('newer-tok'))
+    expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    expect(localStorage.getItem(SECRET_KEY)).toBe(DERIVED_SECRET)
+  })
+
+  it('remints on hydrate when the JWT is gone but signer credentials remain', async () => {
+    localStorage.setItem(METHOD_KEY, 'passkey')
+    localStorage.setItem(SECRET_KEY, DERIVED_SECRET)
+    mocks.exchangeNip98ForJwt.mockResolvedValue({ token: 'recovered-tok' })
+
+    renderProvider()
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
+    )
+    expect(mocks.exchangeNip98ForJwt).toHaveBeenCalledWith(STUB_SIGNER)
+    expect(localStorage.getItem(JWT_KEY)).toBe('recovered-tok')
+  })
+
+  it('does not remint an expired JWT while impersonating', async () => {
+    localStorage.setItem(JWT_KEY, jwtWithExp(-60))
+    localStorage.setItem('lawallet-impersonator-return', JSON.stringify({}))
+    mocks.exchangeNip98ForJwt.mockClear()
+
+    renderProvider()
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+    expect(mocks.exchangeNip98ForJwt).not.toHaveBeenCalled()
+    expect(localStorage.getItem('lawallet-impersonator-return')).not.toBeNull()
+  })
+
+  it('keeps signer credentials when another tab drops only the JWT', async () => {
+    renderProvider()
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+
+    await act(async () => {
+      await held.ctx!.login(STUB_SIGNER, 'passkey', {
+        secret: DERIVED_SECRET
+      })
+    })
+    expect(localStorage.getItem(SECRET_KEY)).toBe(DERIVED_SECRET)
+
+    localStorage.removeItem(JWT_KEY)
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: JWT_KEY,
+          oldValue: 'tok',
+          newValue: null,
+          storageArea: window.localStorage
+        })
+      )
+    })
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('unauthenticated')
+    )
+    expect(localStorage.getItem(SECRET_KEY)).toBe(DERIVED_SECRET)
+    expect(localStorage.getItem(METHOD_KEY)).toBe('passkey')
   })
 })
