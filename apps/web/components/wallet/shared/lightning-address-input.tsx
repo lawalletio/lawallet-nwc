@@ -18,6 +18,7 @@ import { contactsActions, useContacts } from '@/lib/client/contacts-store'
 import {
   buildLightningAddressSuggestions,
   getDomainAvatarUrl,
+  lightningAddressMatchesQuery,
   resolveCurrentLightningDomain,
   type LightningAddressSuggestion
 } from '@/lib/client/lightning-address-suggestions'
@@ -107,18 +108,18 @@ export function LightningAddressInput({
   const query = value.trim().toLowerCase()
   const currentDomain = resolveCurrentLightningDomain(me?.lightningAddress)
 
-  const recentContacts = useMemo(
-    () => (hideContacts || query ? [] : contacts.slice(0, MAX_RECENT_OPTIONS)),
-    [contacts, hideContacts, query]
-  )
+  const recentContacts = useMemo(() => {
+    if (hideContacts) return []
+    const matched = query
+      ? contacts.filter(contact =>
+          lightningAddressMatchesQuery(contact.lightningAddress, query)
+        )
+      : contacts
+    return matched.slice(0, MAX_RECENT_OPTIONS)
+  }, [contacts, hideContacts, query])
   const suggestedAddresses = useMemo(
-    () =>
-      buildLightningAddressSuggestions(
-        value,
-        currentDomain,
-        contacts.map(contact => contact.lightningAddress)
-      ),
-    [contacts, currentDomain, value]
+    () => buildLightningAddressSuggestions(value, currentDomain),
+    [currentDomain, value]
   )
 
   // Once the typed value IS one of the options, offering the other domains is

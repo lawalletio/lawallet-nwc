@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildLightningAddressSuggestions,
   getDomainAvatarUrl,
+  lightningAddressMatchesQuery,
   resolveCurrentLightningDomain
 } from '@/lib/client/lightning-address-suggestions'
 
@@ -36,19 +37,31 @@ describe('lightning-address-suggestions', () => {
     ])
   })
 
-  it('omits already saved addresses', () => {
-    const suggestions = buildLightningAddressSuggestions(
-      'hola',
-      'lawallet.io',
-      ['hola@lawallet.io', 'hola@blink.sv']
-    )
+  it('keeps the current-domain completion even when that address is saved', () => {
+    const suggestions = buildLightningAddressSuggestions('hola', 'lawallet.io')
 
-    expect(suggestions.map(s => s.lightningAddress)).not.toContain(
+    expect(suggestions.map(s => s.lightningAddress)).toContain(
       'hola@lawallet.io'
     )
-    expect(suggestions.map(s => s.lightningAddress)).not.toContain(
-      'hola@blink.sv'
+    expect(suggestions.map(s => s.lightningAddress)).toContain('hola@blink.sv')
+  })
+
+  it('matches a stored recipient by local-part prefix, case-insensitively', () => {
+    expect(
+      lightningAddressMatchesQuery('fierillo@lawallet.io', 'fierillo')
+    ).toBe(true)
+    expect(lightningAddressMatchesQuery('fierillo@lawallet.io', 'FIER')).toBe(
+      true
     )
+    expect(
+      lightningAddressMatchesQuery('fierillo@lawallet.io', 'fierillo@law')
+    ).toBe(true)
+    expect(lightningAddressMatchesQuery('fierillo@lawallet.io', 'satoshi')).toBe(
+      false
+    )
+    expect(
+      lightningAddressMatchesQuery('fierillo@lawallet.io', 'lawallet')
+    ).toBe(false)
   })
 
   it('uses lawallet.io when the current address is local dev', () => {
