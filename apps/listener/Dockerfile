@@ -27,6 +27,10 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/listener/node_modules ./apps/listener/node_modules
+# Shared ships raw TS and depends on @asteasolutions/zod-to-openapi. tsup
+# resolves that from packages/shared/node_modules; omitting it fails the
+# listener image build even though the full-monorepo turbo build is green.
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY apps/listener ./apps/listener
 COPY packages/shared ./packages/shared
 RUN pnpm --filter=@lawallet-nwc/listener build
