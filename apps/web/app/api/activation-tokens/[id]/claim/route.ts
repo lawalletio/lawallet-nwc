@@ -16,7 +16,13 @@ import {
 import { createNewUser } from '@/lib/user'
 import { eventBus } from '@/lib/events/event-bus'
 import { ActivityEvent, logActivity } from '@/lib/activity-log'
-import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
+import {
+  deliverReservedSatsBonus,
+  evaluateActivationBonuses,
+  reserveActivationBonuses,
+  resolveClaimWallet,
+  type ClaimBonusesResponse
+} from '@/lib/wallet/card-activation-onboarding'
 
 /**
  * `POST /api/activation-tokens/[id]/claim` — claim a card via its activation QR.
@@ -48,7 +54,6 @@ export const POST = withErrorHandling(
     // creating the account on first sight.
     const existing = await resolveAccountByPubkey(pubkey)
     const claimer = existing ?? (await createNewUser(pubkey))
-    const primaryWallet = await getPrimaryRemoteWalletForUser(claimer.id)
 
     const token = await prisma.cardActivationToken.findUnique({
       where: { id },
@@ -86,29 +91,17 @@ export const POST = withErrorHandling(
     // binding as `unconfigured` and will NOT fall back to the owner's default,
     // so binding a disabled/revoked wallet would silently brick the card until
     // it's manually rebound. An explicit choice must belong to the claimer and
-    // be ACTIVE; otherwise fall back to their ACTIVE default, or leave the card
-    // unbound (null) so normal default resolution applies at tap time.
-    let nextWalletId: string | null
-    if (remoteWalletId) {
-      const wallet = await prisma.remoteWallet.findUnique({
-        where: { id: remoteWalletId },
-        select: { id: true, userId: true, status: true }
-      })
-      if (
-        !wallet ||
-        wallet.userId !== claimer.id ||
-        wallet.status !== 'ACTIVE'
-      ) {
-        throw new ValidationError('Unknown or inactive wallet')
-      }
-      nextWalletId = wallet.id
-    } else {
-      // Only an ACTIVE primary-address wallet is a usable fallback binding.
-      // Otherwise leave the card unbound so normal default resolution can
-      // evaluate again at tap time.
-      nextWalletId =
-        primaryWallet?.status === 'ACTIVE' ? primaryWallet.id : null
-    }
+    // be ACTIVE; otherwise we pick their primary-address wallet, any ACTIVE
+    // wallet, or mint an LNCurl wallet so a first-time claimer can tap the
+    // card immediately.
+    const nextWalletId = await resolveClaimWallet({
+      userId: claimer.id,
+      explicitWalletId: remoteWalletId
+    })
+    const eligibility = await evaluateActivationBonuses({
+      userId: claimer.id,
+      cardId: token.cardId
+    })
 
     // Atomic transfer + burn. Scoping the token update to status=PENDING and
     // asserting a row changed closes the race where two wallets claim at once.
@@ -128,7 +121,7 @@ export const POST = withErrorHandling(
       // changing hands always lands as SIMPLE — the new holder can promote it
       // themselves. This also means assigning `userId` can never collide with
       // the `Card_userId_master_unique` partial index.
-      return tx.card.update({
+      const card = await tx.card.update({
         where: { id: token.cardId },
         data: {
           userId: claimer.id,
@@ -154,7 +147,33 @@ export const POST = withErrorHandling(
           user: { select: { pubkey: true } }
         }
       })
+
+      await reserveActivationBonuses(
+        {
+          userId: claimer.id,
+          cardId: token.cardId,
+          eligibility
+        },
+        tx
+      )
+
+      return card
     })
+
+    const sats = eligibility.sats.eligible
+      ? await deliverReservedSatsBonus({
+          cardId: token.cardId,
+          userWalletId: nextWalletId
+        })
+      : { granted: false as const }
+
+    const bonuses: ClaimBonusesResponse = {
+      freeLightningAddress: eligibility.freeLightningAddress,
+      sats: {
+        granted: sats.granted,
+        amountSats: sats.amountSats
+      }
+    }
 
     eventBus.emit({ type: 'cards:updated', timestamp: Date.now() })
     logActivity.fireAndForget({
@@ -165,7 +184,10 @@ export const POST = withErrorHandling(
       metadata: {
         cardId: token.cardId,
         tokenId: token.id,
-        remoteWalletId: nextWalletId
+        remoteWalletId: nextWalletId,
+        freeLightningAddress: bonuses.freeLightningAddress,
+        satsGranted: bonuses.sats.granted,
+        satsAmount: bonuses.sats.amountSats ?? null
       }
     })
 
@@ -182,6 +204,11 @@ export const POST = withErrorHandling(
       kind: updated.kind
     }
 
-    return NextResponse.json({ qrKind: 'ONE_TIME', card })
+    return NextResponse.json({
+      qrKind: 'ONE_TIME',
+      card,
+      bonuses,
+      needsLightningAddress: eligibility.needsLightningAddress
+    })
   }
 )

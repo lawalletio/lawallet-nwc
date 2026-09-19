@@ -54,6 +54,13 @@ export interface SettingsData {
   lncurl_auto_create?: string
   /** When an LNCurl wallet is destroyed, mint a replacement on the next incoming payment. */
   lncurl_auto_recreate?: string
+  /** First activation of a never-paired card grants a free Lightning Address (default on). */
+  card_free_ln_enabled?: string
+  /** Pay a one-time sats bonus from an admin treasury wallet on card activation. */
+  card_sats_bonus_enabled?: string
+  card_sats_bonus_amount?: string
+  /** RemoteWallet.id of the admin treasury that funds the sats bonus. */
+  card_sats_bonus_wallet_id?: string
   /** Google Tag ID (e.g. `G-XXXXXXXXXX`). Empty string disables analytics. */
   gtag_id?: string
   /** NWC listener pairing. `listener_enabled` is the EFFECTIVE state ('true'/'false'),

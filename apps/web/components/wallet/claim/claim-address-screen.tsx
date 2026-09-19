@@ -21,7 +21,13 @@ import { invalidateApiPath } from '@/lib/client/hooks/use-api'
  * `/wallet/claim-username`. On completion it returns to `/wallet`, where the
  * newly claimed address now shows in place of the claim prompt.
  */
-export function ClaimAddressScreen() {
+export function ClaimAddressScreen({
+  fromActivate = false,
+  freeBonus = false
+}: {
+  fromActivate?: boolean
+  freeBonus?: boolean
+}) {
   const router = useRouter()
 
   // Refresh the endpoints the home screen reads so it shows the new address
@@ -41,17 +47,22 @@ export function ClaimAddressScreen() {
 
   function handleBack() {
     // Cancelling the payment attempt drops back to the username picker;
-    // otherwise leave the flow entirely.
+    // otherwise leave the flow entirely — except after card activation,
+    // where claiming an address is required and there is no dismiss.
     if (flow.step === 'payment') {
       flow.backFromPayment()
       return
     }
+    if (fromActivate) return
     goToWallet()
   }
 
+  const showHeader =
+    flow.step !== 'success' && !(fromActivate && flow.step === 'username')
+
   return (
     <div className="flex flex-1 flex-col">
-      {flow.step !== 'success' && (
+      {showHeader && (
         <ScreenHeader
           title={flow.step === 'payment' ? 'Payment' : 'Claim address'}
           closeStyle={flow.step === 'username'}
@@ -70,8 +81,11 @@ export function ClaimAddressScreen() {
                 Claim your Lightning address
               </h1>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Pick a username — this is where you’ll receive Lightning
-                payments. It’s free.
+                {fromActivate
+                  ? freeBonus
+                    ? 'Your card is ready. Pick a username — this first Lightning address is free.'
+                    : 'Your card is ready. Pick a username so you can receive Lightning payments.'
+                  : 'Pick a username — this is where you’ll receive Lightning payments. It’s free.'}
               </p>
             </div>
 

@@ -4,7 +4,14 @@ import { withErrorHandling } from '@/types/server/error-handler'
 import { AuthenticationError, NotFoundError } from '@/types/server/errors'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { resolveAccountByPubkey } from '@/lib/auth/account'
-import { requireAddressRegistration } from '@/lib/auth/paid-registration-guard'
+import {
+  requireAddressRegistration,
+  requireUserAddressRegistration
+} from '@/lib/auth/paid-registration-guard'
+import {
+  hasReservedFreeAddress,
+  redeemFreeAddressReservation
+} from '@/lib/wallet/card-activation-onboarding'
 import { validateBody } from '@/lib/validation/middleware'
 import { checkRequestLimits } from '@/lib/middleware/request-limits'
 import { createWalletAddressSchema } from '@/lib/validation/schemas'
@@ -85,13 +92,23 @@ export const POST = withErrorHandling(async (request: Request) => {
   // Gate self-service address creation behind the instance policy. When user
   // registration is disabled only admins pass; when paid registration is on,
   // non-bypassing actors must go through /api/invoices + preimage claim.
-  await requireAddressRegistration(role)
+  // A reserved first-card-activation bonus skips only the paid gate.
+  const freeCardBonus = await hasReservedFreeAddress(user.id)
+  if (freeCardBonus) {
+    await requireUserAddressRegistration(role)
+  } else {
+    await requireAddressRegistration(role)
+  }
 
   const dto = await createLightningAddressForUser({
     userId: user.id,
     username,
     mode
   })
+
+  if (freeCardBonus) {
+    await redeemFreeAddressReservation(user.id)
+  }
 
   return NextResponse.json(dto, { status: 201 })
 })

@@ -27,11 +27,19 @@ vi.mock('@/lib/middleware/rate-limit', () => ({
 
 vi.mock('@/lib/auth/unified-auth', () => ({ authenticate: vi.fn() }))
 vi.mock('@/lib/user', () => ({ createNewUser: vi.fn() }))
+vi.mock('@/lib/wallet/lncurl-wallet', () => ({
+  createLncurlRemoteWallet: vi.fn().mockRejectedValue(new Error('lncurl off'))
+}))
+vi.mock('@/lib/wallet/drivers', () => ({
+  driverForWallet: vi.fn()
+}))
 
 import { GET as PreviewToken } from '@/app/api/activation-tokens/[id]/route'
 import { POST as ClaimToken } from '@/app/api/activation-tokens/[id]/claim/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { createNewUser } from '@/lib/user'
+import { createLncurlRemoteWallet } from '@/lib/wallet/lncurl-wallet'
+import { driverForWallet } from '@/lib/wallet/drivers'
 
 const CLAIMER_PUBKEY = 'b'.repeat(64)
 
@@ -202,6 +210,9 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
 
     expect(body.qrKind).toBe('ONE_TIME')
     expect(body.card.id).toBe('card1')
+    expect(body.needsLightningAddress).toBe(false)
+    expect(body.bonuses.freeLightningAddress).toBe(false)
+    expect(body.bonuses.sats.granted).toBe(false)
     expect(prismaMock.cardActivationToken.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'tok1', status: 'PENDING' },
@@ -217,8 +228,6 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
         data: { userId: 'user1', remoteWalletId: 'w1', kind: 'SIMPLE' }
       })
     )
-    // The fallback only considers the wallet linked by the claimer's primary
-    // address, so independent RemoteWallet flags are not enough to bind.
     expect(prismaMock.lightningAddress.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: 'user1', isPrimary: true },
@@ -436,5 +445,217 @@ describe('POST /api/activation-tokens/[id]/claim', () => {
     const res = await ClaimToken(req, createParamsPromise({ id: 'tok1' }))
 
     expect(res.status).toBeGreaterThanOrEqual(400)
+  })
+
+  it('mints an LNCurl wallet and binds it when the claimer has none', async () => {
+    vi.mocked(authenticate).mockResolvedValue({
+      pubkey: CLAIMER_PUBKEY,
+      role: 'USER' as any,
+      method: 'nip98'
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue({
+      id: 'user1',
+      pubkey: CLAIMER_PUBKEY
+    } as any)
+    vi.mocked(createLncurlRemoteWallet).mockResolvedValueOnce({
+      id: 'lncurl-1'
+    } as any)
+    mockPendingToken()
+    vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({
+      count: 1
+    } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue({
+      ...claimedCardRow,
+      remoteWalletId: 'lncurl-1'
+    } as any)
+
+    const res = await ClaimToken(
+      createNextRequest('/api/activation-tokens/tok1/claim', {
+        method: 'POST',
+        body: {}
+      }),
+      createParamsPromise({ id: 'tok1' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(createLncurlRemoteWallet).toHaveBeenCalledWith({ userId: 'user1' })
+    expect(prismaMock.card.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          userId: 'user1',
+          remoteWalletId: 'lncurl-1',
+          kind: 'SIMPLE'
+        }
+      })
+    )
+    expect(body.needsLightningAddress).toBe(true)
+    expect(body.bonuses.freeLightningAddress).toBe(true)
+    expect(prismaMock.cardActivationBonus.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          cardId: 'card1',
+          userId: 'user1',
+          kind: 'FREE_ADDRESS',
+          status: 'RESERVED'
+        })
+      })
+    )
+  })
+
+  it('does not grant a free address when the card was already claimed', async () => {
+    mockClaimer(null)
+    mockPendingToken()
+    vi.mocked(prismaMock.cardActivationToken.findFirst).mockResolvedValue({
+      id: 'old-claim'
+    } as any)
+    vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({
+      count: 1
+    } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue({
+      ...claimedCardRow,
+      remoteWalletId: null
+    } as any)
+
+    const res = await ClaimToken(
+      createNextRequest('/api/activation-tokens/tok1/claim', {
+        method: 'POST',
+        body: {}
+      }),
+      createParamsPromise({ id: 'tok1' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.bonuses.freeLightningAddress).toBe(false)
+    expect(prismaMock.cardActivationBonus.create).not.toHaveBeenCalled()
+  })
+
+  it('does not grant a second free address to a user who already used the bonus', async () => {
+    mockClaimer(null)
+    mockPendingToken()
+    vi.mocked(prismaMock.cardActivationBonus.findFirst).mockResolvedValue({
+      id: 'prior-grant'
+    } as any)
+    vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({
+      count: 1
+    } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue({
+      ...claimedCardRow,
+      remoteWalletId: null
+    } as any)
+
+    const res = await ClaimToken(
+      createNextRequest('/api/activation-tokens/tok1/claim', {
+        method: 'POST',
+        body: {}
+      }),
+      createParamsPromise({ id: 'tok1' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.bonuses.freeLightningAddress).toBe(false)
+    expect(prismaMock.cardActivationBonus.create).not.toHaveBeenCalled()
+  })
+
+  it('pays a sats bonus once and marks the grant redeemed', async () => {
+    mockClaimer('w1')
+    mockPendingToken()
+    vi.mocked(prismaMock.settings.findMany).mockResolvedValue([
+      { name: 'card_sats_bonus_enabled', value: 'true' },
+      { name: 'card_sats_bonus_amount', value: '210' },
+      { name: 'card_sats_bonus_wallet_id', value: 'treasury-1' }
+    ] as any)
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValueOnce(
+      null
+    )
+    ;(prismaMock.remoteWallet.findUnique as any).mockImplementation(
+      async ({ where }: any) => {
+        if (where.id === 'treasury-1' || where.id === 'w1') {
+          return { id: where.id, userId: 'admin', status: 'ACTIVE' } as any
+        }
+        return null
+      }
+    )
+    vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({
+      count: 1
+    } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue(claimedCardRow as any)
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValueOnce({
+      id: 'sats-1',
+      status: 'RESERVED',
+      amountSats: 210,
+      sourceWalletId: 'treasury-1'
+    } as any)
+    const makeInvoice = vi.fn().mockResolvedValue({ bolt11: 'lnbc1' })
+    const payInvoice = vi.fn().mockResolvedValue({ preimage: 'ab', feesPaidSats: 0 })
+    vi.mocked(driverForWallet).mockReturnValue({
+      driver: { makeInvoice, payInvoice },
+      config: {}
+    } as any)
+
+    const res = await ClaimToken(
+      createNextRequest('/api/activation-tokens/tok1/claim', {
+        method: 'POST',
+        body: {}
+      }),
+      createParamsPromise({ id: 'tok1' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(prismaMock.cardActivationBonus.upsert).toHaveBeenCalled()
+    expect(makeInvoice).toHaveBeenCalled()
+    expect(payInvoice).toHaveBeenCalledWith({}, { bolt11: 'lnbc1' })
+    expect(prismaMock.cardActivationBonus.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'sats-1' },
+        data: { status: 'REDEEMED' }
+      })
+    )
+    expect(body.bonuses.sats).toEqual({ granted: true, amountSats: 210 })
+  })
+
+  it('leaves a failed sats payment reserved so the card can retry', async () => {
+    mockClaimer('w1')
+    mockPendingToken()
+    vi.mocked(prismaMock.settings.findMany).mockResolvedValue([
+      { name: 'card_sats_bonus_enabled', value: 'true' },
+      { name: 'card_sats_bonus_amount', value: '210' },
+      { name: 'card_sats_bonus_wallet_id', value: 'treasury-1' }
+    ] as any)
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValueOnce(
+      null
+    )
+    ;(prismaMock.remoteWallet.findUnique as any).mockImplementation(
+      async ({ where }: any) => {
+        if (where.id === 'treasury-1' || where.id === 'w1') {
+          return { id: where.id, userId: 'admin', status: 'ACTIVE' } as any
+        }
+        return null
+      }
+    )
+    vi.mocked(prismaMock.cardActivationToken.updateMany).mockResolvedValue({
+      count: 1
+    } as any)
+    vi.mocked(prismaMock.card.update).mockResolvedValue(claimedCardRow as any)
+    vi.mocked(prismaMock.cardActivationBonus.findUnique).mockResolvedValueOnce({
+      id: 'sats-1',
+      status: 'RESERVED',
+      amountSats: 210,
+      sourceWalletId: 'treasury-1'
+    } as any)
+    vi.mocked(driverForWallet).mockImplementation(() => {
+      throw new Error('treasury empty')
+    })
+
+    const res = await ClaimToken(
+      createNextRequest('/api/activation-tokens/tok1/claim', {
+        method: 'POST',
+        body: {}
+      }),
+      createParamsPromise({ id: 'tok1' })
+    )
+    const body: any = await assertResponse(res, 200)
+
+    expect(body.bonuses.sats.granted).toBe(false)
+    expect(prismaMock.cardActivationBonus.update).not.toHaveBeenCalled()
   })
 })

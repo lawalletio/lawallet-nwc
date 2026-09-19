@@ -59,6 +59,23 @@ describe('ClaimAddressScreen', () => {
     ).toBeDisabled()
   })
 
+  it('hides the dismiss control after card activation', () => {
+    vi.stubGlobal('fetch', vi.fn())
+    render(<ClaimAddressScreen fromActivate />)
+
+    expect(screen.queryByRole('button', { name: 'Go back' })).toBeNull()
+    expect(
+      screen.getByRole('heading', { name: 'Claim your Lightning address' })
+    ).toBeTruthy()
+  })
+
+  it('keeps a dismiss control when claiming from the wallet', () => {
+    vi.stubGlobal('fetch', vi.fn())
+    render(<ClaimAddressScreen />)
+
+    expect(screen.getByRole('button', { name: 'Go back' })).toBeTruthy()
+  })
+
   it('shows a format error for invalid characters', async () => {
     vi.stubGlobal('fetch', vi.fn())
     render(<ClaimAddressScreen />)

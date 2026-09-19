@@ -70,11 +70,19 @@ const claimResult = z
         kind: z.enum(['SIMPLE', 'MASTER']),
         remoteWalletId: z.string().nullable()
       })
-      .passthrough()
+      .passthrough(),
+    bonuses: z.object({
+      freeLightningAddress: z.boolean(),
+      sats: z.object({
+        granted: z.boolean(),
+        amountSats: z.number().int().optional()
+      })
+    }),
+    needsLightningAddress: z.boolean()
   })
   .openapi({
     description:
-      'Result of a ONE_TIME claim — ownership transferred, token burned.'
+      'Result of a ONE_TIME claim — ownership transferred, token burned, first-activation bonuses reserved.'
   })
 
 // POST /api/cards/{id}/activation-tokens — mint an activation QR (operator).
@@ -169,7 +177,7 @@ registry.registerPath({
   tags: [TAG],
   summary: 'Claim a card via its activation token.',
   description:
-    'Any authenticated wallet user (NIP-98 or JWT). A ONE_TIME claim transfers the card to the claimer, binds a Remote Wallet, and burns the token. A second claim returns 409.',
+    'Any authenticated wallet user (NIP-98 or JWT). A ONE_TIME claim transfers the card to the claimer, binds a Remote Wallet (creating an LNCurl wallet when the claimer has none), reserves first-activation bonuses, and burns the token. A second claim returns 409.',
   operationId: 'activationTokens.claim',
   security: protectedSecurity,
   request: {

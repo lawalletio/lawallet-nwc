@@ -6511,7 +6511,7 @@
           "Card Activation"
         ],
         "summary": "Claim a card via its activation token.",
-        "description": "Any authenticated wallet user (NIP-98 or JWT). A ONE_TIME claim transfers the card to the claimer, binds a Remote Wallet, and burns the token. A second claim returns 409.",
+        "description": "Any authenticated wallet user (NIP-98 or JWT). A ONE_TIME claim transfers the card to the claimer, binds a Remote Wallet (creating an LNCurl wallet when the claimer has none), reserves first-activation bonuses, and burns the token. A second claim returns 409.",
         "operationId": "activationTokens.claim",
         "security": [
           {
@@ -6581,13 +6581,44 @@
                         "remoteWalletId"
                       ],
                       "additionalProperties": {}
+                    },
+                    "bonuses": {
+                      "type": "object",
+                      "properties": {
+                        "freeLightningAddress": {
+                          "type": "boolean"
+                        },
+                        "sats": {
+                          "type": "object",
+                          "properties": {
+                            "granted": {
+                              "type": "boolean"
+                            },
+                            "amountSats": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "granted"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "freeLightningAddress",
+                        "sats"
+                      ]
+                    },
+                    "needsLightningAddress": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
                     "qrKind",
-                    "card"
+                    "card",
+                    "bonuses",
+                    "needsLightningAddress"
                   ],
-                  "description": "Result of a ONE_TIME claim — ownership transferred, token burned."
+                  "description": "Result of a ONE_TIME claim — ownership transferred, token burned, first-activation bonuses reserved."
                 }
               }
             }

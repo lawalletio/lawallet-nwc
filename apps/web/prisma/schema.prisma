@@ -84,6 +84,20 @@ enum ActivationTokenStatus {
   EXPIRED
 }
 
+/// Bonus granted (or reserved) during card activation. FREE_ADDRESS is once
+/// per card *and* once per user; SATS is once per card.
+enum CardActivationBonusKind {
+  FREE_ADDRESS
+  SATS
+}
+
+/// RESERVED is claimed but not yet delivered (address not created, or sats
+/// payment still outstanding). REDEEMED is terminal.
+enum CardActivationBonusStatus {
+  RESERVED
+  REDEEMED
+}
+
 enum ActivityCategory {
   USER
   ADDRESS
@@ -281,6 +295,7 @@ model User {
   /// Always stored hex — npub and NIP-05 input is resolved on save so the
   /// deposit hot path is a plain array membership test.
   voucherSenderAllowlist             String[]                           @default([])
+  cardActivationBonuses              CardActivationBonus[]
 
   @@index([role])
 }
@@ -753,12 +768,13 @@ model Card {
   // in the wallet, but cannot produce payable LNURL-withdraw responses.
   disabledAt          DateTime?
 
-  design           CardDesign            @relation(fields: [designId], references: [id])
-  ntag424          Ntag424?              @relation(fields: [ntag424Cid], references: [cid])
-  user             User?                 @relation(fields: [userId], references: [id])
-  remoteWallet     RemoteWallet?         @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
-  activationTokens CardActivationToken[]
-  paymentAttempts  CardPaymentAttempt[]
+  design             CardDesign              @relation(fields: [designId], references: [id])
+  ntag424            Ntag424?                @relation(fields: [ntag424Cid], references: [cid])
+  user               User?                   @relation(fields: [userId], references: [id])
+  remoteWallet       RemoteWallet?           @relation(fields: [remoteWalletId], references: [id], onDelete: SetNull)
+  activationTokens   CardActivationToken[]
+  paymentAttempts    CardPaymentAttempt[]
+  activationBonuses  CardActivationBonus[]
 
   @@index([userId])
   @@index([remoteWalletId])
@@ -786,6 +802,29 @@ model CardActivationToken {
   createdAt       DateTime              @default(now())
 
   @@index([cardId])
+  @@index([status])
+}
+
+/// Audit + uniqueness for first-activation bonuses. `@@unique([cardId, kind])`
+/// makes a card's free Lightning Address and sats credit one-shot even after
+/// rescue / re-issue. FREE_ADDRESS is also queried by `userId` so an account
+/// can only redeem that bonus once.
+model CardActivationBonus {
+  id             String                     @id @default(cuid())
+  cardId         String
+  card           Card                       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind           CardActivationBonusKind
+  status         CardActivationBonusStatus  @default(RESERVED)
+  amountSats     Int?
+  /// RemoteWallet.id of the admin treasury that funded a SATS bonus.
+  sourceWalletId String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  @@unique([cardId, kind])
+  @@index([userId, kind])
   @@index([status])
 }
 
