@@ -27,7 +27,7 @@ Critical gotchas:
 - `resetPrismaMock()` in beforeEach — `vi.clearAllMocks()` does NOT clear
   return values; `mockReset()` does
 - For config/env tests: `vi.resetModules()` + dynamic `import()`
-- Keep coverage above the gates: statements 60 / branches 75 / functions 70 /
+- Keep coverage above the gates: statements 60 / branches 70 / functions 70 /
   lines 60
 
 For component tests use @testing-library/react + userEvent (see
