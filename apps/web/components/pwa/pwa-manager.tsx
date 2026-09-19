@@ -12,14 +12,44 @@ interface BeforeInstallPromptEvent extends Event {
 
 const DISMISS_KEY = 'lawallet:pwa-install-dismissed'
 
-function isStandalone(): boolean {
+const INSTALLED_DISPLAY_MODES = [
+  'standalone',
+  'fullscreen',
+  'minimal-ui',
+  'window-controls-overlay'
+] as const
+
+function isInstalledDisplayMode(): boolean {
   if (typeof window === 'undefined') return false
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    // iOS Safari home-screen apps.
-    (window.navigator as unknown as { standalone?: boolean }).standalone ===
-      true
+  if (
+    (window.navigator as Navigator & { standalone?: boolean }).standalone ===
+    true
+  ) {
+    return true
+  }
+  return INSTALLED_DISPLAY_MODES.some(
+    mode => window.matchMedia(`(display-mode: ${mode})`).matches
   )
+}
+
+function wasInstallDismissed(): boolean {
+  try {
+    return localStorage.getItem(DISMISS_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function rememberInstallDismissed(): void {
+  try {
+    localStorage.setItem(DISMISS_KEY, '1')
+  } catch {
+    // Private mode can throw; hiding in memory still covers this session.
+  }
+}
+
+function shouldHideInstallPrompt(): boolean {
+  return isInstalledDisplayMode() || wasInstallDismissed()
 }
 
 /**
@@ -55,36 +85,68 @@ export function PwaManager() {
 
   // Capture the install prompt.
   useEffect(() => {
-    if (isStandalone()) return
-    if (localStorage.getItem(DISMISS_KEY) === '1') return
+    const hide = () => {
+      setVisible(false)
+      setDeferred(null)
+    }
+
+    // Running inside the installed app: never prompt, and remember so a later
+    // visit in a regular browser tab also stays quiet.
+    if (shouldHideInstallPrompt()) {
+      if (isInstalledDisplayMode()) rememberInstallDismissed()
+      return
+    }
 
     const onPrompt = (e: Event) => {
+      // Chrome can re-fire this after we hide, and after a successful install.
+      if (shouldHideInstallPrompt()) return
       e.preventDefault()
       setDeferred(e as BeforeInstallPromptEvent)
       setVisible(true)
     }
     const onInstalled = () => {
-      setVisible(false)
-      setDeferred(null)
+      rememberInstallDismissed()
+      hide()
     }
+    const onDisplayModeChange = () => {
+      if (!isInstalledDisplayMode()) return
+      rememberInstallDismissed()
+      hide()
+    }
+
     window.addEventListener('beforeinstallprompt', onPrompt)
     window.addEventListener('appinstalled', onInstalled)
+
+    const mediaQueries = INSTALLED_DISPLAY_MODES.map(mode =>
+      window.matchMedia(`(display-mode: ${mode})`)
+    )
+    for (const mq of mediaQueries) {
+      mq.addEventListener('change', onDisplayModeChange)
+    }
+
     return () => {
       window.removeEventListener('beforeinstallprompt', onPrompt)
       window.removeEventListener('appinstalled', onInstalled)
+      for (const mq of mediaQueries) {
+        mq.removeEventListener('change', onDisplayModeChange)
+      }
     }
   }, [])
 
   const install = async () => {
     if (!deferred) return
-    await deferred.prompt()
-    await deferred.userChoice
-    setVisible(false)
-    setDeferred(null)
+    try {
+      await deferred.prompt()
+      const { outcome } = await deferred.userChoice
+      if (outcome === 'accepted') rememberInstallDismissed()
+    } finally {
+      setVisible(false)
+      setDeferred(null)
+    }
   }
 
   const dismiss = () => {
-    localStorage.setItem(DISMISS_KEY, '1')
+    rememberInstallDismissed()
     setVisible(false)
   }
 

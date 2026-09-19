@@ -18,6 +18,7 @@ describe('web app manifest', () => {
   it('is scoped to the wallet and installs standalone', async () => {
     mockSettings({})
     const m = await manifest()
+    expect(m.id).toBe('/wallet')
     expect(m.start_url).toBe('/wallet')
     expect(m.scope).toBe('/wallet')
     expect(m.display).toBe('standalone')
