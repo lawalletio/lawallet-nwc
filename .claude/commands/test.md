@@ -12,7 +12,7 @@ Arguments: $ARGUMENTS
   the arguments as the brief; it knows the helpers, MSW setup, prisma-mock
   reset rules, and the logger/config mock-ordering gotcha.
 - Coverage → `pnpm --filter @lawallet-nwc/web test:coverage`
-  (gates: statements 60 / branches 75 / functions 70 / lines 60).
+  (gates: statements 60 / branches 70 / functions 70 / lines 60).
 
 Report the summary line (files/tests passed) — not the full output — unless
 something fails, in which case show the failing test output verbatim.

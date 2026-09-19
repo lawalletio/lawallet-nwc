@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import type { NostrSigner } from '@nostrify/nostrify'
+import { describe, expect, it, vi } from 'vitest'
 import { bodyToPayload } from '@/lib/nip98-client'
+import { createAutoSignFetch } from '@/app/api-docs/auto-sign-fetch'
 import {
   normalizeRequest,
   shouldAutoSign
@@ -111,5 +113,163 @@ describe('shouldAutoSign', () => {
   it('does not sign routes that are not in the NIP-98 set', async () => {
     const req = await normalizeRequest(jsonRequest())
     expect(shouldAutoSign(req!, new Set(['GET /api/users']))).toBe(false)
+  })
+})
+
+// ── Regression: NIP-98 auto-signed "Try it out" must not drop the body ─────
+// Reproduces the bug introduced in 1904b22d: when Scalar's browser "Try it
+// out" calls `fetch(new Request(url, {method, headers, body}))`, the
+// interceptor's `normalizeRequest` returned `realBody: undefined` for
+// `Request` inputs, so the re-issued request carried no body and the
+// server's `validateBody` (`await request.json()`) threw `SyntaxError` →
+// HTTP 500. The fix materialises the body once via `input.clone().text()`.
+
+describe('regression: body drop on Request inputs', () => {
+  const SCALAR_BODY = JSON.stringify({ id: 'card-1', designId: 'design-1' })
+
+  function scalarRequest(): Request {
+    // Mirrors `buildSafeBodyRequest` from @scalar/helpers: the browser
+    // branch wraps every POST/PUT/PATCH in `new Request(url, {..., body})`.
+    return new Request('http://localhost:3000/api/cards', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: SCALAR_BODY
+    })
+  }
+
+  it('delivers the original JSON body to a downstream handler', async () => {
+    const req = await normalizeRequest(scalarRequest())
+    // The interceptor re-issues a fresh request with the normalized body,
+    // exactly as `createAutoSignFetch` does inside the patched `fetch`.
+    const downstream = new Request(req!.url, {
+      method: req!.method,
+      headers: req!.headers,
+      body: req!.realBody
+    })
+    // `validateBody` calls `request.json()` — must not throw and must
+    // return the object the user typed into Scalar.
+    const parsed = await downstream.json()
+    expect(parsed).toEqual({ id: 'card-1', designId: 'design-1' })
+    expect(req!.bodyForHash).toBe(SCALAR_BODY)
+    expect(bodyToPayload(req!.bodyForHash)).toEqual({
+      id: 'card-1',
+      designId: 'design-1'
+    })
+  })
+})
+
+describe('interceptor end-to-end (patched window.fetch)', () => {
+  const SCALAR_BODY = JSON.stringify({ id: 'card-1', designId: 'design-1' })
+
+  function stubSigner() {
+    return {
+      signEvent: vi.fn(async (e: Record<string, unknown>) => ({
+        ...e,
+        id: 'fake-id',
+        sig: 'fake-sig'
+      }))
+    } as unknown as NostrSigner & {
+      signEvent: ReturnType<typeof vi.fn>
+    }
+  }
+
+  it('re-issues the original JSON body to the downstream fetch for a NIP-98 route', async () => {
+    let capturedInit: RequestInit | undefined
+    const originalFetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        capturedInit = init
+        return new Response('{}', {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      }
+    )
+    const signer = stubSigner()
+    const intercept = createAutoSignFetch(
+      originalFetch,
+      new Set(['POST /api/cards']),
+      signer
+    )
+
+    await intercept(
+      new Request('http://localhost:3000/api/cards', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: SCALAR_BODY
+      })
+    )
+
+    // Body reached the downstream fetch intact.
+    expect(capturedInit!.body).toBe(SCALAR_BODY)
+    // Auto-sign path was taken.
+    expect(signer.signEvent).toHaveBeenCalled()
+    // A Nostr token (not the Bearer jwt) is attached.
+    const auth = new Headers(capturedInit!.headers as HeadersInit).get(
+      'authorization'
+    )
+    expect(auth).toMatch(/^Nostr /)
+    // A downstream handler could parse the body.
+    const downstream = new Request('http://localhost:3000/api/cards', {
+      method: 'POST',
+      headers: new Headers(capturedInit!.headers as HeadersInit),
+      body: capturedInit!.body
+    })
+    await expect(downstream.json()).resolves.toEqual({
+      id: 'card-1',
+      designId: 'design-1'
+    })
+  })
+
+  it('does not sign or alter a non-NIP-98 route', async () => {
+    const originalFetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) =>
+        new Response('{}', { status: 200 })
+    )
+    const signer = stubSigner()
+    const intercept = createAutoSignFetch(
+      originalFetch,
+      new Set(['POST /api/cards']),
+      signer
+    )
+
+    await intercept('http://localhost:3000/api/health', { method: 'GET' })
+
+    expect(signer.signEvent).not.toHaveBeenCalled()
+    expect(originalFetch).toHaveBeenCalledWith(
+      'http://localhost:3000/api/health',
+      {
+        method: 'GET'
+      }
+    )
+  })
+
+  it('falls through to the original fetch if signing throws', async () => {
+    const originalFetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) =>
+        new Response('{}', { status: 200 })
+    )
+    const signer = {
+      signEvent: vi.fn(async () => {
+        throw new Error('no signer')
+      })
+    } as unknown as NostrSigner & {
+      signEvent: ReturnType<typeof vi.fn>
+    }
+    const intercept = createAutoSignFetch(
+      originalFetch,
+      new Set(['POST /api/cards']),
+      signer
+    )
+    const input = new Request('http://localhost:3000/api/cards', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: SCALAR_BODY
+    })
+
+    await intercept(input)
+
+    expect(originalFetch).toHaveBeenCalledWith(input, undefined)
+    const [, init] = originalFetch.mock.calls[0]
+    expect(init).toBeUndefined()
   })
 })

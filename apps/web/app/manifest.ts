@@ -70,6 +70,9 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   )
 
   return {
+    // Stable identity so Chrome does not treat later visits as a new app
+    // (and re-offer install) when start_url query/path details drift.
+    id: '/wallet',
     name,
     short_name: name,
     description: 'Your Lightning wallet',

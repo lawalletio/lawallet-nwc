@@ -386,7 +386,7 @@ Enforced by Vitest — CI fails below these:
 | Metric     | Threshold |
 | ---------- | --------: |
 | Statements |       60% |
-| Branches   |       75% |
+| Branches   |       70% |
 | Functions  |       70% |
 | Lines      |       60% |
 

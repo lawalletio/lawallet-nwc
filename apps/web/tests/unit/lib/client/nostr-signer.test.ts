@@ -147,4 +147,29 @@ describe('createNostrConnectSigner', () => {
     await new Promise(resolve => setTimeout(resolve, 150))
     expect(mocks.close).toHaveBeenCalled()
   })
+
+  it('times out when no AbortSignal is provided', async () => {
+    await expect(
+      createNostrConnectSigner({
+        timeout: 40,
+        relays: ['wss://relay.test']
+      })
+    ).rejects.toThrow('Connection timed out')
+
+    expect(mocks.close).toHaveBeenCalled()
+  })
+
+  it('rejects when the relay subscription closes before connection', async () => {
+    const controller = new AbortController()
+    const { pending } = await startConnect({
+      timeout: 5_000,
+      signal: controller.signal
+    })
+
+    mocks.state.onclose?.()
+
+    await expect(pending).rejects.toThrow(
+      'Subscription closed before connection was established'
+    )
+  })
 })

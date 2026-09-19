@@ -7,8 +7,7 @@ import { Nip98Modal } from './nip98-modal'
 import { ServerSelector, loadStoredServer } from './server-selector'
 import { Nip07Connect, type Nip07Connection } from './nip07-connect'
 import { LawalletLogo } from './lawallet-logo'
-import { createNip98Token } from '@/lib/nip98-client'
-import { normalizeRequest, shouldAutoSign } from './normalize-request'
+import { createAutoSignFetch } from './auto-sign-fetch'
 
 type RequiredRole = 'PUBLIC' | 'USER' | 'VIEWER' | 'OPERATOR' | 'ADMIN'
 
@@ -195,28 +194,11 @@ export function ApiDocsClient() {
   useEffect(() => {
     if (!connection || nip98Routes.size === 0) return
     const originalFetch = window.fetch.bind(window)
-    window.fetch = async (input, init) => {
-      try {
-        const req = await normalizeRequest(input, init)
-        if (req && shouldAutoSign(req, nip98Routes)) {
-          const signed = await createNip98Token(
-            req.url,
-            { method: req.method, body: req.bodyForHash },
-            connection.signer
-          )
-          req.headers.set('Authorization', signed)
-          return originalFetch(req.url, {
-            method: req.method,
-            headers: req.headers,
-            body: req.realBody
-          })
-        }
-      } catch {
-        // Fall through to the original fetch — never fail the user's request
-        // just because our auto-sign helper threw.
-      }
-      return originalFetch(input as RequestInfo, init)
-    }
+    window.fetch = createAutoSignFetch(
+      originalFetch,
+      nip98Routes,
+      connection.signer
+    )
     return () => {
       window.fetch = originalFetch
     }

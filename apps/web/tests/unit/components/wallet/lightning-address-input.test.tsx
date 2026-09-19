@@ -205,4 +205,34 @@ describe('LightningAddressInput', () => {
 
     expect(screen.queryByRole('group', { name: 'Saved' })).toBeNull()
   })
+
+  it('unions a matching saved recipient with domain autocomplete', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(
+      'lawallet-contacts',
+      JSON.stringify([
+        {
+          id: 'c-fierillo',
+          name: 'fierillo',
+          lightningAddress: 'fierillo@lawallet.io',
+          createdAt: 1
+        }
+      ])
+    )
+    __resetContactsCacheForTests()
+    render(<Harness variant="inline" />)
+
+    await user.type(screen.getByRole('combobox'), 'FIERILLO')
+
+    expect(screen.getByRole('combobox')).toHaveValue('fierillo')
+    expect(screen.getByRole('group', { name: 'Saved' })).toHaveTextContent(
+      'fierillo@lawallet.io'
+    )
+    expect(
+      screen.getByRole('group', { name: 'Suggestions' })
+    ).toHaveTextContent('fierillo@lawallet.io')
+    expect(
+      screen.getByRole('group', { name: 'Suggestions' })
+    ).toHaveTextContent('fierillo@lacrypta.ar')
+  })
 })

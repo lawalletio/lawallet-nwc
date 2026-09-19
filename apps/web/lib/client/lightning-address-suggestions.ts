@@ -55,18 +55,33 @@ export function getDomainAvatarUrl(domain: string): string {
   return slug ? `${DOMAIN_AVATAR_BASE_URL}/${slug}.png` : DEFAULT_DOMAIN_AVATAR
 }
 
+/**
+ * Case-insensitive prefix match against a stored recipient.
+ *
+ * A typed local-part (`fierillo`) matches `fierillo@lawallet.io`. A typed
+ * address prefix (`fierillo@law`) matches the same way. Domain-only fragments
+ * (`lawallet`) do not match — those are handled by domain autocomplete.
+ */
+export function lightningAddressMatchesQuery(
+  address: string,
+  query: string
+): boolean {
+  const normalizedAddress = address.trim().toLowerCase()
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return true
+  if (normalizedAddress.startsWith(normalizedQuery)) return true
+  if (normalizedQuery.includes('@')) return false
+  const localPart = normalizedAddress.split('@')[0] ?? ''
+  return localPart.startsWith(normalizedQuery)
+}
+
 export function buildLightningAddressSuggestions(
   input: string,
   currentDomain: string,
-  excludedAddresses: Iterable<string> = [],
   limit = 10
 ): LightningAddressSuggestion[] {
   const parsed = parseSuggestionInput(input)
   if (!parsed) return []
-
-  const excluded = new Set(
-    Array.from(excludedAddresses, address => address.trim().toLowerCase())
-  )
 
   return orderedDomains(currentDomain)
     .filter(option => {
@@ -82,7 +97,6 @@ export function buildLightningAddressSuggestions(
         avatarUrl: getDomainAvatarUrl(option.domain)
       }
     })
-    .filter(option => !excluded.has(option.lightningAddress))
     .slice(0, limit)
 }
 
