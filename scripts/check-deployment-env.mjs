@@ -185,7 +185,8 @@ const [
   devBootstrap,
   webEnvExample,
   environmentGuide,
-  packageManifest
+  packageManifest,
+  listenerDockerfile
 ] = await Promise.all([
   read('docker-compose.yml'),
   read('docker-compose.hub.yml'),
@@ -197,7 +198,8 @@ const [
   read('scripts/dev-worktree.mjs'),
   read('apps/web/.env.example'),
   read('apps/docs/content/docs/deploy/environment.mdx'),
-  read('package.json')
+  read('package.json'),
+  read('apps/listener/Dockerfile')
 ])
 
 for (const [contents, label] of [
@@ -375,11 +377,16 @@ requireMatch(
   /"deploy:env":\s*"bash scripts\/generate-deployment-env\.sh --mode compose"/,
   'package scripts must expose the Compose generator'
 )
-requireMatch(
-  packageManifest,
-  /"deploy:env:cloud":\s*"bash scripts\/generate-deployment-env\.sh --mode cloud"/,
-  'package scripts must expose the cloud generator'
-)
+  requireMatch(
+    packageManifest,
+    /"deploy:env:cloud":\s*"bash scripts\/generate-deployment-env\.sh --mode cloud"/,
+    'package scripts must expose the cloud generator'
+  )
+  requireMatch(
+    listenerDockerfile,
+    /packages\/shared\/node_modules/,
+    'listener Dockerfile must copy shared node_modules so tsup can resolve @asteasolutions/zod-to-openapi'
+  )
 
 const forbiddenSignerEnv =
   /(?:NIP57|NIP_57|ZAP_RECEIPT|RECEIPT_SIGNER)_(?:NSEC|SECRET|PRIVATE_KEY)\s*=/i
