@@ -32,7 +32,12 @@ function isInstalledDisplayMode(): boolean {
   )
 }
 
+// Module-level so a remount (or a later `beforeinstallprompt`) still honors a
+// dismiss/install from this page load when localStorage is blocked.
+let dismissedThisSession = false
+
 function wasInstallDismissed(): boolean {
+  if (dismissedThisSession) return true
   try {
     return localStorage.getItem(DISMISS_KEY) === '1'
   } catch {
@@ -41,11 +46,17 @@ function wasInstallDismissed(): boolean {
 }
 
 function rememberInstallDismissed(): void {
+  dismissedThisSession = true
   try {
     localStorage.setItem(DISMISS_KEY, '1')
   } catch {
-    // Private mode can throw; hiding in memory still covers this session.
+    // Private mode can throw; the in-memory flag still covers this session.
   }
+}
+
+/** @internal test-only — resets the session flag between cases. */
+export function resetPwaInstallDismissalForTests(): void {
+  dismissedThisSession = false
 }
 
 function shouldHideInstallPrompt(): boolean {

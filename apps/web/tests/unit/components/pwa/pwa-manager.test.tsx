@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { PwaManager } from '@/components/pwa/pwa-manager'
+import {
+  PwaManager,
+  resetPwaInstallDismissalForTests
+} from '@/components/pwa/pwa-manager'
 
 const DISMISS_KEY = 'lawallet:pwa-install-dismissed'
 
@@ -64,6 +67,7 @@ describe('PwaManager', () => {
     currentDisplayMode = 'browser'
     mediaListeners.clear()
     localStorage.clear()
+    resetPwaInstallDismissalForTests()
     mockMatchMedia()
     Object.defineProperty(window.navigator, 'standalone', {
       configurable: true,
@@ -181,5 +185,27 @@ describe('PwaManager', () => {
     })
     expect(screen.queryByText('Install the wallet')).toBeNull()
     expect(localStorage.getItem(DISMISS_KEY)).toBe('1')
+  })
+
+  it('keeps the banner hidden this session when localStorage is blocked', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota')
+    })
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('quota')
+    })
+    render(<PwaManager />)
+    act(() => {
+      fireBeforeInstallPrompt()
+    })
+    await screen.findByText('Install the wallet')
+    await user.click(screen.getByLabelText('Dismiss install prompt'))
+    expect(screen.queryByText('Install the wallet')).toBeNull()
+
+    act(() => {
+      fireBeforeInstallPrompt()
+    })
+    expect(screen.queryByText('Install the wallet')).toBeNull()
   })
 })
