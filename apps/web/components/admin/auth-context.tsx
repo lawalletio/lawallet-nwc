@@ -17,6 +17,11 @@ import {
 import { exchangeNip98ForJwt, validateJwt } from '@/lib/client/auth-api'
 import { createApiClient, type ApiClient } from '@/lib/client/api-client'
 import {
+  isJwtDueForRefresh,
+  isJwtExpired,
+  SESSION_REFRESH_BUFFER_MS
+} from '@/lib/client/jwt-expiry'
+import {
   createBrowserSigner,
   createBunkerSigner,
   createNsecSigner,
@@ -50,8 +55,45 @@ const LOGIN_METHOD_KEY = 'lawallet-login-method'
 const SIGNER_SECRET_KEY = 'lawallet-signer-secret'
 const IMPERSONATOR_RETURN_KEY = 'lawallet-impersonator-return'
 
-// How many ms before JWT expiry to trigger refresh
-const REFRESH_BUFFER_MS = 5 * 60 * 1000
+async function restoreStoredSigner(
+  storedMethod: LoginMethod | null
+): Promise<NostrSigner | null> {
+  let signer: NostrSigner | null = null
+  const storedSecret = localStorage.getItem(SIGNER_SECRET_KEY)
+
+  if (storedMethod === 'extension' && hasBrowserExtension()) {
+    try {
+      signer = createBrowserSigner()
+    } catch {
+      // Extension not available, continue without signer
+    }
+  } else if (storedMethod === 'nsec' && storedSecret) {
+    try {
+      signer = createNsecSigner(storedSecret)
+    } catch {
+      // Stored secret is malformed — drop it so we don't keep
+      // failing on every reload.
+      localStorage.removeItem(SIGNER_SECRET_KEY)
+    }
+  } else if (storedMethod === 'bunker' && storedSecret) {
+    try {
+      signer = await createBunkerSigner(storedSecret, { timeout: 15_000 })
+    } catch {
+      // Bunker relay unreachable or signer rejected the resume.
+      // Keep the secret so a manual retry can pick it up later.
+    }
+  } else if (storedMethod === 'passkey' && storedSecret) {
+    // A passkey session is an nsec session whose key came from the PRF
+    // extension — restore it exactly like the nsec method.
+    try {
+      signer = createNsecSigner(storedSecret)
+    } catch {
+      localStorage.removeItem(SIGNER_SECRET_KEY)
+    }
+  }
+
+  return signer
+}
 
 const EMPTY_AUTH_STATE: AuthState = {
   status: 'loading',
@@ -166,6 +208,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     reject: (err: Error) => void
   } | null>(null)
 
+  // Latest in-memory signer, for callbacks that outlive their closure
+  // (refreshSession after an account mutation, and silent remint on resume).
+  const signerRef = useRef<NostrSigner | null>(null)
+
+  // Resume / timer path. Assigned in the mount effect so the timer can call
+  // the same ensureFreshSession() that visibility/pageshow/focus use.
+  const ensureFreshSessionRef = useRef<() => Promise<void>>(async () => {})
+
   // Logout - clear everything
   const logout = useCallback(() => {
     trackEvent(AnalyticsEvent.LOGOUT)
@@ -180,6 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Synchronous stores are gone before this returns. IndexedDB and browser
     // CacheStorage continue behind a barrier that the next login awaits.
     void clearSessionCaches()
+    signerRef.current = null
     setState({
       status: 'unauthenticated',
       jwt: null,
@@ -191,57 +242,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  // Latest in-memory signer, for callbacks that outlive their closure
-  // (refreshSession after an account mutation).
-  const signerRef = useRef<NostrSigner | null>(null)
+  // Schedule a silent remint before expiry. Mobile PWAs suspend JS timers
+  // while backgrounded, so this is a best-effort foreground helper — the
+  // resume path in ensureFreshSession is what actually keeps the session.
+  const scheduleRefresh = useCallback((expiresAt: string) => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = null
+    }
 
-  // Schedule token refresh before expiry
-  const scheduleRefresh = useCallback(
-    (expiresAt: string, signer: NostrSigner | null) => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current)
-      }
+    const expiresMs = new Date(expiresAt).getTime()
+    if (Number.isNaN(expiresMs)) return
 
-      const expiresMs = new Date(expiresAt).getTime()
-      const refreshAt = expiresMs - REFRESH_BUFFER_MS
-      const delay = refreshAt - Date.now()
+    const delay = expiresMs - SESSION_REFRESH_BUFFER_MS - Date.now()
+    // Already inside the buffer (or past it): don't spin a 0ms timer —
+    // ensureFreshSession handles that on mount / visibility / focus.
+    // Retry on a short backoff only while the token is still usable.
+    const wait =
+      delay > 0
+        ? delay
+        : Math.min(30_000, Math.max(5_000, expiresMs - Date.now()))
+    if (wait <= 0) return
 
-      if (delay <= 0) return // Already expired or about to
-
-      refreshTimerRef.current = setTimeout(async () => {
-        const commitRefreshedToken = async (
-          token: string,
-          nextSigner: NostrSigner | null
-        ) => {
-          const validation = await validateJwt(token)
-          localStorage.setItem(JWT_STORAGE_KEY, token)
-          setState(prev => ({
-            ...prev,
-            jwt: token,
-            pubkey: validation.pubkey,
-            role: validation.role,
-            permissions: validation.permissions,
-            ...(nextSigner ? { signer: nextSigner } : {})
-          }))
-          scheduleRefresh(validation.expiresAt, nextSigner)
-        }
-
-        try {
-          if (signer) {
-            const { token } = await exchangeNip98ForJwt(signer)
-            await commitRefreshedToken(token, signer)
-            return
-          }
-
-          // No signer available - can't refresh, force re-login
-          logout()
-        } catch {
-          logout()
-        }
-      }, delay)
-    },
-    [logout]
-  )
+    refreshTimerRef.current = setTimeout(() => {
+      void ensureFreshSessionRef.current()
+    }, wait)
+  }, [])
 
   // Login with a signer. When `credentials` is supplied we persist enough
   // to silently rebuild the signer on the next reload — the nsec for nsec
@@ -266,6 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem(SIGNER_SECRET_KEY)
       }
 
+      signerRef.current = signer
       setState({
         status: 'authenticated',
         jwt: token,
@@ -281,7 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: validation.role
       })
 
-      scheduleRefresh(validation.expiresAt, signer)
+      scheduleRefresh(validation.expiresAt)
     },
     [scheduleRefresh]
   )
@@ -308,6 +335,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const validation = await validateJwt(token)
       localStorage.setItem(JWT_STORAGE_KEY, token)
+      if (signer) signerRef.current = signer
       setState(prev => ({
         ...prev,
         jwt: token,
@@ -315,7 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: validation.role,
         permissions: validation.permissions
       }))
-      scheduleRefresh(validation.expiresAt, signer)
+      scheduleRefresh(validation.expiresAt)
       return true
     },
     [scheduleRefresh]
@@ -343,147 +371,227 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('storage', handleCrossTabLogout)
   }, [logout])
 
-  // Check for existing JWT on mount
+  // Hydrate the session on mount and remint on resume. JWT expiry must not
+  // wipe signer credentials — that's what made mobile PWAs look "logged out"
+  // after the OS suspended the webview past the 24h token TTL.
   useEffect(() => {
     installHistoryRestoreGuard()
 
     let cancelled = false
+    let inFlight: Promise<void> | null = null
 
-    async function restoreStoredSigner(
-      storedMethod: LoginMethod | null
-    ): Promise<NostrSigner | null> {
-      let signer: NostrSigner | null = null
-      const storedSecret = localStorage.getItem(SIGNER_SECRET_KEY)
-
-      if (storedMethod === 'extension' && hasBrowserExtension()) {
-        try {
-          signer = createBrowserSigner()
-        } catch {
-          // Extension not available, continue without signer
-        }
-      } else if (storedMethod === 'nsec' && storedSecret) {
-        try {
-          signer = createNsecSigner(storedSecret)
-        } catch {
-          // Stored secret is malformed — drop it so we don't keep
-          // failing on every reload.
-          localStorage.removeItem(SIGNER_SECRET_KEY)
-        }
-      } else if (storedMethod === 'bunker' && storedSecret) {
-        try {
-          signer = await createBunkerSigner(storedSecret, { timeout: 15_000 })
-        } catch {
-          // Bunker relay unreachable or signer rejected the resume.
-          // Keep the secret so a manual retry can pick it up later.
-        }
-      } else if (storedMethod === 'passkey' && storedSecret) {
-        // A passkey session is an nsec session whose key came from the PRF
-        // extension — restore it exactly like the nsec method.
-        try {
-          signer = createNsecSigner(storedSecret)
-        } catch {
-          localStorage.removeItem(SIGNER_SECRET_KEY)
-        }
+    function dropJwtKeepCredentials() {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
       }
-
-      return signer
+      localStorage.removeItem(JWT_STORAGE_KEY)
+      void clearSessionCaches()
+      if (cancelled) return
+      signerRef.current = null
+      setState({
+        status: 'unauthenticated',
+        jwt: null,
+        pubkey: null,
+        role: null,
+        permissions: null,
+        signer: null,
+        loginMethod: null
+      })
     }
 
-    async function checkExistingAuth() {
-      const storedToken = localStorage.getItem(JWT_STORAGE_KEY)
-      const storedMethod = localStorage.getItem(
-        LOGIN_METHOD_KEY
-      ) as LoginMethod | null
+    async function remint(
+      signer: NostrSigner,
+      method: LoginMethod | null
+    ): Promise<boolean> {
+      const { token } = await exchangeNip98ForJwt(signer)
+      const validation = await validateJwt(token)
+      if (cancelled) return false
+      localStorage.setItem(JWT_STORAGE_KEY, token)
+      signerRef.current = signer
+      setState({
+        status: 'authenticated',
+        jwt: token,
+        pubkey: validation.pubkey,
+        role: validation.role,
+        permissions: validation.permissions,
+        signer,
+        loginMethod: method
+      })
+      scheduleRefresh(validation.expiresAt)
+      return true
+    }
 
-      if (!storedToken) {
-        if (cancelled) return
-        setState(prev => ({
-          ...prev,
-          status: 'unauthenticated',
-          signer: null
-        }))
+    async function ensureFreshSession(source: 'hydrate' | 'resume') {
+      if (cancelled) return
+      if (inFlight) {
+        await inFlight
         return
       }
 
-      try {
-        const validation = await validateJwt(storedToken)
-        if (cancelled) return
+      inFlight = (async () => {
+        const storedToken = localStorage.getItem(JWT_STORAGE_KEY)
+        const storedMethod = localStorage.getItem(
+          LOGIN_METHOD_KEY
+        ) as LoginMethod | null
+        const impersonating = Boolean(
+          localStorage.getItem(IMPERSONATOR_RETURN_KEY)
+        )
 
-        const existingSigner = signerRef.current
+        const resolveSigner = async () =>
+          signerRef.current ?? (await restoreStoredSigner(storedMethod))
 
-        setState(prev => ({
-          ...prev,
-          status: 'authenticated',
-          jwt: storedToken,
-          pubkey: validation.pubkey,
-          role: validation.role,
-          permissions: validation.permissions,
-          signer: prev.signer,
-          loginMethod: storedMethod
-        }))
+        // Dev impersonation is a pure-JWT session. Reminting with the
+        // admin signer would swap identities; never do that.
+        const canRemint = !impersonating
 
-        scheduleRefresh(validation.expiresAt, existingSigner)
+        if (!storedToken) {
+          // Recover from a dropped JWT only on first hydrate. Retrying on
+          // every window focus would hammer POST /api/jwt after a failed
+          // remint (rate-limited at 10/min).
+          if (canRemint && source === 'hydrate') {
+            const signer = await resolveSigner()
+            if (signer) {
+              try {
+                await remint(signer, storedMethod)
+                return
+              } catch {
+                dropJwtKeepCredentials()
+                return
+              }
+            }
+          }
+          if (cancelled) return
+          setState(prev => ({
+            ...prev,
+            status: 'unauthenticated',
+            signer: null
+          }))
+          return
+        }
 
-        // A live in-memory signer (e.g. an already-connected bunker) must
-        // survive JWT rechecks on tab focus. Restoring is only needed when
-        // nothing is in memory yet — typically the initial mount.
-        if (existingSigner) return
+        const expired = isJwtExpired(storedToken)
+        const dueForRefresh = isJwtDueForRefresh(storedToken)
 
-        // Try to restore the signer based on the stored method:
-        // - extension: rebuild from `window.nostr` if still installed
-        // - nsec: re-derive an NSecSigner from the persisted secret
-        // - bunker: reconnect to the persisted bunker URL (relay round-trip)
-        // Failures here aren't fatal — the user just sees the unlock
-        // dialog the next time something asks for `requestSigner()`.
-        void restoreStoredSigner(storedMethod).then(signer => {
-          if (cancelled || !signer) return
+        if (expired && !canRemint) {
+          dropJwtKeepCredentials()
+          return
+        }
+
+        if (canRemint && (expired || dueForRefresh)) {
+          const signer = await resolveSigner()
+          if (signer) {
+            try {
+              await remint(signer, storedMethod)
+              return
+            } catch {
+              if (expired) {
+                dropJwtKeepCredentials()
+                return
+              }
+              // Token is still inside the buffer — fall through to validate.
+            }
+          } else if (expired) {
+            dropJwtKeepCredentials()
+            return
+          }
+        }
+
+        try {
+          const validation = await validateJwt(storedToken)
+          if (cancelled) return
+
+          const existingSigner = signerRef.current
+
+          setState(prev => ({
+            ...prev,
+            status: 'authenticated',
+            jwt: storedToken,
+            pubkey: validation.pubkey,
+            role: validation.role,
+            permissions: validation.permissions,
+            signer: prev.signer,
+            loginMethod: storedMethod
+          }))
+
+          scheduleRefresh(validation.expiresAt)
+
+          if (existingSigner) return
+
+          const restored = await restoreStoredSigner(storedMethod)
+          if (cancelled || !restored) return
+          signerRef.current = restored
           setState(prev => {
             if (prev.jwt !== storedToken || prev.status !== 'authenticated') {
               return prev
             }
-            return { ...prev, signer, loginMethod: storedMethod }
+            return { ...prev, signer: restored, loginMethod: storedMethod }
           })
-          scheduleRefresh(validation.expiresAt, signer)
-        })
-      } catch {
-        // Token invalid or expired
-        localStorage.removeItem(JWT_STORAGE_KEY)
-        localStorage.removeItem(LOGIN_METHOD_KEY)
-        localStorage.removeItem(SIGNER_SECRET_KEY)
-        localStorage.removeItem(IMPERSONATOR_RETURN_KEY)
-        void clearSessionCaches()
-        if (cancelled) return
-        setState(prev => ({
-          ...prev,
-          status: 'unauthenticated',
-          jwt: null,
-          pubkey: null,
-          role: null,
-          permissions: null,
-          signer: null,
-          loginMethod: null
-        }))
+
+          if (
+            canRemint &&
+            new Date(validation.expiresAt).getTime() - Date.now() <=
+              SESSION_REFRESH_BUFFER_MS
+          ) {
+            try {
+              await remint(restored, storedMethod)
+            } catch {
+              // Keep the still-valid token; scheduleRefresh already armed.
+            }
+          }
+        } catch {
+          if (!canRemint) {
+            dropJwtKeepCredentials()
+            return
+          }
+          const signer = await resolveSigner()
+          if (signer) {
+            try {
+              await remint(signer, storedMethod)
+              return
+            } catch {
+              dropJwtKeepCredentials()
+              return
+            }
+          }
+          dropJwtKeepCredentials()
+        }
+      })()
+
+      try {
+        await inFlight
+      } finally {
+        inFlight = null
       }
     }
 
+    ensureFreshSessionRef.current = () => ensureFreshSession('resume')
+
     function recheckAuthOnHistoryRestore(event: PageTransitionEvent) {
       if (!event.persisted) return
-      void checkExistingAuth()
+      void ensureFreshSession('resume')
     }
 
     function recheckAuthWhenVisible() {
       if (document.visibilityState !== 'visible') return
-      void checkExistingAuth()
+      void ensureFreshSession('resume')
     }
 
-    checkExistingAuth()
+    function recheckAuthOnFocus() {
+      void ensureFreshSession('resume')
+    }
+
+    void ensureFreshSession('hydrate')
     window.addEventListener('pageshow', recheckAuthOnHistoryRestore)
     document.addEventListener('visibilitychange', recheckAuthWhenVisible)
+    window.addEventListener('focus', recheckAuthOnFocus)
 
     return () => {
       cancelled = true
+      ensureFreshSessionRef.current = async () => {}
       window.removeEventListener('pageshow', recheckAuthOnHistoryRestore)
       document.removeEventListener('visibilitychange', recheckAuthWhenVisible)
+      window.removeEventListener('focus', recheckAuthOnFocus)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -522,6 +630,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedSecret) {
         try {
           const signer = createNsecSigner(storedSecret)
+          signerRef.current = signer
           setState(prev => ({ ...prev, signer }))
           return Promise.resolve(signer)
         } catch {
@@ -545,6 +654,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (credentials?.secret) {
         localStorage.setItem(SIGNER_SECRET_KEY, credentials.secret)
       }
+      signerRef.current = signer
       setState(prev => ({ ...prev, signer, loginMethod: method }))
       unlockPromiseRef.current?.resolve(signer)
       unlockPromiseRef.current = null
