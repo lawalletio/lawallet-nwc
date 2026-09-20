@@ -35,7 +35,8 @@ import {
   ReceiptDetailList,
   ReceiptProofRow,
   shareReceiptText,
-  useReceiptCurrency
+  useReceiptCurrency,
+  type ReceiptDetailItem
 } from '@/components/wallet/shared/payment-receipt'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -185,7 +186,7 @@ export function ActivityDetailScreen({
     preimage && (incoming ? preimage !== tx.paymentHash : true)
   )
 
-  const details = incoming
+  const details: ReceiptDetailItem[] = incoming
     ? [
         { label: 'Note', value: counterpart, include: Boolean(counterpart) },
         {
@@ -208,6 +209,7 @@ export function ActivityDetailScreen({
       ]
 
   const showDetails = details.some(item => item.include !== false)
+  const receipt = tx
 
   function share() {
     void shareReceiptText(
@@ -217,7 +219,7 @@ export function ActivityDetailScreen({
         recipient: incoming ? undefined : (counterpart ?? undefined),
         comment: incoming ? counterpart : null,
         settledAt: timestamp,
-        paymentHash: tx.paymentHash,
+        paymentHash: receipt.paymentHash,
         preimage: showPreimage ? preimage : null,
         status
       })
