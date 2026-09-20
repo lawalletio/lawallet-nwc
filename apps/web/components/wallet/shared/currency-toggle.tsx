@@ -2,11 +2,12 @@
 
 import { cn } from '@/lib/utils'
 import type { Currency } from '@/lib/client/currencies-store'
+import { currencyUnitLabel } from '@/lib/client/format-sats'
 
 /**
  * Pill toggle for the wallet's active display currencies. Shared by the send
- * amount keypad and the send/receive receipts so those screens switch units
- * the same way.
+ * and receive amount keypads and the send/receive receipts so those screens
+ * switch units the same way.
  */
 export function CurrencyToggle({
   currencies,
@@ -27,7 +28,7 @@ export function CurrencyToggle({
     >
       {currencies.map(currency => {
         const active = value === currency.code
-        const label = currency.code === 'SAT' ? 'sats' : currency.code
+        const label = currencyUnitLabel(currency.code)
         return (
           <button
             key={currency.code}

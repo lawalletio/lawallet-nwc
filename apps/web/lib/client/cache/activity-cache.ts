@@ -12,6 +12,7 @@ import {
   INDEX_BY_NWC_AND_TIME,
   idbBulkPut,
   idbDeleteByIndexRange,
+  idbGet,
   idbReadIndexDesc,
   openDb
 } from './idb'
@@ -75,6 +76,27 @@ export async function readRecent(
     return rows.map(stripCacheFields)
   } catch {
     return []
+  }
+}
+
+/**
+ * Looks up one cached transaction by payment hash. Used by the activity
+ * detail screen so a tap from the list (or a reload of that URL) can
+ * paint without waiting on `list_transactions`.
+ */
+export async function readByPaymentHash(
+  nwcKey: string,
+  paymentHash: string
+): Promise<NwcTransaction | null> {
+  if (!nwcKey || !paymentHash) return null
+  try {
+    const row = await idbGet<CachedTx>(
+      STORE_NWC_TX,
+      compositeKey(nwcKey, paymentHash)
+    )
+    return row ? stripCacheFields(row) : null
+  } catch {
+    return null
   }
 }
 
