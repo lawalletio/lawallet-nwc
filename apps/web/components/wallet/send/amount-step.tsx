@@ -5,12 +5,10 @@ import { useRouter } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  AmountKeypad,
-  parseKeypadValue
-} from '@/components/wallet/shared/amount-keypad'
+import { AmountKeypad } from '@/components/wallet/shared/amount-keypad'
 import { AmountDisplay } from '@/components/wallet/shared/amount-display'
 import { CurrencyToggle } from '@/components/wallet/shared/currency-toggle'
+import { useAmountCurrencyInput } from '@/components/wallet/shared/use-amount-currency-input'
 import {
   useSendFlow,
   sendActions,
@@ -21,13 +19,7 @@ import {
   useContacts,
   type Contact
 } from '@/lib/client/contacts-store'
-import { useActiveCurrencies } from '@/lib/client/currencies-store'
 import { getDomainAvatarUrl } from '@/lib/client/lightning-address-suggestions'
-import {
-  convertSats,
-  useYadioRates,
-  type BtcRates
-} from '@/lib/client/use-yadio-ticker'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -47,17 +39,18 @@ export function SendAmountStep() {
   const router = useRouter()
   const flow = useSendFlow()
   const contacts = useContacts()
-  const activeCurrencies = useActiveCurrencies()
-  const { rates } = useYadioRates()
-  const initialCurrencyCode = activeCurrencies[0]?.code ?? 'SAT'
-  const [canonicalAmount, setCanonicalAmount] = useState<number | null>(null)
-  const [value, setValue] = useState<string>('0')
-  const [valuesByCurrency, setValuesByCurrency] = useState<
-    Record<string, string>
-  >(() => ({
-    [initialCurrencyCode]: '0'
-  }))
-  const [currencyCode, setCurrencyCode] = useState<string>(initialCurrencyCode)
+  const {
+    value,
+    onAmountChange,
+    currencyCode,
+    onCurrencyChange,
+    canonicalAmount,
+    displayUnit,
+    activeCurrencies,
+    integerOnly,
+    fixedDecimalDigits,
+    maxDecimalDigits
+  } = useAmountCurrencyInput()
   const [details, setDetails] = useState<RecipientDetails | null>(null)
   const savedContact = useMemo(() => {
     const address = getLightningAddress(flow.recipient)
@@ -150,55 +143,6 @@ export function SendAmountStep() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipientAddress, lnurlpUrl])
 
-  const displayCurrency =
-    activeCurrencies.find(currency => currency.code === currencyCode) ??
-    activeCurrencies[0]
-  const selectedCode = displayCurrency?.code ?? 'SAT'
-  const displayAmount = value
-  const displayUnit =
-    displayCurrency?.code === 'SAT' ? 'sats' : (displayCurrency?.code ?? 'sats')
-  const keypadUsesInteger = selectedCode === 'SAT'
-  const keypadUsesFixedDecimals =
-    selectedCode !== 'SAT' && selectedCode !== 'BTC'
-  const fixedDecimalDigits = keypadUsesFixedDecimals ? 2 : undefined
-  const maxDecimalDigits = selectedCode === 'BTC' ? 8 : undefined
-
-  useEffect(() => {
-    if (activeCurrencies.some(currency => currency.code === currencyCode)) {
-      return
-    }
-    const fallbackCode = activeCurrencies[0]?.code ?? 'SAT'
-    const fallbackValue =
-      valuesByCurrency[fallbackCode] ??
-      formatInputFromSats(canonicalAmount, fallbackCode, rates)
-    setValue(fallbackValue)
-    setValuesByCurrency(prev => ({
-      ...prev,
-      [fallbackCode]: fallbackValue
-    }))
-    setCurrencyCode(fallbackCode)
-  }, [activeCurrencies, canonicalAmount, currencyCode, rates, valuesByCurrency])
-
-  function handleAmountChange(nextValue: string) {
-    setValue(nextValue)
-    setValuesByCurrency({
-      [currencyCode]: nextValue
-    })
-    setCanonicalAmount(parseAmountToSats(nextValue, currencyCode, rates))
-  }
-
-  function handleCurrencyChange(nextCode: string) {
-    const nextValue =
-      valuesByCurrency[nextCode] ??
-      formatInputFromSats(canonicalAmount, nextCode, rates)
-    setValue(nextValue)
-    setValuesByCurrency(prev => ({
-      ...prev,
-      [nextCode]: nextValue
-    }))
-    setCurrencyCode(nextCode)
-  }
-
   function next() {
     if (canonicalAmount === null) return
     sendActions.setAmount(canonicalAmount)
@@ -212,21 +156,21 @@ export function SendAmountStep() {
       <div className="flex min-h-0 flex-1 flex-col justify-between gap-5">
         <div className="flex flex-col items-center gap-3">
           <AmountDisplay
-            value={displayAmount}
+            value={value}
             unit={displayUnit}
             className="py-1 pt-2"
           />
           <CurrencyToggle
             currencies={activeCurrencies}
-            value={selectedCode}
-            onChange={handleCurrencyChange}
+            value={currencyCode}
+            onChange={onCurrencyChange}
           />
         </div>
 
         <AmountKeypad
           value={value}
-          onChange={handleAmountChange}
-          integerOnly={keypadUsesInteger}
+          onChange={onAmountChange}
+          integerOnly={integerOnly}
           fixedDecimalDigits={fixedDecimalDigits}
           maxDecimalDigits={maxDecimalDigits}
           onSubmit={next}
@@ -305,57 +249,6 @@ function buildRecipientDetails(
       address && (!recipient.profile?.name || !recipient.profile?.image)
     )
   }
-}
-
-function parseAmountToSats(
-  raw: string,
-  code: string,
-  rates: BtcRates | null
-): number | null {
-  const value = parseKeypadValue(raw)
-  if (value === null) return null
-  if (code === 'SAT') return ceilPositiveSats(value)
-  if (code === 'BTC') {
-    return ceilPositiveSats(value * 100_000_000)
-  }
-  if (!rates) return null
-  const rate = rates[code]
-  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) {
-    return null
-  }
-  return ceilPositiveSats((value / rate) * 100_000_000)
-}
-
-function formatInputFromSats(
-  sats: number | null,
-  code: string,
-  rates: BtcRates | null
-): string {
-  if (!sats || sats <= 0) return '0'
-  if (code === 'SAT') return String(Math.trunc(sats))
-
-  const converted = convertSats(sats, code, rates)
-  if (converted === null) return '0'
-
-  return code === 'BTC' ? trimFixed(converted, 8) : formatFiatInput(converted)
-}
-
-function ceilPositiveSats(rawSats: number): number | null {
-  if (!Number.isFinite(rawSats) || rawSats <= 0) return null
-  const rounded = Math.round(rawSats)
-  const sats = Math.abs(rawSats - rounded) < 1e-9 ? rounded : Math.ceil(rawSats)
-  return Math.max(1, sats)
-}
-
-function formatFiatInput(value: number): string {
-  const displayValue = value > 0 && value < 0.01 ? 0.01 : value
-  return displayValue.toFixed(2)
-}
-
-function trimFixed(value: number, digits: number): string {
-  const fixed = value.toFixed(digits)
-  const trimmed = fixed.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
-  return trimmed || '0'
 }
 
 function getLightningAddress(
