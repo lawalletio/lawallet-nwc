@@ -66,6 +66,29 @@ export function WalletNwcProvider({ children }: { children: ReactNode }) {
 
   const balance = useNwcBalance(nwcString, { onTransaction })
 
+  // Local-dev only: `?devPayment=incoming|outgoing` fires a one-shot NIP-47
+  // shaped event through the real listener path so the wallet-home cue can
+  // be exercised without a live Lightning wallet. Stripped from production.
+  const lastDevPaymentRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return
+    if (!nwcString) return
+    const kind = new URLSearchParams(window.location.search).get('devPayment')
+    if (kind !== 'incoming' && kind !== 'outgoing') return
+    if (lastDevPaymentRef.current === kind) return
+    lastDevPaymentRef.current = kind
+    const tx: NwcTransactionEvent = {
+      type: kind,
+      amountSats: kind === 'incoming' ? 2100 : 800,
+      feesPaidSats: 0,
+      description: 'Local test',
+      paymentHash: `dev-${kind}-${Date.now()}`,
+      settledAt: Date.now()
+    }
+    const timer = window.setTimeout(() => onTransaction(tx), 700)
+    return () => window.clearTimeout(timer)
+  }, [nwcString, onTransaction])
+
   return (
     <WalletNwcContext.Provider value={{ ...balance, nwcString, subscribe }}>
       {children}
