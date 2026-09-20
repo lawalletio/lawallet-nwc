@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useActiveCurrencies } from '@/lib/client/currencies-store'
 import { useYadioRates } from '@/lib/client/use-yadio-ticker'
 import { currencyUnitLabel } from '@/lib/client/format-sats'
+import { parseKeypadValue } from '@/components/wallet/shared/amount-keypad'
 import {
   formatInputFromSats,
   keypadOptionsForCurrency,
@@ -24,20 +25,12 @@ export function useAmountCurrencyInput(initialSats?: number | null) {
     initialSats > 0
       ? initialSats
       : null
-  const initialValue = formatInputFromSats(
-    seededSats,
-    initialCurrencyCode,
-    rates
-  )
   const [canonicalAmount, setCanonicalAmount] = useState<number | null>(
     seededSats
   )
-  const [value, setValue] = useState<string>(initialValue)
-  const [valuesByCurrency, setValuesByCurrency] = useState<
-    Record<string, string>
-  >(() => ({
-    [initialCurrencyCode]: initialValue
-  }))
+  const [value, setValue] = useState<string>(() =>
+    formatInputFromSats(seededSats, initialCurrencyCode, rates)
+  )
   const [currencyCode, setCurrencyCode] = useState<string>(initialCurrencyCode)
 
   const selectedCode = activeCurrencies.some(
@@ -45,32 +38,31 @@ export function useAmountCurrencyInput(initialSats?: number | null) {
   )
     ? currencyCode
     : (activeCurrencies[0]?.code ?? 'SAT')
-  const displayValue =
-    selectedCode === currencyCode
-      ? value
-      : (valuesByCurrency[selectedCode] ??
-        formatInputFromSats(canonicalAmount, selectedCode, rates))
   const keypad = keypadOptionsForCurrency(selectedCode)
+  const liveParsed = parseAmountToSats(value, selectedCode, rates)
+  const draftBelongsToSelected = selectedCode === currencyCode
+  const displayValue =
+    draftBelongsToSelected &&
+    (liveParsed !== null || parseKeypadValue(value) !== null)
+      ? value
+      : formatInputFromSats(canonicalAmount, selectedCode, rates)
+  const submittableAmount = parseAmountToSats(
+    displayValue,
+    selectedCode,
+    rates
+  )
 
   function handleAmountChange(nextValue: string) {
     setValue(nextValue)
     setCurrencyCode(selectedCode)
-    setValuesByCurrency({
-      [selectedCode]: nextValue
-    })
     setCanonicalAmount(parseAmountToSats(nextValue, selectedCode, rates))
   }
 
   function handleCurrencyChange(nextCode: string) {
-    const nextValue =
-      valuesByCurrency[nextCode] ??
-      formatInputFromSats(canonicalAmount, nextCode, rates)
-    setValue(nextValue)
-    setValuesByCurrency(prev => ({
-      ...prev,
-      [nextCode]: nextValue
-    }))
+    const from = liveParsed ?? canonicalAmount
+    setValue(formatInputFromSats(from, nextCode, rates))
     setCurrencyCode(nextCode)
+    setCanonicalAmount(from)
   }
 
   return {
@@ -78,7 +70,7 @@ export function useAmountCurrencyInput(initialSats?: number | null) {
     onAmountChange: handleAmountChange,
     currencyCode: selectedCode,
     onCurrencyChange: handleCurrencyChange,
-    canonicalAmount,
+    canonicalAmount: submittableAmount,
     displayUnit: currencyUnitLabel(selectedCode),
     activeCurrencies,
     integerOnly: keypad.integerOnly,

@@ -10,6 +10,9 @@ import { receiveActions, resetAllFlows } from '@/lib/client/wallet-flow-store'
 
 const pushMock = vi.hoisted(() => vi.fn())
 const makeInvoiceMock = vi.hoisted(() => vi.fn())
+const ratesState = vi.hoisted(() => ({
+  current: { USD: 100_000 } as Record<string, number> | null
+}))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -59,8 +62,8 @@ vi.mock('@/lib/client/use-yadio-ticker', async importOriginal => {
   return {
     ...actual,
     useYadioRates: () => ({
-      rates: { USD: 100_000 },
-      btcUsd: 100_000,
+      rates: ratesState.current,
+      btcUsd: ratesState.current?.USD ?? null,
       fetchedAt: 1,
       loading: false,
       error: null
@@ -74,6 +77,7 @@ describe('ReceiveAmountStep currency switch', () => {
     window.localStorage.clear()
     __resetCurrenciesCacheForTests()
     resetAllFlows()
+    ratesState.current = { USD: 100_000 }
     makeInvoiceMock.mockResolvedValue({
       bolt11: 'lnbc1test',
       paymentHash: 'hash',
@@ -162,5 +166,53 @@ describe('ReceiveAmountStep currency switch', () => {
       screen.queryByRole('group', { name: 'Display currency' })
     ).toBeNull()
     expect(screen.getByText('100,000,000')).toBeInTheDocument()
+  })
+
+  it('does not mint stale sats while a fiat switch is waiting on rates', async () => {
+    const user = userEvent.setup()
+    ratesState.current = null
+    currenciesActions.add('USD')
+    receiveActions.setAmount(1000)
+    const { rerender } = render(<ReceiveAmountStep />)
+
+    await user.click(screen.getByRole('button', { name: 'USD' }))
+
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled()
+    expect(makeInvoiceMock).not.toHaveBeenCalled()
+
+    ratesState.current = { USD: 100_000 }
+    rerender(<ReceiveAmountStep />)
+
+    expect(screen.getByText('1.00')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+    expect(makeInvoiceMock).toHaveBeenCalledWith(
+      'nostr+walletconnect://test',
+      1000,
+      ''
+    )
+  })
+
+  it('parses a typed fiat amount once rates arrive', async () => {
+    const user = userEvent.setup()
+    ratesState.current = null
+    currenciesActions.add('USD')
+    const { rerender } = render(<ReceiveAmountStep />)
+
+    await user.click(screen.getByRole('button', { name: 'USD' }))
+    await user.click(screen.getByLabelText('Enter 1'))
+    await user.click(screen.getByLabelText('Enter 0'))
+    await user.click(screen.getByLabelText('Enter 0'))
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled()
+
+    ratesState.current = { USD: 100_000 }
+    rerender(<ReceiveAmountStep />)
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(makeInvoiceMock).toHaveBeenCalledWith(
+      'nostr+walletconnect://test',
+      1000,
+      ''
+    )
   })
 })
