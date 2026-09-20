@@ -1,6 +1,8 @@
 import { formatDateTime } from '@/lib/client/format'
 import { parseDestination } from '@/lib/client/nwc/parse-destination'
 
+export type PaymentReceiptStatus = 'settled' | 'pending' | 'failed'
+
 export interface PaymentReceiptInput {
   amountLabel: string
   feeLabel?: string | null
@@ -10,17 +12,24 @@ export interface PaymentReceiptInput {
   settledAt?: number | null
   paymentHash?: string | null
   preimage?: string | null
+  status?: PaymentReceiptStatus
 }
 
 /**
  * Plain-text Lightning receipt for share/copy. Includes proof fields the
  * user already has on-screen — they explicitly chose to export.
  */
+function receiptStatusLabel(status?: PaymentReceiptStatus): string {
+  if (status === 'pending') return 'Pending'
+  if (status === 'failed') return 'Failed'
+  return 'Settled'
+}
+
 export function buildPaymentReceiptText(input: PaymentReceiptInput): string {
   const lines = [
     'LaWallet payment receipt',
     '',
-    'Status: Settled',
+    `Status: ${receiptStatusLabel(input.status)}`,
     `Amount: ${input.amountLabel}`
   ]
 

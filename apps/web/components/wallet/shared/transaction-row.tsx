@@ -1,33 +1,34 @@
 'use client'
 
+import Link from 'next/link'
 import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { NwcTransaction } from '@/lib/client/nwc/transactions'
+import { rememberActivityTx } from '@/lib/client/activity-detail-store'
 
 interface TransactionRowProps {
   tx: NwcTransaction
-  onClick?: () => void
+  href?: string
   className?: string
 }
 
-export function TransactionRow({
-  tx,
-  onClick,
-  className
-}: TransactionRowProps) {
+export function TransactionRow({ tx, href, className }: TransactionRowProps) {
   const incoming = tx.type === 'incoming'
   const Icon = incoming ? ArrowDownLeft : ArrowUpRight
   const timestamp = tx.settledAt ?? tx.createdAt
+  const title = tx.description || (incoming ? 'Received' : 'Sent')
 
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-accent/60',
-        className
-      )}
-    >
+  function remember() {
+    rememberActivityTx(tx)
+  }
+
+  const classNames = cn(
+    'flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-accent/60',
+    className
+  )
+
+  const body = (
+    <>
       <div
         className={cn(
           'flex size-10 shrink-0 items-center justify-center rounded-full',
@@ -41,7 +42,7 @@ export function TransactionRow({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm font-medium text-foreground">
-          {tx.description || (incoming ? 'Received' : 'Sent')}
+          {title}
         </span>
         <span className="text-xs text-muted-foreground">
           {formatRelative(timestamp)}
@@ -60,8 +61,24 @@ export function TransactionRow({
         </span>
         <span className="ml-1 text-xs text-muted-foreground">sats</span>
       </div>
-    </button>
+    </>
   )
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        onClick={remember}
+        onPointerDown={remember}
+        aria-label={`${title}, ${incoming ? '+' : '−'}${tx.amountSats.toLocaleString()} sats`}
+        className={classNames}
+      >
+        {body}
+      </Link>
+    )
+  }
+
+  return <div className={classNames}>{body}</div>
 }
 
 function formatRelative(ms: number): string {

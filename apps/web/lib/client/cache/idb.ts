@@ -56,6 +56,20 @@ export function openDb(): Promise<IDBDatabase> {
   return dbPromise
 }
 
+/** Read a single row by primary key. */
+export async function idbGet<T>(
+  store: string,
+  key: IDBValidKey
+): Promise<T | undefined> {
+  const db = await openDb()
+  return new Promise<T | undefined>((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly')
+    const req = tx.objectStore(store).get(key)
+    req.onsuccess = () => resolve(req.result as T | undefined)
+    req.onerror = () => reject(req.error ?? new Error('IndexedDB get failed'))
+  })
+}
+
 /** Cursor over an index, walking newest-first up to `limit` results. */
 export async function idbReadIndexDesc<T>(
   store: string,

@@ -64,6 +64,21 @@ describe('buildPaymentReceiptText', () => {
     expect(text).not.toContain('To:')
     expect(text).toContain('hashhash')
   })
+
+  it('renders pending and failed status labels', () => {
+    expect(
+      buildPaymentReceiptText({
+        amountLabel: '1,000 sats',
+        status: 'pending'
+      })
+    ).toContain('Status: Pending')
+    expect(
+      buildPaymentReceiptText({
+        amountLabel: '1,000 sats',
+        status: 'failed'
+      })
+    ).toContain('Status: Failed')
+  })
 })
 
 describe('maskProofValue', () => {
