@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { IDBFactory } from 'fake-indexeddb'
 import {
   readRecent,
+  readByPaymentHash,
   upsertMany,
   prune,
   clearForKey
@@ -56,6 +57,16 @@ describe('activity-cache', () => {
     const recent = await readRecent(KEY_A)
     expect(recent).toHaveLength(1)
     expect(recent[0].amountSats).toBe(999)
+  })
+
+  it('reads a single transaction by payment hash', async () => {
+    await upsertMany(KEY_A, [
+      tx({ paymentHash: 'h1', createdAt: 100, amountSats: 21 }),
+      tx({ paymentHash: 'h2', createdAt: 200 })
+    ])
+    const found = await readByPaymentHash(KEY_A, 'h1')
+    expect(found?.amountSats).toBe(21)
+    expect(await readByPaymentHash(KEY_A, 'missing')).toBeNull()
   })
 
   it('respects readRecent limit', async () => {

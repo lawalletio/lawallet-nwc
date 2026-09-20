@@ -2,6 +2,8 @@
 
 import { getNwcClient } from './nwc-client'
 
+export type NwcTransactionState = 'settled' | 'pending' | 'failed'
+
 export interface NwcTransaction {
   type: 'incoming' | 'outgoing'
   amountSats: number
@@ -11,6 +13,19 @@ export interface NwcTransaction {
   preimage: string | null
   settledAt: number | null
   createdAt: number
+  /** Wallet-reported NIP-47 state when the payload includes it. */
+  state?: NwcTransactionState
+}
+
+export function nwcTransactionState(tx: NwcTransaction): NwcTransactionState {
+  if (
+    tx.state === 'settled' ||
+    tx.state === 'pending' ||
+    tx.state === 'failed'
+  ) {
+    return tx.state
+  }
+  return tx.settledAt ? 'settled' : 'pending'
 }
 
 export interface ListTransactionsOpts {
@@ -23,26 +38,41 @@ export interface ListTransactionsOpts {
 }
 
 interface RawTransaction {
-  type: 'incoming' | 'outgoing'
-  amount: number
+  type?: 'incoming' | 'outgoing' | string | null
+  amount?: number | null
   fees_paid?: number | null
   description?: string | null
-  payment_hash: string
+  payment_hash?: string | null
   preimage?: string | null
   settled_at?: number | null
-  created_at: number
+  created_at?: number | null
+  state?: string | null
 }
 
-function normalize(raw: RawTransaction): NwcTransaction {
+function normalizeState(raw: RawTransaction): NwcTransactionState | undefined {
+  if (
+    raw.state === 'settled' ||
+    raw.state === 'pending' ||
+    raw.state === 'failed'
+  ) {
+    return raw.state
+  }
+  return undefined
+}
+
+function normalize(raw: RawTransaction): NwcTransaction | null {
+  const paymentHash = raw.payment_hash?.trim()
+  if (!paymentHash) return null
   return {
-    type: raw.type,
-    amountSats: Math.floor(raw.amount / 1000),
+    type: raw.type === 'outgoing' ? 'outgoing' : 'incoming',
+    amountSats: Math.floor((raw.amount ?? 0) / 1000),
     feesPaidSats: Math.floor((raw.fees_paid ?? 0) / 1000),
     description: raw.description ?? '',
-    paymentHash: raw.payment_hash,
+    paymentHash,
     preimage: raw.preimage ?? null,
     settledAt: raw.settled_at ? raw.settled_at * 1000 : null,
-    createdAt: raw.created_at * 1000
+    createdAt: (raw.created_at ?? 0) * 1000,
+    state: normalizeState(raw)
   }
 }
 
@@ -63,5 +93,30 @@ export async function listTransactions(
     type: opts.type
   })) as { transactions?: RawTransaction[] }
   const list = res.transactions ?? []
-  return list.map(normalize)
+  return list.flatMap(raw => {
+    const tx = normalize(raw)
+    return tx ? [tx] : []
+  })
+}
+
+/**
+ * Resolves one transaction by payment hash via NWC `lookup_invoice`.
+ * Returns `null` when the wallet has no matching invoice or the method
+ * isn't supported — callers should fall back to the local activity cache.
+ */
+export async function lookupTransaction(
+  nwcString: string,
+  paymentHash: string
+): Promise<NwcTransaction | null> {
+  const hash = paymentHash.trim()
+  if (!nwcString || !hash) return null
+  try {
+    const client = await getNwcClient(nwcString)
+    const res = (await client.lookupInvoice({
+      payment_hash: hash
+    })) as RawTransaction
+    return normalize(res)
+  } catch {
+    return null
+  }
 }

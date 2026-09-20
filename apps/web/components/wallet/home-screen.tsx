@@ -53,6 +53,10 @@ import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { RelayErrorBadge } from '@/components/wallet/shared/relay-error-badge'
 import { TransactionRow } from '@/components/wallet/shared/transaction-row'
 import { AddressShareDialog } from '@/components/wallet/home/address-share-dialog'
+import {
+  activityDetailHref,
+  demoActivityTransactions
+} from '@/lib/client/activity-detail'
 import { cn } from '@/lib/utils'
 
 interface UserMeResponse {
@@ -635,9 +639,14 @@ function ActivityPreview({
     }
   }, [nwcString, refreshKey])
 
+  const [previewTxs, setPreviewTxs] = useState<NwcTransaction[]>([])
+  useEffect(() => {
+    setPreviewTxs(demoActivityTransactions())
+  }, [])
   const filtered = (transactions ?? []).filter(tx =>
     tab === 'transfers' ? tx.type === 'outgoing' : true
   )
+  const rows = previewTxs.length > 0 ? previewTxs : filtered
 
   return (
     <section className="mx-4 mt-6 flex flex-col gap-3 pb-32">
@@ -666,7 +675,11 @@ function ActivityPreview({
         </div>
 
         <Link
-          href="/wallet/activity"
+          href={
+            previewTxs.length > 0
+              ? '/wallet/activity?preview=1'
+              : '/wallet/activity'
+          }
           className="text-xs font-medium text-muted-foreground hover:text-foreground"
         >
           View all
@@ -677,7 +690,7 @@ function ActivityPreview({
         nwcString={nwcString}
         loading={loadingTx}
         error={txError}
-        transactions={filtered}
+        transactions={rows}
         emptyLabel={tab === 'activity' ? 'activity' : 'transfers'}
       />
     </section>
@@ -714,7 +727,7 @@ function ActivityList({
   transactions: NwcTransaction[]
   emptyLabel: string
 }) {
-  if (!nwcString) {
+  if (!nwcString && transactions.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card/40 px-4 py-8 text-center text-sm text-muted-foreground">
         Connect a wallet to see your {emptyLabel}.
@@ -751,7 +764,14 @@ function ActivityList({
           key={tx.paymentHash || i}
           className={cn('border-b border-border/40 last:border-b-0')}
         >
-          <TransactionRow tx={tx} />
+          <TransactionRow
+            tx={tx}
+            href={
+              tx.paymentHash
+                ? activityDetailHref(tx.paymentHash, 'home')
+                : undefined
+            }
+          />
         </div>
       ))}
     </div>

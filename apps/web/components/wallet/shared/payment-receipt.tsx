@@ -1,13 +1,8 @@
 'use client'
 
-import {
-  Fragment,
-  useEffect,
-  useState,
-  type ReactNode
-} from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { Check, Eye, EyeOff, Share2 } from 'lucide-react'
+import { Check, Clock, Eye, EyeOff, Share2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
@@ -19,7 +14,10 @@ import {
 } from '@/lib/client/currencies-store'
 import { useYadioRates, type BtcRates } from '@/lib/client/use-yadio-ticker'
 import { currencyUnitLabel, formatSatsAmount } from '@/lib/client/format-sats'
-import { maskProofValue } from '@/lib/client/payment-receipt'
+import {
+  maskProofValue,
+  type PaymentReceiptStatus
+} from '@/lib/client/payment-receipt'
 import { cn } from '@/lib/utils'
 
 /** Display-currency selection used by send and receive receipts. */
@@ -82,6 +80,60 @@ export function PaymentReceiptLayout({
   )
 }
 
+function ReceiptStatusMark({ status }: { status: PaymentReceiptStatus }) {
+  if (status === 'pending') {
+    return (
+      <div className="relative flex size-20 items-center justify-center">
+        <span aria-hidden className="absolute inset-0 rounded-full bg-muted" />
+        <Clock className="relative size-10 text-muted-foreground" />
+      </div>
+    )
+  }
+  if (status === 'failed') {
+    return (
+      <div className="relative flex size-20 items-center justify-center">
+        <span
+          aria-hidden
+          className="absolute inset-0 rounded-full bg-destructive/15"
+        />
+        <X className="relative size-10 text-destructive" />
+      </div>
+    )
+  }
+  return (
+    <div className="relative flex size-20 items-center justify-center">
+      <span
+        aria-hidden
+        className="absolute inset-0 rounded-full bg-[var(--theme-400)]/15 animate-success-pop"
+      />
+      <Check className="relative size-10 text-[var(--theme-400)]" />
+    </div>
+  )
+}
+
+function ReceiptStatusBadge({ status }: { status: PaymentReceiptStatus }) {
+  const label =
+    status === 'pending'
+      ? 'Pending'
+      : status === 'failed'
+        ? 'Failed'
+        : 'Settled'
+  return (
+    <span
+      className={cn(
+        'rounded-full border px-3 py-1 text-xs font-semibold',
+        status === 'failed'
+          ? 'border-destructive/40 bg-destructive/15 text-destructive'
+          : status === 'pending'
+            ? 'border-border bg-muted text-muted-foreground'
+            : 'border-[var(--theme-300)] bg-[var(--theme-400)]/20 text-foreground'
+      )}
+    >
+      {label}
+    </span>
+  )
+}
+
 export function PaymentReceiptCard({
   title,
   amountSats,
@@ -89,6 +141,7 @@ export function PaymentReceiptCard({
   currencies,
   rates,
   onCurrencyChange,
+  status = 'settled',
   children
 }: {
   title: string
@@ -97,6 +150,7 @@ export function PaymentReceiptCard({
   currencies: Currency[]
   rates: BtcRates | null
   onCurrencyChange: (next: string) => void
+  status?: PaymentReceiptStatus
   children?: ReactNode
 }) {
   const satsSubline =
@@ -107,19 +161,11 @@ export function PaymentReceiptCard({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--theme-300)] to-transparent" />
 
       <div className="flex flex-col items-center gap-4 px-5 pb-6 pt-8 text-center">
-        <div className="relative flex size-20 items-center justify-center">
-          <span
-            aria-hidden
-            className="absolute inset-0 rounded-full bg-[var(--theme-400)]/15 animate-success-pop"
-          />
-          <Check className="relative size-10 text-[var(--theme-400)]" />
-        </div>
+        <ReceiptStatusMark status={status} />
 
         <div className="flex flex-col items-center gap-2">
           <h1 className="text-2xl font-semibold text-foreground">{title}</h1>
-          <span className="rounded-full border border-[var(--theme-300)] bg-[var(--theme-400)]/20 px-3 py-1 text-xs font-semibold text-foreground">
-            Settled
-          </span>
+          <ReceiptStatusBadge status={status} />
         </div>
 
         <div className="flex flex-col items-center gap-3 pt-1">
