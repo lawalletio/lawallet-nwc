@@ -8,6 +8,7 @@ describe('PaymentNotice', () => {
       <PaymentNotice
         cue={{
           id: 'incoming:abc',
+          nwcKey: 'wallet',
           type: 'incoming',
           amountSats: 2100,
           description: 'coffee'
@@ -17,7 +18,6 @@ describe('PaymentNotice', () => {
       />
     )
     const status = screen.getByRole('status')
-    expect(status).toHaveAttribute('aria-label', 'Received 2,100 sats')
     expect(status).toHaveTextContent('Received')
     expect(status).toHaveTextContent('+2,100')
     expect(status).toHaveTextContent('sats')
@@ -28,6 +28,7 @@ describe('PaymentNotice', () => {
       <PaymentNotice
         cue={{
           id: 'outgoing:def',
+          nwcKey: 'wallet',
           type: 'outgoing',
           amountSats: 50,
           description: ''
@@ -37,8 +38,28 @@ describe('PaymentNotice', () => {
       />
     )
     const status = screen.getByRole('status')
-    expect(status).toHaveAttribute('aria-label', 'Sent 50 sats')
     expect(status).toHaveTextContent('Sent')
     expect(status).toHaveTextContent('−50')
+  })
+
+  it('masks the amount when the balance is hidden', () => {
+    render(
+      <PaymentNotice
+        cue={{
+          id: 'incoming:abc',
+          nwcKey: 'wallet',
+          type: 'incoming',
+          amountSats: 2100,
+          description: ''
+        }}
+        amountLabel="2,100"
+        unit="sats"
+        hideAmount
+      />
+    )
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Received')
+    expect(status).toHaveTextContent('•••••')
+    expect(status).not.toHaveTextContent('2,100')
   })
 })

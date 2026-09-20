@@ -54,7 +54,13 @@ export function useAnimatedNumber(
   const seenTargetRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (target == null) return
+    if (target == null) {
+      // Wallet gone / still loading — next non-null value must snap, not
+      // roll from the previous wallet's balance.
+      seenTargetRef.current = null
+      displayedRef.current = null
+      return
+    }
 
     // First non-null target — snap. We don't touch state here: the JSX
     // already returns `target` directly because `displayed` is null.

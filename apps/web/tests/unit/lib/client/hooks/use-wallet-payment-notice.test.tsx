@@ -36,13 +36,14 @@ describe('useWalletPaymentNotice', () => {
     const { result } = renderHook(() => useWalletPaymentNotice(NWC_KEY))
 
     act(() => {
-      result.current.onTransaction(tx())
+      expect(result.current.onTransaction(tx())).toBe(true)
     })
     expect(result.current.cue?.amountSats).toBe(1000)
     expect(result.current.cue?.type).toBe('incoming')
+    expect(result.current.cue?.nwcKey).toBe(NWC_KEY)
 
     act(() => {
-      result.current.onTransaction(tx())
+      expect(result.current.onTransaction(tx())).toBe(false)
     })
     expect(result.current.cue?.id).toBe('incoming:hash-1')
 
@@ -72,8 +73,22 @@ describe('useWalletPaymentNotice', () => {
   it('does nothing without a wallet key', () => {
     const { result } = renderHook(() => useWalletPaymentNotice(null))
     act(() => {
-      result.current.onTransaction(tx())
+      expect(result.current.onTransaction(tx())).toBe(false)
     })
+    expect(result.current.cue).toBeNull()
+  })
+
+  it('hides a cue that belongs to a previous wallet', () => {
+    const { result, rerender } = renderHook(
+      ({ key }: { key: string | null }) => useWalletPaymentNotice(key),
+      { initialProps: { key: NWC_KEY as string | null } }
+    )
+    act(() => {
+      expect(result.current.onTransaction(tx())).toBe(true)
+    })
+    expect(result.current.cue).not.toBeNull()
+
+    rerender({ key: 'bbbbbbbbbbbbbbbb' })
     expect(result.current.cue).toBeNull()
   })
 })

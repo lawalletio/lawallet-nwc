@@ -82,15 +82,18 @@ export function HomeScreen() {
   // refetch. The layout's provider owns the relay connection, so this
   // survives navigation instead of resubscribing per screen.
   const [txTick, setTxTick] = useState(0)
-  const [liveTx, setLiveTx] = useState<NwcTransactionEvent | null>(null)
+  const [liveTx, setLiveTx] = useState<{
+    nwcKey: string
+    tx: NwcTransaction
+  } | null>(null)
   const { sats, error, loading, fromCache, status, refetch, nwcString } =
     useWalletNwc()
   const nwcKey = nwcString ? nwcCacheKey(nwcString) : null
   const { cue, onTransaction: onPaymentCue } = useWalletPaymentNotice(nwcKey)
   useWalletNwcTransactions(tx => {
+    if (!nwcKey || !onPaymentCue(tx)) return
     setTxTick(t => t + 1)
-    setLiveTx(tx)
-    onPaymentCue(tx)
+    setLiveTx({ nwcKey, tx: eventToTransaction(tx) })
   })
 
   const { data: settings } = useSettings()
@@ -257,54 +260,51 @@ export function HomeScreen() {
           />
         </div>
 
-        <div
-          className={cn(
-            'grid w-full transition-[grid-template-rows] duration-300 ease-out motion-reduce:duration-150',
-            cue ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-          )}
-        >
-          <div className="overflow-hidden">
-            {cue ? (
-              <div className="flex justify-center pb-1">
-                <PaymentNotice
-                  cue={cue}
-                  amountLabel={cueAmountLabel}
-                  unit={cueUnit}
-                />
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="relative flex items-baseline gap-2 tabular-nums">
+        <div className="relative flex min-h-[4.5rem] w-full flex-col items-center justify-end">
           {cue ? (
-            <span
-              aria-hidden
-              className={cn(
-                'pointer-events-none absolute left-1/2 top-1/2 size-28 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl motion-reduce:opacity-40',
-                cue.type === 'incoming' ? 'bg-green-500/25' : 'bg-orange-500/25'
-              )}
-            />
-          ) : null}
-          {showSpinner ? (
-            <Skeleton className="h-9 w-40" />
-          ) : sats === null && error ? (
-            <span className="text-base text-destructive">Unavailable</span>
-          ) : (
-            <>
-              <BalanceText
-                hidden={balanceHidden}
-                sats={sats}
-                code={activeCode}
-                rates={rates}
-                pulse={pulseBalance}
-                motion={cue?.type ?? null}
+            <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2">
+              <PaymentNotice
+                key={cue.id}
+                cue={cue}
+                amountLabel={cueAmountLabel}
+                unit={cueUnit}
+                hideAmount={balanceHidden}
               />
-              <span className="text-base font-normal text-muted-foreground">
-                {activeCode === 'SAT' ? 'sats' : activeCode}
-              </span>
-            </>
-          )}
+            </div>
+          ) : null}
+          <div className="relative flex items-baseline gap-2 tabular-nums">
+            {cue ? (
+              <span
+                aria-hidden
+                className={cn(
+                  'pointer-events-none absolute left-1/2 top-1/2 size-28 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl motion-reduce:opacity-40',
+                  cue.type === 'incoming'
+                    ? 'bg-green-500/25'
+                    : 'bg-orange-500/25'
+                )}
+              />
+            ) : null}
+            {showSpinner ? (
+              <Skeleton className="h-9 w-40" />
+            ) : sats === null && error ? (
+              <span className="text-base text-destructive">Unavailable</span>
+            ) : (
+              <>
+                <BalanceText
+                  key={nwcKey ?? 'idle'}
+                  hidden={balanceHidden}
+                  sats={sats}
+                  code={activeCode}
+                  rates={rates}
+                  pulse={pulseBalance}
+                  motion={cue?.type ?? null}
+                />
+                <span className="text-base font-normal text-muted-foreground">
+                  {activeCode === 'SAT' ? 'sats' : activeCode}
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
         <CurrencyChips
@@ -423,7 +423,7 @@ export function HomeScreen() {
       <ActivityPreview
         nwcString={effectiveNwc}
         refreshKey={txTick}
-        liveTx={liveTx}
+        liveTx={liveTx && nwcKey && liveTx.nwcKey === nwcKey ? liveTx.tx : null}
       />
 
       <NavTabbar />
@@ -657,7 +657,7 @@ function ActivityPreview({
 }: {
   nwcString: string | null
   refreshKey: number
-  liveTx: NwcTransactionEvent | null
+  liveTx: NwcTransaction | null
 }) {
   // Tab pair stays in state for future expansion, but the Transfers
   // button is currently disabled — no path can set tab to 'transfers'.
@@ -709,10 +709,8 @@ function ActivityPreview({
     }
   }, [nwcString, refreshKey])
 
-  const merged = liveTx
-    ? mergeFiveNewerFirst(transactions, [eventToTransaction(liveTx)])
-    : transactions
-  const filtered = (merged ?? []).filter(tx =>
+  const merged = mergeLivePreview(transactions, liveTx)
+  const filtered = merged.filter(tx =>
     tab === 'transfers' ? tx.type === 'outgoing' : true
   )
 
@@ -772,6 +770,22 @@ function eventToTransaction(event: NwcTransactionEvent): NwcTransaction {
     settledAt: event.settledAt,
     createdAt: event.settledAt ?? Date.now()
   }
+}
+
+/**
+ * Optimistic home-preview merge: a live NIP-47 row is prepended only when
+ * the fetched/cached list does not already have that `paymentHash`. The
+ * list always wins so a later `list_transactions` memo/preimage is not
+ * clobbered by the notification stub.
+ */
+export function mergeLivePreview(
+  current: NwcTransaction[] | null,
+  live: NwcTransaction | null
+): NwcTransaction[] {
+  const list = current ?? []
+  if (!live) return list
+  if (list.some(tx => tx.paymentHash === live.paymentHash)) return list
+  return mergeFiveNewerFirst(list, [live])
 }
 
 /**

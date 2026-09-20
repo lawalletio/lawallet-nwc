@@ -267,6 +267,7 @@ export function useNwcBalance(
           if (needsResubscribe) {
             needsResubscribe = false
             subscribeAttempt = 0
+            notificationsLive = false
             if (subscribeRetryTimer) {
               clearTimeout(subscribeRetryTimer)
               subscribeRetryTimer = null
@@ -293,7 +294,6 @@ export function useNwcBalance(
             lastAnnouncedRef.current = 'disconnected'
           }
           if (!fromNotification) {
-            notificationsLive = false
             needsResubscribe = true
           }
         } finally {
@@ -303,8 +303,10 @@ export function useNwcBalance(
 
       function scheduleSubscribeRetry() {
         if (cancelled || subscribeRetryTimer) return
-        if (subscribeAttempt >= 6) return
-        const delay = Math.min(30_000, 1_000 * 2 ** subscribeAttempt)
+        const delay = Math.min(
+          30_000,
+          1_000 * 2 ** Math.min(subscribeAttempt, 5)
+        )
         subscribeAttempt += 1
         subscribeRetryTimer = setTimeout(() => {
           subscribeRetryTimer = null

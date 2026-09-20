@@ -7,22 +7,22 @@ import type { WalletPaymentCue } from '@/lib/client/hooks/use-wallet-payment-not
 export function PaymentNotice({
   cue,
   amountLabel,
-  unit
+  unit,
+  hideAmount = false
 }: {
   cue: WalletPaymentCue
   amountLabel: string
   unit: string
+  hideAmount?: boolean
 }) {
   const incoming = cue.type === 'incoming'
   const Icon = incoming ? ArrowDownLeft : ArrowUpRight
   const title = incoming ? 'Received' : 'Sent'
-  const copy = [title, amountLabel, unit].filter(Boolean).join(' ')
 
   return (
     <div
       role="status"
-      aria-live="polite"
-      aria-label={copy}
+      aria-atomic="true"
       className={cn(
         'animate-payment-notice inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 shadow-lg',
         incoming
@@ -41,11 +41,19 @@ export function PaymentNotice({
       <span className="text-xs font-semibold uppercase tracking-wide">
         {title}
       </span>
-      <span className="text-sm font-semibold tabular-nums text-foreground">
-        {incoming ? '+' : '−'}
-        {amountLabel}
-      </span>
-      <span className="text-xs text-muted-foreground">{unit}</span>
+      {hideAmount ? (
+        <span className="text-sm font-semibold tabular-nums text-foreground">
+          •••••
+        </span>
+      ) : (
+        <>
+          <span className="text-sm font-semibold tabular-nums text-foreground">
+            {incoming ? '+' : '−'}
+            {amountLabel}
+          </span>
+          <span className="text-xs text-muted-foreground">{unit}</span>
+        </>
+      )}
     </div>
   )
 }

@@ -38,6 +38,16 @@ describe('useAnimatedNumber', () => {
     expect(result.current).toBe(12_000)
   })
 
+  it('snaps the first value after the target returns to null', () => {
+    const { result, rerender } = renderHook(
+      ({ target }: { target: number | null }) => useAnimatedNumber(target, 600),
+      { initialProps: { target: 100 as number | null } }
+    )
+    rerender({ target: null })
+    rerender({ target: 500 })
+    expect(result.current).toBe(500)
+  })
+
   it('softens the duration when the user prefers reduced motion', () => {
     mockMatchMedia(true)
     const { result, rerender } = renderHook(
