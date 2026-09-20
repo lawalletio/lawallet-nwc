@@ -24,10 +24,10 @@ export function PaymentNotice({
       role="status"
       aria-atomic="true"
       className={cn(
-        'animate-payment-notice inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 shadow-lg',
+        'animate-payment-notice inline-flex max-w-full items-center gap-2 rounded-full border bg-card/95 px-3 py-1.5 shadow-lg backdrop-blur-md',
         incoming
-          ? 'border-green-500/30 bg-green-500/10 text-green-500'
-          : 'border-orange-500/30 bg-orange-500/10 text-orange-500'
+          ? 'border-green-500/40 text-green-500'
+          : 'border-orange-500/40 text-orange-500'
       )}
     >
       <span

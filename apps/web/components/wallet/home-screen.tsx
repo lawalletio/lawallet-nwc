@@ -247,7 +247,19 @@ export function HomeScreen() {
         </button>
       </header>
 
-      <section className="flex flex-col items-center gap-3 px-4 pb-4 pt-8">
+      <section className="relative flex flex-col items-center gap-3 px-4 pb-4 pt-8">
+        {cue ? (
+          <div className="pointer-events-none absolute inset-x-0 top-1 z-20 flex justify-center px-4">
+            <PaymentNotice
+              key={cue.id}
+              cue={cue}
+              amountLabel={cueAmountLabel}
+              unit={cueUnit}
+              hideAmount={balanceHidden}
+            />
+          </div>
+        ) : null}
+
         <div className="flex items-center gap-2">
           <span className="text-xs uppercase tracking-wider text-muted-foreground">
             Your balance
@@ -258,18 +270,6 @@ export function HomeScreen() {
             hasCachedValue={sats !== null}
             onRetry={refetch}
           />
-        </div>
-
-        <div className="flex h-10 w-full items-center justify-center">
-          {cue ? (
-            <PaymentNotice
-              key={cue.id}
-              cue={cue}
-              amountLabel={cueAmountLabel}
-              unit={cueUnit}
-              hideAmount={balanceHidden}
-            />
-          ) : null}
         </div>
 
         <div className="relative flex min-h-[3.5rem] w-full flex-col items-center justify-center">
