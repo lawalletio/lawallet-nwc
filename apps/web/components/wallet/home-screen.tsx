@@ -260,18 +260,19 @@ export function HomeScreen() {
           />
         </div>
 
-        <div className="relative flex min-h-[4.5rem] w-full flex-col items-center justify-end">
+        <div className="flex h-10 w-full items-center justify-center">
           {cue ? (
-            <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2">
-              <PaymentNotice
-                key={cue.id}
-                cue={cue}
-                amountLabel={cueAmountLabel}
-                unit={cueUnit}
-                hideAmount={balanceHidden}
-              />
-            </div>
+            <PaymentNotice
+              key={cue.id}
+              cue={cue}
+              amountLabel={cueAmountLabel}
+              unit={cueUnit}
+              hideAmount={balanceHidden}
+            />
           ) : null}
+        </div>
+
+        <div className="relative flex min-h-[3.5rem] w-full flex-col items-center justify-center">
           <div className="relative flex items-baseline gap-2 tabular-nums">
             {cue ? (
               <span
