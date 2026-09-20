@@ -29,7 +29,11 @@ vi.mock('@/lib/settings', () => ({
   getSettings: vi.fn()
 }))
 
-import { GET } from '@/app/api/users/me/route'
+vi.mock('@/lib/middleware/request-limits', () => ({
+  checkRequestLimits: vi.fn()
+}))
+
+import { GET, PUT } from '@/app/api/users/me/route'
 import { authenticate } from '@/lib/auth/unified-auth'
 import { createNewUser } from '@/lib/user'
 import { getSettings } from '@/lib/settings'
@@ -80,6 +84,28 @@ describe('GET /api/users/me', () => {
       userId: user.id,
       lightningAddress: 'alice@test.com'
     })
+  })
+
+  it('returns saved currency preferences from the user record', async () => {
+    mockAuth()
+    const currencyPrefs = {
+      active: ['SAT', 'BTC', 'USD'],
+      selected: 'USD'
+    }
+    const user = createUserFixture({
+      pubkey: mockPubkey,
+      currencyPrefs,
+      lightningAddresses: [],
+      albySubAccount: null
+    })
+    vi.mocked(prismaMock.user.findUnique).mockResolvedValue(user as any)
+    vi.mocked(getSettings).mockResolvedValue({ domain: 'test.com' })
+
+    const req = createNextRequest('/api/users/me')
+    const res = await GET(req)
+    const body = await assertResponse(res, 200)
+
+    expect(body.currencyPrefs).toEqual(currencyPrefs)
   })
 
   it('creates new user if not existing', async () => {
@@ -372,5 +398,33 @@ describe('GET /api/users/me', () => {
     expect(body.primaryUsername).toBeNull()
     expect(body.primaryRedirect).toBeNull()
     expect(body.effectiveNwcString).toBeNull()
+  })
+})
+
+describe('PUT /api/users/me', () => {
+  it('persists currency preferences on the authenticated user', async () => {
+    mockAuth()
+    vi.mocked(prismaMock.nostrIdentity.findUnique).mockResolvedValue({
+      user: { id: 'user-1', pubkey: mockPubkey, role: 'USER' }
+    } as any)
+    vi.mocked(prismaMock.user.update).mockResolvedValue({ id: 'user-1' } as any)
+
+    const currencyPrefs = {
+      active: ['SAT', 'BTC', 'USD'],
+      selected: 'USD'
+    }
+    const res = await PUT(
+      createNextRequest('/api/users/me', {
+        method: 'PUT',
+        body: { currencyPrefs }
+      }) as never
+    )
+    const body = await assertResponse(res, 200)
+
+    expect(body).toEqual({ currencyPrefs })
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { currencyPrefs }
+    })
   })
 })

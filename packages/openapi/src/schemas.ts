@@ -63,6 +63,7 @@ import {
   updatePasskeyCredentialSchema,
   updateRemoteWalletSchema,
   updateRoleSchema,
+  updateUserCurrencyPrefsSchema,
   updateWalletCardSchema,
   updateWalletAddressSchema,
   userIdParam,
@@ -200,6 +201,10 @@ export const schemas = {
   UserRoleUpdateRequest: registry.register(
     'UserRoleUpdateRequest',
     updateRoleSchema
+  ),
+  UserCurrencyPrefsUpdateRequest: registry.register(
+    'UserCurrencyPrefsUpdateRequest',
+    updateUserCurrencyPrefsSchema
   ),
 
   // ── Settings ──────────────────────────────────────────────────────────

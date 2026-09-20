@@ -36,7 +36,9 @@ import {
   type BtcRates
 } from '@/lib/client/use-yadio-ticker'
 import {
+  currenciesActions,
   useActiveCurrencies,
+  useSelectedCurrencyCode,
   type Currency as CurrencyDef
 } from '@/lib/client/currencies-store'
 import { Button } from '@/components/ui/button'
@@ -115,9 +117,7 @@ export function HomeScreen() {
     (loading || meLoading) && sats === null && !error && !fromCache
   const pulseBalance = loading && fromCache && sats !== null
 
-  const [currencyCode, setCurrencyCode] = useState<string>(
-    () => activeCurrencies[0]?.code ?? 'SAT'
-  )
+  const currencyCode = useSelectedCurrencyCode()
   const [balanceHidden, setBalanceHidden] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<'receive' | 'send' | null>(
@@ -263,7 +263,7 @@ export function HomeScreen() {
         <CurrencyChips
           currencies={activeCurrencies}
           value={activeCode}
-          onChange={setCurrencyCode}
+          onChange={currenciesActions.select}
         />
       </section>
 

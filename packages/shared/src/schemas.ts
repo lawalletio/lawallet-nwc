@@ -454,6 +454,41 @@ export const updateUserRelaysSchema = z.object({
     })
 })
 
+export const CURRENCY_CODES = [
+  'SAT',
+  'BTC',
+  'ARS',
+  'BRL',
+  'CLP',
+  'COP',
+  'EUR',
+  'GBP',
+  'JPY',
+  'MXN',
+  'PEN',
+  'USD',
+  'UYU',
+  'VES'
+] as const
+
+export const currencyPrefsSchema = z
+  .object({
+    active: z.array(z.enum(CURRENCY_CODES)).min(1),
+    selected: z.enum(CURRENCY_CODES)
+  })
+  .refine(prefs => prefs.active.includes('SAT'), {
+    message: 'SAT must remain in the active list',
+    path: ['active']
+  })
+  .refine(prefs => prefs.active.includes(prefs.selected), {
+    message: 'Selected currency must be in the active list',
+    path: ['selected']
+  })
+
+export const updateUserCurrencyPrefsSchema = z.object({
+  currencyPrefs: currencyPrefsSchema
+})
+
 // ── Settings ────────────────────────────────────────────────────────────────
 
 export const settingsBodySchema = z.record(

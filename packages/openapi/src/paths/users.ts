@@ -51,6 +51,37 @@ registry.registerPath({
 
 registry.registerPath({
   ...withRole('USER'),
+  method: 'put',
+  path: '/api/users/me',
+  tags: [TAG],
+  summary: 'Save the current user’s display currency preferences.',
+  operationId: 'users.me.currencyPrefs.set',
+  security: protectedSecurity,
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: schemas.UserCurrencyPrefsUpdateRequest
+        }
+      }
+    }
+  },
+  responses: {
+    200: inlineJsonResponse(
+      'Currency preferences saved.',
+      z.object({
+        currencyPrefs: z.object({
+          active: z.array(z.string()),
+          selected: z.string()
+        })
+      })
+    ),
+    ...commonErrorResponses
+  }
+})
+
+registry.registerPath({
+  ...withRole('USER'),
   method: 'get',
   path: '/api/users/{userId}',
   tags: [TAG],
