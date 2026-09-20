@@ -17,7 +17,7 @@ import { useSettings } from '@/lib/client/hooks/use-settings'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import { useAuth } from '@/components/admin/auth-context'
 import { makeInvoice, describeNwcError } from '@/lib/client/nwc'
-import { useReceiveFlow, receiveActions } from '@/lib/client/wallet-flow-store'
+import { receiveActions } from '@/lib/client/wallet-flow-store'
 import { trackEvent } from '@/lib/analytics/gtag'
 import { AnalyticsEvent } from '@/lib/analytics/events'
 
@@ -28,21 +28,22 @@ interface UserMeResponse {
 
 export function ReceiveAmountStep() {
   const router = useRouter()
-  const flow = useReceiveFlow()
   const { apiClient } = useAuth()
   const { data: me } = useApi<UserMeResponse>('/api/users/me')
   const { data: settings } = useSettings()
   const effectiveNwc = resolveUserNwc(me)
   const autoCreate = settings?.lncurl_auto_create === 'true'
 
-  const [value, setValue] = useState<string>(
-    flow.amountSats ? String(flow.amountSats) : '0'
-  )
-  const [description, setDescription] = useState(flow.description)
+  const [value, setValue] = useState<string>('0')
+  const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const noteRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    // Re-entering this route always starts a new request. A leftover
+    // amount/invoice from a previous visit would otherwise hydrate the
+    // keypad (or get reused if the user backs from the invoice screen).
+    receiveActions.reset()
     trackEvent(AnalyticsEvent.WALLET_RECEIVE_STARTED)
   }, [])
 
