@@ -15,16 +15,10 @@ export interface WalletPaymentCue {
 }
 
 /**
- * Home-only payment cue. `onTransaction` is meant to run from
- * `useWalletNwcTransactions` while `/wallet` is mounted: the first time a
+ * Layout-level payment cue, owned by `WalletNwcProvider`. The first time a
  * `{type, paymentHash}` lands we expose it as `cue`; replays are ignored.
  *
- * Returns `true` when this event claimed the cue so callers can skip
- * duplicate activity ticks / optimistic rows.
- *
- * Callers that are *not* on home should `markNotificationSeen` instead so
- * returning to home does not animate a payment the user already finished
- * on send/receive.
+ * Returns `true` when this event claimed the cue.
  */
 export function useWalletPaymentNotice(nwcKey: string | null): {
   cue: WalletPaymentCue | null

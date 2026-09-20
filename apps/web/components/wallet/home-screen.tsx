@@ -14,7 +14,6 @@ import {
 import { useApi } from '@/lib/client/hooks/use-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
 import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
-import { useWalletPaymentNotice } from '@/lib/client/hooks/use-wallet-payment-notice'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import {
   useWalletNwc,
@@ -54,7 +53,6 @@ import { NavTabbar } from '@/components/wallet/shared/nav-tabbar'
 import { RelayErrorBadge } from '@/components/wallet/shared/relay-error-badge'
 import { TransactionRow } from '@/components/wallet/shared/transaction-row'
 import { AddressShareDialog } from '@/components/wallet/home/address-share-dialog'
-import { PaymentNotice } from '@/components/wallet/home/payment-notice'
 import { cn } from '@/lib/utils'
 
 interface UserMeResponse {
@@ -86,12 +84,11 @@ export function HomeScreen() {
     nwcKey: string
     tx: NwcTransaction
   } | null>(null)
-  const { sats, error, loading, fromCache, status, refetch, nwcString } =
+  const { sats, error, loading, fromCache, status, refetch, nwcString, cue } =
     useWalletNwc()
   const nwcKey = nwcString ? nwcCacheKey(nwcString) : null
-  const { cue, onTransaction: onPaymentCue } = useWalletPaymentNotice(nwcKey)
   useWalletNwcTransactions(tx => {
-    if (!nwcKey || !onPaymentCue(tx)) return
+    if (!nwcKey) return
     setTxTick(t => t + 1)
     setLiveTx({ nwcKey, tx: eventToTransaction(tx) })
   })
@@ -163,18 +160,6 @@ export function HomeScreen() {
     }
     setPendingAction(action)
   }
-
-  const cueFormatted = cue
-    ? formatAmount(cue.amountSats, activeCode, rates)
-    : null
-  const cueAmountLabel =
-    cueFormatted && cueFormatted !== '—'
-      ? cueFormatted
-      : cue
-        ? cue.amountSats.toLocaleString()
-        : ''
-  const cueUnit =
-    !cue || cueFormatted === '—' || activeCode === 'SAT' ? 'sats' : activeCode
 
   return (
     <div className="flex flex-1 flex-col">
@@ -248,18 +233,6 @@ export function HomeScreen() {
       </header>
 
       <section className="relative flex flex-col items-center gap-3 px-4 pb-4 pt-8">
-        {cue ? (
-          <div className="pointer-events-none absolute inset-x-0 top-1 z-20 flex justify-center px-4">
-            <PaymentNotice
-              key={cue.id}
-              cue={cue}
-              amountLabel={cueAmountLabel}
-              unit={cueUnit}
-              hideAmount={balanceHidden}
-            />
-          </div>
-        ) : null}
-
         <div className="flex items-center gap-2">
           <span className="text-xs uppercase tracking-wider text-muted-foreground">
             Your balance
