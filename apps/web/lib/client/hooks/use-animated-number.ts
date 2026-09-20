@@ -74,9 +74,16 @@ export function useAnimatedNumber(
 
     const startedAt = performance.now()
     let raf = 0
+    // Soften (don't skip) the odometer when the user prefers reduced
+    // motion — a short ease still reads as "the number changed" without
+    // a long count-up.
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const duration = reduceMotion ? Math.min(durationMs, 180) : durationMs
     const tick = () => {
       const elapsed = performance.now() - startedAt
-      const t = Math.min(1, elapsed / durationMs)
+      const t = Math.min(1, elapsed / duration)
       if (t >= 1) {
         // Animation complete — clear `displayed` so the hook returns
         // `target` directly on the next render. Keeps the rendered

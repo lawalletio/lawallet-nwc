@@ -278,3 +278,43 @@ describe('useNwcBalance stale-fetch guard', () => {
     expect(screen.getByTestId('hook')).toHaveAttribute('data-sats', '2000')
   })
 })
+
+describe('useNwcBalance notification subscribe retry', () => {
+  beforeEach(() => {
+    getBalanceMock.mockReset()
+    subscribeNotificationsMock.mockReset()
+    closeMock.mockReset()
+    toastErrorMock.mockReset()
+    toastSuccessMock.mockReset()
+    notifyCb = null
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
+  })
+
+  it('retries subscribeNotifications after a transient failure', async () => {
+    getBalanceMock.mockResolvedValue({ balance: 1_000_000 })
+    subscribeNotificationsMock
+      .mockRejectedValueOnce(new Error('relay down'))
+      .mockImplementation(cb => {
+        notifyCb = cb
+        return Promise.resolve(() => {})
+      })
+
+    render(<Harness nwc={NWC} />)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(subscribeNotificationsMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(subscribeNotificationsMock).toHaveBeenCalledTimes(2)
+    expect(notifyCb).not.toBeNull()
+  })
+})

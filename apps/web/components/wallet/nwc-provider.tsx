@@ -10,6 +10,8 @@ import {
 } from 'react'
 import { useApi } from '@/lib/client/hooks/use-api'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
+import { nwcCacheKey } from '@/lib/client/cache/key'
+import { markNotificationSeen } from '@/lib/client/cache/nwc-notification-dedupe'
 import {
   useNwcBalance,
   type NwcBalanceState,
@@ -42,9 +44,16 @@ export function WalletNwcProvider({ children }: { children: ReactNode }) {
   const nwcString = resolveUserNwc(me)
 
   const listenersRef = useRef(new Set<(tx: NwcTransactionEvent) => void>())
-  const onTransaction = useCallback((tx: NwcTransactionEvent) => {
-    for (const listener of listenersRef.current) listener(tx)
-  }, [])
+  // Fan-out first so `/wallet` can `claimNotification` for the cue, then
+  // mark the event seen so a later visit to home does not replay motion
+  // for a payment that settled on send/receive.
+  const onTransaction = useCallback(
+    (tx: NwcTransactionEvent) => {
+      for (const listener of listenersRef.current) listener(tx)
+      if (nwcString) markNotificationSeen(nwcCacheKey(nwcString), tx)
+    },
+    [nwcString]
+  )
   const subscribe = useCallback(
     (listener: (tx: NwcTransactionEvent) => void) => {
       listenersRef.current.add(listener)
