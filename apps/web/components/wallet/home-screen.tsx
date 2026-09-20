@@ -4,8 +4,6 @@ import { useEffect, useState, type MouseEvent } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
   Eye,
   EyeOff,
   LayoutDashboard,
@@ -15,12 +13,14 @@ import {
 } from 'lucide-react'
 import { useApi } from '@/lib/client/hooks/use-api'
 import { useSettings } from '@/lib/client/hooks/use-settings'
+import { useAnimatedNumber } from '@/lib/client/hooks/use-animated-number'
 import { resolveUserNwc } from '@/lib/client/wallet-nwc'
 import {
   useWalletNwc,
   useWalletNwcTransactions
 } from '@/components/wallet/nwc-provider'
 import { listTransactions, type NwcTransaction } from '@/lib/client/nwc'
+import type { NwcTransactionEvent } from '@/lib/client/use-nwc-balance'
 import { nwcCacheKey } from '@/lib/client/cache/key'
 import {
   readRecent as readRecentTxs,
@@ -84,8 +84,18 @@ export function HomeScreen() {
   // refetch. The layout's provider owns the relay connection, so this
   // survives navigation instead of resubscribing per screen.
   const [txTick, setTxTick] = useState(0)
-  const { sats, error, loading, fromCache, status, refetch } = useWalletNwc()
-  useWalletNwcTransactions(() => setTxTick(t => t + 1))
+  const [liveTx, setLiveTx] = useState<{
+    nwcKey: string
+    tx: NwcTransaction
+  } | null>(null)
+  const { sats, error, loading, fromCache, status, refetch, nwcString, cue } =
+    useWalletNwc()
+  const nwcKey = nwcString ? nwcCacheKey(nwcString) : null
+  useWalletNwcTransactions(tx => {
+    if (!nwcKey) return
+    setTxTick(t => t + 1)
+    setLiveTx({ nwcKey, tx: eventToTransaction(tx) })
+  })
 
   const { data: settings } = useSettings()
 
@@ -226,7 +236,7 @@ export function HomeScreen() {
         </button>
       </header>
 
-      <section className="flex flex-col items-center gap-3 px-4 pb-4 pt-8">
+      <section className="relative flex flex-col items-center gap-3 px-4 pb-4 pt-8">
         <div className="flex items-center gap-2">
           <span className="text-xs uppercase tracking-wider text-muted-foreground">
             Your balance
@@ -239,25 +249,40 @@ export function HomeScreen() {
           />
         </div>
 
-        <div className="flex items-baseline gap-2 tabular-nums">
-          {showSpinner ? (
-            <Skeleton className="h-9 w-40" />
-          ) : sats === null && error ? (
-            <span className="text-base text-destructive">Unavailable</span>
-          ) : (
-            <>
-              <BalanceText
-                hidden={balanceHidden}
-                sats={sats}
-                code={activeCode}
-                rates={rates}
-                pulse={pulseBalance}
+        <div className="relative flex min-h-[3.5rem] w-full flex-col items-center justify-center">
+          <div className="relative flex items-baseline gap-2 tabular-nums">
+            {cue ? (
+              <span
+                aria-hidden
+                className={cn(
+                  'pointer-events-none absolute left-1/2 top-1/2 size-28 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl motion-reduce:opacity-40',
+                  cue.type === 'incoming'
+                    ? 'bg-green-500/25'
+                    : 'bg-orange-500/25'
+                )}
               />
-              <span className="text-base font-normal text-muted-foreground">
-                {activeCode === 'SAT' ? 'sats' : activeCode}
-              </span>
-            </>
-          )}
+            ) : null}
+            {showSpinner ? (
+              <Skeleton className="h-9 w-40" />
+            ) : sats === null && error ? (
+              <span className="text-base text-destructive">Unavailable</span>
+            ) : (
+              <>
+                <BalanceText
+                  key={nwcKey ?? 'idle'}
+                  hidden={balanceHidden}
+                  sats={sats}
+                  code={activeCode}
+                  rates={rates}
+                  pulse={pulseBalance}
+                  motion={cue?.type ?? null}
+                />
+                <span className="text-base font-normal text-muted-foreground">
+                  {activeCode === 'SAT' ? 'sats' : activeCode}
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
         <CurrencyChips
@@ -373,7 +398,11 @@ export function HomeScreen() {
           </div>
         ))}
 
-      <ActivityPreview nwcString={effectiveNwc} refreshKey={txTick} />
+      <ActivityPreview
+        nwcString={effectiveNwc}
+        refreshKey={txTick}
+        liveTx={liveTx && nwcKey && liveTx.nwcKey === nwcKey ? liveTx.tx : null}
+      />
 
       <NavTabbar />
     </div>
@@ -463,7 +492,8 @@ function BalanceText({
   sats,
   code,
   rates,
-  pulse = false
+  pulse = false,
+  motion = null
 }: {
   hidden: boolean
   sats: number | null
@@ -475,33 +505,49 @@ function BalanceText({
    * spinner. Set by the parent when `loading && fromCache && sats !== null`.
    */
   pulse?: boolean
+  /** Direction of the live payment cue, used to tint the odometer. */
+  motion?: 'incoming' | 'outgoing' | null
 }) {
+  const animatedSats = useAnimatedNumber(sats)
+  const rolling =
+    sats != null && animatedSats !== sats
+      ? animatedSats < sats
+        ? 'incoming'
+        : 'outgoing'
+      : motion
   // The pulse class lives on the outer wrapper so it covers the gray
   // prefix + white tail in the BTC case. Opacity dip + animation keeps
   // the digits clearly readable while signalling staleness.
   const wrapClass = cn(
-    'text-5xl font-semibold leading-none',
-    pulse && 'animate-pulse opacity-70'
+    'relative text-5xl font-semibold leading-none transition-colors duration-300',
+    pulse && 'animate-pulse opacity-70',
+    rolling === 'incoming' && 'text-green-500',
+    rolling === 'outgoing' && 'text-orange-500',
+    !rolling && 'text-foreground'
   )
 
   if (hidden) {
-    return <span className={cn(wrapClass, 'text-foreground')}>•••••</span>
+    return <span className={wrapClass}>•••••</span>
   }
   if (sats === null) {
-    return <span className={cn(wrapClass, 'text-foreground')}>—</span>
+    return <span className={wrapClass}>—</span>
   }
 
-  const formatted = formatAmount(sats, code, rates)
+  const formatted = formatAmount(animatedSats, code, rates)
 
   if (code !== 'BTC') {
-    return <span className={cn(wrapClass, 'text-foreground')}>{formatted}</span>
+    return <span className={wrapClass}>{formatted}</span>
   }
 
   const { gray, white } = splitBtcForEmphasis(formatted)
   return (
     <span className={wrapClass}>
-      {gray && <span className="text-muted-foreground">{gray}</span>}
-      <span className="text-foreground">{white}</span>
+      {gray && (
+        <span className={rolling ? 'opacity-70' : 'text-muted-foreground'}>
+          {gray}
+        </span>
+      )}
+      <span>{white}</span>
     </span>
   )
 }
@@ -584,10 +630,12 @@ function CurrencyChips({
  */
 function ActivityPreview({
   nwcString,
-  refreshKey
+  refreshKey,
+  liveTx
 }: {
   nwcString: string | null
   refreshKey: number
+  liveTx: NwcTransaction | null
 }) {
   // Tab pair stays in state for future expansion, but the Transfers
   // button is currently disabled — no path can set tab to 'transfers'.
@@ -643,7 +691,8 @@ function ActivityPreview({
   useEffect(() => {
     setPreviewTxs(demoActivityTransactions())
   }, [])
-  const filtered = (transactions ?? []).filter(tx =>
+  const merged = mergeLivePreview(transactions, liveTx)
+  const filtered = merged.filter(tx =>
     tab === 'transfers' ? tx.type === 'outgoing' : true
   )
   const rows = previewTxs.length > 0 ? previewTxs : filtered
@@ -695,6 +744,35 @@ function ActivityPreview({
       />
     </section>
   )
+}
+
+function eventToTransaction(event: NwcTransactionEvent): NwcTransaction {
+  return {
+    type: event.type,
+    amountSats: event.amountSats,
+    feesPaidSats: event.feesPaidSats,
+    description: event.description,
+    paymentHash: event.paymentHash,
+    preimage: null,
+    settledAt: event.settledAt,
+    createdAt: event.settledAt ?? Date.now()
+  }
+}
+
+/**
+ * Optimistic home-preview merge: a live NIP-47 row is prepended only when
+ * the fetched/cached list does not already have that `paymentHash`. The
+ * list always wins so a later `list_transactions` memo/preimage is not
+ * clobbered by the notification stub.
+ */
+export function mergeLivePreview(
+  current: NwcTransaction[] | null,
+  live: NwcTransaction | null
+): NwcTransaction[] {
+  const list = current ?? []
+  if (!live) return list
+  if (list.some(tx => tx.paymentHash === live.paymentHash)) return list
+  return mergeFiveNewerFirst(list, [live])
 }
 
 /**
