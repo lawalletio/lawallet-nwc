@@ -58,6 +58,10 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      # Turbo skips packages that do not define this script. Every package
+      # with a `test` script must also define `test:coverage`, or PR CI never
+      # runs those tests (v2.7.1's first Release dispatch failed on react
+      # tests that CI had never executed).
       - run: pnpm turbo run test:coverage
       # Step 4: Add Codecov to your GitHub Actions workflow yaml file
       # https://docs.codecov.com/docs/quick-start

@@ -20,6 +20,7 @@
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist"
   },
