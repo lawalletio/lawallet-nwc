@@ -13,6 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "prettier --check src tests",
     "test": "vitest run",
+    "test:coverage": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist"
   },
