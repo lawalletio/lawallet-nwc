@@ -1,6 +1,10 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
+import {
+  CURRENCY_CODES,
+  type CurrencyCode
+} from '@lawallet-nwc/shared/src/currencies'
 
 export interface Currency {
   /** 3-letter ticker (`SAT`, `BTC`, ISO 4217 fiat code). */
@@ -25,24 +29,29 @@ export interface Currency {
  * Currencies settings screen. Add new codes alphabetically inside their
  * group to keep that list stable.
  */
-export const CURRENCY_CATALOG: Currency[] = [
-  // Crypto / native units
-  { code: 'SAT', name: 'Satoshi', locked: true },
-  { code: 'BTC', name: 'Bitcoin' },
-  // Fiat (LATAM-leaning since LaWallet's primary communities are Spanish-speaking)
-  { code: 'ARS', name: 'Peso Argentino' },
-  { code: 'BRL', name: 'Real' },
-  { code: 'CLP', name: 'Peso Chileno' },
-  { code: 'COP', name: 'Peso Colombiano' },
-  { code: 'EUR', name: 'Euro' },
-  { code: 'GBP', name: 'Libra Esterlina' },
-  { code: 'JPY', name: 'Yen' },
-  { code: 'MXN', name: 'Peso Mexicano' },
-  { code: 'PEN', name: 'Sol' },
-  { code: 'USD', name: 'Dolar Americano' },
-  { code: 'UYU', name: 'Peso Uruguayo' },
-  { code: 'VES', name: 'Bolívar' }
-]
+const CATALOG_META = {
+  SAT: { name: 'Satoshi', locked: true },
+  BTC: { name: 'Bitcoin' },
+  ARS: { name: 'Peso Argentino' },
+  BRL: { name: 'Real' },
+  CLP: { name: 'Peso Chileno' },
+  COP: { name: 'Peso Colombiano' },
+  EUR: { name: 'Euro' },
+  GBP: { name: 'Libra Esterlina' },
+  JPY: { name: 'Yen' },
+  MXN: { name: 'Peso Mexicano' },
+  PEN: { name: 'Sol' },
+  USD: { name: 'Dolar Americano' },
+  UYU: { name: 'Peso Uruguayo' },
+  VES: { name: 'Bolívar' }
+} as const satisfies Record<CurrencyCode, { name: string; locked?: boolean }>
+
+export const CURRENCY_CATALOG: Currency[] = CURRENCY_CODES.map(code => {
+  const meta = CATALOG_META[code]
+  return 'locked' in meta && meta.locked
+    ? { code, name: meta.name, locked: true }
+    : { code, name: meta.name }
+})
 
 const STORAGE_KEY = 'lawallet-active-currencies'
 const DEFAULT_ACTIVE: readonly string[] = ['SAT', 'BTC']
@@ -59,6 +68,7 @@ export type CurrencyPrefs = {
 let cache: CurrencyPrefs | null = null
 const listeners = new Set<() => void>()
 let persister: ((prefs: CurrencyPrefs) => void) | null = null
+let dirty = false
 
 export function setCurrencyPrefsPersister(
   next: ((prefs: CurrencyPrefs) => void) | null
@@ -71,12 +81,19 @@ function ensureLocked(list: string[]): string[] {
   for (const c of CURRENCY_CATALOG) {
     if (c.locked) locked.push(c.code)
   }
-  const rest = list.filter(c => !LOCKED_CODES.has(c))
+  const seen = new Set<string>(locked)
+  const rest: string[] = []
+  for (const code of list) {
+    if (typeof code !== 'string' || seen.has(code)) continue
+    if (!CURRENCY_CATALOG.some(c => c.code === code)) continue
+    seen.add(code)
+    rest.push(code)
+  }
   return [...locked, ...rest]
 }
 
 function normalize(active: string[], selected: string): CurrencyPrefs {
-  const nextActive = ensureLocked(active)
+  const nextActive = ensureLocked(Array.isArray(active) ? active : [])
   const nextSelected = nextActive.includes(selected)
     ? selected
     : (nextActive[0] ?? DEFAULT_SELECTED)
@@ -135,7 +152,12 @@ function write(next: CurrencyPrefs, options: { persist?: boolean } = {}) {
       // ignore quota errors
     }
   }
-  if (options.persist !== false) persister?.(cache)
+  if (options.persist !== false) {
+    dirty = true
+    persister?.(cache)
+  } else {
+    dirty = false
+  }
   for (const fn of listeners) fn()
 }
 
@@ -213,7 +235,22 @@ export const currenciesActions = {
   }
 }
 
+export function readCurrencyPrefs(): CurrencyPrefs {
+  return readState()
+}
+
+export function isCurrencyPrefsDirty(): boolean {
+  return dirty
+}
+
 export function hydrateCurrencyPrefs(prefs: CurrencyPrefs): void {
+  if (
+    !prefs ||
+    !Array.isArray(prefs.active) ||
+    typeof prefs.selected !== 'string'
+  ) {
+    return
+  }
   write(prefs, { persist: false })
 }
 
@@ -224,6 +261,7 @@ export function hydrateCurrencyPrefs(prefs: CurrencyPrefs): void {
  */
 export function clearCurrencyPreferences(): void {
   cache = defaultPrefs()
+  dirty = false
   persister = null
   if (typeof window !== 'undefined') {
     try {
@@ -238,4 +276,6 @@ export function clearCurrencyPreferences(): void {
 /** Test-only hook to drop the in-memory cache between cases. */
 export function __resetCurrenciesCacheForTests() {
   cache = null
+  dirty = false
+  persister = null
 }

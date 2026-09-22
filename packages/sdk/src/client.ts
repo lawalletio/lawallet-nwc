@@ -15,6 +15,7 @@ import type {
   CreateRemoteWalletInput,
   CreateWalletAddressInput,
   CurrentUser,
+  CurrencyPrefs,
   FreeRegistration,
   Lud06Invoice,
   Lud06Response,
@@ -171,7 +172,11 @@ export class LaWalletClient {
 
   readonly users = {
     /** Fetches the current user — the first authenticated call creates it. */
-    me: (): Promise<CurrentUser> => this.http.get('/api/users/me')
+    me: (): Promise<CurrentUser> => this.http.get('/api/users/me'),
+    setCurrencyPrefs: (
+      currencyPrefs: CurrencyPrefs
+    ): Promise<{ currencyPrefs: CurrencyPrefs }> =>
+      this.http.put('/api/users/me/currency-prefs', { currencyPrefs })
   }
 
   readonly addresses = {

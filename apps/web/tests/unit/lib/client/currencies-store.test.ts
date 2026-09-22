@@ -104,6 +104,21 @@ describe('currencies-store', () => {
     ])
   })
 
+  it('drops unknown and duplicate codes when hydrating', () => {
+    hydrateCurrencyPrefs({
+      active: ['USD', 'SAT', 'USD', 'NOPE'],
+      selected: 'NOPE'
+    })
+
+    const { result: selected } = renderHook(() => useSelectedCurrencyCode())
+    const { result: active } = renderHook(() => useActiveCurrencies())
+    expect(selected.current).toBe('SAT')
+    expect(active.current.map(currency => currency.code)).toEqual([
+      'SAT',
+      'USD'
+    ])
+  })
+
   it('asks the persister to save local edits but not a server hydrate', () => {
     const persist = vi.fn()
     setCurrencyPrefsPersister(persist)

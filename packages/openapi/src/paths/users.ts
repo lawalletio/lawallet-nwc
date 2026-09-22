@@ -35,6 +35,10 @@ registry.registerPath({
   }
 })
 
+const currentUserSchema = userSchema.extend({
+  currencyPrefs: schemas.CurrencyPrefs.nullable()
+})
+
 registry.registerPath({
   ...withRole('USER'),
   method: 'get',
@@ -44,7 +48,7 @@ registry.registerPath({
   operationId: 'users.me',
   security: protectedSecurity,
   responses: {
-    200: inlineJsonResponse('Current user.', userSchema),
+    200: inlineJsonResponse('Current user.', currentUserSchema),
     ...commonErrorResponses
   }
 })
@@ -52,7 +56,7 @@ registry.registerPath({
 registry.registerPath({
   ...withRole('USER'),
   method: 'put',
-  path: '/api/users/me',
+  path: '/api/users/me/currency-prefs',
   tags: [TAG],
   summary: 'Save the current user’s display currency preferences.',
   operationId: 'users.me.currencyPrefs.set',
@@ -70,10 +74,7 @@ registry.registerPath({
     200: inlineJsonResponse(
       'Currency preferences saved.',
       z.object({
-        currencyPrefs: z.object({
-          active: z.array(z.string()),
-          selected: z.string()
-        })
+        currencyPrefs: schemas.CurrencyPrefs
       })
     ),
     ...commonErrorResponses

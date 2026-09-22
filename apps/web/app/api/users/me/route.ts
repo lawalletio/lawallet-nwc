@@ -3,16 +3,19 @@ import { prisma } from '@/lib/prisma'
 import { createNewUser } from '@/lib/user'
 import { withErrorHandling } from '@/types/server/error-handler'
 import { authenticate } from '@/lib/auth/unified-auth'
-import { requireUserId, resolveAccountByPubkey } from '@/lib/auth/account'
+import { resolveAccountByPubkey } from '@/lib/auth/account'
 import { resolveAddressDomain } from '@/lib/public-url'
 import { resolveWalletRoute } from '@/lib/wallet/resolve-payment-route'
 import { getPrimaryRemoteWalletForUser } from '@/lib/wallet/primary-wallet'
 import { decryptRemoteWalletConfig } from '@/lib/wallet/remote-wallet-vault'
-import { checkRequestLimits } from '@/lib/middleware/request-limits'
-import { validateBody } from '@/lib/validation/middleware'
-import { updateUserCurrencyPrefsSchema } from '@/lib/validation/schemas'
+import { currencyPrefsSchema } from '@/lib/validation/schemas'
 
 export const dynamic = 'force-dynamic'
+
+function publishedCurrencyPrefs(value: unknown) {
+  const parsed = currencyPrefsSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
 
 export const GET = withErrorHandling(async (request: Request) => {
   const { pubkey: authenticatedPubkey } = await authenticate(request)
@@ -103,22 +106,6 @@ export const GET = withErrorHandling(async (request: Request) => {
     // the address detail endpoint.
     primaryUsername: primaryAddress?.username ?? null,
     primaryRedirect: primaryAddress?.redirect ?? null,
-    currencyPrefs: user.currencyPrefs ?? null
+    currencyPrefs: publishedCurrencyPrefs(user.currencyPrefs)
   })
-})
-
-export const PUT = withErrorHandling(async (request: Request) => {
-  await checkRequestLimits(request, 'json')
-  const userId = await requireUserId(request)
-  const { currencyPrefs } = await validateBody(
-    request,
-    updateUserCurrencyPrefsSchema
-  )
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { currencyPrefs }
-  })
-
-  return NextResponse.json({ currencyPrefs })
 })

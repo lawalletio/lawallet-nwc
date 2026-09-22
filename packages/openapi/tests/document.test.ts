@@ -47,6 +47,7 @@ describe('getOpenApiDocument', () => {
       '/api/wallet/addresses',
       '/api/users',
       '/api/users/me',
+      '/api/users/me/currency-prefs',
       '/api/users/{userId}',
       '/api/invoices',
       '/api/settings',
