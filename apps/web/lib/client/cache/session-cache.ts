@@ -2,6 +2,7 @@
 
 import { clearApiCache } from '@/lib/client/hooks/use-api'
 import { clearAllBalances } from '@/lib/client/cache/balance-cache'
+import { clearAllSeenNotifications } from '@/lib/client/cache/nwc-notification-dedupe'
 import { clearAll as clearAllActivity } from '@/lib/client/cache/activity-cache'
 import { clearNwcCacheKeyMemo } from '@/lib/client/cache/key'
 import { clearContactsCache } from '@/lib/client/contacts-store'
@@ -81,6 +82,7 @@ function notifyServiceWorker(): void {
 export function clearSessionCaches(): Promise<void> {
   clearApiCache()
   clearAllBalances()
+  clearAllSeenNotifications()
   clearNwcCacheKeyMemo()
   clearContactsCache()
   clearCurrencyPreferences()

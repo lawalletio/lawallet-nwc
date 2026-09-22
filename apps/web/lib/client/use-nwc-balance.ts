@@ -30,25 +30,6 @@ export interface NwcTransactionEvent {
  */
 export type NwcStatus = 'idle' | 'connecting' | 'connected' | 'disconnected'
 
-/**
- * Human label for an NwcStatus, matching the copy every card in the app
- * uses ("Connected" / "Disconnected" / "Connecting…"). Centralised here
- * so BalanceCard, NwcCard and any future surface stay in sync if we ever
- * rephrase these states. `idle` maps to "Connecting…" for parity with
- * the hook's very first tick before the initial `getBalance()` resolves.
- */
-export function nwcStatusLabel(status: NwcStatus): string {
-  switch (status) {
-    case 'connected':
-      return 'Connected'
-    case 'disconnected':
-      return 'Disconnected'
-    case 'connecting':
-    case 'idle':
-      return 'Connecting…'
-  }
-}
-
 export interface NwcBalanceState {
   /** Current balance in sats. Null while loading or on error. */
   sats: number | null
@@ -208,6 +189,11 @@ export function useNwcBalance(
     let cancelled = false
     let intervalId: ReturnType<typeof setInterval> | null = null
     let unsubscribe: (() => void) | null = null
+    let subscribeRetryTimer: ReturnType<typeof setTimeout> | null = null
+    let subscribeInFlight = false
+    let notificationsLive = false
+    let subscribeAttempt = 0
+    let needsResubscribe = false
     // Per-request id so only the most recent in-flight `fetchOnce` may
     // commit state. `fetchOnce` is fired from both the poll `setInterval`
     // and the un-awaited NIP-47 notification callback, so two requests can
@@ -231,7 +217,7 @@ export function useNwcBalance(
       const client = new NWCClient({ nostrWalletConnectUrl: nwcString! })
       clientRef.current = client
 
-      async function fetchOnce() {
+      async function fetchOnce(fromNotification = false) {
         if (cancelled) return
         const myId = ++reqId
         setLoading(true)
@@ -255,6 +241,20 @@ export function useNwcBalance(
             toast.success('Wallet reconnected')
           }
           lastAnnouncedRef.current = 'connected'
+          // A failed poll usually means the relay socket died — resubscribe
+          // NIP-47 so payment cues resume without waiting for a remount.
+          // Notification-triggered fetches must not mark the socket dead:
+          // the subscription just delivered the event.
+          if (needsResubscribe) {
+            needsResubscribe = false
+            subscribeAttempt = 0
+            notificationsLive = false
+            if (subscribeRetryTimer) {
+              clearTimeout(subscribeRetryTimer)
+              subscribeRetryTimer = null
+            }
+            void subscribeNotifications()
+          }
         } catch (err) {
           if (cancelled || myId !== reqId) return
           const e = err instanceof Error ? err : new Error(String(err))
@@ -274,52 +274,94 @@ export function useNwcBalance(
             }
             lastAnnouncedRef.current = 'disconnected'
           }
+          if (!fromNotification) {
+            needsResubscribe = true
+          }
         } finally {
           if (!cancelled && myId === reqId) setLoading(false)
         }
       }
 
+      function scheduleSubscribeRetry() {
+        if (cancelled || subscribeRetryTimer) return
+        const delay = Math.min(
+          30_000,
+          1_000 * 2 ** Math.min(subscribeAttempt, 5)
+        )
+        subscribeAttempt += 1
+        subscribeRetryTimer = setTimeout(() => {
+          subscribeRetryTimer = null
+          void subscribeNotifications()
+        }, delay)
+      }
+
+      async function subscribeNotifications() {
+        if (cancelled || subscribeInFlight || notificationsLive) return
+        subscribeInFlight = true
+        try {
+          try {
+            unsubscribe?.()
+          } catch {
+            // ignore
+          }
+          unsubscribe = null
+          unsubscribe = await client.subscribeNotifications(
+            notification => {
+              if (cancelled) return
+              const tx = notification.notification
+              // Refresh balance on any payment event so the UI stays in sync
+              fetchOnce(true)
+              const event = {
+                type: tx.type,
+                amountSats: Math.floor(tx.amount / 1000),
+                feesPaidSats: Math.floor((tx.fees_paid ?? 0) / 1000),
+                description: tx.description ?? '',
+                paymentHash: tx.payment_hash,
+                settledAt: tx.settled_at ? tx.settled_at * 1000 : null
+              }
+              onTransactionRef.current?.(event)
+              // Mirror the new tx into the activity cache so the next reload
+              // (or a freshly-mounted ActivityScreen) paints with it
+              // pre-applied. `upsertMany` swallows IDB errors itself.
+              upsertMany(nwcKey, [
+                {
+                  type: event.type,
+                  amountSats: event.amountSats,
+                  feesPaidSats: event.feesPaidSats,
+                  description: event.description,
+                  paymentHash: event.paymentHash,
+                  preimage: null,
+                  settledAt: event.settledAt,
+                  createdAt: event.settledAt ?? Date.now()
+                }
+              ])
+            },
+            ['payment_received', 'payment_sent']
+          )
+          if (cancelled) {
+            try {
+              unsubscribe?.()
+            } catch {
+              // ignore
+            }
+            unsubscribe = null
+            return
+          }
+          notificationsLive = true
+          subscribeAttempt = 0
+        } catch {
+          // Wallet may not support notifications, or the relay dropped
+          // the socket. Polling still works; retry with backoff.
+          notificationsLive = false
+          scheduleSubscribeRetry()
+        } finally {
+          subscribeInFlight = false
+        }
+      }
+
       await fetchOnce()
       intervalId = setInterval(fetchOnce, pollMs)
-
-      // Subscribe to NIP-47 notifications for real-time updates
-      try {
-        unsubscribe = await client.subscribeNotifications(
-          notification => {
-            if (cancelled) return
-            const tx = notification.notification
-            // Refresh balance on any payment event so the UI stays in sync
-            fetchOnce()
-            const event = {
-              type: tx.type,
-              amountSats: Math.floor(tx.amount / 1000),
-              feesPaidSats: Math.floor((tx.fees_paid ?? 0) / 1000),
-              description: tx.description ?? '',
-              paymentHash: tx.payment_hash,
-              settledAt: tx.settled_at ? tx.settled_at * 1000 : null
-            }
-            onTransactionRef.current?.(event)
-            // Mirror the new tx into the activity cache so the next reload
-            // (or a freshly-mounted ActivityScreen) paints with it
-            // pre-applied. `upsertMany` swallows IDB errors itself.
-            upsertMany(nwcKey, [
-              {
-                type: event.type,
-                amountSats: event.amountSats,
-                feesPaidSats: event.feesPaidSats,
-                description: event.description,
-                paymentHash: event.paymentHash,
-                preimage: null,
-                settledAt: event.settledAt,
-                createdAt: event.settledAt ?? Date.now()
-              }
-            ])
-          },
-          ['payment_received', 'payment_sent']
-        )
-      } catch {
-        // Wallet may not support notifications — polling still works.
-      }
+      await subscribeNotifications()
     }
 
     load().catch(err => {
@@ -332,6 +374,7 @@ export function useNwcBalance(
     return () => {
       cancelled = true
       if (intervalId) clearInterval(intervalId)
+      if (subscribeRetryTimer) clearTimeout(subscribeRetryTimer)
       try {
         unsubscribe?.()
       } catch {

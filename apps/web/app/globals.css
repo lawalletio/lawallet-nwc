@@ -199,6 +199,29 @@
   animation: ring-expand 1.6s ease-out infinite;
 }
 
+/* Wallet home payment cue — slide+fade in; reduced-motion keeps a fade. */
+@keyframes payment-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes payment-notice-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-payment-notice {
+  animation: payment-notice-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* SVG checkmark stroke draw. */
 @keyframes draw-check {
   to {
@@ -213,5 +236,8 @@
   .animate-activate-glow,
   .animate-ring-expand {
     animation: none;
+  }
+  .animate-payment-notice {
+    animation: payment-notice-fade 0.2s ease-out both;
   }
 }

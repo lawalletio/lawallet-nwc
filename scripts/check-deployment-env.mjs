@@ -161,6 +161,31 @@ const START9_SECRET_CONTRACT = [
   }
 ]
 
+// Owned-package layout. Community master already matches; keep this on the
+// repo we merge so a sideload-only Postgres mount cannot ship again.
+const START9_LAYOUT_CONTRACT = [
+  {
+    path: 'startos/manifest/index.ts',
+    checks: [
+      {
+        value: "volumes: ['main', 'db']",
+        minimum: 1,
+        label: "must declare volumes: ['main', 'db']"
+      }
+    ]
+  },
+  {
+    path: 'startos/backups.ts',
+    checks: [
+      {
+        value: 'withPgDump',
+        minimum: 1,
+        label: 'must back up Postgres with withPgDump'
+      }
+    ]
+  }
+]
+
 function parseDotenv(contents) {
   return Object.fromEntries(
     contents
@@ -280,8 +305,8 @@ for (const packagePath of UMBREL_PACKAGE_FILES) {
 // StartOS packages live in separate repos (sideload vs Community marketplace)
 // and are only rewritten by their own automation. v2.6.0 made NWC_VAULT_SECRET
 // required on the listener; a tag-only bump of either package crash-loops
-// Payment Listener. The two tracks share package id `lawallet-nwc` but not
-// volume layout, so this gate only checks the secret contract, not mounts.
+// Payment Listener. After 2.7.0:1 both tracks share main+db; the owned repo
+// must not regress that layout.
 for (const start9Package of START9_PACKAGES) {
   for (const { path: packagePath, checks } of START9_SECRET_CONTRACT) {
     let contents
@@ -314,6 +339,41 @@ for (const start9Package of START9_PACKAGES) {
       start9Package.owned
         ? `WARNING: ${failures.join('; ')}. Releases stay blocked until ${start9Package.name} is updated.`
         : `WARNING: ${failures.join('; ')}. ${start9Package.name} is a third-party registry we cannot merge into, so this never blocks a release — operators on that listing should sideload instead until it adopts the contract.`
+    )
+  }
+}
+
+for (const start9Package of START9_PACKAGES) {
+  if (!start9Package.owned) continue
+  for (const { path: packagePath, checks } of START9_LAYOUT_CONTRACT) {
+    let contents
+    try {
+      contents = await readRemoteUrl(`${start9Package.rawBase}/${packagePath}`)
+    } catch (error) {
+      console.warn(
+        `Skipped Start9 layout check for ${start9Package.name} ${packagePath}: ${error.message}`
+      )
+      continue
+    }
+    const failures = checks
+      .map(contract =>
+        minOccurrenceFailure(
+          contents,
+          contract.value,
+          contract.minimum,
+          `Start9 package ${start9Package.name} ${packagePath} ${contract.label}`
+        )
+      )
+      .filter(Boolean)
+    if (failures.length === 0) continue
+
+    if (strictExternalPackages) {
+      throw new Error(
+        `Deployment environment check failed: ${failures.join('; ')}`
+      )
+    }
+    console.warn(
+      `WARNING: ${failures.join('; ')}. Releases stay blocked until ${start9Package.name} is updated.`
     )
   }
 }

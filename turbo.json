@@ -111,12 +111,14 @@
     },
     "test": {
       "dependsOn": [
+        "^build",
         "^topo",
         "db:generate"
       ]
     },
     "test:coverage": {
       "dependsOn": [
+        "^build",
         "^topo",
         "db:generate"
       ],

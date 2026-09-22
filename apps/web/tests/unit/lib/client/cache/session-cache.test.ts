@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IDBFactory } from 'fake-indexeddb'
 import { clearSessionCaches } from '@/lib/client/cache/session-cache'
 import { writeBalance } from '@/lib/client/cache/balance-cache'
+import {
+  claimNotification,
+  __resetSeenNotificationsForTests
+} from '@/lib/client/cache/nwc-notification-dedupe'
 import { readRecent, upsertMany } from '@/lib/client/cache/activity-cache'
 import { __resetIdbForTests } from '@/lib/client/cache/idb'
 import {
@@ -23,6 +27,7 @@ describe('session cache cleanup', () => {
     __resetIdbForTests()
     __resetContactsCacheForTests()
     __resetCurrenciesCacheForTests()
+    __resetSeenNotificationsForTests()
   })
 
   it('wipes account data from memory, storage, IndexedDB, and CacheStorage', async () => {
@@ -40,6 +45,7 @@ describe('session cache cleanup', () => {
     })
 
     writeBalance(NWC_KEY, 21)
+    claimNotification(NWC_KEY, { type: 'incoming', paymentHash: 'hash' })
     contactsActions.add({
       name: 'Alice',
       lightningAddress: 'alice@example.com'
@@ -67,6 +73,9 @@ describe('session cache cleanup', () => {
 
     expect(
       window.localStorage.getItem(`lawallet-balance:${NWC_KEY}`)
+    ).toBeNull()
+    expect(
+      window.localStorage.getItem(`lawallet-nwc-seen:${NWC_KEY}`)
     ).toBeNull()
     expect(window.localStorage.getItem('lawallet-contacts')).toBeNull()
     expect(window.localStorage.getItem('lawallet-active-currencies')).toBeNull()

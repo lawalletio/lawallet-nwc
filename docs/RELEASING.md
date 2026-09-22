@@ -91,11 +91,15 @@ package bump:
 | Target | Repo | Expect |
 | --- | --- | --- |
 | Umbrel | `lawalletio/umbrel-app-store` | `version:` + both image tags bumped, `releaseNotes` matching the changelog |
-| Start9 (sideload) | `lawalletio/lawallet-startos` | `<version>:0` in `startos/versions/current.ts`, a signed `.s9pk` on the release |
+| Start9 (sideload) | `lawalletio/lawallet-startos` | `<version>:0` in `startos/versions/current.ts`, five-locale `releaseNotes`, a signed `.s9pk` on the release |
+| Start9 (Community) | `Start9-Community/lawallet-startos` | PR opened by the sideload Release workflow; they review and merge. Advisory in `deploy:check`. |
 
-`Start9-Community/lawallet-startos` is **not** dispatched — that listing is
-updated by PR into a third-party registry. Its package version starts at `:1`
-because the sideload repo publishes `:0` for the same package id.
+`Start9-Community/lawallet-startos` is **not** a pull-mirror and is **not**
+dispatched as a self-merge. Registry builds are made only from that fork.
+Both tracks share `id: lawallet-nwc` and the same `main` + `db` layout, so
+`:0` (sideload) and `:1` (registry) of the same version are interchangeable
+after `2.7.0:1`. `2.7.0:1` itself was a one-off converge revision; future
+auto-bumps reset to `:0` and open a Community PR.
 
 If the changelog needed a fix after tagging, edit it and update the GitHub
 Release body too (`gh release edit vX.Y.Z --notes-file …`) — the Umbrel note is
